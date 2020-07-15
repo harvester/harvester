@@ -40,10 +40,6 @@ func (c *FakeKubevirtV1) VirtualMachineInstances(namespace string) v1.VirtualMac
 	return &FakeVirtualMachineInstances{c, namespace}
 }
 
-func (c *FakeKubevirtV1) VirtualMachineInstanceGuestOSUserLists(namespace string) v1.VirtualMachineInstanceGuestOSUserListInterface {
-	return &FakeVirtualMachineInstanceGuestOSUserLists{c, namespace}
-}
-
 func (c *FakeKubevirtV1) VirtualMachineInstanceMigrations(namespace string) v1.VirtualMachineInstanceMigrationInterface {
 	return &FakeVirtualMachineInstanceMigrations{c, namespace}
 }

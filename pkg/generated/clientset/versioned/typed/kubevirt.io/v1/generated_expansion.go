@@ -24,8 +24,6 @@ type VirtualMachineExpansion interface{}
 
 type VirtualMachineInstanceExpansion interface{}
 
-type VirtualMachineInstanceGuestOSUserListExpansion interface{}
-
 type VirtualMachineInstanceMigrationExpansion interface{}
 
 type VirtualMachineInstancePresetExpansion interface{}

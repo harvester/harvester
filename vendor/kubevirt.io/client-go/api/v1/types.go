@@ -1244,7 +1244,6 @@ type VirtualMachineInstanceGuestAgentInfo struct {
 //
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +k8s:openapi-gen=true
-// +genclient
 type VirtualMachineInstanceGuestOSUserList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -1253,6 +1252,7 @@ type VirtualMachineInstanceGuestOSUserList struct {
 
 // VirtualMachineGuestOSUser is the single user of the guest os
 // +k8s:openapi-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type VirtualMachineInstanceGuestOSUser struct {
 	UserName  string  `json:"userName"`
 	Domain    string  `json:"domain,omitempty"`
