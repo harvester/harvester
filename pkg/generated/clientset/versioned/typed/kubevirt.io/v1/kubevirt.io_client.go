@@ -29,7 +29,6 @@ type KubevirtV1Interface interface {
 	KubeVirtsGetter
 	VirtualMachinesGetter
 	VirtualMachineInstancesGetter
-	VirtualMachineInstanceGuestOSUserListsGetter
 	VirtualMachineInstanceMigrationsGetter
 	VirtualMachineInstancePresetsGetter
 	VirtualMachineInstanceReplicaSetsGetter
@@ -50,10 +49,6 @@ func (c *KubevirtV1Client) VirtualMachines(namespace string) VirtualMachineInter
 
 func (c *KubevirtV1Client) VirtualMachineInstances(namespace string) VirtualMachineInstanceInterface {
 	return newVirtualMachineInstances(c, namespace)
-}
-
-func (c *KubevirtV1Client) VirtualMachineInstanceGuestOSUserLists(namespace string) VirtualMachineInstanceGuestOSUserListInterface {
-	return newVirtualMachineInstanceGuestOSUserLists(c, namespace)
 }
 
 func (c *KubevirtV1Client) VirtualMachineInstanceMigrations(namespace string) VirtualMachineInstanceMigrationInterface {
