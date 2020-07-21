@@ -1,7 +1,7 @@
 Rancher VM
 ========
 
-New version of Rancher VM is working in progress
+New version of Rancher VM is working in progress.
 
 ## Building
 
