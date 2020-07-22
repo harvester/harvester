@@ -19,9 +19,11 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/cnrancher/rancher-vm/pkg/generated/clientset/versioned"
-	kubevirtv1 "github.com/cnrancher/rancher-vm/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
-	fakekubevirtv1 "github.com/cnrancher/rancher-vm/pkg/generated/clientset/versioned/typed/kubevirt.io/v1/fake"
+	clientset "github.com/rancher/vm/pkg/generated/clientset/versioned"
+	kubevirtv1alpha3 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
+	fakekubevirtv1alpha3 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3/fake"
+	vmv1alpha1 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1"
+	fakevmv1alpha1 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -76,7 +78,12 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 
 var _ clientset.Interface = &Clientset{}
 
-// KubevirtV1 retrieves the KubevirtV1Client
-func (c *Clientset) KubevirtV1() kubevirtv1.KubevirtV1Interface {
-	return &fakekubevirtv1.FakeKubevirtV1{Fake: &c.Fake}
+// KubevirtV1alpha3 retrieves the KubevirtV1alpha3Client
+func (c *Clientset) KubevirtV1alpha3() kubevirtv1alpha3.KubevirtV1alpha3Interface {
+	return &fakekubevirtv1alpha3.FakeKubevirtV1alpha3{Fake: &c.Fake}
+}
+
+// VmV1alpha1 retrieves the VmV1alpha1Client
+func (c *Clientset) VmV1alpha1() vmv1alpha1.VmV1alpha1Interface {
+	return &fakevmv1alpha1.FakeVmV1alpha1{Fake: &c.Fake}
 }
