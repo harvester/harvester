@@ -10,7 +10,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rancher/wrangler/pkg/kubeconfig"
+	pkgcontext "github.com/rancher/vm/pkg/context"
+	"github.com/rancher/vm/pkg/server"
 	"github.com/rancher/wrangler/pkg/signals"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
@@ -33,6 +34,24 @@ func main() {
 			EnvVar:      "KUBECONFIG",
 			Destination: &KubeConfig,
 		},
+		cli.IntFlag{
+			Name:        "threadiness",
+			EnvVar:      "THREADINESS",
+			Value:       10,
+			Destination: &pkgcontext.Threadiness,
+		},
+		cli.IntFlag{
+			Name:        "http-port",
+			EnvVar:      "VM_SERVER_HTTP_PORT",
+			Value:       8080,
+			Destination: &pkgcontext.HTTPListenPort,
+		},
+		cli.IntFlag{
+			Name:        "https-port",
+			EnvVar:      "VM_SERVER_HTTPS_PORT",
+			Value:       8443,
+			Destination: &pkgcontext.HTTPSListenPort,
+		},
 	}
 	app.Action = run
 
@@ -47,24 +66,16 @@ func run(c *cli.Context) {
 	logrus.Info("Starting controller")
 	ctx := signals.SetupSignalHandler(context.Background())
 
-	kubeConfig, err := kubeconfig.GetNonInteractiveClientConfig(KubeConfig).ClientConfig()
+	config, err := server.GetConfig(KubeConfig)
 	if err != nil {
 		logrus.Fatalf("failed to find kubeconfig: %v", err)
 	}
 
-	// this is vendor holder, need to be remove in the future.
-	println(kubeConfig.Host)
-
-	// foos, err := some.NewFactoryFromConfig(kubeConfig)
-	// if err != nil {
-	// 	logrus.Fatalf("Error building sample controllers: %s", err.Error())
-	// }
-
-	// foo.Register(ctx, foos.Some().V1().Foo())
-
-	// if err := start.All(ctx, 2, foos); err != nil {
-	// 	logrus.Fatalf("Error starting: %s", err.Error())
-	// }
-
-	<-ctx.Done()
+	vm, err := server.New(ctx, config)
+	if err != nil {
+		logrus.Fatalf("failed to create vm server: %v", err)
+	}
+	if err := vm.Start(); err != nil {
+		logrus.Fatalf("vm server stop, %v", err)
+	}
 }
