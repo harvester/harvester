@@ -3,19 +3,23 @@ package main
 import (
 	"os"
 
+	vmv1 "github.com/rancher/vm/pkg/apis/vm.cattle.io/v1alpha1"
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
-	kubevirtv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/client-go/api/v1alpha3"
 )
 
 func main() {
 	os.Unsetenv("GOPATH")
 	controllergen.Run(args.Options{
-		OutputPackage: "github.com/cnrancher/rancher-vm/pkg/generated",
+		OutputPackage: "github.com/rancher/vm/pkg/generated",
 		Boilerplate:   "scripts/boilerplate.go.txt",
 		Groups: map[string]args.Group{
 			"vm.cattle.io": {
-				Types:           []interface{}{},
+				Types: []interface{}{
+					vmv1.Image{},
+					vmv1.Setting{},
+				},
 				GenerateTypes:   true,
 				GenerateClients: true,
 			},
