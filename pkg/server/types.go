@@ -12,7 +12,8 @@ import (
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/steve/pkg/accesscontrol"
 	steveserver "github.com/rancher/steve/pkg/server"
-	pkgcontext "github.com/rancher/vm/pkg/context"
+	"github.com/rancher/vm/pkg/api"
+	"github.com/rancher/vm/pkg/config"
 	"github.com/rancher/vm/pkg/controller/global"
 	"github.com/rancher/vm/pkg/controller/master"
 	"github.com/rancher/vm/pkg/server/ui"
@@ -98,7 +99,7 @@ func (s *VMServer) Start() error {
 	opts := &server.ListenOpts{
 		Secrets: s.steve.Controllers.Core.Secret(),
 	}
-	return s.steve.ListenAndServe(s.Context, pkgcontext.HTTPSListenPort, pkgcontext.HTTPListenPort, opts)
+	return s.steve.ListenAndServe(s.Context, config.HTTPSListenPort, config.HTTPListenPort, opts)
 }
 
 func (s *VMServer) generateSteveServer() error {
@@ -115,9 +116,9 @@ func (s *VMServer) generateSteveServer() error {
 		SharedControllerFactory: factory,
 	}
 
-	var scaled *pkgcontext.Scaled
+	var scaled *config.Scaled
 
-	s.Context, scaled, err = pkgcontext.SetupScaled(s.Context, s.RestConfig, opts)
+	s.Context, scaled, err = config.SetupScaled(s.Context, s.RestConfig, opts)
 	if err != nil {
 		return err
 	}
@@ -145,6 +146,7 @@ func (s *VMServer) generateSteveServer() error {
 		StartHooks: []steveserver.StartHook{
 			master.Setup,
 			global.Setup,
+			api.Setup,
 		},
 		HTMLResponseWriter: writer.HTMLResponseWriter{
 			CSSURL:       ui.CSSURLGetter,

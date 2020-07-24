@@ -6,10 +6,10 @@ import (
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/steve/pkg/stores/proxy"
-	pkgcontext "github.com/rancher/vm/pkg/context"
+	"github.com/rancher/vm/pkg/config"
 )
 
-func setSchema(scaled *pkgcontext.Scaled, server *server.Server) error {
+func setSchema(scaled *config.Scaled, server *server.Server) error {
 	t := schema.Template{
 		ID: "vm.cattle.io.setting",
 		Store: store{

@@ -6,12 +6,12 @@ import (
 
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/vm/pkg/apis/vm.cattle.io/v1alpha1"
-	pkgcontext "github.com/rancher/vm/pkg/context"
+	"github.com/rancher/vm/pkg/config"
 	"github.com/rancher/wrangler/pkg/crd"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func createCRDs(ctx context.Context, _ *pkgcontext.Scaled, server *server.Server) error {
+func createCRDs(ctx context.Context, _ *config.Scaled, server *server.Server) error {
 	factory, err := crd.NewFactoryFromClient(server.RestConfig)
 	if err != nil {
 		return err
@@ -19,9 +19,10 @@ func createCRDs(ctx context.Context, _ *pkgcontext.Scaled, server *server.Server
 	return factory.
 		BatchCreateCRDs(ctx, crd.NonNamespacedTypes(
 			getCRDName(v1alpha1.SchemeGroupVersion, "Setting"),
+		)...).
+		BatchCreateCRDs(ctx, crd.NamespacedTypes(
 			getCRDName(v1alpha1.SchemeGroupVersion, "Image"),
 		)...).
-		BatchCreateCRDs(ctx, crd.NamespacedTypes()...).
 		BatchWait()
 }
 

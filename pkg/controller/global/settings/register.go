@@ -7,14 +7,14 @@ import (
 
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/vm/pkg/apis/vm.cattle.io/v1alpha1"
-	pkgcontext "github.com/rancher/vm/pkg/context"
+	"github.com/rancher/vm/pkg/config"
 	controllers "github.com/rancher/vm/pkg/generated/controllers/vm.cattle.io/v1alpha1"
 	"github.com/rancher/vm/pkg/settings"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func Register(ctx context.Context, scaled *pkgcontext.Scaled, server *server.Server) error {
+func Register(ctx context.Context, scaled *config.Scaled, server *server.Server) error {
 	sp := &settingsProvider{
 		context:        ctx,
 		settings:       scaled.VMFactory.Vm().V1alpha1().Setting(),
