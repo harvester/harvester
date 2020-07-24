@@ -135,6 +135,7 @@ func (s *VMServer) generateSteveServer() error {
 		RestConfig:      s.RestConfig,
 		AuthMiddleware:  nil,
 		Next:            handler,
+		Router:          Routes,
 		DashboardURL: func() string {
 			if settings.UIIndex.Get() == "local" {
 				return settings.UIPath.Get()
