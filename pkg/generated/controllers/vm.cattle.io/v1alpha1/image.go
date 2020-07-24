@@ -22,10 +22,13 @@ import (
 	"context"
 	"time"
 
-	v1alpha1 "github.com/rancher/vm/pkg/apis/vm.cattle.io/v1alpha1"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
+	v1alpha1 "github.com/rancher/vm/pkg/apis/vm.cattle.io/v1alpha1"
+	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +58,7 @@ type ImageController interface {
 type ImageClient interface {
 	Create(*v1alpha1.Image) (*v1alpha1.Image, error)
 	Update(*v1alpha1.Image) (*v1alpha1.Image, error)
-
+	UpdateStatus(*v1alpha1.Image) (*v1alpha1.Image, error)
 	Delete(namespace, name string, options *metav1.DeleteOptions) error
 	Get(namespace, name string, options metav1.GetOptions) (*v1alpha1.Image, error)
 	List(namespace string, opts metav1.ListOptions) (*v1alpha1.ImageList, error)
@@ -184,6 +187,11 @@ func (c *imageController) Update(obj *v1alpha1.Image) (*v1alpha1.Image, error) {
 	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
+func (c *imageController) UpdateStatus(obj *v1alpha1.Image) (*v1alpha1.Image, error) {
+	result := &v1alpha1.Image{}
+	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
+}
+
 func (c *imageController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
@@ -253,4 +261,104 @@ func (c *imageCache) GetByIndex(indexName, key string) (result []*v1alpha1.Image
 		result = append(result, obj.(*v1alpha1.Image))
 	}
 	return result, nil
+}
+
+type ImageStatusHandler func(obj *v1alpha1.Image, status v1alpha1.ImageStatus) (v1alpha1.ImageStatus, error)
+
+type ImageGeneratingHandler func(obj *v1alpha1.Image, status v1alpha1.ImageStatus) ([]runtime.Object, v1alpha1.ImageStatus, error)
+
+func RegisterImageStatusHandler(ctx context.Context, controller ImageController, condition condition.Cond, name string, handler ImageStatusHandler) {
+	statusHandler := &imageStatusHandler{
+		client:    controller,
+		condition: condition,
+		handler:   handler,
+	}
+	controller.AddGenericHandler(ctx, name, FromImageHandlerToHandler(statusHandler.sync))
+}
+
+func RegisterImageGeneratingHandler(ctx context.Context, controller ImageController, apply apply.Apply,
+	condition condition.Cond, name string, handler ImageGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &imageGeneratingHandler{
+		ImageGeneratingHandler: handler,
+		apply:                  apply,
+		name:                   name,
+		gvk:                    controller.GroupVersionKind(),
+	}
+	if opts != nil {
+		statusHandler.opts = *opts
+	}
+	controller.OnChange(ctx, name, statusHandler.Remove)
+	RegisterImageStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+}
+
+type imageStatusHandler struct {
+	client    ImageClient
+	condition condition.Cond
+	handler   ImageStatusHandler
+}
+
+func (a *imageStatusHandler) sync(key string, obj *v1alpha1.Image) (*v1alpha1.Image, error) {
+	if obj == nil {
+		return obj, nil
+	}
+
+	origStatus := obj.Status.DeepCopy()
+	obj = obj.DeepCopy()
+	newStatus, err := a.handler(obj, obj.Status)
+	if err != nil {
+		// Revert to old status on error
+		newStatus = *origStatus.DeepCopy()
+	}
+
+	if a.condition != "" {
+		if errors.IsConflict(err) {
+			a.condition.SetError(&newStatus, "", nil)
+		} else {
+			a.condition.SetError(&newStatus, "", err)
+		}
+	}
+	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		var newErr error
+		obj.Status = newStatus
+		obj, newErr = a.client.UpdateStatus(obj)
+		if err == nil {
+			err = newErr
+		}
+	}
+	return obj, err
+}
+
+type imageGeneratingHandler struct {
+	ImageGeneratingHandler
+	apply apply.Apply
+	opts  generic.GeneratingHandlerOptions
+	gvk   schema.GroupVersionKind
+	name  string
+}
+
+func (a *imageGeneratingHandler) Remove(key string, obj *v1alpha1.Image) (*v1alpha1.Image, error) {
+	if obj != nil {
+		return obj, nil
+	}
+
+	obj = &v1alpha1.Image{}
+	obj.Namespace, obj.Name = kv.RSplit(key, "/")
+	obj.SetGroupVersionKind(a.gvk)
+
+	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects()
+}
+
+func (a *imageGeneratingHandler) Handle(obj *v1alpha1.Image, status v1alpha1.ImageStatus) (v1alpha1.ImageStatus, error) {
+	objs, newStatus, err := a.ImageGeneratingHandler(obj, status)
+	if err != nil {
+		return newStatus, err
+	}
+
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects(objs...)
 }

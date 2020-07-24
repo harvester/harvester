@@ -19,8 +19,8 @@ limitations under the License.
 package vm
 
 import (
-	v1alpha1 "github.com/rancher/vm/pkg/generated/controllers/vm.cattle.io/v1alpha1"
 	"github.com/rancher/lasso/pkg/controller"
+	v1alpha1 "github.com/rancher/vm/pkg/generated/controllers/vm.cattle.io/v1alpha1"
 )
 
 type Interface interface {
