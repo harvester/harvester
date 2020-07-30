@@ -1,3 +1,5 @@
 ./.dapper
 ./.cache
 ./dist
+.idea
+.DS_Store

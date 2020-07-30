@@ -1,0 +1,14 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  # NB(thxCode): name should not be customized as below:
+  # name: {{ template "kubevirt-operator.fullname" . }}
+  # because the installation strategy dump action needs this PriorityClass.
+  name: kubevirt-cluster-critical
+  labels:
+{{ include "kubevirt-operator.labels" . | indent 4 }}
+    app.kubernetes.io/name: virt-operator
+    app.kubernetes.io/component: operator
+value: 1000000000
+globalDefault: false
+description: "This priority class should be used for core kubevirt components only."

@@ -1,0 +1,34 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  # NB(thxCode): name should not be customized as below:
+  # name: {{ template "kubevirt-operator.fullname" . }}
+  # because we need to keep it as same as all-in-one YAML from upstream.
+  name: kubevirt-operator
+  labels:
+{{ include "kubevirt-operator.labels" . | indent 4 }}
+    app.kubernetes.io/name: virt-operator
+    app.kubernetes.io/component: operator
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - patch
+      - delete

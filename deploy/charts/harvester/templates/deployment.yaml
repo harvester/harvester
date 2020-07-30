@@ -1,0 +1,140 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # NB(thxCode): name should not be customized as below:
+  # name: {{ template "harvester.fullname" . }}
+  # because we can easily confirm this resource from the corresponding namespace.
+  name: harvester
+  labels:
+{{ include "harvester.labels" . | indent 4 }}
+    app.kubernetes.io/name: harvester
+    app.kubernetes.io/component: apiserver
+spec:
+  selector:
+    matchLabels:
+{{ include "harvester.immutableLabels" . | indent 6 }}
+      app.kubernetes.io/name: harvester
+      app.kubernetes.io/component: apiserver
+  replicas: {{ .Values.replicas }}
+{{- if .Values.strategy }}
+  strategy:
+{{ toYaml .Values.strategy | indent 4 }}
+{{- end }}
+  template:
+    metadata:
+      labels:
+{{ include "harvester.labels" . | indent 8 }}
+        app.kubernetes.io/name: harvester
+        app.kubernetes.io/component: apiserver
+    spec:
+      serviceAccountName: harvester
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - harvester
+                    - key: app.kubernetes.io/component
+                      operator: In
+                      values:
+                        - apiserver
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: beta.kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+      containers:
+        - name: vm
+          image: {{ .Values.containers.apiserver.image.repository }}:{{ .Values.containers.apiserver.image.tag }}
+          imagePullPolicy: {{ .Values.containers.apiserver.image.imagePullPolicy }}
+{{- if .Values.containers.apiserver.command }}
+          command:
+{{ toYaml .Values.containers.apiserver.command | indent 12 }}
+{{- end }}
+{{- if .Values.containers.apiserver.args }}
+          args:
+{{ toYaml .Values.containers.apiserver.args | indent 12 }}
+{{- end }}
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: accesskey
+{{- if .Values.minio.enabled }}
+                  name: {{ if .Values.minio.existingSecret }}{{ .Values.minio.existingSecret }}{{ else }}{{ template "charts.minio.fullname" . }}{{ end }}
+{{- else }}
+                  {{- with .Values.containers.apiserver.vmImageStorageGateway }}
+                  name: {{ if .secretName }}{{ .secretName }}{{ else }}harvester-vm-image-storage-gateway{{ end }}
+                  {{- end }}
+{{- end }}
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secretkey
+{{- if .Values.minio.enabled }}
+                  name: {{ if .Values.minio.existingSecret }}{{ .Values.minio.existingSecret }}{{ else }}{{ template "charts.minio.fullname" . }}{{ end }}
+{{- else }}
+                  {{- with .Values.containers.apiserver.vmImageStorageGateway }}
+                  name: {{ if .secretName }}{{ .secretName }}{{ else }}harvester-vm-image-storage-gateway{{ end }}
+                  {{- end }}
+{{- end }}
+            - name: MINIO_URL
+{{- if .Values.minio.enabled }}
+              value: {{printf "http://%s.%s:%s" (include "charts.minio.fullname" .) .Release.Namespace (.Values.minio.service.port | toString) }}
+{{- else }}
+              {{- with .Values.containers.apiserver.vmImageStorageGateway }}
+              value: {{ if .endpoint }}{{ .endpoint }}{{ else }}{{ fail "Please indicate the endpoint of S3 service if disabled default Minio deployment" }}{{ end }}
+              {{- end }}
+{{- end }}
+{{- if .Values.containers.apiserver.env }}
+{{ toYaml .Values.containers.apiserver.env | indent 12 }}
+{{- end }}
+          ports:
+            - containerPort: 8443
+              name: https
+              protocol: TCP
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+{{- if .Values.containers.apiserver.livenessProbe }}
+          livenessProbe:
+{{ toYaml .Values.containers.apiserver.livenessProbe | indent 12 }}
+{{- end }}
+{{- if .Values.containers.apiserver.readinessProbe }}
+          readinessProbe:
+{{ toYaml .Values.containers.apiserver.readinessProbe | indent 12 }}
+{{- end }}
+{{- if .Values.containers.apiserver.resources }}
+          resources:
+{{ toYaml .Values.containers.apiserver.resources | indent 12 }}
+{{- end }}
+{{- if .Values.securityContext }}
+      securityContext:
+{{ toYaml .Values.securityContext | indent 8 }}
+{{- end }}
+{{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+{{- end }}

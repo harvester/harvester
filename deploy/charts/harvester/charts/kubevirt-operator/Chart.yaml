@@ -1,0 +1,16 @@
+apiVersion: v2
+name: kubevirt-operator
+version: 0.1.0
+appVersion: 0.30.x
+description: KubeVirt Operator provides deployment and management of KubeVirt bundle components.
+icon: https://kubevirt.io/assets/images/KubeVirt_logo_color.svg
+type: application
+keywords:
+  - kubevirt
+  - operator
+home: https://github.com/kubevirt/kubevirt
+sources:
+  - https://github.com/kubevirt/kubevirt
+maintainers:
+  - name: thxCode
+    email: frank@rancher.com

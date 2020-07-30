@@ -1,0 +1,30 @@
+###########################################################################
+###########################################################################
+##                        Default values for CDI CR                      ##
+###########################################################################
+###########################################################################
+
+## Provide a name in place of labels.
+##
+nameOverride: ""
+
+## Provide a name to substitute for the full names of resources.
+##
+fullnameOverride: ""
+
+## Specify the specification of CDI resource.
+##
+spec:
+
+  ## Specify the pull policy of image,
+  ## which is used for overriding the PULL_POLICY env of cdi-operator，
+  ## defaults to "IfNotPresent".
+  ##
+  imagePullPolicy: "IfNotPresent"
+
+  ## Specify the uninstall strategy of CDI resource,
+  ## select from [RemoveWorkloads, BlockUninstallIfWorkloadsExist],
+  ## defaults to "RemoveWorkloads".
+  ## -- If specifies to BlockUninstallIfWorkloadsExist, we cannot drop CDI CRD directly, we need to change this field to blank or RemoveWorkloads.
+  ##
+  uninstallStrategy: "RemoveWorkloads"

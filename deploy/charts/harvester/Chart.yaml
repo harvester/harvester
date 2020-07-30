@@ -1,0 +1,36 @@
+apiVersion: v2
+name: harvester
+version: 0.1.0
+appVersion: 0.1.x
+description: Harvester is a virtual machine management add-on based on KubeVirt for Kubernetes.
+type: application
+keywords:
+  - virtualization
+  - kubevirt
+home: https://github.com/rancher/harvester
+sources:
+  - https://github.com/rancher/harvester
+maintainers:
+  - name: thxCode
+    email: frank@rancher.com
+dependencies:
+  - name: kubevirt-operator
+    version: 0.1.0
+    repository: file://charts/kubevirt-operator
+    condition: kubevirt-operator.enabled
+  - name: kubevirt
+    version: 0.1.0
+    repository: file://charts/kubevirt
+    condition: kubevirt.enabled
+  - name: cdi-operator
+    version: 0.1.0
+    repository: file://charts/cdi-operator
+    condition: cdi-operator.enabled
+  - name: cdi
+    version: 0.1.0
+    repository: file://charts/cdi
+    condition: cdi.enabled
+  - name: minio
+    version: 5.0.32
+    repository: file://charts/minio
+    condition: minio.enabled

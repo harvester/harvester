@@ -1,0 +1,195 @@
+###########################################################################
+###########################################################################
+##                    Default values for CDI Operator                    ##
+###########################################################################
+###########################################################################
+
+## Provide a name in place of labels.
+##
+nameOverride: ""
+
+## Provide a name to substitute for the full names of resources.
+##
+fullnameOverride: ""
+
+## Specify the replicas of workload.
+##
+replicas: 1
+
+## Specify the security context of workload.
+##
+securityContext:
+  runAsNonRoot: true
+
+## Specify the node selector of workload.
+##
+nodeSelector: {}
+
+## Specify the tolerations of workload.
+##
+tolerations: []
+#  - key: CriticalAddonsOnly
+#    operator: Exists
+
+## Specify the update strategy of workload.
+##
+strategy:
+  type: RollingUpdate
+
+## Specify the parameter of containers.
+##
+containers:
+
+  ## Specify the parameter of cdi-operator container.
+  ##
+  operator:
+
+    ## Specify the image.
+    ##
+    image:
+
+      ## Specify the pull policy of image.
+      ##
+      imagePullPolicy: Always
+
+      ## Specify the repository of image.
+      ##
+      repository: kubevirt/cdi-operator
+
+      ## Specify the tag of image.
+      ##
+      tag: latest
+
+    ## Specify the command.
+    ##
+    command: []
+
+    ## Specify the args.
+    ##
+    args: []
+
+    ## Specify the env.
+    ##
+    env: []
+    #  - name: OPERATOR_VERSION
+    #    value: xxx
+
+    ## Specify the liveness probe.
+    ##
+    livenessProbe: {}
+
+    ## Specify the readiness probe.
+    ##
+    readinessProbe:
+
+    ## Specify the resources.
+    ##
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+  ## Specify the parameter of cdi-controller container.
+  ##
+  controller:
+
+    ## Specify the image.
+    ##
+    image:
+
+      ## Specify the repository of image.
+      ##
+      repository: kubevirt/cdi-controller
+
+      ## Specify the tag of image,
+      ## defaults to the tag of operator image.
+      ##
+      tag: ""
+
+  ## Specify the parameter of cdi-importer container.
+  ##
+  importer:
+
+    ## Specify the image.
+    ##
+    image:
+
+      ## Specify the repository of image.
+      ##
+      repository: kubevirt/cdi-importer
+
+      ## Specify the tag of image,
+      ## defaults to the tag of operator image.
+      ##
+      tag: ""
+
+  ## Specify the parameter of cdi-cloner container.
+  ##
+  cloner:
+
+    ## Specify the image.
+    ##
+    image:
+
+      ## Specify the repository of image.
+      ##
+      repository: kubevirt/cdi-cloner
+
+      ## Specify the tag of image,
+      ## defaults to the tag of operator image.
+      ##
+      tag: ""
+
+  ## Specify the parameter of cdi-apiserver container.
+  ##
+  apiserver:
+
+    ## Specify the image.
+    ##
+    image:
+
+      ## Specify the repository of image.
+      ##
+      repository: kubevirt/cdi-apiserver
+
+      ## Specify the tag of image,
+      ## defaults to the tag of operator image.
+      ##
+      tag: ""
+
+  ## Specify the parameter of cdi-uploadserver container.
+  ##
+  uploadserver:
+
+    ## Specify the image.
+    ##
+    image:
+
+      ## Specify the repository of image.
+      ##
+      repository: kubevirt/cdi-uploadserver
+
+      ## Specify the tag of image,
+      ## defaults to the tag of operator image.
+      ##
+      tag: ""
+
+  ## Specify the parameter of cdi-uploadproxy container.
+  ##
+  uploadproxy:
+
+    ## Specify the image.
+    ##
+    image:
+
+      ## Specify the repository of image.
+      ##
+      repository: kubevirt/cdi-uploadproxy
+
+      ## Specify the tag of image,
+      ## defaults to the tag of operator image.
+      ##
+      tag: ""

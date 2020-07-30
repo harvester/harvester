@@ -1,0 +1,43 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  # NB(thxCode): name should not be customized as below:
+  # name: {{ template "cdi-operator.fullname" . }}
+  # because we need to keep it as same as all-in-one YAML from upstream.
+  name: cdi-operator
+  labels:
+{{ include "cdi-operator.labels" . | indent 4 }}
+    app.kubernetes.io/name: cdi-operator
+    app.kubernetes.io/component: operator
+rules:
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+      - roles
+    verbs:
+      - '*'
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+      - configmaps
+      - events
+      - secrets
+      - services
+    verbs:
+      - '*'
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - deployments/finalizers
+    verbs:
+      - '*'
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+      - routes/custom-host
+    verbs:
+      - '*'
