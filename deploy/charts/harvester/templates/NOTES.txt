@@ -1,0 +1,14 @@
+The Harvester has been installed into "{{ .Release.Namespace }}" namespace with "{{ .Release.Name }}" as release name.
+
+- {{ if index .Values "kubevirt-operator" "enabled" }}[x]{{ else }}[ ]{{ end }} KubeVirt Operator
+- {{ if .Values.kubevirt.enabled }}[x]{{ else }}[ ]{{ end }} KubeVirt Resource named "kubevirt"
+- {{ if index .Values "cdi-operator" "enabled" }}[x]{{ else }}[ ]{{ end }} KubeVirt Containerized Data Importer Operator
+- {{ if .Values.cdi.enabled }}[x]{{ else }}[ ]{{ end }} KubeVirt Containerized Data Importer(CDI) Resource named "cdi"
+- {{ if .Values.minio.enabled }}[x]{{ else }}[ ]{{ end }} Minio
+
+Please make sure there is a default StorageClass in the Kubernetes cluster.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}

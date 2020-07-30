@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # NB(thxCode): name should not be customized as below:
+  # name: {{ template "cdi-operator.fullname" . }}
+  # because we need to keep it as same as all-in-one YAML from upstream.
+  name: cdi-operator
+  labels:
+{{ include "cdi-operator.labels" . | indent 4 }}
+    app.kubernetes.io/name: cdi-operator
+    app.kubernetes.io/component: operator
+spec:
+  selector:
+    matchLabels:
+{{ include "cdi-operator.immutableLabels" . | indent 6 }}
+      app.kubernetes.io/name: cdi-operator
+      app.kubernetes.io/component: operator
+      cdi.kubevirt.io: cdi-operator
+{{- if .Values.replicas }}
+  replicas: {{ .Values.replicas }}
+{{- end }}
+{{- if .Values.strategy }}
+  strategy:
+{{ toYaml .Values.strategy | indent 4 }}
+{{- end }}
+  template:
+    metadata:
+      labels:
+{{ include "cdi-operator.labels" . | indent 8 }}
+        app.kubernetes.io/name: cdi-operator
+        app.kubernetes.io/component: operator
+        cdi.kubevirt.io: cdi-operator
+    spec:
+      serviceAccountName: cdi-operator
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: cdi.kubevirt.io
+                      operator: In
+                      values:
+                        - cdi-operator
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: beta.kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+      containers:
+        - name: cdi-operator
+          image: {{ .Values.containers.operator.image.repository }}:{{ .Values.containers.operator.image.tag }}
+          imagePullPolicy: {{ .Values.containers.operator.image.imagePullPolicy }}
+{{- if .Values.containers.operator.command }}
+          command:
+{{ toYaml .Values.containers.operator.command | indent 12 }}
+{{- end }}
+{{- if .Values.containers.operator.args }}
+          args:
+{{ toYaml .Values.containers.operator.args | indent 12 }}
+{{- end }}
+          env:
+            # the following variables can be overridden by input.
+            - name: VERBOSITY
+              value: "1"
+            - name: PULL_POLICY
+              value: {{ .Values.containers.operator.image.imagePullPolicy }}
+{{- if .Values.containers.operator.env }}
+{{ toYaml .Values.containers.operator.env | indent 12 }}
+{{- end }}
+            # the following variables can NOT be overridden by input.
+            - name: DEPLOY_CLUSTER_RESOURCES
+              value: "true"
+            - name: OPERATOR_VERSION
+              value: {{ .Values.containers.operator.image.tag }}
+            - name: CONTROLLER_IMAGE
+              value: {{ .Values.containers.controller.image.repository }}:{{ default .Values.containers.operator.image.tag .Values.containers.controller.image.tag }}
+            - name: IMPORTER_IMAGE
+              value: {{ .Values.containers.importer.image.repository }}:{{ default .Values.containers.operator.image.tag .Values.containers.importer.image.tag }}
+            - name: CLONER_IMAGE
+              value: {{ .Values.containers.cloner.image.repository }}:{{ default .Values.containers.operator.image.tag .Values.containers.cloner.image.tag }}
+            - name: APISERVER_IMAGE
+              value: {{ .Values.containers.apiserver.image.repository }}:{{ default .Values.containers.operator.image.tag .Values.containers.apiserver.image.tag }}
+            - name: UPLOAD_SERVER_IMAGE
+              value: {{ .Values.containers.uploadserver.image.repository }}:{{ default .Values.containers.operator.image.tag .Values.containers.uploadserver.image.tag }}
+            - name: UPLOAD_PROXY_IMAGE
+              value: {{ .Values.containers.uploadproxy.image.repository }}:{{ default .Values.containers.operator.image.tag .Values.containers.uploadproxy.image.tag }}
+          # NB(thxCode): there is not metrics exporter from cdi-operator implementation.
+          # ports:
+            # - containerPort: 60000
+            #  name: metrics
+            #  protocol: TCP
+{{- if .Values.containers.operator.livenessProbe }}
+          livenessProbe:
+{{ toYaml .Values.containers.operator.livenessProbe | indent 12 }}
+{{- end }}
+{{- if .Values.containers.operator.readinessProbe }}
+          readinessProbe:
+{{ toYaml .Values.containers.operator.readinessProbe | indent 12 }}
+{{- end }}
+{{- if .Values.containers.operator.resources }}
+          resources:
+{{ toYaml .Values.containers.operator.resources | indent 12 }}
+{{- end }}
+{{- if .Values.securityContext }}
+      securityContext:
+{{ toYaml .Values.securityContext | indent 8 }}
+{{- end }}
+{{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+{{- end }}

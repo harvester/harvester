@@ -1,0 +1,262 @@
+###########################################################################
+###########################################################################
+##          Override the sub-charts default configuration below.         ##
+###########################################################################
+###########################################################################
+
+## Specify the parameters to override the sub-chart.
+##
+kubevirt-operator:
+
+  ## Specify to install KubeVirt Operator,
+  ## defaults to "true".
+  ##
+  enabled: true
+
+## Specify the parameters to override the sub-chart.
+##
+kubevirt:
+
+  ## Specify to install KubeVirt CRD instance,
+  ## defaults to "true".
+  ##
+  enabled: true
+
+## Specify the parameters to override the sub-chart.
+##
+cdi-operator:
+
+  ## Specify to install CDI Operator,
+  ## defaults to "true".
+  ##
+  enabled: true
+
+## Specify the parameters to override the sub-chart.
+##
+cdi:
+
+  ## Specify to install CDI CRD instance,
+  ## defaults to "true".
+  ##
+  enabled: true
+
+## Specify the parameters to override the sub-chart.
+##
+minio:
+
+  ## Specify to install Minio,
+  ## defaults to "true".
+  ##
+  enabled: true
+
+  ## Specify the full name of Minio.
+  ##
+  fullnameOverride: "minio"
+
+  ## Specify the resources of Minio container.
+  ##
+  resources:
+    requests:
+      memory: 256m
+
+  ## Specify the persistence of Minio.
+  ##
+  persistence:
+
+    ## Specify the StorageClass of Minio,
+    ## otherwise, Minio will use the default StorageClass.
+    ##
+    storageClass: ""
+
+###########################################################################
+###########################################################################
+##                    Default values for Harvester                       ##
+###########################################################################
+###########################################################################
+
+## Provide a name in place of labels.
+##
+nameOverride: ""
+
+## Provide a name to substitute for the full names of resources.
+##
+fullnameOverride: ""
+
+## Specify the replicas of workload.
+##
+replicas: 1
+
+## Specify the security context of workload.
+##
+securityContext: {}
+
+## Specify the node selector of workload.
+##
+nodeSelector: {}
+
+## Specify the tolerations of workload.
+##
+tolerations: []
+#  - key: CriticalAddonsOnly
+#    operator: Exists
+
+## Specify the update strategy of workload.
+##
+strategy:
+  type: RollingUpdate
+
+## Specify the parameter of containers.
+##
+containers:
+
+  ## Specify the parameter of harvester-apiserver container.
+  ##
+  apiserver:
+
+    ## Specify the image.
+    ##
+    image:
+
+      ## Specify the pull policy of image.
+      ##
+      imagePullPolicy: Always
+
+      ## Specify the repository of image.
+      ##
+      repository: rancher/vm
+
+      ## Specify the tag of image.
+      ##
+      tag: master-head
+
+    ## Specify the command.
+    ##
+    command: []
+
+    ## Specify the args.
+    ##
+    args: []
+
+    ## Specify the env.
+    ##
+    env: []
+    #  - name: OPERATOR_IMAGE
+    #    value: xxx
+
+    ## Specify the liveness probe.
+    ##
+    livenessProbe: {}
+
+    ## Specify the readiness probe.
+    ##
+    readinessProbe: {}
+
+    ## Specify the resources.
+    ##
+    resources:
+      limits:
+        cpu: 500m
+        memory: 500Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+    ## Specify the gateway to access Minio-like VM image storage service which is compatible with S3,
+    ## only valid if Minio sub-charts is disabled in the same chart release.
+    ##
+    vmImageStorageGateway:
+
+      ## Specify the endpoint.
+      ##
+      endpoint: ""
+
+      ## Specify the name of the same namespace existing Secret instance,
+      ## which stored the access key(in "accessKey" field) and secret key(in "secretKey" field).
+      secretName: ""
+
+      ## Specify the access key,
+      ## the value will be stored in "accessKey" field of a specified Secret(named as the default fully qualified app name).
+      ##
+      accessKey: ""
+
+      ## Specify the secret key,
+      ## the value will store in "secretKey" field of a specified Secret(named as the default fully qualified app name).
+      ##
+      secretKey: ""
+
+## Specify the lifecycle jobs.
+##
+jobs:
+
+  ## Specify the pre-delete job.
+  ##
+  preDelete:
+
+    ## Specify to execute pre-delete job,
+    ## defaults to "true".
+    ##
+    enabled: true
+
+    ## Specify the node selector of workload.
+    ##
+    nodeSelector: {}
+
+    ## Specify the tolerations of workload.
+    ##
+    tolerations: []
+    #  - key: CriticalAddonsOnly
+    #    operator: Exists
+
+    ## Specify the backoff limit of workload,
+    ## defaults to "1".
+    ##
+    backoffLimit: 1
+
+    ## Specify the amount of seconds for calculate the active deadline,
+    ## defaults to "900".
+    ##
+    activeDeadlineSeconds: 900
+
+    ## Specify the amount of TTL seconds after finished(Complete/Failed),
+    ## defaults to "10".
+    ##
+    ttlSecondsAfterFinished: 10
+
+    ## Specify the restart policy of workload,
+    ## defaults to "OnFailure".
+    ##
+    restartPolicy: OnFailure
+
+    ## Specify the parameter of containers.
+    ##
+    containers:
+
+      ## Specify the parameter of kubectl action container.
+      ##
+      kubectl:
+
+        ## Specify the image.
+        ##
+        image:
+
+          ## Specify the pull policy of image.
+          ##
+          imagePullPolicy: IfNotPresent
+
+          ## Specify the repository of image.
+          ##
+          repository: bitnami/kubectl
+
+          ## Specify the tag of image.
+          ##
+          tag: 1.18.6
+
+        ## Specify the resources.
+        ##
+        resources:
+          limits:
+            cpu: 250m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi

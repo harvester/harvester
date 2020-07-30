@@ -1,0 +1,17 @@
+# NB(thxCode): the api version controls by the app version specification of Chart.yaml.
+apiVersion: {{ printf "kubevirt.io/%s" .Chart.AppVersion }}
+kind: KubeVirt
+metadata:
+  # NB(thxCode): name should not be customized as below:
+  # name: {{ template "kubevirt.fullname" . }}
+  # because multiple KubeVirt resources are useless,
+  # only the first instance will be deployed.
+  name: kubevirt
+  labels:
+{{ include "kubevirt.labels" . | indent 4 }}
+    app.kubernetes.io/name: kubevirt
+    app.kubernetes.io/component: metadata
+spec:
+{{- if .Values.spec }}
+{{ toYaml .Values.spec | indent 2 }}
+{{- end }}

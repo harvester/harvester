@@ -4,4 +4,5 @@
 /dist
 *.swp
 .idea
-harvester
+/harvester
+.DS_Store
