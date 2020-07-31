@@ -40,6 +40,7 @@ type ImagesGetter interface {
 type ImageInterface interface {
 	Create(ctx context.Context, image *v1alpha1.Image, opts v1.CreateOptions) (*v1alpha1.Image, error)
 	Update(ctx context.Context, image *v1alpha1.Image, opts v1.UpdateOptions) (*v1alpha1.Image, error)
+	UpdateStatus(ctx context.Context, image *v1alpha1.Image, opts v1.UpdateOptions) (*v1alpha1.Image, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.Image, error)
@@ -128,6 +129,22 @@ func (c *images) Update(ctx context.Context, image *v1alpha1.Image, opts v1.Upda
 		Namespace(c.ns).
 		Resource("images").
 		Name(image.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(image).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *images) UpdateStatus(ctx context.Context, image *v1alpha1.Image, opts v1.UpdateOptions) (result *v1alpha1.Image, err error) {
+	result = &v1alpha1.Image{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("images").
+		Name(image.Name).
+		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(image).
 		Do(ctx).

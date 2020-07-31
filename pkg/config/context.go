@@ -1,4 +1,4 @@
-package context
+package config
 
 import (
 	"context"
@@ -23,6 +23,10 @@ var (
 	Threadiness     int
 	HTTPListenPort  int
 	HTTPSListenPort int
+
+	MinioURL       string
+	MinioAccessKey string
+	MinioSecretKey string
 )
 
 type Scaled struct {

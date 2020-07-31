@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 
-	pkgcontext "github.com/rancher/vm/pkg/context"
+	"github.com/rancher/vm/pkg/config"
 	"github.com/rancher/vm/pkg/server"
 	"github.com/rancher/wrangler/pkg/signals"
 	"github.com/sirupsen/logrus"
@@ -38,19 +38,43 @@ func main() {
 			Name:        "threadiness",
 			EnvVar:      "THREADINESS",
 			Value:       10,
-			Destination: &pkgcontext.Threadiness,
+			Destination: &config.Threadiness,
 		},
 		cli.IntFlag{
 			Name:        "http-port",
 			EnvVar:      "VM_SERVER_HTTP_PORT",
 			Value:       8080,
-			Destination: &pkgcontext.HTTPListenPort,
+			Destination: &config.HTTPListenPort,
 		},
 		cli.IntFlag{
 			Name:        "https-port",
 			EnvVar:      "VM_SERVER_HTTPS_PORT",
 			Value:       8443,
-			Destination: &pkgcontext.HTTPSListenPort,
+			Destination: &config.HTTPSListenPort,
+		},
+		cli.StringFlag{
+			Name:        "namespace",
+			EnvVar:      "NAMESPACE",
+			Destination: &config.Namespace,
+			Usage:       "The default namespace to store management resources",
+		},
+		cli.StringFlag{
+			Name:        "minio-url",
+			EnvVar:      "MINIO_URL",
+			Destination: &config.MinioURL,
+			Required:    true,
+		},
+		cli.StringFlag{
+			Name:        "minio-access-key",
+			EnvVar:      "MINIO_ACCESS_KEY",
+			Destination: &config.MinioAccessKey,
+			Required:    true,
+		},
+		cli.StringFlag{
+			Name:        "minio-secret-key",
+			EnvVar:      "MINIO_SECRET_KEY",
+			Destination: &config.MinioSecretKey,
+			Required:    true,
 		},
 	}
 	app.Action = run
@@ -66,12 +90,12 @@ func run(c *cli.Context) {
 	logrus.Info("Starting controller")
 	ctx := signals.SetupSignalHandler(context.Background())
 
-	config, err := server.GetConfig(KubeConfig)
+	cfg, err := server.GetConfig(KubeConfig)
 	if err != nil {
 		logrus.Fatalf("failed to find kubeconfig: %v", err)
 	}
 
-	vm, err := server.New(ctx, config)
+	vm, err := server.New(ctx, cfg)
 	if err != nil {
 		logrus.Fatalf("failed to create vm server: %v", err)
 	}
