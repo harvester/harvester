@@ -57,3 +57,20 @@ func NewSetting(namespace, name string, obj Setting) *Setting {
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// KeyPairList is a list of KeyPair resources
+type KeyPairList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []KeyPair `json:"items"`
+}
+
+func NewKeyPair(namespace, name string, obj KeyPair) *KeyPair {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("KeyPair").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}

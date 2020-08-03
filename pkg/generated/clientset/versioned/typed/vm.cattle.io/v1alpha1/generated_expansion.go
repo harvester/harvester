@@ -20,4 +20,6 @@ package v1alpha1
 
 type ImageExpansion interface{}
 
+type KeyPairExpansion interface{}
+
 type SettingExpansion interface{}
