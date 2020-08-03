@@ -29,6 +29,7 @@ import (
 
 var (
 	ImageResourceName   = "images"
+	KeyPairResourceName = "keypairs"
 	SettingResourceName = "settings"
 )
 
@@ -55,6 +56,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Image{},
 		&ImageList{},
+		&KeyPair{},
+		&KeyPairList{},
 		&Setting{},
 		&SettingList{},
 	)

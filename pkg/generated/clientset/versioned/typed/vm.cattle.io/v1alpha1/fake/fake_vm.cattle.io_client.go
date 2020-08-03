@@ -32,6 +32,10 @@ func (c *FakeVmV1alpha1) Images(namespace string) v1alpha1.ImageInterface {
 	return &FakeImages{c, namespace}
 }
 
+func (c *FakeVmV1alpha1) KeyPairs(namespace string) v1alpha1.KeyPairInterface {
+	return &FakeKeyPairs{c, namespace}
+}
+
 func (c *FakeVmV1alpha1) Settings() v1alpha1.SettingInterface {
 	return &FakeSettings{c}
 }

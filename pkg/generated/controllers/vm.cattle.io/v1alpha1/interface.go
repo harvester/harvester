@@ -31,6 +31,7 @@ func init() {
 
 type Interface interface {
 	Image() ImageController
+	KeyPair() KeyPairController
 	Setting() SettingController
 }
 
@@ -46,6 +47,9 @@ type version struct {
 
 func (c *version) Image() ImageController {
 	return NewImageController(schema.GroupVersionKind{Group: "vm.cattle.io", Version: "v1alpha1", Kind: "Image"}, "images", true, c.controllerFactory)
+}
+func (c *version) KeyPair() KeyPairController {
+	return NewKeyPairController(schema.GroupVersionKind{Group: "vm.cattle.io", Version: "v1alpha1", Kind: "KeyPair"}, "keypairs", true, c.controllerFactory)
 }
 func (c *version) Setting() SettingController {
 	return NewSettingController(schema.GroupVersionKind{Group: "vm.cattle.io", Version: "v1alpha1", Kind: "Setting"}, "settings", false, c.controllerFactory)

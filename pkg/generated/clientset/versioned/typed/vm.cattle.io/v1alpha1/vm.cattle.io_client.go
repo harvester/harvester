@@ -27,6 +27,7 @@ import (
 type VmV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ImagesGetter
+	KeyPairsGetter
 	SettingsGetter
 }
 
@@ -37,6 +38,10 @@ type VmV1alpha1Client struct {
 
 func (c *VmV1alpha1Client) Images(namespace string) ImageInterface {
 	return newImages(c, namespace)
+}
+
+func (c *VmV1alpha1Client) KeyPairs(namespace string) KeyPairInterface {
+	return newKeyPairs(c, namespace)
 }
 
 func (c *VmV1alpha1Client) Settings() SettingInterface {
