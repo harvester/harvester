@@ -2,9 +2,9 @@ package api
 
 import (
 	"context"
-	"github.com/rancher/vm/pkg/api/image"
 
 	"github.com/rancher/steve/pkg/server"
+	"github.com/rancher/vm/pkg/api/image"
 	"github.com/rancher/vm/pkg/config"
 )
 
