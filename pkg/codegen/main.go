@@ -19,6 +19,7 @@ func main() {
 				Types: []interface{}{
 					vmv1.Image{},
 					vmv1.Setting{},
+					vmv1.KeyPair{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,

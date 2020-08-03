@@ -1,4 +1,4 @@
-package image
+package keypair
 
 import (
 	"net/http"
@@ -14,18 +14,22 @@ import (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server) {
 	t := schema.Template{
-		ID:    "vm.cattle.io.image",
-		Store: store.NamespaceStore{Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup)},
+		ID: "vm.cattle.io.keypair",
+		Store: store.KeyPairStore{
+			Store: store.NamespaceStore{
+				Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
+			},
+		},
 		Customize: func(s *types.APISchema) {
 			s.CollectionFormatter = CollectionFormatter
 			s.CollectionActions = map[string]schemas.Action{
-				"upload": {},
+				"keygen": {},
 			}
 			s.Formatter = Formatter
 			s.ActionHandlers = map[string]http.Handler{
-				"upload": UploadActionHandler{
-					Images:     scaled.VMFactory.Vm().V1alpha1().Image(),
-					ImageCache: scaled.VMFactory.Vm().V1alpha1().Image().Cache(),
+				"keygen": KeyGenActionHandler{
+					KeyPairs:     scaled.VMFactory.Vm().V1alpha1().KeyPair(),
+					KeyPairCache: scaled.VMFactory.Vm().V1alpha1().KeyPair().Cache(),
 				},
 			}
 		},
