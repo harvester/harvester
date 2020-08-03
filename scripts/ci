@@ -4,6 +4,7 @@ set -e
 cd $(dirname $0)
 
 ./build
+./generate
 ./test
 ./validate
 ./validate-ci

@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vm
+  labels:
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: server
+    spec:
+      serviceAccountName: vm
+      containers:
+      - name: vm
+        image: rancher/vm:master
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8443
+          protocol: TCP
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: beta.kubernetes.io/os
+                operator: In
+                values:
+                - linux
