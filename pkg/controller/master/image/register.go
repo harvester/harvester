@@ -2,6 +2,7 @@ package image
 
 import (
 	"context"
+
 	"github.com/rancher/vm/pkg/config"
 	"github.com/rancher/vm/pkg/util"
 )
