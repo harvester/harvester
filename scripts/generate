@@ -2,10 +2,15 @@
 set -e
 
 CURR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+source "${CURR_DIR}/scripts/lib/init.sh"
+source "${CURR_DIR}/scripts/lib/constant.sh"
 
-echo Generating all_in_one.yaml
+vm::log::info "generating vm manifest..."
 
+if ! vm::kubectl::validate; then
+  vm::log::fatal "kubectl hasn't been installed"
+fi
+# generate all_in_one yaml
 kubectl kustomize "${CURR_DIR}/deploy/manifest" \
     > "${CURR_DIR}/deploy/e2e/all_in_one.yaml"
-
-echo Done
+vm::log::info "...done"

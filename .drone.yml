@@ -27,6 +27,7 @@ steps:
     checksum_flatten: true
     files:
     - "dist/artifacts/*"
+    - "deploy/e2e/*"
   when:
     instance:
     - drone-publish.rancher.io
@@ -89,6 +90,7 @@ steps:
     checksum_flatten: true
     files:
     - "dist/artifacts/*"
+    - "deploy/e2e/*"
   when:
     instance:
     - drone-publish.rancher.io
@@ -151,6 +153,7 @@ steps:
     checksum_flatten: true
     files:
     - "dist/artifacts/*"
+    - "deploy/e2e/*"
   when:
     instance:
     - drone-publish.rancher.io
