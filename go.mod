@@ -24,6 +24,7 @@ require (
 	github.com/rancher/wrangler-api v0.6.1-0.20200515193802-dcf70881b087
 	github.com/sirupsen/logrus v1.5.0
 	github.com/urfave/cli v1.22.2
+	golang.org/x/crypto v0.0.0-20200414173820-0848c9571904
 	k8s.io/api v0.18.0
 	k8s.io/apimachinery v0.18.0
 	k8s.io/client-go v12.0.0+incompatible
