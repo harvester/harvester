@@ -8,7 +8,7 @@ cd $(dirname $0)/..
 mkdir -p dist/artifacts
 cp bin/rancher-vm dist/artifacts/rancher-vm${SUFFIX}
 
-IMAGE=${REPO}/rancher-vm:${TAG}
+IMAGE=${REPO}/vm:${TAG}
 DOCKERFILE=package/Dockerfile
 if [ -e ${DOCKERFILE}.${ARCH} ]; then
     DOCKERFILE=${DOCKERFILE}.${ARCH}
