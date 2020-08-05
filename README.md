@@ -1,5 +1,6 @@
 Rancher VM
 ========
+[![Build Status](https://drone-publish.rancher.io/api/badges/rancher/vm/status.svg)](https://drone-publish.rancher.io/rancher/vm)
 
 New version of Rancher VM is working in progress.
 
