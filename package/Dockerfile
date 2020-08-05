@@ -1,3 +1,3 @@
 FROM alpine
-COPY bin/rancher-vm /usr/bin/
+COPY rancher-vm /usr/bin/
 CMD ["rancher-vm"]

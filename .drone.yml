@@ -50,6 +50,11 @@ steps:
 - name: docker-publish
   image: plugins/docker
   settings:
+    build_args:
+    - ARCH=amd64
+    - "VERSION=${DRONE_TAG}"
+    context: package/
+    custom_dns: 1.1.1.1
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
@@ -144,6 +149,11 @@ steps:
 - name: docker-publish
   image: plugins/docker
   settings:
+    build_args:
+    - ARCH=amd64
+    - "VERSION=${DRONE_TAG}"
+    context: package/
+    custom_dns: 1.1.1.1
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
@@ -180,7 +190,6 @@ steps:
     - refs/tags/*
     event:
     - tag
-
 
 volumes:
 - name: docker
@@ -239,6 +248,11 @@ steps:
 - name: docker-publish
   image: plugins/docker
   settings:
+    build_args:
+    - ARCH=amd64
+    - "VERSION=${DRONE_TAG}"
+    context: package/
+    custom_dns: 1.1.1.1
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
@@ -301,7 +315,7 @@ steps:
     - linux/amd64
     - linux/arm64
     - linux/arm
-    target: "rancher/vm:${DRONE_BRANCH}"
+    target: "rancher/vm:${DRONE_BRANCH}-head"
     template: "rancher/vm:${DRONE_BRANCH}-head-ARCH"
   when:
     ref:

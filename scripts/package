@@ -8,11 +8,15 @@ cd $(dirname $0)/..
 mkdir -p dist/artifacts
 cp bin/rancher-vm dist/artifacts/rancher-vm${SUFFIX}
 
+cd $(dirname $0)/package
+
 IMAGE=${REPO}/vm:${TAG}
-DOCKERFILE=package/Dockerfile
+DOCKERFILE=Dockerfile
 if [ -e ${DOCKERFILE}.${ARCH} ]; then
     DOCKERFILE=${DOCKERFILE}.${ARCH}
 fi
+
+cp ../bin/rancher-vm .
 
 docker build -f ${DOCKERFILE} -t ${IMAGE} .
 echo Built ${IMAGE}
