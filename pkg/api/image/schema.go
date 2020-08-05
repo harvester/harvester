@@ -14,8 +14,12 @@ import (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server) {
 	t := schema.Template{
-		ID:    "vm.cattle.io.image",
-		Store: store.NamespaceStore{Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup)},
+		ID: "vm.cattle.io.image",
+		Store: store.DisplayNameValidatorStore{
+			Store: store.NamespaceStore{
+				Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
+			},
+		},
 		Customize: func(s *types.APISchema) {
 			s.CollectionFormatter = CollectionFormatter
 			s.CollectionActions = map[string]schemas.Action{
