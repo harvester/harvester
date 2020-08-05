@@ -20,7 +20,7 @@ fi
 SUFFIX="-${ARCH}"
 
 TAG=${TAG:-${VERSION}${SUFFIX}}
-REPO=${REPO:-cnrancher}
+REPO=${REPO:-rancher}
 
 if echo $TAG | grep -q dirty; then
     TAG=dev
