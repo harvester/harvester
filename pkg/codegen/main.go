@@ -26,6 +26,7 @@ func main() {
 			},
 			kubevirtv1.GroupName: {
 				Types: []interface{}{
+					kubevirtv1.VirtualMachine{},
 					kubevirtv1.VirtualMachineInstance{},
 				},
 				GenerateTypes:   false,
