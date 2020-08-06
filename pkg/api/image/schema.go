@@ -12,7 +12,7 @@ import (
 	"github.com/rancher/wrangler/pkg/schemas"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server) {
+func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	t := schema.Template{
 		ID:    "vm.cattle.io.image",
 		Store: store.NamespaceStore{Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup)},
@@ -31,4 +31,5 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) {
 		},
 	}
 	server.SchemaTemplates = append(server.SchemaTemplates, t)
+	return nil
 }
