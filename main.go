@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rancher/vm/pkg/config"
-	"github.com/rancher/vm/pkg/server"
+	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/server"
 	"github.com/rancher/wrangler/pkg/signals"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
@@ -25,7 +25,7 @@ var (
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "rancher-vm-server"
+	app.Name = "rancher-harvester"
 	app.Version = fmt.Sprintf("%s (%s)", Version, GitCommit)
 	app.Usage = ""
 	app.Flags = []cli.Flag{
@@ -97,9 +97,9 @@ func run(c *cli.Context) {
 
 	vm, err := server.New(ctx, cfg)
 	if err != nil {
-		logrus.Fatalf("failed to create vm server: %v", err)
+		logrus.Fatalf("failed to create harvester server: %v", err)
 	}
 	if err := vm.Start(); err != nil {
-		logrus.Fatalf("vm server stop, %v", err)
+		logrus.Fatalf("harvester server stop, %v", err)
 	}
 }

@@ -35,7 +35,7 @@ steps:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
-    repo: "rancher/vm"
+    repo: "rancher/harvester"
     tag: ${DRONE_BRANCH}-head-amd64
     username:
       from_secret: docker_username
@@ -58,7 +58,7 @@ steps:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
-    repo: "rancher/vm"
+    repo: "rancher/harvester"
     tag: "${DRONE_TAG}-amd64"
     username:
       from_secret: docker_username
@@ -134,7 +134,7 @@ steps:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
-    repo: "rancher/vm"
+    repo: "rancher/harvester"
     tag: ${DRONE_BRANCH}-head-arm64
     username:
       from_secret: docker_username
@@ -157,7 +157,7 @@ steps:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
-    repo: "rancher/vm"
+    repo: "rancher/harvester"
     tag: "${DRONE_TAG}-arm64"
     username:
       from_secret: docker_username
@@ -233,7 +233,7 @@ steps:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
-    repo: "rancher/vm"
+    repo: "rancher/harvester"
     tag: ${DRONE_BRANCH}-head-arm
     username:
       from_secret: docker_username
@@ -256,7 +256,7 @@ steps:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
-    repo: "rancher/vm"
+    repo: "rancher/harvester"
     tag: "${DRONE_TAG}-arm"
     username:
       from_secret: docker_username
@@ -315,8 +315,8 @@ steps:
     - linux/amd64
     - linux/arm64
     - linux/arm
-    target: "rancher/vm:${DRONE_BRANCH}-head"
-    template: "rancher/vm:${DRONE_BRANCH}-head-ARCH"
+    target: "rancher/harvester:${DRONE_BRANCH}-head"
+    template: "rancher/harvester:${DRONE_BRANCH}-head-ARCH"
   when:
     ref:
       include:
@@ -336,8 +336,8 @@ steps:
       - linux/amd64
       - linux/arm64
       - linux/arm
-    target: "rancher/vm:${DRONE_TAG}"
-    template: "rancher/vm:${DRONE_TAG}-ARCH"
+    target: "rancher/harvester:${DRONE_TAG}"
+    template: "rancher/harvester:${DRONE_TAG}-ARCH"
   when:
     instance:
     - drone-publish.rancher.io

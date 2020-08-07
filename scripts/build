@@ -9,10 +9,10 @@ mkdir -p bin
 if [ "$(uname)" = "Linux" ]; then
     OTHER_LINKFLAGS="-extldflags -static -s"
 fi
-LINKFLAGS="-X github.com/rancher/vm.Version=$VERSION"
-LINKFLAGS="-X github.com/rancher/vm.GitCommit=$COMMIT $LINKFLAGS"
-CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/rancher-vm
+LINKFLAGS="-X github.com/rancher/harvester.Version=$VERSION"
+LINKFLAGS="-X github.com/rancher/harvester.GitCommit=$COMMIT $LINKFLAGS"
+CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/harvester
 if [ "$CROSS" = "true" ] && [ "$ARCH" = "amd64" ]; then
-    GOOS=darwin go build -ldflags "$LINKFLAGS" -o bin/rancher-vm-darwin
-    GOOS=windows go build -ldflags "$LINKFLAGS" -o bin/rancher-vm-windows
+    GOOS=darwin go build -ldflags "$LINKFLAGS" -o bin/harvester-darwin
+    GOOS=windows go build -ldflags "$LINKFLAGS" -o bin/harvester-windows
 fi

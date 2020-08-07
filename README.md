@@ -1,6 +1,6 @@
-Rancher VM
+Rancher Harvester
 ========
-[![Build Status](https://drone-publish.rancher.io/api/badges/rancher/vm/status.svg)](https://drone-publish.rancher.io/rancher/vm)
+[![Build Status](https://drone-publish.rancher.io/api/badges/rancher/harvester/status.svg)](https://drone-publish.rancher.io/rancher/harvester)
 
 New version of Rancher VM is working in progress.
 
@@ -11,7 +11,7 @@ New version of Rancher VM is working in progress.
 
 ## Running
 
-`./bin/vm`
+`./bin/harvester`
 
 ## License
 Copyright (c) 2019 [Rancher Labs, Inc.](http://rancher.com)
