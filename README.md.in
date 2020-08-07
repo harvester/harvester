@@ -1,4 +1,4 @@
-rancher-vm
+rancher-harvester
 ========
 
 ## ***FILL THIS OUT WITH A USEFUL DESCRIPTION OF THIS REPO***
@@ -10,7 +10,7 @@ rancher-vm
 
 ## Running
 
-`./bin/rancher-vm`
+`./bin/harvester`
 
 ## License
 Copyright (c) 2019 [Rancher Labs, Inc.](http://rancher.com)

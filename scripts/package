@@ -6,17 +6,17 @@ source $(dirname $0)/version
 cd $(dirname $0)/..
 
 mkdir -p dist/artifacts
-cp bin/rancher-vm dist/artifacts/rancher-vm${SUFFIX}
+cp bin/harvester dist/artifacts/harvester${SUFFIX}
 
 cd $(dirname $0)/package
 
-IMAGE=${REPO}/vm:${TAG}
+IMAGE=${REPO}/harvester:${TAG}
 DOCKERFILE=Dockerfile
 if [ -e ${DOCKERFILE}.${ARCH} ]; then
     DOCKERFILE=${DOCKERFILE}.${ARCH}
 fi
 
-cp ../bin/rancher-vm .
+cp ../bin/harvester .
 
 docker build -f ${DOCKERFILE} -t ${IMAGE} .
 echo Built ${IMAGE}

@@ -1,3 +1,3 @@
 FROM alpine
-COPY rancher-vm /usr/bin/
-CMD ["rancher-vm"]
+COPY harvester /usr/bin/
+CMD ["harvester"]

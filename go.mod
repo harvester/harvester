@@ -1,4 +1,4 @@
-module github.com/rancher/vm
+module github.com/rancher/harvester
 
 go 1.13
 
