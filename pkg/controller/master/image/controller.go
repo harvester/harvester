@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v6"
-	apisv1alpha1 "github.com/rancher/vm/pkg/apis/vm.cattle.io/v1alpha1"
-	"github.com/rancher/vm/pkg/config"
-	"github.com/rancher/vm/pkg/generated/controllers/vm.cattle.io/v1alpha1"
-	"github.com/rancher/vm/pkg/util"
+	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/generated/controllers/vm.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/util"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
@@ -37,7 +37,7 @@ func RegisterController(ctx context.Context, management *config.Management) {
 	images.OnRemove(ctx, controllerAgentName, controller.OnImageRemove)
 }
 
-// Handler implements vm image import
+// Handler implements harvester image import
 type Handler struct {
 	images     v1alpha1.ImageController
 	imageCache v1alpha1.ImageCache

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/minio/minio-go/v6"
-	"github.com/rancher/vm/pkg/config"
+	"github.com/rancher/harvester/pkg/config"
 	"github.com/sirupsen/logrus"
 )
 

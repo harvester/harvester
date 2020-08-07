@@ -19,8 +19,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	v1alpha1 "github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
 	"github.com/rancher/lasso/pkg/controller"
-	v1alpha1 "github.com/rancher/vm/pkg/apis/vm.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )

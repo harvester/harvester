@@ -3,9 +3,9 @@ package config
 import (
 	"context"
 
+	kubevirt "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io"
+	vm "github.com/rancher/harvester/pkg/generated/controllers/vm.cattle.io"
 	"github.com/rancher/lasso/pkg/controller"
-	kubevirt "github.com/rancher/vm/pkg/generated/controllers/kubevirt.io"
-	vm "github.com/rancher/vm/pkg/generated/controllers/vm.cattle.io"
 	corev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core"
 	storagev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/storage"
 	"github.com/rancher/wrangler/pkg/generic"

@@ -3,8 +3,8 @@ package keypair
 import (
 	"fmt"
 
-	apisv1alpha1 "github.com/rancher/vm/pkg/apis/vm.cattle.io/v1alpha1"
-	"github.com/rancher/vm/pkg/generated/controllers/vm.cattle.io/v1alpha1"
+	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/generated/controllers/vm.cattle.io/v1alpha1"
 	"golang.org/x/crypto/ssh"
 )
 

@@ -19,7 +19,7 @@ limitations under the License.
 package v1alpha3
 
 import (
-	"github.com/rancher/vm/pkg/generated/clientset/versioned/scheme"
+	"github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 	v1alpha3 "kubevirt.io/client-go/api/v1alpha3"
 )

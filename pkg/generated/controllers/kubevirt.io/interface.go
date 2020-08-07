@@ -19,8 +19,8 @@ limitations under the License.
 package kubevirt
 
 import (
+	v1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
 	"github.com/rancher/lasso/pkg/controller"
-	v1alpha3 "github.com/rancher/vm/pkg/generated/controllers/kubevirt.io/v1alpha3"
 )
 
 type Interface interface {

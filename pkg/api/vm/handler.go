@@ -3,7 +3,7 @@ package vm
 import (
 	"net/http"
 
-	ctlkubevirtv1alpha3 "github.com/rancher/vm/pkg/generated/controllers/kubevirt.io/v1alpha3"
+	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"

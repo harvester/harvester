@@ -3,11 +3,11 @@ package api
 import (
 	"context"
 
+	"github.com/rancher/harvester/pkg/api/image"
+	"github.com/rancher/harvester/pkg/api/keypair"
+	"github.com/rancher/harvester/pkg/api/vm"
+	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/steve/pkg/server"
-	"github.com/rancher/vm/pkg/api/image"
-	"github.com/rancher/vm/pkg/api/keypair"
-	"github.com/rancher/vm/pkg/api/vm"
-	"github.com/rancher/vm/pkg/config"
 )
 
 func Setup(ctx context.Context, server *server.Server) error {

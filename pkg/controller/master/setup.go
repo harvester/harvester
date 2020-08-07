@@ -3,8 +3,8 @@ package master
 import (
 	"context"
 
+	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/steve/pkg/server"
-	"github.com/rancher/vm/pkg/config"
 	"github.com/rancher/wrangler/pkg/leader"
 )
 

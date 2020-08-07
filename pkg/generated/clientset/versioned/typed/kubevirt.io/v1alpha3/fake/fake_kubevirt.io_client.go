@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha3 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
+	v1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	vmv1alpha1 "github.com/rancher/vm/pkg/apis/vm.cattle.io/v1alpha1"
+	vmv1alpha1 "github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
