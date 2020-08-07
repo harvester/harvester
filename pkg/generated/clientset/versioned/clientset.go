@@ -21,8 +21,8 @@ package versioned
 import (
 	"fmt"
 
-	kubevirtv1alpha3 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
-	vmv1alpha1 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1"
+	kubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
+	vmv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

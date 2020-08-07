@@ -3,7 +3,7 @@ package keypair
 import (
 	"context"
 
-	"github.com/rancher/vm/pkg/config"
+	"github.com/rancher/harvester/pkg/config"
 )
 
 const (

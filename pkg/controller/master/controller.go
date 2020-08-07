@@ -3,10 +3,10 @@ package master
 import (
 	"context"
 
+	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/controller/master/image"
+	"github.com/rancher/harvester/pkg/controller/master/keypair"
 	"github.com/rancher/steve/pkg/server"
-	"github.com/rancher/vm/pkg/config"
-	"github.com/rancher/vm/pkg/controller/master/image"
-	"github.com/rancher/vm/pkg/controller/master/keypair"
 )
 
 type registerFunc func(context.Context, *config.Management) error

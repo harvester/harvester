@@ -19,11 +19,11 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/rancher/vm/pkg/generated/clientset/versioned"
-	kubevirtv1alpha3 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
-	fakekubevirtv1alpha3 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3/fake"
-	vmv1alpha1 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1"
-	fakevmv1alpha1 "github.com/rancher/vm/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1/fake"
+	clientset "github.com/rancher/harvester/pkg/generated/clientset/versioned"
+	kubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
+	fakekubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3/fake"
+	vmv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1"
+	fakevmv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

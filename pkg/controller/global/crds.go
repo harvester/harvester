@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/steve/pkg/server"
-	"github.com/rancher/vm/pkg/apis/vm.cattle.io/v1alpha1"
-	"github.com/rancher/vm/pkg/config"
 	"github.com/rancher/wrangler/pkg/crd"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
