@@ -33,7 +33,7 @@ func (s DisplayNameValidatorStore) validateDisplayName(apiOp *types.APIRequest, 
 		return err
 	}
 	for _, obj := range list.Objects {
-		if obj.Data().String("spec", "displayName") == displayName {
+		if obj.Data().String("spec", "displayName") == displayName && obj.Name() != data.Name() {
 			return apierror.NewAPIError(validation.Conflict, "A resource with the same name exists.")
 		}
 	}
