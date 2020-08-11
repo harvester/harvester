@@ -2,6 +2,7 @@ package vm
 
 import (
 	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/steve/pkg/resources/common"
 )
 
 const (
@@ -11,6 +12,7 @@ const (
 )
 
 func formatter(request *types.APIRequest, resource *types.RawResource) {
+	common.Formatter(request, resource)
 	// reset resource actions, because action map already be set when add actions handler,
 	// but current framework can't support use formatter to remove key from action map
 	resource.Actions = make(map[string]string, 1)
