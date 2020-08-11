@@ -40,6 +40,14 @@ func (c *FakeVmV1alpha1) Settings() v1alpha1.SettingInterface {
 	return &FakeSettings{c}
 }
 
+func (c *FakeVmV1alpha1) Templates(namespace string) v1alpha1.TemplateInterface {
+	return &FakeTemplates{c, namespace}
+}
+
+func (c *FakeVmV1alpha1) TemplateVersions(namespace string) v1alpha1.TemplateVersionInterface {
+	return &FakeTemplateVersions{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeVmV1alpha1) RESTClient() rest.Interface {

@@ -29,6 +29,8 @@ type VmV1alpha1Interface interface {
 	ImagesGetter
 	KeyPairsGetter
 	SettingsGetter
+	TemplatesGetter
+	TemplateVersionsGetter
 }
 
 // VmV1alpha1Client is used to interact with features provided by the vm.cattle.io group.
@@ -46,6 +48,14 @@ func (c *VmV1alpha1Client) KeyPairs(namespace string) KeyPairInterface {
 
 func (c *VmV1alpha1Client) Settings() SettingInterface {
 	return newSettings(c)
+}
+
+func (c *VmV1alpha1Client) Templates(namespace string) TemplateInterface {
+	return newTemplates(c, namespace)
+}
+
+func (c *VmV1alpha1Client) TemplateVersions(namespace string) TemplateVersionInterface {
+	return newTemplateVersions(c, namespace)
 }
 
 // NewForConfig creates a new VmV1alpha1Client for the given config.

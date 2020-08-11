@@ -74,3 +74,37 @@ func NewKeyPair(namespace, name string, obj KeyPair) *KeyPair {
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// TemplateList is a list of Template resources
+type TemplateList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []Template `json:"items"`
+}
+
+func NewTemplate(namespace, name string, obj Template) *Template {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("Template").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// TemplateVersionList is a list of TemplateVersion resources
+type TemplateVersionList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []TemplateVersion `json:"items"`
+}
+
+func NewTemplateVersion(namespace, name string, obj TemplateVersion) *TemplateVersion {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("TemplateVersion").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}

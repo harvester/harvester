@@ -23,3 +23,7 @@ type ImageExpansion interface{}
 type KeyPairExpansion interface{}
 
 type SettingExpansion interface{}
+
+type TemplateExpansion interface{}
+
+type TemplateVersionExpansion interface{}
