@@ -28,9 +28,11 @@ import (
 )
 
 var (
-	ImageResourceName   = "images"
-	KeyPairResourceName = "keypairs"
-	SettingResourceName = "settings"
+	ImageResourceName           = "images"
+	KeyPairResourceName         = "keypairs"
+	SettingResourceName         = "settings"
+	TemplateResourceName        = "templates"
+	TemplateVersionResourceName = "templateversions"
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -60,6 +62,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&KeyPairList{},
 		&Setting{},
 		&SettingList{},
+		&Template{},
+		&TemplateList{},
+		&TemplateVersion{},
+		&TemplateVersionList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

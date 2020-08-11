@@ -33,6 +33,8 @@ type Interface interface {
 	Image() ImageController
 	KeyPair() KeyPairController
 	Setting() SettingController
+	Template() TemplateController
+	TemplateVersion() TemplateVersionController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -53,4 +55,10 @@ func (c *version) KeyPair() KeyPairController {
 }
 func (c *version) Setting() SettingController {
 	return NewSettingController(schema.GroupVersionKind{Group: "vm.cattle.io", Version: "v1alpha1", Kind: "Setting"}, "settings", false, c.controllerFactory)
+}
+func (c *version) Template() TemplateController {
+	return NewTemplateController(schema.GroupVersionKind{Group: "vm.cattle.io", Version: "v1alpha1", Kind: "Template"}, "templates", true, c.controllerFactory)
+}
+func (c *version) TemplateVersion() TemplateVersionController {
+	return NewTemplateVersionController(schema.GroupVersionKind{Group: "vm.cattle.io", Version: "v1alpha1", Kind: "TemplateVersion"}, "templateversions", true, c.controllerFactory)
 }
