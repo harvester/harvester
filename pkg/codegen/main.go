@@ -20,6 +20,8 @@ func main() {
 					vmv1.Image{},
 					vmv1.Setting{},
 					vmv1.KeyPair{},
+					vmv1.Template{},
+					vmv1.TemplateVersion{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,
