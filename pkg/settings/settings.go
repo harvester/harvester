@@ -13,9 +13,9 @@ var (
 	provider       Provider
 	InjectDefaults string
 
-	UIIndex      = NewSetting("ui-index", "")
-	UIPath       = NewSetting("ui-path", "")
-	APIUIVersion = NewSetting("api-ui-version", "1.1.9") // Please update the EDGE_API_UI_VERSION in package/Dockerfile when updating the version here.
+	UIIndex      = NewSetting("ui-index", "https://rancher-harvester.s3-ap-southeast-1.amazonaws.com/ui/latest/index.html")
+	UIPath       = NewSetting("ui-path", "/usr/share/rancher/harvester")
+	APIUIVersion = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
 )
 
 func init() {
@@ -109,5 +109,5 @@ func NewSetting(name, def string) Setting {
 }
 
 func GetEnvKey(key string) string {
-	return "VM_" + strings.ToUpper(strings.Replace(key, "-", "_", -1))
+	return "HARVESTER_" + strings.ToUpper(strings.Replace(key, "-", "_", -1))
 }
