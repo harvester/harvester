@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/writer"
 	"github.com/rancher/dynamiclistener/server"
 	"github.com/rancher/harvester/pkg/api"
@@ -103,10 +102,6 @@ func (s *VMServer) Start() error {
 }
 
 func (s *VMServer) generateSteveServer() error {
-	handler := mux.NewRouter()
-	handler.UseEncodedPath()
-	ui.RegisterAPIUI(handler)
-
 	factory, err := controller.NewSharedControllerFactoryFromConfig(s.RestConfig, Scheme)
 	if err != nil {
 		return err
@@ -130,12 +125,14 @@ func (s *VMServer) generateSteveServer() error {
 
 	s.ASL = accesscontrol.NewAccessStore(s.Context, true, steveControllers.RBAC)
 
+	nextHandler := ui.RegisterAPIUI()
+
 	s.steve = &steveserver.Server{
 		Controllers:     steveControllers,
 		AccessSetLookup: s.ASL,
 		RestConfig:      s.RestConfig,
 		AuthMiddleware:  nil,
-		Next:            handler,
+		Next:            nextHandler,
 		Router:          Routes,
 		DashboardURL: func() string {
 			if settings.UIIndex.Get() == "local" {
