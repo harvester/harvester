@@ -1,6 +1,8 @@
 package vmtemplate
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 
 	"github.com/rancher/apiserver/pkg/apierror"
@@ -39,16 +41,15 @@ func (s *templateVersionStore) Update(request *types.APIRequest, schema *types.A
 }
 
 func (s *templateVersionStore) Delete(request *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
-	if err := s.canDeleteTemplateVersion(id); err != nil {
+	if err := s.canDeleteTemplateVersion(request.Namespace, request.Name); err != nil {
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, err.Error())
 	}
 
 	return s.Store.Delete(request, request.Schema, id)
 }
 
-func (s *templateVersionStore) canDeleteTemplateVersion(id string) error {
-	ns, name := ref.Parse(id)
-	vr, err := s.templateVersionCache.Get(ns, name)
+func (s *templateVersionStore) canDeleteTemplateVersion(namespace, name string) error {
+	vr, err := s.templateVersionCache.Get(namespace, name)
 	if err != nil {
 		return err
 	}
@@ -59,7 +60,8 @@ func (s *templateVersionStore) canDeleteTemplateVersion(id string) error {
 		return err
 	}
 
-	if vt.Spec.DefaultVersionID == id {
+	versionID := fmt.Sprintf("%s:%s", namespace, name)
+	if vt.Spec.DefaultVersionID == versionID {
 		return errors.New("Cannot delete the default templateVersion")
 	}
 
