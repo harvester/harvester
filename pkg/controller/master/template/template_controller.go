@@ -13,6 +13,10 @@ type templateHandler struct {
 }
 
 func (h *templateHandler) OnChanged(key string, tp *apisv1alpha1.Template) (*apisv1alpha1.Template, error) {
+	if tp == nil || tp.DeletionTimestamp != nil {
+		return tp, nil
+	}
+
 	if tp.Spec.DefaultVersionID == "" {
 		return tp, nil
 	}
