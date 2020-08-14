@@ -157,7 +157,7 @@ func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelF
 	toUpdate.Status.Progress = 100
 	apisv1alpha1.ImageImported.True(toUpdate)
 	apisv1alpha1.ImageImported.Message(toUpdate, "completed image importing")
-	toUpdate.Status.DownloadURL = fmt.Sprintf("%s/%s/%s", config.MinioURL, util.BucketName, image.Name)
+	toUpdate.Status.DownloadURL = fmt.Sprintf("%s/%s/%s", config.ImageStorageEndpoint, util.BucketName, image.Name)
 	if _, err := h.UpdateStatusRetryOnConflict(toUpdate); err != nil {
 		return err
 	}

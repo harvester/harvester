@@ -21,7 +21,7 @@ var (
 
 func InitMinio() (err error) {
 	var secure bool
-	var endpoint = config.MinioURL
+	var endpoint = config.ImageStorageEndpoint
 	if strings.HasPrefix(endpoint, "http://") ||
 		strings.HasPrefix(endpoint, "https://") {
 		u, err := url.Parse(endpoint)
@@ -31,7 +31,7 @@ func InitMinio() (err error) {
 		endpoint = u.Host
 		secure = u.Scheme == "https"
 	}
-	MinioClient, err = minio.New(endpoint, config.MinioAccessKey, config.MinioSecretKey, secure)
+	MinioClient, err = minio.New(endpoint, config.ImageStorageAccessKey, config.ImageStorageSecretKey, secure)
 	if err != nil {
 		return err
 	}

@@ -69,7 +69,7 @@ func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	}
 	logrus.Debugf("Successfully uploaded %s of size %d\n", fileName, n)
 
-	downloadURL := fmt.Sprintf("%s/%s/%s", config.MinioURL, util.BucketName, generatedName)
+	downloadURL := fmt.Sprintf("%s/%s/%s", config.ImageStorageEndpoint, util.BucketName, generatedName)
 	image := &apisv1alpha1.Image{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      generatedName,
