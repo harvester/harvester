@@ -74,7 +74,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: MINIO_ACCESS_KEY
+            - name: IMAGE_STORAGE_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   key: accesskey
@@ -85,7 +85,7 @@ spec:
                   name: {{ if .secretName }}{{ .secretName }}{{ else }}harvester-vm-image-storage-gateway{{ end }}
                   {{- end }}
 {{- end }}
-            - name: MINIO_SECRET_KEY
+            - name: IMAGE_STORAGE_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   key: secretkey
@@ -96,7 +96,7 @@ spec:
                   name: {{ if .secretName }}{{ .secretName }}{{ else }}harvester-vm-image-storage-gateway{{ end }}
                   {{- end }}
 {{- end }}
-            - name: MINIO_URL
+            - name: IMAGE_STORAGE_ENDPOINT
 {{- if .Values.minio.enabled }}
               value: {{printf "http://%s.%s:%s" (include "charts.minio.fullname" .) .Release.Namespace (.Values.minio.service.port | toString) }}
 {{- else }}

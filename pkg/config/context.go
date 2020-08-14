@@ -24,9 +24,9 @@ var (
 	HTTPListenPort  int
 	HTTPSListenPort int
 
-	MinioURL       string
-	MinioAccessKey string
-	MinioSecretKey string
+	ImageStorageEndpoint  string
+	ImageStorageAccessKey string
+	ImageStorageSecretKey string
 )
 
 type Scaled struct {
