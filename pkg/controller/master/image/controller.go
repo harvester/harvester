@@ -95,9 +95,17 @@ func (h *Handler) OnImageChanged(key string, image *apisv1alpha1.VirtualMachineI
 }
 
 func (h *Handler) OnImageRemove(key string, image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
-	logrus.Debugf("removing %s object in minio", image.Name)
+	logrus.Debugf("removing image %s in minio", image.Name)
 	cleanUpImport(image.Name, image.Status.AppliedURL)
-	return image, util.MinioClient.RemoveObject(util.BucketName, image.Name)
+	return image, removeImageFromStorage(image)
+}
+
+func removeImageFromStorage(image *apisv1alpha1.VirtualMachineImage) error {
+	mc, err := util.NewMinioClient()
+	if err != nil {
+		return err
+	}
+	return mc.RemoveObject(util.BucketName, image.Name)
 }
 
 func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelFunc, image *apisv1alpha1.VirtualMachineImage) error {
@@ -149,7 +157,11 @@ func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelF
 
 	go h.syncProgress(ctx, cancel, reader, image)
 
-	uploaded, err := util.MinioClient.PutObjectWithContext(ctx, util.BucketName, image.Name, reader, fileSize, minio.PutObjectOptions{ContentType: contentType})
+	mc, err := util.NewMinioClient()
+	if err != nil {
+		return err
+	}
+	uploaded, err := mc.PutObjectWithContext(ctx, util.BucketName, image.Name, reader, fileSize, minio.PutObjectOptions{ContentType: contentType})
 	if err != nil {
 		return err
 	}
