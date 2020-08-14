@@ -3,6 +3,7 @@ package util
 import (
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/minio/minio-go/v6"
 	"github.com/rancher/harvester/pkg/config"
@@ -16,41 +17,44 @@ const (
 )
 
 var (
-	MinioClient *minio.Client
+	once sync.Once
 )
 
-func InitMinio() (err error) {
+func NewMinioClient() (*minio.Client, error) {
 	var secure bool
 	var endpoint = config.ImageStorageEndpoint
 	if strings.HasPrefix(endpoint, "http://") ||
 		strings.HasPrefix(endpoint, "https://") {
 		u, err := url.Parse(endpoint)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		endpoint = u.Host
 		secure = u.Scheme == "https"
 	}
-	MinioClient, err = minio.New(endpoint, config.ImageStorageAccessKey, config.ImageStorageSecretKey, secure)
+	client, err := minio.New(endpoint, config.ImageStorageAccessKey, config.ImageStorageSecretKey, secure)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	once.Do(func() {
+		err = initBucket(client)
+	})
+	return client, err
+}
 
-	exist, err := MinioClient.BucketExists(BucketName)
+func initBucket(client *minio.Client) error {
+	exist, err := client.BucketExists(BucketName)
 	if err != nil {
 		return err
 	}
 
 	if !exist {
-		err = MinioClient.MakeBucket(BucketName, BucketLocation)
+		err = client.MakeBucket(BucketName, BucketLocation)
 		if err != nil {
 			return err
 		}
 		logrus.Debugf("Successfully created bucket %s\n", BucketName)
 	}
 
-	if err := MinioClient.SetBucketPolicy(BucketName, DownloadBucketPolicy); err != nil {
-		return err
-	}
-	return nil
+	return client.SetBucketPolicy(BucketName, DownloadBucketPolicy)
 }

@@ -63,7 +63,11 @@ func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 
 	fileName := fileHeader.Filename
 	generatedName := fmt.Sprintf("%s-%s", "image", rand.String(5))
-	n, err := util.MinioClient.PutObject(util.BucketName, generatedName, file, fileHeader.Size, minio.PutObjectOptions{ContentType: fileHeader.Header.Get("Content-Type")})
+	mc, err := util.NewMinioClient()
+	if err != nil {
+		return err
+	}
+	n, err := mc.PutObject(util.BucketName, generatedName, file, fileHeader.Size, minio.PutObjectOptions{ContentType: fileHeader.Header.Get("Content-Type")})
 	if err != nil {
 		return err
 	}
