@@ -123,7 +123,7 @@ containers:
 
       ## Specify the repository of image.
       ##
-      repository: rancher/vm
+      repository: rancher/harvester
 
       ## Specify the tag of image.
       ##
