@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type VMServer struct {
+type HarvesterServer struct {
 	Context context.Context
 
 	RestConfig    *restclient.Config
@@ -40,9 +40,9 @@ type VMServer struct {
 	Handler http.Handler
 }
 
-func New(ctx context.Context, clientConfig clientcmd.ClientConfig) (*VMServer, error) {
+func New(ctx context.Context, clientConfig clientcmd.ClientConfig) (*HarvesterServer, error) {
 	var err error
-	server := &VMServer{
+	server := &HarvesterServer{
 		Context: ctx,
 	}
 	server.RestConfig, err = clientConfig.ClientConfig()
@@ -94,14 +94,14 @@ func Wait(ctx context.Context, config *rest.Config) error {
 	return nil
 }
 
-func (s *VMServer) Start() error {
+func (s *HarvesterServer) Start() error {
 	opts := &server.ListenOpts{
 		Secrets: s.steve.Controllers.Core.Secret(),
 	}
 	return s.steve.ListenAndServe(s.Context, config.HTTPSListenPort, config.HTTPListenPort, opts)
 }
 
-func (s *VMServer) generateSteveServer() error {
+func (s *HarvesterServer) generateSteveServer() error {
 	factory, err := controller.NewSharedControllerFactoryFromConfig(s.RestConfig, Scheme)
 	if err != nil {
 		return err

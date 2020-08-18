@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/wrangler/pkg/crd"
@@ -21,10 +21,10 @@ func createCRDs(ctx context.Context, _ *config.Scaled, server *server.Server) er
 			getCRDName(v1alpha1.SchemeGroupVersion, "Setting"),
 		)...).
 		BatchCreateCRDs(ctx, crd.NamespacedTypes(
-			getCRDName(v1alpha1.SchemeGroupVersion, "Image"),
+			getCRDName(v1alpha1.SchemeGroupVersion, "VirtualMachineImage"),
 			getCRDName(v1alpha1.SchemeGroupVersion, "keyPair"),
-			getCRDName(v1alpha1.SchemeGroupVersion, "Template"),
-			getCRDName(v1alpha1.SchemeGroupVersion, "TemplateVersion"),
+			getCRDName(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplate"),
+			getCRDName(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplateVersion"),
 		)...).
 		BatchWait()
 }

@@ -10,19 +10,19 @@ import (
 )
 
 const (
-	templateSchemaID        = "vm.cattle.io.template"
-	templateVersionSchemaID = "vm.cattle.io.templateversion"
+	templateSchemaID        = "harvester.cattle.io.virtualmachinetemplate"
+	templateVersionSchemaID = "harvester.cattle.io.virtualmachinetemplateversion"
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server) {
-	templateCache := scaled.VMFactory.Vm().V1alpha1().TemplateVersion().Cache()
+	templateCache := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion().Cache()
 	th := &templateLinkHandler{
 		templateVersionCache: templateCache,
 	}
 
 	templateVersionStore := &templateVersionStore{
 		Store:                proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
-		templateCache:        scaled.VMFactory.Vm().V1alpha1().Template().Cache(),
+		templateCache:        scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate().Cache(),
 		templateVersionCache: templateCache,
 	}
 

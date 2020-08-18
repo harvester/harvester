@@ -10,12 +10,12 @@ import (
 	"github.com/rancher/apiserver/pkg/handlers"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/harvester/pkg/controller/master/template"
-	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/vm.cattle.io/v1alpha1"
+	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 )
 
 type templateLinkHandler struct {
-	templateVersionCache ctlvmv1alpha1.TemplateVersionCache
+	templateVersionCache ctlvmv1alpha1.VirtualMachineTemplateVersionCache
 }
 
 func (h *templateLinkHandler) byIDHandler(request *types.APIRequest) (types.APIObject, error) {

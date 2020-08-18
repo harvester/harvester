@@ -20,10 +20,10 @@ package fake
 
 import (
 	clientset "github.com/rancher/harvester/pkg/generated/clientset/versioned"
+	harvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
+	fakeharvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1/fake"
 	kubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
 	fakekubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3/fake"
-	vmv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1"
-	fakevmv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -78,12 +78,12 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 
 var _ clientset.Interface = &Clientset{}
 
+// HarvesterV1alpha1 retrieves the HarvesterV1alpha1Client
+func (c *Clientset) HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface {
+	return &fakeharvesterv1alpha1.FakeHarvesterV1alpha1{Fake: &c.Fake}
+}
+
 // KubevirtV1alpha3 retrieves the KubevirtV1alpha3Client
 func (c *Clientset) KubevirtV1alpha3() kubevirtv1alpha3.KubevirtV1alpha3Interface {
 	return &fakekubevirtv1alpha3.FakeKubevirtV1alpha3{Fake: &c.Fake}
-}
-
-// VmV1alpha1 retrieves the VmV1alpha1Client
-func (c *Clientset) VmV1alpha1() vmv1alpha1.VmV1alpha1Interface {
-	return &fakevmv1alpha1.FakeVmV1alpha1{Fake: &c.Fake}
 }

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	vmv1 "github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
+	harv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 	kubevirtv1 "kubevirt.io/client-go/api/v1alpha3"
@@ -15,13 +15,13 @@ func main() {
 		OutputPackage: "github.com/rancher/harvester/pkg/generated",
 		Boilerplate:   "scripts/boilerplate.go.txt",
 		Groups: map[string]args.Group{
-			"vm.cattle.io": {
+			"harvester.cattle.io": {
 				Types: []interface{}{
-					vmv1.Image{},
-					vmv1.Setting{},
-					vmv1.KeyPair{},
-					vmv1.Template{},
-					vmv1.TemplateVersion{},
+					harv1.VirtualMachineImage{},
+					harv1.Setting{},
+					harv1.KeyPair{},
+					harv1.VirtualMachineTemplate{},
+					harv1.VirtualMachineTemplateVersion{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,

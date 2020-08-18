@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	vmv1alpha1 "github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
+	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -32,8 +32,8 @@ var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
 var parameterCodec = runtime.NewParameterCodec(scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
+	harvesterv1alpha1.AddToScheme,
 	kubevirtv1alpha3.AddToScheme,
-	vmv1alpha1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

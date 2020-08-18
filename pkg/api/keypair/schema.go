@@ -14,7 +14,7 @@ import (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server) {
 	t := schema.Template{
-		ID: "vm.cattle.io.keypair",
+		ID: "harvester.cattle.io.keypair",
 		Store: store.KeyPairStore{
 			Store: store.NamespaceStore{
 				Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
@@ -28,8 +28,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) {
 			s.Formatter = Formatter
 			s.ActionHandlers = map[string]http.Handler{
 				"keygen": KeyGenActionHandler{
-					KeyPairs:     scaled.VMFactory.Vm().V1alpha1().KeyPair(),
-					KeyPairCache: scaled.VMFactory.Vm().V1alpha1().KeyPair().Cache(),
+					KeyPairs:     scaled.HarvesterFactory.Harvester().V1alpha1().KeyPair(),
+					KeyPairCache: scaled.HarvesterFactory.Harvester().V1alpha1().KeyPair().Cache(),
 				},
 			}
 		},

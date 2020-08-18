@@ -42,13 +42,13 @@ func main() {
 		},
 		cli.IntFlag{
 			Name:        "http-port",
-			EnvVar:      "VM_SERVER_HTTP_PORT",
+			EnvVar:      "HARVESTER_SERVER_HTTP_PORT",
 			Value:       8080,
 			Destination: &config.HTTPListenPort,
 		},
 		cli.IntFlag{
 			Name:        "https-port",
-			EnvVar:      "VM_SERVER_HTTPS_PORT",
+			EnvVar:      "HARVESTER_SERVER_HTTPS_PORT",
 			Value:       8443,
 			Destination: &config.HTTPSListenPort,
 		},
@@ -96,11 +96,11 @@ func run(c *cli.Context) {
 		logrus.Fatalf("failed to find kubeconfig: %v", err)
 	}
 
-	vm, err := server.New(ctx, cfg)
+	harv, err := server.New(ctx, cfg)
 	if err != nil {
 		logrus.Fatalf("failed to create harvester server: %v", err)
 	}
-	if err := vm.Start(); err != nil {
+	if err := harv.Start(); err != nil {
 		logrus.Fatalf("harvester server stop, %v", err)
 	}
 }

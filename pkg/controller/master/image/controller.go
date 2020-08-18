@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v6"
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
+	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/generated/controllers/vm.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/util"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -27,7 +27,7 @@ var (
 )
 
 func RegisterController(ctx context.Context, management *config.Management) {
-	images := management.VMFactory.Vm().V1alpha1().Image()
+	images := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineImage()
 	controller := &Handler{
 		images:     images,
 		imageCache: images.Cache(),
@@ -39,11 +39,11 @@ func RegisterController(ctx context.Context, management *config.Management) {
 
 // Handler implements harvester image import
 type Handler struct {
-	images     v1alpha1.ImageController
-	imageCache v1alpha1.ImageCache
+	images     v1alpha1.VirtualMachineImageController
+	imageCache v1alpha1.VirtualMachineImageCache
 }
 
-func (h *Handler) OnImageChanged(key string, image *apisv1alpha1.Image) (*apisv1alpha1.Image, error) {
+func (h *Handler) OnImageChanged(key string, image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
 	if image == nil {
 		return nil, nil
 	}
@@ -94,13 +94,13 @@ func (h *Handler) OnImageChanged(key string, image *apisv1alpha1.Image) (*apisv1
 	return nil, nil
 }
 
-func (h *Handler) OnImageRemove(key string, image *apisv1alpha1.Image) (*apisv1alpha1.Image, error) {
+func (h *Handler) OnImageRemove(key string, image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
 	logrus.Debugf("removing %s object in minio", image.Name)
 	cleanUpImport(image.Name, image.Status.AppliedURL)
 	return image, util.MinioClient.RemoveObject(util.BucketName, image.Name)
 }
 
-func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelFunc, image *apisv1alpha1.Image) error {
+func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelFunc, image *apisv1alpha1.VirtualMachineImage) error {
 	logrus.Debugln("start importing image to minio")
 	client := http.Client{
 		//timeout by calling cancel when idle time is exceeded
@@ -165,7 +165,7 @@ func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelF
 	return nil
 }
 
-func (h *Handler) UpdateStatusRetryOnConflict(image *apisv1alpha1.Image) (*apisv1alpha1.Image, error) {
+func (h *Handler) UpdateStatusRetryOnConflict(image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
 	retry := 3
 	for i := 0; i < retry; i++ {
 		current, err := h.imageCache.Get(image.Namespace, image.Name)
@@ -189,7 +189,7 @@ func (h *Handler) UpdateStatusRetryOnConflict(image *apisv1alpha1.Image) (*apisv
 	return nil, errors.New("failed to update status, max retries exceeded")
 }
 
-func resetImageStatus(image *apisv1alpha1.Image) {
+func resetImageStatus(image *apisv1alpha1.VirtualMachineImage) {
 	image.Status.AppliedURL = ""
 	apisv1alpha1.ImageImported.SetStatus(image, "")
 	apisv1alpha1.ImageImported.Message(image, "")
@@ -197,7 +197,7 @@ func resetImageStatus(image *apisv1alpha1.Image) {
 	image.Status.DownloadURL = ""
 }
 
-func (h Handler) syncProgress(ctx context.Context, cancel context.CancelFunc, reader *util.CountingReader, image *apisv1alpha1.Image) {
+func (h Handler) syncProgress(ctx context.Context, cancel context.CancelFunc, reader *util.CountingReader, image *apisv1alpha1.VirtualMachineImage) {
 	count := reader.Current
 	lastUpdate := time.Now()
 	for {

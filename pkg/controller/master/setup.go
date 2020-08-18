@@ -10,7 +10,7 @@ import (
 
 func Setup(ctx context.Context, server *server.Server) error {
 	scaled := config.ScaledWithContext(ctx)
-	go leader.RunOrDie(ctx, "", "vm-controllers", server.K8s, func(ctx context.Context) {
+	go leader.RunOrDie(ctx, "", "harvester-controllers", server.K8s, func(ctx context.Context) {
 		if err := register(ctx, server, scaled.Management); err != nil {
 			panic(err)
 		}

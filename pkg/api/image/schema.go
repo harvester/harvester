@@ -14,7 +14,7 @@ import (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	t := schema.Template{
-		ID: "vm.cattle.io.image",
+		ID: "harvester.cattle.io.virtualmachineimage",
 		Store: store.DisplayNameValidatorStore{
 			Store: store.NamespaceStore{
 				Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
@@ -28,8 +28,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 			s.Formatter = Formatter
 			s.ActionHandlers = map[string]http.Handler{
 				"upload": UploadActionHandler{
-					Images:     scaled.VMFactory.Vm().V1alpha1().Image(),
-					ImageCache: scaled.VMFactory.Vm().V1alpha1().Image().Cache(),
+					Images:     scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineImage(),
+					ImageCache: scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineImage().Cache(),
 				},
 			}
 		},
