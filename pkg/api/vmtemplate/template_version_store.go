@@ -7,15 +7,15 @@ import (
 
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
-	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/vm.cattle.io/v1alpha1"
+	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/ref"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 )
 
 type templateVersionStore struct {
 	types.Store
-	templateCache        ctlvmv1alpha1.TemplateCache
-	templateVersionCache ctlvmv1alpha1.TemplateVersionCache
+	templateCache        ctlvmv1alpha1.VirtualMachineTemplateCache
+	templateVersionCache ctlvmv1alpha1.VirtualMachineTemplateVersionCache
 }
 
 func (s *templateVersionStore) Create(request *types.APIRequest, schema *types.APISchema, data types.APIObject) (types.APIObject, error) {

@@ -1,7 +1,7 @@
 package server
 
 import (
-	vmv1 "github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
+	harv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -10,7 +10,7 @@ import (
 
 var (
 	localSchemeBuilder = runtime.SchemeBuilder{
-		vmv1.AddToScheme,
+		harv1.AddToScheme,
 		kubevirtv1.AddToScheme,
 	}
 	AddToScheme = localSchemeBuilder.AddToScheme

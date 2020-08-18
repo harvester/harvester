@@ -11,7 +11,7 @@ const (
 )
 
 func Register(ctx context.Context, management *config.Management) error {
-	keyPairs := management.VMFactory.Vm().V1alpha1().KeyPair()
+	keyPairs := management.HarvesterFactory.Harvester().V1alpha1().KeyPair()
 	controller := &Handler{
 		keyPairs:     keyPairs,
 		keyPairCache: keyPairs.Cache(),

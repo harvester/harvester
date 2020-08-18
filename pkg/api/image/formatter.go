@@ -8,9 +8,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/vm.cattle.io/v1alpha1"
+	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/generated/controllers/vm.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/util"
 	"github.com/rancher/steve/pkg/resources/common"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
@@ -29,8 +29,8 @@ func CollectionFormatter(request *types.APIRequest, collection *types.GenericCol
 }
 
 type UploadActionHandler struct {
-	Images     v1alpha1.ImageClient
-	ImageCache v1alpha1.ImageCache
+	Images     v1alpha1.VirtualMachineImageClient
+	ImageCache v1alpha1.VirtualMachineImageCache
 }
 
 func (h UploadActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -70,15 +70,15 @@ func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	logrus.Debugf("Successfully uploaded %s of size %d\n", fileName, n)
 
 	downloadURL := fmt.Sprintf("%s/%s/%s", config.ImageStorageEndpoint, util.BucketName, generatedName)
-	image := &apisv1alpha1.Image{
+	image := &apisv1alpha1.VirtualMachineImage{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      generatedName,
 			Namespace: namespace,
 		},
-		Spec: apisv1alpha1.ImageSpec{
+		Spec: apisv1alpha1.VirtualMachineImageSpec{
 			DisplayName: imageName,
 		},
-		Status: apisv1alpha1.ImageStatus{
+		Status: apisv1alpha1.VirtualMachineImageStatus{
 			DownloadURL: downloadURL,
 			Progress:    100,
 		},

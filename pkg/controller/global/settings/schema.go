@@ -11,7 +11,7 @@ import (
 
 func setSchema(scaled *config.Scaled, server *server.Server) error {
 	t := schema.Template{
-		ID: "vm.cattle.io.setting",
+		ID: "harvester.cattle.io.setting",
 		Store: store{
 			Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
 		},

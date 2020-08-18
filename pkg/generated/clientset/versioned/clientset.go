@@ -21,8 +21,8 @@ package versioned
 import (
 	"fmt"
 
+	harvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
 	kubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
-	vmv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/vm.cattle.io/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -30,26 +30,26 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
+	HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface
 	KubevirtV1alpha3() kubevirtv1alpha3.KubevirtV1alpha3Interface
-	VmV1alpha1() vmv1alpha1.VmV1alpha1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	kubevirtV1alpha3 *kubevirtv1alpha3.KubevirtV1alpha3Client
-	vmV1alpha1       *vmv1alpha1.VmV1alpha1Client
+	harvesterV1alpha1 *harvesterv1alpha1.HarvesterV1alpha1Client
+	kubevirtV1alpha3  *kubevirtv1alpha3.KubevirtV1alpha3Client
+}
+
+// HarvesterV1alpha1 retrieves the HarvesterV1alpha1Client
+func (c *Clientset) HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface {
+	return c.harvesterV1alpha1
 }
 
 // KubevirtV1alpha3 retrieves the KubevirtV1alpha3Client
 func (c *Clientset) KubevirtV1alpha3() kubevirtv1alpha3.KubevirtV1alpha3Interface {
 	return c.kubevirtV1alpha3
-}
-
-// VmV1alpha1 retrieves the VmV1alpha1Client
-func (c *Clientset) VmV1alpha1() vmv1alpha1.VmV1alpha1Interface {
-	return c.vmV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -73,11 +73,11 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.kubevirtV1alpha3, err = kubevirtv1alpha3.NewForConfig(&configShallowCopy)
+	cs.harvesterV1alpha1, err = harvesterv1alpha1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
-	cs.vmV1alpha1, err = vmv1alpha1.NewForConfig(&configShallowCopy)
+	cs.kubevirtV1alpha3, err = kubevirtv1alpha3.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +93,8 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
+	cs.harvesterV1alpha1 = harvesterv1alpha1.NewForConfigOrDie(c)
 	cs.kubevirtV1alpha3 = kubevirtv1alpha3.NewForConfigOrDie(c)
-	cs.vmV1alpha1 = vmv1alpha1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -103,8 +103,8 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
+	cs.harvesterV1alpha1 = harvesterv1alpha1.New(c)
 	cs.kubevirtV1alpha3 = kubevirtv1alpha3.New(c)
-	cs.vmV1alpha1 = vmv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs
