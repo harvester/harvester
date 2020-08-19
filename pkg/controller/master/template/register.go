@@ -21,6 +21,7 @@ func Register(ctx context.Context, management *config.Management) error {
 	}
 
 	templateVersionController := &templateVersionHandler{
+		templates:        templates,
 		templateCache:    templates.Cache(),
 		templateVersions: templateVersions,
 	}
