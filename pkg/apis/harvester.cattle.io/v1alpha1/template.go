@@ -47,6 +47,7 @@ type VirtualMachineTemplateVersionSpec struct {
 	Description string                          `json:"description,omitempty"`
 	TemplateID  string                          `json:"templateId,omitempty"`
 	ImageID     string                          `json:"imageId,omitempty"`
+	KeyPairIDs  []string                        `json:"keyPairIds,omitempty"`
 	VM          virtv1alpha3.VirtualMachineSpec `json:"vm,omitempty"`
 }
 
