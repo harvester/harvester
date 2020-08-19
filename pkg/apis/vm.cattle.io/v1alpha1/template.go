@@ -40,6 +40,7 @@ type TemplateSpec struct {
 
 type TemplateStatus struct {
 	DefaultVersion int `json:"defaultVersion,omitempty"`
+	LatestVersion  int `json:"latestVersion,omitempty"`
 }
 
 type TemplateVersionSpec struct {
