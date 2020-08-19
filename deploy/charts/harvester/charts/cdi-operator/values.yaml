@@ -50,7 +50,7 @@ containers:
 
       ## Specify the pull policy of image.
       ##
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
 
       ## Specify the repository of image.
       ##
@@ -58,7 +58,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: latest
+      tag: v1.22.0
 
     ## Specify the command.
     ##

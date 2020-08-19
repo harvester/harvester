@@ -18,18 +18,30 @@ dependencies:
     version: 0.1.0
     repository: file://charts/kubevirt-operator
     condition: kubevirt-operator.enabled
+    tags:
+      - kubevirt
+      - operator
   - name: kubevirt
     version: 0.1.0
     repository: file://charts/kubevirt
     condition: kubevirt.enabled
+    tags:
+      - kubevirt
+      - crd
   - name: cdi-operator
     version: 0.1.0
     repository: file://charts/cdi-operator
     condition: cdi-operator.enabled
+    tags:
+      - cdi
+      - operator
   - name: cdi
     version: 0.1.0
     repository: file://charts/cdi
     condition: cdi.enabled
+    tags:
+      - cdi
+      - crd
   - name: minio
     version: 5.0.32
     repository: file://charts/minio

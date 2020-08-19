@@ -68,3 +68,51 @@ and then we indicate the values from "minio" domain.
 {{- end -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+NB(thxCode): Use this value to unify the control tag and condition of KubeVirt Operator.
+*/}}
+{{- define "conditions.is_kubevirt_operator_enabled" }}
+{{- $kubevirtOperatorEnabled := (index .Values "kubevirt-operator" "enabled") | toString -}}
+{{- if ne $kubevirtOperatorEnabled "<nil>" -}}
+{{- $kubevirtOperatorEnabled -}}
+{{- else -}}
+{{- .Values.tags.kubevirt | toString -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+NB(thxCode): Use this value to unify the control tag and condition of KubeVirt.
+*/}}
+{{- define "conditions.is_kubevirt_enabled" }}
+{{- $kubevirtEnabled := (index .Values "kubevirt" "enabled") | toString -}}
+{{- if ne $kubevirtEnabled "<nil>" }}
+{{- $kubevirtEnabled -}}
+{{- else -}}
+{{- .Values.tags.kubevirt | toString -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+NB(thxCode): Use this value to unify the control tag and condition of CDI Operator.
+*/}}
+{{- define "conditions.is_cdi_operator_enabled" }}
+{{- $cdiOperatorEnabled := (index .Values "cdi-operator" "enabled") | toString }}
+{{- if ne $cdiOperatorEnabled "<nil>" }}
+{{- $cdiOperatorEnabled -}}
+{{- else -}}
+{{- .Values.tags.cdi | toString -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+NB(thxCode): Use this value to unify the control tag and condition of CDI.
+*/}}
+{{- define "conditions.is_cdi_enabled" }}
+{{- $cdiEnabled := (index .Values "cdi" "enabled") | toString -}}
+{{- if ne $cdiEnabled "<nil>" }}
+{{- $cdiEnabled -}}
+{{- else -}}
+{{- .Values.tags.cdi | toString -}}
+{{- end -}}
+{{- end }}
