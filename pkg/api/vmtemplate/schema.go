@@ -24,6 +24,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) {
 		Store:                proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
 		templateCache:        scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate().Cache(),
 		templateVersionCache: templateCache,
+		keyPairCache:         scaled.HarvesterFactory.Harvester().V1alpha1().KeyPair().Cache(),
 	}
 
 	t := []schema.Template{

@@ -14,8 +14,10 @@ import (
 
 type templateVersionStore struct {
 	types.Store
+
 	templateCache        ctlvmv1alpha1.VirtualMachineTemplateCache
 	templateVersionCache ctlvmv1alpha1.VirtualMachineTemplateVersionCache
+	keyPairCache         ctlvmv1alpha1.KeyPairCache
 }
 
 func (s *templateVersionStore) Create(request *types.APIRequest, schema *types.APISchema, data types.APIObject) (types.APIObject, error) {
@@ -29,6 +31,17 @@ func (s *templateVersionStore) Create(request *types.APIRequest, schema *types.A
 	templateNs, templateName := ref.Parse(templateID)
 	if ns != templateNs {
 		return types.APIObject{}, apierror.NewAPIError(validation.InvalidBodyContent, "Template version and template should belong to same namespace")
+	}
+
+	keyPairIDs := newData.StringSlice("spec", "keyPairIds")
+	if len(keyPairIDs) != 0 {
+		for _, v := range keyPairIDs {
+			keyPairNs, keyPairName := ref.Parse(v)
+			_, err := s.keyPairCache.Get(keyPairNs, keyPairName)
+			if err != nil {
+				return types.APIObject{}, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("KeyPairID %s is invalid, %v", v, err))
+			}
+		}
 	}
 
 	newData.SetNested(templateName+"-", "metadata", "generateName")
