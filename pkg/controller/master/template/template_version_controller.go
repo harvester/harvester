@@ -10,6 +10,7 @@ import (
 	ctlapisv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/vm.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/ref"
 
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -20,6 +21,7 @@ const (
 // templateVersionHandler sets metadata and status to templateVersion objects,
 // including labels, ownerReference and status.Version.
 type templateVersionHandler struct {
+	templates        ctlapisv1alpha1.TemplateClient
 	templateCache    ctlapisv1alpha1.TemplateCache
 	templateVersions ctlapisv1alpha1.TemplateVersionClient
 	mu               sync.RWMutex //use mutex to avoid create duplicated version
@@ -30,8 +32,8 @@ func (h *templateVersionHandler) OnChanged(key string, tv *apisv1alpha1.Template
 		return nil, nil
 	}
 
-	ns, name := ref.Parse(tv.Spec.TemplateID)
-	template, err := h.templateCache.Get(ns, name)
+	ns, templateName := ref.Parse(tv.Spec.TemplateID)
+	template, err := h.templateCache.Get(ns, templateName)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +45,7 @@ func (h *templateVersionHandler) OnChanged(key string, tv *apisv1alpha1.Template
 		copyObj.Labels = make(map[string]string)
 	}
 	if _, ok := copyObj.Labels[TemplateLabel]; !ok {
-		copyObj.Labels[TemplateLabel] = name
+		copyObj.Labels[TemplateLabel] = templateName
 	}
 
 	//set ownerReference
@@ -68,12 +70,20 @@ func (h *templateVersionHandler) OnChanged(key string, tv *apisv1alpha1.Template
 
 	//set version
 	if !apisv1alpha1.VersionAssigned.IsTrue(copyObj) {
-		latestVersion, err := h.getTemplateLatestVersion(tv.Namespace, tv.Name, tv.Spec.TemplateID)
+		existLatestVersion, err := h.getTemplateLatestVersion(tv.Namespace, tv.Name, tv.Spec.TemplateID)
 		if err != nil {
 			return nil, err
 		}
-		copyObj.Status.Version = latestVersion + 1
+
+		latestVersion := existLatestVersion + 1
+		copyObj.Status.Version = latestVersion
 		apisv1alpha1.VersionAssigned.True(copyObj)
+
+		copyTemplate := template.DeepCopy()
+		copyTemplate.Status.LatestVersion = latestVersion
+		if _, err := h.templates.Update(copyTemplate); err != nil {
+			return nil, errors.Wrapf(err, "failed to set latest version for template %s:%s", template.Namespace, template.Name)
+		}
 	}
 
 	if !reflect.DeepEqual(copyObj, tv) {
