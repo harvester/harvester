@@ -6,8 +6,9 @@ import "io"
 type CountingReader struct {
 	Reader  io.ReadCloser
 	Current int64
-	Total   int64
-	Done    bool
+	// Total can be negative meaning the total size is unknown
+	Total int64
+	Done  bool
 }
 
 // Read reads bytes from the stream and updates the prometheus clone_progress metric according to the progress.

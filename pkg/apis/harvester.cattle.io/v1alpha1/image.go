@@ -29,10 +29,11 @@ type VirtualMachineImageSpec struct {
 }
 
 type VirtualMachineImageStatus struct {
-	AppliedURL  string      `json:"appliedUrl"`
-	DownloadURL string      `json:"downloadUrl"`
-	Progress    int         `json:"progress"`
-	Conditions  []Condition `json:"conditions"`
+	AppliedURL      string      `json:"appliedUrl"`
+	DownloadURL     string      `json:"downloadUrl"`
+	Progress        int         `json:"progress"`
+	DownloadedBytes int64       `json:"downloadedBytes"`
+	Conditions      []Condition `json:"conditions"`
 }
 
 type Condition struct {
