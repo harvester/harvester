@@ -120,11 +120,17 @@ func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelF
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("expected 200 status from %s, got %s", image.Spec.URL, resp.Status)
 	}
-	size, err := strconv.Atoi(resp.Header.Get("Content-Length"))
-	if err != nil {
-		return err
+
+	var fileSize int64
+	if resp.Header.Get("Content-Length") == "" {
+		// -1 indicates unknown size
+		fileSize = -1
+	} else {
+		fileSize, err = strconv.ParseInt(resp.Header.Get("Content-Length"), 10, 64)
+		if err != nil {
+			return err
+		}
 	}
-	fileSize := int64(size)
 	contentType := resp.Header.Get("Content-Type")
 	reader := &util.CountingReader{
 		Reader: resp.Body,
@@ -143,7 +149,7 @@ func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelF
 
 	go h.syncProgress(ctx, cancel, reader, image)
 
-	n, err := util.MinioClient.PutObjectWithContext(ctx, util.BucketName, image.Name, reader, fileSize, minio.PutObjectOptions{ContentType: contentType})
+	uploaded, err := util.MinioClient.PutObjectWithContext(ctx, util.BucketName, image.Name, reader, fileSize, minio.PutObjectOptions{ContentType: contentType})
 	if err != nil {
 		return err
 	}
@@ -155,13 +161,14 @@ func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelF
 	}
 	toUpdate = currentImage.DeepCopy()
 	toUpdate.Status.Progress = 100
+	toUpdate.Status.DownloadedBytes = uploaded
 	apisv1alpha1.ImageImported.True(toUpdate)
 	apisv1alpha1.ImageImported.Message(toUpdate, "completed image importing")
 	toUpdate.Status.DownloadURL = fmt.Sprintf("%s/%s/%s", config.ImageStorageEndpoint, util.BucketName, image.Name)
 	if _, err := h.UpdateStatusRetryOnConflict(toUpdate); err != nil {
 		return err
 	}
-	logrus.Debugf("Successfully imported image in size %d from %s\n", n, image.Spec.URL)
+	logrus.Debugf("Successfully imported image in size %d from %s\n", uploaded, image.Spec.URL)
 	return nil
 }
 
@@ -194,22 +201,30 @@ func resetImageStatus(image *apisv1alpha1.VirtualMachineImage) {
 	apisv1alpha1.ImageImported.SetStatus(image, "")
 	apisv1alpha1.ImageImported.Message(image, "")
 	image.Status.Progress = 0
+	image.Status.DownloadedBytes = 0
 	image.Status.DownloadURL = ""
 }
 
 func (h Handler) syncProgress(ctx context.Context, cancel context.CancelFunc, reader *util.CountingReader, image *apisv1alpha1.VirtualMachineImage) {
-	count := reader.Current
+	var count int64
+	var progress int
 	lastUpdate := time.Now()
 	for {
 		if count < reader.Current {
-			progress := int(float32(count) * 100 / float32(reader.Total))
 			currentImage, err := h.imageCache.Get(image.Namespace, image.Name)
 			if err != nil {
 				logrus.Errorf("fail to get image syncing progress: %v", err)
 			}
-			if currentImage.Status.Progress != progress {
+
+			if currentImage.Status.DownloadedBytes != reader.Current {
 				toUpdate := currentImage.DeepCopy()
-				toUpdate.Status.Progress = progress
+				if reader.Total > 0 {
+					progress = int(float32(reader.Current) * 100 / float32(reader.Total))
+					toUpdate.Status.Progress = progress
+				} else {
+					toUpdate.Status.Progress = -1
+				}
+				toUpdate.Status.DownloadedBytes = reader.Current
 				if _, err := h.images.Update(toUpdate); err != nil && !apierrors.IsConflict(err) {
 					logrus.Errorf("fail to update image syncing progress: %v", err)
 				}
