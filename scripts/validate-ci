@@ -3,6 +3,8 @@ set -e
 
 cd $(dirname $0)/..
 
+echo "Running dirty check"
+
 go generate
 
 source ./scripts/version

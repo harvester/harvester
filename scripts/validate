@@ -3,19 +3,16 @@ set -e
 
 cd $(dirname $0)/..
 
-echo Running validation
+echo "Running validation"
 
-PACKAGES="$(go list ./...)"
-
-if ! command -v golangci-lint; then
-    echo Skipping validation: no golangci-lint available
-    exit
+if [[ -z "$(command -v golangci-lint)" ]]; then
+	echo "no golangci-lint available, using go fmt/vet instead"
+	echo "Running: go fmt"
+	go fmt ./...
+	echo "Running: go vet"
+	go vet -tags=test ./...
+	exit
 fi
 
-echo Running validation
-
-echo Running: golangci-lint
+echo "Running: golangci-lint run"
 golangci-lint run
-
-echo Running: go fmt
-test -z "$(go fmt ${PACKAGES} | tee /dev/stderr)"
