@@ -3,21 +3,22 @@ package keypair
 import (
 	"fmt"
 
+	"golang.org/x/crypto/ssh"
+
 	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
-	"golang.org/x/crypto/ssh"
 )
 
 // Handler computes key pairs' fingerprints
 type Handler struct {
-	keyPairs     v1alpha1.KeyPairController
-	keyPairCache v1alpha1.KeyPairCache
+	keyPairClient v1alpha1.KeyPairClient
 }
 
 func (h *Handler) OnKeyPairChanged(key string, keyPair *apisv1alpha1.KeyPair) (*apisv1alpha1.KeyPair, error) {
 	if keyPair == nil || keyPair.DeletionTimestamp != nil {
-		return nil, nil
+		return keyPair, nil
 	}
+
 	if keyPair.Spec.PublicKey == "" || keyPair.Status.FingerPrint != "" {
 		return keyPair, nil
 	}
@@ -33,6 +34,5 @@ func (h *Handler) OnKeyPairChanged(key string, keyPair *apisv1alpha1.KeyPair) (*
 		toUpdate.Status.FingerPrint = fingerPrint
 		apisv1alpha1.KeyPairValidated.True(toUpdate)
 	}
-	_, err = h.keyPairs.Update(toUpdate)
-	return keyPair, err
+	return h.keyPairClient.Update(toUpdate)
 }

@@ -22,7 +22,7 @@ func createCRDs(ctx context.Context, _ *config.Scaled, server *server.Server) er
 		)...).
 		BatchCreateCRDs(ctx, crd.NamespacedTypes(
 			getCRDName(v1alpha1.SchemeGroupVersion, "VirtualMachineImage"),
-			getCRDName(v1alpha1.SchemeGroupVersion, "keyPair"),
+			getCRDName(v1alpha1.SchemeGroupVersion, "KeyPair"),
 			getCRDName(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplate"),
 			getCRDName(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplateVersion"),
 		)...).

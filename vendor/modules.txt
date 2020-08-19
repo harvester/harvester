@@ -97,6 +97,8 @@ github.com/openshift/custom-resource-status/conditions/v1
 github.com/pborman/uuid
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
 # github.com/prometheus/client_golang v1.4.0
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
@@ -225,6 +227,8 @@ github.com/shurcooL/sanitized_anchor_name
 github.com/sirupsen/logrus
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
+# github.com/stretchr/testify v1.5.1
+github.com/stretchr/testify/assert
 # github.com/urfave/cli v1.22.2
 github.com/urfave/cli
 # golang.org/x/crypto v0.0.0-20200414173820-0848c9571904

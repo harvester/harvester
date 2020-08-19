@@ -13,8 +13,7 @@ const (
 func Register(ctx context.Context, management *config.Management) error {
 	keyPairs := management.HarvesterFactory.Harvester().V1alpha1().KeyPair()
 	controller := &Handler{
-		keyPairs:     keyPairs,
-		keyPairCache: keyPairs.Cache(),
+		keyPairClient: keyPairs,
 	}
 
 	keyPairs.OnChange(ctx, controllerAgentName, controller.OnKeyPairChanged)
