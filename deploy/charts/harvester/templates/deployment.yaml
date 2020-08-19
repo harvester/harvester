@@ -58,7 +58,7 @@ spec:
                     values:
                       - linux
       containers:
-        - name: vm
+        - name: apiserver
           image: {{ .Values.containers.apiserver.image.repository }}:{{ .Values.containers.apiserver.image.tag }}
           imagePullPolicy: {{ .Values.containers.apiserver.image.imagePullPolicy }}
 {{- if .Values.containers.apiserver.command }}
@@ -70,6 +70,10 @@ spec:
 {{ toYaml .Values.containers.apiserver.args | indent 12 }}
 {{- end }}
           env:
+            - name: HARVESTER_SERVER_HTTPS_PORT
+              value: {{ .Values.service.harvester.httpsPort | quote }}
+            - name: HARVESTER_SERVER_HTTP_PORT
+              value: {{ .Values.service.harvester.httpPort | quote }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
@@ -108,12 +112,14 @@ spec:
 {{ toYaml .Values.containers.apiserver.env | indent 12 }}
 {{- end }}
           ports:
-            - containerPort: 8443
+            - containerPort: {{ .Values.service.harvester.httpsPort }}
               name: https
               protocol: TCP
-            - containerPort: 8080
+{{- if gt (.Values.service.harvester.httpPort | int) 0 }}
+            - containerPort: {{ .Values.service.harvester.httpPort }}
               name: http
               protocol: TCP
+{{- end }}
 {{- if .Values.containers.apiserver.livenessProbe }}
           livenessProbe:
 {{ toYaml .Values.containers.apiserver.livenessProbe | indent 12 }}

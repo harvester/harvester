@@ -9,16 +9,21 @@ metadata:
 {{ include "harvester.labels" . | indent 4 }}
     app.kubernetes.io/name: harvester
     app.kubernetes.io/component: apiserver
+{{- if .Values.service.harvester.asClusterService }}
+    kubernetes.io/cluster-service: "true"
+{{- end }}
 spec:
-  type: LoadBalancer
+  type: {{ .Values.service.harvester.type }}
   selector:
 {{ include "harvester.labels" . | indent 4 }}
     app.kubernetes.io/name: harvester
     app.kubernetes.io/component: apiserver
   ports:
     - name: https
-      port: 8443
+      port: {{ .Values.service.harvester.httpsPort }}
       targetPort: https
+{{- if gt (.Values.service.harvester.httpPort | int) 0 }}
     - name: http
-      port: 8080
+      port: {{ .Values.service.harvester.httpPort }}
       targetPort: http
+{{- end }}

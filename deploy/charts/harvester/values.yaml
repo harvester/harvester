@@ -1,44 +1,74 @@
 ###########################################################################
 ###########################################################################
-##          Override the sub-charts default configuration below.         ##
+##                            Installation control                       ##
+###########################################################################
+###########################################################################
+
+## Specify to enable the sub-chart group or not,
+## view more detail from: https://helm.sh/docs/topics/charts/#tags-and-condition-resolution.
+##
+tags:
+
+  ## Specify to enable both CDI operator and CDI sub-charts,
+  ## defaults to "true".
+  ##
+  cdi: true
+
+  ## Specify to enable both KubeVirt operator and KubeVirt sub-charts,
+  ## defaults to "true".
+  ##
+  kubevirt: true
+
+###########################################################################
+###########################################################################
+##          Override the sub-charts default configuration below          ##
 ###########################################################################
 ###########################################################################
 
 ## Specify the parameters to override the sub-chart.
 ##
-kubevirt-operator:
-
-  ## Specify to install KubeVirt Operator,
-  ## defaults to "true".
-  ##
-  enabled: true
+kubevirt-operator: {}
 
 ## Specify the parameters to override the sub-chart.
 ##
 kubevirt:
 
-  ## Specify to install KubeVirt CRD instance,
-  ## defaults to "true".
+  ## Specify the specification of KubeVirt resource.
   ##
-  enabled: true
+  spec:
+
+    ## Specify the default configuration of KubeVirt virtual machine.
+    ##
+    configuration:
+
+      ## Specify the network configuration of VirtualMachineInstance.
+      ##
+      network:
+
+        ## Specify the default network interface of VirtualMachineInstance(`spec.domain.devices.interfaces[?(.name="default")]`),
+        ## defaults to "bridge".
+        ##
+        defaultNetworkInterface: "bridge"
+
+        ## Specify to permit slirp interface
+        ## NB(thxCode): we just need to pin it as "true",
+        ## and then the user can focus on the above "defaultNetworkInterface".
+        ##
+        permitSlirpInterface: "true"
+
+        ## Specify to permit bridge interface,
+        ## NB(thxCode): we just need to pin it as "true",
+        ## and then the user can focus on the above "defaultNetworkInterface".
+        ##
+        permitBridgeInterfaceOnPodNetwork: "true"
 
 ## Specify the parameters to override the sub-chart.
 ##
-cdi-operator:
-
-  ## Specify to install CDI Operator,
-  ## defaults to "true".
-  ##
-  enabled: true
+cdi-operator: {}
 
 ## Specify the parameters to override the sub-chart.
 ##
-cdi:
-
-  ## Specify to install CDI CRD instance,
-  ## defaults to "true".
-  ##
-  enabled: true
+cdi: {}
 
 ## Specify the parameters to override the sub-chart.
 ##
@@ -56,17 +86,34 @@ minio:
   ## Specify the resources of Minio container.
   ##
   resources:
+    limits: {}
     requests:
       memory: 256m
+
+  ## Specify the access key.
+  ##
+  accessKey: YOURACCESSKEY
+
+  ## Specify the secret key.
+  ##
+  secretKey: YOURSECRETKEY
 
   ## Specify the persistence of Minio.
   ##
   persistence:
 
+    ## Specify to use persistent storage or not.
+    ##
+    enabled: true
+
     ## Specify the StorageClass of Minio,
     ## otherwise, Minio will use the default StorageClass.
     ##
     storageClass: ""
+
+    ## Specify the size of Minio.
+    ##
+    size: 500Gi
 
 ###########################################################################
 ###########################################################################
@@ -183,6 +230,36 @@ containers:
       ## the value will store in "secretKey" field of a specified Secret(named as the default fully qualified app name).
       ##
       secretKey: ""
+
+## Specify the service configuration.
+##
+service:
+
+  ## Specify the configuration of default service,
+  ## which is named "harvester".
+  ##
+  harvester:
+
+    ## Specify as cluster service,
+    ## so this service can be listed with `kubectl cluster-info`.
+    asClusterService: true
+
+    ## Specify the type of service,
+    ## select from [ClusterIP, NodePort, LoadBalancer],
+    ## defaults to "ClusterIP".
+    ##
+    type: ClusterIP
+
+    ## Specify the port of HTTPs endpoint.
+    ## defaults to "8443".
+    ##
+    httpsPort: 8443
+
+    ## Specify the port of HTTP endpoint,
+    ## this port will be closed if set to 0.
+    ## defaults to "0".
+    ##
+    httpPort: 0
 
 ## Specify the lifecycle jobs.
 ##
