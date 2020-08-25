@@ -11,6 +11,9 @@ var (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:shortName=kp
+// +kubebuilder:printcolumn:name="FINGER_PRINT",type=string,JSONPath=`.status.fingerPrint`
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`
 
 type KeyPair struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -21,12 +24,16 @@ type KeyPair struct {
 }
 
 type KeyPairSpec struct {
+	// +kubebuilder:validation:Required
 	PublicKey string `json:"publicKey"`
 }
 
 type KeyPairStatus struct {
-	FingerPrint string      `json:"fingerPrint"`
-	Conditions  []Condition `json:"conditions"`
+	// +optional
+	FingerPrint string `json:"fingerPrint,omitempty"`
+
+	// +optional
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 type KeyGenInput struct {

@@ -12,6 +12,12 @@ var (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:shortName=vmtemplate
+// +kubebuilder:printcolumn:name="VERSION_ID",type=string,JSONPath=`.spec.defaultVersionId`
+// +kubebuilder:printcolumn:name="DESCRIPTION",type=string,priority=10,JSONPath=`.spec.description`
+// +kubebuilder:printcolumn:name="VERSION_DEFAULT",type=integer,priority=8,JSONPath=`.status.defaultVersion`
+// +kubebuilder:printcolumn:name="VERSION_LATEST",type=integer,priority=8,JSONPath=`.status.latestVersion`
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`
 
 type VirtualMachineTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -21,9 +27,30 @@ type VirtualMachineTemplate struct {
 	Status VirtualMachineTemplateStatus `json:"status,omitempty"`
 }
 
+type VirtualMachineTemplateSpec struct {
+	// +kubebuilder:validation:Required
+	DefaultVersionID string `json:"defaultVersionId"`
+
+	// +optional
+	Description string `json:"description,omitempty"`
+}
+
+type VirtualMachineTemplateStatus struct {
+	// +optional
+	DefaultVersion int `json:"defaultVersion,omitempty"`
+
+	// +optional
+	LatestVersion int `json:"latestVersion,omitempty"`
+}
+
 // +genclient
 // +genclient:skipVerbs=update
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:shortName=vmtemplateversion
+// +kubebuilder:printcolumn:name="TEMPLATE_ID",type=string,JSONPath=`.spec.templatedId`
+// +kubebuilder:printcolumn:name="DESCRIPTION",type=string,priority=10,JSONPath=`.spec.description`
+// +kubebuilder:printcolumn:name="VERSION",type=integer,JSONPath=`.status.version`
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`
 
 type VirtualMachineTemplateVersion struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -33,25 +60,27 @@ type VirtualMachineTemplateVersion struct {
 	Status VirtualMachineTemplateVersionStatus `json:"status,omitempty"`
 }
 
-type VirtualMachineTemplateSpec struct {
-	Description      string `json:"description,omitempty"`
-	DefaultVersionID string `json:"defaultVersionId,omitempty"`
-}
-
-type VirtualMachineTemplateStatus struct {
-	DefaultVersion int `json:"defaultVersion,omitempty"`
-	LatestVersion  int `json:"latestVersion,omitempty"`
-}
-
 type VirtualMachineTemplateVersionSpec struct {
-	Description string                          `json:"description,omitempty"`
-	TemplateID  string                          `json:"templateId,omitempty"`
-	ImageID     string                          `json:"imageId,omitempty"`
-	KeyPairIDs  []string                        `json:"keyPairIds,omitempty"`
-	VM          virtv1alpha3.VirtualMachineSpec `json:"vm,omitempty"`
+	// +kubebuilder:validation:Required
+	TemplateID string `json:"templateId"`
+
+	// +optional
+	Description string `json:"description,omitempty"`
+
+	// +optional
+	ImageID string `json:"imageId,omitempty"`
+
+	// +optional
+	KeyPairIDs []string `json:"keyPairIds,omitempty"`
+
+	// +optional
+	VM virtv1alpha3.VirtualMachineSpec `json:"vm,omitempty"`
 }
 
 type VirtualMachineTemplateVersionStatus struct {
-	Version    int         `json:"version,omitempty"`
-	Conditions []Condition `json:"conditions"`
+	// +optional
+	Version int `json:"version,omitempty"`
+
+	// +optional
+	Conditions []Condition `json:"conditions,omitempty"`
 }

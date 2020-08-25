@@ -12,7 +12,6 @@ import (
 type registerFunc func(context.Context, *config.Scaled, *server.Server) error
 
 var registerFuncs = []registerFunc{
-	createCRDs,
 	settings.Register,
 }
 
