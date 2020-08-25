@@ -8,12 +8,6 @@ import (
 
 	"github.com/rancher/apiserver/pkg/writer"
 	"github.com/rancher/dynamiclistener/server"
-	"github.com/rancher/harvester/pkg/api"
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/controller/global"
-	"github.com/rancher/harvester/pkg/controller/master"
-	"github.com/rancher/harvester/pkg/server/ui"
-	"github.com/rancher/harvester/pkg/settings"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/steve/pkg/accesscontrol"
 	steveserver "github.com/rancher/steve/pkg/server"
@@ -25,6 +19,14 @@ import (
 	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/rancher/harvester/pkg/api"
+	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/controller/crds"
+	"github.com/rancher/harvester/pkg/controller/global"
+	"github.com/rancher/harvester/pkg/controller/master"
+	"github.com/rancher/harvester/pkg/server/ui"
+	"github.com/rancher/harvester/pkg/settings"
 )
 
 type HarvesterServer struct {
@@ -141,6 +143,7 @@ func (s *HarvesterServer) generateSteveServer() error {
 			return settings.UIIndex.Get()
 		},
 		StartHooks: []steveserver.StartHook{
+			crds.Setup,
 			master.Setup,
 			global.Setup,
 			api.Setup,

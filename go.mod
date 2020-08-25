@@ -26,7 +26,9 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20200414173820-0848c9571904
+	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	k8s.io/api v0.18.0
+	k8s.io/apiextensions-apiserver v0.18.0
 	k8s.io/apimachinery v0.18.0
 	k8s.io/client-go v12.0.0+incompatible
 	kubevirt.io/client-go v0.31.1-0.20200715061104-844cb60487e4

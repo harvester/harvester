@@ -1,20 +1,21 @@
 //go:generate go run pkg/codegen/cleanup/main.go
 //go:generate /bin/rm -rf pkg/generated
 //go:generate go run pkg/codegen/main.go
+//go:generate /bin/bash scripts/generate-manifest
 
 package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"os"
 
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/server"
 	"github.com/rancher/wrangler/pkg/signals"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+
+	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/server"
 )
 
 var (
@@ -87,8 +88,6 @@ func main() {
 }
 
 func run(c *cli.Context) {
-	flag.Parse()
-
 	logrus.Info("Starting controller")
 	ctx := signals.SetupSignalHandler(context.Background())
 
