@@ -10,6 +10,7 @@ var (
 )
 
 // +genclient
+// +genclient:skipVerbs=update
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type KeyPair struct {

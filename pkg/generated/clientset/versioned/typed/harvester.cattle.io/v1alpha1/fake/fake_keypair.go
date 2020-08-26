@@ -91,17 +91,6 @@ func (c *FakeKeyPairs) Create(ctx context.Context, keyPair *v1alpha1.KeyPair, op
 	return obj.(*v1alpha1.KeyPair), err
 }
 
-// Update takes the representation of a keyPair and updates it. Returns the server's representation of the keyPair, and an error, if there is any.
-func (c *FakeKeyPairs) Update(ctx context.Context, keyPair *v1alpha1.KeyPair, opts v1.UpdateOptions) (result *v1alpha1.KeyPair, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(keypairsResource, c.ns, keyPair), &v1alpha1.KeyPair{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*v1alpha1.KeyPair), err
-}
-
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 func (c *FakeKeyPairs) UpdateStatus(ctx context.Context, keyPair *v1alpha1.KeyPair, opts v1.UpdateOptions) (*v1alpha1.KeyPair, error) {

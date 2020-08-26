@@ -39,7 +39,6 @@ type KeyPairsGetter interface {
 // KeyPairInterface has methods to work with KeyPair resources.
 type KeyPairInterface interface {
 	Create(ctx context.Context, keyPair *v1alpha1.KeyPair, opts v1.CreateOptions) (*v1alpha1.KeyPair, error)
-	Update(ctx context.Context, keyPair *v1alpha1.KeyPair, opts v1.UpdateOptions) (*v1alpha1.KeyPair, error)
 	UpdateStatus(ctx context.Context, keyPair *v1alpha1.KeyPair, opts v1.UpdateOptions) (*v1alpha1.KeyPair, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -115,20 +114,6 @@ func (c *keyPairs) Create(ctx context.Context, keyPair *v1alpha1.KeyPair, opts v
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("keypairs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(keyPair).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a keyPair and updates it. Returns the server's representation of the keyPair, and an error, if there is any.
-func (c *keyPairs) Update(ctx context.Context, keyPair *v1alpha1.KeyPair, opts v1.UpdateOptions) (result *v1alpha1.KeyPair, err error) {
-	result = &v1alpha1.KeyPair{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("keypairs").
-		Name(keyPair.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(keyPair).
 		Do(ctx).
