@@ -6,14 +6,14 @@ RUN apk update && apk add -u --no-cache git curl unzip tar tini bash && \
 
 WORKDIR /var/lib/rancher/harvester
 
-ENV HARVESTER_UI_VERSION master
+ENV HARVESTER_UI_VERSION latest
 ENV HARVESTER_UI_PATH /usr/share/rancher/harvester
 # Please update the api-ui-version in pkg/settings/settings.go when updating the version here.
 ENV HARVESTER_API_UI_VERSION 1.1.9
 
 RUN mkdir -p /usr/share/rancher/harvester && \
     cd /usr/share/rancher/harvester && \
-    curl -sL https://rancher-harvester.s3-ap-southeast-1.amazonaws.com/ui/dist/${HARVESTER_UI_VERSION}.tar.gz | tar xvzf - --strip-components=2 && \
+    curl -sL https://releases.rancher.com/harvester-ui/${HARVESTER_UI_VERSION}.tar.gz | tar xvzf - --strip-components=2 && \
     mkdir -p /usr/share/rancher/harvester/api-ui && \
     cd /usr/share/rancher/harvester/api-ui && \
     curl -sL https://releases.rancher.com/api-ui/${HARVESTER_API_UI_VERSION}.tar.gz | tar xvzf - --strip-components=1 && \
