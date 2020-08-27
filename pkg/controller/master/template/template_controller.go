@@ -1,6 +1,8 @@
 package template
 
 import (
+	"github.com/pkg/errors"
+
 	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	ctlapisv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/ref"
@@ -25,6 +27,10 @@ func (h *templateHandler) OnChanged(key string, tp *apisv1alpha1.VirtualMachineT
 	version, err := h.templateVersionCache.Get(versionNs, versionName)
 	if err != nil {
 		return nil, err
+	}
+
+	if !apisv1alpha1.VersionAssigned.IsTrue(version) {
+		return nil, errors.New(version.Namespace + ":" + version.Name + " version isn't assigned yet")
 	}
 
 	if tp.Status.DefaultVersion == version.Status.Version {

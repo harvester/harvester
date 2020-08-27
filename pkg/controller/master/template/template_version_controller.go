@@ -82,6 +82,7 @@ func (h *templateVersionHandler) OnChanged(key string, tv *apisv1alpha1.VirtualM
 		copyTemplate := template.DeepCopy()
 		copyTemplate.Status.LatestVersion = latestVersion
 		if existLatestVersion == 0 && copyTemplate.Spec.DefaultVersionID == "" {
+			copyTemplate.Spec.DefaultVersionID = fmt.Sprintf("%s:%s", tv.Namespace, tv.Name)
 			copyTemplate.Status.DefaultVersion = latestVersion
 		}
 		if _, err := h.templates.Update(copyTemplate); err != nil {
