@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -145,6 +146,12 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 					},
 					Status: harvesterapis.VirtualMachineTemplateVersionStatus{
 						Version: 1,
+						Conditions: []harvesterapis.Condition{
+							{
+								Type:   harvesterapis.VersionAssigned,
+								Status: v1.ConditionTrue,
+							},
+						},
 					},
 				},
 			},
@@ -193,6 +200,12 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 					},
 					Status: harvesterapis.VirtualMachineTemplateVersionStatus{
 						Version: 2,
+						Conditions: []harvesterapis.Condition{
+							{
+								Type:   harvesterapis.VersionAssigned,
+								Status: v1.ConditionTrue,
+							},
+						},
 					},
 				},
 			},

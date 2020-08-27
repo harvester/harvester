@@ -3,10 +3,10 @@ package global
 import (
 	"context"
 
-	"github.com/rancher/steve/pkg/server"
-
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/controller/global/settings"
+	"github.com/rancher/harvester/pkg/controller/global/template"
+	"github.com/rancher/steve/pkg/server"
 )
 
 type registerFunc func(context.Context, *config.Scaled, *server.Server) error
@@ -14,6 +14,7 @@ type registerFunc func(context.Context, *config.Scaled, *server.Server) error
 var registerFuncs = []registerFunc{
 	createCRDs,
 	settings.Register,
+	template.Register,
 }
 
 func Setup(ctx context.Context, server *server.Server) error {
