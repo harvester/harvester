@@ -39,7 +39,7 @@ func RegisterController(ctx context.Context, management *config.Management) {
 
 // Handler implements harvester image import
 type Handler struct {
-	images     v1alpha1.VirtualMachineImageController
+	images     v1alpha1.VirtualMachineImageClient
 	imageCache v1alpha1.VirtualMachineImageCache
 }
 
@@ -91,7 +91,7 @@ func (h *Handler) OnImageChanged(key string, image *apisv1alpha1.VirtualMachineI
 		}
 	}()
 
-	return nil, nil
+	return image, nil
 }
 
 func (h *Handler) OnImageRemove(key string, image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
