@@ -34,6 +34,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) {
 			Customize: func(apiSchema *types.APISchema) {
 				apiSchema.ByIDHandler = th.byIDHandler
 			},
+			Store: store.NamespaceStore{Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup)},
 		},
 		{
 			ID:        templateVersionSchemaID,
