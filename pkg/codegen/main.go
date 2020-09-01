@@ -3,10 +3,12 @@ package main
 import (
 	"os"
 
-	harv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 	kubevirtv1 "kubevirt.io/client-go/api/v1alpha3"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+
+	harv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 )
 
 func main() {
@@ -30,6 +32,13 @@ func main() {
 				Types: []interface{}{
 					kubevirtv1.VirtualMachine{},
 					kubevirtv1.VirtualMachineInstance{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			cdiv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					cdiv1.DataVolume{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

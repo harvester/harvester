@@ -26,12 +26,14 @@ import (
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kubevirtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 var Scheme = runtime.NewScheme()
 var Codecs = serializer.NewCodecFactory(Scheme)
 var ParameterCodec = runtime.NewParameterCodec(Scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
+	cdiv1beta1.AddToScheme,
 	harvesterv1alpha1.AddToScheme,
 	kubevirtv1alpha3.AddToScheme,
 }

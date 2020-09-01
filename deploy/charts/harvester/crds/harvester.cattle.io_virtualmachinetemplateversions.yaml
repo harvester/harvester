@@ -70,8 +70,9 @@ spec:
                     this list are dynamically created for the VirtualMachine and are
                     tied to the VirtualMachine's life-cycle.
                   items:
-                    description: DataVolume provides a representation of our data
-                      volume
+                    description: DataVolume is an abstraction on top of PersistentVolumeClaims
+                      to allow easy population of those PersistentVolumeClaims with
+                      relation to VirtualMachines
                     properties:
                       apiVersion:
                         description: 'APIVersion defines the versioned schema of this
@@ -88,16 +89,17 @@ spec:
                       metadata:
                         type: object
                       spec:
-                        description: DataVolumeSpec defines our specification for
-                          a DataVolume type
+                        description: DataVolumeSpec defines the DataVolume type specification
                         properties:
                           contentType:
                             description: 'DataVolumeContentType options: "kubevirt",
                               "archive"'
+                            enum:
+                            - kubevirt
+                            - archive
                             type: string
                           pvc:
-                            description: PVC is a pointer to the PVC Spec we want
-                              to use
+                            description: PVC is the PVC specification
                             properties:
                               accessModes:
                                 description: 'AccessModes contains the desired access
@@ -241,29 +243,65 @@ spec:
                                   to create a new raw blank image for the PVC
                                 type: object
                               http:
-                                description: DataVolumeSourceHTTP provides the parameters
-                                  to create a Data Volume from an HTTP source
+                                description: DataVolumeSourceHTTP can be either an
+                                  http or https endpoint, with an optional basic auth
+                                  user name and password, and an optional configmap
+                                  containing additional CAs
+                                properties:
+                                  certConfigMap:
+                                    description: CertConfigMap is a configmap reference,
+                                      containing a Certificate Authority(CA) public
+                                      key, and a base64 encoded pem certificate
+                                    type: string
+                                  secretRef:
+                                    description: SecretRef A Secret reference, the
+                                      secret should contain accessKeyId (user name)
+                                      base64 encoded, and secretKey (password) also
+                                      base64 encoded
+                                    type: string
+                                  url:
+                                    description: URL is the URL of the http(s) endpoint
+                                    type: string
+                                required:
+                                - url
+                                type: object
+                              imageio:
+                                description: DataVolumeSourceImageIO provides the
+                                  parameters to create a Data Volume from an imageio
+                                  source
                                 properties:
                                   certConfigMap:
                                     description: CertConfigMap provides a reference
-                                      to the Registry certs
+                                      to the CA cert
+                                    type: string
+                                  diskId:
+                                    description: DiskID provides id of a disk to be
+                                      imported
                                     type: string
                                   secretRef:
                                     description: SecretRef provides the secret reference
-                                      needed to access the HTTP source
+                                      needed to access the ovirt-engine
                                     type: string
                                   url:
-                                    description: URL is the URL of the http source
+                                    description: URL is the URL of the ovirt-engine
                                     type: string
+                                required:
+                                - diskId
+                                - url
                                 type: object
                               pvc:
                                 description: DataVolumeSourcePVC provides the parameters
                                   to create a Data Volume from an existing PVC
                                 properties:
                                   name:
+                                    description: The name of the source PVC
                                     type: string
                                   namespace:
+                                    description: The namespace of the source PVC
                                     type: string
+                                required:
+                                - name
+                                - namespace
                                 type: object
                               registry:
                                 description: DataVolumeSourceRegistry provides the
@@ -279,8 +317,11 @@ spec:
                                       needed to access the Registry source
                                     type: string
                                   url:
-                                    description: URL is the url of the Registry source
+                                    description: URL is the url of the Docker registry
+                                      source
                                     type: string
+                                required:
+                                - url
                                 type: object
                               s3:
                                 description: DataVolumeSourceS3 provides the parameters
@@ -293,6 +334,8 @@ spec:
                                   url:
                                     description: URL is the url of the S3 source
                                     type: string
+                                required:
+                                - url
                                 type: object
                               upload:
                                 description: DataVolumeSourceUpload provides the parameters
@@ -304,17 +347,48 @@ spec:
                         - source
                         type: object
                       status:
-                        description: DataVolumeStatus provides the parameters to store
-                          the phase of the Data Volume
+                        description: DataVolumeStatus contains the current status
+                          of the DataVolume
                         properties:
+                          conditions:
+                            items:
+                              description: DataVolumeCondition represents the state
+                                of a data volume condition.
+                              properties:
+                                lastHeartbeatTime:
+                                  format: date-time
+                                  type: string
+                                lastTransitionTime:
+                                  format: date-time
+                                  type: string
+                                message:
+                                  type: string
+                                reason:
+                                  type: string
+                                status:
+                                  type: string
+                                type:
+                                  description: DataVolumeConditionType is the string
+                                    representation of known condition types
+                                  type: string
+                              required:
+                              - status
+                              - type
+                              type: object
+                            type: array
                           phase:
                             description: Phase is the current phase of the data volume
                             type: string
                           progress:
                             description: DataVolumeProgress is the current progress
                               of the DataVolume transfer operation. Value between
-                              0 and 100 inclusive
+                              0 and 100 inclusive, N/A if not available
                             type: string
+                          restartCount:
+                            description: RestartCount is the number of times the pod
+                              populating the DataVolume has restarted
+                            format: int32
+                            type: integer
                         type: object
                     required:
                     - spec

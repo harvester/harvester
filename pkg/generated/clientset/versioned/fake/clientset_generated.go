@@ -20,6 +20,8 @@ package fake
 
 import (
 	clientset "github.com/rancher/harvester/pkg/generated/clientset/versioned"
+	cdiv1beta1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
+	fakecdiv1beta1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1/fake"
 	harvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
 	fakeharvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1/fake"
 	kubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
@@ -77,6 +79,11 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 }
 
 var _ clientset.Interface = &Clientset{}
+
+// CdiV1beta1 retrieves the CdiV1beta1Client
+func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
+	return &fakecdiv1beta1.FakeCdiV1beta1{Fake: &c.Fake}
+}
 
 // HarvesterV1alpha1 retrieves the HarvesterV1alpha1Client
 func (c *Clientset) HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface {

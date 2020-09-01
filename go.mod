@@ -10,6 +10,7 @@ replace (
 	github.com/rancher/steve => github.com/rancheredge/steve v0.0.0-20200708031911-f69e0f4820b4
 	k8s.io/client-go => k8s.io/client-go v0.18.0
 	kubevirt.io/client-go => github.com/orangedeng/client-go v0.31.1-0.20200715061104-844cb60487e4
+	kubevirt.io/containerized-data-importer => github.com/thxcode/kubevirt-containerized-data-importer v1.22.0-apis-only
 )
 
 require (
@@ -27,10 +28,12 @@ require (
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20200414173820-0848c9571904
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	k8s.io/api v0.18.0
+	k8s.io/api v0.18.6
 	k8s.io/apiextensions-apiserver v0.18.0
-	k8s.io/apimachinery v0.18.0
+	k8s.io/apimachinery v0.18.6
 	k8s.io/client-go v12.0.0+incompatible
+	k8s.io/gengo v0.0.0-20200114144118-36b2048a9120
+	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
 	kubevirt.io/client-go v0.31.1-0.20200715061104-844cb60487e4
-	kubevirt.io/containerized-data-importer v1.10.6
+	kubevirt.io/containerized-data-importer v1.22.0
 )
