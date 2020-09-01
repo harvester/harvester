@@ -21,6 +21,7 @@ package versioned
 import (
 	"fmt"
 
+	cdiv1beta1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
 	harvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
 	kubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
 	discovery "k8s.io/client-go/discovery"
@@ -30,6 +31,7 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
+	CdiV1beta1() cdiv1beta1.CdiV1beta1Interface
 	HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface
 	KubevirtV1alpha3() kubevirtv1alpha3.KubevirtV1alpha3Interface
 }
@@ -38,8 +40,14 @@ type Interface interface {
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
+	cdiV1beta1        *cdiv1beta1.CdiV1beta1Client
 	harvesterV1alpha1 *harvesterv1alpha1.HarvesterV1alpha1Client
 	kubevirtV1alpha3  *kubevirtv1alpha3.KubevirtV1alpha3Client
+}
+
+// CdiV1beta1 retrieves the CdiV1beta1Client
+func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
+	return c.cdiV1beta1
 }
 
 // HarvesterV1alpha1 retrieves the HarvesterV1alpha1Client
@@ -73,6 +81,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
+	cs.cdiV1beta1, err = cdiv1beta1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 	cs.harvesterV1alpha1, err = harvesterv1alpha1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -93,6 +105,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
+	cs.cdiV1beta1 = cdiv1beta1.NewForConfigOrDie(c)
 	cs.harvesterV1alpha1 = harvesterv1alpha1.NewForConfigOrDie(c)
 	cs.kubevirtV1alpha3 = kubevirtv1alpha3.NewForConfigOrDie(c)
 
@@ -103,6 +116,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
+	cs.cdiV1beta1 = cdiv1beta1.New(c)
 	cs.harvesterV1alpha1 = harvesterv1alpha1.New(c)
 	cs.kubevirtV1alpha3 = kubevirtv1alpha3.New(c)
 

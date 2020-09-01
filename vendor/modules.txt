@@ -91,7 +91,7 @@ github.com/modern-go/concurrent
 github.com/modern-go/reflect2
 # github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f
 github.com/mxk/go-flowrate/flowrate
-# github.com/openshift/custom-resource-status v0.0.0-20190822192428-e62f2f3b79f3
+# github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
 github.com/openshift/custom-resource-status/conditions/v1
 # github.com/pborman/uuid v1.2.0
 github.com/pborman/uuid
@@ -246,7 +246,7 @@ golang.org/x/crypto/poly1305
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
+# golang.org/x/net v0.0.0-20200520004742-59133d7f0dd7
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/html
@@ -265,11 +265,11 @@ golang.org/x/oauth2/internal
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.0.0-20200122134326-e047566fdf82
+# golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd
 golang.org/x/sys/cpu
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.3.2
+# golang.org/x/text v0.3.3
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
@@ -341,13 +341,13 @@ google.golang.org/grpc/tap
 gopkg.in/inf.v0
 # gopkg.in/ini.v1 v1.51.0
 gopkg.in/ini.v1
-# gopkg.in/yaml.v2 v2.2.8
+# gopkg.in/yaml.v2 v2.3.0
 gopkg.in/yaml.v2
 # helm.sh/helm/v3 v3.2.0
 helm.sh/helm/v3/pkg/chart
 helm.sh/helm/v3/pkg/release
 helm.sh/helm/v3/pkg/time
-# k8s.io/api v0.18.0
+# k8s.io/api v0.18.6
 k8s.io/api/admissionregistration/v1
 k8s.io/api/admissionregistration/v1beta1
 k8s.io/api/apps/v1
@@ -396,7 +396,7 @@ k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
-# k8s.io/apimachinery v0.18.0
+# k8s.io/apimachinery v0.18.6
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
@@ -665,7 +665,7 @@ k8s.io/klog
 # k8s.io/kube-aggregator v0.18.0
 k8s.io/kube-aggregator/pkg/apis/apiregistration
 k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
-# k8s.io/kube-openapi v0.0.0-20200121204235-bf4fb3bd569c
+# k8s.io/kube-openapi v0.0.0-20200410145947-61e04a5be9a6
 k8s.io/kube-openapi/pkg/common
 k8s.io/kube-openapi/pkg/util/proto
 # k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
@@ -677,9 +677,10 @@ k8s.io/utils/trace
 # kubevirt.io/client-go v0.31.1-0.20200715061104-844cb60487e4 => github.com/orangedeng/client-go v0.31.1-0.20200715061104-844cb60487e4
 kubevirt.io/client-go/api/v1alpha3
 kubevirt.io/client-go/precond
-# kubevirt.io/containerized-data-importer v1.10.6
+# kubevirt.io/containerized-data-importer v1.22.0 => github.com/thxcode/kubevirt-containerized-data-importer v1.22.0-apis-only
 kubevirt.io/containerized-data-importer/pkg/apis/core
 kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1
+kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1
 # sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.7
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/proto/client
