@@ -16,6 +16,9 @@ func Routes(h router.Handlers) http.Handler {
 	m.Use(urlbuilder.RedirectRewrite)
 
 	m.Path("/v1/{type}").Queries("action", "{action}").Handler(h.K8sResource)
+	m.Path("/").HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		http.Redirect(rw, req, "/dashboard/", http.StatusFound)
+	})
 	m.NotFoundHandler = router.Routes(h)
 
 	return m
