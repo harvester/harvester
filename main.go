@@ -57,6 +57,7 @@ func main() {
 			EnvVar:      "NAMESPACE",
 			Destination: &config.Namespace,
 			Usage:       "The default namespace to store management resources",
+			Required:    true,
 		},
 		cli.StringFlag{
 			Name:        "image-storage-endpoint",
