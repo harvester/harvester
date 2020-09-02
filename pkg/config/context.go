@@ -3,14 +3,16 @@ package config
 import (
 	"context"
 
-	harvester "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io"
-	kubevirt "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io"
 	"github.com/rancher/lasso/pkg/controller"
 	corev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core"
 	storagev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/storage"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/start"
 	"k8s.io/client-go/rest"
+
+	"github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io"
+	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io"
+	"github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io"
 )
 
 type (
@@ -34,6 +36,7 @@ type Scaled struct {
 	ControllerFactory controller.SharedControllerFactory
 
 	VirtFactory      *kubevirt.Factory
+	CDIFactory       *cdi.Factory
 	HarvesterFactory *harvester.Factory
 	CoreFactory      *corev1.Factory
 
@@ -47,6 +50,7 @@ type Management struct {
 	ControllerFactory controller.SharedControllerFactory
 
 	VirtFactory      *kubevirt.Factory
+	CDIFactory       *cdi.Factory
 	HarvesterFactory *harvester.Factory
 	CoreFactory      *corev1.Factory
 	StorageFactory   *storagev1.Factory
@@ -65,12 +69,19 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	scaled.VirtFactory = virt
 	scaled.starters = append(scaled.starters, virt)
 
-	harv, err := harvester.NewFactoryFromConfigWithOptions(restConfig, opts)
+	cdiFactory, err := cdi.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return nil, nil, err
 	}
-	scaled.HarvesterFactory = harv
-	scaled.starters = append(scaled.starters, harv)
+	scaled.CDIFactory = cdiFactory
+	scaled.starters = append(scaled.starters, cdiFactory)
+
+	harvesterFactory, err := harvester.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.HarvesterFactory = harvesterFactory
+	scaled.starters = append(scaled.starters, harvesterFactory)
 
 	core, err := corev1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
@@ -99,12 +110,19 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.VirtFactory = virt
 	management.starters = append(management.starters, virt)
 
-	harvester, err := harvester.NewFactoryFromConfigWithOptions(restConfig, opts)
+	cdiFactory, err := cdi.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return nil, err
 	}
-	management.HarvesterFactory = harvester
-	management.starters = append(management.starters, harvester)
+	management.CDIFactory = cdiFactory
+	management.starters = append(management.starters, cdiFactory)
+
+	harv, err := harvester.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.HarvesterFactory = harv
+	management.starters = append(management.starters, harv)
 
 	core, err := corev1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
