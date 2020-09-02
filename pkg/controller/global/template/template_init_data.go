@@ -122,15 +122,15 @@ spec:
             cores: 1
           devices:
             disks:
-            - disk:
-                bus: virtio
-              name: rootdisk
-              bootOrder: 1
             - cdrom:
                 bus: sata
                 readonly: true
               name: cdrom-disk
               bootOrder: 2
+            - disk:
+                bus: virtio
+              name: rootdisk
+              bootOrder: 1
             interfaces:
             - name: default
               masquerade: {}
@@ -142,11 +142,11 @@ spec:
           pod: {}
         volumes:
         - dataVolume:
-            name: datavolume-rootdisk
-          name: rootdisk
-        - dataVolume:
             name: datavolume-cdrom-disk
           name: cdrom-disk
+        - dataVolume:
+            name: datavolume-rootdisk
+          name: rootdisk
     dataVolumeTemplates:
     - metadata:
         name: datavolume-cdrom-disk
