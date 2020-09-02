@@ -23,8 +23,8 @@ type VirtualMachineImage struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   VirtualMachineImageSpec   `json:"spec"`
-	Status VirtualMachineImageStatus `json:"status"`
+	Spec   VirtualMachineImageSpec   `json:"spec,omitempty"`
+	Status VirtualMachineImageStatus `json:"status,omitempty"`
 }
 
 type VirtualMachineImageSpec struct {

@@ -17,10 +17,10 @@ var (
 
 type KeyPair struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   KeyPairSpec   `json:"spec"`
-	Status KeyPairStatus `json:"status"`
+	Spec   KeyPairSpec   `json:"spec,omitempty"`
+	Status KeyPairStatus `json:"status,omitempty"`
 }
 
 type KeyPairSpec struct {
