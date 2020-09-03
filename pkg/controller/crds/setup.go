@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/rancher/steve/pkg/server"
-	kubevirtv1 "kubevirt.io/client-go/api/v1alpha3"
 
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/util/crd"
@@ -28,10 +27,6 @@ func createCRDs(ctx context.Context, server *server.Server) error {
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "KeyPair"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplate"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplateVersion"),
-		).
-		CreateCRDsIfNotExisted(
-			crd.FromGV(kubevirtv1.SchemeGroupVersion, "VirtualMachine"),
-			crd.FromGV(kubevirtv1.SchemeGroupVersion, "VirtualMachineInstance"),
 		).
 		Wait()
 }
