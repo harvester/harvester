@@ -249,6 +249,10 @@ spec:
             - name: default
               model: e1000
               masquerade: {}
+            inputs:
+            - bus: usb
+              name: tablet
+              type: tablet
           resources:
             requests:
               memory: 2028M
