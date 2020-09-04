@@ -34,6 +34,7 @@ spec:
     plural: virtualmachinetemplates
     shortNames:
     - vmtemplate
+    - vmtemplates
     singular: virtualmachinetemplate
   scope: Namespaced
   subresources: {}

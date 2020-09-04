@@ -11,7 +11,7 @@ var (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:shortName=kp
+// +kubebuilder:resource:shortName=kp;kps,scope=Namespaced
 // +kubebuilder:printcolumn:name="FINGER_PRINT",type=string,JSONPath=`.status.fingerPrint`
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`
 

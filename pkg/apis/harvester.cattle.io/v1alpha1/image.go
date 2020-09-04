@@ -12,7 +12,7 @@ var (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:shortName=vmimage
+// +kubebuilder:resource:shortName=vmimage;vmimages,scope=Namespaced
 // +kubebuilder:printcolumn:name="DISPLAY_NAME",type=string,priority=8,JSONPath=`.spec.displayName`
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,priority=10,JSONPath=`.spec.description`
 // +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.spec.url`

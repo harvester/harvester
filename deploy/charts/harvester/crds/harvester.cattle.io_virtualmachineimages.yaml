@@ -33,6 +33,7 @@ spec:
     plural: virtualmachineimages
     shortNames:
     - vmimage
+    - vmimages
     singular: virtualmachineimage
   scope: Namespaced
   subresources: {}
