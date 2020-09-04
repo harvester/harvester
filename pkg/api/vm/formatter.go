@@ -3,12 +3,16 @@ package vm
 import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/resources/common"
+	"github.com/rancher/wrangler/pkg/data/convert"
+
+	v1alpha3 "kubevirt.io/client-go/api/v1alpha3"
 )
 
 const (
-	startVM   = "startVM"
-	stopVM    = "stopVM"
-	restartVM = "restartVM"
+	startVM    = "startVM"
+	stopVM     = "stopVM"
+	restartVM  = "restartVM"
+	ejectCdRom = "ejectCdRom"
 )
 
 func formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -19,7 +23,27 @@ func formatter(request *types.APIRequest, resource *types.RawResource) {
 	if resource.APIObject.Data().Bool("spec", "running") {
 		resource.AddAction(request, stopVM)
 		resource.AddAction(request, restartVM)
+
+		var vm v1alpha3.VirtualMachine
+		err := convert.ToObj(resource.APIObject.Data(), &vm)
+		if err == nil && canEjectCdRom(&vm) {
+			resource.AddAction(request, ejectCdRom)
+		}
+
 	} else {
 		resource.AddAction(request, startVM)
 	}
+}
+
+func canEjectCdRom(vm *v1alpha3.VirtualMachine) bool {
+	if !vmReady.IsTrue(vm) {
+		return false
+	}
+
+	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.CDRom != nil {
+			return true
+		}
+	}
+	return false
 }
