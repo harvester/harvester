@@ -29,6 +29,7 @@ spec:
     plural: virtualmachinetemplateversions
     shortNames:
     - vmtemplateversion
+    - vmtemplateversions
     singular: virtualmachinetemplateversion
   scope: Namespaced
   subresources: {}
