@@ -22,6 +22,7 @@ spec:
     plural: keypairs
     shortNames:
     - kp
+    - kps
     singular: keypair
   scope: Namespaced
   subresources: {}
