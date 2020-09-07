@@ -103,6 +103,12 @@ func (s *HarvesterServer) Start() error {
 	return s.steve.ListenAndServe(s.Context, config.HTTPSListenPort, config.HTTPListenPort, opts)
 }
 
+// Scaled returns the *config.Scaled,
+// it should call after Start.
+func (s *HarvesterServer) Scaled() *config.Scaled {
+	return config.ScaledWithContext(s.Context)
+}
+
 func (s *HarvesterServer) generateSteveServer() error {
 	factory, err := controller.NewSharedControllerFactoryFromConfig(s.RestConfig, Scheme)
 	if err != nil {
