@@ -104,14 +104,14 @@ questions:
     group: "Harvester Cleanup Job Settings"
     show_if: "tags.kubevirt=true || tags.cdi=true"
   - variable: jobs.preDelete.containers.kubectl.resources.requests.memory
-    default: "256Mi"
+    default: "128Mi"
     label: "Memory Request"
     description: "specify the request of memory resource"
     type: "string"
     group: "Harvester Cleanup Job Settings"
     show_if: "tags.kubevirt=true || tags.cdi=true"
   - variable: jobs.preDelete.containers.kubectl.resources.limits.cpu
-    default: "100m"
+    default: "250m"
     label: "CPU Limit"
     description: "specify the limit of CPU resource"
     type: "string"
