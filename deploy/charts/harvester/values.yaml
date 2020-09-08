@@ -86,9 +86,12 @@ minio:
   ## Specify the resources of Minio container.
   ##
   resources:
-    limits: {}
+    limits:
+      cpu: 500m
+      memory: 512Mi
     requests:
-      memory: 256m
+      cpu: 250m
+      memory: 256Mi
 
   ## Specify the access key.
   ##
@@ -333,7 +336,7 @@ jobs:
         resources:
           limits:
             cpu: 250m
-            memory: 256Mi
+            memory: 128Mi
           requests:
-            cpu: 100m
+            cpu: 250m
             memory: 128Mi
