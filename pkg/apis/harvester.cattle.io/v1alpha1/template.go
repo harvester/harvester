@@ -13,6 +13,7 @@ var (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:shortName=vmtemplate;vmtemplates,scope=Namespaced
+// +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="VERSION_ID",type=string,JSONPath=`.spec.defaultVersionId`
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,priority=10,JSONPath=`.spec.description`
 // +kubebuilder:printcolumn:name="VERSION_DEFAULT",type=integer,priority=8,JSONPath=`.status.defaultVersion`
@@ -44,7 +45,6 @@ type VirtualMachineTemplateStatus struct {
 }
 
 // +genclient
-// +genclient:skipVerbs=update
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:shortName=vmtemplateversion;vmtemplateversions,scope=Namespaced
 // +kubebuilder:printcolumn:name="TEMPLATE_ID",type=string,JSONPath=`.spec.templatedId`
