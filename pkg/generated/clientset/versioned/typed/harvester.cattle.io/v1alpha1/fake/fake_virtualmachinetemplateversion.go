@@ -91,6 +91,17 @@ func (c *FakeVirtualMachineTemplateVersions) Create(ctx context.Context, virtual
 	return obj.(*v1alpha1.VirtualMachineTemplateVersion), err
 }
 
+// Update takes the representation of a virtualMachineTemplateVersion and updates it. Returns the server's representation of the virtualMachineTemplateVersion, and an error, if there is any.
+func (c *FakeVirtualMachineTemplateVersions) Update(ctx context.Context, virtualMachineTemplateVersion *v1alpha1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (result *v1alpha1.VirtualMachineTemplateVersion, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateAction(virtualmachinetemplateversionsResource, c.ns, virtualMachineTemplateVersion), &v1alpha1.VirtualMachineTemplateVersion{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.VirtualMachineTemplateVersion), err
+}
+
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 func (c *FakeVirtualMachineTemplateVersions) UpdateStatus(ctx context.Context, virtualMachineTemplateVersion *v1alpha1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (*v1alpha1.VirtualMachineTemplateVersion, error) {
