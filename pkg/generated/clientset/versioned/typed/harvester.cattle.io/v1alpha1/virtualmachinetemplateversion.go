@@ -39,6 +39,7 @@ type VirtualMachineTemplateVersionsGetter interface {
 // VirtualMachineTemplateVersionInterface has methods to work with VirtualMachineTemplateVersion resources.
 type VirtualMachineTemplateVersionInterface interface {
 	Create(ctx context.Context, virtualMachineTemplateVersion *v1alpha1.VirtualMachineTemplateVersion, opts v1.CreateOptions) (*v1alpha1.VirtualMachineTemplateVersion, error)
+	Update(ctx context.Context, virtualMachineTemplateVersion *v1alpha1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (*v1alpha1.VirtualMachineTemplateVersion, error)
 	UpdateStatus(ctx context.Context, virtualMachineTemplateVersion *v1alpha1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (*v1alpha1.VirtualMachineTemplateVersion, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -114,6 +115,20 @@ func (c *virtualMachineTemplateVersions) Create(ctx context.Context, virtualMach
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("virtualmachinetemplateversions").
+		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(virtualMachineTemplateVersion).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// Update takes the representation of a virtualMachineTemplateVersion and updates it. Returns the server's representation of the virtualMachineTemplateVersion, and an error, if there is any.
+func (c *virtualMachineTemplateVersions) Update(ctx context.Context, virtualMachineTemplateVersion *v1alpha1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (result *v1alpha1.VirtualMachineTemplateVersion, err error) {
+	result = &v1alpha1.VirtualMachineTemplateVersion{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("virtualmachinetemplateversions").
+		Name(virtualMachineTemplateVersion.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(virtualMachineTemplateVersion).
 		Do(ctx).

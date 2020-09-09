@@ -37,7 +37,8 @@ spec:
     - vmtemplates
     singular: virtualmachinetemplate
   scope: Namespaced
-  subresources: {}
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       properties:
