@@ -1,7 +1,8 @@
 package template
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
+	"reflect"
 
 	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	ctlapisv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
@@ -11,7 +12,9 @@ import (
 // templateHandler sets status.Version to template objects
 type templateHandler struct {
 	templates            ctlapisv1alpha1.VirtualMachineTemplateClient
+	templateVersions     ctlapisv1alpha1.VirtualMachineTemplateVersionClient
 	templateVersionCache ctlapisv1alpha1.VirtualMachineTemplateVersionCache
+	templateController   ctlapisv1alpha1.VirtualMachineTemplateController
 }
 
 func (h *templateHandler) OnChanged(key string, tp *apisv1alpha1.VirtualMachineTemplate) (*apisv1alpha1.VirtualMachineTemplate, error) {
@@ -19,25 +22,53 @@ func (h *templateHandler) OnChanged(key string, tp *apisv1alpha1.VirtualMachineT
 		return tp, nil
 	}
 
-	if tp.Spec.DefaultVersionID == "" {
-		return tp, nil
-	}
+	copyTp := tp.DeepCopy()
+	templateID := fmt.Sprintf("%s:%s", copyTp.Namespace, copyTp.Name)
 
-	versionNs, versionName := ref.Parse(tp.Spec.DefaultVersionID)
-	version, err := h.templateVersionCache.Get(versionNs, versionName)
+	latestVersion, latestVersionObj, err := getTemplateLatestVersion(copyTp.Namespace, templateID, h.templateVersions)
 	if err != nil {
 		return nil, err
 	}
 
-	if !apisv1alpha1.VersionAssigned.IsTrue(version) {
-		return nil, errors.New(version.Namespace + ":" + version.Name + " version isn't assigned yet")
+	if latestVersion == 0 {
+		return copyTp, nil
 	}
 
-	if tp.Status.DefaultVersion == version.Status.Version {
-		return tp, nil
+	//set the first version as the default version
+	defaultVersionID := copyTp.Spec.DefaultVersionID
+	if defaultVersionID == "" && latestVersion == 1 {
+		defaultVersionID = fmt.Sprintf("%s:%s", latestVersionObj.Namespace, latestVersionObj.Name)
+		if tp.Spec.DefaultVersionID != copyTp.Spec.DefaultVersionID {
+			if _, err = h.templates.Update(copyTp); err != nil {
+				return nil, err
+			}
+			return tp, nil
+		}
 	}
 
-	copyTp := tp.DeepCopy()
-	copyTp.Status.DefaultVersion = version.Status.Version
-	return h.templates.Update(copyTp)
+	defaultVersion := copyTp.Status.DefaultVersion
+	if defaultVersionID != "" {
+		versionNs, versionName := ref.Parse(defaultVersionID)
+		version, err := h.templateVersionCache.Get(versionNs, versionName)
+		if err != nil {
+			return nil, err
+		}
+
+		if !apisv1alpha1.VersionAssigned.IsTrue(version) {
+			h.templateController.Enqueue(tp.Namespace, tp.Name)
+			return tp, nil
+		}
+		defaultVersion = version.Status.Version
+	}
+
+	copyTp.Status.LatestVersion = latestVersion
+	copyTp.Status.DefaultVersion = defaultVersion
+
+	if !reflect.DeepEqual(tp, copyTp) {
+		if _, err = h.templates.UpdateStatus(copyTp); err != nil {
+			return nil, err
+		}
+	}
+
+	return copyTp, nil
 }
