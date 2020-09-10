@@ -60,8 +60,6 @@ spec:
               type: string
             description:
               type: string
-          required:
-          - defaultVersionId
           type: object
         status:
           properties:
