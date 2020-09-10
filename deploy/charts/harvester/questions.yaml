@@ -468,14 +468,14 @@ questions:
       - variable: minio.accessKey
         default: "YOURACCESSKEY"
         label: "Minio Access Key"
-        description: "specify the access key, the value will be stored in 'accessKey' field of a specified secret"
+        description: "specify the access key, the value will be stored in 'accesskey' field of a specified secret"
         type: "string"
         group: "Minio Settings"
         show_if: "minio.enabled=true"
       - variable: minio.secretKey
         default: "YOURSECRETKEY"
         label: "Minio Secret Key"
-        description: "specify the secret key, the value will be stored in 'secretKey' field of a specified secret"
+        description: "specify the secret key, the value will be stored in 'secretkey' field of a specified secret"
         type: "string"
         group: "Minio Settings"
         show_if: "minio.enabled=true"
@@ -524,15 +524,15 @@ questions:
   - variable: containers.apiserver.vmImageStorageGateway.secretName
     default: ""
     label: "Secret Name of Account"
-    description: "specify the name of the same namespace existing Secret instance, which stored the access key(in 'accessKey' field) and secret key(in 'secretKey' field)"
-    type: "string"
+    description: "specify the name of the same namespace existing Secret instance, which stored the access key(in 'accesskey' field) and secret key(in 'secretkey' field)"
+    type: "secret"
     group: "Harvester VM Image Storage Gateway Settings"
     show_if: "minio.enabled=false && select_harvester_vm_image_storage_gateway_mode=From-Secret"
     required: true
   - variable: containers.apiserver.vmImageStorageGateway.accessKey
     default: ""
     label: "Access Key of Account"
-    description: "specify the access key, the value will be stored in 'accessKey' field of a specified secret"
+    description: "specify the access key, the value will be stored in 'accesskey' field of a specified secret"
     type: "string"
     group: "Harvester VM Image Storage Gateway Settings"
     show_if: "minio.enabled=false && select_harvester_vm_image_storage_gateway_mode=From-Input"
@@ -540,7 +540,7 @@ questions:
   - variable: containers.apiserver.vmImageStorageGateway.secretKey
     default: ""
     label: "Secret Key of Account"
-    description: "specify the secret key, the value will be stored in 'secretKey' field of a specified secret"
+    description: "specify the secret key, the value will be stored in 'secretkey' field of a specified secret"
     type: "string"
     group: "Harvester VM Image Storage Gateway Settings"
     show_if: "minio.enabled=false && select_harvester_vm_image_storage_gateway_mode=From-Input"
