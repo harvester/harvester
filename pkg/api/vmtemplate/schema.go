@@ -15,15 +15,16 @@ const (
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server) {
-	templateCache := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion().Cache()
+	templates := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate()
+	templateVersionCache := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion().Cache()
 	th := &templateLinkHandler{
-		templateVersionCache: templateCache,
+		templateVersionCache: templateVersionCache,
 	}
 
 	templateVersionStore := &templateVersionStore{
 		Store:                proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
-		templateCache:        scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate().Cache(),
-		templateVersionCache: templateCache,
+		templateCache:        templates.Cache(),
+		templateVersionCache: templateVersionCache,
 		keyPairCache:         scaled.HarvesterFactory.Harvester().V1alpha1().KeyPair().Cache(),
 	}
 

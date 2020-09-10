@@ -17,13 +17,15 @@ func Register(ctx context.Context, management *config.Management) error {
 
 	templateController := &templateHandler{
 		templates:            templates,
+		templateVersions:     templateVersions,
 		templateVersionCache: templateVersions.Cache(),
+		templateController:   templates,
 	}
 
 	templateVersionController := &templateVersionHandler{
-		templates:        templates,
-		templateCache:    templates.Cache(),
-		templateVersions: templateVersions,
+		templateCache:      templates.Cache(),
+		templateVersions:   templateVersions,
+		templateController: templates,
 	}
 
 	templates.OnChange(ctx, templateControllerAgentName, templateController.OnChanged)
