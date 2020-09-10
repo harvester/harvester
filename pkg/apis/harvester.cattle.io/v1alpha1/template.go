@@ -29,7 +29,7 @@ type VirtualMachineTemplate struct {
 }
 
 type VirtualMachineTemplateSpec struct {
-	// +kubebuilder:validation:Required
+	// +optional
 	DefaultVersionID string `json:"defaultVersionId"`
 
 	// +optional
