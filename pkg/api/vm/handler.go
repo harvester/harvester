@@ -1,7 +1,9 @@
 package vm
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 
@@ -11,14 +13,21 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	v1alpha3 "kubevirt.io/client-go/api/v1alpha3"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
+const (
+	vmResource  = "virtualmachines"
+	vmiResource = "virtualmachineinstances"
+)
+
 type vmActionHandler struct {
-	vms     ctlkubevirtv1alpha3.VirtualMachineClient
-	vmis    ctlkubevirtv1alpha3.VirtualMachineInstanceClient
-	vmCache ctlkubevirtv1alpha3.VirtualMachineCache
+	vms        ctlkubevirtv1alpha3.VirtualMachineClient
+	vmis       ctlkubevirtv1alpha3.VirtualMachineInstanceClient
+	vmCache    ctlkubevirtv1alpha3.VirtualMachineCache
+	restClient *rest.RESTClient
 }
 
 func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -26,22 +35,9 @@ func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	action := vars["action"]
 	namespace := vars["namespace"]
 	name := vars["name"]
+	var resource string
 
 	switch action {
-	case startVM, stopVM:
-		running := action == startVM
-		if err := h.updateVMRunningStatus(name, namespace, action, running); err != nil {
-			rw.WriteHeader(http.StatusInternalServerError)
-			rw.Write([]byte(err.Error()))
-			return
-		}
-
-		rw.WriteHeader(http.StatusNoContent)
-	case restartVM:
-		if err := h.restartVM(name, namespace); err != nil {
-			rw.WriteHeader(http.StatusInternalServerError)
-			rw.Write([]byte(err.Error()))
-		}
 	case ejectCdRom:
 		var input EjectCdRomActionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -60,38 +56,25 @@ func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusInternalServerError)
 			rw.Write([]byte(err.Error()))
 		}
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	case startVM, stopVM, restartVM:
+		resource = vmResource
+	case pauseVM, unpauseVM:
+		resource = vmiResource
 	default:
 		rw.WriteHeader(http.StatusBadRequest)
 		rw.Write([]byte("Unsupported action"))
 	}
-}
 
-func (h *vmActionHandler) updateVMRunningStatus(name, namespace, action string, running bool) error {
-	vm, err := h.vms.Get(namespace, name, metav1.GetOptions{})
-	if err != nil {
-		return err
+	ctx := context.Background()
+	if err := h.subresourceOperate(ctx, resource, namespace, name, action); err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(fmt.Sprintf("%s virtualMachine %s:%s failed, %v", action, namespace, name, err)))
+		return
 	}
 
-	if vm.Spec.Running != nil && running == *vm.Spec.Running {
-		return nil
-	}
-
-	vmCopy := vm.DeepCopy()
-	vmCopy.Spec.Running = &running
-	_, err = h.vms.Update(vmCopy)
-	if err != nil {
-		return errors.Wrapf(err, "Failed to %s to virtual machine %s/%s", action, namespace, name)
-	}
-
-	return nil
-}
-
-func (h *vmActionHandler) restartVM(name, namespace string) error {
-	if err := h.vmis.Delete(namespace, name, &metav1.DeleteOptions{}); err != nil {
-		return errors.Wrapf(err, "Failed to delete virtualMachineInstance %s/%s", namespace, name)
-	}
-
-	return nil
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func (h *vmActionHandler) ejectCdRom(name, namespace string, diskNames []string) error {
@@ -112,6 +95,10 @@ func (h *vmActionHandler) ejectCdRom(name, namespace string, diskNames []string)
 	}
 
 	return h.vmis.Delete(namespace, name, &metav1.DeleteOptions{})
+}
+
+func (h *vmActionHandler) subresourceOperate(ctx context.Context, resource, namespace, name, subresourece string) error {
+	return h.restClient.Put().Namespace(namespace).Resource(resource).SubResource(subresourece).Name(name).Do(ctx).Error()
 }
 
 func ejectCdRomFromVM(vm *v1alpha3.VirtualMachine, diskNames []string) error {
