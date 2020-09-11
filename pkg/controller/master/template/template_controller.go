@@ -38,7 +38,8 @@ func (h *templateHandler) OnChanged(key string, tp *apisv1alpha1.VirtualMachineT
 	defaultVersionID := copyTp.Spec.DefaultVersionID
 	if defaultVersionID == "" && latestVersion == 1 {
 		defaultVersionID = fmt.Sprintf("%s:%s", latestVersionObj.Namespace, latestVersionObj.Name)
-		if tp.Spec.DefaultVersionID != copyTp.Spec.DefaultVersionID {
+		if tp.Spec.DefaultVersionID != defaultVersionID {
+			copyTp.Spec.DefaultVersionID = defaultVersionID
 			if _, err = h.templates.Update(copyTp); err != nil {
 				return nil, err
 			}
