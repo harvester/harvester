@@ -33,7 +33,7 @@ func TestParse(t *testing.T) {
 		{
 			name: "namespace scope ref",
 			given: input{
-				ref: "default:test",
+				ref: "default/test",
 			},
 			expected: output{
 				namespace: "default",

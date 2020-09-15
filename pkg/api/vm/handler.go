@@ -80,7 +80,7 @@ func (h *vmActionHandler) updateVMRunningStatus(name, namespace, action string, 
 	vmCopy.Spec.Running = &running
 	_, err = h.vms.Update(vmCopy)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to %s to virtual machine %s:%s", action, namespace, name)
+		return errors.Wrapf(err, "Failed to %s to virtual machine %s/%s", action, namespace, name)
 	}
 
 	return nil
@@ -88,7 +88,7 @@ func (h *vmActionHandler) updateVMRunningStatus(name, namespace, action string, 
 
 func (h *vmActionHandler) restartVM(name, namespace string) error {
 	if err := h.vmis.Delete(namespace, name, &metav1.DeleteOptions{}); err != nil {
-		return errors.Wrapf(err, "Failed to delete virtualMachineInstance %s:%s", namespace, name)
+		return errors.Wrapf(err, "Failed to delete virtualMachineInstance %s/%s", namespace, name)
 	}
 
 	return nil

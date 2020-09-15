@@ -1,7 +1,6 @@
 package template
 
 import (
-	"fmt"
 	"reflect"
 
 	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
@@ -23,7 +22,7 @@ func (h *templateHandler) OnChanged(key string, tp *apisv1alpha1.VirtualMachineT
 	}
 
 	copyTp := tp.DeepCopy()
-	templateID := fmt.Sprintf("%s:%s", copyTp.Namespace, copyTp.Name)
+	templateID := ref.Construct(copyTp.Namespace, copyTp.Name)
 
 	latestVersion, latestVersionObj, err := getTemplateLatestVersion(copyTp.Namespace, templateID, h.templateVersions)
 	if err != nil {
@@ -37,7 +36,7 @@ func (h *templateHandler) OnChanged(key string, tp *apisv1alpha1.VirtualMachineT
 	//set the first version as the default version
 	defaultVersionID := copyTp.Spec.DefaultVersionID
 	if defaultVersionID == "" && latestVersion == 1 {
-		defaultVersionID = fmt.Sprintf("%s:%s", latestVersionObj.Namespace, latestVersionObj.Name)
+		defaultVersionID = ref.Construct(latestVersionObj.Namespace, latestVersionObj.Name)
 		if tp.Spec.DefaultVersionID != defaultVersionID {
 			copyTp.Spec.DefaultVersionID = defaultVersionID
 			if _, err = h.templates.Update(copyTp); err != nil {

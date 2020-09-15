@@ -107,7 +107,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 						Name:      "test",
 					},
 					Spec: harvesterapis.VirtualMachineTemplateSpec{
-						DefaultVersionID: "default:test",
+						DefaultVersionID: "default/test",
 					},
 				},
 				templateVersion: &harvesterapis.VirtualMachineTemplateVersion{
@@ -117,7 +117,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 					},
 					Spec: harvesterapis.VirtualMachineTemplateVersionSpec{
 						Description: "fake_description",
-						TemplateID:  "default:test",
+						TemplateID:  "default/test",
 						ImageID:     "fake_image_id",
 						VM:          virtv1alpha3.VirtualMachineSpec{},
 					},
@@ -147,7 +147,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 						Name:      "test",
 					},
 					Spec: harvesterapis.VirtualMachineTemplateSpec{
-						DefaultVersionID: "default:test",
+						DefaultVersionID: "default/test",
 					},
 					Status: harvesterapis.VirtualMachineTemplateStatus{
 						DefaultVersion: 1,
@@ -182,7 +182,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 						Name:      "test",
 					},
 					Spec: harvesterapis.VirtualMachineTemplateSpec{
-						DefaultVersionID: "default:test",
+						DefaultVersionID: "default/test",
 					},
 					Status: harvesterapis.VirtualMachineTemplateStatus{
 						DefaultVersion: 1,
@@ -201,7 +201,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 						Name:      "test",
 					},
 					Spec: harvesterapis.VirtualMachineTemplateSpec{
-						DefaultVersionID: "default:test",
+						DefaultVersionID: "default/test",
 					},
 					Status: harvesterapis.VirtualMachineTemplateStatus{
 						DefaultVersion: 1,
@@ -215,7 +215,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 					},
 					Spec: harvesterapis.VirtualMachineTemplateVersionSpec{
 						Description: "fake_description",
-						TemplateID:  "default:test",
+						TemplateID:  "default/test",
 						ImageID:     "fake_image_id",
 						VM:          virtv1alpha3.VirtualMachineSpec{},
 					},
@@ -237,7 +237,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 						Name:      "test",
 					},
 					Spec: harvesterapis.VirtualMachineTemplateSpec{
-						DefaultVersionID: "default:test",
+						DefaultVersionID: "default/test",
 					},
 					Status: harvesterapis.VirtualMachineTemplateStatus{
 						DefaultVersion: 2,

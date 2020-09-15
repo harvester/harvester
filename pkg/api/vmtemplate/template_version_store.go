@@ -73,7 +73,7 @@ func (s *templateVersionStore) canDeleteTemplateVersion(namespace, name string) 
 		return err
 	}
 
-	versionID := fmt.Sprintf("%s:%s", namespace, name)
+	versionID := ref.Construct(namespace, name)
 	if vt.Spec.DefaultVersionID == versionID {
 		return errors.New("Cannot delete the default templateVersion")
 	}

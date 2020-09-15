@@ -7,7 +7,7 @@ import (
 
 // Parse parses the steve api ID.
 func Parse(ref string) (namespace string, name string) {
-	parts := strings.SplitN(ref, ":", 2)
+	parts := strings.SplitN(ref, "/", 2)
 	if len(parts) == 1 {
 		return "", parts[0]
 	}
