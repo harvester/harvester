@@ -52,7 +52,7 @@ func initBaseTemplate(vmTemplates ctlapisv1alpha1.VirtualMachineTemplateClient) 
 		}
 
 		if _, err := vmTemplates.Create(&vmTemplate); err != nil && !apierrors.IsAlreadyExists(err) {
-			return errors.Wrapf(err, "Failed to create virtualMachineTemplate %s:%s", vmTemplate.Namespace, vmTemplate.Name)
+			return errors.Wrapf(err, "Failed to create virtualMachineTemplate %s/%s", vmTemplate.Namespace, vmTemplate.Name)
 		}
 	}
 	return nil
@@ -71,7 +71,7 @@ func initBaseTemplateVersion(vmTemplateVersions ctlapisv1alpha1.VirtualMachineTe
 		}
 
 		if _, err := vmTemplateVersions.Create(&vmTemplateVersion); err != nil && !apierrors.IsAlreadyExists(err) {
-			return errors.Wrapf(err, "Failed to create virtualMachineTemplateVersion %s:%s", vmTemplateVersion.Namespace, vmTemplateVersion.Name)
+			return errors.Wrapf(err, "Failed to create virtualMachineTemplateVersion %s/%s", vmTemplateVersion.Namespace, vmTemplateVersion.Name)
 		}
 	}
 	return nil
