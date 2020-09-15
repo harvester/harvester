@@ -32,6 +32,7 @@ func init() {
 type Interface interface {
 	VirtualMachine() VirtualMachineController
 	VirtualMachineInstance() VirtualMachineInstanceController
+	VirtualMachineInstanceMigration() VirtualMachineInstanceMigrationController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -49,4 +50,7 @@ func (c *version) VirtualMachine() VirtualMachineController {
 }
 func (c *version) VirtualMachineInstance() VirtualMachineInstanceController {
 	return NewVirtualMachineInstanceController(schema.GroupVersionKind{Group: "kubevirt.io", Version: "v1alpha3", Kind: "VirtualMachineInstance"}, "virtualmachineinstances", true, c.controllerFactory)
+}
+func (c *version) VirtualMachineInstanceMigration() VirtualMachineInstanceMigrationController {
+	return NewVirtualMachineInstanceMigrationController(schema.GroupVersionKind{Group: "kubevirt.io", Version: "v1alpha3", Kind: "VirtualMachineInstanceMigration"}, "virtualmachineinstancemigrations", true, c.controllerFactory)
 }
