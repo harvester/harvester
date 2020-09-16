@@ -30,6 +30,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 
 	vms := scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine()
 	vmis := scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstance()
+	vmims := scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstanceMigration()
 
 	copyConfig := rest.CopyConfig(server.RestConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion
@@ -42,8 +43,11 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 
 	actionHandler := vmActionHandler{
 		vms:        vms,
-		vmis:       vmis,
 		vmCache:    vms.Cache(),
+		vmis:       vmis,
+		vmiCache:   vmis.Cache(),
+		vmims:      vmims,
+		vmimCache:  vmims.Cache(),
 		restClient: restClient,
 	}
 
@@ -55,19 +59,23 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 		ID: vmSchemaID,
 		Customize: func(apiSchema *types.APISchema) {
 			apiSchema.ActionHandlers = map[string]http.Handler{
-				startVM:    &actionHandler,
-				stopVM:     &actionHandler,
-				restartVM:  &actionHandler,
-				ejectCdRom: &actionHandler,
-				pauseVM:    &actionHandler,
-				unpauseVM:  &actionHandler,
+				startVM:        &actionHandler,
+				stopVM:         &actionHandler,
+				restartVM:      &actionHandler,
+				ejectCdRom:     &actionHandler,
+				pauseVM:        &actionHandler,
+				unpauseVM:      &actionHandler,
+				migrate:        &actionHandler,
+				abortMigration: &actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
-				startVM:   {},
-				stopVM:    {},
-				restartVM: {},
-				pauseVM:   {},
-				unpauseVM: {},
+				startVM:        {},
+				stopVM:         {},
+				restartVM:      {},
+				pauseVM:        {},
+				unpauseVM:      {},
+				migrate:        {},
+				abortMigration: {},
 				ejectCdRom: {
 					Input: "ejectCdRomActionInput",
 				},
