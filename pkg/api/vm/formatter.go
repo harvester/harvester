@@ -10,12 +10,14 @@ import (
 )
 
 const (
-	startVM    = "start"
-	stopVM     = "stop"
-	restartVM  = "restart"
-	pauseVM    = "pause"
-	unpauseVM  = "unpause"
-	ejectCdRom = "ejectCdRom"
+	startVM        = "start"
+	stopVM         = "stop"
+	restartVM      = "restart"
+	pauseVM        = "pause"
+	unpauseVM      = "unpause"
+	ejectCdRom     = "ejectCdRom"
+	migrate        = "migrate"
+	abortMigration = "abortMigration"
 )
 
 type vmformatter struct {
@@ -57,6 +59,14 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canUnPause(vmi) {
 		resource.AddAction(request, unpauseVM)
+	}
+
+	if vf.canMigrate(vmi) {
+		resource.AddAction(request, migrate)
+	}
+
+	if vf.canAbortMigrate(vmi) {
+		resource.AddAction(request, abortMigration)
 	}
 }
 
@@ -130,6 +140,20 @@ func (vf *vmformatter) canStop(vmi *v1alpha3.VirtualMachineInstance) bool {
 	}
 
 	return true
+}
+
+func (vf *vmformatter) canMigrate(vmi *v1alpha3.VirtualMachineInstance) bool {
+	if vmi != nil && vmi.IsRunning() && (vmi.Status.MigrationState == nil || vmi.Status.MigrationState.Completed) {
+		return true
+	}
+	return false
+}
+
+func (vf *vmformatter) canAbortMigrate(vmi *v1alpha3.VirtualMachineInstance) bool {
+	if vmi != nil && vmi.Status.MigrationState != nil && !vmi.Status.MigrationState.Completed {
+		return true
+	}
+	return false
 }
 
 func (vf *vmformatter) isVMRenaming(vm *v1alpha3.VirtualMachine) bool {

@@ -7,12 +7,15 @@ import (
 	"net/http"
 	"reflect"
 
+	"github.com/rancher/apiserver/pkg/apierror"
 	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
+	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/rancher/wrangler/pkg/slice"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
 	v1alpha3 "kubevirt.io/client-go/api/v1alpha3"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
@@ -27,54 +30,59 @@ type vmActionHandler struct {
 	vms        ctlkubevirtv1alpha3.VirtualMachineClient
 	vmis       ctlkubevirtv1alpha3.VirtualMachineInstanceClient
 	vmCache    ctlkubevirtv1alpha3.VirtualMachineCache
+	vmiCache   ctlkubevirtv1alpha3.VirtualMachineInstanceCache
+	vmims      ctlkubevirtv1alpha3.VirtualMachineInstanceMigrationClient
+	vmimCache  ctlkubevirtv1alpha3.VirtualMachineInstanceMigrationCache
 	restClient *rest.RESTClient
 }
 
-func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if err := h.doAction(rw, req); err != nil {
+		if e, ok := err.(*apierror.APIError); ok {
+			rw.WriteHeader(e.Code.Status)
+		} else {
+			rw.WriteHeader(http.StatusInternalServerError)
+		}
+		rw.Write([]byte(err.Error()))
+	} else {
+		rw.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
 	action := vars["action"]
 	namespace := vars["namespace"]
 	name := vars["name"]
-	var resource string
 
 	switch action {
 	case ejectCdRom:
 		var input EjectCdRomActionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			rw.WriteHeader(http.StatusBadRequest)
-			rw.Write([]byte("Failed to decode request body, " + err.Error()))
-			return
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 
 		if len(input.DiskNames) == 0 {
-			rw.WriteHeader(http.StatusBadRequest)
-			rw.Write([]byte("Parameter diskNames is empty"))
-			return
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter diskNames is empty")
 		}
 
-		if err := h.ejectCdRom(name, namespace, input.DiskNames); err != nil {
-			rw.WriteHeader(http.StatusInternalServerError)
-			rw.Write([]byte(err.Error()))
-		}
-		rw.WriteHeader(http.StatusNoContent)
-		return
+		return h.ejectCdRom(name, namespace, input.DiskNames)
+	case migrate:
+		return h.migrate(namespace, name)
+	case abortMigration:
+		return h.abortMigration(namespace, name)
 	case startVM, stopVM, restartVM:
-		resource = vmResource
+		if err := h.subresourceOperate(r.Context(), vmResource, namespace, name, action); err != nil {
+			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
+		}
 	case pauseVM, unpauseVM:
-		resource = vmiResource
+		if err := h.subresourceOperate(r.Context(), vmiResource, namespace, name, action); err != nil {
+			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
+		}
 	default:
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write([]byte("Unsupported action"))
+		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
-
-	ctx := context.Background()
-	if err := h.subresourceOperate(ctx, resource, namespace, name, action); err != nil {
-		rw.WriteHeader(http.StatusInternalServerError)
-		rw.Write([]byte(fmt.Sprintf("%s virtualMachine %s:%s failed, %v", action, namespace, name, err)))
-		return
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
+	return nil
 }
 
 func (h *vmActionHandler) ejectCdRom(name, namespace string, diskNames []string) error {
@@ -134,5 +142,56 @@ func ejectCdRomFromVM(vm *v1alpha3.VirtualMachine, diskNames []string) error {
 	vm.Spec.DataVolumeTemplates = dvs
 	vm.Spec.Template.Spec.Volumes = volumes
 	vm.Spec.Template.Spec.Domain.Devices.Disks = disks
+	return nil
+}
+
+func (h *vmActionHandler) migrate(namespace, name string) error {
+	vmi, err := h.vmiCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+	if !vmi.IsRunning() {
+		return errors.New("The VM is not in running state")
+	}
+	if vmi.Status.MigrationState != nil && !vmi.Status.MigrationState.Completed {
+		return errors.New("The VM is already in migrating state")
+	}
+	vmim := &v1alpha3.VirtualMachineInstanceMigration{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: name + "-",
+			Namespace:    namespace,
+		},
+		Spec: v1alpha3.VirtualMachineInstanceMigrationSpec{
+			VMIName: name,
+		},
+	}
+	_, err = h.vmims.Create(vmim)
+	return err
+}
+
+func (h *vmActionHandler) abortMigration(namespace, name string) error {
+	vmi, err := h.vmiCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+	if vmi.Status.MigrationState == nil || vmi.Status.MigrationState.Completed {
+		return errors.New("The VM is not in migrating state")
+	}
+
+	vmims, err := h.vmimCache.List(namespace, labels.Everything())
+	if err != nil {
+		return err
+	}
+	for _, vmim := range vmims {
+		if vmi.Status.MigrationState.MigrationUID == vmim.UID {
+			if !vmim.IsRunning() {
+				return fmt.Errorf("cannot abort the migration as it is in %q phase", vmim.Status.Phase)
+			}
+			//Migration is aborted by deleting the VMIM object
+			if err := h.vmims.Delete(namespace, vmim.Name, &metav1.DeleteOptions{}); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
