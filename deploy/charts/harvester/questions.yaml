@@ -5,9 +5,9 @@ namespace: harvester-system
 questions:
 
 ###
-#################### Harvester Advance Options ####################
+#################### Harvester Advanced Options ####################
 ###
-  #################### Harvester Image Settings ####################
+#################### Harvester Image Settings ####################
   - variable: containers.apiserver.image.repository
     default: "rancher/harvester"
     label: "Image"
@@ -49,7 +49,7 @@ questions:
   - variable: service.harvester.asClusterService
     default: "true"
     label: "Access From Rancher Proxy"
-    description: "specify as cluster service, and then can be accessed from rancher proxy"
+    description: "specify as cluster service, and then can be accessed from the rancher proxy"
     type: "boolean"
     group: "Harvester Settings"
   - variable: service.harvester.type
@@ -64,8 +64,8 @@ questions:
     group: "Harvester Settings"
   - variable: service.harvester.httpsPort
     default: "8443"
-    label: "Service HTTPs Port"
-    description: "specify the port of HTTPs endpoint"
+    label: "Service HTTPS Port"
+    description: "specify the port of HTTPS endpoint"
     type: "int"
     min: 1
     group: "Harvester Settings"
@@ -80,7 +80,7 @@ questions:
 ###
 #################### Harvester Cleanup Job Options ####################
 ###
-  #################### Harvester Cleanup Job Settings ####################
+#################### Harvester Cleanup Job Settings ####################
   - variable: jobs.preDelete.containers.kubectl.image.repository
     default: "bitnami/kubectl"
     label: "Image"
@@ -95,52 +95,23 @@ questions:
     type: "string"
     group: "Harvester Cleanup Job Settings"
     show_if: "tags.kubevirt=true || tags.cdi=true"
-  #################### Harvester Cleanup Job Resource Settings ####################
-  - variable: jobs.preDelete.containers.kubectl.resources.requests.cpu
-    default: "250m"
-    label: "CPU Request"
-    description: "specify the request of CPU resource"
-    type: "string"
-    group: "Harvester Cleanup Job Settings"
-    show_if: "tags.kubevirt=true || tags.cdi=true"
-  - variable: jobs.preDelete.containers.kubectl.resources.requests.memory
-    default: "128Mi"
-    label: "Memory Request"
-    description: "specify the request of memory resource"
-    type: "string"
-    group: "Harvester Cleanup Job Settings"
-    show_if: "tags.kubevirt=true || tags.cdi=true"
-  - variable: jobs.preDelete.containers.kubectl.resources.limits.cpu
-    default: "250m"
-    label: "CPU Limit"
-    description: "specify the limit of CPU resource"
-    type: "string"
-    group: "Harvester Cleanup Job Settings"
-    show_if: "tags.kubevirt=true || tags.cdi=true"
-  - variable: jobs.preDelete.containers.kubectl.resources.limits.memory
-    default: "128Mi"
-    label: "Memory Limit"
-    description: "specify the limit of memory resource"
-    type: "string"
-    group: "Harvester Cleanup Job Settings"
-    show_if: "tags.kubevirt=true || tags.cdi=true"
-
 ###
-#################### KubeVirt Advance Options ####################
+#################### KubeVirt Advanced Options ####################
 ###
+#################### KubeVirt Advanced Control Settings ####################
+  - variable: tags.kubevirt
+    default: "true"
+    label: "Install KubeVirt operator and CRD resources"
+    type: "boolean"
+    group: "KubeVirt Settings"
   - variable: show_kubevirt_advance_options
     default: "false"
-    label: "Show Advance Options"
+    label: "Show Advanced Options"
     type: "boolean"
+    show_if: "tags.kubevirt=true"
     show_subquestion_if: true
     group: "KubeVirt Settings"
     subquestions:
-      #################### KubeVirt Advance Control Settings ####################
-      - variable: tags.kubevirt
-        default: "true"
-        label: "Install KubeVirt operator and CRD resource"
-        type: "boolean"
-        group: "KubeVirt Settings"
       #################### KubeVirt Operator Image Settings ####################
       - variable: kubevirt-operator.containers.operator.image.repository
         default: "kubevirt/virt-operator"
@@ -150,7 +121,7 @@ questions:
         group: "KubeVirt Settings"
         show_if: "tags.kubevirt=true"
       - variable: kubevirt-operator.containers.operator.image.tag
-        default: "latest"
+        default: "v0.32.0"
         label: "Operator Image Tag"
         description: "specify the tag of operator image"
         type: "string"
@@ -185,73 +156,23 @@ questions:
         type: "string"
         group: "KubeVirt Settings"
         show_if: "tags.kubevirt=true"
-      #################### KubeVirt CRD Settings ####################
-      - variable: kubevirt.spec.configuration.cpuModel
-        default: "host-model"
-        label: "Default Virtual Machine CPU Model"
-        description: "specify the default CPU model of vm"
-        type: "string"
-        group: "KubeVirt Settings"
-        show_if: "tags.kubevirt=true"
-      - variable: kubevirt.spec.configuration.cpuRequest
-        default: "100m"
-        label: "Default Virtual Machine CPU Request"
-        description: "specify the default CPU request of vm"
-        type: "string"
-        group: "KubeVirt Settings"
-        show_if: "tags.kubevirt=true"
-      - variable: kubevirt.spec.configuration.developerConfiguration.memoryOvercommit
-        default: "100"
-        label: "Default Virtual Machine Memory Overcommit Percent"
-        description: "specify the memory overcommit in percent, default is means 100% to overcommit the memory"
-        type: "string"
-        group: "KubeVirt Settings"
-        show_if: "tags.kubevirt=true"
-      - variable: kubevirt.spec.configuration.network.defaultNetworkInterface
-        default: "bridge"
-        label: "Default Virtual Machine Network Interface"
-        description: "specify the default network interface of vm"
-        type: "enum"
-        options:
-          - bridge
-          - slirp
-          - masquerade
-        group: "KubeVirt Settings"
-        show_if: "tags.kubevirt=true"
-      - variable: kubevirt.spec.configuration.developerConfiguration.useEmulation
-        default: "false"
-        label: "Use Emulated Virtual Machine"
-        description: "specify if uses emulation"
-        type: "boolean"
-        group: "KubeVirt Settings"
-        show_if: "tags.kubevirt=true"
-      - variable: kubevirt.spec.uninstallStrategy
-        default: "RemoveWorkloads"
-        label: "Uninstall Strategy"
-        description: "specify the uninstall strategy of KubeVirt"
-        type: "enum"
-        options:
-          - "RemoveWorkloads"
-          - "BlockUninstallIfWorkloadsExist"
-        group: "KubeVirt Settings"
-        show_if: "tags.kubevirt=true"
-
 ###
-#################### CDI Advance Options ####################
+#################### CDI Advanced Options ####################
 ###
+#################### CDI Advanced Control Settings ####################
+  - variable: tags.cdi
+    default: "true"
+    label: "Install CDI operator and CRD resources"
+    type: "boolean"
+    group: "CDI Settings"
   - variable: show_cdi_advance_options
     default: "false"
-    label: "Show Advance Options"
+    label: "Show Advanced Options"
     type: "boolean"
     show_subquestion_if: true
+    show_if: "tags.cdi=true"
     group: "CDI Settings"
     subquestions:
-      #################### CDI Advance Control Settings ####################
-      - variable: tags.cdi
-        default: "true"
-        label: "Install CDI operator and CRD resource"
-        type: "boolean"
-        group: "CDI Settings"
       #################### CDI Operator Image Settings ####################
       - variable: cdi-operator.containers.operator.image.repository
         default: "kubevirt/cdi-operator"
@@ -309,7 +230,7 @@ questions:
         show_if: "tags.cdi=true"
       - variable: show_cdi_components_advance_options
         default: "false"
-        label: "Show CDI Components Advance Options"
+        label: "Show CDI Components Advanced Options"
         type: "boolean"
         show_if: "tags.cdi=true"
         group: "CDI Settings"
@@ -405,21 +326,21 @@ questions:
         show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
 
 ###
-#################### Minio Advance Options ####################
+#################### Minio Advanced Options ####################
 ###
+  - variable: minio.enabled
+    default: "true"
+    label: "Install Minio"
+    type: "boolean"
+    group: "Minio Settings"
   - variable: show_minio_advance_options
     default: "false"
-    label: "Show Advance Options"
+    label: "Show Advanced Options"
     type: "boolean"
     show_subquestion_if: true
+    show_if: "minio.enabled=true"
     group: "Minio Settings"
     subquestions:
-      #################### Minio Advance Control Settings ####################
-      - variable: minio.enabled
-        default: "true"
-        label: "Install Minio"
-        type: "boolean"
-        group: "Minio Settings"
       #################### Minio Image Settings ####################
       - variable: minio.image.repository
         default: "minio/minio"

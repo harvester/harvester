@@ -50,7 +50,7 @@ containers:
 
       ## Specify the pull policy of image.
       ##
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
 
       ## Specify the repository of image.
       ##
