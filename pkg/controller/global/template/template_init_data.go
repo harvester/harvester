@@ -112,7 +112,7 @@ metadata:
   name: iso-image-base-version
   namespace: {{ .Namespace }}
 spec:
-  templateId: {{ .Namespace }}:iso-image-base-template
+  templateId: {{ .Namespace }}/iso-image-base-template
   vm:
     running: true
     template:
@@ -178,7 +178,7 @@ metadata:
   name: raw-image-base-version
   namespace: {{ .Namespace }}
 spec:
-  templateId: {{ .Namespace }}:raw-image-base-template
+  templateId: {{ .Namespace }}/raw-image-base-template
   vm:
     running: true
     template:
@@ -225,7 +225,7 @@ metadata:
   name: windows-iso-image-base-version
   namespace: {{ .Namespace }}
 spec:
-  templateId: {{ .Namespace }}:windows-iso-image-base-template
+  templateId: {{ .Namespace }}/windows-iso-image-base-template
   vm:
     running: true
     template:
