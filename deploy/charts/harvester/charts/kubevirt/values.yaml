@@ -71,7 +71,7 @@ spec:
 
   ## Specify the default configuration of KubeVirt virtual machine.
   ##
-  # configuration:
+  configuration:
 
     ## Specify the directory that contains the EFI roms,
     ## this argument will be passed to "virt-launcher" as "--ovmf-path",
@@ -118,13 +118,13 @@ spec:
 
     ## Specify the developer configuration of KubeVirt.
     ##
-    # developerConfiguration:
+    developerConfiguration:
 
       ## Specify whether an optional feature is enabled or not at the global level,
       ## select many from [CPUManager, ExperimentalIgnitionSupport, LiveMigration, CPUNodeDiscovery, HypervStrictCheck, Sidecar, GPU, Snapshot, HostDisk], ref to:
       ## https://github.com/kubevirt/kubevirt/blob/f5ffba5f84365155c81d0e2cda4aa709da062230/pkg/virt-config/feature-gates.go#L26-L36.
       ##
-      # featureGates: []
+      featureGates: ["LiveMigration"]
 
       ## Specify the toleration in percent when PVs' available space is smaller than requested,
       ## this argument will be passed to "virt-launcher" as "--less-pvc-space-toleration",
