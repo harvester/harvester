@@ -74,6 +74,10 @@ func canEjectCdRom(vm *v1alpha3.VirtualMachine) bool {
 }
 
 func (vf *vmformatter) canPause(vmi *v1alpha3.VirtualMachineInstance) bool {
+	if vmi == nil {
+		return false
+	}
+
 	if vmi.Status.Phase != v1alpha3.Running {
 		return false
 	}
@@ -86,6 +90,10 @@ func (vf *vmformatter) canPause(vmi *v1alpha3.VirtualMachineInstance) bool {
 }
 
 func (vf *vmformatter) canUnPause(vmi *v1alpha3.VirtualMachineInstance) bool {
+	if vmi == nil {
+		return false
+	}
+
 	if vmi.Status.Phase != v1alpha3.Running {
 		return false
 	}
