@@ -14,7 +14,7 @@ const (
 	templateVersionSchemaID = "harvester.cattle.io.virtualmachinetemplateversion"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server) {
 	templates := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate()
 	templateVersionCache := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion().Cache()
 	th := &templateLinkHandler{
@@ -45,5 +45,4 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	}
 
 	server.SchemaTemplates = append(server.SchemaTemplates, t...)
-	return nil
 }

@@ -11,22 +11,11 @@ import (
 	"github.com/rancher/steve/pkg/server"
 )
 
-type registerSchema func(scaled *config.Scaled, server *server.Server) error
-
-func registerSchemas(scaled *config.Scaled, server *server.Server, registers ...registerSchema) error {
-	for _, register := range registers {
-		if err := register(scaled, server); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func Setup(ctx context.Context, server *server.Server) error {
 	scaled := config.ScaledWithContext(ctx)
-	return registerSchemas(scaled, server,
-		image.RegisterSchema,
-		keypair.RegisterSchema,
-		vmtemplate.RegisterSchema,
-		vm.RegisterSchema)
+	image.RegisterSchema(scaled, server)
+	keypair.RegisterSchema(scaled, server)
+	vm.RegisterSchema(scaled, server)
+	vmtemplate.RegisterSchema(scaled, server)
+	return nil
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/rancher/wrangler/pkg/schemas"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server) {
 	t := schema.Template{
 		ID: "harvester.cattle.io.keypair",
 		Store: store.KeyPairStore{
@@ -35,5 +35,4 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 		},
 	}
 	server.SchemaTemplates = append(server.SchemaTemplates, t)
-	return nil
 }
