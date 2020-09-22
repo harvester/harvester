@@ -1,0 +1,26 @@
+package jwe
+
+import (
+	"fmt"
+
+	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
+	dashboardjwt "github.com/kubernetes/dashboard/src/app/backend/auth/jwe"
+
+	authsync "github.com/rancher/harvester/pkg/auth/sync"
+	"github.com/rancher/harvester/pkg/settings"
+	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+)
+
+func NewJWETokenManager(secrets ctlcorev1.SecretClient, namespace string) (tokenManager dashboardapi.TokenManager, err error) {
+	//handle panic from kubernetes dashboard
+	defer func() {
+		if recoveryMessage := recover(); recoveryMessage != nil {
+			err = fmt.Errorf("%v", recoveryMessage)
+		}
+	}()
+
+	synchronizer := authsync.NewSecretSynchronizer(secrets, namespace, settings.AuthSecretName.Get())
+	keyHolder := dashboardjwt.NewRSAKeyHolder(synchronizer)
+	tokenManager = dashboardjwt.NewJWETokenManager(keyHolder)
+	return
+}
