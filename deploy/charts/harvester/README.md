@@ -90,7 +90,7 @@ To configure the KubeVirt CRD resource, you need to know its [parameters](charts
 For example, if you want to enable the emulation mode on the non-KVM supported hosts, you can do as below.
 
 ```bash
-$ helm install harvester harvester --namesapce harvester-system \
+$ helm install harvester harvester --namespace harvester-system \
     --set-string kubevirt.spec.configuration.developerConfiguration.useEmulation=true
 ```
 
@@ -126,7 +126,7 @@ To configure the KubeVirt Containerized Data Importer CRD resource, you need to 
 For example, if you want to override the pull policy of CDI operator, you can do as below.
 
 ```bash
-$ helm install harvester harvester --namesapce harvester-system \
+$ helm install harvester harvester --namespace harvester-system \
     --set-string cdi.spec.imagePullPolicy=Always
 ```
 
@@ -146,7 +146,7 @@ To configure the Minio, you need to know its [parameters](https://github.com/min
 For example, if you want to use "distributed" mode Minio, you can do as below.
 
 ```bash
-$ helm install harvester harvester --namesapce harvester-system \
+$ helm install harvester harvester --namespace harvester-system \
     --set minio.mode=distributed
 ```
 
