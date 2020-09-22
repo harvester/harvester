@@ -113,7 +113,7 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/rancher/apiserver v0.0.0-20200721152301-4388bb184a8e => github.com/rancheredge/apiserver v0.0.0-20200731031228-a0459feeb0de
+# github.com/rancher/apiserver v0.0.0-20200721152301-4388bb184a8e => github.com/cnrancher/apiserver v0.0.0-20200731031228-a0459feeb0de
 github.com/rancher/apiserver/pkg/apierror
 github.com/rancher/apiserver/pkg/builtin
 github.com/rancher/apiserver/pkg/handlers
@@ -144,7 +144,7 @@ github.com/rancher/lasso/pkg/mapper
 github.com/rancher/lasso/pkg/scheme
 # github.com/rancher/norman v0.0.0-20200517050325-f53cae161640
 github.com/rancher/norman/types/convert
-# github.com/rancher/steve v0.0.0-20200622175150-3dbc369174fb => github.com/rancheredge/steve v0.0.0-20200708031911-f69e0f4820b4
+# github.com/rancher/steve v0.0.0-20200622175150-3dbc369174fb => github.com/cnrancher/steve v0.0.0-20200922090254-a3cedc4d23cd
 github.com/rancher/steve/pkg/accesscontrol
 github.com/rancher/steve/pkg/attributes
 github.com/rancher/steve/pkg/auth
@@ -674,10 +674,10 @@ k8s.io/utils/integer
 k8s.io/utils/path
 k8s.io/utils/pointer
 k8s.io/utils/trace
-# kubevirt.io/client-go v0.31.1-0.20200715061104-844cb60487e4 => github.com/orangedeng/client-go v0.31.1-0.20200715061104-844cb60487e4
+# kubevirt.io/client-go v0.31.1-0.20200715061104-844cb60487e4 => github.com/cnrancher/kubevirt-client-go v0.31.1-0.20200715061104-844cb60487e4
 kubevirt.io/client-go/api/v1alpha3
 kubevirt.io/client-go/precond
-# kubevirt.io/containerized-data-importer v1.22.0 => github.com/thxcode/kubevirt-containerized-data-importer v1.22.0-apis-only
+# kubevirt.io/containerized-data-importer v1.22.0 => github.com/cnrancher/kubevirt-containerized-data-importer v1.22.0-apis-only
 kubevirt.io/containerized-data-importer/pkg/apis/core
 kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1
 kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1
