@@ -26,7 +26,7 @@ This chart will do the following:
     If you have already prepared the KubeVirt, CDI or image storage compatible with S3 like Minio, you can disable these installations in this chart.
     
     ```bash
-    $ helm install harvester harvester --name harvester-system \
+    $ helm install harvester harvester --namespace harvester-system \
         --set kubevirt.enabled=false --set kubevirt-operator.enabled=false \
         --set cdi.enabled=false --set cdi-operator.enabled=false \
         --set minio.enabled=false
