@@ -3,6 +3,9 @@ package config
 import (
 	"context"
 
+	"github.com/rancher/harvester/pkg/auth/jwe"
+
+	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/rancher/lasso/pkg/controller"
 	corev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core"
 	storagev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/storage"
@@ -29,6 +32,7 @@ var (
 	ImageStorageEndpoint  string
 	ImageStorageAccessKey string
 	ImageStorageSecretKey string
+	SkipAuthentication    bool
 )
 
 type Scaled struct {
@@ -42,7 +46,8 @@ type Scaled struct {
 
 	starters []start.Starter
 
-	Management *Management
+	Management   *Management
+	TokenManager dashboardapi.TokenManager
 }
 
 type Management struct {
@@ -95,6 +100,10 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 		return nil, nil, err
 	}
 
+	scaled.TokenManager, err = jwe.NewJWETokenManager(scaled.CoreFactory.Core().V1().Secret(), Namespace)
+	if err != nil {
+		return nil, nil, err
+	}
 	return context.WithValue(scaled.ctx, _scaledKey{}, scaled), scaled, nil
 }
 

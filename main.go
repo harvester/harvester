@@ -79,6 +79,12 @@ func main() {
 			Destination: &config.ImageStorageSecretKey,
 			Required:    true,
 		},
+		cli.BoolFlag{
+			Name:        "skip-authentication",
+			EnvVar:      "SKIP_AUTHENTICATION",
+			Destination: &config.SkipAuthentication,
+			Usage:       "Define whether to skip auth login or not, default to false",
+		},
 	}
 	app.Action = run
 

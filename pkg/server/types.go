@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/dynamiclistener/server"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/steve/pkg/accesscontrol"
+	steveauth "github.com/rancher/steve/pkg/auth"
 	steveserver "github.com/rancher/steve/pkg/server"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/ratelimit"
@@ -21,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/rancher/harvester/pkg/api"
+	"github.com/rancher/harvester/pkg/api/auth"
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/controller/crds"
 	"github.com/rancher/harvester/pkg/controller/global"
@@ -129,13 +131,24 @@ func (s *HarvesterServer) generateSteveServer() error {
 
 	nextHandler := ui.RegisterAPIUI()
 
+	router, err := NewRouter(scaled, s.RestConfig)
+	if err != nil {
+		return err
+	}
+
+	var authMiddleware steveauth.Middleware
+	if !config.SkipAuthentication {
+		md := auth.NewMiddleware(scaled)
+		authMiddleware = md.AuthMiddleware
+	}
+
 	s.steve = &steveserver.Server{
 		Controllers:     steveControllers,
 		AccessSetLookup: s.ASL,
 		RestConfig:      s.RestConfig,
-		AuthMiddleware:  nil,
+		AuthMiddleware:  authMiddleware,
 		Next:            nextHandler,
-		Router:          Routes,
+		Router:          router.Routes,
 		DashboardURL: func() string {
 			if settings.UIIndex.Get() == "local" {
 				return settings.UIPath.Get()
