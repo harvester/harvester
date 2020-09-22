@@ -6,11 +6,11 @@ replace (
 	github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.2.0+incompatible
 	github.com/crewjam/saml => github.com/rancher/saml v0.0.0-20180713225824-ce1532152fde
 	github.com/knative/pkg => github.com/rancher/pkg v0.0.0-20190514055449-b30ab9de040e
-	github.com/rancher/apiserver => github.com/rancheredge/apiserver v0.0.0-20200731031228-a0459feeb0de
-	github.com/rancher/steve => github.com/rancheredge/steve v0.0.0-20200708031911-f69e0f4820b4
+	github.com/rancher/apiserver => github.com/cnrancher/apiserver v0.0.0-20200731031228-a0459feeb0de
+	github.com/rancher/steve => github.com/cnrancher/steve v0.0.0-20200922090254-a3cedc4d23cd
 	k8s.io/client-go => k8s.io/client-go v0.18.0
-	kubevirt.io/client-go => github.com/orangedeng/client-go v0.31.1-0.20200715061104-844cb60487e4
-	kubevirt.io/containerized-data-importer => github.com/thxcode/kubevirt-containerized-data-importer v1.22.0-apis-only
+	kubevirt.io/client-go => github.com/cnrancher/kubevirt-client-go v0.31.1-0.20200715061104-844cb60487e4
+	kubevirt.io/containerized-data-importer => github.com/cnrancher/kubevirt-containerized-data-importer v1.22.0-apis-only
 )
 
 require (

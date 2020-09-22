@@ -1,6 +1,7 @@
 package accesscontrol
 
 import (
+	"fmt"
 	"hash"
 	"sort"
 
@@ -51,6 +52,9 @@ func (p *policyRuleIndex) clusterRoleBindingBySubjectIndexer(crb *rbacv1.Cluster
 	for _, subject := range crb.Subjects {
 		if subject.APIGroup == rbacGroup && subject.Kind == p.kind && crb.RoleRef.Kind == "ClusterRole" {
 			result = append(result, subject.Name)
+		} else if subject.APIGroup == "" && p.kind == "User" && subject.Kind == "ServiceAccount" && subject.Namespace != "" && crb.RoleRef.Kind == "ClusterRole" {
+			// Index is for Users and this references a service account
+			result = append(result, fmt.Sprintf("system:serviceaccount:%s:%s", subject.Namespace, subject.Name))
 		}
 	}
 	return
@@ -60,6 +64,9 @@ func (p *policyRuleIndex) roleBindingBySubject(rb *rbacv1.RoleBinding) (result [
 	for _, subject := range rb.Subjects {
 		if subject.APIGroup == rbacGroup && subject.Kind == p.kind {
 			result = append(result, subject.Name)
+		} else if subject.APIGroup == "" && p.kind == "User" && subject.Kind == "ServiceAccount" && subject.Namespace != "" {
+			// Index is for Users and this references a service account
+			result = append(result, fmt.Sprintf("system:serviceaccount:%s:%s", subject.Namespace, subject.Name))
 		}
 	}
 	return
