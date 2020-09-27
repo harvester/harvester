@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/rancher/harvester/pkg/config"
 	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
@@ -19,8 +20,9 @@ import (
 
 const (
 	//action
-	actionQuery     = "action"
-	loginActionName = "login"
+	actionQuery      = "action"
+	loginActionName  = "login"
+	logoutActionName = "logout"
 	//default cluserName/userName/contextName
 	defaultRestConfigResourceName = "default"
 )
@@ -47,6 +49,26 @@ func (h *PublicAPIHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	action := strings.ToLower(r.URL.Query().Get(actionQuery))
+	isSecure := false
+	if r.URL.Scheme == "https" {
+		isSecure = true
+	}
+
+	if action == logoutActionName {
+		tokenCookie := &http.Cookie{
+			Name:     JWETokenHeader,
+			Value:    "",
+			Secure:   isSecure,
+			Path:     "/",
+			HttpOnly: true,
+			MaxAge:   -1,
+			Expires:  time.Unix(1, 0), //January 1, 1970 UTC
+		}
+		http.SetCookie(rw, tokenCookie)
+		rw.WriteHeader(http.StatusOK)
+		return
+	}
+
 	if action != loginActionName {
 		rw.WriteHeader(http.StatusBadRequest)
 		rw.Write(responseBody(TokenResponse{Errors: []string{"Unsupported action"}}))
@@ -65,11 +87,6 @@ func (h *PublicAPIHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(statusCode)
 		rw.Write(responseBody(TokenResponse{Errors: []string{err.Error()}}))
 		return
-	}
-
-	isSecure := false
-	if r.URL.Scheme == "https" {
-		isSecure = true
 	}
 
 	tokenCookie := &http.Cookie{
