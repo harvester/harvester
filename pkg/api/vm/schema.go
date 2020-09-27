@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
+	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/wrangler/pkg/schemas"
 
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -55,6 +56,12 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 		vmiCache: vmis.Cache(),
 	}
 
+	vmStore := &vmStore{
+		Store:       proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
+		dataVolumes: scaled.CDIFactory.Cdi().V1beta1().DataVolume(),
+		vmCache:     scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine().Cache(),
+	}
+
 	t := schema.Template{
 		ID: vmSchemaID,
 		Customize: func(apiSchema *types.APISchema) {
@@ -82,6 +89,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 			}
 		},
 		Formatter: vmformatter.formatter,
+		Store:     vmStore,
 	}
 
 	server.SchemaTemplates = append(server.SchemaTemplates, t)
