@@ -1,8 +1,13 @@
 package auth
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"net/http"
 	"net/url"
+
+	"github.com/rancher/harvester/pkg/auth/jwt"
+	"k8s.io/apiserver/pkg/authentication/user"
 
 	"github.com/pkg/errors"
 	"k8s.io/client-go/rest"
@@ -88,4 +93,46 @@ func buildAuthInfo(token, kubeConfig string) (*clientcmdapi.AuthInfo, error) {
 		return nil, errors.New("Failed to find authInfo for context " + rawConf.CurrentContext)
 	}
 	return authInfo, nil
+}
+
+func getImpersonateAuthInfo(authInfo *clientcmdapi.AuthInfo) (*clientcmdapi.AuthInfo, error) {
+	if authInfo.Token != "" {
+		claims, err := jwt.GetJWTTokenClaims(authInfo.Token)
+		if err != nil {
+			return nil, err
+		}
+		subject, ok1 := claims[jwtServiceAccountClaimSubject]
+		if ok1 {
+			return &clientcmdapi.AuthInfo{Impersonate: subject.(string)}, nil
+		}
+	}
+
+	if len(authInfo.ClientCertificateData) != 0 && len(authInfo.ClientKeyData) != 0 {
+		block, _ := pem.Decode(authInfo.ClientCertificateData)
+		clientCert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, errors.Wrapf(err, "kubeconfig's ClientCertificateData is not a valid CA")
+		}
+
+		if clientCert.Subject.CommonName == "" {
+			return nil, errors.New("Subject.CommonName from kubeconfig's ClientCertificateData is empty")
+		}
+
+		return &clientcmdapi.AuthInfo{Impersonate: clientCert.Subject.CommonName, ImpersonateGroups: clientCert.Subject.Organization}, nil
+	}
+
+	return nil, errors.New("Failed to get userInfo from authInfo")
+}
+
+func impersonateAuthInfoToUserInfo(authInfo *clientcmdapi.AuthInfo) user.Info {
+	var userInfo user.DefaultInfo
+	if authInfo.Impersonate != "" {
+		userInfo.Name = authInfo.Impersonate
+	}
+
+	if len(authInfo.ImpersonateGroups) != 0 {
+		userInfo.Groups = authInfo.ImpersonateGroups
+	}
+
+	return &userInfo
 }
