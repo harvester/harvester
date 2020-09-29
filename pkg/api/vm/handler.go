@@ -100,9 +100,10 @@ func (h *vmActionHandler) ejectCdRom(name, namespace string, diskNames []string)
 		if _, err := h.vms.Update(vmCopy); err != nil {
 			return err
 		}
+		return h.vmis.Delete(namespace, name, &metav1.DeleteOptions{})
 	}
 
-	return h.vmis.Delete(namespace, name, &metav1.DeleteOptions{})
+	return nil
 }
 
 func (h *vmActionHandler) subresourceOperate(ctx context.Context, resource, namespace, name, subresourece string) error {
