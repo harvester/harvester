@@ -2,6 +2,8 @@ package jwe
 
 import (
 	"fmt"
+	"strconv"
+	"time"
 
 	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	dashboardjwt "github.com/kubernetes/dashboard/src/app/backend/auth/jwe"
@@ -22,5 +24,15 @@ func NewJWETokenManager(secrets ctlcorev1.SecretClient, namespace string) (token
 	synchronizer := authsync.NewSecretSynchronizer(secrets, namespace, settings.AuthSecretName.Get())
 	keyHolder := dashboardjwt.NewRSAKeyHolder(synchronizer)
 	tokenManager = dashboardjwt.NewJWETokenManager(keyHolder)
+	tokenManager.SetTokenTTL(GetTokenMaxTTL())
 	return
+}
+
+func GetTokenMaxTTL() time.Duration {
+	ttlStr := settings.AuthTokenMaxTTLMinutes.Get()
+	ttl, err := strconv.ParseInt(ttlStr, 10, 32)
+	if err != nil {
+		ttl = 720
+	}
+	return time.Duration(ttl) * time.Minute
 }
