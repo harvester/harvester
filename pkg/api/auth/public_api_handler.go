@@ -127,7 +127,12 @@ func (h *PublicAPIHandler) login(input *Login) (tokenResp *TokenResponse, status
 		return nil, http.StatusUnauthorized, errors.Wrapf(err, "Failed to login")
 	}
 
-	token, err := h.tokenManager.Generate(*authInfo)
+	impersonateAuthInfo, err := getImpersonateAuthInfo(authInfo)
+	if err != nil {
+		return nil, http.StatusInternalServerError, errors.Wrapf(err, "Failed to build impersonate authInfo from authorization info")
+	}
+
+	token, err := h.tokenManager.Generate(*impersonateAuthInfo)
 	if err != nil {
 		return nil, http.StatusInternalServerError, errors.Wrapf(err, "Failed to generate token")
 	}
