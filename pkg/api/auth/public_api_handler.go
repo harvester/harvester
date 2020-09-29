@@ -117,13 +117,7 @@ func (h *PublicAPIHandler) login(input *Login) (tokenResp *TokenResponse, status
 		return nil, http.StatusUnauthorized, errors.Wrapf(err, "Failed to build kubernetes api configure from authorization info")
 	}
 
-	clientConfig := buildCmdConfig(authInfo, h.restConfig)
-	rawConfig, err := clientConfig.RawConfig()
-	if err != nil {
-		return nil, http.StatusUnauthorized, errors.Wrapf(err, "Failed to get kubernetes Config")
-	}
-
-	if err = h.accessCheck(&rawConfig); err != nil {
+	if err = h.accessCheck(authInfo); err != nil {
 		return nil, http.StatusUnauthorized, errors.Wrapf(err, "Failed to login")
 	}
 
@@ -141,8 +135,14 @@ func (h *PublicAPIHandler) login(input *Login) (tokenResp *TokenResponse, status
 	return &TokenResponse{JWEToken: escapedToken}, http.StatusOK, nil
 }
 
-func (h *PublicAPIHandler) accessCheck(config *clientcmdapi.Config) error {
-	clientSet, err := kubeconfigutil.ToClientSet(config)
+func (h *PublicAPIHandler) accessCheck(authInfo *clientcmdapi.AuthInfo) error {
+	clientConfig := buildCmdConfig(authInfo, h.restConfig)
+	rawConfig, err := clientConfig.RawConfig()
+	if err != nil {
+		return errors.Wrapf(err, "Failed to get kubernetes Config")
+	}
+
+	clientSet, err := kubeconfigutil.ToClientSet(&rawConfig)
 	if err != nil {
 		return errors.New("Failed to get clientSet from built cmdapi.Config")
 	}
