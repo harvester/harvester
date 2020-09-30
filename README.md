@@ -13,6 +13,14 @@ New version of Rancher VM is working in progress.
 
 `./bin/harvester`
 
+## Install
+Harvester can be installed on a Kubernetes cluster in the following ways:
+- [Helm](https://github.com/rancher/harvester/tree/master/deploy/charts/harvester)
+- Rancher catalog app (add this repo to the Rancher Catalog as helm v3 app)
+
+## Documentation
+Please refer to the [docs](./docs) to find out more details.
+
 ## License
 Copyright (c) 2020 [Rancher Labs, Inc.](http://rancher.com)
 

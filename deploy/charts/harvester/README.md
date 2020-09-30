@@ -1,6 +1,6 @@
 # Harvester Helm Chart
 
-Harvester provides a friendly virtual machine management experience in Kubernetes based on [KubeVirt](https://kubervirt.io) and [KubeVirt Containerized Data Importer](https://github.com/kubevirt/containerized-data-importer).
+Harvester provides a friendly virtual machine management experience in Kubernetes based on [KubeVirt](https://kubervirt.io) and [KubeVirt Containerized Data Importer](https://github.com/kubevirt/containerized-data-importer) (CDI).
 
 ## Chart Details
 
@@ -8,8 +8,8 @@ This chart will do the following:
 
 - Deploy a KubeVirt Operator if needed, defaults to deploy.
 - Deploy a KubeVirt CRD resource to enable KubeVirt if needed, defaults to deploy.
-- Deploy a KubeVirt Containerized Data Importer Operator if needed, defaults to deploy.
-- Deploy a CDI CRD resource to enable KubeVirt Containerized Data Importer if needed, default to deploy.
+- Deploy a KubeVirt Containerized Data Importer(CDI) Operator if needed, defaults to deploy.
+- Deploy a CDI CRD resource to enable KubeVirt Containerized Data Importer(CDI) if needed, default to deploy.
 - Deploy a Minio as virtual machine image storage if needed, defaults to deploy.
 - Deploy the Harvester resources.
 
