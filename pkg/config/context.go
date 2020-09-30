@@ -3,8 +3,6 @@ package config
 import (
 	"context"
 
-	"github.com/rancher/harvester/pkg/auth/jwe"
-
 	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/rancher/lasso/pkg/controller"
 	corev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core"
@@ -13,6 +11,7 @@ import (
 	"github.com/rancher/wrangler/pkg/start"
 	"k8s.io/client-go/rest"
 
+	"github.com/rancher/harvester/pkg/auth/jwe"
 	"github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io"
 	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io"
 	"github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io"

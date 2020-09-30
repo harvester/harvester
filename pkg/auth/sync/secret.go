@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
-
 	dashboardsync "github.com/kubernetes/dashboard/src/app/backend/sync/api"
+	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -106,6 +105,8 @@ func (s *SecretSynchronizer) getSecret(obj runtime.Object) (*v1.Secret, error) {
 		return nil, errors.New("Provided object has to be a secret. Most likely this is a programming error")
 	}
 
+	secret.Name = s.name
+	secret.Namespace = s.namespace
 	return secret, nil
 }
 
