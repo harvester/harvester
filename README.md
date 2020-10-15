@@ -2,15 +2,15 @@ Rancher Harvester (WORK-IN-PROGRESS)
 ========
 [![Build Status](https://drone-publish.rancher.io/api/badges/rancher/harvester/status.svg)](https://drone-publish.rancher.io/rancher/harvester)
 
-Rancher Harvester is an open source Hyper-converged infrastructure(HCI) solution based on Kubernetes.
+Rancher Harvester is an open source Hyper-Converged Infrastructure(HCI) solution based on Kubernetes.
 
 ## Mode
 
 Harvester supports two modes:
 
-### Baremetal
+### Bare-metal [IN-DEVELOPMENT]
 
-In the `Baremetal` mode, user can install Harvester using ISO provided on baremetal nodes, to form a Harvester cluster.
+In the `Bare-metal` mode, user can install Harvester using ISO directly on bare-metal nodes to form a Harvester cluster.
 
 ### App
 
