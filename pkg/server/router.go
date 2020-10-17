@@ -36,8 +36,9 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 		http.Redirect(rw, req, "/dashboard/", http.StatusFound)
 	})
 
-	publicAPIHandler := auth.NewPublicAPIHandler(r.scaled, r.restConfig)
-	m.PathPrefix("/v1-public/auth").Handler(publicAPIHandler)
+	loginHandler := auth.NewLoginHandler(r.scaled, r.restConfig)
+	m.Path("/v1-public/auth").Handler(loginHandler)
+	m.Path("/v1-public/auth-modes").HandlerFunc(auth.ModeHandler)
 
 	m.NotFoundHandler = router.Routes(h)
 

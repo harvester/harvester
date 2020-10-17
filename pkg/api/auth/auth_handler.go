@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
 
 	dashboardauthapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
@@ -30,14 +31,14 @@ func (h *Middleware) AuthMiddleware(rw http.ResponseWriter, r *http.Request, han
 	jweToken, err := extractJWETokenFromRequest(r)
 	if err != nil {
 		rw.WriteHeader(http.StatusUnauthorized)
-		rw.Write(responseBody(TokenResponse{Errors: []string{err.Error()}}))
+		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{err.Error()}}))
 		return
 	}
 
 	userInfo, err := h.getUserInfoFromToken(jweToken)
 	if err != nil {
 		rw.WriteHeader(http.StatusUnauthorized)
-		rw.Write(responseBody(TokenResponse{Errors: []string{err.Error()}}))
+		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{err.Error()}}))
 		return
 	}
 

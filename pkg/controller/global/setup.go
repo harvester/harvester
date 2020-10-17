@@ -7,6 +7,7 @@ import (
 	"github.com/rancher/harvester/pkg/controller/global/auth"
 	"github.com/rancher/harvester/pkg/controller/global/settings"
 	"github.com/rancher/harvester/pkg/controller/global/template"
+	"github.com/rancher/harvester/pkg/indexeres"
 	"github.com/rancher/steve/pkg/server"
 )
 
@@ -20,6 +21,7 @@ var registerFuncs = []registerFunc{
 
 func Setup(ctx context.Context, server *server.Server) error {
 	scaled := config.ScaledWithContext(ctx)
+	indexeres.RegisterScaledIndexers(scaled)
 	for _, f := range registerFuncs {
 		if err := f(ctx, scaled, server); err != nil {
 			return err

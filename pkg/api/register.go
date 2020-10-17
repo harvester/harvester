@@ -5,6 +5,7 @@ import (
 
 	"github.com/rancher/harvester/pkg/api/image"
 	"github.com/rancher/harvester/pkg/api/keypair"
+	"github.com/rancher/harvester/pkg/api/user"
 	"github.com/rancher/harvester/pkg/api/vm"
 	"github.com/rancher/harvester/pkg/api/vmtemplate"
 	"github.com/rancher/harvester/pkg/config"
@@ -28,5 +29,6 @@ func Setup(ctx context.Context, server *server.Server) error {
 		image.RegisterSchema,
 		keypair.RegisterSchema,
 		vmtemplate.RegisterSchema,
-		vm.RegisterSchema)
+		vm.RegisterSchema,
+		user.RegisterSchema)
 }

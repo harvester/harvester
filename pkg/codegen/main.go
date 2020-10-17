@@ -24,6 +24,7 @@ func main() {
 					harv1.KeyPair{},
 					harv1.VirtualMachineTemplate{},
 					harv1.VirtualMachineTemplateVersion{},
+					harv1.User{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,
