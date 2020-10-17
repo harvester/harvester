@@ -36,6 +36,10 @@ func (c *FakeHarvesterV1alpha1) Settings() v1alpha1.SettingInterface {
 	return &FakeSettings{c}
 }
 
+func (c *FakeHarvesterV1alpha1) Users() v1alpha1.UserInterface {
+	return &FakeUsers{c}
+}
+
 func (c *FakeHarvesterV1alpha1) VirtualMachineImages(namespace string) v1alpha1.VirtualMachineImageInterface {
 	return &FakeVirtualMachineImages{c, namespace}
 }

@@ -28,6 +28,7 @@ type HarvesterV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	KeyPairsGetter
 	SettingsGetter
+	UsersGetter
 	VirtualMachineImagesGetter
 	VirtualMachineTemplatesGetter
 	VirtualMachineTemplateVersionsGetter
@@ -44,6 +45,10 @@ func (c *HarvesterV1alpha1Client) KeyPairs(namespace string) KeyPairInterface {
 
 func (c *HarvesterV1alpha1Client) Settings() SettingInterface {
 	return newSettings(c)
+}
+
+func (c *HarvesterV1alpha1Client) Users() UserInterface {
+	return newUsers(c)
 }
 
 func (c *HarvesterV1alpha1Client) VirtualMachineImages(namespace string) VirtualMachineImageInterface {

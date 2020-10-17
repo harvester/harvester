@@ -30,6 +30,7 @@ import (
 var (
 	KeyPairResourceName                       = "keypairs"
 	SettingResourceName                       = "settings"
+	UserResourceName                          = "users"
 	VirtualMachineImageResourceName           = "virtualmachineimages"
 	VirtualMachineTemplateResourceName        = "virtualmachinetemplates"
 	VirtualMachineTemplateVersionResourceName = "virtualmachinetemplateversions"
@@ -60,6 +61,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&KeyPairList{},
 		&Setting{},
 		&SettingList{},
+		&User{},
+		&UserList{},
 		&VirtualMachineImage{},
 		&VirtualMachineImageList{},
 		&VirtualMachineTemplate{},

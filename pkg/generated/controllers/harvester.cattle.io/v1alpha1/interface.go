@@ -32,6 +32,7 @@ func init() {
 type Interface interface {
 	KeyPair() KeyPairController
 	Setting() SettingController
+	User() UserController
 	VirtualMachineImage() VirtualMachineImageController
 	VirtualMachineTemplate() VirtualMachineTemplateController
 	VirtualMachineTemplateVersion() VirtualMachineTemplateVersionController
@@ -52,6 +53,9 @@ func (c *version) KeyPair() KeyPairController {
 }
 func (c *version) Setting() SettingController {
 	return NewSettingController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "Setting"}, "settings", false, c.controllerFactory)
+}
+func (c *version) User() UserController {
+	return NewUserController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "User"}, "users", false, c.controllerFactory)
 }
 func (c *version) VirtualMachineImage() VirtualMachineImageController {
 	return NewVirtualMachineImageController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "VirtualMachineImage"}, "virtualmachineimages", true, c.controllerFactory)
