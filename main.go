@@ -85,6 +85,11 @@ func main() {
 			Destination: &config.SkipAuthentication,
 			Usage:       "Define whether to skip auth login or not, default to false",
 		},
+		cli.StringFlag{
+			Name:   "authentication-mode",
+			EnvVar: "HARVESTER_AUTHENTICATION_MODE",
+			Usage:  "Define authentication mode, kubernetesCredentials and localUser are supported, could config more than one mode, separated by comma",
+		},
 	}
 	app.Action = run
 

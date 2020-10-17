@@ -2,9 +2,11 @@ package settings
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,6 +20,8 @@ var (
 	APIUIVersion           = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
 	AuthTokenMaxTTLMinutes = NewSetting("auth-token-max-ttl-minutes", "720")
 	AuthSecretName         = NewSetting("auth-secret-name", "harvester-key-holder")
+	NoDefaultAdmin         = NewSetting("no-default-admin", "")
+	AuthenticationMode     = NewSetting("authentication-mode", fmt.Sprintf("%s,%s", v1alpha1.KubernetesCredentials, v1alpha1.LocalUser))
 )
 
 func init() {
