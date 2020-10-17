@@ -22,6 +22,8 @@ type KeyPairExpansion interface{}
 
 type SettingExpansion interface{}
 
+type UserExpansion interface{}
+
 type VirtualMachineImageExpansion interface{}
 
 type VirtualMachineTemplateExpansion interface{}

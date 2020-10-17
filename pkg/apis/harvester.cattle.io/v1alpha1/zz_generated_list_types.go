@@ -108,3 +108,20 @@ func NewVirtualMachineTemplateVersion(namespace, name string, obj VirtualMachine
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// UserList is a list of User resources
+type UserList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []User `json:"items"`
+}
+
+func NewUser(namespace, name string, obj User) *User {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("User").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
