@@ -224,10 +224,10 @@ func (h *LoginHandler) getUser(username string) (*v1alpha1.User, error) {
 		return nil, err
 	}
 	if len(objs) == 0 {
-		return nil, apierror.NewAPIError(validation.Unauthorized, "authentication failed")
+		return nil, errors.New("authentication failed")
 	}
 	if len(objs) > 1 {
-		return nil, apierror.NewAPIError(validation.Unauthorized, "Found more than one users with username "+username)
+		return nil, errors.New("found more than one users with username " + username)
 	}
 	return objs[0], nil
 }
