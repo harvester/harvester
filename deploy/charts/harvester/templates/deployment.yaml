@@ -70,6 +70,8 @@ spec:
 {{ toYaml .Values.containers.apiserver.args | indent 12 }}
 {{- end }}
           env:
+            - name: HARVESTER_AUTHENTICATION_MODE
+              value: {{ .Values.containers.apiserver.authMode | quote }}
             - name: HARVESTER_SERVER_HTTPS_PORT
               value: {{ .Values.service.harvester.httpsPort | quote }}
             - name: HARVESTER_SERVER_HTTP_PORT
