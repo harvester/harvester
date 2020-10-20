@@ -179,6 +179,10 @@ containers:
       ##
       tag: master-head
 
+    ## Define the authentication mode, currently only kubernetesCredentials and localUser are supported,
+    ## could config more than one mode, separated by comma
+    authMode: "localUser,kubernetesCredentials"
+
     ## Specify the command.
     ##
     command: []

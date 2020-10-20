@@ -76,6 +76,16 @@ questions:
     type: "int"
     min: 0
     group: "Harvester Settings"
+  - variable: containers.apiserver.authMode
+    default: "localUser,kubernetesCredentials"
+    label: "Authentication Mode"
+    description: "specify the the authentication mode"
+    type: "enum"
+    options:
+      - localUser
+      - kubernetesCredentials
+      - localUser,kubernetesCredentials
+    group: "Harvester Settings"
 
 ###
 #################### Harvester Cleanup Job Options ####################
