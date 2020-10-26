@@ -19,6 +19,7 @@ limitations under the License.
 package scheme
 
 import (
+	k8scnicncfiov1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -35,6 +36,7 @@ var ParameterCodec = runtime.NewParameterCodec(Scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
 	cdiv1beta1.AddToScheme,
 	harvesterv1alpha1.AddToScheme,
+	k8scnicncfiov1.AddToScheme,
 	kubevirtv1alpha3.AddToScheme,
 }
 

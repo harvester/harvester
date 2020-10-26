@@ -23,6 +23,7 @@ import (
 
 	cdiv1beta1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
 	harvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
+	k8scnicncfiov1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 	kubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -33,6 +34,7 @@ type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	CdiV1beta1() cdiv1beta1.CdiV1beta1Interface
 	HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface
+	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
 	KubevirtV1alpha3() kubevirtv1alpha3.KubevirtV1alpha3Interface
 }
 
@@ -42,6 +44,7 @@ type Clientset struct {
 	*discovery.DiscoveryClient
 	cdiV1beta1        *cdiv1beta1.CdiV1beta1Client
 	harvesterV1alpha1 *harvesterv1alpha1.HarvesterV1alpha1Client
+	k8sCniCncfIoV1    *k8scnicncfiov1.K8sCniCncfIoV1Client
 	kubevirtV1alpha3  *kubevirtv1alpha3.KubevirtV1alpha3Client
 }
 
@@ -53,6 +56,11 @@ func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
 // HarvesterV1alpha1 retrieves the HarvesterV1alpha1Client
 func (c *Clientset) HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface {
 	return c.harvesterV1alpha1
+}
+
+// K8sCniCncfIoV1 retrieves the K8sCniCncfIoV1Client
+func (c *Clientset) K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface {
+	return c.k8sCniCncfIoV1
 }
 
 // KubevirtV1alpha3 retrieves the KubevirtV1alpha3Client
@@ -89,6 +97,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
+	cs.k8sCniCncfIoV1, err = k8scnicncfiov1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 	cs.kubevirtV1alpha3, err = kubevirtv1alpha3.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -107,6 +119,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.cdiV1beta1 = cdiv1beta1.NewForConfigOrDie(c)
 	cs.harvesterV1alpha1 = harvesterv1alpha1.NewForConfigOrDie(c)
+	cs.k8sCniCncfIoV1 = k8scnicncfiov1.NewForConfigOrDie(c)
 	cs.kubevirtV1alpha3 = kubevirtv1alpha3.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
@@ -118,6 +131,7 @@ func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.cdiV1beta1 = cdiv1beta1.New(c)
 	cs.harvesterV1alpha1 = harvesterv1alpha1.New(c)
+	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
 	cs.kubevirtV1alpha3 = kubevirtv1alpha3.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)

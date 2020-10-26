@@ -10,14 +10,17 @@ replace (
 	github.com/rancher/apiserver => github.com/cnrancher/apiserver v0.0.0-20200731031228-a0459feeb0de
 	github.com/rancher/steve => github.com/cnrancher/steve v0.0.0-20200922090254-a3cedc4d23cd
 	k8s.io/client-go => k8s.io/client-go v0.18.0
+	k8s.io/code-generator => k8s.io/code-generator v0.18.3
 	kubevirt.io/client-go => github.com/cnrancher/kubevirt-client-go v0.31.1-0.20200715061104-844cb60487e4
 	kubevirt.io/containerized-data-importer => github.com/cnrancher/kubevirt-containerized-data-importer v1.22.0-apis-only
 )
 
 require (
+	github.com/containernetworking/cni v0.8.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gorilla/mux v1.7.3
 	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/minio/minio-go/v6 v6.0.57
 	github.com/pkg/errors v0.9.1
@@ -38,6 +41,7 @@ require (
 	k8s.io/apimachinery v0.18.6
 	k8s.io/apiserver v0.18.0
 	k8s.io/client-go v12.0.0+incompatible
+	k8s.io/code-generator v0.18.3 // indirect
 	k8s.io/gengo v0.0.0-20200114144118-36b2048a9120
 	k8s.io/kubernetes v1.14.0
 	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
