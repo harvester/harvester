@@ -15,6 +15,7 @@ import (
 	"github.com/rancher/harvester/pkg/auth/jwe"
 	"github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io"
 	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io"
+	cniv1 "github.com/rancher/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	"github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io"
 )
 
@@ -44,6 +45,7 @@ type Scaled struct {
 	HarvesterFactory *harvester.Factory
 	CoreFactory      *corev1.Factory
 	RbacFactory      *rbacv1.Factory
+	CniFactory       *cniv1.Factory
 	starters         []start.Starter
 
 	Management   *Management
@@ -102,6 +104,13 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	}
 	scaled.RbacFactory = rbac
 	scaled.starters = append(scaled.starters, rbac)
+
+	cni, err := cniv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.CniFactory = cni
+	scaled.starters = append(scaled.starters, cni)
 
 	scaled.Management, err = setupManagement(ctx, restConfig, opts)
 	if err != nil {
