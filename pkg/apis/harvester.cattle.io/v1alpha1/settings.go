@@ -24,4 +24,11 @@ type Setting struct {
 
 	// +optional
 	Source string `json:"source,omitempty"`
+
+	Status SettingStatus `json:"status,omitempty"`
+}
+
+type SettingStatus struct {
+	// +optional
+	Conditions []Condition `json:"conditions,omitempty"`
 }

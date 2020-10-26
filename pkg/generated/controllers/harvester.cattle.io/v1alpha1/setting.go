@@ -25,7 +25,10 @@ import (
 	v1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +58,7 @@ type SettingController interface {
 type SettingClient interface {
 	Create(*v1alpha1.Setting) (*v1alpha1.Setting, error)
 	Update(*v1alpha1.Setting) (*v1alpha1.Setting, error)
-
+	UpdateStatus(*v1alpha1.Setting) (*v1alpha1.Setting, error)
 	Delete(name string, options *metav1.DeleteOptions) error
 	Get(name string, options metav1.GetOptions) (*v1alpha1.Setting, error)
 	List(opts metav1.ListOptions) (*v1alpha1.SettingList, error)
@@ -184,6 +187,11 @@ func (c *settingController) Update(obj *v1alpha1.Setting) (*v1alpha1.Setting, er
 	return result, c.client.Update(context.TODO(), "", obj, result, metav1.UpdateOptions{})
 }
 
+func (c *settingController) UpdateStatus(obj *v1alpha1.Setting) (*v1alpha1.Setting, error) {
+	result := &v1alpha1.Setting{}
+	return result, c.client.UpdateStatus(context.TODO(), "", obj, result, metav1.UpdateOptions{})
+}
+
 func (c *settingController) Delete(name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
@@ -253,4 +261,104 @@ func (c *settingCache) GetByIndex(indexName, key string) (result []*v1alpha1.Set
 		result = append(result, obj.(*v1alpha1.Setting))
 	}
 	return result, nil
+}
+
+type SettingStatusHandler func(obj *v1alpha1.Setting, status v1alpha1.SettingStatus) (v1alpha1.SettingStatus, error)
+
+type SettingGeneratingHandler func(obj *v1alpha1.Setting, status v1alpha1.SettingStatus) ([]runtime.Object, v1alpha1.SettingStatus, error)
+
+func RegisterSettingStatusHandler(ctx context.Context, controller SettingController, condition condition.Cond, name string, handler SettingStatusHandler) {
+	statusHandler := &settingStatusHandler{
+		client:    controller,
+		condition: condition,
+		handler:   handler,
+	}
+	controller.AddGenericHandler(ctx, name, FromSettingHandlerToHandler(statusHandler.sync))
+}
+
+func RegisterSettingGeneratingHandler(ctx context.Context, controller SettingController, apply apply.Apply,
+	condition condition.Cond, name string, handler SettingGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &settingGeneratingHandler{
+		SettingGeneratingHandler: handler,
+		apply:                    apply,
+		name:                     name,
+		gvk:                      controller.GroupVersionKind(),
+	}
+	if opts != nil {
+		statusHandler.opts = *opts
+	}
+	controller.OnChange(ctx, name, statusHandler.Remove)
+	RegisterSettingStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+}
+
+type settingStatusHandler struct {
+	client    SettingClient
+	condition condition.Cond
+	handler   SettingStatusHandler
+}
+
+func (a *settingStatusHandler) sync(key string, obj *v1alpha1.Setting) (*v1alpha1.Setting, error) {
+	if obj == nil {
+		return obj, nil
+	}
+
+	origStatus := obj.Status.DeepCopy()
+	obj = obj.DeepCopy()
+	newStatus, err := a.handler(obj, obj.Status)
+	if err != nil {
+		// Revert to old status on error
+		newStatus = *origStatus.DeepCopy()
+	}
+
+	if a.condition != "" {
+		if errors.IsConflict(err) {
+			a.condition.SetError(&newStatus, "", nil)
+		} else {
+			a.condition.SetError(&newStatus, "", err)
+		}
+	}
+	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		var newErr error
+		obj.Status = newStatus
+		obj, newErr = a.client.UpdateStatus(obj)
+		if err == nil {
+			err = newErr
+		}
+	}
+	return obj, err
+}
+
+type settingGeneratingHandler struct {
+	SettingGeneratingHandler
+	apply apply.Apply
+	opts  generic.GeneratingHandlerOptions
+	gvk   schema.GroupVersionKind
+	name  string
+}
+
+func (a *settingGeneratingHandler) Remove(key string, obj *v1alpha1.Setting) (*v1alpha1.Setting, error) {
+	if obj != nil {
+		return obj, nil
+	}
+
+	obj = &v1alpha1.Setting{}
+	obj.Namespace, obj.Name = kv.RSplit(key, "/")
+	obj.SetGroupVersionKind(a.gvk)
+
+	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects()
+}
+
+func (a *settingGeneratingHandler) Handle(obj *v1alpha1.Setting, status v1alpha1.SettingStatus) (v1alpha1.SettingStatus, error) {
+	objs, newStatus, err := a.SettingGeneratingHandler(obj, status)
+	if err != nil {
+		return newStatus, err
+	}
+
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects(objs...)
 }
