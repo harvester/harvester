@@ -24,6 +24,8 @@ import (
 	fakecdiv1beta1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1/fake"
 	harvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
 	fakeharvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1/fake"
+	k8scnicncfiov1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
+	fakek8scnicncfiov1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1/fake"
 	kubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
 	fakekubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -88,6 +90,11 @@ func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
 // HarvesterV1alpha1 retrieves the HarvesterV1alpha1Client
 func (c *Clientset) HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface {
 	return &fakeharvesterv1alpha1.FakeHarvesterV1alpha1{Fake: &c.Fake}
+}
+
+// K8sCniCncfIoV1 retrieves the K8sCniCncfIoV1Client
+func (c *Clientset) K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface {
+	return &fakek8scnicncfiov1.FakeK8sCniCncfIoV1{Fake: &c.Fake}
 }
 
 // KubevirtV1alpha3 retrieves the KubevirtV1alpha3Client
