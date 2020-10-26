@@ -36,6 +36,37 @@ spec:
           type: object
         source:
           type: string
+        status:
+          properties:
+            conditions:
+              items:
+                properties:
+                  lastTransitionTime:
+                    description: Last time the condition transitioned from one status
+                      to another.
+                    type: string
+                  lastUpdateTime:
+                    description: The last time this condition was updated.
+                    type: string
+                  message:
+                    description: Human-readable message indicating details about last
+                      transition
+                    type: string
+                  reason:
+                    description: The reason for the condition's last transition.
+                    type: string
+                  status:
+                    description: Status of the condition, one of True, False, Unknown.
+                    type: string
+                  type:
+                    description: Type of the condition.
+                    type: string
+                required:
+                - status
+                - type
+                type: object
+              type: array
+          type: object
         value:
           type: string
       type: object
