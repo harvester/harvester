@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/harvester/pkg/controller/master/auth"
 	"github.com/rancher/harvester/pkg/controller/master/image"
 	"github.com/rancher/harvester/pkg/controller/master/keypair"
+	"github.com/rancher/harvester/pkg/controller/master/node"
 	"github.com/rancher/harvester/pkg/controller/master/template"
 	"github.com/rancher/harvester/pkg/controller/master/user"
 	"github.com/rancher/harvester/pkg/controller/master/virtualmachine"
@@ -20,6 +21,7 @@ type registerFunc func(context.Context, *config.Management) error
 var registerFuncs = []registerFunc{
 	image.Register,
 	keypair.Register,
+	node.Register,
 	template.Register,
 	virtualmachine.Register,
 	user.Register,
