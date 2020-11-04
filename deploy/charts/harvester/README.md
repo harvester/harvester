@@ -1,6 +1,6 @@
 # Harvester Helm Chart
 
-Harvester provides a friendly virtual machine management experience in Kubernetes based on [KubeVirt](https://kubervirt.io) and [KubeVirt Containerized Data Importer](https://github.com/kubevirt/containerized-data-importer) (CDI).
+Harvester provides a friendly virtual machine management experience in Kubernetes based on [KubeVirt](https://kubevirt.io) and [KubeVirt Containerized Data Importer](https://github.com/kubevirt/containerized-data-importer) (CDI).
 
 ## Chart Details
 
