@@ -79,6 +79,10 @@ minio:
   ##
   enabled: true
 
+  ## Specify the mode.
+  ##
+  mode: distributed
+
   ## Specify the full name of Minio.
   ##
   fullnameOverride: "minio"
@@ -101,6 +105,21 @@ minio:
   ##
   secretKey: YOURSECRETKEY
 
+  ## Specify the affinity.
+  ##
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              values:
+              - minio
+          topologyKey: kubernetes.io/hostname
+
   ## Specify the persistence of Minio.
   ##
   persistence:
@@ -116,7 +135,7 @@ minio:
 
     ## Specify the size of Minio.
     ##
-    size: 500Gi
+    size: 100Gi
 
 ###########################################################################
 ###########################################################################
