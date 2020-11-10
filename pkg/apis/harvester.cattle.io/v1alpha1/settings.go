@@ -1,7 +1,12 @@
 package v1alpha1
 
 import (
+	"github.com/rancher/wrangler/pkg/condition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+var (
+	SettingConfigured condition.Cond = "configured"
 )
 
 // +genclient
