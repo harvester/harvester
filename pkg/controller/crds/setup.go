@@ -8,6 +8,7 @@ import (
 
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/util/crd"
+	wcrd "github.com/rancher/wrangler/pkg/crd"
 )
 
 func Setup(ctx context.Context, server *server.Server) error {
@@ -29,7 +30,14 @@ func createCRDs(ctx context.Context, server *server.Server) error {
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "KeyPair"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplate"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplateVersion"),
-			crd.FromGV(cniv1.SchemeGroupVersion, "Network-Attachment-Definition"),
+			createNetworkAttachmentDefinitionCRD(),
 		).
 		Wait()
+}
+
+func createNetworkAttachmentDefinitionCRD() wcrd.CRD {
+	nad := crd.FromGV(cniv1.SchemeGroupVersion, "NetworkAttachmentDefinition")
+	nad.PluralName = "network-attachment-definitions"
+	nad.SingularName = "network-attachment-definition"
+	return nad
 }
