@@ -33,6 +33,7 @@ type Factory struct {
 type CRD struct {
 	GVK          schema.GroupVersionKind
 	PluralName   string
+	SingularName string
 	NonNamespace bool
 	Schema       *v1beta1.JSONSchemaProps
 	SchemaObject interface{}
@@ -188,6 +189,11 @@ func (c CRD) ToCustomResourceDefinition() (apiext.CustomResourceDefinition, erro
 		plural = strings.ToLower(name.GuessPluralName(c.GVK.Kind))
 	}
 
+	singular := c.SingularName
+	if singular == "" {
+		singular = strings.ToLower(c.GVK.Kind)
+	}
+
 	name := strings.ToLower(plural + "." + c.GVK.Group)
 
 	crd := apiext.CustomResourceDefinition{
@@ -207,6 +213,7 @@ func (c CRD) ToCustomResourceDefinition() (apiext.CustomResourceDefinition, erro
 			},
 			Names: apiext.CustomResourceDefinitionNames{
 				Plural:     plural,
+				Singular:   singular,
 				Kind:       c.GVK.Kind,
 				Categories: c.Categories,
 				ShortNames: c.ShortNames,

@@ -9,6 +9,7 @@ replace (
 	github.com/knative/pkg => github.com/rancher/pkg v0.0.0-20190514055449-b30ab9de040e
 	github.com/rancher/apiserver => github.com/cnrancher/apiserver v0.0.0-20200731031228-a0459feeb0de
 	github.com/rancher/steve => github.com/cnrancher/steve v0.0.0-20200922090254-a3cedc4d23cd
+	github.com/rancher/wrangler => github.com/cnrancher/wrangler v0.6.2-0.20201110032717-f01dc974d85b
 	k8s.io/client-go => k8s.io/client-go v0.18.0
 	k8s.io/code-generator => k8s.io/code-generator v0.18.3
 	kubevirt.io/client-go => github.com/cnrancher/kubevirt-client-go v0.31.1-0.20200715061104-844cb60487e4
