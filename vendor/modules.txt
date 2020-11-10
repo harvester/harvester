@@ -184,7 +184,7 @@ github.com/rancher/steve/pkg/stores/proxy
 github.com/rancher/steve/pkg/stores/selector
 github.com/rancher/steve/pkg/stores/switchschema
 github.com/rancher/steve/pkg/stores/switchstore
-# github.com/rancher/wrangler v0.6.2-0.20200622171942-7224e49a2407
+# github.com/rancher/wrangler v0.6.2-0.20200622171942-7224e49a2407 => github.com/cnrancher/wrangler v0.6.2-0.20201110032717-f01dc974d85b
 github.com/rancher/wrangler/pkg/apply
 github.com/rancher/wrangler/pkg/apply/injectors
 github.com/rancher/wrangler/pkg/broadcast
