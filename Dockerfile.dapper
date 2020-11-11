@@ -1,9 +1,21 @@
 FROM golang:1.13.15-buster
+
+ARG DAPPER_HOST_ARCH
+ENV ARCH $DAPPER_HOST_ARCH
+
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         xz-utils \
         unzip \
         netcat \
+        zstd \
     && rm -rf /var/lib/apt/lists/*
+
+# set up helm
+ENV HELM_VERSION v3.4.1
+ENV HELM_URL=https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
+RUN mkdir /usr/tmp && \
+    curl ${HELM_URL} | tar xvzf - --strip-components=1 -C /usr/tmp/ && \
+    mv /usr/tmp/helm /usr/bin/helm
 
 # -- for make rules
 ## install docker client
@@ -21,15 +33,15 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         docker-ce-cli=5:19.03.* \
     && rm -rf /var/lib/apt/lists/*
 ## install golangci
-RUN if [ "$(go env GOARCH)" = "amd64" ]; then \
+RUN if [ "${ARCH}" = "amd64" ]; then \
         curl -sL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b "$(go env GOPATH)/bin" v1.27.0; \
     fi
 ## install controller-gen
-RUN if [ "$(go env GOARCH)" = "amd64" ]; then \
+RUN if [ "${ARCH}" = "amd64" ]; then \
         GO111MODULE=on go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1; \
     fi
 ## install ginkgo
-RUN if [ "$(go env GOARCH)" = "amd64" ]; then \
+RUN if [ "${ARCH}" = "amd64" ]; then \
         GO111MODULE=on go get github.com/onsi/ginkgo/ginkgo@v1.14.0; \
     fi
 # -- for make rules
@@ -37,7 +49,7 @@ RUN if [ "$(go env GOARCH)" = "amd64" ]; then \
 # -- for dapper
 ENV DAPPER_RUN_ARGS --privileged --network host
 ENV GO111MODULE off
-ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS
+ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS GOPROXY
 ENV DAPPER_SOURCE /go/src/github.com/rancher/harvester/
 ENV DAPPER_OUTPUT ./bin ./dist
 ENV DAPPER_DOCKER_SOCKET true
