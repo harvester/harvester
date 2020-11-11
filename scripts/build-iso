@@ -1,0 +1,18 @@
+#!/bin/bash
+set -e
+
+cd $(dirname $0)/..
+
+echo "Start building ISO image"
+
+HARVESTER_INSTALLER_VERSION=master
+
+git clone --branch ${HARVESTER_INSTALLER_VERSION} --single-branch --depth 1 https://github.com/rancher/harvester-installer.git ../harvester-installer
+
+cd ../harvester-installer/scripts
+
+./ci
+
+mkdir -p ../../harvester/dist/artifacts
+cp ../dist/artifacts/* ../../harvester/dist/artifacts
+
