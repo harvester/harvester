@@ -20,9 +20,9 @@ Note: Hardware-assisted virtualization must be supported on the Kubernetes nodes
 
 ##### Install as an App
 Harvester can be installed on a Kubernetes cluster in the following ways:
-- [Helm](https://github.com/rancher/harvester/tree/master/deploy/charts/harvester)
-- Rancher catalog app
+- Rancher catalog app (**Preferred method for install**) 
     - You can add this repo to the Rancher Catalog as a Helm v3 App
+- [Helm](https://github.com/rancher/harvester/tree/master/deploy/charts/harvester) (**Does not handle Harvester UI**) 
 
 ## Documentation
 Please refer to the [docs](./docs) to find out more details.
