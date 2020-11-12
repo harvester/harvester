@@ -102,7 +102,7 @@ func (s *SecretSynchronizer) Delete() error {
 func (s *SecretSynchronizer) getSecret(obj runtime.Object) (*v1.Secret, error) {
 	secret, ok := obj.(*v1.Secret)
 	if !ok {
-		return nil, errors.New("Provided object has to be a secret. Most likely this is a programming error")
+		return nil, errors.New("provided object has to be a secret. Most likely this is a programming error")
 	}
 
 	secret.Name = s.name
