@@ -363,3 +363,14 @@ jobs:
           requests:
             cpu: 250m
             memory: 128Mi
+
+harvester-network-controller:
+  ## Specify to install harvester network controller,
+  ## defaults to "true".
+  enabled: true
+
+  image:
+    repository: rancher/harvester-network-controller
+    pullPolicy: Always
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "master-head"

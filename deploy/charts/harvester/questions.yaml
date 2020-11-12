@@ -20,6 +20,18 @@ questions:
     description: "specify the tag of harvester image"
     type: "string"
     group: "Harvester Settings"
+  - variable: harvester-network-controller.image.repository
+    default: "rancher/harvester-network-controller"
+    label: "Image"
+    description: "specify the repository of harvester-network-controller image"
+    type: "string"
+    group: "Harvester Settings"
+  - variable: harvester-network-controller.image.tag
+    default: "master-head"
+    label: "Image Tag"
+    description: "specify the tag of harvester-network-controller image"
+    type: "string"
+    group: "Harvester Settings"
   #################### Harvester Resource Settings ####################
   - variable: containers.apiserver.resources.requests.cpu
     default: "250m"
