@@ -18,6 +18,7 @@ import (
 	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"k8s.io/client-go/rest"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -175,7 +176,8 @@ func (h *LoginHandler) userLogin(input *v1alpha1.Login) (*clientcmdapi.AuthInfo,
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pwd)); err != nil {
-		return nil, apierror.NewAPIError(validation.Unauthorized, err.Error())
+		logrus.Warnf("invalid password , error: %v", err)
+		return nil, apierror.NewAPIError(validation.Unauthorized, "authentication failed")
 	}
 
 	if user.IsAdmin {
