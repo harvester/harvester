@@ -46,3 +46,7 @@ dependencies:
     version: 5.0.32
     repository: file://charts/minio
     condition: minio.enabled
+  - name: harvester-network-controller
+    version: 0.1.0
+    repository: file://charts/harvester-network-controller
+    condition: harvester-network-controller.enabled

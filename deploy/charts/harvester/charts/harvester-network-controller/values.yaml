@@ -1,0 +1,28 @@
+# Default values for harvester-network-controller.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+image:
+  repository: rancher/harvester-network-controller
+  pullPolicy: Always
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "master-head"
+
+nameOverride: ""
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+nodeSelector: {}
+
+tolerations:
+  # this toleration is to have the daemonset runnable on master nodes
+  # remove it if your masters can't run pods
+  - key: node-role.kubernetes.io/master
+    effect: NoSchedule
+
+affinity: {}
