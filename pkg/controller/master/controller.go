@@ -26,6 +26,8 @@ var registerFuncs = []registerFunc{
 }
 
 func register(ctx context.Context, server *server.Server, management *config.Management) error {
+	indexeres.RegisterManagementIndexers(management)
+
 	for _, f := range registerFuncs {
 		if err := f(ctx, management); err != nil {
 			return err
@@ -36,6 +38,5 @@ func register(ctx context.Context, server *server.Server, management *config.Man
 		return err
 	}
 
-	indexeres.RegisterManagementIndexers(management)
 	return nil
 }
