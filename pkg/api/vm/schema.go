@@ -57,9 +57,10 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	}
 
 	vmStore := &vmStore{
-		Store:       proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
-		dataVolumes: scaled.CDIFactory.Cdi().V1beta1().DataVolume(),
-		vmCache:     scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine().Cache(),
+		Store:            proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
+		vmCache:          scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine().Cache(),
+		dataVolumes:      scaled.CDIFactory.Cdi().V1beta1().DataVolume(),
+		dataVolumesCache: scaled.CDIFactory.Cdi().V1beta1().DataVolume().Cache(),
 	}
 
 	t := schema.Template{

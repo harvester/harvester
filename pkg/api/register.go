@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 
+	"github.com/rancher/harvester/pkg/api/datavolume"
 	"github.com/rancher/harvester/pkg/api/image"
 	"github.com/rancher/harvester/pkg/api/keypair"
 	"github.com/rancher/harvester/pkg/api/network"
@@ -32,5 +33,6 @@ func Setup(ctx context.Context, server *server.Server) error {
 		vmtemplate.RegisterSchema,
 		vm.RegisterSchema,
 		user.RegisterSchema,
-		network.RegisterSchema)
+		network.RegisterSchema,
+		datavolume.RegisterSchema)
 }
