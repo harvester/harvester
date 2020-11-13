@@ -7,8 +7,10 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/rancher/wrangler/pkg/slice"
+	"github.com/sirupsen/logrus"
 	k8sapierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
 
 	ctlcdiv1beta1 "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
@@ -17,8 +19,9 @@ import (
 type vmStore struct {
 	types.Store
 
-	vmCache     ctlkubevirtv1alpha3.VirtualMachineCache
-	dataVolumes ctlcdiv1beta1.DataVolumeClient
+	vmCache          ctlkubevirtv1alpha3.VirtualMachineCache
+	dataVolumes      ctlcdiv1beta1.DataVolumeClient
+	dataVolumesCache ctlcdiv1beta1.DataVolumeCache
 }
 
 func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
@@ -60,15 +63,19 @@ func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id 
 }
 
 func (s *vmStore) removeVMDataVolumeOwnerRef(vmNamespace, vmName string, savedDataVolumes []string) error {
-	for _, dv := range savedDataVolumes {
-		dv, err := s.dataVolumes.Get(vmNamespace, dv, metav1.GetOptions{})
+	for _, volume := range savedDataVolumes {
+		dv, err := s.dataVolumesCache.Get(vmNamespace, volume)
 		if err != nil {
+			if k8sapierrors.IsNotFound(err) {
+				logrus.Infof("skip to remove owner reference, data volume %s not found", volume)
+				continue
+			}
 			return err
 		}
 
 		var updatedOwnerRefs []metav1.OwnerReference
 		for _, owner := range dv.OwnerReferences {
-			if owner.Name == vmName && owner.Kind == "VirtualMachine" {
+			if owner.Name == vmName && owner.Kind == kv1alpha3.VirtualMachineGroupVersionKind.Kind {
 				continue
 			}
 			updatedOwnerRefs = append(updatedOwnerRefs, owner)
