@@ -83,6 +83,7 @@ func (h *Handler) OnImageChanged(key string, image *apisv1alpha1.VirtualMachineI
 				return
 			}
 			toUpdate := currentImage.DeepCopy()
+			toUpdate.Status.AppliedURL = image.Spec.URL
 			apisv1alpha1.ImageImported.False(toUpdate)
 			apisv1alpha1.ImageImported.Reason(toUpdate, err.Error())
 			if _, err := h.UpdateStatusRetryOnConflict(toUpdate); err != nil {
