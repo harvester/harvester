@@ -423,6 +423,16 @@ questions:
         group: "Minio Settings"
         show_if: "minio.enabled=true"
       #################### Minio Storage Settings ####################
+      - variable: minio.mode
+        default: "distributed"
+        label: "Specify the Minio mode"
+        description: "specify the deployment mode to use of Minio"
+        type: "enum"
+        options:
+          - "standalone"
+          - "distributed"
+        group: "Minio Settings"
+        show_if: "minio.enabled=true"
       - variable: minio.persistence.enabled
         default: "true"
         label: "Use Storage"
@@ -439,7 +449,7 @@ questions:
         show_if: "minio.enabled=true && minio.persistence.enabled=true"
         required: true
       - variable: minio.persistence.size
-        default: "500Gi"
+        default: "100Gi"
         label: "Storage Size"
         description: "specify the size of persistence volume claim"
         type: "string"
