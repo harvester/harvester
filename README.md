@@ -4,6 +4,12 @@ Rancher Harvester (WORK-IN-PROGRESS)
 
 Rancher Harvester is an open source Hyper-Converged Infrastructure(HCI) solution based on Kubernetes.
 
+## Building
+
+`make`
+
+Built ISO image is located in the dist/artifacts directory.
+
 ## Mode
 
 Harvester supports two modes:

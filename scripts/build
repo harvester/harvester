@@ -1,0 +1,71 @@
+#!/bin/bash
+set -e
+
+source $(dirname $0)/version
+
+cd $(dirname $0)/..
+
+echo "Start building ISO"
+
+K3OS_VERSION=v0.11.1
+K3S_VERSION=v1.18.9+k3s1
+K3S_IMAGE_URL=https://raw.githubusercontent.com/rancher/k3s/${K3S_VERSION}/scripts/airgap/image-list.txt
+LONGHORN_VERSION=v1.0.2
+LONGHORN_IMAGE_URL=https://raw.githubusercontent.com/longhorn/longhorn/${LONGHORN_VERSION}/deploy/longhorn-images.txt
+OFFLINE_BUILD="1"
+
+git clone --branch ${K3OS_VERSION} --single-branch --depth 1 https://github.com/rancher/k3os.git
+
+# Prepare Harvester, Longhorn charts
+mkdir -p k3os/images/70-iso/charts
+harvester_chart_path=../harvester/deploy/charts/harvester
+if [ ! -d ${harvester_chart_path} ];then
+    git clone --branch master --single-branch --depth 1 https://github.com/rancher/harvester.git /tmp/harvester
+    harvester_chart_path=/tmp/harvester/deploy/charts/harvester
+fi
+helm package ${harvester_chart_path} -d k3os/images/70-iso/charts
+git clone --branch ${LONGHORN_VERSION} --single-branch --depth 1 https://github.com/rancher/longhorn.git /tmp/longhorn
+helm package /tmp/longhorn/chart -d k3os/images/70-iso/charts
+
+# Manifests
+mkdir -p k3os/images/70-iso/manifests
+cp scripts/iso/manifests/* k3os/images/70-iso/manifests
+
+# CNI binaries
+mkdir -p k3os/images/70-iso/cni
+mkdir -p /tmp/cni
+wget https://github.com/containernetworking/plugins/releases/download/v0.8.7/cni-plugins-linux-amd64-v0.8.7.tgz
+tar xf cni-plugins-* -C /tmp/cni
+cp /tmp/cni/{bridge,flannel,host-local,loopback,portmap,static} k3os/images/70-iso/cni
+
+# Offline docker images
+image_list_file='scripts/image-list.txt'
+curl ${K3S_IMAGE_URL}>>${image_list_file}
+curl ${LONGHORN_IMAGE_URL}>>${image_list_file}
+
+output_image_tar_file="k3os/images/70-iso/harvester-images.tar"
+if [ -n "${OFFLINE_BUILD}" ] && [ ! -f $output_image_tar_file.zst ]; then
+  images=$(cat "${image_list_file}")
+  xargs -n1 docker pull <<< "${images}"
+  docker save ${images} -o ${output_image_tar_file}
+
+  zstd --rm ${output_image_tar_file} -o ${output_image_tar_file}.zst
+fi
+
+# Remaster k3os
+cd k3os
+# Apply patches
+git config --global user.email "ci@rancher.com"
+git config --global user.name "Harvester CI"
+git am ../scripts/iso/k3os-patches/*.patch
+# Update vendors
+export GO111MODULE=on
+go mod edit -replace=github.com/nsf/termbox-go=github.com/gitlawr/termbox-go@v0.0.0-20201103025537-250e644d56a6
+go mod edit -replace=github.com/rancher/harvester=../
+go get
+go mod vendor
+# make ISO
+cd scripts
+./default
+mkdir -p ../../dist/artifacts
+cp ../dist/artifacts/* ../../dist/artifacts

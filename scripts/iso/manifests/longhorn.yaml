@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: longhorn-system
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: longhorn
+  namespace: kube-system
+spec:
+  chart: https://%{KUBERNETES_API}%/static/charts/longhorn-1.0.2.tgz
+  targetNamespace: longhorn-system
+  set:
+    persistence.defaultClassReplicaCount: 1

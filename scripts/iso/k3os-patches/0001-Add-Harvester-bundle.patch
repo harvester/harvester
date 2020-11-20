@@ -1,0 +1,397 @@
+From 1fad08e4633bc724b697d6c74c84492b64aa9569 Mon Sep 17 00:00:00 2001
+From: gitlawr <lawrleegle@gmail.com>
+Date: Mon, 2 Nov 2020 10:30:49 +0800
+Subject: [PATCH] Add Harvester bundle
+
+---
+ images/20-progs/Dockerfile                    |  3 +
+ images/20-rootfs/Dockerfile                   |  2 +
+ images/70-iso/Dockerfile                      | 11 +++
+ images/70-iso/grub.cfg                        | 22 +----
+ images/output/01-full/Dockerfile              |  6 --
+ install.sh                                    | 93 ++++++++++++-------
+ main.go                                       |  7 ++
+ .../etc/profile.d/harvester_console_bind.sh   |  8 ++
+ overlay/etc/ssh/sshd_config                   |  2 +-
+ overlay/libexec/k3os/boot                     | 20 +++-
+ pkg/cli/install/install.go                    |  4 +-
+ scripts/images                                |  2 +-
+ 12 files changed, 118 insertions(+), 62 deletions(-)
+ create mode 100755 overlay/etc/profile.d/harvester_console_bind.sh
+
+diff --git a/images/20-progs/Dockerfile b/images/20-progs/Dockerfile
+index a4a5e50..eb3260c 100644
+--- a/images/20-progs/Dockerfile
++++ b/images/20-progs/Dockerfile
+@@ -26,3 +26,6 @@ COPY --from=k3os /output/ /output/
+ WORKDIR /output
+ RUN git clone --branch v0.7.0 https://github.com/ahmetb/kubectx.git \
+  && chmod -v +x kubectx/kubectx kubectx/kubens
++
++# Additional utils
++RUN apk --no-cache add zstd
+diff --git a/images/20-rootfs/Dockerfile b/images/20-rootfs/Dockerfile
+index e4333ff..e4183db 100644
+--- a/images/20-rootfs/Dockerfile
++++ b/images/20-rootfs/Dockerfile
+@@ -86,6 +86,7 @@ RUN rm -rf \
+ COPY --from=k3s /output/install.sh /usr/src/image/libexec/k3os/k3s-install.sh
+ COPY --from=progs /output/metadata /usr/src/image/sbin/metadata
+ COPY --from=progs /output/kubectx/kubectx /output/kubectx/kubens /usr/src/image/bin/
++COPY --from=progs /usr/bin/zstd /usr/src/image/bin/
+ 
+ COPY overlay/ /usr/src/image/
+ 
+@@ -94,6 +95,7 @@ RUN ln -s /k3os/system/k3s/current/k3s /usr/src/image/sbin/k3s
+ RUN ln -s k3s /usr/src/image/sbin/kubectl
+ RUN ln -s k3s /usr/src/image/sbin/crictl
+ RUN ln -s k3s /usr/src/image/sbin/ctr
++RUN ln -s /k3os/system/k3os/current/k3os /usr/src/image/sbin/harvester-console
+ 
+ COPY install.sh /usr/src/image/libexec/k3os/install
+ RUN sed -i -e "s/%VERSION%/${VERSION}/g" -e "s/%ARCH%/${ARCH}/g" /usr/src/image/lib/os-release
+diff --git a/images/70-iso/Dockerfile b/images/70-iso/Dockerfile
+index 6295445..b0ce94f 100644
+--- a/images/70-iso/Dockerfile
++++ b/images/70-iso/Dockerfile
+@@ -1,3 +1,4 @@
++# syntax=docker/dockerfile:experimental
+ ARG REPO
+ ARG TAG
+ FROM ${REPO}/k3os-package:${TAG} as package
+@@ -21,6 +22,16 @@ COPY grub.cfg /usr/src/iso/boot/grub/grub.cfg
+ COPY --from=package /output/ /usr/src/iso/
+ 
+ COPY config.yaml /usr/src/iso/k3os/system/
++
++RUN mkdir -p /usr/src/iso/var/lib/rancher/k3s/agent/images \
++    /usr/src/iso/var/lib/rancher/k3s/server/static/charts \
++    /usr/src/iso/var/lib/rancher/k3s/server/manifests
++COPY charts/* /usr/src/iso/var/lib/rancher/k3s/server/static/charts
++COPY manifests/* /usr/src/iso/var/lib/rancher/k3s/server/manifests
++RUN --mount=type=bind,source=/,target=/ctx cp /ctx/harvester-images.tar.zst \
++    /usr/src/iso/var/lib/rancher/k3s/agent/images &>/dev/null || true
++COPY cni /usr/src/iso/cni
++
+ RUN mkdir -p /output && \
+     grub-mkrescue -o /output/k3os.iso /usr/src/iso/. -- -volid K3OS -joliet on && \
+     [ -e /output/k3os.iso ] # grub-mkrescue doesn't exit non-zero on failure
+diff --git a/images/70-iso/grub.cfg b/images/70-iso/grub.cfg
+index 919e55a..2cd570b 100644
+--- a/images/70-iso/grub.cfg
++++ b/images/70-iso/grub.cfg
+@@ -1,21 +1,12 @@
+ set default=0
+-set timeout=10
++set timeout=-1
+ 
+ set gfxmode=auto
+ set gfxpayload=keep
+ insmod all_video
+ insmod gfxterm
+ 
+-menuentry "k3OS LiveCD & Installer" {
+-  search.fs_label K3OS root
+-  set sqfile=/k3os/system/kernel/current/kernel.squashfs
+-  loopback loop0 /$sqfile
+-  set root=($root)
+-  linux (loop0)/vmlinuz printk.devkmsg=on k3os.mode=live console=ttyS0 console=tty1
+-  initrd /k3os/system/kernel/current/initrd
+-}
+-
+-menuentry "k3OS Installer" {
++menuentry "Harvester Installer" {
+   search.fs_label K3OS root
+   set sqfile=/k3os/system/kernel/current/kernel.squashfs
+   loopback loop0 /$sqfile
+@@ -23,12 +14,3 @@ menuentry "k3OS Installer" {
+   linux (loop0)/vmlinuz printk.devkmsg=on k3os.mode=install console=ttyS0 console=tty1
+   initrd /k3os/system/kernel/current/initrd
+ }
+-
+-menuentry "k3OS Rescue Shell" {
+-  search.fs_label K3OS root
+-  set sqfile=/k3os/system/kernel/current/kernel.squashfs
+-  loopback loop0 /$sqfile
+-  set root=($root)
+-  linux (loop0)/vmlinuz printk.devkmsg=on rescue console=ttyS0 console=tty1
+-  initrd /k3os/system/kernel/current/initrd
+-}
+diff --git a/images/output/01-full/Dockerfile b/images/output/01-full/Dockerfile
+index 317b0e5..ff28f92 100644
+--- a/images/output/01-full/Dockerfile
++++ b/images/output/01-full/Dockerfile
+@@ -15,10 +15,4 @@ ARG TAG
+ FROM ${REPO}/k3os-base:${TAG}
+ ARG ARCH
+ 
+-COPY --from=kernel /output/vmlinuz /output/k3os-vmlinuz-${ARCH}
+-COPY --from=kernel /output/initrd /output/k3os-initrd-${ARCH}
+-COPY --from=kernel /output/kernel.squashfs /output/k3os-kernel-${ARCH}.squashfs
+-COPY --from=kernel /output/version /output/k3os-kernel-version-${ARCH}
+ COPY --from=iso /output/k3os.iso /output/k3os-${ARCH}.iso
+-COPY --from=tar /output/userspace.tar /output/k3os-rootfs-${ARCH}.tar
+-RUN gzip /output/k3os-rootfs-${ARCH}.tar
+diff --git a/install.sh b/install.sh
+index 2d931ba..36bc2e3 100755
+--- a/install.sh
++++ b/install.sh
+@@ -81,11 +81,11 @@ do_format()
+         BOOT_NUM=1
+         STATE_NUM=2
+         parted -s ${DEVICE} mkpart primary fat32 0% 50MB
+-        parted -s ${DEVICE} mkpart primary ext4 50MB 750MB
++        parted -s ${DEVICE} mkpart primary ext4 50MB 20480MB
+     else
+         BOOT_NUM=
+         STATE_NUM=1
+-        parted -s ${DEVICE} mkpart primary ext4 0% 700MB
++        parted -s ${DEVICE} mkpart primary ext4 0% 20430MB
+     fi
+     parted -s ${DEVICE} set 1 ${BOOTFLAG} on
+     partprobe ${DEVICE} 2>/dev/null || true
+@@ -147,6 +147,63 @@ do_copy()
+             touch ${TARGET}/k3os/system/poweroff
+         fi
+     fi
++
++
++    #copy offline artifacts and decompress offline images
++    echo "Copying ISO artifacts"
++    root_path="${TARGET}/k3os/data"
++    mkdir -p "${root_path}"
++    cp -r "${DISTRO}/var" "${root_path}"
++    # CNI
++    mkdir -p "${root_path}/opt/cni/bin"
++    cp ${DISTRO}/cni/* "${root_path}/opt/cni/bin"
++
++    offline_image_path="var/lib/rancher/k3s/agent/images/harvester-images.tar"
++    if [ -f "${root_path}/${offline_image_path}.zst" ]; then
++        echo "Decompressing container images"
++        zstd -d --rm "${root_path}/${offline_image_path}.zst" -o "${root_path}/${offline_image_path}" > /dev/null
++    fi
++    echo "Loading images. This may take a few minutes"
++    cd ${root_path}
++    mkdir lib bin sbin k3os dev proc etc sys
++    mount --bind /bin bin
++    mount --bind /sbin sbin
++    mount --bind /run/k3os/iso/k3os k3os
++    mount --bind /dev dev
++    mount --bind /proc proc
++    mount --bind /etc etc
++    mount -r --rbind /lib lib
++    mount -r --rbind /sys sys
++    chroot . /bin/bash <<"EOF"
++    # invoke k3s to set up data dir
++    k3s agent --no-flannel &>/dev/null || true
++    # start containerd
++    /var/lib/rancher/k3s/data/*/bin/containerd \
++    -c /var/lib/rancher/k3s/agent/etc/containerd/config.toml \
++    -a /run/k3s/containerd/containerd.sock \
++    --state /run/k3s/containerd \
++    --root /var/lib/rancher/k3s/agent/containerd &>/dev/null &
++
++    #wait for containerd to be ready
++    until ctr --connect-timeout 1s version>/dev/null
++    do
++      sleep 1
++    done
++    # import images
++    ctr -n k8s.io images import /var/lib/rancher/k3s/agent/images/harvester*
++    rm /var/lib/rancher/k3s/agent/images/harvester*
++    # stop containerd
++    pkill containerd
++    exit
++EOF
++    sleep 5
++    #cleanup
++    umount bin sbin k3os dev proc etc
++    mount --make-rslave lib
++    mount --make-rslave sys
++    umount -R lib
++    umount -R sys
++    rm -r lib bin sbin k3os dev proc etc sys
+ }
+ 
+ install_grub()
+@@ -165,7 +222,7 @@ set gfxpayload=keep
+ insmod all_video
+ insmod gfxterm
+ 
+-menuentry "k3OS Current" {
++menuentry "Start Harvester" {
+   search.fs_label K3OS_STATE root
+   set sqfile=/k3os/system/kernel/current/kernel.squashfs
+   loopback loop0 /\$sqfile
+@@ -173,33 +230,6 @@ menuentry "k3OS Current" {
+   linux (loop0)/vmlinuz printk.devkmsg=on console=tty1 $GRUB_DEBUG
+   initrd /k3os/system/kernel/current/initrd
+ }
+-
+-menuentry "k3OS Previous" {
+-  search.fs_label K3OS_STATE root
+-  set sqfile=/k3os/system/kernel/previous/kernel.squashfs
+-  loopback loop0 /\$sqfile
+-  set root=(\$root)
+-  linux (loop0)/vmlinuz printk.devkmsg=on console=tty1 $GRUB_DEBUG
+-  initrd /k3os/system/kernel/previous/initrd
+-}
+-
+-menuentry "k3OS Rescue (current)" {
+-  search.fs_label K3OS_STATE root
+-  set sqfile=/k3os/system/kernel/current/kernel.squashfs
+-  loopback loop0 /\$sqfile
+-  set root=(\$root)
+-  linux (loop0)/vmlinuz printk.devkmsg=on rescue console=tty1
+-  initrd /k3os/system/kernel/current/initrd
+-}
+-
+-menuentry "k3OS Rescue (previous)" {
+-  search.fs_label K3OS_STATE root
+-  set sqfile=/k3os/system/kernel/previous/kernel.squashfs
+-  loopback loop0 /\$sqfile
+-  set root=(\$root)
+-  linux (loop0)/vmlinuz printk.devkmsg=on rescue console=tty1
+-  initrd /k3os/system/kernel/previous/initrd
+-}
+ EOF
+     if [ -z "${K3OS_INSTALL_TTY}" ]; then
+         TTY=$(tty | sed 's!/dev/!!')
+@@ -371,7 +401,8 @@ fi
+ if [ "$K3OS_INSTALL_POWER_OFF" = true ] || grep -q 'k3os.install.power_off=true' /proc/cmdline; then
+     poweroff -f
+ else
+-    echo " * Rebooting system in 5 seconds (CTRL+C to cancel)"
++    echo " * Installation completed"
++    echo " * Rebooting system in 5 seconds"
+     sleep 5
+     reboot -f
+ fi
+diff --git a/main.go b/main.go
+index af87796..da4c5b4 100644
+--- a/main.go
++++ b/main.go
+@@ -9,6 +9,7 @@ import (
+ 
+ 	"github.com/docker/docker/pkg/mount"
+ 	"github.com/docker/docker/pkg/reexec"
++	"github.com/rancher/harvester/pkg/console"
+ 	"github.com/rancher/k3os/pkg/cli/app"
+ 	"github.com/rancher/k3os/pkg/enterchroot"
+ 	"github.com/rancher/k3os/pkg/transferroot"
+@@ -19,6 +20,12 @@ func main() {
+ 	reexec.Register("/init", initrd)      // mode=live
+ 	reexec.Register("/sbin/init", initrd) // mode=local
+ 	reexec.Register("enter-root", enterchroot.Enter)
++	// console
++	reexec.Register("harvester-console", func() {
++		if err := console.RunConsole(); err != nil {
++			logrus.Fatal(err)
++		}
++	})
+ 
+ 	if !reexec.Init() {
+ 		app := app.New()
+diff --git a/overlay/etc/profile.d/harvester_console_bind.sh b/overlay/etc/profile.d/harvester_console_bind.sh
+new file mode 100755
+index 0000000..bb06845
+--- /dev/null
++++ b/overlay/etc/profile.d/harvester_console_bind.sh
+@@ -0,0 +1,8 @@
++#!/bin/bash
++
++# bind <F12>
++bind -x '"\e[24~":"harvester-console"'
++
++# dashboard mode
++export HARVESTER_DASHBOARD=true
++export TTY=$(tty)
+\ No newline at end of file
+diff --git a/overlay/etc/ssh/sshd_config b/overlay/etc/ssh/sshd_config
+index 4887f7e..b7e11ba 100644
+--- a/overlay/etc/ssh/sshd_config
++++ b/overlay/etc/ssh/sshd_config
+@@ -3,7 +3,7 @@
+ 
+ AllowTcpForwarding      no
+ GatewayPorts            no
+-PasswordAuthentication  no
++PasswordAuthentication  yes
+ X11Forwarding           no
+ PermitRootLogin         no
+ LoginGraceTime          30s
+diff --git a/overlay/libexec/k3os/boot b/overlay/libexec/k3os/boot
+index 16f0351..fdda61c 100644
+--- a/overlay/libexec/k3os/boot
++++ b/overlay/libexec/k3os/boot
+@@ -2,13 +2,31 @@
+ 
+ setup_ttys()
+ {
+-    for i in 1 2 3 4 5 6; do
++    for i in 2 3 4 5 6; do
+         if [ -e /dev/tty${i} ]; then
+             echo 'tty'$i'::respawn:/sbin/getty 38400 tty'$i >> /etc/inittab
+             echo tty$i >> /etc/securetty
+         fi
+     done
+ 
++    if [ "$K3OS_MODE" != "local" ]; then
++        echo 'tty1::respawn:/sbin/getty 38400 tty1' >> /etc/inittab
++        echo tty1 >> /etc/securetty
++    else
++        mkdir -p /opt
++        cat > /opt/start_harvester_console.sh << EOF
++#!/bin/bash
++
++export HARVESTER_DASHBOARD=true
++export TTY=$(tty)
++harvester-console
++/bin/bash --login
++EOF
++        chmod +x /opt/start_harvester_console.sh
++        echo 'tty1::respawn:/sbin/getty -l /opt/start_harvester_console.sh -n 38400 tty1' >> /etc/inittab
++        echo tty1 >> /etc/securetty
++    fi
++
+     for x in $(cat /proc/cmdline); do
+     case $x in
+         rescue)
+diff --git a/pkg/cli/install/install.go b/pkg/cli/install/install.go
+index 3a2f346..b61ce6b 100644
+--- a/pkg/cli/install/install.go
++++ b/pkg/cli/install/install.go
+@@ -4,7 +4,7 @@ import (
+ 	"fmt"
+ 	"os"
+ 
+-	"github.com/rancher/k3os/pkg/cliinstall"
++	"github.com/rancher/harvester/pkg/console"
+ 	"github.com/rancher/k3os/pkg/mode"
+ 	"github.com/sirupsen/logrus"
+ 	"github.com/urfave/cli"
+@@ -23,7 +23,7 @@ func Command() cli.Command {
+ 			return nil
+ 		},
+ 		Action: func(*cli.Context) {
+-			if err := cliinstall.Run(); err != nil {
++			if err := console.RunConsole(); err != nil {
+ 				logrus.Error(err)
+ 			}
+ 		},
+diff --git a/scripts/images b/scripts/images
+index 07d869a..cea6a6e 100644
+--- a/scripts/images
++++ b/scripts/images
+@@ -28,7 +28,7 @@ build_all()
+         if [ -e root ]; then
+             ROOT=$(readlink -f root)
+         fi
+-        docker build --build-arg TAG=$TAG --build-arg VERSION=${VERSION} --build-arg REPO=${REPO} --build-arg ARCH=${ARCH} -f $(pwd)/Dockerfile -t $FULL_IMAGE $ROOT
++        DOCKER_BUILDKIT=1 docker build --build-arg TAG=$TAG --build-arg VERSION=${VERSION} --build-arg REPO=${REPO} --build-arg ARCH=${ARCH} -f $(pwd)/Dockerfile -t $FULL_IMAGE $ROOT
+         cd ..
+     done
+ }
+-- 
+2.20.1 (Apple Git-117)
+
