@@ -1,0 +1,69 @@
+# github.com/davecgh/go-spew v1.1.1
+github.com/davecgh/go-spew/spew
+# github.com/docker/docker v1.13.1
+github.com/docker/docker/pkg/mount
+# github.com/docker/go-units v0.4.0
+github.com/docker/go-units
+# github.com/ghodss/yaml v1.0.0
+github.com/ghodss/yaml
+# github.com/go-logr/logr v0.2.0
+github.com/go-logr/logr
+# github.com/jroimartin/gocui v0.4.0
+github.com/jroimartin/gocui
+# github.com/konsorten/go-windows-terminal-sequences v1.0.3
+github.com/konsorten/go-windows-terminal-sequences
+# github.com/mattn/go-runewidth v0.0.9
+github.com/mattn/go-runewidth
+# github.com/mattn/go-shellwords v1.0.5
+github.com/mattn/go-shellwords
+# github.com/nsf/termbox-go v0.0.0-20200418040025-38ba6e5628f1 => github.com/gitlawr/termbox-go v0.0.0-20201103025537-250e644d56a6
+github.com/nsf/termbox-go
+# github.com/otiai10/copy v1.0.2
+github.com/otiai10/copy
+# github.com/pkg/errors v0.9.1
+github.com/pkg/errors
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
+# github.com/rancher/k3os v0.19.2-dev.4
+github.com/rancher/k3os/pkg/config
+github.com/rancher/k3os/pkg/system
+# github.com/rancher/mapper v0.0.0-20190814232720-058a8b7feb99
+github.com/rancher/mapper
+github.com/rancher/mapper/convert
+github.com/rancher/mapper/convert/merge
+github.com/rancher/mapper/definition
+github.com/rancher/mapper/mappers
+github.com/rancher/mapper/values
+# github.com/rancher/wrangler v0.3.1
+github.com/rancher/wrangler/pkg/name
+# github.com/sirupsen/logrus v1.6.0
+github.com/sirupsen/logrus
+# github.com/stretchr/testify v1.6.1
+github.com/stretchr/testify/assert
+# github.com/tredoe/osutil v1.0.5
+github.com/tredoe/osutil/user/crypt
+github.com/tredoe/osutil/user/crypt/common
+github.com/tredoe/osutil/user/crypt/sha512_crypt
+# golang.org/x/net v0.0.0-20200707034311-ab3426394381
+golang.org/x/net/http/httpguts
+golang.org/x/net/http2
+golang.org/x/net/http2/hpack
+golang.org/x/net/idna
+# golang.org/x/sys v0.0.0-20200622214017-ed371f2e16b4
+golang.org/x/sys/internal/unsafeheader
+golang.org/x/sys/unix
+# golang.org/x/text v0.3.3
+golang.org/x/text/secure/bidirule
+golang.org/x/text/transform
+golang.org/x/text/unicode/bidi
+golang.org/x/text/unicode/norm
+# gopkg.in/yaml.v2 v2.2.8
+gopkg.in/yaml.v2
+# gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+gopkg.in/yaml.v3
+# k8s.io/apimachinery v0.0.0 => github.com/rancher/kubernetes/staging/src/k8s.io/apimachinery v1.19.3-k3s1
+k8s.io/apimachinery/pkg/util/net
+k8s.io/apimachinery/pkg/util/rand
+k8s.io/apimachinery/pkg/util/sets
+# k8s.io/klog/v2 v2.2.0
+k8s.io/klog/v2
