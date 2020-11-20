@@ -1,8 +1,0 @@
-/.dapper
-/.cache
-/bin
-/dist
-*.swp
-.idea
-/harvester
-.DS_Store
