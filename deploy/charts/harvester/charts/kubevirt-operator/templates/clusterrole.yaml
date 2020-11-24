@@ -228,6 +228,13 @@ rules:
       - list
       - watch
       - patch
+      - update
+  - apiGroups:
+      - kubevirt.io
+    resources:
+      - virtualmachines/status
+    verbs:
+      - patch
   - apiGroups:
       - kubevirt.io
     resources:
@@ -264,6 +271,23 @@ rules:
       - apiextensions.k8s.io
     resources:
       - customresourcedefinitions
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - kubevirt.io
+    resources:
+      - kubevirts
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - snapshot.kubevirt.io
+    resources:
+      - virtualmachinesnapshots
+      - virtualmachinerestores
     verbs:
       - get
       - list
@@ -332,6 +356,16 @@ rules:
       - get
       - list
       - watch
+      - create
+      - update
+      - delete
+      - patch
+  - apiGroups:
+      - snapshot.kubevirt.io
+    resources:
+      - '*'
+    verbs:
+      - '*'
   - apiGroups:
       - kubevirt.io
     resources:
@@ -366,6 +400,33 @@ rules:
       - subjectaccessreviews
     verbs:
       - create
+  - apiGroups:
+      - snapshot.storage.k8s.io
+    resources:
+      - volumesnapshotclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - snapshot.storage.k8s.io
+    resources:
+      - volumesnapshots
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - storageclasses
+    verbs:
+      - get
+      - list
+      - watch
   - apiGroups:
       - kubevirt.io
     resources:
@@ -402,6 +463,14 @@ rules:
       - list
       - watch
   - apiGroups:
+      - kubevirt.io
+    resources:
+      - kubevirts
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - ""
     resources:
       - configmaps
@@ -421,10 +490,16 @@ rules:
     resources:
       - virtualmachineinstances/console
       - virtualmachineinstances/vnc
+    verbs:
+      - get
+  - apiGroups:
+      - subresources.kubevirt.io
+    resources:
       - virtualmachineinstances/pause
       - virtualmachineinstances/unpause
     verbs:
       - get
+      - update
   - apiGroups:
       - subresources.kubevirt.io
     resources:
@@ -451,14 +526,35 @@ rules:
       - watch
       - deletecollection
   - apiGroups:
+      - snapshot.kubevirt.io
+    resources:
+      - virtualmachinesnapshots
+      - virtualmachinesnapshotcontents
+      - virtualmachinerestores
+    verbs:
+      - get
+      - delete
+      - create
+      - update
+      - patch
+      - list
+      - watch
+      - deletecollection
+  - apiGroups:
       - subresources.kubevirt.io
     resources:
       - virtualmachineinstances/console
       - virtualmachineinstances/vnc
+    verbs:
+      - get
+  - apiGroups:
+      - subresources.kubevirt.io
+    resources:
       - virtualmachineinstances/pause
       - virtualmachineinstances/unpause
     verbs:
       - get
+      - update
   - apiGroups:
       - subresources.kubevirt.io
     resources:
@@ -484,6 +580,20 @@ rules:
       - list
       - watch
   - apiGroups:
+      - snapshot.kubevirt.io
+    resources:
+      - virtualmachinesnapshots
+      - virtualmachinesnapshotcontents
+      - virtualmachinerestores
+    verbs:
+      - get
+      - delete
+      - create
+      - update
+      - patch
+      - list
+      - watch
+  - apiGroups:
       - kubevirt.io
     resources:
       - virtualmachines
@@ -491,6 +601,16 @@ rules:
       - virtualmachineinstancepresets
       - virtualmachineinstancereplicasets
       - virtualmachineinstancemigrations
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - snapshot.kubevirt.io
+    resources:
+      - virtualmachinesnapshots
+      - virtualmachinesnapshotcontents
+      - virtualmachinerestores
     verbs:
       - get
       - list
@@ -507,36 +627,3 @@ rules:
       - subjectaccessreviews
     verbs:
       - create
-  - apiGroups:
-      - "snapshot.kubevirt.io"
-    resources:
-      - '*'
-    verbs:
-      - '*'
-  - apiGroups:
-      - "snapshot.storage.k8s.io"
-    resources:
-      - volumesnapshotclasses
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - "snapshot.storage.k8s.io"
-    resources:
-      - volumesnapshots
-    verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - delete
-  - apiGroups:
-      - "storage.k8s.io"
-    resources:
-      - storageclasses
-    verbs:
-      - get
-      - list
-      - watch

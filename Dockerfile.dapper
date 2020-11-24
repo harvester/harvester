@@ -26,7 +26,7 @@ RUN if [ "$(go env GOARCH)" = "amd64" ]; then \
     fi
 ## install controller-gen
 RUN if [ "$(go env GOARCH)" = "amd64" ]; then \
-        GO111MODULE=on go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.3.0; \
+        GO111MODULE=on go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1; \
     fi
 ## install ginkgo
 RUN if [ "$(go env GOARCH)" = "amd64" ]; then \

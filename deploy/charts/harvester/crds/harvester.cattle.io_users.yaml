@@ -1,6 +1,6 @@
 
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
@@ -8,16 +8,6 @@ metadata:
   creationTimestamp: null
   name: users.harvester.cattle.io
 spec:
-  additionalPrinterColumns:
-  - JSONPath: .displayName
-    name: DISPLAY_NAME
-    type: string
-  - JSONPath: .username
-    name: USERNAME
-    type: string
-  - JSONPath: .description
-    name: DESCRIPTION
-    type: string
   group: harvester.cattle.io
   names:
     kind: User
@@ -28,38 +18,47 @@ spec:
     - users
     singular: user
   scope: Cluster
-  subresources: {}
-  validation:
-    openAPIV3Schema:
-      properties:
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation
-            of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-          type: string
-        description:
-          type: string
-        displayName:
-          type: string
-        isAdmin:
-          type: boolean
-        kind:
-          description: 'Kind is a string value representing the REST resource this
-            object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        password:
-          type: string
-        username:
-          type: string
-      type: object
-  version: v1alpha1
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .displayName
+      name: DISPLAY_NAME
+      type: string
+    - jsonPath: .username
+      name: USERNAME
+      type: string
+    - jsonPath: .description
+      name: DESCRIPTION
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          description:
+            type: string
+          displayName:
+            type: string
+          isAdmin:
+            type: boolean
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          password:
+            type: string
+          username:
+            type: string
+        type: object
     served: true
     storage: true
+    subresources: {}
 status:
   acceptedNames:
     kind: ""

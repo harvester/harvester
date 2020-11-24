@@ -51,16 +51,16 @@ kubevirt:
         defaultNetworkInterface: "bridge"
 
         ## Specify to permit slirp interface
-        ## NB(thxCode): we just need to pin it as "true",
+        ## NB(thxCode): we just need to pin it as true,
         ## and then the user can focus on the above "defaultNetworkInterface".
         ##
-        permitSlirpInterface: "true"
+        permitSlirpInterface: true
 
         ## Specify to permit bridge interface,
-        ## NB(thxCode): we just need to pin it as "true",
+        ## NB(thxCode): we just need to pin it as true,
         ## and then the user can focus on the above "defaultNetworkInterface".
         ##
-        permitBridgeInterfaceOnPodNetwork: "true"
+        permitBridgeInterfaceOnPodNetwork: true
 
 ## Specify the parameters to override the sub-chart.
 ##
@@ -91,11 +91,11 @@ minio:
   ##
   resources:
     limits:
+      cpu: 2
+      memory: 4Gi
+    requests:
       cpu: 500m
       memory: 512Mi
-    requests:
-      cpu: 250m
-      memory: 256Mi
 
   ## Specify the access key.
   ##

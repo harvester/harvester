@@ -7,16 +7,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 out_dir="${ROOT_DIR}/deploy/charts/harvester/crds"
 mkdir -p "${out_dir}"
 
-# Install controller-gen if not found
-if [[ -z "$(command -v controller-gen)" ]]; then
-	tmp_dir=$( mktemp -d)
-	pushd  "${tmp_dir}" >/dev/null || exit 1
-	go  mod init tmp
-	GO111MODULE=on  go get "sigs.k8s.io/controller-tools/cmd/controller-gen@v0.3.0"
-	rm  -rf "${tmp_dir}"
-	popd  >/dev/null || exit 1
-fi
-
 # Clean up stable CRD manifest YAMLs
 rm -rf "${out_dir}/*.yaml"
 
