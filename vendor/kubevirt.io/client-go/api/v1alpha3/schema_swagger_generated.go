@@ -29,6 +29,14 @@ func (SecretVolumeSource) SwaggerDoc() map[string]string {
 	}
 }
 
+func (DownwardAPIVolumeSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":            "DownwardAPIVolumeSource represents a volume containing downward API info.\n\n+k8s:openapi-gen=true",
+		"fields":      "Fields is a list of downward API volume file\n+optional",
+		"volumeLabel": "The volume label of the resulting disk inside the VMI.\nDifferent bootstrapping mechanisms require different values.\nTypical values are \"cidata\" (cloud-init), \"config-2\" (cloud-init) or \"OEMDRV\" (kickstart).\n+optional",
+	}
+}
+
 func (ServiceAccountVolumeSource) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                   "ServiceAccountVolumeSource adapts a ServiceAccount into a volume.\n\n+k8s:openapi-gen=true",
@@ -92,7 +100,8 @@ func (Bootloader) SwaggerDoc() map[string]string {
 
 func (BIOS) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "If set (default), BIOS will be used.\n\n+k8s:openapi-gen=true",
+		"":          "If set (default), BIOS will be used.\n\n+k8s:openapi-gen=true",
+		"useSerial": "If set, the BIOS output will be transmitted over serial\n+optional",
 	}
 }
 
@@ -174,10 +183,12 @@ func (Devices) SwaggerDoc() map[string]string {
 		"autoattachPodInterface":     "Whether to attach a pod network interface. Defaults to true.",
 		"autoattachGraphicsDevice":   "Whether to attach the default graphics device or not.\nVNC will not be available if set to false. Defaults to true.",
 		"autoattachSerialConsole":    "Whether to attach the default serial console or not.\nSerial console access will not be available if set to false. Defaults to true.",
+		"autoattachMemBalloon":       "Whether to attach the Memory balloon device with default period.\nPeriod can be adjusted in virt-config.\nDefaults to true.\n+optional",
 		"rng":                        "Whether to have random number generator from host\n+optional",
 		"blockMultiQueue":            "Whether or not to enable virtio multi-queue for block devices\n+optional",
-		"networkInterfaceMultiqueue": "If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature\n+optional",
+		"networkInterfaceMultiqueue": "If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature for network devices. The number of queues created depends on additional factors of the VirtualMachineInstance, like the number of guest CPUs.\n+optional",
 		"gpus":                       "Whether to attach a GPU device to the vmi.\n+optional",
+		"filesystems":                "Filesystems describes filesystem which is connected to the vmi.\n+optional",
 	}
 }
 
@@ -187,6 +198,20 @@ func (Input) SwaggerDoc() map[string]string {
 		"bus":  "Bus indicates the bus of input device to emulate.\nSupported values: virtio, usb.",
 		"type": "Type indicated the type of input device.\nSupported values: tablet.",
 		"name": "Name is the device name",
+	}
+}
+
+func (Filesystem) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":         "+k8s:openapi-gen=true",
+		"name":     "Name is the device name",
+		"virtiofs": "Virtiofs is supported",
+	}
+}
+
+func (FilesystemVirtiofs) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "+k8s:openapi-gen=true",
 	}
 }
 
@@ -205,6 +230,7 @@ func (Disk) SwaggerDoc() map[string]string {
 		"serial":            "Serial provides the ability to specify a serial number for the disk device.\n+optional",
 		"dedicatedIOThread": "dedicatedIOThread indicates this disk should have an exclusive IO Thread.\nEnabling this implies useIOThreads = true.\nDefaults to false.\n+optional",
 		"cache":             "Cache specifies which kvm disk cache mode should be used.\n+optional",
+		"io":                "IO specifies which QEMU disk IO mode should be used.\nSupported values are: native, default, threads.\n+optional",
 		"tag":               "If specified, disk address and its tag will be provided to the guest via config drive metadata\n+optional",
 	}
 }
@@ -273,6 +299,7 @@ func (VolumeSource) SwaggerDoc() map[string]string {
 		"dataVolume":            "DataVolume represents the dynamic creation a PVC for this volume as well as\nthe process of populating that PVC with a disk image.\n+optional",
 		"configMap":             "ConfigMapSource represents a reference to a ConfigMap in the same namespace.\nMore info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/\n+optional",
 		"secret":                "SecretVolumeSource represents a reference to a secret data in the same namespace.\nMore info: https://kubernetes.io/docs/concepts/configuration/secret/\n+optional",
+		"downwardAPI":           "DownwardAPI represents downward API about the pod that should populate this volume\n+optional",
 		"serviceAccount":        "ServiceAccountVolumeSource represents a reference to a service account.\nThere can only be one volume of this type!\nMore info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/\n+optional",
 	}
 }
@@ -325,7 +352,7 @@ func (ClockOffsetUTC) SwaggerDoc() map[string]string {
 
 func (Clock) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":      "Represents the clock and timers of a vmi.\n\n+k8s:openapi-gen=true",
+		"":      "Represents the clock and timers of a vmi.\n\n+k8s:openapi-gen=true\n+kubebuilder:pruning:PreserveUnknownFields",
 		"timer": "Timer specifies whih timers are attached to the vmi.\n+optional",
 	}
 }
@@ -383,10 +410,11 @@ func (HypervTimer) SwaggerDoc() map[string]string {
 func (Features) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":       "+k8s:openapi-gen=true",
-		"acpi":   "ACPI enables/disables ACPI insidejsondata guest.\nDefaults to enabled.\n+optional",
+		"acpi":   "ACPI enables/disables ACPI inside the guest.\nDefaults to enabled.\n+optional",
 		"apic":   "Defaults to the machine type setting.\n+optional",
 		"hyperv": "Defaults to the machine type setting.\n+optional",
 		"smm":    "SMM enables/disables System Management Mode.\nTSEG not yet implemented.\n+optional",
+		"kvm":    "Configure how KVM presence is exposed to the guest.\n+optional",
 	}
 }
 
@@ -438,6 +466,13 @@ func (FeatureHyperv) SwaggerDoc() map[string]string {
 		"tlbflush":        "TLBFlush improves performances in overcommited environments. Requires vpindex.\nDefaults to the machine type setting.\n+optional",
 		"ipi":             "IPI improves performances in overcommited environments. Requires vpindex.\nDefaults to the machine type setting.\n+optional",
 		"evmcs":           "EVMCS Speeds up L2 vmexits, but disables other virtualization features. Requires vapic.\nDefaults to the machine type setting.\n+optional",
+	}
+}
+
+func (FeatureKVM) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":       "+k8s:openapi-gen=true",
+		"hidden": "Hide the KVM hypervisor from standard MSR based discovery.\nDefaults to false",
 	}
 }
 
@@ -519,6 +554,12 @@ func (InterfaceMasquerade) SwaggerDoc() map[string]string {
 }
 
 func (InterfaceSRIOV) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "+k8s:openapi-gen=true",
+	}
+}
+
+func (InterfaceMacvtap) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "+k8s:openapi-gen=true",
 	}

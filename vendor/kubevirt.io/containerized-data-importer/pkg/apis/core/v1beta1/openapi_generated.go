@@ -306,8 +306,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceRegistry": schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceS3":       schema_pkg_apis_core_v1beta1_DataVolumeSourceS3(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceUpload":   schema_pkg_apis_core_v1beta1_DataVolumeSourceUpload(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceVDDK":     schema_pkg_apis_core_v1beta1_DataVolumeSourceVDDK(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSpec":           schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeStatus":         schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead":       schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref),
+		"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement":                schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref),
 	}
 }
 
@@ -13610,7 +13613,8 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 					},
 					"podResourceRequirements": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/api/core/v1.ResourceRequirements"),
+							Description: "ResourceRequirements describes the compute resource requirements.",
+							Ref:         ref("k8s.io/api/core/v1.ResourceRequirements"),
 						},
 					},
 					"featureGates": {
@@ -13627,11 +13631,17 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							},
 						},
 					},
+					"filesystemOverhead": {
+						SchemaProps: spec.SchemaProps{
+							Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
+							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ResourceRequirements"},
+			"k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead"},
 	}
 }
 
@@ -13658,14 +13668,21 @@ func schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref common.ReferenceCallback) 
 					},
 					"defaultPodResourceRequirements": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/api/core/v1.ResourceRequirements"),
+							Description: "ResourceRequirements describes the compute resource requirements.",
+							Ref:         ref("k8s.io/api/core/v1.ResourceRequirements"),
+						},
+					},
+					"filesystemOverhead": {
+						SchemaProps: spec.SchemaProps{
+							Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
+							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ResourceRequirements"},
+			"k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead"},
 	}
 }
 
@@ -13733,13 +13750,34 @@ func schema_pkg_apis_core_v1beta1_CDISpec(ref common.ReferenceCallback) common.O
 					},
 					"uninstallStrategy": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Description: "CDIUninstallStrategy defines the state to leave CDI on uninstall",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"infra": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Rules on which nodes CDI infrastructure pods will be scheduled",
+							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"),
+						},
+					},
+					"workload": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Restrict on which nodes CDI workload pods will be scheduled",
+							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"),
+						},
+					},
+					"config": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CDIConfig at CDI level",
+							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.CDIConfigSpec"),
 						},
 					},
 				},
 			},
 		},
+		Dependencies: []string{
+			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.CDIConfigSpec", "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"},
 	}
 }
 
@@ -13747,7 +13785,7 @@ func schema_pkg_apis_core_v1beta1_CDIStatus(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "CDIStatus defines the status of the CDI installation",
+				Description: "CDIStatus defines the status of the installation",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"phase": {
@@ -13758,7 +13796,7 @@ func schema_pkg_apis_core_v1beta1_CDIStatus(ref common.ReferenceCallback) common
 					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "A list of current conditions of the CDI resource",
+							Description: "A list of current conditions of the resource",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -13771,21 +13809,21 @@ func schema_pkg_apis_core_v1beta1_CDIStatus(ref common.ReferenceCallback) common
 					},
 					"operatorVersion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The version of the CDI resource as defined by the operator",
+							Description: "The version of the resource as defined by the operator",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"targetVersion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The desired version of the CDI resource",
+							Description: "The desired version of the resource",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"observedVersion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The observed version of the CDI resource",
+							Description: "The observed version of the resource",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -13994,11 +14032,16 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSource(ref common.ReferenceCallback)
 							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceImageIO"),
 						},
 					},
+					"vddk": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceVDDK"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeBlankImage", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceHTTP", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceImageIO", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourcePVC", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceRegistry", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceS3", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceUpload"},
+			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeBlankImage", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceHTTP", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceImageIO", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourcePVC", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceRegistry", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceS3", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceUpload", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceVDDK"},
 	}
 }
 
@@ -14181,6 +14224,54 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceUpload(ref common.ReferenceCal
 	}
 }
 
+func schema_pkg_apis_core_v1beta1_DataVolumeSourceVDDK(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Description: "URL is the URL of the vCenter or ESXi host with the VM to migrate",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"uuid": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UUID is the UUID of the virtual machine that the backing file is attached to in vCenter/ESXi",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"backingFile": {
+						SchemaProps: spec.SchemaProps{
+							Description: "BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"thumbprint": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"secretRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -14260,5 +14351,89 @@ func schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref common.ReferenceCallback)
 		},
 		Dependencies: []string{
 			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeCondition"},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "FilesystemOverhead defines the reserved size for PVCs with VolumeMode: Filesystem",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"global": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"storageClass": {
+						SchemaProps: spec.SchemaProps{
+							Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "NodePlacement describes node scheduling configuration.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeSelector is the node selector applied to the relevant kind of pods It specifies a map of key-value pairs: for the pod to be eligible to run on a node, the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"affinity": {
+						SchemaProps: spec.SchemaProps{
+							Description: "affinity enables pod affinity/anti-affinity placement expanding the types of constraints that can be expressed with nodeSelector. affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity",
+							Ref:         ref("k8s.io/api/core/v1.Affinity"),
+						},
+					},
+					"tolerations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "tolerations is a list of tolerations applied to the relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info. These are additional tolerations other than default ones.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/api/core/v1.Toleration"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/core/v1.Affinity", "k8s.io/api/core/v1.Toleration"},
 	}
 }

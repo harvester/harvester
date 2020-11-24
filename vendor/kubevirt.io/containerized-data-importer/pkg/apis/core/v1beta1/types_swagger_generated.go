@@ -79,6 +79,17 @@ func (DataVolumeSourceImageIO) SwaggerDoc() map[string]string {
 	}
 }
 
+func (DataVolumeSourceVDDK) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":            "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source",
+		"url":         "URL is the URL of the vCenter or ESXi host with the VM to migrate",
+		"uuid":        "UUID is the UUID of the virtual machine that the backing file is attached to in vCenter/ESXi",
+		"backingFile": "BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi",
+		"thumbprint":  "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
+		"secretRef":   "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
+	}
+}
+
 func (DataVolumeStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":             "DataVolumeStatus contains the current status of the DataVolume",
@@ -111,17 +122,16 @@ func (CDISpec) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                  "CDISpec defines our specification for the CDI installation",
 		"imagePullPolicy":   "+kubebuilder:validation:Enum=Always;IfNotPresent;Never\nPullPolicy describes a policy for if/when to pull a container image",
-		"uninstallStrategy": "+kubebuilder:validation:Enum=RemoveWorkloads;BlockUninstallIfWorkloadsExist",
+		"uninstallStrategy": "+kubebuilder:validation:Enum=RemoveWorkloads;BlockUninstallIfWorkloadsExist\nCDIUninstallStrategy defines the state to leave CDI on uninstall",
+		"infra":             "Rules on which nodes CDI infrastructure pods will be scheduled",
+		"workload":          "Restrict on which nodes CDI workload pods will be scheduled",
+		"config":            "CDIConfig at CDI level",
 	}
 }
 
 func (CDIStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                "CDIStatus defines the status of the CDI installation",
-		"conditions":      "A list of current conditions of the CDI resource",
-		"operatorVersion": "The version of the CDI resource as defined by the operator",
-		"targetVersion":   "The desired version of the CDI resource",
-		"observedVersion": "The observed version of the CDI resource",
+		"": "CDIStatus defines the status of the installation",
 	}
 }
 
@@ -138,20 +148,32 @@ func (CDIConfig) SwaggerDoc() map[string]string {
 	}
 }
 
+func (FilesystemOverhead) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":             "FilesystemOverhead defines the reserved size for PVCs with VolumeMode: Filesystem",
+		"global":       "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)",
+		"storageClass": "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
+	}
+}
+
 func (CDIConfigSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                         "CDIConfigSpec defines specification for user configuration",
 		"uploadProxyURLOverride":   "Override the URL used when uploading to a DataVolume",
 		"scratchSpaceStorageClass": "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
+		"podResourceRequirements":  "ResourceRequirements describes the compute resource requirements.",
 		"featureGates":             "FeatureGates are a list of specific enabled feature gates",
+		"filesystemOverhead":       "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
 	}
 }
 
 func (CDIConfigStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                         "CDIConfigStatus provides the most recently observed status of the CDI Config resource",
-		"uploadProxyURL":           "The calculated upload proxy URL",
-		"scratchSpaceStorageClass": "The calculated storage class to be used for scratch space",
+		"":                               "CDIConfigStatus provides the most recently observed status of the CDI Config resource",
+		"uploadProxyURL":                 "The calculated upload proxy URL",
+		"scratchSpaceStorageClass":       "The calculated storage class to be used for scratch space",
+		"defaultPodResourceRequirements": "ResourceRequirements describes the compute resource requirements.",
+		"filesystemOverhead":             "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
 	}
 }
 
