@@ -70,9 +70,7 @@ spec:
                     this list are dynamically created for the VirtualMachine and are
                     tied to the VirtualMachine's life-cycle.
                   items:
-                    description: DataVolume is an abstraction on top of PersistentVolumeClaims
-                      to allow easy population of those PersistentVolumeClaims with
-                      relation to VirtualMachines
+                    nullable: true
                     properties:
                       apiVersion:
                         description: 'APIVersion defines the versioned schema of this
@@ -87,9 +85,11 @@ spec:
                           be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
                         type: string
                       metadata:
+                        nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       spec:
-                        description: DataVolumeSpec defines the DataVolume type specification
+                        description: DataVolumeSpec contains the DataVolume specification.
                         properties:
                           contentType:
                             description: 'DataVolumeContentType options: "kubevirt",
@@ -341,54 +341,41 @@ spec:
                                 description: DataVolumeSourceUpload provides the parameters
                                   to create a Data Volume by uploading the source
                                 type: object
+                              vddk:
+                                description: DataVolumeSourceVDDK provides the parameters
+                                  to create a Data Volume from a Vmware source
+                                properties:
+                                  backingFile:
+                                    description: BackingFile is the path to the virtual
+                                      hard disk to migrate from vCenter/ESXi
+                                    type: string
+                                  secretRef:
+                                    description: SecretRef provides a reference to
+                                      a secret containing the username and password
+                                      needed to access the vCenter or ESXi host
+                                    type: string
+                                  thumbprint:
+                                    description: Thumbprint is the certificate thumbprint
+                                      of the vCenter or ESXi host
+                                    type: string
+                                  url:
+                                    description: URL is the URL of the vCenter or
+                                      ESXi host with the VM to migrate
+                                    type: string
+                                  uuid:
+                                    description: UUID is the UUID of the virtual machine
+                                      that the backing file is attached to in vCenter/ESXi
+                                    type: string
+                                type: object
                             type: object
                         required:
                         - pvc
                         - source
                         type: object
                       status:
-                        description: DataVolumeStatus contains the current status
-                          of the DataVolume
-                        properties:
-                          conditions:
-                            items:
-                              description: DataVolumeCondition represents the state
-                                of a data volume condition.
-                              properties:
-                                lastHeartbeatTime:
-                                  format: date-time
-                                  type: string
-                                lastTransitionTime:
-                                  format: date-time
-                                  type: string
-                                message:
-                                  type: string
-                                reason:
-                                  type: string
-                                status:
-                                  type: string
-                                type:
-                                  description: DataVolumeConditionType is the string
-                                    representation of known condition types
-                                  type: string
-                              required:
-                              - status
-                              - type
-                              type: object
-                            type: array
-                          phase:
-                            description: Phase is the current phase of the data volume
-                            type: string
-                          progress:
-                            description: DataVolumeProgress is the current progress
-                              of the DataVolume transfer operation. Value between
-                              0 and 100 inclusive, N/A if not available
-                            type: string
-                          restartCount:
-                            description: RestartCount is the number of times the pod
-                              populating the DataVolume has restarted
-                            format: int32
-                            type: integer
+                        description: DataVolumeTemplateDummyStatus is here simply
+                          for backwards compatibility with a previous API.
+                        nullable: true
                         type: object
                     required:
                     - spec
@@ -408,6 +395,7 @@ spec:
                     metadata:
                       nullable: true
                       type: object
+                      x-kubernetes-preserve-unknown-fields: true
                     spec:
                       description: VirtualMachineInstance Spec contains the VirtualMachineInstance
                         specification.
@@ -1318,6 +1306,11 @@ spec:
                                     device or not. VNC will not be available if set
                                     to false. Defaults to true.
                                   type: boolean
+                                autoattachMemBalloon:
+                                  description: Whether to attach the Memory balloon
+                                    device with default period. Period can be adjusted
+                                    in virt-config. Defaults to true.
+                                  type: boolean
                                 autoattachPodInterface:
                                   description: Whether to attach a pod network interface.
                                     Defaults to true.
@@ -1407,6 +1400,11 @@ spec:
                                               to closed.
                                             type: string
                                         type: object
+                                      io:
+                                        description: 'IO specifies which QEMU disk
+                                          IO mode should be used. Supported values
+                                          are: native, default, threads.'
+                                        type: string
                                       lun:
                                         description: Attach a volume as a LUN to the
                                           vmi.
@@ -1434,6 +1432,22 @@ spec:
                                         type: string
                                     required:
                                     - name
+                                    type: object
+                                  type: array
+                                filesystems:
+                                  description: Filesystems describes filesystem which
+                                    is connected to the vmi.
+                                  items:
+                                    properties:
+                                      name:
+                                        description: Name is the device name
+                                        type: string
+                                      virtiofs:
+                                        description: Virtiofs is supported
+                                        type: object
+                                    required:
+                                    - name
+                                    - virtiofs
                                     type: object
                                   type: array
                                 gpus:
@@ -1534,6 +1548,8 @@ spec:
                                         description: 'Interface MAC address. For example:
                                           de:ad:00:00:be:af or DE-AD-00-00-BE-AF.'
                                         type: string
+                                      macvtap:
+                                        type: object
                                       masquerade:
                                         type: object
                                       model:
@@ -1600,7 +1616,10 @@ spec:
                                 networkInterfaceMultiqueue:
                                   description: If specified, virtual network interfaces
                                     configured with a virtio bus will also enable
-                                    the vhost multiqueue feature
+                                    the vhost multiqueue feature for network devices.
+                                    The number of queues created depends on additional
+                                    factors of the VirtualMachineInstance, like the
+                                    number of guest CPUs.
                                   type: boolean
                                 rng:
                                   description: Whether to have random number generator
@@ -1630,7 +1649,7 @@ spec:
                               description: Features like acpi, apic, hyperv, smm.
                               properties:
                                 acpi:
-                                  description: ACPI enables/disables ACPI insidejsondata
+                                  description: ACPI enables/disables ACPI inside the
                                     guest. Defaults to enabled.
                                   properties:
                                     enabled:
@@ -1819,6 +1838,15 @@ spec:
                                           type: boolean
                                       type: object
                                   type: object
+                                kvm:
+                                  description: Configure how KVM presence is exposed
+                                    to the guest.
+                                  properties:
+                                    hidden:
+                                      description: Hide the KVM hypervisor from standard
+                                        MSR based discovery. Defaults to false
+                                      type: boolean
+                                  type: object
                                 smm:
                                   description: SMM enables/disables System Management
                                     Mode. TSEG not yet implemented.
@@ -1840,6 +1868,11 @@ spec:
                                     bios:
                                       description: If set (default), BIOS will be
                                         used.
+                                      properties:
+                                        useSerial:
+                                          description: If set, the BIOS output will
+                                            be transmitted over serial
+                                          type: boolean
                                       type: object
                                     efi:
                                       description: If set, EFI will be used instead
@@ -2422,6 +2455,91 @@ spec:
                                     type: string
                                 required:
                                 - name
+                                type: object
+                              downwardAPI:
+                                description: DownwardAPI represents downward API about
+                                  the pod that should populate this volume
+                                properties:
+                                  fields:
+                                    description: Fields is a list of downward API
+                                      volume file
+                                    items:
+                                      description: DownwardAPIVolumeFile represents
+                                        information to create the file containing
+                                        the pod field
+                                      properties:
+                                        fieldRef:
+                                          description: 'Required: Selects a field
+                                            of the pod: only annotations, labels,
+                                            name and namespace are supported.'
+                                          properties:
+                                            apiVersion:
+                                              description: Version of the schema the
+                                                FieldPath is written in terms of,
+                                                defaults to "v1".
+                                              type: string
+                                            fieldPath:
+                                              description: Path of the field to select
+                                                in the specified API version.
+                                              type: string
+                                          required:
+                                          - fieldPath
+                                          type: object
+                                        mode:
+                                          description: 'Optional: mode bits to use
+                                            on this file, must be a value between
+                                            0 and 0777. If not specified, the volume
+                                            defaultMode will be used. This might be
+                                            in conflict with other options that affect
+                                            the file mode, like fsGroup, and the result
+                                            can be other mode bits set.'
+                                          format: int32
+                                          type: integer
+                                        path:
+                                          description: 'Required: Path is  the relative
+                                            path name of the file to be created. Must
+                                            not be absolute or contain the ''..''
+                                            path. Must be utf-8 encoded. The first
+                                            item of the relative path must not start
+                                            with ''..'''
+                                          type: string
+                                        resourceFieldRef:
+                                          description: 'Selects a resource of the
+                                            container: only resources limits and requests
+                                            (limits.cpu, limits.memory, requests.cpu
+                                            and requests.memory) are currently supported.'
+                                          properties:
+                                            containerName:
+                                              description: 'Container name: required
+                                                for volumes, optional for env vars'
+                                              type: string
+                                            divisor:
+                                              anyOf:
+                                              - type: integer
+                                              - type: string
+                                              description: Specifies the output format
+                                                of the exposed resources, defaults
+                                                to "1"
+                                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                              x-kubernetes-int-or-string: true
+                                            resource:
+                                              description: 'Required: resource to
+                                                select'
+                                              type: string
+                                          required:
+                                          - resource
+                                          type: object
+                                      required:
+                                      - path
+                                      type: object
+                                    type: array
+                                  volumeLabel:
+                                    description: The volume label of the resulting
+                                      disk inside the VMI. Different bootstrapping
+                                      mechanisms require different values. Typical
+                                      values are "cidata" (cloud-init), "config-2"
+                                      (cloud-init) or "OEMDRV" (kickstart).
+                                    type: string
                                 type: object
                               emptyDisk:
                                 description: 'EmptyDisk represents a temporary disk
