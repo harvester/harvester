@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
 	v1alpha3 "kubevirt.io/client-go/api/v1alpha3"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
 const (
@@ -132,7 +131,7 @@ func ejectCdRomFromVM(vm *v1alpha3.VirtualMachine, diskNames []string) error {
 		volumes = append(volumes, vol)
 	}
 
-	var dvs []cdiv1.DataVolume
+	var dvs []v1alpha3.DataVolumeTemplateSpec
 	for _, v := range vm.Spec.DataVolumeTemplates {
 		if slice.ContainsString(ejectedVolumeNames, v.Name) {
 			continue

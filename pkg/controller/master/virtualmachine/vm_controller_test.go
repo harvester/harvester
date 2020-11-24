@@ -247,7 +247,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 						UID:       "fake-vm-uid",
 					},
 					Spec: kubevirtapis.VirtualMachineSpec{
-						DataVolumeTemplates: []cdiapisalpha.DataVolume{
+						DataVolumeTemplates: []kubevirtapis.DataVolumeTemplateSpec{
 							{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: "dv-disk",
@@ -359,7 +359,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 						UID:       "fake-vm-uid",
 					},
 					Spec: kubevirtapis.VirtualMachineSpec{
-						DataVolumeTemplates: []cdiapisalpha.DataVolume{
+						DataVolumeTemplates: []kubevirtapis.DataVolumeTemplateSpec{
 							{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: "dv-disk",
@@ -1186,7 +1186,7 @@ func TestVMController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 					},
 					Spec: kubevirtapis.VirtualMachineSpec{
-						DataVolumeTemplates: []cdiapisalpha.DataVolume{
+						DataVolumeTemplates: []kubevirtapis.DataVolumeTemplateSpec{
 							{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: "dv-disk",
@@ -1303,7 +1303,7 @@ func TestVMController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 					},
 					Spec: kubevirtapis.VirtualMachineSpec{
-						DataVolumeTemplates: []cdiapisalpha.DataVolume{
+						DataVolumeTemplates: []kubevirtapis.DataVolumeTemplateSpec{
 							{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: "dv-disk",
