@@ -91,6 +91,20 @@ type SecretVolumeSource struct {
 	VolumeLabel string `json:"volumeLabel,omitempty"`
 }
 
+// DownwardAPIVolumeSource represents a volume containing downward API info.
+//
+// +k8s:openapi-gen=true
+type DownwardAPIVolumeSource struct {
+	// Fields is a list of downward API volume file
+	// +optional
+	Fields []v1.DownwardAPIVolumeFile `json:"fields,omitempty"`
+	// The volume label of the resulting disk inside the VMI.
+	// Different bootstrapping mechanisms require different values.
+	// Typical values are "cidata" (cloud-init), "config-2" (cloud-init) or "OEMDRV" (kickstart).
+	// +optional
+	VolumeLabel string `json:"volumeLabel,omitempty"`
+}
+
 // ServiceAccountVolumeSource adapts a ServiceAccount into a volume.
 //
 // +k8s:openapi-gen=true
@@ -213,6 +227,9 @@ type Bootloader struct {
 //
 // +k8s:openapi-gen=true
 type BIOS struct {
+	// If set, the BIOS output will be transmitted over serial
+	// +optional
+	UseSerial *bool `json:"useSerial,omitempty"`
 }
 
 // If set, EFI will be used instead of BIOS.
@@ -355,18 +372,26 @@ type Devices struct {
 	// Whether to attach the default serial console or not.
 	// Serial console access will not be available if set to false. Defaults to true.
 	AutoattachSerialConsole *bool `json:"autoattachSerialConsole,omitempty"`
+	// Whether to attach the Memory balloon device with default period.
+	// Period can be adjusted in virt-config.
+	// Defaults to true.
+	// +optional
+	AutoattachMemBalloon *bool `json:"autoattachMemBalloon,omitempty"`
 	// Whether to have random number generator from host
 	// +optional
 	Rng *Rng `json:"rng,omitempty"`
 	// Whether or not to enable virtio multi-queue for block devices
 	// +optional
 	BlockMultiQueue *bool `json:"blockMultiQueue,omitempty"`
-	// If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature
+	// If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature for network devices. The number of queues created depends on additional factors of the VirtualMachineInstance, like the number of guest CPUs.
 	// +optional
 	NetworkInterfaceMultiQueue *bool `json:"networkInterfaceMultiqueue,omitempty"`
 	//Whether to attach a GPU device to the vmi.
 	// +optional
 	GPUs []GPU `json:"gpus,omitempty"`
+	// Filesystems describes filesystem which is connected to the vmi.
+	// +optional
+	Filesystems []Filesystem `json:"filesystems,omitempty"`
 }
 
 //
@@ -381,6 +406,19 @@ type Input struct {
 	// Name is the device name
 	Name string `json:"name"`
 }
+
+//
+// +k8s:openapi-gen=true
+type Filesystem struct {
+	// Name is the device name
+	Name string `json:"name"`
+	// Virtiofs is supported
+	Virtiofs *FilesystemVirtiofs `json:"virtiofs"`
+}
+
+//
+// +k8s:openapi-gen=true
+type FilesystemVirtiofs struct{}
 
 //
 // +k8s:openapi-gen=true
@@ -415,6 +453,10 @@ type Disk struct {
 	// Cache specifies which kvm disk cache mode should be used.
 	// +optional
 	Cache DriverCache `json:"cache,omitempty"`
+	// IO specifies which QEMU disk IO mode should be used.
+	// Supported values are: native, default, threads.
+	// +optional
+	IO DriverIO `json:"io,omitempty"`
 	// If specified, disk address and its tag will be provided to the guest via config drive metadata
 	// +optional
 	Tag string `json:"tag,omitempty"`
@@ -560,6 +602,9 @@ type VolumeSource struct {
 	// More info: https://kubernetes.io/docs/concepts/configuration/secret/
 	// +optional
 	Secret *SecretVolumeSource `json:"secret,omitempty"`
+	// DownwardAPI represents downward API about the pod that should populate this volume
+	// +optional
+	DownwardAPI *DownwardAPIVolumeSource `json:"downwardAPI,omitempty"`
 	// ServiceAccountVolumeSource represents a reference to a service account.
 	// There can only be one volume of this type!
 	// More info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
@@ -641,6 +686,7 @@ type ClockOffsetTimezone string
 // Represents the clock and timers of a vmi.
 //
 // +k8s:openapi-gen=true
+// +kubebuilder:pruning:PreserveUnknownFields
 type Clock struct {
 	// ClockOffset allows specifying the UTC offset or the timezone of the guest clock.
 	ClockOffset `json:",inline"`
@@ -782,7 +828,7 @@ type HypervTimer struct {
 //
 // +k8s:openapi-gen=true
 type Features struct {
-	// ACPI enables/disables ACPI insidejsondata guest.
+	// ACPI enables/disables ACPI inside the guest.
 	// Defaults to enabled.
 	// +optional
 	ACPI FeatureState `json:"acpi,omitempty"`
@@ -796,6 +842,9 @@ type Features struct {
 	// TSEG not yet implemented.
 	// +optional
 	SMM *FeatureState `json:"smm,omitempty"`
+	// Configure how KVM presence is exposed to the guest.
+	// +optional
+	KVM *FeatureKVM `json:"kvm,omitempty"`
 }
 
 // Represents if a feature is enabled or disabled.
@@ -906,6 +955,13 @@ type FeatureHyperv struct {
 	// Defaults to the machine type setting.
 	// +optional
 	EVMCS *FeatureState `json:"evmcs,omitempty"`
+}
+
+// +k8s:openapi-gen=true
+type FeatureKVM struct {
+	// Hide the KVM hypervisor from standard MSR based discovery.
+	// Defaults to false
+	Hidden bool `json:"hidden,omitempty"`
 }
 
 // WatchdogAction defines the watchdog action, if a watchdog gets triggered.
@@ -1026,6 +1082,7 @@ type InterfaceBindingMethod struct {
 	Slirp      *InterfaceSlirp      `json:"slirp,omitempty"`
 	Masquerade *InterfaceMasquerade `json:"masquerade,omitempty"`
 	SRIOV      *InterfaceSRIOV      `json:"sriov,omitempty"`
+	Macvtap    *InterfaceMacvtap    `json:"macvtap,omitempty"`
 }
 
 //
@@ -1043,6 +1100,10 @@ type InterfaceMasquerade struct{}
 //
 // +k8s:openapi-gen=true
 type InterfaceSRIOV struct{}
+
+//
+// +k8s:openapi-gen=true
+type InterfaceMacvtap struct{}
 
 // Port repesents a port to expose from the virtual machine.
 // Default protocol TCP.
