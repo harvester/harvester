@@ -26,10 +26,6 @@ func Register(ctx context.Context, scaled *config.Scaled, server *server.Server)
 		return err
 	}
 
-	if err := setSchema(scaled, server); err != nil {
-		return err
-	}
-
 	return nil
 }
 

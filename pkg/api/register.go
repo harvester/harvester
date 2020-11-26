@@ -3,15 +3,17 @@ package api
 import (
 	"context"
 
+	"github.com/rancher/steve/pkg/server"
+
 	"github.com/rancher/harvester/pkg/api/datavolume"
 	"github.com/rancher/harvester/pkg/api/image"
 	"github.com/rancher/harvester/pkg/api/keypair"
 	"github.com/rancher/harvester/pkg/api/network"
+	"github.com/rancher/harvester/pkg/api/setting"
 	"github.com/rancher/harvester/pkg/api/user"
 	"github.com/rancher/harvester/pkg/api/vm"
 	"github.com/rancher/harvester/pkg/api/vmtemplate"
 	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/steve/pkg/server"
 )
 
 type registerSchema func(scaled *config.Scaled, server *server.Server) error
@@ -32,6 +34,7 @@ func Setup(ctx context.Context, server *server.Server) error {
 		keypair.RegisterSchema,
 		vmtemplate.RegisterSchema,
 		vm.RegisterSchema,
+		setting.RegisterSchema,
 		user.RegisterSchema,
 		network.RegisterSchema,
 		datavolume.RegisterSchema)
