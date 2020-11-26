@@ -28,9 +28,14 @@ RUN if [ "$(go env GOARCH)" = "amd64" ]; then \
 RUN if [ "$(go env GOARCH)" = "amd64" ]; then \
         GO111MODULE=on go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.3.0; \
     fi
+## install ginkgo
+RUN if [ "$(go env GOARCH)" = "amd64" ]; then \
+        GO111MODULE=on go get github.com/onsi/ginkgo/ginkgo@v1.14.0; \
+    fi
 # -- for make rules
 
 # -- for dapper
+ENV DAPPER_RUN_ARGS --privileged --network host
 ENV GO111MODULE off
 ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS
 ENV DAPPER_SOURCE /go/src/github.com/rancher/harvester/

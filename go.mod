@@ -21,9 +21,14 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gorilla/mux v1.7.3
 	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/guonaihong/gout v0.1.3
+	github.com/iancoleman/strcase v0.1.2
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
 	github.com/kubernetes/dashboard v1.10.1
+	github.com/mattn/go-isatty v0.0.12
 	github.com/minio/minio-go/v6 v6.0.57
+	github.com/onsi/ginkgo v1.11.0
+	github.com/onsi/gomega v1.8.1
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/apiserver v0.0.0-20200721152301-4388bb184a8e
 	github.com/rancher/dynamiclistener v0.2.1-0.20200213165308-111c5b43e932
@@ -33,13 +38,16 @@ require (
 	github.com/rancher/wrangler-api v0.6.1-0.20200515193802-dcf70881b087
 	github.com/sirupsen/logrus v1.5.0
 	github.com/stretchr/testify v1.5.1
+	github.com/tidwall/gjson v1.6.3
+	github.com/tidwall/sjson v1.1.2
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20200414173820-0848c9571904
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	gopkg.in/square/go-jose.v2 v2.2.2
+	helm.sh/helm/v3 v3.2.0
 	k8s.io/api v0.18.6
 	k8s.io/apiextensions-apiserver v0.18.0
-	k8s.io/apimachinery v0.18.6
+	k8s.io/apimachinery v0.18.8
 	k8s.io/apiserver v0.18.0
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/code-generator v0.18.3 // indirect
@@ -48,4 +56,5 @@ require (
 	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
 	kubevirt.io/client-go v0.31.1-0.20200715061104-844cb60487e4
 	kubevirt.io/containerized-data-importer v1.22.0
+	sigs.k8s.io/kind v0.9.0
 )

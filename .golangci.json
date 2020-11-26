@@ -17,6 +17,10 @@
 		"skip-dirs": [
 			"generated"
 		],
-		"deadline": "5m"
+		"deadline": "5m",
+		"tests": true,
+		"build-tags": [
+			"test"
+		]
 	}
 }
