@@ -15,6 +15,9 @@ replace (
 	github.com/rancher/steve => github.com/cnrancher/steve v0.0.0-20200922090254-a3cedc4d23cd
 	github.com/rancher/wrangler => github.com/cnrancher/wrangler v0.6.2-0.20201110032717-f01dc974d85b
 	k8s.io/api => k8s.io/api v0.18.6
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.18.6
+	k8s.io/apimachinery => k8s.io/apimachinery v0.18.6
+	k8s.io/apiserver => k8s.io/apiserver v0.18.6
 	k8s.io/client-go => k8s.io/client-go v0.18.6
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.16.4
 	k8s.io/code-generator => k8s.io/code-generator v0.18.3

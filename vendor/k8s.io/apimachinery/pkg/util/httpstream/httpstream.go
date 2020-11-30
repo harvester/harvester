@@ -114,18 +114,6 @@ func negotiateProtocol(clientProtocols, serverProtocols []string) string {
 	return ""
 }
 
-func commaSeparatedHeaderValues(header []string) []string {
-	var parsedClientProtocols []string
-	for i := range header {
-		for _, clientProtocol := range strings.Split(header[i], ",") {
-			if proto := strings.Trim(clientProtocol, " "); len(proto) > 0 {
-				parsedClientProtocols = append(parsedClientProtocols, proto)
-			}
-		}
-	}
-	return parsedClientProtocols
-}
-
 // Handshake performs a subprotocol negotiation. If the client did request a
 // subprotocol, Handshake will select the first common value found in
 // serverProtocols. If a match is found, Handshake adds a response header
@@ -133,7 +121,7 @@ func commaSeparatedHeaderValues(header []string) []string {
 // returned, along with a response header containing the list of protocols the
 // server can accept.
 func Handshake(req *http.Request, w http.ResponseWriter, serverProtocols []string) (string, error) {
-	clientProtocols := commaSeparatedHeaderValues(req.Header[http.CanonicalHeaderKey(HeaderProtocolVersion)])
+	clientProtocols := req.Header[http.CanonicalHeaderKey(HeaderProtocolVersion)]
 	if len(clientProtocols) == 0 {
 		return "", fmt.Errorf("unable to upgrade: %s is required", HeaderProtocolVersion)
 	}
