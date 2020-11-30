@@ -9,11 +9,22 @@ import (
 	kv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
 
 	cdiv1beta1 "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
+	"github.com/rancher/harvester/pkg/util"
 )
 
 type dvStore struct {
 	types.Store
 	dvCache cdiv1beta1.DataVolumeCache
+}
+
+func (s *dvStore) Create(request *types.APIRequest, schema *types.APISchema, data types.APIObject) (types.APIObject, error) {
+	util.SetHTTPSourceDataVolume(data.Data())
+	return s.Store.Create(request, request.Schema, data)
+}
+
+func (s *dvStore) Update(request *types.APIRequest, schema *types.APISchema, data types.APIObject, id string) (types.APIObject, error) {
+	util.SetHTTPSourceDataVolume(data.Data())
+	return s.Store.Update(request, request.Schema, data, id)
 }
 
 func (s *dvStore) Delete(request *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
