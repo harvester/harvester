@@ -14,6 +14,7 @@ import (
 
 	ctlcdiv1beta1 "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
+	"github.com/rancher/harvester/pkg/util"
 )
 
 type vmStore struct {
@@ -22,6 +23,16 @@ type vmStore struct {
 	vmCache          ctlkubevirtv1alpha3.VirtualMachineCache
 	dataVolumes      ctlcdiv1beta1.DataVolumeClient
 	dataVolumesCache ctlcdiv1beta1.DataVolumeCache
+}
+
+func (s *vmStore) Create(request *types.APIRequest, schema *types.APISchema, data types.APIObject) (types.APIObject, error) {
+	setHTTPSourceDVTemplates(data)
+	return s.Store.Create(request, request.Schema, data)
+}
+
+func (s *vmStore) Update(request *types.APIRequest, schema *types.APISchema, data types.APIObject, id string) (types.APIObject, error) {
+	setHTTPSourceDVTemplates(data)
+	return s.Store.Update(request, request.Schema, data, id)
 }
 
 func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
@@ -100,4 +111,12 @@ func (s *vmStore) deleteDataVolumes(namespace string, names []string) error {
 		}
 	}
 	return nil
+}
+
+func setHTTPSourceDVTemplates(data types.APIObject) {
+	dvTemplates := data.Data().Slice("spec", "dataVolumeTemplates")
+	for _, t := range dvTemplates {
+		util.SetHTTPSourceDataVolume(t)
+	}
+	data.Data().SetNested(dvTemplates, "spec", "dataVolumeTemplates")
 }

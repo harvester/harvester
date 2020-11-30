@@ -1,10 +1,12 @@
 package datavolume
 
 import (
-	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/steve/pkg/stores/proxy"
+
+	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/util"
 )
 
 const (
@@ -23,5 +25,5 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	}
 
 	server.SchemaTemplates = append(server.SchemaTemplates, t)
-	return nil
+	return util.InitCertConfigMap(scaled)
 }
