@@ -524,8 +524,6 @@ func autoConvert_v1_CustomResourceDefinitionVersion_To_apiextensions_CustomResou
 	out.Name = in.Name
 	out.Served = in.Served
 	out.Storage = in.Storage
-	out.Deprecated = in.Deprecated
-	out.DeprecationWarning = (*string)(unsafe.Pointer(in.DeprecationWarning))
 	if in.Schema != nil {
 		in, out := &in.Schema, &out.Schema
 		*out = new(apiextensions.CustomResourceValidation)
@@ -549,8 +547,6 @@ func autoConvert_apiextensions_CustomResourceDefinitionVersion_To_v1_CustomResou
 	out.Name = in.Name
 	out.Served = in.Served
 	out.Storage = in.Storage
-	out.Deprecated = in.Deprecated
-	out.DeprecationWarning = (*string)(unsafe.Pointer(in.DeprecationWarning))
 	if in.Schema != nil {
 		in, out := &in.Schema, &out.Schema
 		*out = new(CustomResourceValidation)
