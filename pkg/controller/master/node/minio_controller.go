@@ -56,6 +56,17 @@ func (h *Handler) OnChanged(key string, node *apiv1.Node) (*apiv1.Node, error) {
 			// skip unready nodes
 			return node, nil
 		}
+
+		if c.Type != apiv1.NodeReady && c.Status == apiv1.ConditionTrue {
+			// skip deploy minio to node with conditions like nodeMemoryPressure, nodeDiskPressure, nodePIDPressure
+			// and nodeNetworkUnavailable equal to true
+			return node, nil
+		}
+	}
+
+	if len(node.Spec.Taints) > 0 {
+		// skip taints nodes
+		return node, nil
 	}
 
 	sets := labels.Set{

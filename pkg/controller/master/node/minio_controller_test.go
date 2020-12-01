@@ -18,6 +18,14 @@ import (
 	corev1type "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
+const cpNoScheduleTaintKey = "node-role.kubernetes.io/controlplane"
+
+var cpNoScheduleTaint = &corev1.Taint{
+	Key:    cpNoScheduleTaintKey,
+	Effect: corev1.TaintEffectNoSchedule,
+	Value:  "true",
+}
+
 func TestNodeHandler_OnChanged(t *testing.T) {
 	type input struct {
 		key         string
@@ -213,6 +221,99 @@ func TestNodeHandler_OnChanged(t *testing.T) {
 				err:                nil,
 			},
 		},
+		{
+			name: "Test taints No Schedule",
+			given: input{
+				key: "test node taints",
+				statefulset: &appsv1.StatefulSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: minioName,
+					},
+				},
+				node: &corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "taint-node",
+					},
+					Spec: corev1.NodeSpec{
+						Taints: []corev1.Taint{
+							*cpNoScheduleTaint,
+						},
+					},
+				},
+				pods: []*corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "minio-0",
+							Labels: map[string]string{
+								appLabelKey: minioName,
+							},
+						},
+						Spec: corev1.PodSpec{
+							NodeName: "node-1",
+						},
+						Status: corev1.PodStatus{
+							Phase: corev1.PodRunning,
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "minio-1",
+							Labels: map[string]string{
+								appLabelKey: minioName,
+							},
+						},
+						Spec: corev1.PodSpec{
+							NodeName: "node-1",
+						},
+						Status: corev1.PodStatus{
+							Phase: corev1.PodRunning,
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "minio-2",
+							Labels: map[string]string{
+								appLabelKey: minioName,
+							},
+						},
+						Spec: corev1.PodSpec{
+							NodeName: "node-1",
+						},
+						Status: corev1.PodStatus{
+							Phase: corev1.PodRunning,
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "minio-3",
+							Labels: map[string]string{
+								appLabelKey: minioName,
+							},
+						},
+						Spec: corev1.PodSpec{
+							NodeName: "node-1",
+						},
+						Status: corev1.PodStatus{
+							Phase: corev1.PodRunning,
+						},
+					},
+				},
+			},
+			expected: output{
+				node: &corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "taint-node",
+					},
+					Spec: corev1.NodeSpec{
+						Taints: []corev1.Taint{
+							*cpNoScheduleTaint,
+						},
+					},
+				},
+				statefulSetUpdated: false,
+				err:                nil,
+			},
+		},
 	}
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset()
@@ -235,7 +336,7 @@ func TestNodeHandler_OnChanged(t *testing.T) {
 		if tc.given.statefulset != nil {
 			ss, err := handler.statefulSetCache.Get(tc.given.statefulset.Namespace, tc.given.statefulset.Name)
 			assert.Nil(t, err)
-			actual.statefulSetUpdated = (ss.Spec.Template.Annotations[timestampAnnoKey] != tc.given.statefulset.Spec.Template.Annotations[timestampAnnoKey])
+			actual.statefulSetUpdated = ss.Spec.Template.Annotations[timestampAnnoKey] != tc.given.statefulset.Spec.Template.Annotations[timestampAnnoKey]
 		}
 
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
