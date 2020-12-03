@@ -65,7 +65,7 @@ For details on using parameters, please refer to [values.yaml](values.yaml).
 
 #### Configure KubeVirt Operator
 
-To configure the KubeVirt Operator, you need to know its [parameters](charts/kubevirt-operator/values.yaml) and put all items under `kubevirt-operator` domain. 
+To configure the KubeVirt Operator, you need to know its [parameters](dependency_charts/kubevirt-operator/values.yaml) and put all items under `kubevirt-operator` domain.
 
 For example, if you want to change the Secret name of admission webhooks, you can do as below.
 
@@ -83,7 +83,7 @@ $ helm install harvester harvester --namespace harvester-system \
 
 #### Configure KubeVirt (CRD resource)
 
-To configure the KubeVirt CRD resource, you need to know its [parameters](charts/kubevirt/values.yaml) and put all items under `kubevirt` domain. 
+To configure the KubeVirt CRD resource, you need to know its [parameters](dependency_charts/kubevirt/values.yaml) and put all items under `kubevirt` domain.
 
 > **It is worth noting that almost all KubeVirt parameters are string type, including bool field and numeric field.**
 
@@ -103,7 +103,7 @@ $ helm install harvester harvester --namespace harvester-system \
 
 #### Configure KubeVirt Containerized Data Importer Operator
 
-To configure the KubeVirt Containerized Data Importer Operator, you need to know its [parameters](charts/cdi-operator/values.yaml) and put all items under `cdi-operator` domain. 
+To configure the KubeVirt Containerized Data Importer Operator, you need to know its [parameters](dependency_charts/cdi-operator/values.yaml) and put all items under `cdi-operator` domain.
 
 For example, if you want to change the image name of CDI cloner, you can do as below.
 
@@ -121,7 +121,7 @@ $ helm install harvester harvester --namespace harvester-system \
 
 #### Configure KubeVirt Containerized Data Importer (CRD resource)
 
-To configure the KubeVirt Containerized Data Importer CRD resource, you need to know its [parameters](charts/cdi/values.yaml) and put all items under `cdi` domain. 
+To configure the KubeVirt Containerized Data Importer CRD resource, you need to know its [parameters](dependency_charts/cdi/values.yaml) and put all items under `cdi` domain.
 
 For example, if you want to override the pull policy of CDI operator, you can do as below.
 

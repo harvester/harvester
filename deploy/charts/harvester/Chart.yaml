@@ -16,37 +16,41 @@ maintainers:
 dependencies:
   - name: kubevirt-operator
     version: 0.1.0
-    repository: file://charts/kubevirt-operator
+    repository: file://dependency_charts/kubevirt-operator
     condition: kubevirt-operator.enabled
     tags:
       - kubevirt
       - operator
   - name: kubevirt
     version: 0.1.0
-    repository: file://charts/kubevirt
+    repository: file://dependency_charts/kubevirt
     condition: kubevirt.enabled
     tags:
       - kubevirt
       - crd
   - name: cdi-operator
     version: 0.1.0
-    repository: file://charts/cdi-operator
+    repository: file://dependency_charts/cdi-operator
     condition: cdi-operator.enabled
     tags:
       - cdi
       - operator
   - name: cdi
     version: 0.1.0
-    repository: file://charts/cdi
+    repository: file://dependency_charts/cdi
     condition: cdi.enabled
     tags:
       - cdi
       - crd
-  - name: minio
-    version: 5.0.32
-    repository: file://charts/minio
-    condition: minio.enabled
   - name: harvester-network-controller
     version: 0.1.0
-    repository: file://charts/harvester-network-controller
+    repository: file://dependency_charts/harvester-network-controller
     condition: harvester-network-controller.enabled
+  - name: multus
+    version: 0.1.0
+    repository: file://dependency_charts/multus
+    condition: multus.enabled
+  - name: minio
+    version: 8.0.5
+    repository: https://helm.min.io
+    condition: minio.enabled

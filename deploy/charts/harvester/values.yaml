@@ -374,3 +374,16 @@ harvester-network-controller:
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
     tag: "master-head"
+
+multus:
+  ## Specify whether to install the multus-cni,
+  ## defaults to "false", this will be enabled in ISO mode installation.
+  enabled: false
+
+  ## Specify the cni hostPath, default to use the k3s cni hostPath
+  hostPath:
+    cniConfDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
+    cniBinDir: /var/lib/rancher/k3s/data/current/bin
+  ## Specify multus-cni daemonSet extra arguments
+  args:
+    - "--multus-kubeconfig-file-host=/var/lib/rancher/k3s/agent/etc/cni/net.d/multus.d/multus.kubeconfig"
