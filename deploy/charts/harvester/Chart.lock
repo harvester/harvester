@@ -1,0 +1,24 @@
+dependencies:
+- name: kubevirt-operator
+  repository: file://dependency_charts/kubevirt-operator
+  version: 0.1.0
+- name: kubevirt
+  repository: file://dependency_charts/kubevirt
+  version: 0.1.0
+- name: cdi-operator
+  repository: file://dependency_charts/cdi-operator
+  version: 0.1.0
+- name: cdi
+  repository: file://dependency_charts/cdi
+  version: 0.1.0
+- name: harvester-network-controller
+  repository: file://dependency_charts/harvester-network-controller
+  version: 0.1.0
+- name: multus
+  repository: file://dependency_charts/multus
+  version: 0.1.0
+- name: minio
+  repository: https://helm.min.io
+  version: 8.0.5
+digest: sha256:febd3483fdb0621e2d5fd3d832a3b12b133929e2f5dda19a4fbb5dedef4a82c7
+generated: "2020-12-04T14:46:43.678381+08:00"

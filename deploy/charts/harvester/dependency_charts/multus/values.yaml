@@ -1,0 +1,38 @@
+# Default values for multus cni
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+image:
+  repository: nfvpe/multus
+  tag: v3.6
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 50Mi
+  limits:
+    cpu: 100m
+    memory: 50Mi
+
+nodeSelector:
+  kubernetes.io/arch: amd64
+
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
+  # this toleration is to have the daemonset runnable on master nodes
+  # remove it if your masters can't run pods
+  - key: node-role.kubernetes.io/master
+    effect: NoSchedule
+
+affinity: {}
+
+## Specify multus-cni daemonSet extra arguments
+args: []
+
+## Specify the cni host path
+hostPath:
+  cniConfDir: /etc/cni/net.d
+  cniBinDir: /opt/cni/bin
