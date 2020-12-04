@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rancher/apiserver/pkg/writer"
+	"github.com/rancher/dynamiclistener"
 	"github.com/rancher/dynamiclistener/server"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/steve/pkg/accesscontrol"
@@ -15,6 +16,7 @@ import (
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/sirupsen/logrus"
+
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -101,6 +103,9 @@ func Wait(ctx context.Context, config *rest.Config) error {
 func (s *HarvesterServer) Start() error {
 	opts := &server.ListenOpts{
 		Secrets: s.steve.Controllers.Core.Secret(),
+		TLSListenerConfig: dynamiclistener.Config{
+			CloseConnOnCertChange: true,
+		},
 	}
 	return s.steve.ListenAndServe(s.Context, config.HTTPSListenPort, config.HTTPListenPort, opts)
 }
