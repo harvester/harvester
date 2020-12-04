@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/harvester/pkg/controller/master/image"
 	"github.com/rancher/harvester/pkg/controller/master/keypair"
 	"github.com/rancher/harvester/pkg/controller/master/node"
+	"github.com/rancher/harvester/pkg/controller/master/secret"
 	"github.com/rancher/harvester/pkg/controller/master/template"
 	"github.com/rancher/harvester/pkg/controller/master/user"
 	"github.com/rancher/harvester/pkg/controller/master/virtualmachine"
@@ -22,6 +23,7 @@ var registerFuncs = []registerFunc{
 	image.Register,
 	keypair.Register,
 	node.Register,
+	secret.Register,
 	template.Register,
 	virtualmachine.Register,
 	user.Register,
