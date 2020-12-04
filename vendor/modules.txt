@@ -390,7 +390,7 @@ github.com/rancher/apiserver/pkg/subscribe
 github.com/rancher/apiserver/pkg/types
 github.com/rancher/apiserver/pkg/urlbuilder
 github.com/rancher/apiserver/pkg/writer
-# github.com/rancher/dynamiclistener v0.2.1-0.20200213165308-111c5b43e932
+# github.com/rancher/dynamiclistener v0.2.1-0.20200213165308-111c5b43e932 => github.com/cnrancher/dynamiclistener v0.2.1-0.20201203034515-32339ecf0a45
 github.com/rancher/dynamiclistener
 github.com/rancher/dynamiclistener/cert
 github.com/rancher/dynamiclistener/factory

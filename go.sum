@@ -147,6 +147,8 @@ github.com/circonus-labs/circonusllhist v0.1.3/go.mod h1:kMXHVDlOchFAehlya5ePtbp
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cnrancher/apiserver v0.0.0-20200731031228-a0459feeb0de h1:gfjj8tbnKZWeRFHIxOohV64EIm+/6ZWj8z4PKp464IA=
 github.com/cnrancher/apiserver v0.0.0-20200731031228-a0459feeb0de/go.mod h1:8W0EwaR9dH5NDFw6mpAX437D0q+EZqKWbZyX71+z2WI=
+github.com/cnrancher/dynamiclistener v0.2.1-0.20201203034515-32339ecf0a45 h1:u7Q8ZJvAzeHx6gTaUeKpHv9pjxwT38bGOMkXdxH5jKs=
+github.com/cnrancher/dynamiclistener v0.2.1-0.20201203034515-32339ecf0a45/go.mod h1:9WusTANoiRr8cDWCTtf5txieulezHbpv4vhLADPp0zU=
 github.com/cnrancher/kubevirt-client-go v0.20.2-0.20201124032527-ff3943be35bf h1:CyTIXqj8p0+q535bdch8uH6f39Rt/G/UdGnPmF53Y3o=
 github.com/cnrancher/kubevirt-client-go v0.20.2-0.20201124032527-ff3943be35bf/go.mod h1:H7w/toi2lEbJ1K6EK3hd2ZatVvm793iZOKFVxx18hzg=
 github.com/cnrancher/kubevirt-containerized-data-importer v1.22.1-0.20201127032458-4f73ed532d31 h1:Ci0c30/67gmf+UyIMIjG3nC8nR5RJhFe6fHsErQv7iE=
