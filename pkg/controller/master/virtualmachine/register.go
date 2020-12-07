@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	vmControllerSetOwnerOfDataVolumesAgentName   = "VMController.SetOwnerOfDataVolumes"
-	vmControllerUnsetOwnerOfDataVolumesAgentName = "VMController.UnsetOwnerOfDataVolumes"
-
+	vmControllerSetOwnerOfDataVolumesAgentName    = "VMController.SetOwnerOfDataVolumes"
+	vmControllerUnsetOwnerOfDataVolumesAgentName  = "VMController.UnsetOwnerOfDataVolumes"
 	vmiControllerUnsetOwnerOfDataVolumesAgentName = "VMIController.UnsetOwnerOfDataVolumes"
+	vmControllerSetDefaultManagementNetworkMac    = "VMController.SetDefaultManagementNetworkMacAddress"
 )
 
 func Register(ctx context.Context, management *config.Management) error {
@@ -35,6 +35,19 @@ func Register(ctx context.Context, management *config.Management) error {
 	}
 	var virtualMachineInstanceClient = management.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstance()
 	virtualMachineInstanceClient.OnRemove(ctx, vmiControllerUnsetOwnerOfDataVolumesAgentName, vmiCtrl.UnsetOwnerOfDataVolumes)
+
+	// register the vm network controller upon the VMI changes
+	var (
+		vmClient  = management.VirtFactory.Kubevirt().V1alpha3().VirtualMachine()
+		vmCache   = management.VirtFactory.Kubevirt().V1alpha3().VirtualMachine().Cache()
+		vmiClient = management.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstance()
+	)
+	var vmNetworkCtl = &VMNetworkController{
+		vmClient:  vmClient,
+		vmCache:   vmCache,
+		vmiClient: vmiClient,
+	}
+	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
 
 	return nil
 }
