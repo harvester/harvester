@@ -387,3 +387,18 @@ multus:
   ## Specify multus-cni daemonSet extra arguments
   args:
     - "--multus-kubeconfig-file-host=/var/lib/rancher/k3s/agent/etc/cni/net.d/multus.d/multus.kubeconfig"
+
+longhorn:
+  ## Specify whether to install longhorn,
+  ## defaults to "false", this will be enabled in ISO mode installation.
+  enabled: false
+
+  ## Specify the namespace to install longhorn.
+  namespaceOverride: longhorn-system
+
+  csi:
+    ## Specify the kubelet root directory.
+    kubeletRootDir: /var/lib/kubelet
+
+  persistence:
+    defaultClassReplicaCount: 1
