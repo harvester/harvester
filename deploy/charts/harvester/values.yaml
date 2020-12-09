@@ -188,7 +188,7 @@ containers:
 
       ## Specify the pull policy of image.
       ##
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
 
       ## Specify the repository of image.
       ##
@@ -196,7 +196,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: master-head
+      tag: v0.1.0-rc1
 
     ## Define the authentication mode, currently only kubernetesCredentials and localUser are supported,
     ## could config more than one mode, separated by comma
@@ -371,9 +371,9 @@ harvester-network-controller:
 
   image:
     repository: rancher/harvester-network-controller
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "master-head"
+    tag: v0.1.0
 
 multus:
   ## Specify whether to install the multus-cni,
