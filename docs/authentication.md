@@ -1,10 +1,14 @@
 # Authentication
-Harvester Dashboard supports two different ways of authenticating users:
+Harvester Dashboard supports `local auth` mode, the default login username and password is `admin/password`,
+
+![](./assets/authentication.png)
+
+
+### App Mode
+on `App mode`, users are allowing to configure different authentication mode using env `HARVESTER_AUTHENTICATION_MODE`, the current supported options are `localUser` and `kubernetesCredentials`:
 
 - [Kubeconfig](#kubeconfig) file that can be used on Dashboard login view.
 - [Bearer Token](#bearer-token)
-
-![](./assets/authentication.png)
 
 ### Kubeconfig
 
