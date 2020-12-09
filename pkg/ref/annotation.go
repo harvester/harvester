@@ -90,6 +90,16 @@ func (o *AnnotationSchemaOwners) UnmarshalJSON(bytes []byte) error {
 	return nil
 }
 
+// List returns the owner's name list by given group kind.
+func (o AnnotationSchemaOwners) List(ownerGK schema.GroupKind) []string {
+	var schemaID = GroupKindToSchemaID(ownerGK)
+	var schemaRef, existed = o[schemaID]
+	if !existed || schemaRef.SchemaID != schemaID {
+		return []string{}
+	}
+	return schemaRef.References.UnsortedList()
+}
+
 // Has checks if the given owner is owned.
 func (o AnnotationSchemaOwners) Has(ownerGK schema.GroupKind, owner metav1.Object) bool {
 	var schemaID = GroupKindToSchemaID(ownerGK)
