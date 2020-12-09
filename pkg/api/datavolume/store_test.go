@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/rancher/harvester/pkg/ref"
+
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -45,13 +47,13 @@ func TestDataVolumeDelete(t *testing.T) {
 			},
 		},
 		{
-			name: "dataVolume test no delete",
+			name: "dataVolume test no delete because of owned",
 			given: input{
 				key: "dataVolume name",
 				dataVolume: &cdiapis.DataVolume{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
-						Name:      "test-no-delete",
+						Name:      "test-no-delete-owned",
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								Kind: kv1alpha3.VirtualMachineGroupVersionKind.Kind,
@@ -62,7 +64,25 @@ func TestDataVolumeDelete(t *testing.T) {
 				},
 			},
 			expected: output{
-				err: fmt.Errorf("can not delete the volume test-no-delete which is currently owned by the VM foo"),
+				err: fmt.Errorf("can not delete the volume test-no-delete-owned which is currently owned by these VMs: foo"),
+			},
+		},
+		{
+			name: "dataVolume test no delete because of attached",
+			given: input{
+				key: "dataVolume name",
+				dataVolume: &cdiapis.DataVolume{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test-no-delete-attached",
+						Annotations: map[string]string{
+							ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/foo"]}]`,
+						},
+					},
+				},
+			},
+			expected: output{
+				err: fmt.Errorf("can not delete the volume test-no-delete-attached which is currently attached by these VMs: default/foo"),
 			},
 		},
 		{
