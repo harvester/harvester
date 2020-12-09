@@ -1,6 +1,6 @@
 # Harvester Helm Chart
 
-Harvester provides a friendly virtual machine management experience in Kubernetes based on [KubeVirt](https://kubevirt.io) and [KubeVirt Containerized Data Importer](https://github.com/kubevirt/containerized-data-importer) (CDI).
+Rancher Harvester is an open source Hyper-Converged Infrastructure(HCI) solution based on Kubernetes.
 
 ## Chart Details
 

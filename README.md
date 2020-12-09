@@ -1,35 +1,64 @@
-Rancher Harvester (WORK-IN-PROGRESS)
+Rancher Harvester
 ========
 [![Build Status](https://drone-publish.rancher.io/api/badges/rancher/harvester/status.svg)](https://drone-publish.rancher.io/rancher/harvester)
 
 Rancher Harvester is an open source Hyper-Converged Infrastructure(HCI) solution based on Kubernetes.
 
-## Mode
+## Overview
+Harvester makes it easy to get HCI up and running on the bare metal servers. Here are some notable features of the Harvester that currently provided:
+1. VM lifecycle management includes SSH-Key injection, Cloud-init and, graphic and serial port console
+1. Build-in storage management based on [Longhorn](https://longhorn.io/)
+1. Networking management with both overlay management networks and VLAN
+1. Build-in image repository
+1. Virtual Machine templates
 
-Harvester supports two modes:
+## Hardware Requirements
+To get the Harvester server up and running the following minimum hardware requirements are required:
 
-### Bare-metal [IN-DEVELOPMENT]
+| Type | Minimum Requirements |
+|:---|:---|
+| CPU | 4C is required, a minimum of 16C is preferred |
+| Memory | 8G is required, a minimum of 32G is preferred |
+| Disk |  at least 120G is required, 500GB or above is preferred |
+| Network Card | at least 1 Gigabit Ethernet port, for example, Ethernet 1GbE, RJ45  |
+| Network Switch | Equipped with at least 1 Gigabit switch, 10 Gigabit switch is recommended(Will need to enabling trunking of port for VLAN support) |
 
-In the `Bare-metal` mode, user can install Harvester using ISO directly on bare-metal nodes to form a Harvester cluster.
+## Installation
+Harvester supports two modes of installation:
 
-### App
+### Bare-metal
+In the `Bare-metal` mode, users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster. A standalone Harvester node can still allow user to create and manage the virtual machines.
 
-In the `App` mode, user can deploy Harvester using Helm to an existing Kubernetes cluster.
+You can find the Harvester [ISO image](https://github.com/rancher/harvester/releases) from the Github releases.
+
+To find more detail about ISO installation, please refer to the ISO docs [here](./docs/iso-installation.md).
+
+
+### App [Development Mode]
+In the `App` mode, the user can deploy Harvester using [Helm](https://github.com/rancher/harvester/tree/master/deploy/charts/harvester) to an existing Kubernetes cluster.
 
 Note: Hardware-assisted virtualization must be supported on the Kubernetes nodes.
 
-##### Install as an App
-Harvester can be installed on a Kubernetes cluster in the following ways:
-- [Helm](https://github.com/rancher/harvester/tree/master/deploy/charts/harvester)
-- Rancher catalog app
-    - You can add this repo to the Rancher Catalog as a Helm v3 App
 
 ## Documentation
-Please refer to the [docs](./docs) to find out more details.
+Please refer to the docs [here](./docs).
 
-## Current status
 
-Harvester is in the pre-alpha stage of the development.
+## Source code
+Harvester is 100% open-source software. Project source code is spread across a number of repos:
+
+| Name | Repo Address |
+|:---|:---|
+| Harvester UI | https://github.com/rancher/harvester-ui |
+| Harvester Installer | https://github.com/rancher/harvester-installer |
+| Harvester Network Controller | https://github.com/rancher/harvester-network-controller|
+
+
+## Community
+If you need any help with Harvester, please join us at either our [Rancher forums](https://forums.rancher.com/) or [Slack](https://slack.rancher.io/) where most of our team hangs out at.
+
+If you have any feedback or questions, feel free to [file an issue](https://github.com/rancher/harvester/issues/new/choose).
+
 
 ## License
 Copyright (c) 2020 [Rancher Labs, Inc.](http://rancher.com)
