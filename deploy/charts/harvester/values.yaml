@@ -27,7 +27,30 @@ tags:
 
 ## Specify the parameters to override the sub-chart.
 ##
-kubevirt-operator: {}
+kubevirt-operator:
+  containers:
+    operator:
+      image:
+        repository: kubevirt/virt-operator
+        tag: &kubevirtVersion v0.35.0
+    ## The following four images are placeholder for images in use.
+    ## They are not used by the kubevirt-operator chart.
+    controller:
+      image:
+        repository: kubevirt/virt-controller
+        tag: *kubevirtVersion
+    handler:
+      image:
+        repository: kubevirt/virt-handler
+        tag: *kubevirtVersion
+    api:
+      image:
+        repository: kubevirt/virt-api
+        tag: *kubevirtVersion
+    launcher:
+      image:
+        repository: kubevirt/virt-launcher
+        tag: *kubevirtVersion
 
 ## Specify the parameters to override the sub-chart.
 ##
@@ -64,7 +87,28 @@ kubevirt:
 
 ## Specify the parameters to override the sub-chart.
 ##
-cdi-operator: {}
+cdi-operator:
+  containers:
+    operator:
+      image:
+        repository: kubevirt/cdi-operator
+        tag: &cdiVersion v1.26.1
+    controller:
+      image:
+        repository: kubevirt/cdi-controller
+        tag: *cdiVersion
+    importer:
+      image:
+        repository: kubevirt/cdi-importer
+        tag: *cdiVersion
+    apiserver:
+      image:
+        repository: kubevirt/cdi-apiserver
+        tag: *cdiVersion
+    uploadproxy:
+      image:
+        repository: kubevirt/cdi-uploadproxy
+        tag: *cdiVersion
 
 ## Specify the parameters to override the sub-chart.
 ##
@@ -78,6 +122,12 @@ minio:
   ## defaults to "true".
   ##
   enabled: true
+
+  ## Specify the image.
+  ##
+  image:
+    repository: minio/minio
+    tag: RELEASE.2020-11-19T23-48-16Z
 
   ## Specify the mode.
   ##
@@ -379,6 +429,10 @@ multus:
   ## Specify whether to install the multus-cni,
   ## defaults to "false", this will be enabled in ISO mode installation.
   enabled: false
+
+  image:
+    repository: nfvpe/multus
+    tag: v3.6
 
   ## Specify the cni hostPath, default to use the k3s cni hostPath
   hostPath:
