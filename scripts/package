@@ -18,5 +18,5 @@ fi
 
 cp ../bin/harvester .
 
-docker build -f ${DOCKERFILE} -t ${IMAGE} .
+docker build --build-arg VERSION=${VERSION} -f ${DOCKERFILE} -t ${IMAGE} .
 echo Built ${IMAGE}

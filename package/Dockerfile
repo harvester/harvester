@@ -11,6 +11,8 @@ ENV HARVESTER_UI_PATH /usr/share/rancher/harvester
 # Please update the api-ui-version in pkg/settings/settings.go when updating the version here.
 ENV HARVESTER_API_UI_VERSION 1.1.9
 
+ARG VERSION=dev
+ENV HARVESTER_SERVER_VERSION ${VERSION}
 RUN mkdir -p /usr/share/rancher/harvester && \
     cd /usr/share/rancher/harvester && \
     curl -sL https://releases.rancher.com/harvester-ui/${HARVESTER_UI_VERSION}.tar.gz | tar xvzf - --strip-components=2 && \

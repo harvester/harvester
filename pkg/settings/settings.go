@@ -15,13 +15,14 @@ var (
 	provider       Provider
 	InjectDefaults string
 
+	APIUIVersion           = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
+	AuthenticationMode     = NewSetting("authentication-mode", fmt.Sprintf("%s,%s", v1alpha1.KubernetesCredentials, v1alpha1.LocalUser))
+	AuthSecretName         = NewSetting("auth-secret-name", "harvester-key-holder")
+	AuthTokenMaxTTLMinutes = NewSetting("auth-token-max-ttl-minutes", "720")
+	NoDefaultAdmin         = NewSetting("no-default-admin", "")
+	ServerVersion          = NewSetting("server-version", "dev")
 	UIIndex                = NewSetting("ui-index", "https://releases.rancher.com/harvester-ui/latest/index.html")
 	UIPath                 = NewSetting("ui-path", "/usr/share/rancher/harvester")
-	APIUIVersion           = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
-	AuthTokenMaxTTLMinutes = NewSetting("auth-token-max-ttl-minutes", "720")
-	AuthSecretName         = NewSetting("auth-secret-name", "harvester-key-holder")
-	NoDefaultAdmin         = NewSetting("no-default-admin", "")
-	AuthenticationMode     = NewSetting("authentication-mode", fmt.Sprintf("%s,%s", v1alpha1.KubernetesCredentials, v1alpha1.LocalUser))
 )
 
 func init() {
