@@ -20,6 +20,7 @@ import (
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
 	cditype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
 	cdictrl "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
+	"github.com/rancher/harvester/pkg/indexeres"
 	"github.com/rancher/harvester/pkg/ref"
 )
 
@@ -27,12 +28,12 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 	type input struct {
 		key string
 		vm  *kubevirtapis.VirtualMachine
-		dv  *cdiapis.DataVolume
+		dvs []*cdiapis.DataVolume
 	}
 	type output struct {
 		vm  *kubevirtapis.VirtualMachine
 		err error
-		dv  *cdiapis.DataVolume
+		dvs []*cdiapis.DataVolume
 	}
 
 	var testCases = []struct {
@@ -45,12 +46,12 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 			given: input{
 				key: "",
 				vm:  nil,
-				dv:  nil,
+				dvs: nil,
 			},
 			expected: output{
 				vm:  nil,
 				err: nil,
-				dv:  nil,
+				dvs: nil,
 			},
 		},
 		{
@@ -68,7 +69,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 						Template: &kubevirtapis.VirtualMachineInstanceTemplateSpec{},
 					},
 				},
-				dv: nil,
+				dvs: nil,
 			},
 			expected: output{
 				vm: &kubevirtapis.VirtualMachine{
@@ -83,7 +84,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				dvs: nil,
 			},
 		},
 		{
@@ -100,7 +101,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 						Template: nil,
 					},
 				},
-				dv: nil,
+				dvs: nil,
 			},
 			expected: output{
 				vm: &kubevirtapis.VirtualMachine{
@@ -114,7 +115,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				dvs: nil,
 			},
 		},
 		{
@@ -175,7 +176,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				dv: nil,
+				dvs: nil,
 			},
 			expected: output{
 				vm: &kubevirtapis.VirtualMachine{
@@ -233,7 +234,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				dvs: nil,
 			},
 		},
 		{
@@ -317,34 +318,36 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				dv: &cdiapis.DataVolume{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "dv-disk",
-						UID:       "fake-dv-uid",
-						OwnerReferences: []metav1.OwnerReference{
-							{
-								APIVersion:         "kubevirt.io/v1alpha3",
-								Kind:               "VirtualMachine",
-								Name:               "test",
-								UID:                "fake-vm-uid",
-								BlockOwnerDeletion: pointer.BoolPtr(true),
-								Controller:         pointer.BoolPtr(true),
+				dvs: []*cdiapis.DataVolume{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "dv-disk",
+							UID:       "fake-dv-uid",
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									APIVersion:         "kubevirt.io/v1alpha3",
+									Kind:               "VirtualMachine",
+									Name:               "test",
+									UID:                "fake-vm-uid",
+									BlockOwnerDeletion: pointer.BoolPtr(true),
+									Controller:         pointer.BoolPtr(true),
+								},
 							},
 						},
-					},
-					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
-							Blank: &cdiapis.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								corev1.ReadWriteOnce,
+						Spec: cdiapis.DataVolumeSpec{
+							Source: cdiapis.DataVolumeSource{
+								Blank: &cdiapis.DataVolumeBlankImage{},
 							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("2Gi"),
+							PVC: &corev1.PersistentVolumeClaimSpec{
+								StorageClassName: pointer.StringPtr("default"),
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteOnce,
+								},
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("2Gi"),
+									},
 								},
 							},
 						},
@@ -430,37 +433,39 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv: &cdiapis.DataVolume{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "dv-disk",
-						UID:       "fake-dv-uid",
-						Annotations: map[string]string{
-							ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]}]`,
-						},
-						OwnerReferences: []metav1.OwnerReference{
-							{
-								APIVersion:         "kubevirt.io/v1alpha3",
-								Kind:               "VirtualMachine",
-								Name:               "test",
-								UID:                "fake-vm-uid",
-								BlockOwnerDeletion: pointer.BoolPtr(true),
-								Controller:         pointer.BoolPtr(true),
+				dvs: []*cdiapis.DataVolume{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "dv-disk",
+							UID:       "fake-dv-uid",
+							Annotations: map[string]string{
+								ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]}]`,
+							},
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									APIVersion:         "kubevirt.io/v1alpha3",
+									Kind:               "VirtualMachine",
+									Name:               "test",
+									UID:                "fake-vm-uid",
+									BlockOwnerDeletion: pointer.BoolPtr(true),
+									Controller:         pointer.BoolPtr(true),
+								},
 							},
 						},
-					},
-					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
-							Blank: &cdiapis.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								corev1.ReadWriteOnce,
+						Spec: cdiapis.DataVolumeSpec{
+							Source: cdiapis.DataVolumeSource{
+								Blank: &cdiapis.DataVolumeBlankImage{},
 							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("2Gi"),
+							PVC: &corev1.PersistentVolumeClaimSpec{
+								StorageClassName: pointer.StringPtr("default"),
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteOnce,
+								},
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("2Gi"),
+									},
 								},
 							},
 						},
@@ -526,7 +531,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				dv: nil,
+				dvs: nil,
 			},
 			expected: output{
 				vm: &kubevirtapis.VirtualMachine{
@@ -584,7 +589,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				dvs: nil,
 			},
 		},
 		{
@@ -645,24 +650,26 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				dv: &cdiapis.DataVolume{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "dv-disk",
-						UID:       "fake-dv-uid",
-					},
-					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
-							Blank: &cdiapis.DataVolumeBlankImage{},
+				dvs: []*cdiapis.DataVolume{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "dv-disk",
+							UID:       "fake-dv-uid",
 						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								corev1.ReadWriteOnce,
+						Spec: cdiapis.DataVolumeSpec{
+							Source: cdiapis.DataVolumeSource{
+								Blank: &cdiapis.DataVolumeBlankImage{},
 							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("2Gi"),
+							PVC: &corev1.PersistentVolumeClaimSpec{
+								StorageClassName: pointer.StringPtr("default"),
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteOnce,
+								},
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("2Gi"),
+									},
 								},
 							},
 						},
@@ -725,27 +732,29 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv: &cdiapis.DataVolume{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "dv-disk",
-						UID:       "fake-dv-uid",
-						Annotations: map[string]string{
-							ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]}]`,
-						},
-					},
-					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
-							Blank: &cdiapis.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								corev1.ReadWriteOnce,
+				dvs: []*cdiapis.DataVolume{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "dv-disk",
+							UID:       "fake-dv-uid",
+							Annotations: map[string]string{
+								ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]}]`,
 							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("2Gi"),
+						},
+						Spec: cdiapis.DataVolumeSpec{
+							Source: cdiapis.DataVolumeSource{
+								Blank: &cdiapis.DataVolumeBlankImage{},
+							},
+							PVC: &corev1.PersistentVolumeClaimSpec{
+								StorageClassName: pointer.StringPtr("default"),
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteOnce,
+								},
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("2Gi"),
+									},
 								},
 							},
 						},
@@ -811,27 +820,29 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				dv: &cdiapis.DataVolume{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "dv-disk",
-						UID:       "fake-dv-uid",
-						Annotations: map[string]string{
-							ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachineinstance","refs":["default/test"]}]`,
-						},
-					},
-					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
-							Blank: &cdiapis.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								corev1.ReadWriteMany,
+				dvs: []*cdiapis.DataVolume{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "dv-disk",
+							UID:       "fake-dv-uid",
+							Annotations: map[string]string{
+								ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachineinstance","refs":["default/test"]}]`,
 							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("2Gi"),
+						},
+						Spec: cdiapis.DataVolumeSpec{
+							Source: cdiapis.DataVolumeSource{
+								Blank: &cdiapis.DataVolumeBlankImage{},
+							},
+							PVC: &corev1.PersistentVolumeClaimSpec{
+								StorageClassName: pointer.StringPtr("default"),
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteMany,
+								},
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("2Gi"),
+									},
 								},
 							},
 						},
@@ -894,27 +905,248 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv: &cdiapis.DataVolume{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "dv-disk",
-						UID:       "fake-dv-uid",
-						Annotations: map[string]string{
-							ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]},{"schema":"kubevirt.io.virtualmachineinstance","refs":["default/test"]}]`,
+				dvs: []*cdiapis.DataVolume{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "dv-disk",
+							UID:       "fake-dv-uid",
+							Annotations: map[string]string{
+								ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]},{"schema":"kubevirt.io.virtualmachineinstance","refs":["default/test"]}]`,
+							},
+						},
+						Spec: cdiapis.DataVolumeSpec{
+							Source: cdiapis.DataVolumeSource{
+								Blank: &cdiapis.DataVolumeBlankImage{},
+							},
+							PVC: &corev1.PersistentVolumeClaimSpec{
+								StorageClassName: pointer.StringPtr("default"),
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteMany,
+								},
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("2Gi"),
+									},
+								},
+							},
 						},
 					},
-					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
-							Blank: &cdiapis.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								corev1.ReadWriteMany,
+				},
+			},
+		},
+		{
+			name: "clean ownerReference if datavolume unattached",
+			given: input{
+				key: "default/test",
+				vm: &kubevirtapis.VirtualMachine{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+						UID:       "fake-vm-uid",
+					},
+					Spec: kubevirtapis.VirtualMachineSpec{
+						Template: &kubevirtapis.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtapis.VirtualMachineInstanceSpec{
+								Domain: kubevirtapis.DomainSpec{
+									Devices: kubevirtapis.Devices{
+										Disks: []kubevirtapis.Disk{
+											{
+												Name:      "disk1",
+												BootOrder: pointerToUint(1),
+												DiskDevice: kubevirtapis.DiskDevice{
+													Disk: &kubevirtapis.DiskTarget{
+														Bus: "virtio",
+													},
+												},
+											},
+											{
+												Name: "disk2",
+												DiskDevice: kubevirtapis.DiskDevice{
+													Disk: &kubevirtapis.DiskTarget{
+														Bus: "virtio",
+													},
+												},
+											},
+										},
+									},
+								},
+								Volumes: []kubevirtapis.Volume{
+									{
+										Name: "disk1",
+										VolumeSource: kubevirtapis.VolumeSource{
+											ContainerDisk: &kubevirtapis.ContainerDiskSource{
+												Image: "vmidisks/fedora25:latest",
+											},
+										},
+									},
+									{
+										Name: "disk2",
+										VolumeSource: kubevirtapis.VolumeSource{
+											DataVolume: &kubevirtapis.DataVolumeSource{
+												Name: "attached-dv-disk",
+											},
+										},
+									},
+								},
 							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("2Gi"),
+						},
+					},
+				},
+				dvs: []*cdiapis.DataVolume{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "attached-dv-disk",
+							UID:       "fake-attached-dv-uid",
+						},
+						Spec: cdiapis.DataVolumeSpec{
+							Source: cdiapis.DataVolumeSource{
+								Blank: &cdiapis.DataVolumeBlankImage{},
+							},
+							PVC: &corev1.PersistentVolumeClaimSpec{
+								StorageClassName: pointer.StringPtr("default"),
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteMany,
+								},
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("2Gi"),
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "unattached-dv-disk",
+							UID:       "fake-unattached-dv-uid",
+							Annotations: map[string]string{
+								ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]}]`,
+							},
+						},
+						Spec: cdiapis.DataVolumeSpec{
+							Source: cdiapis.DataVolumeSource{
+								Blank: &cdiapis.DataVolumeBlankImage{},
+							},
+							PVC: &corev1.PersistentVolumeClaimSpec{
+								StorageClassName: pointer.StringPtr("default"),
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteMany,
+								},
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("2Gi"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: output{
+				vm: &kubevirtapis.VirtualMachine{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+						UID:       "fake-vm-uid",
+					},
+					Spec: kubevirtapis.VirtualMachineSpec{
+						Template: &kubevirtapis.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtapis.VirtualMachineInstanceSpec{
+								Domain: kubevirtapis.DomainSpec{
+									Devices: kubevirtapis.Devices{
+										Disks: []kubevirtapis.Disk{
+											{
+												Name:      "disk1",
+												BootOrder: pointerToUint(1),
+												DiskDevice: kubevirtapis.DiskDevice{
+													Disk: &kubevirtapis.DiskTarget{
+														Bus: "virtio",
+													},
+												},
+											},
+											{
+												Name: "disk2",
+												DiskDevice: kubevirtapis.DiskDevice{
+													Disk: &kubevirtapis.DiskTarget{
+														Bus: "virtio",
+													},
+												},
+											},
+										},
+									},
+								},
+								Volumes: []kubevirtapis.Volume{
+									{
+										Name: "disk1",
+										VolumeSource: kubevirtapis.VolumeSource{
+											ContainerDisk: &kubevirtapis.ContainerDiskSource{
+												Image: "vmidisks/fedora25:latest",
+											},
+										},
+									},
+									{
+										Name: "disk2",
+										VolumeSource: kubevirtapis.VolumeSource{
+											DataVolume: &kubevirtapis.DataVolumeSource{
+												Name: "attached-dv-disk",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				err: nil,
+				dvs: []*cdiapis.DataVolume{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "attached-dv-disk",
+							UID:       "fake-attached-dv-uid",
+							Annotations: map[string]string{
+								ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]}]`,
+							},
+						},
+						Spec: cdiapis.DataVolumeSpec{
+							Source: cdiapis.DataVolumeSource{
+								Blank: &cdiapis.DataVolumeBlankImage{},
+							},
+							PVC: &corev1.PersistentVolumeClaimSpec{
+								StorageClassName: pointer.StringPtr("default"),
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteMany,
+								},
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("2Gi"),
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "unattached-dv-disk",
+							UID:       "fake-unattached-dv-uid",
+						},
+						Spec: cdiapis.DataVolumeSpec{
+							Source: cdiapis.DataVolumeSource{
+								Blank: &cdiapis.DataVolumeBlankImage{},
+							},
+							PVC: &corev1.PersistentVolumeClaimSpec{
+								StorageClassName: pointer.StringPtr("default"),
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteMany,
+								},
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("2Gi"),
+									},
 								},
 							},
 						},
@@ -930,9 +1162,11 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 			var err = clientset.Tracker().Add(tc.given.vm)
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
 		}
-		if tc.given.dv != nil {
-			var err = clientset.Tracker().Add(tc.given.dv)
-			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+		if tc.given.dvs != nil {
+			for _, dv := range tc.given.dvs {
+				var err = clientset.Tracker().Add(dv)
+				assert.Nil(t, err, "mock resource should add into fake controller tracker")
+			}
 		}
 
 		var ctrl = &VMController{
@@ -941,10 +1175,12 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 		}
 		var actual output
 		actual.vm, actual.err = ctrl.SetOwnerOfDataVolumes(tc.given.key, tc.given.vm)
-		if tc.expected.dv != nil {
-			var dvStored, err = clientset.Tracker().Get(cdiapis.SchemeGroupVersion.WithResource("datavolumes"), tc.expected.dv.Namespace, tc.expected.dv.Name)
-			assert.Nil(t, err, "mock resource should get from fake controller tracker")
-			actual.dv = dvStored.(*cdiapis.DataVolume)
+		if tc.expected.dvs != nil {
+			for _, dv := range tc.expected.dvs {
+				var dvStored, err = clientset.Tracker().Get(cdiapis.SchemeGroupVersion.WithResource("datavolumes"), dv.Namespace, dv.Name)
+				assert.Nil(t, err, "mock resource should get from fake controller tracker")
+				actual.dvs = append(actual.dvs, dvStored.(*cdiapis.DataVolume))
+			}
 		}
 
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
@@ -1961,5 +2197,19 @@ func (c fakeDataVolumeCache) AddIndexer(indexName string, indexer cdictrl.DataVo
 }
 
 func (c fakeDataVolumeCache) GetByIndex(indexName, key string) ([]*cdiapis.DataVolume, error) {
-	panic("implement me")
+	switch indexName {
+	case indexeres.DataVolumeByVMIndex:
+		vmNamespace, _ := ref.Parse(key)
+		dataVolumeList, err := c(vmNamespace).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		var dataVolumes []*cdiapis.DataVolume
+		for _, dataVolume := range dataVolumeList.Items {
+			dataVolumes = append(dataVolumes, &dataVolume)
+		}
+		return dataVolumes, nil
+	default:
+		return nil, nil
+	}
 }
