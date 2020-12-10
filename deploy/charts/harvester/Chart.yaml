@@ -51,6 +51,7 @@ dependencies:
     repository: file://dependency_charts/multus
     condition: multus.enabled
   - name: minio
+    # Note: Update minio image in harvester values.yaml when this version is updated.
     version: 8.0.5
     repository: https://helm.min.io
     condition: minio.enabled

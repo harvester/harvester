@@ -10,6 +10,8 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         zstd \
     && rm -rf /var/lib/apt/lists/*
 
+# install yq
+RUN GO111MODULE=on go get github.com/mikefarah/yq/v3@3.4.1
 # set up helm
 ENV HELM_VERSION v3.4.1
 ENV HELM_URL=https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
