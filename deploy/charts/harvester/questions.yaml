@@ -449,7 +449,7 @@ questions:
         show_if: "minio.enabled=true && minio.persistence.enabled=true"
         required: true
       - variable: minio.persistence.size
-        default: "100Gi"
+        default: "20Gi"
         label: "Storage Size"
         description: "specify the size of persistence volume claim"
         type: "string"
