@@ -8,13 +8,13 @@ import (
 	"strings"
 	"sync"
 
-	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/indexeres"
-	pkguser "github.com/rancher/harvester/pkg/user"
-
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
+
+	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/indexeres"
+	pkguser "github.com/rancher/harvester/pkg/user"
 )
 
 const (
@@ -67,6 +67,25 @@ func (s *userStore) create(request *types.APIRequest, schema *types.APISchema, d
 	}
 
 	return s.Store.Create(request, schema, data)
+}
+
+func (s *userStore) Update(request *types.APIRequest, schema *types.APISchema, data types.APIObject, id string) (types.APIObject, error) {
+	newData := data.Data()
+	passwordPlainText := newData.String(FieldPassword)
+	password, err := pkguser.HashPasswordString(passwordPlainText)
+	if err != nil {
+		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, "Failed to encrypt password")
+	}
+	newData.Set(FieldPassword, password)
+	data.Object = newData
+
+	updated, err := s.Store.Update(request, request.Schema, data, id)
+	if err != nil {
+		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, "Failed to update user, "+err.Error())
+	}
+
+	delete(updated.Data(), "password")
+	return updated, nil
 }
 
 func (s *userStore) Delete(request *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
