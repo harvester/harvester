@@ -164,6 +164,9 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
+  when:
+    instance:
+    - drone-publish.rancher.io
 
 - name: github_binary_release
   image: plugins/github-release
@@ -180,11 +183,10 @@ steps:
   when:
     instance:
     - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event:
-    - tag
+
+trigger:
+  event:
+  - tag
 
 volumes:
 - name: docker
