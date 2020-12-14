@@ -498,3 +498,16 @@ questions:
     group: "Harvester VM Image Storage Gateway Settings"
     show_if: "minio.enabled=false && select_harvester_vm_image_storage_gateway_mode=From-Input"
     required: true
+  #################### Harvester Network & Storage Settings ####################
+  - variable: multus.enabled
+    default: "false"
+    label: "Install Multus"
+    description: "Install multus-cni to support multi-networks plugin"
+    type: "boolean"
+    group: "Network & Storage Settings"
+  - variable: longhorn.enabled
+    default: "false"
+    label: "Install Longhorn"
+    description: "Install Longhorn as the default storage management driver"
+    type: "boolean"
+    group: "Network & Storage Settings"
