@@ -2,14 +2,14 @@ Rancher Harvester
 ========
 [![Build Status](https://drone-publish.rancher.io/api/badges/rancher/harvester/status.svg)](https://drone-publish.rancher.io/rancher/harvester)
 
-Rancher Harvester is an open source Hyper-Converged Infrastructure(HCI) solution based on Kubernetes.
+Rancher Harvester is an open source [hyper-converged infrastructure](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) (HCI) solution based on Kubernetes.
 
 ## Overview
 Harvester makes it easy to get HCI up and running on the bare metal servers. Here are some notable features of the Harvester that currently provided:
 1. VM lifecycle management includes SSH-Key injection, Cloud-init and, graphic and serial port console
 1. Build-in storage management based on [Longhorn](https://longhorn.io/)
 1. Networking management with both overlay management networks and VLAN
-1. Build-in image repository
+1. Built-in image repository
 1. Virtual Machine templates
 
 ## Hardware Requirements
@@ -17,17 +17,17 @@ To get the Harvester server up and running the following minimum hardware requir
 
 | Type | Minimum Requirements |
 |:---|:---|
-| CPU | 4C is required, a minimum of 16C is preferred |
-| Memory | 8G is required, a minimum of 32G is preferred |
-| Disk |  at least 120G is required, 500GB or above is preferred |
-| Network Card | at least 1 Gigabit Ethernet port, for example, Ethernet 1GbE, RJ45  |
-| Network Switch | Equipped with at least 1 Gigabit switch, 10 Gigabit switch is recommended(Will need to enabling trunking of port for VLAN support) |
+| CPU | 4 cores required, a minimum of 16 cores is preferred |
+| Memory | 8 GB is required, a minimum of 32 GB is preferred |
+| Disk |  at least 120 GB is required, 500 GB or above is preferred |
+| Network Card | at least 1 GB Ethernet port, for example, Ethernet 1GbE, RJ45  |
+| Network Switch | Equipped with at least 1 GB switch, 10 GB switch is recommended (Will need to enabling trunking of port for VLAN support) |
 
 ## Installation
 Harvester supports two modes of installation:
 
 ### Bare-metal
-In the `Bare-metal` mode, users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster. A standalone Harvester node can still allow user to create and manage the virtual machines.
+In the `Bare-metal` mode, users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster. A standalone Harvester node can still allow users to create and manage the virtual machines.
 
 You can find the Harvester [ISO image](https://github.com/rancher/harvester/releases) from the Github releases.
 
@@ -45,7 +45,7 @@ Please refer to the docs [here](./docs).
 
 
 ## Source code
-Harvester is 100% open-source software. Project source code is spread across a number of repos:
+Harvester is 100% open-source software. The project source code is spread across a number of repos:
 
 | Name | Repo Address |
 |:---|:---|
