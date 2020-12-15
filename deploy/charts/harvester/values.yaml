@@ -250,7 +250,7 @@ containers:
 
     ## Define the authentication mode, currently only kubernetesCredentials and localUser are supported,
     ## could config more than one mode, separated by comma
-    authMode: "localUser,kubernetesCredentials"
+    authMode: "localUser"
 
     ## Specify the command.
     ##
@@ -446,6 +446,8 @@ longhorn:
   ## Specify whether to install longhorn,
   ## defaults to "false", this will be enabled in ISO mode installation.
   enabled: false
+
+  createNamespace: true
 
   ## Specify the namespace to install longhorn.
   namespaceOverride: longhorn-system

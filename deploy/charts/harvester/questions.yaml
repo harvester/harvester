@@ -8,96 +8,96 @@ questions:
 #################### Harvester Advanced Options ####################
 ###
 #################### Harvester Image Settings ####################
-  - variable: containers.apiserver.image.repository
-    default: "rancher/harvester"
-    label: "Image"
-    description: "specify the repository of harvester image"
-    type: "string"
-    group: "Harvester Settings"
-  - variable: containers.apiserver.image.tag
-    default: "v0.1.0-rc2"
-    label: "Image Tag"
-    description: "specify the tag of harvester image"
-    type: "string"
-    group: "Harvester Settings"
-  - variable: harvester-network-controller.image.repository
-    default: "rancher/harvester-network-controller"
-    label: "Image"
-    description: "specify the repository of harvester-network-controller image"
-    type: "string"
-    group: "Harvester Settings"
-  - variable: harvester-network-controller.image.tag
-    default: "v0.1.0"
-    label: "Image Tag"
-    description: "specify the tag of harvester-network-controller image"
-    type: "string"
-    group: "Harvester Settings"
-  #################### Harvester Resource Settings ####################
-  - variable: containers.apiserver.resources.requests.cpu
-    default: "250m"
-    label: "CPU Request"
-    description: "specify the request of CPU resource"
-    type: "string"
-    group: "Harvester Settings"
-  - variable: containers.apiserver.resources.requests.memory
-    default: "256Mi"
-    label: "Memory Request"
-    description: "specify the request of memory resource"
-    type: "string"
-    group: "Harvester Settings"
-  - variable: containers.apiserver.resources.limits.cpu
-    default: "500m"
-    label: "CPU Limit"
-    description: "specify the limit of CPU resource"
-    type: "string"
-    group: "Harvester Settings"
-  - variable: containers.apiserver.resources.limits.memory
-    default: "512Mi"
-    label: "Memory Limit"
-    description: "specify the limit of memory resource"
-    type: "string"
-    group: "Harvester Settings"
-  #################### Harvester Service Settings ####################
-  - variable: service.harvester.asClusterService
-    default: "true"
-    label: "Access From Rancher Proxy"
-    description: "specify as cluster service, and then can be accessed from the rancher proxy"
+  - variable: show_harvester_advance_options
+    default: "false"
+    label: "Show Harvester Advanced Options"
     type: "boolean"
+    show_subquestion_if: true
     group: "Harvester Settings"
-  - variable: service.harvester.type
-    default: "ClusterIP"
-    label: "Service Type"
-    description: "specify the type of service"
-    type: "enum"
-    options:
-      - ClusterIP
-      - NodePort
-      - LoadBalancer
-    group: "Harvester Settings"
-  - variable: service.harvester.httpsPort
-    default: "8443"
-    label: "Service HTTPS Port"
-    description: "specify the port of HTTPS endpoint"
-    type: "int"
-    min: 1
-    group: "Harvester Settings"
-  - variable: service.harvester.httpPort
-    default: "0"
-    label: "Service HTTP Port"
-    description: "specify the port of HTTP endpoint, this port will be closed if set to 0"
-    type: "int"
-    min: 0
-    group: "Harvester Settings"
-  - variable: containers.apiserver.authMode
-    default: "localUser,kubernetesCredentials"
-    label: "Authentication Mode"
-    description: "specify the the authentication mode"
-    type: "enum"
-    options:
-      - localUser
-      - kubernetesCredentials
-      - localUser,kubernetesCredentials
-    group: "Harvester Settings"
+    subquestions:
+    - variable: containers.apiserver.image.repository
+      default: "rancher/harvester"
+      label: "Image"
+      description: "specify the repository of harvester image"
+      type: "string"
+      group: "Harvester Settings"
+    - variable: containers.apiserver.image.tag
+      default: "v0.1.0-rc2"
+      label: "Image Tag"
+      description: "specify the tag of harvester image"
+      type: "string"
+      group: "Harvester Settings"
+    - variable: harvester-network-controller.image.repository
+      default: "rancher/harvester-network-controller"
+      label: "Image"
+      description: "specify the repository of harvester-network-controller image"
+      type: "string"
+      group: "Harvester Settings"
+    - variable: harvester-network-controller.image.tag
+      default: "v0.1.0"
+      label: "Image Tag"
+      description: "specify the tag of harvester-network-controller image"
+      type: "string"
+      group: "Harvester Settings"
+    #################### Harvester Resource Settings ####################
+    - variable: containers.apiserver.resources.requests.cpu
+      default: "250m"
+      label: "CPU Request"
+      description: "specify the request of CPU resource"
+      type: "string"
+      group: "Harvester Settings"
+    - variable: containers.apiserver.resources.requests.memory
+      default: "256Mi"
+      label: "Memory Request"
+      description: "specify the request of memory resource"
+      type: "string"
+      group: "Harvester Settings"
+    - variable: containers.apiserver.resources.limits.cpu
+      default: "500m"
+      label: "CPU Limit"
+      description: "specify the limit of CPU resource"
+      type: "string"
+      group: "Harvester Settings"
+    - variable: containers.apiserver.resources.limits.memory
+      default: "512Mi"
+      label: "Memory Limit"
+      description: "specify the limit of memory resource"
+      type: "string"
+      group: "Harvester Settings"
+    #################### Harvester Service Settings ####################
+    - variable: service.harvester.asClusterService
+      default: "true"
+      label: "Access From Rancher Proxy"
+      description: "specify as cluster service, and then can be accessed from the rancher proxy"
+      type: "boolean"
+      group: "Harvester Settings"
+    - variable: service.harvester.type
+      default: "ClusterIP"
+      label: "Service Type"
+      description: "specify the type of service"
+      type: "enum"
+      options:
+        - ClusterIP
+        - NodePort
+        - LoadBalancer
+      group: "Harvester Settings"
+    - variable: service.harvester.httpsPort
+      default: "8443"
+      label: "Service HTTPS Port"
+      description: "specify the port of HTTPS endpoint"
+      type: "int"
+      min: 1
+      group: "Harvester Settings"
+    - variable: containers.apiserver.authMode
+      default: "localUser"
+      label: "Authentication Mode"
+      description: "specify the the authentication mode"
+      type: "enum"
+      options:
+        - localUser
+        - kubernetesCredentials
+        - localUser,kubernetesCredentials
+      group: "Harvester Settings"
 
 ###
 #################### Harvester Cleanup Job Options ####################
@@ -350,17 +350,11 @@ questions:
 ###
 #################### Minio Advanced Options ####################
 ###
-  - variable: minio.enabled
-    default: "true"
-    label: "Install Minio"
-    type: "boolean"
-    group: "Minio Settings"
   - variable: show_minio_advance_options
     default: "false"
     label: "Show Advanced Options"
     type: "boolean"
     show_subquestion_if: true
-    show_if: "minio.enabled=true"
     group: "Minio Settings"
     subquestions:
       #################### Minio Image Settings ####################
@@ -370,14 +364,12 @@ questions:
         description: "specify the repository of minio image"
         type: "string"
         group: "Minio Settings"
-        show_if: "minio.enabled=true"
       - variable: minio.image.tag
         default: "RELEASE.2020-11-19T23-48-16Z"
         label: "Minio Image Tag"
         description: "specify the tag of minio image"
         type: "string"
         group: "Minio Settings"
-        show_if: "minio.enabled=true"
       #################### Minio Resource Settings ####################
       - variable: minio.resources.requests.cpu
         default: "250m"
@@ -385,28 +377,24 @@ questions:
         description: "specify the request of CPU resource"
         type: "string"
         group: "Minio Settings"
-        show_if: "minio.enabled=true"
       - variable: minio.resources.requests.memory
         default: "256Mi"
         label: "Minio Memory Request"
         description: "specify the request of memory resource"
         type: "string"
         group: "Minio Settings"
-        show_if: "minio.enabled=true"
       - variable: minio.resources.limits.cpu
         default: "500m"
         label: "Minio CPU Limit"
         description: "specify the limit of CPU resource"
         type: "string"
         group: "Minio Settings"
-        show_if: "minio.enabled=true"
       - variable: minio.resources.limits.memory
         default: "512Mi"
         label: "Minio Memory Limit"
         description: "specify the limit of memory resource"
         type: "string"
         group: "Minio Settings"
-        show_if: "minio.enabled=true"
       #################### Minio Account Settings ####################
       - variable: minio.accessKey
         default: "YOURACCESSKEY"
@@ -414,14 +402,12 @@ questions:
         description: "specify the access key, the value will be stored in 'accesskey' field of a specified secret"
         type: "string"
         group: "Minio Settings"
-        show_if: "minio.enabled=true"
       - variable: minio.secretKey
         default: "YOURSECRETKEY"
         label: "Minio Secret Key"
         description: "specify the secret key, the value will be stored in 'secretkey' field of a specified secret"
         type: "string"
         group: "Minio Settings"
-        show_if: "minio.enabled=true"
       #################### Minio Storage Settings ####################
       - variable: minio.mode
         default: "distributed"
@@ -432,29 +418,26 @@ questions:
           - "standalone"
           - "distributed"
         group: "Minio Settings"
-        show_if: "minio.enabled=true"
       - variable: minio.persistence.enabled
         default: "true"
         label: "Use Storage"
         description: "specify whether uses persistence volume"
         type: "boolean"
         group: "Minio Settings"
-        show_if: "minio.enabled=true"
       - variable: minio.persistence.storageClass
         default: ""
         label: "Storage Class"
         description: "specify the storage class of persistence volume claim, use default if blank"
         type: "storageclass"
         group: "Minio Settings"
-        show_if: "minio.enabled=true && minio.persistence.enabled=true"
-        required: true
+        show_if: "minio.persistence.enabled=true && longhorn.enabled=false"
       - variable: minio.persistence.size
         default: "20Gi"
         label: "Storage Size"
         description: "specify the size of persistence volume claim"
         type: "string"
         group: "Minio Settings"
-        show_if: "minio.enabled=true && minio.persistence.enabled=true"
+        show_if: "minio.persistence.enabled=true"
   #################### Harvester VM Image Storage Gateway Settings ####################
   - variable: containers.apiserver.vmImageStorageGateway.endpoint
     default: ""
@@ -498,16 +481,23 @@ questions:
     group: "Harvester VM Image Storage Gateway Settings"
     show_if: "minio.enabled=false && select_harvester_vm_image_storage_gateway_mode=From-Input"
     required: true
-  #################### Harvester Network & Storage Settings ####################
-  - variable: multus.enabled
-    default: "false"
-    label: "Install Multus"
-    description: "Install multus-cni to support multi-networks plugin"
-    type: "boolean"
-    group: "Network & Storage Settings"
+  #################### Harvester Storage Settings ####################
   - variable: longhorn.enabled
-    default: "false"
+    default: "true"
     label: "Install Longhorn"
     description: "Install Longhorn as the default storage management driver"
     type: "boolean"
-    group: "Network & Storage Settings"
+    group: "Storage Settings"
+    show_subquestion_if: true
+    subquestions:
+    - variable: longhorn.createNamespace
+      default: "true"
+      label: "Create longhorn-system namespace"
+      description: "Specify to create the longhorn-system namespace"
+      type: "boolean"
+    - variable: minio.persistence.storageClass
+      default: "longhorn"
+      label: "Storage Class"
+      description: "specify the storage class of minio"
+      type: "string"
+      show_if: "longhorn.enabled=true"
