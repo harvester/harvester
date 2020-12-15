@@ -453,6 +453,3 @@ longhorn:
   csi:
     ## Specify the kubelet root directory.
     kubeletRootDir: /var/lib/kubelet
-
-  persistence:
-    defaultClassReplicaCount: 1
