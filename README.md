@@ -2,7 +2,7 @@ Rancher Harvester
 ========
 [![Build Status](https://drone-publish.rancher.io/api/badges/rancher/harvester/status.svg)](https://drone-publish.rancher.io/rancher/harvester)
 
-Rancher Harvester is an open source [hyper-converged infrastructure](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) (HCI) solution based on Kubernetes.
+Rancher Harvester is an open source [hyper-converged infrastructure](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) (HCI) solution based on Kubernetes. It is an on-prem cloud computing virtualization platform.
 
 ## Overview
 Harvester makes it easy to get HCI up and running on the bare metal servers. Here are some notable features of the Harvester that currently provided:
@@ -11,6 +11,8 @@ Harvester makes it easy to get HCI up and running on the bare metal servers. Her
 1. Networking management with both overlay management networks and VLAN
 1. Built-in image repository
 1. Virtual Machine templates
+
+Check out this [demo](https://vimeo.com/489756753) to get a quick overview of the Harvester UI.
 
 ## Hardware Requirements
 To get the Harvester server up and running the following minimum hardware requirements are required:
