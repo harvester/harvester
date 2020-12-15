@@ -430,7 +430,7 @@ questions:
         description: "specify the storage class of persistence volume claim, use default if blank"
         type: "storageclass"
         group: "Minio Settings"
-        show_if: "minio.persistence.enabled=true"
+        show_if: "minio.persistence.enabled=true && longhorn.enabled=false"
       - variable: minio.persistence.size
         default: "20Gi"
         label: "Storage Size"
@@ -481,15 +481,9 @@ questions:
     group: "Harvester VM Image Storage Gateway Settings"
     show_if: "minio.enabled=false && select_harvester_vm_image_storage_gateway_mode=From-Input"
     required: true
-  #################### Harvester Network & Storage Settings ####################
-  - variable: multus.enabled
-    default: "false"
-    label: "Install Multus"
-    description: "Install multus-cni to support multi-networks plugin"
-    type: "boolean"
-    group: "Network & Storage Settings"
+  #################### Harvester Storage Settings ####################
   - variable: longhorn.enabled
-    default: "false"
+    default: "true"
     label: "Install Longhorn"
     description: "Install Longhorn as the default storage management driver"
     type: "boolean"
