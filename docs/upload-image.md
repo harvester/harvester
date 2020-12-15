@@ -1,9 +1,9 @@
-# Upload Image
+# Upload Images
 
-Users can upload the virtual machine image in the `Images` page
+To upload virtual machine images in the **Images** page, enter a URL that can be accessed from the cluster. Note: The image name will be auto-filled using the URL address's filename. You can always customize it when required.
 
-1. Enter an URL that can be accessed from the cluster, currently, we do support qcow2, raw, and ISO images.
-1. The image name will be auto-filled using the URL address's filename, you can always customize it when required.
-1. Description and labels are optional to add.
+Currently, we support qcow2, raw, and ISO images.
+
+Description and labels are optional to add.
 
 ![](./assets/upload-image.png)
