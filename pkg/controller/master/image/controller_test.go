@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
 	typesv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
 	ctrlapis "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
@@ -133,6 +134,159 @@ func TestImageHandler_OnChanged(t *testing.T) {
 				actual.image.Status.Conditions[i].LastTransitionTime = ""
 			}
 		}
+
+		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
+	}
+}
+
+func TestImageHandler_OnRemoved(t *testing.T) {
+	type input struct {
+		key   string
+		image *v1alpha1.VirtualMachineImage
+	}
+	type output struct {
+		image     *v1alpha1.VirtualMachineImage
+		returnErr bool
+	}
+	var testCases = []struct {
+		name     string
+		given    input
+		expected output
+	}{
+		{
+			name: "nil resource",
+			given: input{
+				key:   "",
+				image: nil,
+			},
+			expected: output{
+				image:     nil,
+				returnErr: false,
+			},
+		},
+		{
+			name: "image is removed",
+			given: input{
+				key: "image name",
+				image: &v1alpha1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:         "default",
+						Name:              "test",
+						DeletionTimestamp: &metav1.Time{},
+					},
+					Spec: v1alpha1.VirtualMachineImageSpec{
+						DisplayName: "display-test",
+						URL:         "https://test.com",
+					},
+					Status: v1alpha1.VirtualMachineImageStatus{
+						AppliedURL: "",
+						Progress:   0,
+						Conditions: []v1alpha1.Condition{
+							{
+								Type:    v1alpha1.ImageImported,
+								Status:  corev1.ConditionFalse,
+								Message: "import failed",
+							},
+						},
+					},
+				},
+			},
+			expected: output{
+				image: &v1alpha1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:         "default",
+						Name:              "test",
+						DeletionTimestamp: &metav1.Time{},
+					},
+					Spec: v1alpha1.VirtualMachineImageSpec{
+						DisplayName: "display-test",
+						URL:         "https://test.com",
+					},
+					Status: v1alpha1.VirtualMachineImageStatus{
+						AppliedURL: "",
+						Progress:   0,
+						Conditions: []v1alpha1.Condition{
+							{
+								Type:    v1alpha1.ImageImported,
+								Status:  corev1.ConditionFalse,
+								Message: "import failed",
+							},
+						},
+					},
+				},
+				returnErr: false,
+			},
+		},
+		{
+			name: "failed to clean up image",
+			given: input{
+				key: "image name",
+				image: &v1alpha1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:         "default",
+						Name:              "test",
+						DeletionTimestamp: &metav1.Time{},
+					},
+					Spec: v1alpha1.VirtualMachineImageSpec{
+						DisplayName: "display-test",
+						URL:         "https://test.com",
+					},
+					Status: v1alpha1.VirtualMachineImageStatus{
+						AppliedURL: "https://test.com",
+						Progress:   100,
+						Conditions: []v1alpha1.Condition{
+							{
+								Type:    v1alpha1.ImageImported,
+								Status:  corev1.ConditionTrue,
+								Message: "imported",
+							},
+						},
+					},
+				},
+			},
+			expected: output{
+				image: &v1alpha1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:         "default",
+						Name:              "test",
+						DeletionTimestamp: &metav1.Time{},
+					},
+					Spec: v1alpha1.VirtualMachineImageSpec{
+						DisplayName: "display-test",
+						URL:         "https://test.com",
+					},
+					Status: v1alpha1.VirtualMachineImageStatus{
+						AppliedURL: "https://test.com",
+						Progress:   100,
+						Conditions: []v1alpha1.Condition{
+							{
+								Type:    v1alpha1.ImageImported,
+								Status:  corev1.ConditionTrue,
+								Message: "imported",
+							},
+						},
+					},
+				},
+				returnErr: true,
+			},
+		},
+	}
+	config.ImageStorageEndpoint = "https://invalid-s3.com"
+	for _, tc := range testCases {
+		var clientset = fake.NewSimpleClientset()
+		if tc.given.image != nil {
+			err := clientset.Tracker().Add(tc.given.image)
+			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+		}
+
+		var handler = &Handler{
+			images:     fakeVirtualMachineImageClient(clientset.HarvesterV1alpha1().VirtualMachineImages),
+			imageCache: fakeVirtualMachineImageCache(clientset.HarvesterV1alpha1().VirtualMachineImages),
+		}
+		var actual output
+		var err error
+		actual.image, err = handler.OnImageRemove(tc.given.key, tc.given.image)
+		actual.returnErr = err != nil
 
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
 	}
