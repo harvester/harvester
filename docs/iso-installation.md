@@ -3,6 +3,7 @@
 Users can download the Harvester [ISO](https://github.com/rancher/harvester/releases) from the Github releases, during installation you can either choose to form a new cluster or join the existing cluster.
 
 1. Mount the Harvester ISO disk and boot the server by selecting the `Harvester Installer`.
+![iso-install.png](./assets/iso-install.png)
 1. Choose the installation mode by either creating a new harvester cluster or join an existing one.
 1. Choose the installation device that the Harvester will be formatted to.
 1. Configure the `cluster token`, the token will be used for adding other nodes to the cluster.
@@ -12,11 +13,7 @@ Users can download the Harvester [ISO](https://github.com/rancher/harvester/rele
 1. (Optional) If you need to use an HTTP proxy to access the outside world, enter the proxy URL address here, otherwise, leave this blank.
 1. (Optional) If you need to customize the host with cloud-init config, enter the HTTP URL here.
 1. Confirm the installation options and the Harvester will be installed to your host, the installation may take a few minutes to be complete.
-1. Once the installation is complete it will restart the host and a console UI with management URL and status will be displayed.
-
-
-Harvester Installer
-![iso-install.png](./assets/iso-install.png)
-
-Harvester Console UI (You can Use F12 to switch between Harvester console and the Shell)
+1. Once the installation is complete it will restart the host and a console UI with management URL and status will be displayed. <small>(You can Use F12 to switch between Harvester console and the Shell)</small>
 ![iso-installed.png](./assets/iso-installed.png)
+
+Note: you can check this [video](https://vimeo.com/489756858) to get a quick overview of the ISO installation.
