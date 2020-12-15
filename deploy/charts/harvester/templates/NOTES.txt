@@ -5,6 +5,8 @@ The Harvester has been installed into "{{ .Release.Namespace }}" namespace with 
 - {{ if eq ( include "conditions.is_cdi_operator_enabled" . ) "true" }}[x]{{ else }}[ ]{{ end }} KubeVirt Containerized Data Importer Operator
 - {{ if eq ( include "conditions.is_cdi_enabled" . ) "true" }}[x]{{ else }}[ ]{{ end }} KubeVirt Containerized Data Importer(CDI) Resource named "cdi"
 - {{ if .Values.minio.enabled }}[x]{{ else }}[ ]{{ end }} Minio
+- {{ if .Values.longhorn.enabled }}[x]{{ else }}[ ]{{ end }} Longhorn
+- {{ if .Values.multus.enabled }}[x]{{ else }}[ ]{{ end }} Multus-cni
 
 Please make sure there is a default StorageClass in the Kubernetes cluster.
 
