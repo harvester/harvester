@@ -12,12 +12,36 @@ This chart will do the following:
 - Deploy a CDI CRD resource to enable KubeVirt Containerized Data Importer(CDI) if needed, default to deploy.
 - Deploy a Minio as virtual machine image storage if needed, defaults to deploy.
 - Deploy the Harvester resources.
+- Longhorn as build-in storage management(enable by set `longhorn.enabled=true` in the helm install).
+- [Multus-CNI](https://github.com/intel/multus-cni) as default multi networks management solution(enable by set `multus.enabled=true` in the helm install).
 
 ### Prerequisites
 
 - Kubernetes 1.16+.
 - Helm 3.2+.
-- **Default** [StorageClass](https://v1-16.docs.kubernetes.io/docs/concepts/storage/storage-classes/).
+- **Default** [StorageClass](https://v1-16.docs.kubernetes.io/docs/concepts/storage/storage-classes/) if the Longhorn in Harvester is disabled.
+
+### Installing the Chart
+
+To install the chart with the release name `harvester`.
+
+```bash
+## create target namespace
+$ kubectl create ns harvester-system
+
+## install chart to target namespace
+$ helm install harvester harvester --namespace harvester-system \
+    --set longhorn.enabled=true,minio.persistence.storageClass=longhorn,service.harvester.type=NodePort
+```
+
+### Uninstalling the Chart
+
+To uninstall/delete the `harvester` release.
+
+```bash
+## uninstall chart from target namespace
+$ helm uninstall harvester --namespace harvester-system
+```
 
 #### Notes
 
@@ -35,27 +59,6 @@ This chart will do the following:
 - Change the default StorageClass.
     
     By default, the default StorageClass is required for both the Minio and [`DataVolume`](https://github.com/kubevirt/containerized-data-importer#datavolumes). You can follow the [official document](https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/) to change the default StorageClass of Kubernetes cluster.
-
-### Installing the Chart
-
-To install the chart with the release name `harvester`.
-
-```bash
-$ # create target namespace
-$ kubectl create ns harvester-system
-
-$ # install chart to target namespace
-$ helm install harvester harvester --namespace harvester-system
-```
-
-### Uninstalling the Chart
-
-To uninstall/delete the `harvester` release.
-
-```bash
-$ # uninstall chart from target namespace
-$ helm uninstall harvester --namespace harvester-system
-```
 
 ### Configuration
 
