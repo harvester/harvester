@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "multus.name" . }}-ds-amd64-pre-delete
+  namespace: kube-system
+  labels:
+  {{- include "multus.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  selector:
+    matchLabels:
+  {{- include "multus.selectorLabels" . | nindent 6 }}
+      job: pre-delete
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+    {{- include "multus.selectorLabels" . | nindent 8 }}
+        job: pre-delete
+    spec:
+      hostNetwork: true
+      serviceAccountName: {{ include "multus.name" . }}
+      containers:
+        - name: kube-multus
+          image: {{ .Values.global.kubectl.image.repository }}:{{ .Values.global.kubectl.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - "/bin/bash"
+          args:
+            - "-c"
+            - "rm -rf /var/lib/rancher/k3s/agent/etc/cni/net.d/00-multus.conf"
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: cni
+              mountPath: /host/etc/cni/net.d
+      volumes:
+        - name: cni
+          hostPath:
+            path: {{ .Values.hostPath.cniConfDir }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

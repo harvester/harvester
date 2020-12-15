@@ -1,0 +1,6 @@
+{{- if and .Values.longhorn.enabled .Values.longhorn.createNamespace -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.longhorn.namespaceOverride }}
+{{- end -}}
