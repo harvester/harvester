@@ -96,8 +96,14 @@ func (h *Handler) OnImageChanged(key string, image *apisv1alpha1.VirtualMachineI
 }
 
 func (h *Handler) OnImageRemove(key string, image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
-	logrus.Debugf("removing image %s in minio", image.Name)
+	if image == nil {
+		return nil, nil
+	}
 	cleanUpImport(image.Name, image.Status.AppliedURL)
+	if !apisv1alpha1.ImageImported.IsTrue(image) {
+		return image, nil
+	}
+	logrus.Debugf("removing image %s in minio", image.Name)
 	return image, removeImageFromStorage(image)
 }
 
