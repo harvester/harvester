@@ -268,6 +268,7 @@ spec:
           name: rootdisk
         - containerDisk:
             image: kubevirt/virtio-container-disk
+            imagePullPolicy: IfNotPresent
           name: virtio-container-disk
     dataVolumeTemplates:
     - metadata:
