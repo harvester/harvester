@@ -17,7 +17,7 @@ or hang out with our developers on either our [Slack](https://slack.rancher.io/)
 - Installation
   * [ISO Mode](./iso-installation.md)
   * [App Mode - for development](./app-mode-installation.md)
-- Demo: Check out this [demo](https://vimeo.com/489756753) to get a quick overview of the Harvester UI.
+- Demo: Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
 - [Authentication](./authentication.md)
 - [Upload Images](./upload-image.md)
 - VM Management
