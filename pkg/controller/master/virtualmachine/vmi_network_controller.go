@@ -1,10 +1,10 @@
 package virtualmachine
 
 import (
-	vmv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
-
 	"github.com/sirupsen/logrus"
 	"kubevirt.io/client-go/api/v1alpha3"
+
+	vmv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
 )
 
 type VMNetworkController struct {

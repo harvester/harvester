@@ -3,13 +3,13 @@ package server
 import (
 	"net/http"
 
-	"github.com/rancher/harvester/pkg/api/auth"
-	"github.com/rancher/harvester/pkg/config"
-
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
 	"github.com/rancher/steve/pkg/server/router"
 	"k8s.io/client-go/rest"
+
+	"github.com/rancher/harvester/pkg/api/auth"
+	"github.com/rancher/harvester/pkg/config"
 )
 
 type Router struct {

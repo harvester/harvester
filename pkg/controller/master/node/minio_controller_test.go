@@ -349,13 +349,13 @@ func (c fakePodCache) Get(namespace, name string) (*corev1.Pod, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 func (c fakePodCache) List(namespace string, selector labels.Selector) ([]*corev1.Pod, error) {
-	var result []*corev1.Pod
 	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: selector.String(),
 	})
 	if err != nil {
 		return nil, err
 	}
+	result := make([]*corev1.Pod, 0, len(list.Items))
 	for _, pod := range list.Items {
 		result = append(result, &pod)
 	}

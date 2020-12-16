@@ -11,25 +11,23 @@ import (
 
 func ModeHandler(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		rw.WriteHeader(http.StatusMethodNotAllowed)
-		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{"Only GET method is supported"}}))
+		responseError(rw, http.StatusMethodNotAllowed, "Only GET method is supported")
 		return
 	}
 
 	body, err := json.Marshal(v1alpha1.AuthenticationModesResponse{Modes: authModes()})
 	if err != nil {
-		rw.WriteHeader(http.StatusInternalServerError)
-		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{"Failed to encode authenticationModes, " + err.Error()}}))
+		responseError(rw, http.StatusInternalServerError, "Failed to encode authenticationModes, "+err.Error())
 		return
 	}
 
 	rw.Header().Set("Content-type", "application/json")
-	rw.Write(body)
+	_, _ = rw.Write(body)
 }
 
 func authModes() []v1alpha1.AuthenticationMode {
-	var modes []v1alpha1.AuthenticationMode
 	ms := strings.Split(settings.AuthenticationMode.Get(), ",")
+	modes := make([]v1alpha1.AuthenticationMode, 0, len(ms))
 	for _, v := range ms {
 		modes = append(modes, v1alpha1.AuthenticationMode(strings.TrimSpace(v)))
 	}

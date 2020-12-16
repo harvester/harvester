@@ -1,18 +1,18 @@
 package auth
 
 import (
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/config"
-	pkguser "github.com/rancher/harvester/pkg/user"
-
 	"github.com/pkg/errors"
-	"github.com/rancher/harvester/pkg/settings"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/settings"
+	pkguser "github.com/rancher/harvester/pkg/user"
 )
 
 const (

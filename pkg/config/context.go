@@ -21,8 +21,7 @@ import (
 )
 
 type (
-	_scaledKey     struct{}
-	_managementKey struct{}
+	_scaledKey struct{}
 )
 
 var (

@@ -7,17 +7,17 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/rancher/apiserver/pkg/apierror"
-	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
-	"github.com/rancher/wrangler/pkg/schemas/validation"
-	"github.com/rancher/wrangler/pkg/slice"
-
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+	"github.com/rancher/apiserver/pkg/apierror"
+	"github.com/rancher/wrangler/pkg/schemas/validation"
+	"github.com/rancher/wrangler/pkg/slice"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
 	v1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+
+	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
 )
 
 const (
@@ -37,15 +37,15 @@ type vmActionHandler struct {
 
 func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err := h.doAction(rw, req); err != nil {
+		status := http.StatusInternalServerError
 		if e, ok := err.(*apierror.APIError); ok {
-			rw.WriteHeader(e.Code.Status)
-		} else {
-			rw.WriteHeader(http.StatusInternalServerError)
+			status = e.Code.Status
 		}
-		rw.Write([]byte(err.Error()))
-	} else {
-		rw.WriteHeader(http.StatusNoContent)
+		rw.WriteHeader(status)
+		_, _ = rw.Write([]byte(err.Error()))
+		return
 	}
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) error {
@@ -110,7 +110,7 @@ func (h *vmActionHandler) subresourceOperate(ctx context.Context, resource, name
 }
 
 func ejectCdRomFromVM(vm *v1alpha3.VirtualMachine, diskNames []string) error {
-	var disks []v1alpha3.Disk
+	disks := make([]v1alpha3.Disk, 0, len(vm.Spec.Template.Spec.Domain.Devices.Disks))
 	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
 		if slice.ContainsString(diskNames, disk.Name) {
 			if disk.CDRom == nil {
@@ -121,8 +121,8 @@ func ejectCdRomFromVM(vm *v1alpha3.VirtualMachine, diskNames []string) error {
 		disks = append(disks, disk)
 	}
 
-	var volumes []v1alpha3.Volume
-	var ejectedVolumeNames []string
+	volumes := make([]v1alpha3.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
+	ejectedVolumeNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
 	for _, vol := range vm.Spec.Template.Spec.Volumes {
 		if vol.VolumeSource.DataVolume != nil && slice.ContainsString(diskNames, vol.Name) {
 			ejectedVolumeNames = append(ejectedVolumeNames, vol.VolumeSource.DataVolume.Name)
@@ -131,7 +131,7 @@ func ejectCdRomFromVM(vm *v1alpha3.VirtualMachine, diskNames []string) error {
 		volumes = append(volumes, vol)
 	}
 
-	var dvs []v1alpha3.DataVolumeTemplateSpec
+	dvs := make([]v1alpha3.DataVolumeTemplateSpec, 0, len(vm.Spec.DataVolumeTemplates))
 	for _, v := range vm.Spec.DataVolumeTemplates {
 		if slice.ContainsString(ejectedVolumeNames, v.Name) {
 			continue

@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/config"
-
 	dashboardauthapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/rancher/harvester/pkg/config"
 )
 
 const (
@@ -30,15 +29,13 @@ type Middleware struct {
 func (h *Middleware) AuthMiddleware(rw http.ResponseWriter, r *http.Request, handler http.Handler) {
 	jweToken, err := extractJWETokenFromRequest(r)
 	if err != nil {
-		rw.WriteHeader(http.StatusUnauthorized)
-		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{err.Error()}}))
+		responseError(rw, http.StatusUnauthorized, err.Error())
 		return
 	}
 
 	userInfo, err := h.getUserInfoFromToken(jweToken)
 	if err != nil {
-		rw.WriteHeader(http.StatusUnauthorized)
-		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{err.Error()}}))
+		responseError(rw, http.StatusUnauthorized, err.Error())
 		return
 	}
 

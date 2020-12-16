@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/sirupsen/logrus"
+
+	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 )
 
 var (

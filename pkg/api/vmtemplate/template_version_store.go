@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/wrangler/pkg/schemas/validation"
+
 	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/ref"
-	"github.com/rancher/wrangler/pkg/schemas/validation"
 )
 
 type templateVersionStore struct {

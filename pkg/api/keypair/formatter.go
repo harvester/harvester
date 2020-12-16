@@ -8,12 +8,13 @@ import (
 
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
-	v1alpha12 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/steve/pkg/resources/common"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	v1alpha12 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -33,15 +34,15 @@ type KeyGenActionHandler struct {
 
 func (h KeyGenActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err := h.do(rw, req); err != nil {
+		status := http.StatusInternalServerError
 		if e, ok := err.(*apierror.APIError); ok {
-			rw.WriteHeader(e.Code.Status)
-		} else {
-			rw.WriteHeader(http.StatusInternalServerError)
+			status = e.Code.Status
 		}
-		rw.Write([]byte(err.Error()))
-	} else {
-		rw.WriteHeader(http.StatusOK)
+		rw.WriteHeader(status)
+		_, _ = rw.Write([]byte(err.Error()))
+		return
 	}
+	rw.WriteHeader(http.StatusOK)
 }
 
 func (h KeyGenActionHandler) do(rw http.ResponseWriter, req *http.Request) error {

@@ -8,11 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/config"
-	ctlalpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/indexeres"
-
 	dashboardauthapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
@@ -23,6 +18,11 @@ import (
 	"k8s.io/client-go/rest"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	kubeconfigutil "k8s.io/kubernetes/cmd/kubeadm/app/util/kubeconfig"
+
+	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/config"
+	ctlalpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/indexeres"
 )
 
 const (
@@ -62,8 +62,7 @@ type LoginHandler struct {
 
 func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		rw.WriteHeader(http.StatusMethodNotAllowed)
-		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{"Only POST method is supported"}}))
+		responseError(rw, http.StatusMethodNotAllowed, "Only POST method is supported")
 		return
 	}
 
@@ -84,37 +83,34 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			Expires:  time.Unix(1, 0), //January 1, 1970 UTC
 		}
 		http.SetCookie(rw, tokenCookie)
-		rw.WriteHeader(http.StatusOK)
+		responseOK(rw)
 		return
 	}
 
 	if action != loginActionName {
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{"Unsupported action"}}))
+		responseError(rw, http.StatusBadRequest, "Unsupported action")
 		return
 	}
 
 	var input v1alpha1.Login
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{"Failed to decode request body, " + err.Error()}}))
+		responseError(rw, http.StatusBadRequest, "Failed to decode request body, "+err.Error())
 		return
 	}
 
 	authMode, err := authenticationModeVerify(&input)
 	if err != nil {
-		rw.WriteHeader(http.StatusUnauthorized)
-		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{err.Error()}}))
+		responseError(rw, http.StatusUnauthorized, err.Error())
+		return
 	}
 
 	tokenResp, err := h.login(&input, authMode)
 	if err != nil {
+		status := http.StatusInternalServerError
 		if e, ok := err.(*apierror.APIError); ok {
-			rw.WriteHeader(e.Code.Status)
-		} else {
-			rw.WriteHeader(http.StatusInternalServerError)
+			status = e.Code.Status
 		}
-		rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{err.Error()}}))
+		responseError(rw, status, err.Error())
 		return
 	}
 
@@ -127,9 +123,7 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(rw, tokenCookie)
-	rw.Header().Set("Content-type", "application/json")
-	rw.WriteHeader(http.StatusOK)
-	rw.Write(responseBody(tokenResp))
+	responseOKWithBody(rw, tokenResp)
 }
 
 func (h *LoginHandler) login(input *v1alpha1.Login, mode v1alpha1.AuthenticationMode) (tokenResp *v1alpha1.TokenResponse, err error) {
@@ -171,7 +165,7 @@ func (h *LoginHandler) userLogin(input *v1alpha1.Login) (*clientcmdapi.AuthInfo,
 	if err != nil {
 		// If the user don't exist the password is evaluated
 		// to avoid user enumeration via timing attack (time based side-channel).
-		bcrypt.CompareHashAndPassword(h.invalidHash, []byte(pwd))
+		_ = bcrypt.CompareHashAndPassword(h.invalidHash, []byte(pwd))
 		return nil, apierror.NewAPIError(validation.Unauthorized, err.Error())
 	}
 
@@ -249,4 +243,19 @@ func responseBody(obj interface{}) []byte {
 		return []byte(`{\"errors\":[\"Failed to parse response body\"]}`)
 	}
 	return respBody
+}
+
+func responseOKWithBody(rw http.ResponseWriter, obj interface{}) {
+	rw.Header().Set("Content-type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	_, _ = rw.Write(responseBody(obj))
+}
+
+func responseOK(rw http.ResponseWriter) {
+	rw.WriteHeader(http.StatusOK)
+}
+
+func responseError(rw http.ResponseWriter, statusCode int, errMsg string) {
+	rw.WriteHeader(http.StatusUnauthorized)
+	_, _ = rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{errMsg}}))
 }

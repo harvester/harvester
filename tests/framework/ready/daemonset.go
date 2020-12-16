@@ -1,12 +1,11 @@
 package ready
 
 import (
+	"github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
 	v1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
 )
 
 func isDaemenSetClean(appsFactory *apps.Factory, namespace, name string) (string, wait.ConditionFunc) {

@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/rancher/steve/pkg/server"
+	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
 	controllers "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/settings"
-	"github.com/rancher/steve/pkg/server"
-	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Register(ctx context.Context, scaled *config.Scaled, server *server.Server) error {

@@ -4,10 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	kubevirttype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
-	kubevirtctrl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
-
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -16,6 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	kubevirtapis "kubevirt.io/client-go/api/v1alpha3"
+
+	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
+	kubevirttype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
+	kubevirtctrl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
 )
 
 func TestMigrateAction(t *testing.T) {
@@ -41,7 +41,7 @@ func TestMigrateAction(t *testing.T) {
 				vmInstance: nil,
 			},
 			expected: output{
-				vmInstanceMigrations: nil,
+				vmInstanceMigrations: []*kubevirtapis.VirtualMachineInstanceMigration{},
 				err:                  apierrors.NewNotFound(kubevirtapis.Resource("virtualmachineinstances"), "test"),
 			},
 		},
@@ -61,7 +61,7 @@ func TestMigrateAction(t *testing.T) {
 				},
 			},
 			expected: output{
-				vmInstanceMigrations: nil,
+				vmInstanceMigrations: []*kubevirtapis.VirtualMachineInstanceMigration{},
 				err:                  errors.New("The VM is not in running state"),
 			},
 		},
@@ -162,7 +162,7 @@ func TestAbortMigrateAction(t *testing.T) {
 				vmInstanceMigration: nil,
 			},
 			expected: output{
-				vmInstanceMigrations: nil,
+				vmInstanceMigrations: []*kubevirtapis.VirtualMachineInstanceMigration{},
 				err:                  errors.New("The VM is not in migrating state"),
 			},
 		},
@@ -247,7 +247,7 @@ func TestAbortMigrateAction(t *testing.T) {
 				},
 			},
 			expected: output{
-				vmInstanceMigrations: nil,
+				vmInstanceMigrations: []*kubevirtapis.VirtualMachineInstanceMigration{},
 				err:                  nil,
 			},
 		},
@@ -347,13 +347,13 @@ func (c fakeVirtualMachineInstanceMigrationCache) Get(namespace, name string) (*
 }
 
 func (c fakeVirtualMachineInstanceMigrationCache) List(namespace string, selector labels.Selector) ([]*kubevirtapis.VirtualMachineInstanceMigration, error) {
-	var result []*kubevirtapis.VirtualMachineInstanceMigration
 	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: selector.String(),
 	})
 	if err != nil {
 		return nil, err
 	}
+	result := make([]*kubevirtapis.VirtualMachineInstanceMigration, 0, len(list.Items))
 	for _, vmim := range list.Items {
 		result = append(result, &vmim)
 	}

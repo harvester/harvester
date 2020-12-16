@@ -9,7 +9,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 

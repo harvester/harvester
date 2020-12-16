@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/rancher/harvester/pkg/ref"
-
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -16,6 +14,7 @@ import (
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
 	cditype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
 	cdiv1beta1 "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
+	"github.com/rancher/harvester/pkg/ref"
 )
 
 func TestDataVolumeDelete(t *testing.T) {

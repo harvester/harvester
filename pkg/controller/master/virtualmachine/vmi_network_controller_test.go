@@ -4,16 +4,16 @@ import (
 	"context"
 	"testing"
 
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	virtualmachinetype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
-	v1alpha3ctl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
-
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"kubevirt.io/client-go/api/v1alpha3"
+
+	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
+	virtualmachinetype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
+	v1alpha3ctl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
 )
 
 func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
