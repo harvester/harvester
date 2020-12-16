@@ -26,6 +26,9 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             privileged: true
+          volumeMounts:
+          - mountPath: /var/run/dbus
+            name: dbus
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
@@ -40,3 +43,7 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+      - hostPath:
+          path: /var/run/dbus
+        name: dbus
