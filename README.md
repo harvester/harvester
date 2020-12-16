@@ -7,7 +7,7 @@ Rancher Harvester is an open source [hyper-converged infrastructure](https://en.
 ## Overview
 Harvester makes it easy to get HCI up and running on the bare metal servers. Here are some notable features of the Harvester that currently provided:
 1. VM lifecycle management includes SSH-Key injection, Cloud-init and, graphic and serial port console
-1. Build-in storage management based on [Longhorn](https://longhorn.io/)
+1. Built-in highly available storage management
 1. Networking management with both overlay management networks and VLAN
 1. Built-in image repository
 1. Virtual Machine templates
@@ -22,8 +22,8 @@ To get the Harvester server up and running the following minimum hardware requir
 | CPU | 4 cores required, a minimum of 16 cores is preferred |
 | Memory | 8 GB is required, a minimum of 32 GB is preferred |
 | Disk |  at least 120 GB is required, 500 GB or above is preferred |
-| Network Card | at least 1 GB Ethernet port, for example, Ethernet 1GbE, RJ45  |
-| Network Switch | Equipped with at least 1 GB switch, 10 GB switch is recommended (Will need to enabling trunking of port for VLAN support) |
+| Network Card | at least 10 Gbps Ethernet |
+| Network Switch | Equipped with at least 10 Gbps switch (require trunking of port for VLAN support) |
 
 ## Installation
 Harvester supports two modes of installation:
