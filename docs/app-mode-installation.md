@@ -2,7 +2,7 @@
 
 App mode is intended to be used for testing and development purposes.
 
-Note: This [video](https://vimeo.com/491085524) shows the App mode installation.
+Note: This [video](https://youtu.be/TG0GaAD_6J4) shows the App mode installation.
 
 ## Requirements
 

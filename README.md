@@ -12,7 +12,7 @@ Harvester makes it easy to get HCI up and running on the bare metal servers. Her
 1. Built-in image repository
 1. Virtual Machine templates
 
-Check out this [demo](https://vimeo.com/489756753) to get a quick overview of the Harvester UI.
+Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
 
 ## Hardware Requirements
 To get the Harvester server up and running the following minimum hardware requirements are required:
