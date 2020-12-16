@@ -4,7 +4,7 @@ To get the Harvester ISO, download it from the [Github releases.](https://github
 
 During installation you can either choose to form a new cluster, or join the node to an existing cluster.
 
-Note: This [video](https://vimeo.com/489756858) shows a quick overview of the ISO installation.
+Note: This [video](https://youtu.be/97ADieBX6bE) shows a quick overview of the ISO installation.
 
 1. Mount the Harvester ISO disk and boot the server by selecting the `Harvester Installer`.
 ![iso-install.png](./assets/iso-install.png)
