@@ -3,12 +3,13 @@ package global
 import (
 	"context"
 
+	"github.com/rancher/steve/pkg/server"
+
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/controller/global/auth"
 	"github.com/rancher/harvester/pkg/controller/global/settings"
 	"github.com/rancher/harvester/pkg/controller/global/template"
 	"github.com/rancher/harvester/pkg/indexeres"
-	"github.com/rancher/steve/pkg/server"
 )
 
 type registerFunc func(context.Context, *config.Scaled, *server.Server) error

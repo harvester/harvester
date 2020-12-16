@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/rancher/harvester/pkg/auth/jwe"
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/settings"
-
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,6 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
 	corev1type "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	"github.com/rancher/harvester/pkg/auth/jwe"
+	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/settings"
 )
 
 func TestRefreshKeyInTokenManager(t *testing.T) {

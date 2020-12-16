@@ -8,10 +8,11 @@ import (
 	cniv1 "github.com/containernetworking/cni/pkg/types"
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
-	cni "github.com/rancher/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/labels"
+
+	cni "github.com/rancher/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 )
 
 type networkStore struct {

@@ -4,17 +4,18 @@ import (
 	"context"
 	"testing"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	typesv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
-	ctrlapis "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+
+	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
+	typesv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
+	ctrlapis "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 )
 
 func TestImageHandler_OnChanged(t *testing.T) {

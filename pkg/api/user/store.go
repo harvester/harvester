@@ -101,8 +101,8 @@ func generateUserObjectName(username string) string {
 	// Create a hash of the userName to use as the name for the user,
 	// this lets k8s tell us if there are duplicate users with the same name
 	// thus avoiding a race.
-	hasher := sha256.New()
-	hasher.Write([]byte(username))
-	sha := base32.StdEncoding.WithPadding(-1).EncodeToString(hasher.Sum(nil))[:10]
+	h := sha256.New()
+	_, _ = h.Write([]byte(username))
+	sha := base32.StdEncoding.WithPadding(-1).EncodeToString(h.Sum(nil))[:10]
 	return fmt.Sprintf("u-" + strings.ToLower(sha))
 }

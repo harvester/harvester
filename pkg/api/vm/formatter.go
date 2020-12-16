@@ -2,11 +2,11 @@ package vm
 
 import (
 	"github.com/rancher/apiserver/pkg/types"
-	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
 	"github.com/rancher/steve/pkg/resources/common"
 	"github.com/rancher/wrangler/pkg/data/convert"
-
 	v1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+
+	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
 )
 
 const (

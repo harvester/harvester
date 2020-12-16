@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v6"
+	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/util"
-	"github.com/sirupsen/logrus"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 const (
@@ -157,7 +158,7 @@ func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelF
 	apisv1alpha1.ImageImported.Message(toUpdate, "started image importing")
 	toUpdate.Status.AppliedURL = toUpdate.Spec.URL
 	toUpdate.Status.Progress = 0
-	toUpdate, err = h.UpdateStatusRetryOnConflict(toUpdate)
+	_, err = h.UpdateStatusRetryOnConflict(toUpdate)
 	if err != nil {
 		return err
 	}

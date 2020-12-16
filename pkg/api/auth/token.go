@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/rancher/harvester/pkg/auth/jwt"
-
 	"github.com/pkg/errors"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/rancher/harvester/pkg/auth/jwt"
 )
 
 const (

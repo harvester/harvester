@@ -5,13 +5,11 @@ import (
 	"net/http"
 
 	. "github.com/onsi/ginkgo"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/utils/pointer"
-
 	kubevirtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
 
 	apivm "github.com/rancher/harvester/pkg/api/vm"

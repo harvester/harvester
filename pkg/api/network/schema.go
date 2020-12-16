@@ -1,10 +1,11 @@
 package network
 
 import (
-	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/steve/pkg/stores/proxy"
+
+	"github.com/rancher/harvester/pkg/config"
 )
 
 const (

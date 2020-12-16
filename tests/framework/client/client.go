@@ -3,12 +3,11 @@ package client
 import (
 	"fmt"
 
+	"github.com/rancher/wrangler-api/pkg/generated/controllers/core"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	restclient "k8s.io/client-go/rest"
-
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/core"
 )
 
 // CreateNamespace create namespace by kubeConfig

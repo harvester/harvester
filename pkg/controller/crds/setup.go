@@ -5,10 +5,10 @@ import (
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/rancher/steve/pkg/server"
+	wcrd "github.com/rancher/wrangler/pkg/crd"
 
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/util/crd"
-	wcrd "github.com/rancher/wrangler/pkg/crd"
 )
 
 func Setup(ctx context.Context, server *server.Server) error {

@@ -35,7 +35,7 @@ func indexUserByUsername(obj *v1alpha1.User) ([]string, error) {
 }
 
 func rbByRoleAndSubject(obj *rbacv1.ClusterRoleBinding) ([]string, error) {
-	var keys []string
+	keys := make([]string, 0, len(obj.Subjects))
 	for _, s := range obj.Subjects {
 		keys = append(keys, RbRoleSubjectKey(obj.RoleRef.Name, s))
 	}

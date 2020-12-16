@@ -2,11 +2,12 @@ package vmtemplate
 
 import (
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/harvester/pkg/api/store"
-	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/steve/pkg/stores/proxy"
+
+	"github.com/rancher/harvester/pkg/api/store"
+	"github.com/rancher/harvester/pkg/config"
 )
 
 const (

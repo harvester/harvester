@@ -3,7 +3,6 @@ package dsl
 import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubevirtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
