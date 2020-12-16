@@ -246,7 +246,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: v0.1.0-rc3
+      tag: v0.1.0
 
     ## Define the authentication mode, currently only kubernetesCredentials and localUser are supported,
     ## could config more than one mode, separated by comma
@@ -423,7 +423,7 @@ harvester-network-controller:
     repository: rancher/harvester-network-controller
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.1.1
+    tag: v0.1.2
 
 multus:
   ## Specify whether to install the multus-cni,
