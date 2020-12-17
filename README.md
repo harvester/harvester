@@ -26,12 +26,12 @@ The following diagram gives a high-level architecture of Harvester:
 ## Hardware Requirements
 To get the Harvester server up and running the following minimum hardware is required:
 
-| Type | Minimum Requirements |
+| Type | Requirements |
 |:---|:---|
-| CPU | 4 cores required, a minimum of 16 cores is preferred |
-| Memory | 8 GB is required, a minimum of 32 GB is preferred |
-| Disk |  At least 120 GB is required, 500 GB or above is preferred |
-| Network Card | At least 1 Gbps Ethernet minimum, 10Gbps Ethernet recommended |
+| CPU | 4 cores minimum, 16 cores or above preferred |
+| Memory | 8 GB minimum, 32 GB or above preferred |
+| Disk |  120 GB minimum, 500 GB or above preferred |
+| Network Card | 1 Gbps Ethernet minimum, 10Gbps Ethernet recommended |
 | Network Switch | Trunking of ports required for VLAN support |
 
 ## Installation
