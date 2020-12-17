@@ -2,19 +2,19 @@ Rancher Harvester
 ========
 [![Build Status](https://drone-publish.rancher.io/api/badges/rancher/harvester/status.svg)](https://drone-publish.rancher.io/rancher/harvester)
 
-Rancher Harvester is an open source [hyper-converged infrastructure](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) (HCI) solution based on Kubernetes. It is an on-prem cloud computing virtualization platform.
+Rancher Harvester is an open source [hyper-converged infrastructure](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) (HCI) software built on Kubernetes. It is an open source alternative to vSphere and Nutanix.
 
 ![harvester-ui](./docs/assets/harvester-ui.png)
 
 ## Overview
-Harvester makes it easy to get HCI up and running on the bare metal servers. Here are some notable features of the Harvester that currently provided:
-1. VM lifecycle management includes SSH-Key injection, Cloud-init and, graphic and serial port console
-1. Built-in highly available storage management
-1. Networking management with both overlay management networks and VLAN
-1. Built-in image repository
+Harvester implements HCI on bare metal servers. Here are some notable features of the Harvester:
+1. VM lifecycle management including SSH-Key injection, Cloud-init and, graphic and serial port console
+1. Distributed block storage
+1. Multiple NICs connecting to the management network or VLANs
+1. ISO image repository
 1. Virtual Machine templates
 
-The following diagram gives a high-level architecture of the harvester project:
+The following diagram gives a high-level architecture of Harvester:
 
 ![](./docs/assets/architecture.png)
 
@@ -24,21 +24,21 @@ The following diagram gives a high-level architecture of the harvester project:
 - [K3OS](https://k3os.io/) is a Linux distribution designed to remove as much OS maintenance as possible in a Kubernetes cluster. The OS is designed to be managed by kubectl.
 
 ## Hardware Requirements
-To get the Harvester server up and running the following minimum hardware requirements are required:
+To get the Harvester server up and running the following minimum hardware is required:
 
 | Type | Minimum Requirements |
 |:---|:---|
 | CPU | 4 cores required, a minimum of 16 cores is preferred |
 | Memory | 8 GB is required, a minimum of 32 GB is preferred |
-| Disk |  at least 120 GB is required, 500 GB or above is preferred |
-| Network Card | at least 10 Gbps Ethernet |
-| Network Switch | Equipped with at least 10 Gbps switch (require trunking of port for VLAN support) |
+| Disk |  At least 120 GB is required, 500 GB or above is preferred |
+| Network Card | At least 1 Gbps Ethernet minimum, 10Gbps Ethernet recommended |
+| Network Switch | Trunking of ports required for VLAN support |
 
 ## Installation
 Harvester supports two modes of installation:
 
 ### Bare-metal
-In the `Bare-metal` mode, users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster. A standalone Harvester node can still allow users to create and manage the virtual machines.
+In the `Bare-metal` mode, users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster.
 
 To get the Harvester ISO, download it from the [Github releases.](https://github.com/rancher/harvester/releases) 
 
