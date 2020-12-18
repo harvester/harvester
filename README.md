@@ -41,6 +41,7 @@ Harvester supports two modes of installation:
 In the `Bare-metal` mode, users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster.
 
 To get the Harvester ISO, download it from the [Github releases.](https://github.com/rancher/harvester/releases) 
+To install the ISO from a USB stick you can use the following tool on Windows [Rufus](https://rufus.ie/) 
 
 During installation you can either choose to form a new cluster, or join the node to an existing cluster.
 
