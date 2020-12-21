@@ -2,7 +2,7 @@
 name: Bug report
 about: Create a report to help us improve
 title: "[BUG]"
-labels: ''
+labels: 'bug'
 assignees: ''
 
 ---
@@ -23,6 +23,7 @@ Steps to reproduce the behavior:
 
 **Environment:**
  - Harvester ISO version: 
+ - Installation Mode: ISO/app-mode
  - Underlying Infrastructure (e.g. Baremetal with Dell PowerEdge R630):
 
 **Additional context**
