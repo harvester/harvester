@@ -14,13 +14,13 @@ const (
 	// default is to drop it.
 	envKeepTestingCluster = "KEEP_TESTING_CLUSTER"
 
-	// Specify to use an existing runtime
+	// Specify whether to skip Harvester installation
 	// default is to drop it.
-	envUseExistingRuntime = "USE_EXISTING_RUNTIME"
+	envSkipHarvesterInstallation = "SKIP_HARVESTER_INSTALLATION"
 
 	// Specify to keep the testing runtime to review,
 	// default is to drop it.
-	envKeepTestingRuntime = "KEEP_TESTING_RUNTIME"
+	envKeepHarvesterInstallation = "KEEP_HARVESTER_INSTALLATION"
 
 	// Specify to keep the testing vm to review,
 	// default is to drop it.
@@ -38,7 +38,7 @@ const (
 
 	// If you use an existing harvester runtime to test , you can configure as follows:
 	// export USE_EXISTING_CLUSTER=true
-	// export USE_EXISTING_RUNTIME=true
+	// export SKIP_HARVESTER_INSTALLATION=true
 	// export DONT_USE_EMULATION=true
 )
 
@@ -59,16 +59,16 @@ func IsKeepingTestingCluster() bool {
 	return IsTrue(envKeepTestingCluster)
 }
 
-// IsUsingExistingRuntime validates whether use an existing runtime for testing,
-// if "USE_EXISTING_RUNTIME=true", will not create or update an runtime for testing.
-func IsUsingExistingRuntime() bool {
-	return IsTrue(envUseExistingRuntime)
+// IsSkipHarvesterInstallation validates whether to skip harvester installation for testing,
+// if "SKIP_HARVESTER_INSTALLATION=true", will not create or update the harvester chart for testing.
+func IsSkipHarvesterInstallation() bool {
+	return IsTrue(envSkipHarvesterInstallation)
 }
 
-// IsKeepingTestingRuntime validates whether keep the testing runtime,
-// if "KEEP_TESTING_RUNTIME=true", will keep the testing runtime for reviewing.
-func IsKeepingTestingRuntime() bool {
-	return IsTrue(envKeepTestingRuntime)
+// IsKeepingHarvesterInstallation validates whether keep the harvester installation,
+// if "KEEP_HARVESTER_INSTALLATION=true", will keep the harvester installation for reviewing.
+func IsKeepingHarvesterInstallation() bool {
+	return IsTrue(envKeepHarvesterInstallation)
 }
 
 // IsKeepingTestingVM validates whether keep the testing vm,

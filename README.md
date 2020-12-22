@@ -1,6 +1,7 @@
 Rancher Harvester
 ========
 [![Build Status](https://drone-publish.rancher.io/api/badges/rancher/harvester/status.svg)](https://drone-publish.rancher.io/rancher/harvester)
+[![Go Report Card](https://goreportcard.com/badge/github.com/rancher/harvester)](https://goreportcard.com/report/github.com/rancher/harvester)
 
 Rancher Harvester is an open source [hyper-converged infrastructure](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) (HCI) software built on Kubernetes. It is an open source alternative to vSphere and Nutanix.
 

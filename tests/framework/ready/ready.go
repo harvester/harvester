@@ -61,6 +61,7 @@ func (cl ConditionList) Wait(ctx context.Context) error {
 			defer func() {
 				logf("condition %s is ok", condition.name)
 			}()
+			logf("wait for condition %s", condition.name)
 			return condition.Wait(ctx)
 		})
 	}

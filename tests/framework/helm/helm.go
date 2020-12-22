@@ -3,7 +3,6 @@ package helm
 import (
 	"fmt"
 	"os"
-	"reflect"
 
 	"github.com/onsi/ginkgo"
 	"helm.sh/helm/v3/pkg/action"
@@ -77,12 +76,7 @@ func InstallChart(releaseName string, namespace string, chartDir string,
 	// apply patches
 	for key, value := range patches {
 		patchStr := fmt.Sprintf("%s=%v", key, value)
-		if reflect.TypeOf(value).Kind() == reflect.Bool {
-			err = strvals.ParseIntoString(patchStr, loadedChart.Values)
-		} else {
-			err = strvals.ParseInto(patchStr, loadedChart.Values)
-		}
-		if err != nil {
+		if err := strvals.ParseInto(patchStr, loadedChart.Values); err != nil {
 			return nil, fmt.Errorf("failed to parse into chart value: %w", err)
 		}
 	}

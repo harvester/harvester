@@ -99,13 +99,18 @@ func Wait(ctx context.Context, config *rest.Config) error {
 	return nil
 }
 
-func (s *HarvesterServer) Start() error {
+func (s *HarvesterServer) Start(listenOpts *dynamiclistener.Config) error {
 	opts := &server.ListenOpts{
 		Secrets: s.steve.Controllers.Core.Secret(),
 		TLSListenerConfig: dynamiclistener.Config{
 			CloseConnOnCertChange: true,
 		},
 	}
+
+	if listenOpts != nil {
+		opts.TLSListenerConfig = *listenOpts
+	}
+
 	return s.steve.ListenAndServe(s.Context, config.HTTPSListenPort, config.HTTPListenPort, opts)
 }
 

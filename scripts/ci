@@ -7,4 +7,5 @@ cd $(dirname $0)
 ./test
 ./validate
 ./validate-ci
+./test-integration
 ./package

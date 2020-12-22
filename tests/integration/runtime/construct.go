@@ -12,9 +12,9 @@ import (
 	"github.com/rancher/harvester/tests/framework/ready"
 )
 
-// Construct prepares runtime if "USE_EXISTING_RUNTIME" is not "true".
+// Construct prepares runtime if "SKIP_HARVESTER_INSTALLATION" is not "true".
 func Construct(ctx context.Context, kubeConfig *restclient.Config) error {
-	if env.IsUsingExistingRuntime() {
+	if env.IsSkipHarvesterInstallation() {
 		return nil
 	}
 
@@ -44,7 +44,7 @@ func installHarvesterChart(ctx context.Context, kubeConfig *restclient.Config) e
 	}
 
 	if env.IsUsingEmulation() {
-		patches["kubevirt.spec.configuration.developerConfiguration.useEmulation"] = true
+		patches["kubevirt.spec.configuration.developerConfiguration.useEmulation"] = "true"
 	}
 
 	// install chart

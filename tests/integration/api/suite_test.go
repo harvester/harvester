@@ -1,9 +1,11 @@
-package api
+package api_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/rancher/dynamiclistener"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -28,7 +30,7 @@ var (
 	testCluster      cluster.Cluster
 
 	testResourceLabels = map[string]string{
-		"test.harvester.cattle.io": "for-test",
+		"test.harvester.cattle.io": "harvester-test",
 	}
 )
 
@@ -72,9 +74,12 @@ var _ = BeforeSuite(func(done Done) {
 	MustNotError(err)
 
 	By("start harvester server")
+	listenOpts := &dynamiclistener.Config{
+		CloseConnOnCertChange: false,
+	}
 	testSuiteStartErrChan = make(chan error)
 	go func() {
-		testSuiteStartErrChan <- harvester.Start()
+		testSuiteStartErrChan <- harvester.Start(listenOpts)
 	}()
 
 	// NB(thxCode): since the start of all controllers is not synchronized,

@@ -11,9 +11,9 @@ import (
 	"github.com/rancher/harvester/tests/framework/ready"
 )
 
-// Destruct releases the runtime if "USE_EXISTING_RUNTIME" is not "true".
+// Destruct releases the runtime if "SKIP_HARVESTER_INSTALLATION" is not "true".
 func Destruct(ctx context.Context, kubeConfig *restclient.Config) error {
-	if env.IsKeepingTestingRuntime() {
+	if env.IsKeepingHarvesterInstallation() || env.IsSkipHarvesterInstallation() {
 		return nil
 	}
 
