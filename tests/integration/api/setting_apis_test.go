@@ -1,4 +1,4 @@
-package api
+package api_test
 
 import (
 	"fmt"
@@ -131,7 +131,7 @@ var _ = Describe("verify settings apis", func() {
 				BindBody(&respBody).
 				Code(&respCode).
 				Do()
-			MustRespCodeIs(http.StatusNoContent, "delete setting", err, respCode, respBody)
+			CheckRespCodeIs(http.StatusOK, "delete setting", err, respCode, respBody)
 
 			By("then succeeded")
 			MustFinallyBeTrue(func() bool {

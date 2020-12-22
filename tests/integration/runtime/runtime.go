@@ -62,7 +62,7 @@ func SetConfig(kubeConfig *rest.Config, testCluster cluster.Cluster) error {
 		imageStorageEndpoint, err = client.GetNodePortEndPoint(kubeConfig,
 			testHarvesterNamespace, testImageStorageDeployment, testImageStorageService)
 		if err != nil {
-			return fmt.Errorf("failed to get image storage endpoint, %v", err)
+			return fmt.Errorf("failed to get storage endpoint of %s, %v", testImageStorageService, err)
 		}
 	}
 

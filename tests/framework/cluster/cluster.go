@@ -58,7 +58,7 @@ func Start(output io.Writer) (clientcmd.ClientConfig, Cluster, error) {
 	return KubeClientConfig, cluster, err
 }
 
-// Start stops a test environment and redirects Stdout/Stderr to output
+// Stop stops a test environment and redirects Stdout/Stderr to output
 // if "KEEP_TESTING_CLUSTER" is not "true" and "USE_EXISTING_CLUSTER" is not "true".
 func Stop(output io.Writer) error {
 	if env.IsUsingExistingCluster() || env.IsKeepingTestingCluster() {
