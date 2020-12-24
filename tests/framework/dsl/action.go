@@ -1,6 +1,8 @@
 package dsl
 
 import (
+	"fmt"
+
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,8 +30,16 @@ func Cleanup(body interface{}, timeout ...float64) bool {
 	return ginkgo.AfterEach(body, timeout...)
 }
 
-func MustFinallyBeTrue(actual func() bool) bool {
-	return gomega.Eventually(actual, commonTimeoutInterval, commonPollingInterval).Should(gomega.BeTrue())
+func MustFinallyBeTrue(actual func() bool, intervals ...interface{}) bool {
+	var timeoutInterval interface{} = commonTimeoutInterval
+	var pollingInterval interface{} = commonPollingInterval
+	if len(intervals) > 0 {
+		timeoutInterval = intervals[0]
+	}
+	if len(intervals) > 1 {
+		pollingInterval = intervals[1]
+	}
+	return gomega.Eventually(actual, timeoutInterval, pollingInterval).Should(gomega.BeTrue())
 }
 
 func MustNotError(err error) bool {
@@ -54,6 +64,11 @@ func MustRespCodeIs(expectedRespCode int, action string, err error, respCode int
 	if respCode != expectedRespCode {
 		ginkgo.GinkgoT().Errorf("failed to %s, response with %d, %v", action, respCode, string(respBody))
 	}
+}
+
+func MustRespCodeIn(action string, err error, respCode int, respBody []byte, expectedRespCodes ...int) {
+	MustNotError(err)
+	gomega.Expect(respCode).To(gomega.BeElementOf(expectedRespCodes), fmt.Sprintf("failed to %s, response with %d, %v", action, respCode, string(respBody)))
 }
 
 func CheckRespCodeIs(expectedRespCode int, action string, err error, respCode int, respBody []byte) bool {

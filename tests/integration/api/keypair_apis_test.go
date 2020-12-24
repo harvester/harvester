@@ -7,16 +7,20 @@ import (
 
 	"github.com/guonaihong/gout"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/tidwall/gjson"
 	"golang.org/x/crypto/ssh"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/util"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
 	"github.com/rancher/harvester/tests/framework/helper"
 )
 
-var _ = Describe("verify keypair apis", func() {
+var _ = Describe("verify keypair APIs", func() {
 
 	var keypairNamespace string
 
@@ -27,13 +31,157 @@ var _ = Describe("verify keypair apis", func() {
 
 	})
 
-	Context("operate via steve api", func() {
+	Context("operate via steve API", func() {
 
 		var keypairsAPI string
 
 		BeforeEach(func() {
 
 			keypairsAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.keypairs")
+
+		})
+
+		Specify("verify required fields", func() {
+
+			By("create a keypair with name missing", func() {
+				rsaKey, err := util.GeneratePrivateKey(2048)
+				MustNotError(err)
+				publicKey, err := util.GeneratePublicKey(&rsaKey.PublicKey)
+				MustNotError(err)
+				var keypair = v1alpha1.KeyPair{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: keypairNamespace,
+					},
+					Spec: v1alpha1.KeyPairSpec{
+						PublicKey: string(publicKey),
+					},
+				}
+				respCode, respBody, err := helper.PostObject(keypairsAPI, keypair)
+				MustRespCodeIs(http.StatusUnprocessableEntity, "post keypair", err, respCode, respBody)
+			})
+
+			By("create a keypair with public key missing", func() {
+				var keypair = v1alpha1.KeyPair{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      fuzz.String(5),
+						Namespace: keypairNamespace,
+					},
+					Spec: v1alpha1.KeyPairSpec{},
+				}
+				respCode, respBody, err := helper.PostObject(keypairsAPI, keypair)
+				MustRespCodeIs(http.StatusUnprocessableEntity, "post keypair", err, respCode, respBody)
+			})
+		})
+
+		Specify("verify validation for invalid public key", func() {
+
+			By("create a keypair with invalid public key")
+			var keypair = v1alpha1.KeyPair{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      fuzz.String(5),
+					Namespace: keypairNamespace,
+				},
+				Spec: v1alpha1.KeyPairSpec{
+					PublicKey: "invalid test public key",
+				},
+			}
+			respCode, respBody, err := helper.PostObject(keypairsAPI, keypair)
+			MustRespCodeIs(http.StatusUnprocessableEntity, "post keypair", err, respCode, respBody)
+		})
+
+		Specify("verify keypair creation and deletion", func() {
+
+			rsaKey, err := util.GeneratePrivateKey(2048)
+			MustNotError(err)
+			publicKey, err := util.GeneratePublicKey(&rsaKey.PublicKey)
+			MustNotError(err)
+			pk, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
+			MustNotError(err)
+			expectedFingerPrint := ssh.FingerprintLegacyMD5(pk)
+
+			var (
+				keypairName = fuzz.String(5)
+				keypair     = v1alpha1.KeyPair{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      keypairName,
+						Namespace: keypairNamespace,
+					},
+					Spec: v1alpha1.KeyPairSpec{
+						PublicKey: string(publicKey),
+					},
+				}
+				retKeypair v1alpha1.KeyPair
+				keypairURL = fmt.Sprintf("%s/%s/%s", keypairsAPI, keypairNamespace, keypairName)
+			)
+			By("create a keypair")
+			respCode, respBody, err := helper.PostObject(keypairsAPI, keypair)
+			MustRespCodeIs(http.StatusCreated, "post keypair", err, respCode, respBody)
+
+			By("then creation succeeded")
+			respCode, respBody, err = helper.GetObject(keypairURL, &retKeypair)
+			MustRespCodeIs(http.StatusOK, "get keypair", err, respCode, respBody)
+			Expect(retKeypair.Spec).To(BeEquivalentTo(keypair.Spec))
+
+			By("then fingerprint is set")
+			MustFinallyBeTrue(func() bool {
+				respCode, respBody, err = helper.GetObject(keypairURL, &retKeypair)
+				MustRespCodeIs(http.StatusOK, "get keypair", err, respCode, respBody)
+				MustNotEqual(v1alpha1.KeyPairValidated.IsFalse(retKeypair), true)
+				return retKeypair.Status.FingerPrint == expectedFingerPrint
+			})
+
+			By("delete the keypair")
+			respCode, respBody, err = helper.DeleteObject(keypairURL)
+			MustRespCodeIn("delete keypair", err, respCode, respBody, http.StatusOK, http.StatusNoContent)
+
+			By("then the keypair is deleted")
+			MustFinallyBeTrue(func() bool {
+				respCode, respBody, err = helper.GetObject(keypairURL, nil)
+				MustNotError(err)
+				return respCode == http.StatusNotFound
+			})
+		})
+
+		Specify("verify keypair creation by yaml", func() {
+
+			rsaKey, err := util.GeneratePrivateKey(2048)
+			MustNotError(err)
+			publicKey, err := util.GeneratePublicKey(&rsaKey.PublicKey)
+			MustNotError(err)
+			pk, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
+			MustNotError(err)
+			expectedFingerPrint := ssh.FingerprintLegacyMD5(pk)
+
+			var (
+				keypairName = fuzz.String(5)
+				keypair     = v1alpha1.KeyPair{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      keypairName,
+						Namespace: keypairNamespace,
+					},
+					Spec: v1alpha1.KeyPairSpec{
+						PublicKey: string(publicKey),
+					},
+				}
+				retKeypair v1alpha1.KeyPair
+				keypairURL = fmt.Sprintf("%s/%s/%s", keypairsAPI, keypairNamespace, keypairName)
+			)
+			By("create a keypair by yaml")
+			respCode, respBody, err := helper.PostObjectByYAML(keypairsAPI, keypair)
+			MustRespCodeIs(http.StatusCreated, "post keypair", err, respCode, respBody)
+
+			By("then creation succeeded")
+			respCode, respBody, err = helper.GetObject(keypairURL, &retKeypair)
+			MustRespCodeIs(http.StatusOK, "get keypair", err, respCode, respBody)
+			Expect(retKeypair.Spec).To(BeEquivalentTo(keypair.Spec))
+
+			By("then fingerprint is set")
+			MustFinallyBeTrue(func() bool {
+				respCode, respBody, err = helper.GetObject(keypairURL, &retKeypair)
+				MustRespCodeIs(http.StatusOK, "get keypair", err, respCode, respBody)
+				MustNotEqual(v1alpha1.KeyPairValidated.IsFalse(retKeypair), true)
+				return retKeypair.Status.FingerPrint == expectedFingerPrint
+			})
 
 		})
 
