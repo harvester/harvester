@@ -2,11 +2,13 @@ package helper
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/guonaihong/gout"
 	"github.com/guonaihong/gout/dataflow"
+	"sigs.k8s.io/yaml"
 
 	"github.com/rancher/harvester/pkg/config"
 )
@@ -22,4 +24,68 @@ func NewHTTPClient() *dataflow.Gout {
 
 func BuildAPIURL(version, resource string) string {
 	return fmt.Sprintf("https://localhost:%d/%s/%s", config.HTTPSListenPort, version, resource)
+}
+
+func GetObject(url string, object interface{}) (respCode int, respBody []byte, err error) {
+	err = NewHTTPClient().
+		GET(url).
+		BindBody(&respBody).
+		Code(&respCode).
+		Do()
+	if err != nil {
+		return
+	}
+	if respCode != http.StatusOK {
+		return
+	}
+	if object != nil {
+		err = json.Unmarshal(respBody, object)
+	}
+	return
+}
+
+func PutObject(url string, object interface{}) (respCode int, respBody []byte, err error) {
+	err = NewHTTPClient().
+		PUT(url).
+		SetJSON(object).
+		BindBody(&respBody).
+		Code(&respCode).
+		Do()
+	return
+}
+
+func DeleteObject(url string) (respCode int, respBody []byte, err error) {
+	err = NewHTTPClient().
+		DELETE(url).
+		BindBody(&respBody).
+		Code(&respCode).
+		Do()
+	return
+}
+
+func PostObject(url string, object interface{}) (respCode int, respBody []byte, err error) {
+	err = NewHTTPClient().
+		POST(url).
+		SetJSON(object).
+		SetHeader().
+		BindBody(&respBody).
+		Code(&respCode).
+		Do()
+	return
+}
+
+func PostObjectByYAML(url string, object interface{}) (respCode int, respBody []byte, err error) {
+	var yamlData []byte
+	yamlData, err = yaml.Marshal(object)
+	if err != nil {
+		return
+	}
+	err = NewHTTPClient().
+		POST(url).
+		SetBody(yamlData).
+		SetHeader(gout.H{"content-type": "application/yaml"}).
+		BindBody(&respBody).
+		Code(&respCode).
+		Do()
+	return
 }

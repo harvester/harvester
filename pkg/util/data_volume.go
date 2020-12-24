@@ -2,7 +2,6 @@ package util
 
 import (
 	"github.com/rancher/wrangler/pkg/data"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,7 +17,6 @@ const (
 // SetHTTPSourceDataVolume sets the requiresScratch annotation, and certConfigMap with an existing empty configmap
 // It changes the CDI's decision to convert image after the whole file is downloaded.
 func SetHTTPSourceDataVolume(data data.Object) {
-	logrus.Infof("%v+", data.Map("spec", "source", "http"))
 	if data.Map("spec", "source", "http") != nil {
 		data.SetNested("true", "metadata", "annotations", "cdi.kubevirt.io/storage.import.requiresScratch")
 		data.SetNested(certNoneConfigMapName, "spec", "source", "http", "certConfigMap")

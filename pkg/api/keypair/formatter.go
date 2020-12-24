@@ -15,6 +15,7 @@ import (
 	v1alpha12 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/util"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -53,12 +54,12 @@ func (h KeyGenActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	if input.Name == "" {
 		return apierror.NewAPIError(validation.InvalidBodyContent, "name is required")
 	}
-	rsaKey, err := generatePrivateKey(2048)
+	rsaKey, err := util.GeneratePrivateKey(2048)
 	if err != nil {
 		return err
 	}
-	privateKey := encodePrivateKeyToPEM(rsaKey)
-	publicKey, err := generatePublicKey(&rsaKey.PublicKey)
+	privateKey := util.EncodePrivateKeyToPEM(rsaKey)
+	publicKey, err := util.GeneratePublicKey(&rsaKey.PublicKey)
 	if err != nil {
 		return err
 	}

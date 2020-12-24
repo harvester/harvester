@@ -1,4 +1,4 @@
-package keypair
+package util
 
 import (
 	"crypto/rand"
@@ -9,8 +9,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// generatePrivateKey creates a RSA Private Key of specified byte size
-func generatePrivateKey(bitSize int) (*rsa.PrivateKey, error) {
+// GeneratePrivateKey creates a RSA Private Key of specified byte size
+func GeneratePrivateKey(bitSize int) (*rsa.PrivateKey, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, bitSize)
 	if err != nil {
 		return nil, err
@@ -21,8 +21,8 @@ func generatePrivateKey(bitSize int) (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-// encodePrivateKeyToPEM encodes Private Key from RSA to PEM format
-func encodePrivateKeyToPEM(privateKey *rsa.PrivateKey) []byte {
+// EncodePrivateKeyToPEM encodes Private Key from RSA to PEM format
+func EncodePrivateKeyToPEM(privateKey *rsa.PrivateKey) []byte {
 	privateDER := x509.MarshalPKCS1PrivateKey(privateKey)
 	privateBlock := pem.Block{
 		Type:    "RSA PRIVATE KEY",
@@ -32,9 +32,9 @@ func encodePrivateKeyToPEM(privateKey *rsa.PrivateKey) []byte {
 	return pem.EncodeToMemory(&privateBlock)
 }
 
-// generatePublicKey take a rsa.PublicKey and return bytes suitable for writing to .pub file
+// GeneratePublicKey take a rsa.PublicKey and return bytes suitable for writing to .pub file
 // returns in the format "ssh-rsa ..."
-func generatePublicKey(publicKey *rsa.PublicKey) ([]byte, error) {
+func GeneratePublicKey(publicKey *rsa.PublicKey) ([]byte, error) {
 	publicRsaKey, err := ssh.NewPublicKey(publicKey)
 	if err != nil {
 		return nil, err
