@@ -38,6 +38,7 @@ require (
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/mattn/go-isatty v0.0.12
 	github.com/minio/minio-go/v6 v6.0.57
+	github.com/nxadm/tail v1.4.5 // indirect
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/pkg/errors v0.9.1
@@ -54,7 +55,9 @@ require (
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20200423211502-4bdfaf469ed5
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
+	golang.org/x/sys v0.0.0-20201221093633-bc327ba9c2f0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	helm.sh/helm/v3 v3.2.0
 	k8s.io/api v0.19.0-rc.2
 	k8s.io/apiextensions-apiserver v0.19.0-rc.2
@@ -68,4 +71,5 @@ require (
 	kubevirt.io/containerized-data-importer v1.26.1
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/kind v0.9.0
+	sigs.k8s.io/yaml v1.2.0
 )
