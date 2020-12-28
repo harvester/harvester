@@ -13,7 +13,7 @@ The integration test is performed on every pull request and is run by the Drone 
     - set `export DONT_USE_EMULATION=true` if the harvester runtime supports KVM, default to using `QEMU` software emulation.
     - set `export KEEP_TESTING_CLUSTER=true` if you want to keep the testing cluster, default to delete the local `Kind` cluster.
     - set `export KEEP_HARVESTER_INSTALLATION=true` if you want to keep the harvester installation, default to delete it on exit, this will always be true when `SKIP_HARVESTER_INSTALLATION=true`.
-    - set `export KEEP_TESTING_VM=true` if we want to keep testing VM resources, default to delete each testing VM after each test case finished.
+    - set `export KEEP_TESTING_RESOURCE=true` if we want to keep testing resources, default to delete each testing resource after each test case finished.
 
 * Run `./scripts/test-integration` or `make test-integration`.
     - if you want to use an existing cluster with a pre-installed harvester chart, make sure set the `minio` service type to `NodePort` and config the replicas of `harvester` deployment to be `0`, then run `$ env USE_EXISTING_CLUSTER=true SKIP_HARVESTER_INSTALLATION=true ./scripts/test-integration`. 

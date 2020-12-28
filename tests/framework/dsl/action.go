@@ -5,11 +5,7 @@ import (
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubevirtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
 
-	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
 	"github.com/rancher/harvester/tests/framework/env"
 )
 
@@ -23,7 +19,7 @@ const (
 
 // Cleanup executes the target cleanup execution if "KEEP_TESTING_RESOURCE" isn't "true".
 func Cleanup(body interface{}, timeout ...float64) bool {
-	if env.IsKeepingTestingVM() {
+	if env.IsKeepingTestingResource() {
 		return true
 	}
 
@@ -82,69 +78,4 @@ func CheckRespCodeIs(expectedRespCode int, action string, err error, respCode in
 		return false
 	}
 	return true
-}
-
-func AfterVMReady(vmController ctlkubevirtv1alpha3.VirtualMachineController, vmNamespace, vmName string,
-	callback func(vm *kubevirtv1alpha3.VirtualMachine) bool) {
-	gomega.Eventually(func() bool {
-		var vm, err = vmController.Get(vmNamespace, vmName, metav1.GetOptions{})
-		if err != nil {
-			ginkgo.GinkgoT().Logf("failed to get virtual machine: %v", err)
-			return false
-		}
-		return callback(vm)
-	}, vmTimeoutInterval, vmPollingInterval).Should(gomega.BeTrue())
-}
-
-func MustVMReady(vmController ctlkubevirtv1alpha3.VirtualMachineController, vmNamespace, vmName string) {
-	AfterVMReady(vmController, vmNamespace, vmName, func(vm *kubevirtv1alpha3.VirtualMachine) bool {
-		return vm.Status.Ready
-	})
-}
-
-func HasNoneVMI(vmController ctlkubevirtv1alpha3.VirtualMachineController, vmNamespace, vmName string,
-	vmiController ctlkubevirtv1alpha3.VirtualMachineInstanceController) {
-	AfterVMReady(vmController, vmNamespace, vmName, func(vm *kubevirtv1alpha3.VirtualMachine) bool {
-		if !vm.Status.Ready {
-			_, err := vmiController.Get(vmNamespace, vmName, metav1.GetOptions{})
-			if err != nil && apierrors.IsNotFound(err) {
-				return true
-			}
-			return false
-		}
-		return false
-	})
-}
-
-func HasNoneRunningVMI(vmController ctlkubevirtv1alpha3.VirtualMachineController, vmNamespace, vmName string,
-	vmiController ctlkubevirtv1alpha3.VirtualMachineInstanceController) {
-	AfterVMReady(vmController, vmNamespace, vmName, func(vm *kubevirtv1alpha3.VirtualMachine) bool {
-		if !vm.Status.Ready {
-			var vmi, err = vmiController.Get(vmNamespace, vmName, metav1.GetOptions{})
-			if err != nil && apierrors.IsNotFound(err) {
-				return true
-			}
-			if vmi.DeletionTimestamp != nil {
-				return true
-			}
-			return false
-		}
-		return false
-	})
-}
-
-func AfterVMIReady(vmController ctlkubevirtv1alpha3.VirtualMachineController, vmNamespace, vmName string,
-	vmiController ctlkubevirtv1alpha3.VirtualMachineInstanceController,
-	callback func(vmi *kubevirtv1alpha3.VirtualMachineInstance) bool) {
-	AfterVMReady(vmController, vmNamespace, vmName, func(vm *kubevirtv1alpha3.VirtualMachine) bool {
-		if vm.Status.Ready {
-			var vmi, err = vmiController.Get(vmNamespace, vmName, metav1.GetOptions{})
-			if err != nil {
-				ginkgo.GinkgoT().Logf("failed to get virtual machine instance: %v", err)
-				return false
-			}
-			return callback(vmi)
-		}
-		return false
-	})
 }

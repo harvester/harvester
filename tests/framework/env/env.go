@@ -22,9 +22,9 @@ const (
 	// default is to drop it.
 	envKeepHarvesterInstallation = "KEEP_HARVESTER_INSTALLATION"
 
-	// Specify to keep the testing vm to review,
+	// Specify to keep the testing resource to review,
 	// default is to drop it.
-	envKeepTestingVM = "KEEP_TESTING_VM"
+	envKeepTestingResource = "KEEP_TESTING_RESOURCE"
 
 	// Specify to don't use soft emulation
 	// default is to drop it.
@@ -71,10 +71,10 @@ func IsKeepingHarvesterInstallation() bool {
 	return IsTrue(envKeepHarvesterInstallation)
 }
 
-// IsKeepingTestingVM validates whether keep the testing vm,
-// if "KEEP_TESTING_VM=true", will keep the testing vm for reviewing.
-func IsKeepingTestingVM() bool {
-	return IsTrue(envKeepTestingVM)
+// IsKeepingTestingResource validates whether keep the testing resource,
+// if "KEEP_TESTING_RESOURCE=true", will keep the testing resource for reviewing.
+func IsKeepingTestingResource() bool {
+	return IsTrue(envKeepTestingResource)
 }
 
 // IsUsingEmulation validates whether use qemu soft emulation,
