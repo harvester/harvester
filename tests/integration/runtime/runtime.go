@@ -55,15 +55,10 @@ func SetConfig(kubeConfig *rest.Config, testCluster cluster.Cluster) error {
 	config.SkipAuthentication = true
 
 	// config imageStorage
-	var imageStorageEndpoint string
-	if testCluster.GetKind() == cluster.KindClusterKind {
-		imageStorageEndpoint = fmt.Sprintf("localhost:%d", testCluster.(*cluster.LocalKindCluster).ExportImageStoragePort)
-	} else {
-		imageStorageEndpoint, err = client.GetNodePortEndPoint(kubeConfig,
-			testHarvesterNamespace, testImageStorageDeployment, testImageStorageService)
-		if err != nil {
-			return fmt.Errorf("failed to get storage endpoint of %s, %v", testImageStorageService, err)
-		}
+	imageStorageEndpoint, err := client.GetNodePortEndPoint(kubeConfig,
+		testHarvesterNamespace, testImageStorageDeployment, testImageStorageService)
+	if err != nil {
+		return fmt.Errorf("failed to get storage endpoint of %s, %v", testImageStorageService, err)
 	}
 
 	config.ImageStorageEndpoint = fmt.Sprintf("http://%s", imageStorageEndpoint)
