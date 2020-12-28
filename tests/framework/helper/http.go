@@ -89,3 +89,24 @@ func PostObjectByYAML(url string, object interface{}) (respCode int, respBody []
 		Do()
 	return
 }
+
+func PostAction(url string, action string) (respCode int, respBody []byte, err error) {
+	err = NewHTTPClient().
+		POST(fmt.Sprintf("%s?action=%s", url, action)).
+		SetHeader().
+		BindBody(&respBody).
+		Code(&respCode).
+		Do()
+	return
+}
+
+func PostObjectAction(url string, object interface{}, action string) (respCode int, respBody []byte, err error) {
+	err = NewHTTPClient().
+		POST(fmt.Sprintf("%s?action=%s", url, action)).
+		SetJSON(object).
+		SetHeader().
+		BindBody(&respBody).
+		Code(&respCode).
+		Do()
+	return
+}
