@@ -51,6 +51,10 @@ func (s *networkStore) Create(request *types.APIRequest, schema *types.APISchema
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, "Failed to decode NAD config value, error: "+err.Error())
 	}
 
+	if bridgeConf.Vlan < 1 || bridgeConf.Vlan > 4094 {
+		return types.APIObject{}, apierror.NewAPIError(validation.InvalidBodyContent, "Bridge vlan vid must >=1 and <=4094")
+	}
+
 	if err := s.checkUniqueVlanID(data.Namespace(), bridgeConf); err != nil {
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, err.Error())
 	}
