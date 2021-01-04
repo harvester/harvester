@@ -30,7 +30,7 @@ cat /proc/cpuinfo | grep vmx
 
 1. Clone the GitHub repository:
     ```
-    $ git clone https://github.com/rancher/harvester.git --depth=1`
+    $ git clone https://github.com/rancher/harvester.git --depth=1
     ```
 
 1. Go to the Helm chart:
