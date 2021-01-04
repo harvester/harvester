@@ -16,11 +16,14 @@ const (
 	UserNameIndex           = "auth.harvester.cattle.io/user-username-index"
 	RbByRoleAndSubjectIndex = "auth.harvester.cattle.io/crb-by-role-and-subject"
 	DataVolumeByVMIndex     = "cdi.harvester.cattle.io/datavolume-by-vm"
+	VMByNetworkIndex        = "vm.harvester.cattle.io/vm-by-network"
 )
 
 func RegisterScaledIndexers(scaled *config.Scaled) {
-	informer := scaled.Management.HarvesterFactory.Harvester().V1alpha1().User().Cache()
-	informer.AddIndexer(UserNameIndex, indexUserByUsername)
+	userInformer := scaled.Management.HarvesterFactory.Harvester().V1alpha1().User().Cache()
+	userInformer.AddIndexer(UserNameIndex, indexUserByUsername)
+	vmInformer := scaled.Management.VirtFactory.Kubevirt().V1alpha3().VirtualMachine().Cache()
+	vmInformer.AddIndexer(VMByNetworkIndex, vmByNetwork)
 }
 
 func RegisterManagementIndexers(management *config.Management) {
@@ -52,4 +55,16 @@ func dataVolumeByVM(obj *cdiv1beta1.DataVolume) ([]string, error) {
 		return nil, fmt.Errorf("failed to get schema owners from datavolume %s's annotation: %w", obj.Name, err)
 	}
 	return annotationSchemaOwners.List(kubevirtv1alpha3.VirtualMachineGroupVersionKind.GroupKind()), nil
+}
+
+func vmByNetwork(obj *kubevirtv1alpha3.VirtualMachine) ([]string, error) {
+	networks := obj.Spec.Template.Spec.Networks
+	networkNameList := make([]string, 0, len(networks))
+	for _, network := range networks {
+		if network.NetworkSource.Multus == nil {
+			continue
+		}
+		networkNameList = append(networkNameList, network.NetworkSource.Multus.NetworkName)
+	}
+	return networkNameList, nil
 }
