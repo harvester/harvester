@@ -61,6 +61,11 @@ type LocalKindCluster struct {
 	ClusterConfigPath string
 }
 
+const (
+	DefaultControlPlanes = 1
+	DefaultWorkers       = 3
+)
+
 func (c *LocalKindCluster) Startup(output io.Writer) error {
 	logger := logs.NewLogger(output, 0)
 	provider := cluster.NewProvider(
@@ -246,8 +251,8 @@ func NewLocalKindCluster() *LocalKindCluster {
 			Image:                  envFinder.Get("image", "kindest/node:v1.18.2"),
 			ImageMirror:            envFinder.Get("imageMirror", ""),
 			ClusterName:            envFinder.Get("clusterName", "harvester"),
-			ControlPlanes:          envFinder.GetInt("controlPlanes", 1),
-			Workers:                envFinder.GetInt("workers", 3),
+			ControlPlanes:          envFinder.GetInt("controlPlanes", DefaultControlPlanes),
+			Workers:                envFinder.GetInt("workers", DefaultWorkers),
 			WaitTimeout:            envFinder.GetDuration("waitTimeout", 10*time.Minute),
 			ClusterConfigPath:      envFinder.Get("clusterConfigPath", ""),
 		}
