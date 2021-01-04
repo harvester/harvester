@@ -12,6 +12,7 @@ import (
 
 	"github.com/rancher/harvester/pkg/config"
 	ctlcniv1 "github.com/rancher/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
+	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
 	"github.com/rancher/harvester/tests/framework/helper"
@@ -62,12 +63,18 @@ var _ = Describe("verify network APIs", func() {
 
 	var (
 		scaled        *config.Scaled
+		vmBuilder     *VMBuilder
+		vmNamespace   string
+		vmController  ctlkubevirtv1alpha3.VirtualMachineController
 		nadController ctlcniv1.NetworkAttachmentDefinitionController
 		networkName   string
 	)
 
 	BeforeEach(func() {
 		scaled = harvester.Scaled()
+		vmBuilder = NewDefaultTestVMBuilder()
+		vmNamespace = testVMNamespace
+		vmController = scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine()
 		nadController = scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition()
 	})
 
@@ -155,11 +162,25 @@ var _ = Describe("verify network APIs", func() {
 
 		Specify("verify the delete action", func() {
 
-			By("delete the network")
-			networkURL := fmt.Sprintf("%s/%s/%s", networkAPI, testNetworkNamespace, networkName)
-			respCode, respBody, err := helper.DeleteObject(networkURL)
-			MustRespCodeIs(http.StatusOK, "delete network", err, respCode, respBody)
+			By("create a vm use this network")
+			vm, err := vmController.Create(vmBuilder.Container().Network(networkName).VM())
+			MustNotError(err)
+			vmName := vm.Name
+			MustVMExist(vmController, vmNamespace, vmName)
 
+			By("should fail if delete the used network")
+			networkURL := helper.BuildResourceURL(networkAPI, testNetworkNamespace, networkName)
+			respCode, respBody, err := helper.DeleteObject(networkURL)
+			MustRespCodeIs(http.StatusBadRequest, "delete network", err, respCode, respBody)
+
+			By("after delete the virtual machine")
+			err = vmController.Delete(vmNamespace, vmName, &metav1.DeleteOptions{})
+			MustNotError(err)
+			MustVMDeleted(vmController, vmNamespace, vmName)
+
+			By("should success if delete the unused network")
+			respCode, respBody, err = helper.DeleteObject(networkURL)
+			MustRespCodeIn("delete network", err, respCode, respBody, http.StatusOK, http.StatusNoContent)
 		})
 
 	})

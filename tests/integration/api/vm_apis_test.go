@@ -27,9 +27,6 @@ var _ = Describe("verify vm APIs", func() {
 		vmiController ctlkubevirtv1alpha3.VirtualMachineInstanceController
 		vmNamespace   string
 		vmBuilder     *VMBuilder
-		vmURLBuilder  = func(vmsAPI, vmNamespace, vmName string) string {
-			return fmt.Sprintf("%s/%s/%s", vmsAPI, vmNamespace, vmName)
-		}
 	)
 
 	BeforeEach(func() {
@@ -102,7 +99,7 @@ var _ = Describe("verify vm APIs", func() {
 			HasNoneVMI(vmController, vmNamespace, vmName, vmiController)
 
 			By("when call start action")
-			vmURL := vmURLBuilder(vmsAPI, vmNamespace, vmName)
+			vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
 			respCode, respBody, err := helper.PostAction(vmURL, "start")
 			MustRespCodeIs(http.StatusNoContent, "post start action", err, respCode, respBody)
 
@@ -119,7 +116,7 @@ var _ = Describe("verify vm APIs", func() {
 			MustVMIRunning(vmController, vmNamespace, vmName, vmiController)
 
 			By("when call stop action")
-			vmURL := vmURLBuilder(vmsAPI, vmNamespace, vmName)
+			vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
 			respCode, respBody, err := helper.PostAction(vmURL, "stop")
 			MustRespCodeIs(http.StatusNoContent, "post stop action", err, respCode, respBody)
 
@@ -145,7 +142,7 @@ var _ = Describe("verify vm APIs", func() {
 				Memory(updatedMemory).
 				Blank().
 				VM()
-			vmURL := vmURLBuilder(vmsAPI, vmNamespace, vmName)
+			vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
 			respCode, respBody, err := helper.PutObject(vmURL, vm)
 			MustRespCodeIs(http.StatusOK, "put edit action", err, respCode, respBody)
 
@@ -188,7 +185,7 @@ var _ = Describe("verify vm APIs", func() {
 			MustVMIRunning(vmController, vmNamespace, vmName, vmiController)
 
 			By("when call pause action")
-			vmURL := vmURLBuilder(vmsAPI, vmNamespace, vmName)
+			vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
 			respCode, respBody, err := helper.PostAction(vmURL, "pause")
 			MustRespCodeIs(http.StatusNoContent, "post pause action", err, respCode, respBody)
 
@@ -211,7 +208,7 @@ var _ = Describe("verify vm APIs", func() {
 			MustVMIRunning(vmController, vmNamespace, vmName, vmiController)
 
 			By("when delete the virtual machine")
-			vmURL := vmURLBuilder(vmsAPI, vmNamespace, vmName)
+			vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
 			respCode, respBody, err := helper.DeleteObject(vmURL)
 			MustRespCodeIs(http.StatusOK, "delete action", err, respCode, respBody)
 
@@ -230,7 +227,7 @@ var _ = Describe("verify vm APIs", func() {
 				MustVMIRunning(vmController, vmNamespace, vmName, vmiController)
 
 				By("when call ejectCdRom action")
-				vmURL := vmURLBuilder(vmsAPI, vmNamespace, vmName)
+				vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
 				respCode, respBody, err := helper.PostObjectAction(vmURL, apivm.EjectCdRomActionInput{}, "ejectCdRom")
 				MustRespCodeIs(http.StatusUnprocessableEntity, "ejectCdRom", err, respCode, respBody)
 			})
@@ -244,7 +241,7 @@ var _ = Describe("verify vm APIs", func() {
 				MustVMIRunning(vmController, vmNamespace, vmName, vmiController)
 
 				By("when call ejectCdRom action without any CdRoms")
-				vmURL := vmURLBuilder(vmsAPI, vmNamespace, vmName)
+				vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
 				respCode, respBody, err := helper.PostObjectAction(vmURL, apivm.EjectCdRomActionInput{}, "ejectCdRom")
 				MustRespCodeIs(http.StatusUnprocessableEntity, "ejectCdRom", err, respCode, respBody)
 
@@ -259,7 +256,7 @@ var _ = Describe("verify vm APIs", func() {
 				MustVMIRunning(vmController, vmNamespace, vmName, vmiController)
 
 				By("when call ejectCdRom action with a not existed CdRom")
-				vmURL := vmURLBuilder(vmsAPI, vmNamespace, vmName)
+				vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
 				respCode, respBody, err := helper.PostObjectAction(vmURL, apivm.EjectCdRomActionInput{
 					DiskNames: []string{testVMContainerDiskName},
 				}, "ejectCdRom")
@@ -275,7 +272,7 @@ var _ = Describe("verify vm APIs", func() {
 				MustVMIRunning(vmController, vmNamespace, vmName, vmiController)
 
 				By("when call ejectCdRom action")
-				vmURL := vmURLBuilder(vmsAPI, vmNamespace, vmName)
+				vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
 				respCode, respBody, err := helper.PostObjectAction(vmURL, apivm.EjectCdRomActionInput{
 					DiskNames: []string{testVMCDRomDiskName},
 				}, "ejectCdRom")

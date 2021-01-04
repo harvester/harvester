@@ -26,6 +26,10 @@ func BuildAPIURL(version, resource string) string {
 	return fmt.Sprintf("https://localhost:%d/%s/%s", config.HTTPSListenPort, version, resource)
 }
 
+func BuildResourceURL(api, namespace, name string) string {
+	return fmt.Sprintf("%s/%s/%s", api, namespace, name)
+}
+
 func GetObject(url string, object interface{}) (respCode int, respBody []byte, err error) {
 	err = NewHTTPClient().
 		GET(url).

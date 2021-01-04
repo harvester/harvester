@@ -27,9 +27,9 @@ const (
 	testVMCPUCores = 1
 	testVMMemory   = "256Mi"
 
-	testVMNetworkOneName    = "default"
-	testVMInterfaceOneName  = "default"
-	testVMInterfaceOneModel = "virtio"
+	testVMManagementNetworkName   = "default"
+	testVMManagementInterfaceName = "default"
+	testVMInterfaceModel          = "virtio"
 
 	testVMCDRomDiskName                = "cdromdisk"
 	testVMCloudInitDiskName            = "cloudinitdisk"
@@ -170,8 +170,8 @@ func NewDefaultTestVMBuilder() *VMBuilder {
 	}
 	interfaces := []kubevirtv1alpha3.Interface{
 		{
-			Name:  testVMInterfaceOneName,
-			Model: testVMInterfaceOneModel,
+			Name:  testVMManagementInterfaceName,
+			Model: testVMInterfaceModel,
 			InterfaceBindingMethod: kubevirtv1alpha3.InterfaceBindingMethod{
 				Masquerade: &kubevirtv1alpha3.InterfaceMasquerade{},
 			},
@@ -179,7 +179,7 @@ func NewDefaultTestVMBuilder() *VMBuilder {
 	}
 	networks := []kubevirtv1alpha3.Network{
 		{
-			Name: testVMNetworkOneName,
+			Name: testVMManagementNetworkName,
 			NetworkSource: kubevirtv1alpha3.NetworkSource{
 				Pod: &kubevirtv1alpha3.PodNetwork{},
 			},
@@ -425,6 +425,32 @@ func (v *VMBuilder) CloudInit(vmCloudInit *VMCloudInit) *VMBuilder {
 		},
 	})
 	v.vm.Spec.Template.Spec.Volumes = volumes
+	return v
+}
+
+func (v *VMBuilder) Network(networkName string) *VMBuilder {
+	// Networks
+	networks := v.vm.Spec.Template.Spec.Networks
+	networks = append(networks, kubevirtv1alpha3.Network{
+		Name: networkName,
+		NetworkSource: kubevirtv1alpha3.NetworkSource{
+			Multus: &kubevirtv1alpha3.MultusNetwork{
+				NetworkName: networkName,
+				Default:     false,
+			},
+		},
+	})
+	v.vm.Spec.Template.Spec.Networks = networks
+	// Interfaces
+	interfaces := v.vm.Spec.Template.Spec.Domain.Devices.Interfaces
+	interfaces = append(interfaces, kubevirtv1alpha3.Interface{
+		Name:  networkName,
+		Model: testVMInterfaceModel,
+		InterfaceBindingMethod: kubevirtv1alpha3.InterfaceBindingMethod{
+			Bridge: &kubevirtv1alpha3.InterfaceBridge{},
+		},
+	})
+	v.vm.Spec.Template.Spec.Domain.Devices.Interfaces = interfaces
 	return v
 }
 
