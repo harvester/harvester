@@ -87,7 +87,8 @@ func (s *networkStore) checkUniqueVlanID(ns string, config *NetConf) error {
 }
 
 func (s *networkStore) Delete(request *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
-	vms, err := s.vmCache.GetByIndex(indexeres.VMByNetworkIndex, request.Name)
+	networkName := request.Name
+	vms, err := s.vmCache.GetByIndex(indexeres.VMByNetworkIndex, networkName)
 	if err != nil {
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, err.Error())
 	}
@@ -97,7 +98,7 @@ func (s *networkStore) Delete(request *types.APIRequest, schema *types.APISchema
 		for _, vm := range vms {
 			vmNameList = append(vmNameList, vm.Name)
 		}
-		errorMessage := fmt.Sprintf("network is still used by vm：%s", strings.Join(vmNameList, ","))
+		errorMessage := fmt.Sprintf("network %s is still used by vm：%s", networkName, strings.Join(vmNameList, ","))
 		errorCode := validation.ErrorCode{
 			Code:   "ResourceIsUsed",
 			Status: http.StatusBadRequest,
