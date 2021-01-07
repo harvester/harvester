@@ -77,6 +77,10 @@ spec:
           env:
             - name: HARVESTER_AUTHENTICATION_MODE
               value: {{ .Values.containers.apiserver.authMode | quote }}
+{{- if .Values.containers.apiserver.hciMode }}
+            - name: HCI_MODE
+              value: "true"
+{{- end }}
             - name: HARVESTER_SERVER_HTTPS_PORT
               value: {{ .Values.service.harvester.httpsPort | quote }}
             - name: HARVESTER_DEBUG

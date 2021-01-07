@@ -28,6 +28,7 @@ import (
 	"github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io"
 	longhornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io"
 	snapshotv1 "github.com/rancher/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
+	"github.com/rancher/harvester/pkg/generated/controllers/upgrade.cattle.io"
 )
 
 type (
@@ -48,6 +49,7 @@ type Options struct {
 	SkipAuthentication    bool
 	RancherEmbedded       bool
 	RancherURL            string
+	HCIMode               bool
 }
 
 type Scaled struct {
@@ -59,6 +61,7 @@ type Scaled struct {
 	HarvesterFactory         *harvester.Factory
 	CoreFactory              *corev1.Factory
 	AppsFactory              *appsv1.Factory
+	BatchFactory             *batchv1.Factory
 	RbacFactory              *rbacv1.Factory
 	CniFactory               *cniv1.Factory
 	SnapshotFactory          *snapshotv1.Factory
@@ -79,12 +82,13 @@ type Management struct {
 	HarvesterFactory         *harvester.Factory
 	CoreFactory              *corev1.Factory
 	AppsFactory              *appsv1.Factory
+	BatchFactory             *batchv1.Factory
 	RbacFactory              *rbacv1.Factory
 	StorageFactory           *storagev1.Factory
-	BatchFactory             *batchv1.Factory
 	SnapshotFactory          *snapshotv1.Factory
 	LonghornFactory          *longhornv1.Factory
 	RancherManagementFactory *rancherv3.Factory
+	UpgradeFactory           *upgrade.Factory
 
 	ClientSet *kubernetes.Clientset
 
@@ -129,6 +133,13 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	}
 	scaled.AppsFactory = apps
 	scaled.starters = append(scaled.starters, apps)
+
+	batch, err := batchv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.BatchFactory = batch
+	scaled.starters = append(scaled.starters, batch)
 
 	rbac, err := rbacv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
@@ -217,6 +228,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.AppsFactory = apps
 	management.starters = append(management.starters, apps)
 
+	batch, err := batchv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.BatchFactory = batch
+	management.starters = append(management.starters, batch)
+
 	rbac, err := rbacv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return nil, err
@@ -224,12 +242,12 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.RbacFactory = rbac
 	management.starters = append(management.starters, rbac)
 
-	batch, err := batchv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	upgrade, err := upgrade.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return nil, err
 	}
-	management.BatchFactory = batch
-	management.starters = append(management.starters, batch)
+	management.UpgradeFactory = upgrade
+	management.starters = append(management.starters, upgrade)
 
 	storage, err := storagev1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {

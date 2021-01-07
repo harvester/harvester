@@ -32,6 +32,8 @@ var (
 	VolumeSnapshotClass    = NewSetting("volume-snapshot-class", "longhorn")
 	BackupTargetSet        = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
 	RancherEnabled         = NewSetting("rancher-enabled", "false") // Specify whether the UI should display the Rancher UI navigation
+	UpgradableVersions     = NewSetting("upgradable-versions", "")
+	VersionMetadataURL     = NewSetting("version-metadata-url", "")
 )
 
 const BackupTargetSettingName = "backup-target"
