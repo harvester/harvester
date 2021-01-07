@@ -18,6 +18,8 @@ limitations under the License.
 
 package v1alpha1
 
+type HostExpansion interface{}
+
 type KeyPairExpansion interface{}
 
 type SettingExpansion interface{}

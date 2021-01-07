@@ -125,3 +125,20 @@ func NewUser(namespace, name string, obj User) *User {
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// HostList is a list of Host resources
+type HostList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []Host `json:"items"`
+}
+
+func NewHost(namespace, name string, obj Host) *Host {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("Host").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}

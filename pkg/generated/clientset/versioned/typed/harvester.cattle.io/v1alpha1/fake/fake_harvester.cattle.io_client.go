@@ -28,6 +28,10 @@ type FakeHarvesterV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeHarvesterV1alpha1) Hosts() v1alpha1.HostInterface {
+	return &FakeHosts{c}
+}
+
 func (c *FakeHarvesterV1alpha1) KeyPairs(namespace string) v1alpha1.KeyPairInterface {
 	return &FakeKeyPairs{c, namespace}
 }

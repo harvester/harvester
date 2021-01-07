@@ -30,6 +30,7 @@ func init() {
 }
 
 type Interface interface {
+	Host() HostController
 	KeyPair() KeyPairController
 	Setting() SettingController
 	User() UserController
@@ -48,6 +49,9 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
+func (c *version) Host() HostController {
+	return NewHostController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "Host"}, "hosts", false, c.controllerFactory)
+}
 func (c *version) KeyPair() KeyPairController {
 	return NewKeyPairController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "KeyPair"}, "keypairs", true, c.controllerFactory)
 }

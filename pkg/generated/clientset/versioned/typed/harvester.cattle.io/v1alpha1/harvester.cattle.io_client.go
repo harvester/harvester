@@ -26,6 +26,7 @@ import (
 
 type HarvesterV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	HostsGetter
 	KeyPairsGetter
 	SettingsGetter
 	UsersGetter
@@ -37,6 +38,10 @@ type HarvesterV1alpha1Interface interface {
 // HarvesterV1alpha1Client is used to interact with features provided by the harvester.cattle.io group.
 type HarvesterV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *HarvesterV1alpha1Client) Hosts() HostInterface {
+	return newHosts(c)
 }
 
 func (c *HarvesterV1alpha1Client) KeyPairs(namespace string) KeyPairInterface {

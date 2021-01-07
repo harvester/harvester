@@ -28,6 +28,7 @@ import (
 )
 
 var (
+	HostResourceName                          = "hosts"
 	KeyPairResourceName                       = "keypairs"
 	SettingResourceName                       = "settings"
 	UserResourceName                          = "users"
@@ -57,6 +58,8 @@ var (
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
+		&Host{},
+		&HostList{},
 		&KeyPair{},
 		&KeyPairList{},
 		&Setting{},
