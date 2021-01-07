@@ -33,8 +33,9 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "NodeDriver"),
 		).
 		BatchCreateCRDsIfNotExisted(
-			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineImage"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "KeyPair"),
+			crd.FromGV(v1alpha1.SchemeGroupVersion, "Upgrade"),
+			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineImage"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplate"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplateVersion"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineBackup"),

@@ -115,6 +115,12 @@ func main() {
 			EnvVar: "HARVESTER_AUTHENTICATION_MODE",
 			Usage:  "Define authentication mode, kubernetesCredentials, localUser and rancher are supported, could config more than one mode, separated by comma",
 		},
+		cli.BoolFlag{
+			Name:        "hci-mode",
+			EnvVar:      "HCI_MODE",
+			Usage:       "Enable HCI mode. Additional controllers are registered in HCI mode",
+			Destination: &options.HCIMode,
+		},
 		cli.StringFlag{
 			Name:        "profile-listen-address",
 			Value:       "0.0.0.0:6060",

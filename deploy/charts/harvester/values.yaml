@@ -260,6 +260,10 @@ containers:
     ## could config more than one mode, separated by comma
     authMode: "localUser"
 
+    ## Specify whether to run in HCI mode. This option enables additional controllers.
+    ## defaults to "false", this will be enabled in ISO mode installation.
+    hciMode: false
+
     ## Specify the command.
     ##
     command: []

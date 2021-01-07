@@ -15,6 +15,7 @@ import (
 	"github.com/rancher/harvester/pkg/controller/master/rancher"
 	"github.com/rancher/harvester/pkg/controller/master/setting"
 	"github.com/rancher/harvester/pkg/controller/master/template"
+	"github.com/rancher/harvester/pkg/controller/master/upgrade"
 	"github.com/rancher/harvester/pkg/controller/master/user"
 	"github.com/rancher/harvester/pkg/controller/master/virtualmachine"
 	"github.com/rancher/harvester/pkg/indexeres"
@@ -31,6 +32,7 @@ var registerFuncs = []registerFunc{
 	setting.Register,
 	template.Register,
 	virtualmachine.Register,
+	upgrade.Register,
 	user.Register,
 	backup.RegisterBackup,
 	backup.RegisterContent,
