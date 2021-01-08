@@ -40,6 +40,10 @@ func (c *FakeHarvesterV1alpha1) Settings() v1alpha1.SettingInterface {
 	return &FakeSettings{c}
 }
 
+func (c *FakeHarvesterV1alpha1) Upgrades(namespace string) v1alpha1.UpgradeInterface {
+	return &FakeUpgrades{c, namespace}
+}
+
 func (c *FakeHarvesterV1alpha1) Users() v1alpha1.UserInterface {
 	return &FakeUsers{c}
 }

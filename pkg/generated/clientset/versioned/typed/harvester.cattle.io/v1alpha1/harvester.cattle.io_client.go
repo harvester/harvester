@@ -29,6 +29,7 @@ type HarvesterV1alpha1Interface interface {
 	KeyPairsGetter
 	PreferencesGetter
 	SettingsGetter
+	UpgradesGetter
 	UsersGetter
 	VirtualMachineBackupsGetter
 	VirtualMachineBackupContentsGetter
@@ -53,6 +54,10 @@ func (c *HarvesterV1alpha1Client) Preferences(namespace string) PreferenceInterf
 
 func (c *HarvesterV1alpha1Client) Settings() SettingInterface {
 	return newSettings(c)
+}
+
+func (c *HarvesterV1alpha1Client) Upgrades(namespace string) UpgradeInterface {
+	return newUpgrades(c, namespace)
 }
 
 func (c *HarvesterV1alpha1Client) Users() UserInterface {

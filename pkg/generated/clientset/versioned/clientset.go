@@ -25,8 +25,8 @@ import (
 	harvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
 	k8scnicncfiov1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 	kubevirtv1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
-	longhornv1beta1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta1"
 	snapshotv1beta1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1"
+	upgradev1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -38,8 +38,8 @@ type Interface interface {
 	HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
 	KubevirtV1() kubevirtv1.KubevirtV1Interface
-	LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface
 	SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface
+	UpgradeV1() upgradev1.UpgradeV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -50,8 +50,8 @@ type Clientset struct {
 	harvesterV1alpha1 *harvesterv1alpha1.HarvesterV1alpha1Client
 	k8sCniCncfIoV1    *k8scnicncfiov1.K8sCniCncfIoV1Client
 	kubevirtV1        *kubevirtv1.KubevirtV1Client
-	longhornV1beta1   *longhornv1beta1.LonghornV1beta1Client
 	snapshotV1beta1   *snapshotv1beta1.SnapshotV1beta1Client
+	upgradeV1         *upgradev1.UpgradeV1Client
 }
 
 // CdiV1beta1 retrieves the CdiV1beta1Client
@@ -74,14 +74,14 @@ func (c *Clientset) KubevirtV1() kubevirtv1.KubevirtV1Interface {
 	return c.kubevirtV1
 }
 
-// LonghornV1beta1 retrieves the LonghornV1beta1Client
-func (c *Clientset) LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface {
-	return c.longhornV1beta1
-}
-
 // SnapshotV1beta1 retrieves the SnapshotV1beta1Client
 func (c *Clientset) SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface {
 	return c.snapshotV1beta1
+}
+
+// UpgradeV1 retrieves the UpgradeV1Client
+func (c *Clientset) UpgradeV1() upgradev1.UpgradeV1Interface {
+	return c.upgradeV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -121,11 +121,11 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
-	cs.longhornV1beta1, err = longhornv1beta1.NewForConfig(&configShallowCopy)
+	cs.snapshotV1beta1, err = snapshotv1beta1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
-	cs.snapshotV1beta1, err = snapshotv1beta1.NewForConfig(&configShallowCopy)
+	cs.upgradeV1, err = upgradev1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -145,8 +145,8 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 	cs.harvesterV1alpha1 = harvesterv1alpha1.NewForConfigOrDie(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.NewForConfigOrDie(c)
 	cs.kubevirtV1 = kubevirtv1.NewForConfigOrDie(c)
-	cs.longhornV1beta1 = longhornv1beta1.NewForConfigOrDie(c)
 	cs.snapshotV1beta1 = snapshotv1beta1.NewForConfigOrDie(c)
+	cs.upgradeV1 = upgradev1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -159,8 +159,8 @@ func New(c rest.Interface) *Clientset {
 	cs.harvesterV1alpha1 = harvesterv1alpha1.New(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
 	cs.kubevirtV1 = kubevirtv1.New(c)
-	cs.longhornV1beta1 = longhornv1beta1.New(c)
 	cs.snapshotV1beta1 = snapshotv1beta1.New(c)
+	cs.upgradeV1 = upgradev1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs
