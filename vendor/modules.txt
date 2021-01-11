@@ -632,6 +632,10 @@ github.com/rancher/steve/pkg/stores/proxy
 github.com/rancher/steve/pkg/stores/selector
 github.com/rancher/steve/pkg/stores/switchschema
 github.com/rancher/steve/pkg/summarycache
+# github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20201117180404-6f0145c68124
+github.com/rancher/system-upgrade-controller/pkg/apis/condition
+github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io
+github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1
 # github.com/rancher/wrangler v0.7.3-0.20210219161540-ef7fe9ce2443
 github.com/rancher/wrangler/pkg/apply
 github.com/rancher/wrangler/pkg/apply/injectors

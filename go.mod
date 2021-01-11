@@ -61,7 +61,7 @@ require (
 	github.com/longhorn/longhorn-manager v1.1.0
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12
-	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2 // indirect
+	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/minio/minio-go/v6 v6.0.57
 	github.com/nxadm/tail v1.4.5 // indirect
 	github.com/onsi/ginkgo v1.14.1
@@ -73,6 +73,7 @@ require (
 	github.com/rancher/rancher v0.0.0-20210312225102-c824d91cd247
 	github.com/rancher/rancher/pkg/apis v0.0.0
 	github.com/rancher/steve v0.0.0-20210302143000-362617a677a9
+	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20201117180404-6f0145c68124
 	github.com/rancher/wrangler v0.7.3-0.20210219161540-ef7fe9ce2443
 	github.com/rancher/wrangler-api v0.6.1-0.20200515193802-dcf70881b087
 	github.com/sirupsen/logrus v1.7.0
