@@ -6,7 +6,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func checkPodSelector(obj data.Object, condition []Condition, summary Summary) Summary {
+func checkHasPodTemplate(obj data.Object, condition []Condition, summary Summary) Summary {
+	template := obj.Map("spec", "template")
+	if template == nil {
+		return summary
+	}
+
+	if !isKind(obj, "ReplicaSet", "apps/", "extension/") &&
+		!isKind(obj, "DaemonSet", "apps/", "extension/") &&
+		!isKind(obj, "StatefulSet", "apps/", "extension/") &&
+		!isKind(obj, "Deployment", "apps/", "extension/") &&
+		!isKind(obj, "Job", "batch/") &&
+		!isKind(obj, "Service") {
+		return summary
+	}
+
+	return checkPodTemplate(template, condition, summary)
+}
+
+func checkHasPodSelector(obj data.Object, condition []Condition, summary Summary) Summary {
 	selector := obj.Map("spec", "selector")
 	if selector == nil {
 		return summary
@@ -58,6 +76,10 @@ func checkPod(obj data.Object, condition []Condition, summary Summary) Summary {
 	if obj.String("kind") != "Pod" || obj.String("apiVersion") != "v1" {
 		return summary
 	}
+	return checkPodTemplate(obj, condition, summary)
+}
+
+func checkPodTemplate(obj data.Object, condition []Condition, summary Summary) Summary {
 	summary = checkPodConfigMaps(obj, condition, summary)
 	summary = checkPodSecrets(obj, condition, summary)
 	summary = checkPodServiceAccount(obj, condition, summary)
@@ -66,7 +88,7 @@ func checkPod(obj data.Object, condition []Condition, summary Summary) Summary {
 	return summary
 }
 
-func checkPodPullSecret(obj data.Object, condition []Condition, summary Summary) Summary {
+func checkPodPullSecret(obj data.Object, _ []Condition, summary Summary) Summary {
 	for _, pullSecret := range obj.Slice("imagePullSecrets") {
 		if name := pullSecret.String("name"); name != "" {
 			summary.Relationships = append(summary.Relationships, Relationship{
@@ -80,7 +102,7 @@ func checkPodPullSecret(obj data.Object, condition []Condition, summary Summary)
 	return summary
 }
 
-func checkPodProjectedVolume(obj data.Object, condition []Condition, summary Summary) Summary {
+func checkPodProjectedVolume(obj data.Object, _ []Condition, summary Summary) Summary {
 	for _, vol := range obj.Slice("spec", "volumes") {
 		for _, source := range vol.Slice("projected", "sources") {
 			if secretName := source.String("secret", "name"); secretName != "" {
@@ -104,7 +126,7 @@ func checkPodProjectedVolume(obj data.Object, condition []Condition, summary Sum
 	return summary
 }
 
-func checkPodConfigMaps(obj data.Object, condition []Condition, summary Summary) Summary {
+func checkPodConfigMaps(obj data.Object, _ []Condition, summary Summary) Summary {
 	names := map[string]bool{}
 	for _, vol := range obj.Slice("spec", "volumes") {
 		name := vol.String("configMap", "name")
@@ -122,7 +144,7 @@ func checkPodConfigMaps(obj data.Object, condition []Condition, summary Summary)
 	return summary
 }
 
-func checkPodSecrets(obj data.Object, condition []Condition, summary Summary) Summary {
+func checkPodSecrets(obj data.Object, _ []Condition, summary Summary) Summary {
 	names := map[string]bool{}
 	for _, vol := range obj.Slice("spec", "volumes") {
 		name := vol.String("secret", "secretName")
@@ -140,7 +162,7 @@ func checkPodSecrets(obj data.Object, condition []Condition, summary Summary) Su
 	return summary
 }
 
-func checkPodServiceAccount(obj data.Object, condition []Condition, summary Summary) Summary {
+func checkPodServiceAccount(obj data.Object, _ []Condition, summary Summary) Summary {
 	saName := obj.String("spec", "serviceAccountName")
 	summary.Relationships = append(summary.Relationships, Relationship{
 		Name:       saName,

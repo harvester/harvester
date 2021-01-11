@@ -13,14 +13,22 @@ func GetNonInteractiveClientConfig(kubeConfig string) clientcmd.ClientConfig {
 	return GetClientConfig(kubeConfig, nil)
 }
 
+func GetNonInteractiveClientConfigWithContext(kubeConfig, currentContext string) clientcmd.ClientConfig {
+	return GetClientConfigWithContext(kubeConfig, currentContext, nil)
+}
+
 func GetInteractiveClientConfig(kubeConfig string) clientcmd.ClientConfig {
 	return GetClientConfig(kubeConfig, os.Stdin)
 }
 
-func GetClientConfig(kubeConfig string, reader io.Reader) clientcmd.ClientConfig {
+func GetClientConfigWithContext(kubeConfig, currentContext string, reader io.Reader) clientcmd.ClientConfig {
 	loadingRules := GetLoadingRules(kubeConfig)
-	overrides := &clientcmd.ConfigOverrides{ClusterDefaults: clientcmd.ClusterDefaults}
+	overrides := &clientcmd.ConfigOverrides{ClusterDefaults: clientcmd.ClusterDefaults, CurrentContext: currentContext}
 	return clientcmd.NewInteractiveDeferredLoadingClientConfig(loadingRules, overrides, reader)
+}
+
+func GetClientConfig(kubeConfig string, reader io.Reader) clientcmd.ClientConfig {
+	return GetClientConfigWithContext(kubeConfig, "", reader)
 }
 
 func GetLoadingRules(kubeConfig string) *clientcmd.ClientConfigLoadingRules {

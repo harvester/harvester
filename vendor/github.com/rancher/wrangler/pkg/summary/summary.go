@@ -10,12 +10,12 @@ import (
 )
 
 type Summary struct {
-	State         string
-	Error         bool
-	Transitioning bool
-	Message       []string
-	Attributes    map[string]interface{}
-	Relationships []Relationship
+	State         string                 `json:"state,omitempty"`
+	Error         bool                   `json:"error,omitempty"`
+	Transitioning bool                   `json:"transitioning,omitempty"`
+	Message       []string               `json:"message,omitempty"`
+	Attributes    map[string]interface{} `json:"-"`
+	Relationships []Relationship         `json:"-"`
 }
 
 type Relationship struct {
@@ -47,7 +47,7 @@ func (s Summary) String() string {
 		msg += "]"
 	}
 	if len(s.Message) > 0 {
-		msg = msg + " " + s.Message[0]
+		msg = msg + " " + strings.Join(s.Message, ", ")
 	}
 	return msg
 }
@@ -74,6 +74,10 @@ func dedupMessage(messages []string) []string {
 	var result []string
 
 	for _, message := range messages {
+		message = strings.TrimSpace(message)
+		if message == "" {
+			continue
+		}
 		if seen[message] {
 			continue
 		}

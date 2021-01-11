@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"github.com/rancher/apiserver/pkg/server"
+	apiserver "github.com/rancher/apiserver/pkg/server"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
-	"github.com/rancher/apiserver/pkg/writer"
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/auth"
 	k8sproxy "github.com/rancher/steve/pkg/proxy"
@@ -17,8 +17,8 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func New(cfg *rest.Config, sf schema.Factory, authMiddleware auth.Middleware, next http.Handler, routerFunc router.RouterFunc,
-	responseWriter writer.HTMLResponseWriter) (http.Handler, error) {
+func New(cfg *rest.Config, sf schema.Factory, authMiddleware auth.Middleware, next http.Handler,
+	routerFunc router.RouterFunc) (*apiserver.Server, http.Handler, error) {
 	var (
 		proxy http.Handler
 		err   error
@@ -30,32 +30,27 @@ func New(cfg *rest.Config, sf schema.Factory, authMiddleware auth.Middleware, ne
 	}
 	a.server.AccessControl = accesscontrol.NewAccessControl()
 
-	if responseWriter.CSSURL != nil && responseWriter.JSURL != nil && responseWriter.APIUIVersion != nil {
-		a.server.CustomAPIUIResponseWriter(responseWriter.CSSURL, responseWriter.JSURL, responseWriter.APIUIVersion)
-	}
-
 	if authMiddleware == nil {
 		proxy, err = k8sproxy.Handler("/", cfg)
 		if err != nil {
-			return nil, err
+			return a.server, nil, err
 		}
 		authMiddleware = auth.ToMiddleware(auth.AuthenticatorFunc(auth.AlwaysAdmin))
 	} else {
 		proxy = k8sproxy.ImpersonatingHandler("/", cfg)
 	}
 
-	w := authMiddleware.Wrap
+	w := authMiddleware
 	handlers := router.Handlers{
-		Next:            next,
-		K8sResource:     w(a.apiHandler(k8sAPI)),
-		GenericResource: w(a.apiHandler(nil)),
-		K8sProxy:        w(proxy),
-		APIRoot:         w(a.apiHandler(apiRoot)),
+		Next:        next,
+		K8sResource: w(a.apiHandler(k8sAPI)),
+		K8sProxy:    w(proxy),
+		APIRoot:     w(a.apiHandler(apiRoot)),
 	}
 	if routerFunc == nil {
-		return router.Routes(handlers), nil
+		return a.server, router.Routes(handlers), nil
 	}
-	return routerFunc(handlers), nil
+	return a.server, routerFunc(handlers), nil
 }
 
 type apiServer struct {
@@ -95,16 +90,12 @@ type APIFunc func(schema.Factory, *types.APIRequest)
 
 func (a *apiServer) apiHandler(apiFunc APIFunc) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		a.api(rw, req, apiFunc)
-	})
-}
-
-func (a *apiServer) api(rw http.ResponseWriter, req *http.Request, apiFunc APIFunc) {
-	apiOp, ok := a.common(rw, req)
-	if ok {
-		if apiFunc != nil {
-			apiFunc(a.sf, apiOp)
+		apiOp, ok := a.common(rw, req)
+		if ok {
+			if apiFunc != nil {
+				apiFunc(a.sf, apiOp)
+			}
+			a.server.Handle(apiOp)
 		}
-		a.server.Handle(apiOp)
-	}
+	})
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/attributes"
+	"github.com/rancher/steve/pkg/schema/converter"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -23,6 +24,7 @@ type Factory interface {
 	ByGVR(gvr schema.GroupVersionResource) string
 	ByGVK(gvr schema.GroupVersionKind) string
 	OnChange(ctx context.Context, cb func())
+	AddTemplate(template ...Template)
 }
 
 type Collection struct {
@@ -210,17 +212,23 @@ func (c *Collection) ByGVK(gvk schema.GroupVersionKind) string {
 	return c.byGVK[gvk]
 }
 
-func (c *Collection) AddTemplate(template *Template) {
+func (c *Collection) AddTemplate(templates ...Template) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	if template.Kind != "" {
-		c.templates[template.Group+"/"+template.Kind] = template
-	}
-	if template.ID != "" {
-		c.templates[template.ID] = template
-	}
-	if template.Kind == "" && template.Group == "" && template.ID == "" {
-		c.templates[""] = template
+	for i, template := range templates {
+		if template.Kind != "" {
+			c.templates[template.Group+"/"+template.Kind] = &templates[i]
+			c.templates[converter.GVKToSchemaID(schema.GroupVersionKind{
+				Group: template.Group,
+				Kind:  template.Kind,
+			})] = &templates[i]
+		}
+		if template.ID != "" {
+			c.templates[template.ID] = &templates[i]
+		}
+		if template.Kind == "" && template.Group == "" && template.ID == "" {
+			c.templates[""] = &templates[i]
+		}
 	}
 }

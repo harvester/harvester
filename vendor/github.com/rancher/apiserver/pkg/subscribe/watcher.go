@@ -20,17 +20,20 @@ type WatchSession struct {
 	cancel   func()
 }
 
-func (s *WatchSession) stop(id string, resp chan<- types.APIEvent) {
+func (s *WatchSession) stop(sub Subscribe, resp chan<- types.APIEvent) {
 	s.Lock()
 	defer s.Unlock()
-	if cancel, ok := s.watchers[id]; ok {
+	if cancel, ok := s.watchers[sub.key()]; ok {
 		cancel()
 		resp <- types.APIEvent{
 			Name:         "resource.stop",
-			ResourceType: id,
+			ResourceType: sub.ResourceType,
+			Namespace:    sub.Namespace,
+			ID:           sub.ID,
+			Selector:     sub.Selector,
 		}
 	}
-	delete(s.watchers, id)
+	delete(s.watchers, sub.key())
 }
 
 func (s *WatchSession) add(sub Subscribe, resp chan<- types.APIEvent) {
@@ -43,7 +46,7 @@ func (s *WatchSession) add(sub Subscribe, resp chan<- types.APIEvent) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		defer s.stop(sub.key(), resp)
+		defer s.stop(sub, resp)
 
 		if err := s.stream(ctx, sub, resp); err != nil {
 			sendErr(resp, err, sub)
@@ -63,7 +66,9 @@ func (s *WatchSession) stream(ctx context.Context, sub Subscribe, result chan<- 
 		return err
 	}
 
-	c, err := schema.Store.Watch(s.apiOp.WithContext(ctx), schema, types.WatchRequest{
+	apiOp := s.apiOp.Clone().WithContext(ctx)
+	apiOp.Namespace = sub.Namespace
+	c, err := schema.Store.Watch(apiOp, schema, types.WatchRequest{
 		Revision: sub.ResourceVersion,
 		ID:       sub.ID,
 		Selector: sub.Selector,
@@ -83,9 +88,13 @@ func (s *WatchSession) stream(ctx context.Context, sub Subscribe, result chan<- 
 		<-s.apiOp.Context().Done()
 	} else {
 		for event := range c {
-			event.ID = sub.ID
-			event.Selector = sub.Selector
-			result <- event
+			if event.Error == nil {
+				event.ID = sub.ID
+				event.Selector = sub.Selector
+				result <- event
+			} else {
+				sendErr(result, event.Error, sub)
+			}
 		}
 	}
 
@@ -137,7 +146,7 @@ func (s *WatchSession) watch(conn *websocket.Conn, resp chan types.APIEvent) err
 		}
 
 		if sub.Stop {
-			s.stop(sub.key(), resp)
+			s.stop(sub, resp)
 		} else {
 			s.Lock()
 			_, ok := s.watchers[sub.key()]
@@ -152,6 +161,7 @@ func (s *WatchSession) watch(conn *websocket.Conn, resp chan types.APIEvent) err
 func sendErr(resp chan<- types.APIEvent, err error, sub Subscribe) {
 	resp <- types.APIEvent{
 		ResourceType: sub.ResourceType,
+		Namespace:    sub.Namespace,
 		ID:           sub.ID,
 		Selector:     sub.Selector,
 		Error:        err,

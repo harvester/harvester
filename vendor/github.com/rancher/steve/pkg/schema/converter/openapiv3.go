@@ -61,14 +61,18 @@ func toResourceField(name string, schema v1beta1.JSONSchemaProps, schemasMap map
 	case "array":
 		if itemSchema == nil {
 			f.Type = "array[json]"
-		} else {
+		} else if itemSchema.Type == "object" {
 			f.Type = "array[" + name + "]"
 			modelV3ToSchema(name, itemSchema, schemasMap)
+		} else {
+			f.Type = "array[" + itemSchema.Type + "]"
 		}
 	case "object":
-		if schema.AdditionalProperties != nil && schema.AdditionalProperties.Schema != nil {
+		if schema.AdditionalProperties != nil && schema.AdditionalProperties.Schema != nil && schema.AdditionalProperties.Schema.Type == "object" {
 			f.Type = "map[" + name + "]"
 			modelV3ToSchema(name, schema.AdditionalProperties.Schema, schemasMap)
+		} else if schema.AdditionalProperties != nil && schema.AdditionalProperties.Schema != nil {
+			f.Type = "map[" + schema.AdditionalProperties.Schema.Type + "]"
 		} else {
 			f.Type = name
 			modelV3ToSchema(name, &schema, schemasMap)

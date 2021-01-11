@@ -107,7 +107,7 @@ func toField(schema proto.Schema) schemas.Field {
 			f.Type = sub.GetPath().String()
 		}
 	case *proto.Arbitrary:
-		logrus.Errorf("unknown type: %v", schema)
+		logrus.Debugf("arbitrary type: %v", schema)
 		f.Type = "json"
 	default:
 		logrus.Errorf("unknown type: %v", schema)

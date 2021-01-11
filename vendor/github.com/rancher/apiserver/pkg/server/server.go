@@ -22,19 +22,9 @@ type RequestHandler interface {
 type Server struct {
 	ResponseWriters map[string]types.ResponseWriter
 	Schemas         *types.APISchemas
-	Defaults        Defaults
 	AccessControl   types.AccessControl
 	Parser          parse.Parser
 	URLParser       parse.URLParser
-}
-
-type Defaults struct {
-	ByIDHandler   types.RequestHandler
-	ListHandler   types.RequestListHandler
-	CreateHandler types.RequestHandler
-	DeleteHandler types.RequestHandler
-	UpdateHandler types.RequestHandler
-	ErrorHandler  types.ErrorHandler
 }
 
 func DefaultAPIServer() *Server {
@@ -63,16 +53,8 @@ func DefaultAPIServer() *Server {
 			},
 		},
 		AccessControl: &SchemaBasedAccess{},
-		Defaults: Defaults{
-			ByIDHandler:   handlers.ByIDHandler,
-			CreateHandler: handlers.CreateHandler,
-			DeleteHandler: handlers.DeleteHandler,
-			UpdateHandler: handlers.UpdateHandler,
-			ListHandler:   handlers.ListHandler,
-			ErrorHandler:  handlers.ErrorHandler,
-		},
-		Parser:    parse.Parse,
-		URLParser: parse.MuxURLParser,
+		Parser:        parse.Parse,
+		URLParser:     parse.MuxURLParser,
 	}
 
 	subscribe.Register(s.Schemas)
@@ -88,7 +70,7 @@ func (s *Server) setDefaults(ctx *types.APIRequest) {
 	}
 
 	if ctx.ErrorHandler == nil {
-		ctx.ErrorHandler = s.Defaults.ErrorHandler
+		ctx.ErrorHandler = handlers.ErrorHandler
 	}
 
 	ctx.AccessControl = s.AccessControl
@@ -173,7 +155,7 @@ func (s *Server) handleOp(apiOp *types.APIRequest) (int, interface{}, error) {
 
 	if action != nil {
 		if apiOp.Name != "" {
-			data, err := handle(apiOp, apiOp.Schema.ByIDHandler, s.Defaults.ByIDHandler)
+			data, err := handle(apiOp, apiOp.Schema.ByIDHandler, handlers.ByIDHandler)
 			if err != nil {
 				return http.StatusOK, data, err
 			}
@@ -184,21 +166,21 @@ func (s *Server) handleOp(apiOp *types.APIRequest) (int, interface{}, error) {
 	switch apiOp.Method {
 	case http.MethodGet:
 		if apiOp.Name == "" {
-			data, err := handleList(apiOp, apiOp.Schema.ListHandler, s.Defaults.ListHandler)
+			data, err := handleList(apiOp, apiOp.Schema.ListHandler, handlers.ListHandler)
 			return http.StatusOK, data, err
 		}
-		data, err := handle(apiOp, apiOp.Schema.ByIDHandler, s.Defaults.ByIDHandler)
+		data, err := handle(apiOp, apiOp.Schema.ByIDHandler, handlers.ByIDHandler)
 		return http.StatusOK, data, err
 	case http.MethodPatch:
 		fallthrough
 	case http.MethodPut:
-		data, err := handle(apiOp, apiOp.Schema.UpdateHandler, s.Defaults.UpdateHandler)
+		data, err := handle(apiOp, apiOp.Schema.UpdateHandler, handlers.UpdateHandler)
 		return http.StatusOK, data, err
 	case http.MethodPost:
-		data, err := handle(apiOp, apiOp.Schema.CreateHandler, s.Defaults.CreateHandler)
+		data, err := handle(apiOp, apiOp.Schema.CreateHandler, handlers.CreateHandler)
 		return http.StatusCreated, data, err
 	case http.MethodDelete:
-		data, err := handle(apiOp, apiOp.Schema.DeleteHandler, s.Defaults.DeleteHandler)
+		data, err := handle(apiOp, apiOp.Schema.DeleteHandler, handlers.DeleteHandler)
 		return http.StatusOK, data, err
 	}
 

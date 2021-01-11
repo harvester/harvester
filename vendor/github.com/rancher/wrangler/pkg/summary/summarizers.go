@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/wrangler/pkg/data/convert"
 	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	kstatus "sigs.k8s.io/cli-utils/pkg/kstatus/status"
 )
 
 const (
@@ -69,6 +70,7 @@ var (
 		"KernelHasNoDeadlock": true,
 		"Unschedulable":       true,
 		"ReplicaFailure":      true,
+		"Stalled":             true,
 	}
 
 	// True ==
@@ -89,24 +91,43 @@ var (
 		"Progressing": "inactive",
 	}
 
-	Summarizers []Summarizer
+	// True ==
+	// False == transitioning
+	// Unknown == error
+	TransitioningTrue = map[string]string{
+		"Reconciling": "reconciling",
+	}
+
+	Summarizers          []Summarizer
+	ConditionSummarizers []Summarizer
 )
 
 type Summarizer func(obj data.Object, conditions []Condition, summary Summary) Summary
 
 func init() {
+	ConditionSummarizers = []Summarizer{
+		checkErrors,
+		checkTransitioning,
+		checkRemoving,
+		checkCattleReady,
+	}
+
 	Summarizers = []Summarizer{
+		checkStatusSummary,
 		checkErrors,
 		checkTransitioning,
 		checkActive,
 		checkPhase,
 		checkInitializing,
 		checkRemoving,
+		checkStandard,
 		checkLoadBalancer,
 		checkPod,
-		checkPodSelector,
+		checkHasPodSelector,
+		checkHasPodTemplate,
 		checkOwner,
 		checkApplyOwned,
+		checkCattleTypes,
 	}
 }
 
@@ -132,11 +153,76 @@ func checkOwner(obj data.Object, conditions []Condition, summary Summary) Summar
 	return summary
 }
 
+func checkStatusSummary(obj data.Object, _ []Condition, summary Summary) Summary {
+	summaryObj := obj.Map("status", "display")
+	if len(summaryObj) == 0 {
+		summaryObj = obj.Map("status", "summary")
+		if len(summaryObj) == 0 {
+			return summary
+		}
+	}
+	obj = summaryObj
+
+	if _, ok := obj["state"]; ok {
+		summary.State = obj.String("state")
+	}
+	if _, ok := obj["transitioning"]; ok {
+		summary.Transitioning = obj.Bool("transitioning")
+	}
+	if _, ok := obj["error"]; ok {
+		summary.Error = obj.Bool("error")
+	}
+	if _, ok := obj["message"]; ok {
+		summary.Message = append(summary.Message, obj.String("message"))
+	}
+
+	return summary
+}
+
+func checkStandard(obj data.Object, _ []Condition, summary Summary) Summary {
+	if summary.State != "" {
+		return summary
+	}
+
+	// this is a hack to not call the standard summarizers on norman mapped objects
+	if strings.HasPrefix(obj.String("type"), "/") {
+		return summary
+	}
+
+	result, err := kstatus.Compute(&unstructured.Unstructured{Object: obj})
+	if err != nil {
+		return summary
+	}
+
+	switch result.Status {
+	case kstatus.InProgressStatus:
+		summary.State = "in-progress"
+		summary.Message = append(summary.Message, result.Message)
+		summary.Transitioning = true
+	case kstatus.FailedStatus:
+		summary.State = "failed"
+		summary.Message = append(summary.Message, result.Message)
+		summary.Error = true
+	case kstatus.CurrentStatus:
+		summary.State = "active"
+		summary.Message = append(summary.Message, result.Message)
+	case kstatus.TerminatingStatus:
+		summary.State = "removing"
+		summary.Message = append(summary.Message, result.Message)
+		summary.Transitioning = true
+	}
+
+	return summary
+}
+
 func checkErrors(_ data.Object, conditions []Condition, summary Summary) Summary {
 	for _, c := range conditions {
 		if (ErrorFalse[c.Type()] && c.Status() == "False") || c.Reason() == "Error" {
 			summary.Error = true
 			summary.Message = append(summary.Message, c.Message())
+			if summary.State == "active" || summary.State == "" {
+				summary.State = "error"
+			}
 			break
 		}
 	}
@@ -186,6 +272,21 @@ func checkTransitioning(_ data.Object, conditions []Condition, summary Summary) 
 			summary.Message = append(summary.Message, c.Message())
 		} else if c.Status() == "Unknown" {
 			summary.Error = true
+			summary.State = newState
+			summary.Message = append(summary.Message, c.Message())
+		}
+	}
+
+	for _, c := range conditions {
+		if summary.State != "" {
+			break
+		}
+		newState, ok := TransitioningTrue[c.Type()]
+		if !ok {
+			continue
+		}
+		if c.Status() == "True" {
+			summary.Transitioning = true
 			summary.State = newState
 			summary.Message = append(summary.Message, c.Message())
 		}
@@ -277,7 +378,8 @@ func checkRemoving(obj data.Object, conditions []Condition, summary Summary) Sum
 func checkLoadBalancer(obj data.Object, _ []Condition, summary Summary) Summary {
 	if (summary.State == "active" || summary.State == "") &&
 		obj.String("kind") == "Service" &&
-		obj.String("spec", "serviceKind") == "LoadBalancer" {
+		(obj.String("spec", "serviceKind") == "LoadBalancer" ||
+			obj.String("spec", "type") == "LoadBalancer") {
 		addresses := obj.Slice("status", "loadBalancer", "ingress")
 		if len(addresses) == 0 {
 			summary.State = "pending"
