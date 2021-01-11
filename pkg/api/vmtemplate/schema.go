@@ -23,7 +23,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	}
 
 	templateVersionStore := &templateVersionStore{
-		Store:                proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
+		Store:                proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		templateCache:        templates.Cache(),
 		templateVersionCache: templateVersionCache,
 		keyPairCache:         scaled.HarvesterFactory.Harvester().V1alpha1().KeyPair().Cache(),
@@ -36,7 +36,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 			Customize: func(apiSchema *types.APISchema) {
 				apiSchema.ByIDHandler = th.byIDHandler
 			},
-			Store: store.NamespaceStore{Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup)},
+			Store: store.NamespaceStore{Store: proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup)},
 		},
 		{
 			ID:        templateVersionSchemaID,
@@ -45,6 +45,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 		},
 	}
 
-	server.SchemaTemplates = append(server.SchemaTemplates, t...)
+	server.SchemaFactory.AddTemplate(t...)
 	return nil
 }

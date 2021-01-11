@@ -8,7 +8,6 @@ import (
 
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/steve/pkg/resources/common"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -19,7 +18,6 @@ import (
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
-	common.Formatter(request, resource)
 	resource.Actions = nil
 	delete(resource.Links, "update")
 }

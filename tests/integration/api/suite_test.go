@@ -79,7 +79,7 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	testSuiteStartErrChan = make(chan error)
 	go func() {
-		testSuiteStartErrChan <- harvester.Start(listenOpts)
+		testSuiteStartErrChan <- harvester.ListenAndServe(listenOpts)
 	}()
 
 	// NB(thxCode): since the start of all controllers is not synchronized,

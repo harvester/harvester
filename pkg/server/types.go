@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rancher/apiserver/pkg/writer"
 	"github.com/rancher/dynamiclistener"
 	"github.com/rancher/dynamiclistener/server"
 	"github.com/rancher/lasso/pkg/controller"
@@ -29,18 +28,20 @@ import (
 	"github.com/rancher/harvester/pkg/controller/global"
 	"github.com/rancher/harvester/pkg/controller/master"
 	"github.com/rancher/harvester/pkg/server/ui"
-	"github.com/rancher/harvester/pkg/settings"
 )
 
 type HarvesterServer struct {
 	Context context.Context
 
-	RestConfig    *restclient.Config
+	RESTConfig    *restclient.Config
 	DynamicClient dynamic.Interface
 	ClientSet     *kubernetes.Clientset
 	ASL           accesscontrol.AccessSetLookup
 
-	steve *steveserver.Server
+	steve          *steveserver.Server
+	controllers    *steveserver.Controllers
+	startHooks     []StartHook
+	postStartHooks []func() error
 
 	Handler http.Handler
 }
@@ -50,22 +51,22 @@ func New(ctx context.Context, clientConfig clientcmd.ClientConfig) (*HarvesterSe
 	server := &HarvesterServer{
 		Context: ctx,
 	}
-	server.RestConfig, err = clientConfig.ClientConfig()
+	server.RESTConfig, err = clientConfig.ClientConfig()
 	if err != nil {
 		return nil, err
 	}
-	server.RestConfig.RateLimiter = ratelimit.None
+	server.RESTConfig.RateLimiter = ratelimit.None
 
-	if err := Wait(ctx, server.RestConfig); err != nil {
+	if err := Wait(ctx, server.RESTConfig); err != nil {
 		return nil, err
 	}
 
-	server.ClientSet, err = kubernetes.NewForConfig(server.RestConfig)
+	server.ClientSet, err = kubernetes.NewForConfig(server.RESTConfig)
 	if err != nil {
 		return nil, fmt.Errorf("kubernetes clientset create error: %s", err.Error())
 	}
 
-	server.DynamicClient, err = dynamic.NewForConfig(server.RestConfig)
+	server.DynamicClient, err = dynamic.NewForConfig(server.RESTConfig)
 	if err != nil {
 		return nil, fmt.Errorf("kubernetes dynamic client create error:%s", err.Error())
 	}
@@ -73,6 +74,8 @@ func New(ctx context.Context, clientConfig clientcmd.ClientConfig) (*HarvesterSe
 	if err := server.generateSteveServer(); err != nil {
 		return nil, err
 	}
+
+	ui.ConfigureAPIUI(server.steve.APIServer)
 
 	return server, nil
 }
@@ -99,9 +102,9 @@ func Wait(ctx context.Context, config *rest.Config) error {
 	return nil
 }
 
-func (s *HarvesterServer) Start(listenOpts *dynamiclistener.Config) error {
+func (s *HarvesterServer) ListenAndServe(listenOpts *dynamiclistener.Config) error {
 	opts := &server.ListenOpts{
-		Secrets: s.steve.Controllers.Core.Secret(),
+		Secrets: s.controllers.Core.Secret(),
 		TLSListenerConfig: dynamiclistener.Config{
 			CloseConnOnCertChange: true,
 		},
@@ -121,7 +124,7 @@ func (s *HarvesterServer) Scaled() *config.Scaled {
 }
 
 func (s *HarvesterServer) generateSteveServer() error {
-	factory, err := controller.NewSharedControllerFactoryFromConfig(s.RestConfig, Scheme)
+	factory, err := controller.NewSharedControllerFactoryFromConfig(s.RESTConfig, Scheme)
 	if err != nil {
 		return err
 	}
@@ -132,21 +135,19 @@ func (s *HarvesterServer) generateSteveServer() error {
 
 	var scaled *config.Scaled
 
-	s.Context, scaled, err = config.SetupScaled(s.Context, s.RestConfig, opts)
+	s.Context, scaled, err = config.SetupScaled(s.Context, s.RESTConfig, opts)
 	if err != nil {
 		return err
 	}
 
-	steveControllers, err := steveserver.NewController(s.RestConfig, opts)
+	s.controllers, err = steveserver.NewController(s.RESTConfig, opts)
 	if err != nil {
 		return err
 	}
 
-	s.ASL = accesscontrol.NewAccessStore(s.Context, true, steveControllers.RBAC)
+	s.ASL = accesscontrol.NewAccessStore(s.Context, true, s.controllers.RBAC)
 
-	nextHandler := ui.RegisterAPIUI()
-
-	router, err := NewRouter(scaled, s.RestConfig)
+	router, err := NewRouter(scaled, s.RESTConfig)
 	if err != nil {
 		return err
 	}
@@ -154,37 +155,51 @@ func (s *HarvesterServer) generateSteveServer() error {
 	var authMiddleware steveauth.Middleware
 	if !config.SkipAuthentication {
 		md := auth.NewMiddleware(scaled)
-		authMiddleware = md.AuthMiddleware
+		authMiddleware = md.ToAuthMiddleware()
 	}
 
-	s.steve = &steveserver.Server{
-		Controllers:     steveControllers,
-		AccessSetLookup: s.ASL,
-		RestConfig:      s.RestConfig,
+	s.steve, err = steveserver.New(s.Context, s.RESTConfig, &steveserver.Options{
+		Controllers:     s.controllers,
 		AuthMiddleware:  authMiddleware,
-		Next:            nextHandler,
 		Router:          router.Routes,
-		DashboardURL: func() string {
-			if settings.UIIndex.Get() == "local" {
-				return settings.UIPath.Get()
-			}
-			return settings.UIIndex.Get()
-		},
-		StartHooks: []steveserver.StartHook{
-			crds.Setup,
-			master.Setup,
-			global.Setup,
-			api.Setup,
-		},
-		HTMLResponseWriter: writer.HTMLResponseWriter{
-			CSSURL:       ui.CSSURLGetter,
-			JSURL:        ui.JSURLGetter,
-			APIUIVersion: ui.APIUIVersionGetter,
-		},
-		PostStartHooks: []func() error{
-			scaled.Start,
-		},
+		AccessSetLookup: s.ASL,
+	})
+	if err != nil {
+		return err
+	}
+
+	s.startHooks = []StartHook{
+		crds.Setup,
+		master.Setup,
+		global.Setup,
+		api.Setup,
+	}
+
+	s.postStartHooks = []func() error{
+		scaled.Start,
+	}
+
+	return s.start()
+}
+
+func (s *HarvesterServer) start() error {
+	for _, hook := range s.startHooks {
+		if err := hook(s.Context, s.steve, s.controllers); err != nil {
+			return err
+		}
+	}
+
+	if err := s.controllers.Start(s.Context); err != nil {
+		return err
+	}
+
+	for _, hook := range s.postStartHooks {
+		if err := hook(); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
+
+type StartHook func(context.Context, *steveserver.Server, *steveserver.Controllers) error

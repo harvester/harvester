@@ -33,7 +33,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	vmis := scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstance()
 	vmims := scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstanceMigration()
 
-	copyConfig := rest.CopyConfig(server.RestConfig)
+	copyConfig := rest.CopyConfig(server.RESTConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion
 	copyConfig.APIPath = "/apis"
 	copyConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
@@ -57,7 +57,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	}
 
 	vmStore := &vmStore{
-		Store:            proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
+		Store:            proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		vmCache:          scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine().Cache(),
 		dataVolumes:      scaled.CDIFactory.Cdi().V1beta1().DataVolume(),
 		dataVolumesCache: scaled.CDIFactory.Cdi().V1beta1().DataVolume().Cache(),
@@ -93,6 +93,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 		Store:     vmStore,
 	}
 
-	server.SchemaTemplates = append(server.SchemaTemplates, t)
+	server.SchemaFactory.AddTemplate(t)
 	return nil
 }

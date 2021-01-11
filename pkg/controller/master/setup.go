@@ -15,6 +15,7 @@ import (
 	"github.com/rancher/harvester/pkg/controller/master/user"
 	"github.com/rancher/harvester/pkg/controller/master/virtualmachine"
 	"github.com/rancher/harvester/pkg/indexeres"
+	"github.com/rancher/harvester/pkg/userpreferences"
 )
 
 type registerFunc func(context.Context, *config.Management) error
@@ -38,12 +39,14 @@ func register(ctx context.Context, management *config.Management) error {
 	return auth.BootstrapAdmin(management)
 }
 
-func Setup(ctx context.Context, server *server.Server) error {
+func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers) error {
+	userpreferences.Register(server.BaseSchemas, server.ClientFactory)
+
 	scaled := config.ScaledWithContext(ctx)
 
 	indexeres.RegisterManagementIndexers(scaled.Management)
 
-	go leader.RunOrDie(ctx, "", "harvester-controllers", server.K8s, func(ctx context.Context) {
+	go leader.RunOrDie(ctx, "", "harvester-controllers", controllers.K8s, func(ctx context.Context) {
 		if err := register(ctx, scaled.Management); err != nil {
 			panic(err)
 		}

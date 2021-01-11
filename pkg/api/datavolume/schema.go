@@ -15,7 +15,7 @@ const (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	dvStore := &dvStore{
-		Store:   proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
+		Store:   proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		dvCache: scaled.CDIFactory.Cdi().V1beta1().DataVolume().Cache(),
 	}
 
@@ -24,6 +24,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 		Store: dvStore,
 	}
 
-	server.SchemaTemplates = append(server.SchemaTemplates, t)
+	server.SchemaFactory.AddTemplate(t)
 	return util.InitCertConfigMap(scaled)
 }

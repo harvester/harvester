@@ -11,12 +11,12 @@ import (
 	"github.com/rancher/harvester/pkg/util/crd"
 )
 
-func Setup(ctx context.Context, server *server.Server) error {
+func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers) error {
 	return createCRDs(ctx, server)
 }
 
 func createCRDs(ctx context.Context, server *server.Server) error {
-	factory, err := crd.NewFactoryFromClient(ctx, server.RestConfig)
+	factory, err := crd.NewFactoryFromClient(ctx, server.RESTConfig)
 	if err != nil {
 		return err
 	}
