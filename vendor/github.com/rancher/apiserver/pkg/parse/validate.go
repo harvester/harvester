@@ -43,5 +43,5 @@ func ValidateMethod(request *types.APIRequest) error {
 		}
 	}
 
-	return apierror.NewAPIError(validation.MethodNotAllowed, fmt.Sprintf("Method %s not supported", request.Method))
+	return apierror.NewAPIError(validation.PermissionDenied, fmt.Sprintf("Method %s not supported", request.Method))
 }

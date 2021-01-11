@@ -3,6 +3,9 @@ package summary
 import (
 	"encoding/json"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/rancher/wrangler/pkg/data"
 )
 
@@ -42,4 +45,36 @@ func (c Condition) Reason() string {
 
 func (c Condition) Message() string {
 	return c.d.String("message")
+}
+
+func NormalizeConditions(runtimeObj runtime.Object) {
+	var (
+		obj           data.Object
+		newConditions []map[string]interface{}
+	)
+
+	unstr, ok := runtimeObj.(*unstructured.Unstructured)
+	if !ok {
+		return
+	}
+
+	obj = unstr.Object
+	for _, condition := range obj.Slice("status", "conditions") {
+		var summary Summary
+		for _, summarizer := range ConditionSummarizers {
+			summary = summarizer(obj, []Condition{{d: condition}}, summary)
+		}
+		condition.Set("error", summary.Error)
+		condition.Set("transitioning", summary.Transitioning)
+
+		if condition.String("lastUpdateTime") == "" {
+			condition.Set("lastUpdateTime", condition.String("lastTransitionTime"))
+		}
+		newConditions = append(newConditions, condition)
+	}
+
+	if len(newConditions) > 0 {
+		obj.SetNested(newConditions, "status", "conditions")
+	}
+
 }

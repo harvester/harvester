@@ -9,14 +9,6 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
 
-var (
-	blacklistFields = map[string]bool{
-		"kind":       true,
-		"apiVersion": true,
-		"metadata":   true,
-	}
-)
-
 func MustGenerate(obj interface{}) *v1beta1.JSONSchemaProps {
 	if obj == nil {
 		return nil
@@ -117,8 +109,11 @@ func typeToProps(typeName string, schemas *types.Schemas, inflight map[string]bo
 		}
 		jsp.Type = "object"
 		jsp.Nullable = true
-		jsp.AdditionalProperties = &v1beta1.JSONSchemaPropsOrBool{
-			Schema: additionalProps,
+		if additionalProps.Type != "object" {
+			jsp.AdditionalProperties = &v1beta1.JSONSchemaPropsOrBool{
+				Allows: true,
+				Schema: additionalProps,
+			}
 		}
 	case "array":
 		items, err := typeToProps(subType, schemas, inflight)
@@ -130,6 +125,9 @@ func typeToProps(typeName string, schemas *types.Schemas, inflight map[string]bo
 		jsp.Items = &v1beta1.JSONSchemaPropsOrArray{
 			Schema: items,
 		}
+	case "string":
+		jsp.Type = t
+		jsp.Nullable = true
 	default:
 		jsp.Type = t
 	}

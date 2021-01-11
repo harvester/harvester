@@ -11,9 +11,9 @@ replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20191125132246-f6563a70e19a
 	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
-	github.com/rancher/apiserver => github.com/cnrancher/apiserver v0.0.0-20200731031228-a0459feeb0de
-	github.com/rancher/steve => github.com/cnrancher/steve v0.0.0-20201214120900-d17b156fc803
-	github.com/rancher/wrangler => github.com/cnrancher/wrangler v0.6.2-0.20201110032717-f01dc974d85b
+	github.com/rancher/apiserver => github.com/cnrancher/apiserver v0.0.0-20210111070015-74fc636626b5
+	github.com/rancher/steve => github.com/cnrancher/steve v0.0.0-20210111071104-8891a7756b81
+	github.com/rancher/wrangler => github.com/rancher/wrangler v0.7.3-0.20201204033916-d7f8c90b22e5
 	k8s.io/api => k8s.io/api v0.18.6
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.18.6
 	k8s.io/apimachinery => k8s.io/apimachinery v0.18.6
@@ -42,19 +42,18 @@ require (
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/apiserver v0.0.0-20200721152301-4388bb184a8e
-	github.com/rancher/dynamiclistener v0.2.1-0.20200213165308-111c5b43e932
-	github.com/rancher/lasso v0.0.0-20200515155337-a34e1e26ad91
-	github.com/rancher/steve v0.0.0-20200622175150-3dbc369174fb
-	github.com/rancher/wrangler v0.6.2-0.20200622171942-7224e49a2407
+	github.com/rancher/apiserver v0.0.0-20201023000256-1a0a904f9197
+	github.com/rancher/dynamiclistener v0.2.1-0.20200714201033-9c1939da3af9
+	github.com/rancher/lasso v0.0.0-20200905045615-7fcb07d6a20b
+	github.com/rancher/steve v0.0.0-20201110183734-21c7add15f64
+	github.com/rancher/wrangler v0.7.1
 	github.com/rancher/wrangler-api v0.6.1-0.20200515193802-dcf70881b087
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1
 	github.com/tidwall/gjson v1.6.3
-	github.com/tidwall/sjson v1.1.2
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20200423211502-4bdfaf469ed5
-	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
+	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	golang.org/x/sys v0.0.0-20201221093633-bc327ba9c2f0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.4.0 // indirect

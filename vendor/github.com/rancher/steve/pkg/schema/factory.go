@@ -90,10 +90,12 @@ func (c *Collection) schemasForSubject(access *accesscontrol.AccessSet) (*types.
 						ResourceName: ns,
 					})
 				}
-				verbAccess["list"] = accessList
+				verbAccess["get"] = accessList
 				verbAccess["watch"] = accessList
-			} else {
-				continue
+				if len(accessList) == 0 {
+					// always allow list
+					s.CollectionMethods = append(s.CollectionMethods, http.MethodGet)
+				}
 			}
 		}
 
@@ -112,6 +114,10 @@ func (c *Collection) schemasForSubject(access *accesscontrol.AccessSet) (*types.
 		}
 		if verbAccess.AnyVerb("create") {
 			s.CollectionMethods = append(s.CollectionMethods, http.MethodPost)
+		}
+
+		if len(s.CollectionMethods) == 0 && len(s.ResourceMethods) == 0 {
+			continue
 		}
 
 		if err := result.AddSchema(*s); err != nil {
@@ -138,6 +144,8 @@ func (c *Collection) applyTemplates(schema *types.APISchema) {
 		}
 		if schema.Formatter == nil {
 			schema.Formatter = t.Formatter
+		} else if t.Formatter != nil {
+			schema.Formatter = types.FormatterChain(t.Formatter, schema.Formatter)
 		}
 		if schema.Store == nil {
 			if t.StoreFactory == nil {

@@ -20,7 +20,9 @@ import (
 var (
 	cleanPrefix = []string{
 		"kubectl.kubernetes.io/",
-		"objectset.rio.cattle.io/",
+	}
+	cleanContains = []string{
+		"cattle.io/",
 	}
 )
 
@@ -178,6 +180,11 @@ outer:
 	for k := range annotations {
 		for _, prefix := range cleanPrefix {
 			if strings.HasPrefix(k, prefix) {
+				continue outer
+			}
+		}
+		for _, contains := range cleanContains {
+			if strings.Contains(k, contains) {
 				continue outer
 			}
 		}

@@ -69,8 +69,8 @@ var (
 )
 
 func SchemaFormatter(apiOp *types.APIRequest, resource *types.RawResource) {
-	schema := apiOp.Schemas.LookupSchema(resource.ID)
-	if schema == nil {
+	schema, ok := resource.APIObject.Object.(*types.APISchema)
+	if !ok {
 		return
 	}
 

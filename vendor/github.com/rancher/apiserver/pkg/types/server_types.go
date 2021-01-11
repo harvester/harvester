@@ -217,6 +217,7 @@ var (
 
 type APIEvent struct {
 	Name         string    `json:"name,omitempty"`
+	Namespace    string    `json:"namespace,omitempty"`
 	ResourceType string    `json:"resourceType,omitempty"`
 	ID           string    `json:"id,omitempty"`
 	Selector     string    `json:"selector,omitempty"`

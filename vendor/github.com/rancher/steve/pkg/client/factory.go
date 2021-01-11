@@ -90,7 +90,7 @@ func (p *Factory) MetadataClient() metadata.Interface {
 	return p.metadata
 }
 
-func (p *Factory) DynamicClient() dynamic.Interface {
+func (p *Factory) AdminDynamicClient() dynamic.Interface {
 	return p.dynamic
 }
 
@@ -109,6 +109,10 @@ func (p *Factory) K8sInterface(ctx *types.APIRequest) (kubernetes.Interface, err
 
 func (p *Factory) AdminK8sInterface() (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(p.clientCfg)
+}
+
+func (p *Factory) DynamicClient(ctx *types.APIRequest) (dynamic.Interface, error) {
+	return newDynamicClient(ctx, p.clientCfg, p.impersonate)
 }
 
 func (p *Factory) Client(ctx *types.APIRequest, s *types.APISchema, namespace string) (dynamic.ResourceInterface, error) {
@@ -169,13 +173,17 @@ func setupConfig(ctx *types.APIRequest, cfg *rest.Config, impersonate bool) (*re
 	return cfg, nil
 }
 
-func newClient(ctx *types.APIRequest, cfg *rest.Config, s *types.APISchema, namespace string, impersonate bool) (dynamic.ResourceInterface, error) {
+func newDynamicClient(ctx *types.APIRequest, cfg *rest.Config, impersonate bool) (dynamic.Interface, error) {
 	cfg, err := setupConfig(ctx, cfg, impersonate)
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := dynamic.NewForConfig(cfg)
+	return dynamic.NewForConfig(cfg)
+}
+
+func newClient(ctx *types.APIRequest, cfg *rest.Config, s *types.APISchema, namespace string, impersonate bool) (dynamic.ResourceInterface, error) {
+	client, err := newDynamicClient(ctx, cfg, impersonate)
 	if err != nil {
 		return nil, err
 	}

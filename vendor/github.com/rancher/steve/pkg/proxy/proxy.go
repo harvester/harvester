@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/wrangler/pkg/kubeconfig"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/proxy"
+	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
@@ -30,22 +31,51 @@ func ImpersonatingHandler(prefix string, cfg *rest.Config) http.Handler {
 	})
 }
 
-func impersonate(rw http.ResponseWriter, req *http.Request, prefix string, cfg *rest.Config) {
-	user, ok := request.UserFrom(req.Context())
-	if !ok {
-		rw.WriteHeader(http.StatusUnauthorized)
-		return
+func setupUserAuth(req *http.Request, user user.Info, cfg *rest.Config) (*rest.Config, bool) {
+	authed := true
+	for _, group := range user.GetGroups() {
+		if group == "system:unauthenticated" && strings.HasPrefix(req.Header.Get("Authorization"), "Bearer ") {
+			cfg := rest.CopyConfig(cfg)
+			cfg.Username = ""
+			cfg.Password = ""
+			cfg.BearerTokenFile = ""
+			cfg.TLSClientConfig.CertFile = ""
+			cfg.TLSClientConfig.CertData = nil
+			cfg.ExecProvider = nil
+			cfg.AuthConfigPersister = nil
+			cfg.Impersonate = rest.ImpersonationConfig{}
+
+			cfg.BearerToken = strings.TrimPrefix(req.Header.Get("Authorization"), "Bearer ")
+			return cfg, true
+		} else if group == "system:unauthenticated" {
+			authed = false
+		}
 	}
 
 	cfg = rest.CopyConfig(cfg)
 	cfg.Impersonate.UserName = user.GetName()
 	cfg.Impersonate.Groups = user.GetGroups()
 	cfg.Impersonate.Extra = user.GetExtra()
+	return cfg, authed
+}
 
+func impersonate(rw http.ResponseWriter, req *http.Request, prefix string, cfg *rest.Config) {
+	user, ok := request.UserFrom(req.Context())
+	if !ok {
+		http.Error(rw, "not authorized", http.StatusUnauthorized)
+		return
+	}
+
+	cfg, authed := setupUserAuth(req, user, cfg)
+	// we want to send a 401, not a 403 for unauthed API requests to make the UI happier
+	if !authed && strings.HasPrefix(req.URL.Path, "/api") {
+		http.Error(rw, "not authorized", http.StatusUnauthorized)
+		return
+	}
 	handler, err := Handler(prefix, cfg)
 	if err != nil {
 		logrus.Errorf("failed to impersonate %v for proxy: %v", user, err)
-		rw.WriteHeader(http.StatusInternalServerError)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -86,12 +116,15 @@ func Handler(prefix string, cfg *rest.Config) (http.Handler, error) {
 		handler = stripLeaveSlash(prefix, handler)
 	}
 
-	return authHeaders(handler), nil
+	return proxyHeaders(handler), nil
 }
 
-func authHeaders(handler http.Handler) http.Handler {
+func proxyHeaders(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		req.Header.Del("Authorization")
+		if req.Header.Get("X-Forwarded-Proto") == "" && req.TLS != nil {
+			req.Header.Set("X-Forwarded-Proto", "https")
+		}
 		handler.ServeHTTP(rw, req)
 	})
 }

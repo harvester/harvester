@@ -119,7 +119,6 @@ func (c *controller) run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer func() {
 		c.workqueue.ShutDown()
-		c.workqueue = nil
 	}()
 
 	// Start the informer factories to begin populating the informer caches

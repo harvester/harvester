@@ -5,7 +5,7 @@ import (
 	"hash"
 	"sort"
 
-	v1 "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac/v1"
+	v1 "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -54,7 +54,7 @@ func (p *policyRuleIndex) clusterRoleBindingBySubjectIndexer(crb *rbacv1.Cluster
 			result = append(result, subject.Name)
 		} else if subject.APIGroup == "" && p.kind == "User" && subject.Kind == "ServiceAccount" && subject.Namespace != "" && crb.RoleRef.Kind == "ClusterRole" {
 			// Index is for Users and this references a service account
-			result = append(result, fmt.Sprintf("system:serviceaccount:%s:%s", subject.Namespace, subject.Name))
+			result = append(result, fmt.Sprintf("serviceaccount:%s:%s", subject.Namespace, subject.Name))
 		}
 	}
 	return
@@ -66,7 +66,7 @@ func (p *policyRuleIndex) roleBindingBySubject(rb *rbacv1.RoleBinding) (result [
 			result = append(result, subject.Name)
 		} else if subject.APIGroup == "" && p.kind == "User" && subject.Kind == "ServiceAccount" && subject.Namespace != "" {
 			// Index is for Users and this references a service account
-			result = append(result, fmt.Sprintf("system:serviceaccount:%s:%s", subject.Namespace, subject.Name))
+			result = append(result, fmt.Sprintf("serviceaccount:%s:%s", subject.Namespace, subject.Name))
 		}
 	}
 	return

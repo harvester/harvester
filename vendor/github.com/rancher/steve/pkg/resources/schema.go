@@ -10,13 +10,12 @@ import (
 	"github.com/rancher/steve/pkg/client"
 	"github.com/rancher/steve/pkg/clustercache"
 	"github.com/rancher/steve/pkg/resources/apigroups"
-	"github.com/rancher/steve/pkg/resources/clusters"
 	"github.com/rancher/steve/pkg/resources/common"
 	"github.com/rancher/steve/pkg/resources/counts"
-	"github.com/rancher/steve/pkg/resources/helm"
-	"github.com/rancher/steve/pkg/resources/userpreferences"
+	"github.com/rancher/steve/pkg/resources/formatters"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/stores/proxy"
+	"github.com/rancher/steve/pkg/summarycache"
 	"k8s.io/client-go/discovery"
 )
 
@@ -24,24 +23,27 @@ func DefaultSchemas(ctx context.Context, baseSchema *types.APISchemas, ccache cl
 	counts.Register(baseSchema, ccache)
 	subscribe.Register(baseSchema)
 	apiroot.Register(baseSchema, []string{"v1"}, "proxy:/apis")
-	userpreferences.Register(baseSchema, cg)
-	helm.Register(baseSchema)
-
-	err := clusters.Register(ctx, baseSchema, cg, ccache)
-	return baseSchema, err
+	return baseSchema, nil
 }
 
-func DefaultSchemaTemplates(cf *client.Factory, lookup accesscontrol.AccessSetLookup, discovery discovery.DiscoveryInterface) []schema.Template {
+func DefaultSchemaTemplates(cf *client.Factory,
+	summaryCache *summarycache.SummaryCache,
+	lookup accesscontrol.AccessSetLookup,
+	discovery discovery.DiscoveryInterface) []schema.Template {
 	return []schema.Template{
-		common.DefaultTemplate(cf, lookup),
+		common.DefaultTemplate(cf, summaryCache, lookup),
 		apigroups.Template(discovery),
 		{
 			ID:        "configmap",
-			Formatter: common.DefaultFormatter(helm.DropHelmData),
+			Formatter: formatters.DropHelmData,
 		},
 		{
 			ID:        "secret",
-			Formatter: common.DefaultFormatter(helm.DropHelmData),
+			Formatter: formatters.DropHelmData,
+		},
+		{
+			ID:        "pod",
+			Formatter: formatters.Pod,
 		},
 	}
 }
