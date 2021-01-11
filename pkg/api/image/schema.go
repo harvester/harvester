@@ -18,7 +18,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 		ID: "harvester.cattle.io.virtualmachineimage",
 		Store: store.DisplayNameValidatorStore{
 			Store: store.NamespaceStore{
-				Store: proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
+				Store: proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 			},
 		},
 		Customize: func(s *types.APISchema) {
@@ -35,6 +35,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 			}
 		},
 	}
-	server.SchemaTemplates = append(server.SchemaTemplates, t)
+	server.SchemaFactory.AddTemplate(t)
 	return nil
 }

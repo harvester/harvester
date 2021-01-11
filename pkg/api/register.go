@@ -3,8 +3,6 @@ package api
 import (
 	"context"
 
-	"github.com/rancher/steve/pkg/server"
-
 	"github.com/rancher/harvester/pkg/api/datavolume"
 	"github.com/rancher/harvester/pkg/api/image"
 	"github.com/rancher/harvester/pkg/api/keypair"
@@ -14,6 +12,8 @@ import (
 	"github.com/rancher/harvester/pkg/api/vm"
 	"github.com/rancher/harvester/pkg/api/vmtemplate"
 	"github.com/rancher/harvester/pkg/config"
+
+	"github.com/rancher/steve/pkg/server"
 )
 
 type registerSchema func(scaled *config.Scaled, server *server.Server) error
@@ -27,7 +27,7 @@ func registerSchemas(scaled *config.Scaled, server *server.Server, registers ...
 	return nil
 }
 
-func Setup(ctx context.Context, server *server.Server) error {
+func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers) error {
 	scaled := config.ScaledWithContext(ctx)
 	return registerSchemas(scaled, server,
 		image.RegisterSchema,

@@ -1,21 +1,35 @@
 package ui
 
 import (
-	"net/http"
+	apiserver "github.com/rancher/apiserver/pkg/server"
 
-	"github.com/gorilla/mux"
-	"github.com/rancher/apiserver/pkg/middleware"
+	"github.com/rancher/harvester/pkg/settings"
 )
 
-func RegisterAPIUI() http.Handler {
-	r := mux.NewRouter()
-	r.UseEncodedPath()
+func ConfigureAPIUI(server *apiserver.Server) {
+	server.CustomAPIUIResponseWriter(CSSURL, JSURL, settings.APIUIVersion.Get)
+}
 
-	//API UI
-	uiContent := middleware.NewMiddlewareChain(middleware.Gzip, middleware.DenyFrameOptions,
-		middleware.CacheMiddleware("json", "js", "css")).Handler(Content())
+func JSURL() string {
+	switch settings.APIUISource.Get() {
+	case "auto":
+		if !settings.IsRelease() {
+			return ""
+		}
+	case "external":
+		return ""
+	}
+	return "/api-ui/ui.min.js"
+}
 
-	r.PathPrefix("/api-ui").Handler(uiContent)
-	r.NotFoundHandler = http.NotFoundHandler()
-	return r
+func CSSURL() string {
+	switch settings.APIUISource.Get() {
+	case "auto":
+		if !settings.IsRelease() {
+			return ""
+		}
+	case "external":
+		return ""
+	}
+	return "/api-ui/ui.min.css"
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/rancher/harvester/pkg/api/auth"
 	"github.com/rancher/harvester/pkg/config"
+	"github.com/rancher/harvester/pkg/server/ui"
 )
 
 type Router struct {
@@ -31,14 +32,20 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	m.StrictSlash(true)
 	m.Use(urlbuilder.RedirectRewrite)
 
-	m.Path("/v1/{type}").Queries("action", "{action}").Handler(h.K8sResource) //adds collection action support
 	m.Path("/").HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		http.Redirect(rw, req, "/dashboard/", http.StatusFound)
 	})
 
+	m.Path("/v1/{type}").Queries("action", "{action}").Handler(h.K8sResource) //adds collection action support
+
 	loginHandler := auth.NewLoginHandler(r.scaled, r.restConfig)
 	m.Path("/v1-public/auth").Handler(loginHandler)
 	m.Path("/v1-public/auth-modes").HandlerFunc(auth.ModeHandler)
+
+	vueUI := ui.Vue
+	m.Handle("/dashboard/", vueUI.IndexFile())
+	m.PathPrefix("/dashboard/").Handler(vueUI.IndexFileOnNotFound())
+	m.PathPrefix("/api-ui").Handler(vueUI.ServeAsset())
 
 	m.NotFoundHandler = router.Routes(h)
 

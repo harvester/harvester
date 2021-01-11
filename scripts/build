@@ -10,14 +10,6 @@ if [ "$(uname)" = "Linux" ]; then
     OTHER_LINKFLAGS="-extldflags -static -s"
 fi
 
-if echo "$VERSION" | grep -q -e '^v.*' ; then 
-    UI_INDEX="local"
-fi
-UI_INDEX=${UI_INDEX:-"https://releases.rancher.com/harvester-ui/latest/index.html"}
-
-# Inject Setting values
-DEFAULT_VALUES="{\"ui-index\":\"${UI_INDEX}\"}"
-
 LINKFLAGS="-X github.com/rancher/harvester.Version=$VERSION
            -X github.com/rancher/harvester.GitCommit=$COMMIT
            -X github.com/rancher/harvester/pkg/settings.InjectDefaults=$DEFAULT_VALUES $LINKFLAGS"

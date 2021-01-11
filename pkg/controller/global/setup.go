@@ -20,7 +20,7 @@ var registerFuncs = []registerFunc{
 	auth.Register,
 }
 
-func Setup(ctx context.Context, server *server.Server) error {
+func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers) error {
 	scaled := config.ScaledWithContext(ctx)
 	indexeres.RegisterScaledIndexers(scaled)
 	for _, f := range registerFuncs {

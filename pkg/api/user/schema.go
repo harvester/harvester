@@ -17,7 +17,7 @@ const (
 func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	userStore := &userStore{
 		mu:        sync.Mutex{},
-		Store:     proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
+		Store:     proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		userCache: scaled.HarvesterFactory.Harvester().V1alpha1().User().Cache(),
 	}
 
@@ -27,6 +27,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 		Formatter: formatter,
 	}
 
-	server.SchemaTemplates = append(server.SchemaTemplates, t)
+	server.SchemaFactory.AddTemplate(t)
 	return nil
 }

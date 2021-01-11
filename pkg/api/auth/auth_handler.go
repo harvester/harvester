@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	dashboardauthapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
+	steveauth "github.com/rancher/steve/pkg/auth"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -26,22 +27,26 @@ type Middleware struct {
 	tokenManager dashboardauthapi.TokenManager
 }
 
-func (h *Middleware) AuthMiddleware(rw http.ResponseWriter, r *http.Request, handler http.Handler) {
-	jweToken, err := extractJWETokenFromRequest(r)
-	if err != nil {
-		responseError(rw, http.StatusUnauthorized, err.Error())
-		return
-	}
+func (h *Middleware) ToAuthMiddleware() steveauth.Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			jweToken, err := extractJWETokenFromRequest(r)
+			if err != nil {
+				responseError(rw, http.StatusUnauthorized, err.Error())
+				return
+			}
 
-	userInfo, err := h.getUserInfoFromToken(jweToken)
-	if err != nil {
-		responseError(rw, http.StatusUnauthorized, err.Error())
-		return
-	}
+			userInfo, err := h.getUserInfoFromToken(jweToken)
+			if err != nil {
+				responseError(rw, http.StatusUnauthorized, err.Error())
+				return
+			}
 
-	ctx := request.WithUser(r.Context(), userInfo)
-	r = r.WithContext(ctx)
-	handler.ServeHTTP(rw, r)
+			ctx := request.WithUser(r.Context(), userInfo)
+			r = r.WithContext(ctx)
+			next.ServeHTTP(rw, r)
+		})
+	}
 }
 
 func (h *Middleware) getUserInfoFromToken(jweToken string) (userInfo user.Info, err error) {

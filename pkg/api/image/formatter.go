@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/steve/pkg/resources/common"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,7 +20,6 @@ import (
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
-	common.Formatter(request, resource)
 	resource.Actions = nil
 }
 

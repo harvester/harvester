@@ -3,6 +3,7 @@ package settings
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 )
 
 var (
+	releasePattern = regexp.MustCompile("^v[0-9]")
 	settings       = map[string]Setting{}
 	provider       Provider
 	InjectDefaults string
@@ -24,6 +26,7 @@ var (
 	ServerVersion          = NewSetting("server-version", "dev")
 	UIIndex                = NewSetting("ui-index", "https://releases.rancher.com/harvester-ui/latest/index.html")
 	UIPath                 = NewSetting("ui-path", "/usr/share/rancher/harvester")
+	APIUISource            = NewSetting("api-ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
 )
 
 func init() {
@@ -118,4 +121,8 @@ func NewSetting(name, def string) Setting {
 
 func GetEnvKey(key string) string {
 	return "HARVESTER_" + strings.ToUpper(strings.Replace(key, "-", "_", -1))
+}
+
+func IsRelease() bool {
+	return !strings.Contains(ServerVersion.Get(), "head") && releasePattern.MatchString(ServerVersion.Get())
 }

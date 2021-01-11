@@ -14,7 +14,7 @@ const (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 	nadStore := &networkStore{
-		Store:    proxy.NewProxyStore(server.ClientFactory, server.AccessSetLookup),
+		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		nadCache: scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition().Cache(),
 		vmCache:  scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine().Cache(),
 	}
@@ -24,6 +24,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 		Store: nadStore,
 	}
 
-	server.SchemaTemplates = append(server.SchemaTemplates, t)
+	server.SchemaFactory.AddTemplate(t)
 	return nil
 }
