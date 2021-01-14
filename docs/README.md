@@ -6,7 +6,7 @@ or hang out with our developers on either our [Slack](https://slack.rancher.io/)
 ## Table of Contents
 
 - Installation
-  * [ISO Mode](https://github.com/rancher/harvester/tree/docs#bare-metal)
+  * [ISO Mode](./iso-installation.md)
   * [App Mode - for development](./app-mode-installation.md)
 - Demo: Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
 - [Authentication](./authentication.md)
