@@ -12,7 +12,9 @@ import (
 	"gopkg.in/square/go-jose.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/rancher/harvester/pkg/auth/jwe"
 	"github.com/rancher/harvester/pkg/config"
@@ -24,31 +26,40 @@ const (
 )
 
 func WatchSecret(ctx context.Context, scaled *config.Scaled, namespace, name string) {
+	logrus.Infof("start watch secret %v", name)
 	secrets := scaled.CoreFactory.Core().V1().Secret()
 	opts := metav1.ListOptions{
 		FieldSelector: fmt.Sprintf("metadata.name=%s", name),
 	}
-	watcher, err := secrets.Watch(namespace, opts)
-	if err != nil {
-		logrus.Errorf("Failed to watch secret %s:%s, %v", namespace, name, err)
-		return
-	}
 
-	for {
-		select {
-		case watchEvent := <-watcher.ResultChan():
-			if watch.Modified == watchEvent.Type {
-				if sec, ok := watchEvent.Object.(*corev1.Secret); ok {
-					if err := refreshKeyInTokenManager(sec, scaled); err != nil {
-						logrus.Errorf("Failed to update tokenManager with secret %s:%s, %v", namespace, name, err)
-						continue
-					}
+	var resyncPeriod = 30 * time.Minute
+
+	informer := cache.NewSharedIndexInformer(
+		&cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return secrets.List(namespace, opts)
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return secrets.Watch(namespace, opts)
+			},
+		},
+		&corev1.Secret{},
+		resyncPeriod,
+		cache.Indexers{},
+	)
+
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			if sec, ok := newObj.(*corev1.Secret); ok {
+				logrus.Infof("update auth secret in secret informer")
+				if err := refreshKeyInTokenManager(sec, scaled); err != nil {
+					logrus.Errorf("Failed to update tokenManager with secret %s:%s, %v", namespace, name, err)
 				}
 			}
-		case <-ctx.Done():
-			return
-		}
-	}
+		},
+	})
+	informer.Run(ctx.Done())
+	logrus.Infof("finish watch secret %v", name)
 }
 
 func refreshKeyInTokenManager(sec *corev1.Secret, scaled *config.Scaled) (err error) {
