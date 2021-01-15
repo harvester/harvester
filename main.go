@@ -111,6 +111,7 @@ func run(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("failed to create harvester server: %v", err)
 	}
+
 	if err := harv.ListenAndServe(nil); err != nil {
 		logrus.Fatalf("harvester server stop, %v", err)
 	}

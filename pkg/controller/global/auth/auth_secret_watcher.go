@@ -28,25 +28,49 @@ func WatchSecret(ctx context.Context, scaled *config.Scaled, namespace, name str
 	opts := metav1.ListOptions{
 		FieldSelector: fmt.Sprintf("metadata.name=%s", name),
 	}
-	watcher, err := secrets.Watch(namespace, opts)
-	if err != nil {
-		logrus.Errorf("Failed to watch secret %s:%s, %v", namespace, name, err)
-		return
-	}
 
+OUTER:
 	for {
-		select {
-		case watchEvent := <-watcher.ResultChan():
-			if watch.Modified == watchEvent.Type {
-				if sec, ok := watchEvent.Object.(*corev1.Secret); ok {
+		logrus.Debugf("Starting auth secret watcher of %s:%s", namespace, name)
+		watcher, err := secrets.Watch(namespace, opts)
+		if err != nil {
+			logrus.Fatalf("Failed to watch secret %s:%s, %v", namespace, name, err)
+		}
+
+		for {
+			select {
+			case watchEvent, ok := <-watcher.ResultChan():
+				if !ok {
+					// server will timeout the watch connection after 30-60 minutes, re-initialize the secret watcher
+					watcher.Stop()
+					logrus.Debugln("Close secret watcher after default timeout")
+					continue OUTER
+				}
+				switch watchEvent.Type {
+				case watch.Modified:
+					sec, ok := watchEvent.Object.(*corev1.Secret)
+					if !ok {
+						logrus.Errorf("Failed to convert obj to secret")
+						continue
+					}
+
 					if err := refreshKeyInTokenManager(sec, scaled); err != nil {
 						logrus.Errorf("Failed to update tokenManager with secret %s:%s, %v", namespace, name, err)
 						continue
 					}
+					logrus.Infoln("Refresh auth secret token manager done")
+				case watch.Added:
+					// ignore add case here
+				case watch.Deleted:
+					// ignore delete case here
+				case watch.Bookmark:
+					// A `Bookmark` means watch has synced here, just update the resourceVersion
+				default:
+					logrus.Errorf("Unable to understand watch event %#v", watchEvent)
 				}
+			case <-ctx.Done():
+				break OUTER
 			}
-		case <-ctx.Done():
-			return
 		}
 	}
 }
