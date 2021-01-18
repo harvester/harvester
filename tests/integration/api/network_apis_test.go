@@ -130,6 +130,12 @@ var _ = Describe("verify network APIs", func() {
 				respCode, respBody, err := helper.PostObject(networkAPI, network)
 				MustRespCodeIs(http.StatusCreated, "create network", err, respCode, respBody)
 
+				MustFinallyBeTrue(func() bool {
+					networkURL := fmt.Sprintf("%s/%s/%s", networkAPI, testNetworkNamespace, networkName)
+					respCode, respBody, err = helper.GetObject(networkURL, &network)
+					return CheckRespCodeIs(http.StatusOK, "get network", err, respCode, respBody)
+				})
+
 				By("should fail if vid is existed")
 				network = NewBridgeNetwork("another-"+networkName, testBridgeVID).NAD
 				respCode, respBody, err = helper.PostObject(networkAPI, network)
