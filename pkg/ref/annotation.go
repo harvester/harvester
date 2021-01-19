@@ -130,9 +130,9 @@ func (o AnnotationSchemaOwners) Add(ownerGK schema.GroupKind, owner metav1.Objec
 	return true
 }
 
-// Delete deletes the given owner from the annotation schema owners,
+// Remove remove the given owner from the annotation schema owners,
 // returns false to indicate that the ownerRef isn't a reference.
-func (o AnnotationSchemaOwners) Delete(ownerGK schema.GroupKind, owner metav1.Object) bool {
+func (o AnnotationSchemaOwners) Remove(ownerGK schema.GroupKind, owner metav1.Object) bool {
 	if !o.Has(ownerGK, owner) {
 		return false
 	}
@@ -146,8 +146,8 @@ func (o AnnotationSchemaOwners) Delete(ownerGK schema.GroupKind, owner metav1.Ob
 	return true
 }
 
-// Apply applies the schema owners to given object's annotation.
-func (o AnnotationSchemaOwners) Apply(obj metav1.Object) error {
+// Bind bind the schema owners to given object's annotation.
+func (o AnnotationSchemaOwners) Bind(obj metav1.Object) error {
 	var annotations = obj.GetAnnotations()
 	if annotations == nil {
 		annotations = map[string]string{}

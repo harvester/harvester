@@ -27,7 +27,7 @@ func setOwnerlessDataVolumeReference(dataVolumeClient cdictrl.DataVolumeClient, 
 	}
 
 	dv = dv.DeepCopy()
-	if err := annotationSchemaOwners.Apply(dv); err != nil {
+	if err := annotationSchemaOwners.Bind(dv); err != nil {
 		return fmt.Errorf("failed to apply schema owners to object: %w", err)
 	}
 	_, err = dataVolumeClient.Update(dv)
@@ -45,13 +45,13 @@ func unsetBoundedDataVolumeReference(dataVolumeClient cdictrl.DataVolumeClient, 
 		return fmt.Errorf("failed to get schema owners from object: %w", err)
 	}
 
-	var isOwned = annotationSchemaOwners.Delete(kubevirtapis.VirtualMachineGroupVersionKind.GroupKind(), vm)
+	var isOwned = annotationSchemaOwners.Remove(kubevirtapis.VirtualMachineGroupVersionKind.GroupKind(), vm)
 	if !isOwned {
 		return nil
 	}
 
 	dv = dv.DeepCopy()
-	if err := annotationSchemaOwners.Apply(dv); err != nil {
+	if err := annotationSchemaOwners.Bind(dv); err != nil {
 		return fmt.Errorf("failed to apply schema owners to object: %w", err)
 	}
 	_, err = dataVolumeClient.Update(dv)

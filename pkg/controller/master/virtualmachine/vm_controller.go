@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kubevirtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
 
@@ -32,30 +33,55 @@ func (h *VMController) SetOwnerOfDataVolumes(_ string, vm *kubevirtv1alpha3.Virt
 		return nil, fmt.Errorf("failed to get attached datavolumes by vm index: %w", err)
 	}
 
-	vmGK := kubevirtv1alpha3.VirtualMachineGroupVersionKind.GroupKind()
+	vmGVK := kubevirtv1alpha3.VirtualMachineGroupVersionKind
+	vmAPIVersion, vmKind := vmGVK.ToAPIVersionAndKind()
+	vmGK := vmGVK.GroupKind()
+
 	for _, attachedDataVolume := range attachedDataVolumes {
 		// check if it's still attached
 		if dataVolumeNames.Has(attachedDataVolume.Name) {
 			continue
 		}
-		// if this volume is no longer attached, update it's "owner-by" annotation
+
+		toUpdate := attachedDataVolume.DeepCopy()
+
+		// if this volume is no longer attached
+		// remove volume's annotation
 		owners, err := ref.GetSchemaOwnersFromAnnotation(attachedDataVolume)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get schema owners from annotation: %w", err)
 		}
 
-		if isOwned := owners.Delete(vmGK, vm); !isOwned {
-			continue
+		isAttached := owners.Remove(vmGK, vm)
+		if isAttached {
+			if err := owners.Bind(toUpdate); err != nil {
+				return nil, fmt.Errorf("failed to apply schema owners to annotation: %w", err)
+			}
 		}
 
-		toUpdate := attachedDataVolume.DeepCopy()
-		if err := owners.Apply(toUpdate); err != nil {
-			return nil, fmt.Errorf("failed to apply schema owners to annotation: %w", err)
+		// remove volume's ownerReferences
+		isOwned := false
+		ownerReferences := make([]metav1.OwnerReference, 0, len(attachedDataVolume.OwnerReferences))
+		for _, reference := range attachedDataVolume.OwnerReferences {
+			if reference.APIVersion == vmAPIVersion && reference.Kind == vmKind && reference.Name == vm.Name {
+				isOwned = true
+				continue
+			}
+			ownerReferences = append(ownerReferences, reference)
+		}
+		if isOwned {
+			if len(ownerReferences) == 0 {
+				ownerReferences = nil
+			}
+			toUpdate.OwnerReferences = ownerReferences
 		}
 
-		if _, err = h.dataVolumeClient.Update(toUpdate); err != nil {
-			return nil, fmt.Errorf("failed to clean schema owners for DataVolume(%s/%s): %w",
-				attachedDataVolume.Namespace, attachedDataVolume.Name, err)
+		// update volume
+		if isAttached || isOwned {
+			if _, err = h.dataVolumeClient.Update(toUpdate); err != nil {
+				return nil, fmt.Errorf("failed to clean schema owners for DataVolume(%s/%s): %w",
+					attachedDataVolume.Namespace, attachedDataVolume.Name, err)
+			}
 		}
 	}
 
