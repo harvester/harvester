@@ -65,11 +65,23 @@ spec:
         - name: pre-delete
           image: {{ .Values.jobs.preDelete.containers.kubectl.image.repository }}:{{ .Values.jobs.preDelete.containers.kubectl.image.tag }}
           imagePullPolicy: {{ .Values.jobs.preDelete.containers.kubectl.image.imagePullPolicy }}
-          command:
-            - "/bin/bash"
+          command: ["/bin/bash", "-c"]
           args:
-            - "-c"
-            - "{{if $isKubeVirtOperatorEnabled }}echo '[INFO] deleting kubevirt ...'; kubectl delete kubevirt --wait --all; {{ end }}{{if $isCDIOperatorEnabled }}echo '[INFO] deleting cdi ...'; kubectl delete cdi --wait --all; {{ end }}exit"
+            - >
+              {{ if $isKubeVirtOperatorEnabled }}
+              echo '[INFO] deleting kubevirt ...';
+              kubectl delete kubevirt --wait --all;
+              {{ end }}
+              {{ if $isCDIOperatorEnabled }}
+              echo '[INFO] deleting cdi ...';
+              kubectl delete cdi --wait --all;
+              {{ end }}
+              {{ if .Values.minio.enabled }}
+              echo '[INFO] deleting minio ...';
+              kubectl -n {{ .Release.Namespace }} delete statefulset/minio --ignore-not-found=true --wait;
+              kubectl -n {{ .Release.Namespace }} delete deployment/minio --ignore-not-found=true --wait;
+              {{ end }}
+              exit
 {{- if .Values.jobs.preDelete.containers.kubectl.resources }}
           resources:
 {{ toYaml .Values.jobs.preDelete.containers.kubectl.resources | indent 12 }}
