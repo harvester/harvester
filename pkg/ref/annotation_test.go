@@ -391,7 +391,7 @@ func TestAnnotationSchemaOwners_Delete(t *testing.T) {
 	for _, tc := range testCases {
 		var actual output
 		var schemaOwners = tc.given.schemaOwners
-		actual.ret = schemaOwners.Delete(tc.given.ownerGK, tc.given.owner)
+		actual.ret = schemaOwners.Remove(tc.given.ownerGK, tc.given.owner)
 		actual.schemaOwners = schemaOwners
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
 	}

@@ -1025,6 +1025,16 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 							Annotations: map[string]string{
 								ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]}]`,
 							},
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									APIVersion:         "kubevirt.io/v1alpha3",
+									Kind:               "VirtualMachine",
+									Name:               "test",
+									UID:                "fake-vm-uid",
+									BlockOwnerDeletion: pointer.BoolPtr(true),
+									Controller:         pointer.BoolPtr(true),
+								},
+							},
 						},
 						Spec: cdiapis.DataVolumeSpec{
 							Source: cdiapis.DataVolumeSource{
