@@ -41,7 +41,7 @@ Harvester supports two modes of installation:
 ### Bare-metal
 In the `Bare-metal` mode, users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster.
 
-To get the Harvester ISO, download it from the [Github releases.](https://github.com/rancher/harvester/releases) 
+To get the Harvester ISO, download it from the [Github releases.](https://github.com/rancher/harvester/releases)
 
 During installation you can either choose to form a new cluster, or join the node to an existing cluster.
 
@@ -59,6 +59,7 @@ Note: This [video](https://youtu.be/97ADieBX6bE) shows a quick overview of the I
 1. (Optional) If you need to customize the host with cloud-init config, enter the HTTP URL here.
 1. Confirm the installation options and the Harvester will be installed to your host. The installation may take a few minutes to be complete.
 1. Once the installation is complete it will restart the host and a console UI with management URL and status will be displayed. <small>(You can Use F12 to switch between Harvester console and the Shell)</small>
+1. The default credentials for the web interface are username:`admin` and password: `password`.
 ![iso-installed.png](./docs/assets/iso-installed.png)
 
 
