@@ -30,6 +30,7 @@ replace (
 require (
 	github.com/containernetworking/cni v0.8.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/guonaihong/gout v0.1.3
