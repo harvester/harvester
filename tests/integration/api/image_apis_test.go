@@ -34,7 +34,7 @@ var _ = Describe("verify image APIs", func() {
 
 		BeforeEach(func() {
 
-			imageAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachineimages")
+			imageAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachineimages", options.HTTPSListenPort)
 
 		})
 

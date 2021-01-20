@@ -35,7 +35,7 @@ var _ = Describe("verify vm template APIs", func() {
 		scaled = harvester.Scaled()
 		templates = scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate()
 		templateVersions = scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion()
-		templateNamespace = config.Namespace
+		templateNamespace = options.Namespace
 	})
 
 	Cleanup(func() {
@@ -89,9 +89,9 @@ var _ = Describe("verify vm template APIs", func() {
 		)
 
 		BeforeEach(func() {
-
-			templateAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachinetemplates")
-			templateVersionAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachinetemplateversions")
+			var port = options.HTTPSListenPort
+			templateAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachinetemplates", port)
+			templateVersionAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachinetemplateversions", port)
 
 		})
 

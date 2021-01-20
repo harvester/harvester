@@ -10,7 +10,7 @@ const (
 	userRbacControllerAgentName = "user-rbac-controller"
 )
 
-func Register(ctx context.Context, management *config.Management) error {
+func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	users := management.HarvesterFactory.Harvester().V1alpha1().User()
 
 	userRBACController := &userRBACHandler{

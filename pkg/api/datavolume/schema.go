@@ -13,7 +13,7 @@ const (
 	dataVolumeSchemaID = "cdi.kubevirt.io.datavolume"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
 	dvStore := &dvStore{
 		Store:   proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		dvCache: scaled.CDIFactory.Cdi().V1beta1().DataVolume().Cache(),

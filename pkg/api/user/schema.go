@@ -14,7 +14,7 @@ const (
 	userSchemaID = "harvester.cattle.io.user"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
 	userStore := &userStore{
 		mu:        sync.Mutex{},
 		Store:     proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),

@@ -9,7 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/config"
 	ctlapisv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 )
 
@@ -18,17 +17,18 @@ var (
 	templateVersionTmpl = template.Must(template.New("templateVersion").Parse(initBaseTemplateVersions))
 )
 
-func initData(vmTemplates ctlapisv1alpha1.VirtualMachineTemplateClient, vmTemplateVersions ctlapisv1alpha1.VirtualMachineTemplateVersionClient) error {
-	if err := initBaseTemplate(vmTemplates); err != nil {
+func initData(vmTemplates ctlapisv1alpha1.VirtualMachineTemplateClient,
+	vmTemplateVersions ctlapisv1alpha1.VirtualMachineTemplateVersionClient, namespace string) error {
+	if err := initBaseTemplate(vmTemplates, namespace); err != nil {
 		return err
 	}
 
-	return initBaseTemplateVersion(vmTemplateVersions)
+	return initBaseTemplateVersion(vmTemplateVersions, namespace)
 }
 
-func generateYmls(tmpl *template.Template) ([][]byte, error) {
+func generateYmls(tmpl *template.Template, namespace string) ([][]byte, error) {
 	data := map[string]string{
-		"Namespace": config.Namespace,
+		"Namespace": namespace,
 	}
 
 	templateBuffer := bytes.NewBuffer(nil)
@@ -39,8 +39,8 @@ func generateYmls(tmpl *template.Template) ([][]byte, error) {
 	return bytes.Split(templateBuffer.Bytes(), []byte("\n---\n")), nil
 }
 
-func initBaseTemplate(vmTemplates ctlapisv1alpha1.VirtualMachineTemplateClient) error {
-	ymls, err := generateYmls(templateTmpl)
+func initBaseTemplate(vmTemplates ctlapisv1alpha1.VirtualMachineTemplateClient, namespace string) error {
+	ymls, err := generateYmls(templateTmpl, namespace)
 	if err != nil {
 		return err
 	}
@@ -58,8 +58,8 @@ func initBaseTemplate(vmTemplates ctlapisv1alpha1.VirtualMachineTemplateClient) 
 	return nil
 }
 
-func initBaseTemplateVersion(vmTemplateVersions ctlapisv1alpha1.VirtualMachineTemplateVersionClient) error {
-	ymls, err := generateYmls(templateVersionTmpl)
+func initBaseTemplateVersion(vmTemplateVersions ctlapisv1alpha1.VirtualMachineTemplateVersionClient, namespace string) error {
+	ymls, err := generateYmls(templateVersionTmpl, namespace)
 	if err != nil {
 		return err
 	}

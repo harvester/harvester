@@ -55,7 +55,7 @@ var _ = Describe("verify vm APIs", func() {
 
 		BeforeEach(func() {
 
-			vmsAPI = helper.BuildAPIURL("v1", "kubevirt.io.virtualmachines")
+			vmsAPI = helper.BuildAPIURL("v1", "kubevirt.io.virtualmachines", options.HTTPSListenPort)
 
 		})
 

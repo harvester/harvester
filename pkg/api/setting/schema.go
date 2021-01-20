@@ -9,7 +9,7 @@ import (
 	"github.com/rancher/harvester/pkg/config"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
 	t := schema.Template{
 		ID:        "harvester.cattle.io.setting",
 		Store:     proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),

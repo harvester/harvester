@@ -8,10 +8,11 @@ import (
 	wcrd "github.com/rancher/wrangler/pkg/crd"
 
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/util/crd"
 )
 
-func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers) error {
+func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
 	return createCRDs(ctx, server)
 }
 

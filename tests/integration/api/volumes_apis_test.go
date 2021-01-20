@@ -34,7 +34,7 @@ var _ = Describe("verify volume APIs", func() {
 
 		BeforeEach(func() {
 
-			volumeAPI = helper.BuildAPIURL("v1", "cdi.kubevirt.io.datavolumes")
+			volumeAPI = helper.BuildAPIURL("v1", "cdi.kubevirt.io.datavolumes", options.HTTPSListenPort)
 
 		})
 
@@ -318,7 +318,7 @@ var _ = Describe("verify volume APIs", func() {
 			By("Prepare VM image for volumes", func() {
 
 				var (
-					imageAPI         = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachineimage")
+					imageAPI         = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachineimage", options.HTTPSListenPort)
 					imageName        = fuzz.String(5)
 					imageDisplayName = fuzz.String(5)
 					cirrosURL        = "https://download.cirros-cloud.net/0.5.1/cirros-0.5.1-x86_64-disk.img"

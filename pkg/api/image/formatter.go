@@ -28,6 +28,7 @@ func CollectionFormatter(request *types.APIRequest, collection *types.GenericCol
 }
 
 type UploadActionHandler struct {
+	Options    config.Options
 	Images     v1alpha1.VirtualMachineImageClient
 	ImageCache v1alpha1.VirtualMachineImageCache
 }
@@ -52,7 +53,7 @@ func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	}
 	namespace := req.FormValue("namespace")
 	if namespace == "" {
-		namespace = config.Namespace
+		namespace = h.Options.Namespace
 	}
 	file, fileHeader, err := req.FormFile("file")
 	if err != nil {
@@ -62,7 +63,7 @@ func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 
 	fileName := fileHeader.Filename
 	generatedName := fmt.Sprintf("%s-%s", "image", rand.String(5))
-	mc, err := util.NewMinioClient()
+	mc, err := util.NewMinioClient(h.Options)
 	if err != nil {
 		return err
 	}
@@ -72,7 +73,7 @@ func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	}
 	logrus.Debugf("Successfully uploaded %s of size %d\n", fileName, n)
 
-	downloadURL := fmt.Sprintf("%s/%s/%s", config.ImageStorageEndpoint, util.BucketName, generatedName)
+	downloadURL := fmt.Sprintf("%s/%s/%s", h.Options.ImageStorageEndpoint, util.BucketName, generatedName)
 	image := &apisv1alpha1.VirtualMachineImage{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      generatedName,

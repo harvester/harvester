@@ -18,7 +18,7 @@ import (
 	"github.com/rancher/harvester/pkg/userpreferences"
 )
 
-type registerFunc func(context.Context, *config.Management) error
+type registerFunc func(context.Context, *config.Management, config.Options) error
 
 var registerFuncs = []registerFunc{
 	image.Register,
@@ -29,17 +29,17 @@ var registerFuncs = []registerFunc{
 	user.Register,
 }
 
-func register(ctx context.Context, management *config.Management) error {
+func register(ctx context.Context, management *config.Management, options config.Options) error {
 	for _, f := range registerFuncs {
-		if err := f(ctx, management); err != nil {
+		if err := f(ctx, management, options); err != nil {
 			return err
 		}
 	}
 
-	return auth.BootstrapAdmin(management)
+	return auth.BootstrapAdmin(management, options.Namespace)
 }
 
-func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers) error {
+func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
 	userpreferences.Register(server.BaseSchemas, server.ClientFactory)
 
 	scaled := config.ScaledWithContext(ctx)
@@ -47,10 +47,10 @@ func Setup(ctx context.Context, server *server.Server, controllers *server.Contr
 	indexeres.RegisterManagementIndexers(scaled.Management)
 
 	go leader.RunOrDie(ctx, "", "harvester-controllers", controllers.K8s, func(ctx context.Context) {
-		if err := register(ctx, scaled.Management); err != nil {
+		if err := register(ctx, scaled.Management, options); err != nil {
 			panic(err)
 		}
-		if err := scaled.Management.Start(); err != nil {
+		if err := scaled.Management.Start(options.Threadiness); err != nil {
 			panic(err)
 		}
 		<-ctx.Done()

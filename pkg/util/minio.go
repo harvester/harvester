@@ -16,9 +16,9 @@ const (
 	DownloadBucketPolicy = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::vm-images"]},{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::vm-images/*"]}]}`
 )
 
-func NewMinioClient() (*minio.Client, error) {
+func NewMinioClient(options config.Options) (*minio.Client, error) {
 	var secure bool
-	var endpoint = config.ImageStorageEndpoint
+	var endpoint = options.ImageStorageEndpoint
 	if strings.HasPrefix(endpoint, "http://") ||
 		strings.HasPrefix(endpoint, "https://") {
 		u, err := url.Parse(endpoint)
@@ -28,7 +28,7 @@ func NewMinioClient() (*minio.Client, error) {
 		endpoint = u.Host
 		secure = u.Scheme == "https"
 	}
-	client, err := minio.New(endpoint, config.ImageStorageAccessKey, config.ImageStorageSecretKey, secure)
+	client, err := minio.New(endpoint, options.ImageStorageAccessKey, options.ImageStorageSecretKey, secure)
 	if err != nil {
 		return nil, err
 	}

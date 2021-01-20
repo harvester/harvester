@@ -6,7 +6,7 @@ import (
 	"github.com/rancher/harvester/pkg/config"
 )
 
-func Register(ctx context.Context, management *config.Management) error {
-	RegisterController(ctx, management)
+func Register(ctx context.Context, management *config.Management, options config.Options) error {
+	RegisterController(ctx, management, options)
 	return nil
 }

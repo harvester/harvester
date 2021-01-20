@@ -48,9 +48,11 @@ var _ = Describe("verify users APIs", func() {
 		password = fuzz.String(6)
 
 		BeforeEach(func() {
-			usersAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.users")
-			usersKubeAPI = helper.BuildAPIURL("", "apis/harvester.cattle.io/v1alpha1/users")
-			loginAPI = helper.BuildAPIURL("", "v1-public/auth?action=login")
+
+			var port = options.HTTPSListenPort
+			usersAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.users", port)
+			usersKubeAPI = helper.BuildAPIURL("", "apis/harvester.cattle.io/v1alpha1/users", port)
+			loginAPI = helper.BuildAPIURL("", "v1-public/auth?action=login", port)
 		})
 
 		Specify("create a user", func() {

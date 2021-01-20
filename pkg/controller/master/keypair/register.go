@@ -10,7 +10,7 @@ const (
 	controllerAgentName = "vm-keypair-controller"
 )
 
-func Register(ctx context.Context, management *config.Management) error {
+func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	keyPairs := management.HarvesterFactory.Harvester().V1alpha1().KeyPair()
 	controller := &Handler{
 		keyPairClient: keyPairs,

@@ -272,7 +272,9 @@ func TestImageHandler_OnRemoved(t *testing.T) {
 			},
 		},
 	}
-	config.ImageStorageEndpoint = "https://invalid-s3.com"
+	var options = config.Options{
+		ImageStorageEndpoint: "https://invalid-s3.com",
+	}
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset()
 		if tc.given.image != nil {
@@ -283,6 +285,7 @@ func TestImageHandler_OnRemoved(t *testing.T) {
 		var handler = &Handler{
 			images:     fakeVirtualMachineImageClient(clientset.HarvesterV1alpha1().VirtualMachineImages),
 			imageCache: fakeVirtualMachineImageCache(clientset.HarvesterV1alpha1().VirtualMachineImages),
+			options:    options,
 		}
 		var actual output
 		var err error

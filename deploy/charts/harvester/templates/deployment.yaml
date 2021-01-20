@@ -74,6 +74,8 @@ spec:
               value: {{ .Values.containers.apiserver.authMode | quote }}
             - name: HARVESTER_SERVER_HTTPS_PORT
               value: {{ .Values.service.harvester.httpsPort | quote }}
+            - name: HARVESTER_DEBUG
+              value: {{ .Values.containers.apiserver.debug | quote }}
             - name: HARVESTER_SERVER_HTTP_PORT
               value: {{ .Values.service.harvester.httpPort | quote }}
             - name: NAMESPACE
@@ -122,6 +124,9 @@ spec:
               name: http
               protocol: TCP
 {{- end }}
+            - containerPort: {{ .Values.service.harvester.profile }}
+              name: profile
+              protocol: TCP
 {{- if .Values.containers.apiserver.livenessProbe }}
           livenessProbe:
 {{ toYaml .Values.containers.apiserver.livenessProbe | indent 12 }}
