@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rancher/dynamiclistener"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/rancher/dynamiclistener"
+	"github.com/sirupsen/logrus"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -89,8 +89,10 @@ var _ = BeforeSuite(func(done Done) {
 	// and please use the client interface instead of informer interface if you can.
 	select {
 	case <-time.After(harvesterStartTimeOut * time.Second):
-	case err := <-testSuiteStartErrChan:
-		MustNotError(err)
+	case err = <-testSuiteStartErrChan:
+		if err != nil {
+			logrus.Errorf("harvester error: %v", err)
+		}
 	}
 }, beforeSuiteTimeOut)
 
