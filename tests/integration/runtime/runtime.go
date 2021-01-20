@@ -40,37 +40,39 @@ var (
 )
 
 // SetConfig configures the public variables exported in github.com/rancher/harvester/pkg/config package.
-func SetConfig(kubeConfig *rest.Config, testCluster cluster.Cluster) error {
+func SetConfig(kubeConfig *rest.Config, testCluster cluster.Cluster) (config.Options, error) {
+	var options config.Options
+
 	// generate two random ports
 	ports, err := fuzz.FreePorts(2)
 	if err != nil {
-		return fmt.Errorf("failed to get listening ports of harvester server, %v", err)
+		return options, fmt.Errorf("failed to get listening ports of harvester server, %v", err)
 	}
 
 	// config http and https
-	config.HTTPListenPort = ports[0]
-	config.HTTPSListenPort = ports[1]
+	options.HTTPListenPort = ports[0]
+	options.HTTPSListenPort = ports[1]
 
 	// config skip auth
-	config.SkipAuthentication = true
+	options.SkipAuthentication = true
 
 	// config imageStorage
 	imageStorageEndpoint, err := client.GetNodePortEndPoint(kubeConfig,
 		testHarvesterNamespace, testImageStorageDeployment, testImageStorageService)
 	if err != nil {
-		return fmt.Errorf("failed to get storage endpoint of %s, %v", testImageStorageService, err)
+		return options, fmt.Errorf("failed to get storage endpoint of %s, %v", testImageStorageService, err)
 	}
 
-	config.ImageStorageEndpoint = fmt.Sprintf("http://%s", imageStorageEndpoint)
-	config.ImageStorageAccessKey = testImageStorageAccessKey
-	config.ImageStorageSecretKey = testImageStorageSecretKey
+	options.ImageStorageEndpoint = fmt.Sprintf("http://%s", imageStorageEndpoint)
+	options.ImageStorageAccessKey = testImageStorageAccessKey
+	options.ImageStorageSecretKey = testImageStorageSecretKey
 
-	config.Namespace = testHarvesterNamespace
+	options.Namespace = testHarvesterNamespace
 
 	// inject the preset envs, this is used for testing setting.
 	err = os.Setenv(settings.GetEnvKey(settings.APIUIVersion.Name), settings.APIUIVersion.Default)
 	if err != nil {
-		return fmt.Errorf("failed to preset ENVs of harvester server, %w", err)
+		return options, fmt.Errorf("failed to preset ENVs of harvester server, %w", err)
 	}
-	return nil
+	return options, nil
 }

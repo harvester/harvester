@@ -15,7 +15,6 @@ import (
 	kubevirtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 
-	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/util"
 	"github.com/rancher/harvester/tests/framework/fuzz"
 )
@@ -241,7 +240,7 @@ func (v *VMBuilder) Blank() *VMBuilder {
 }
 
 func (v *VMBuilder) Image(imageName string) *VMBuilder {
-	sourceHTTPURL := fmt.Sprintf("%s/%s/%s", config.ImageStorageEndpoint, util.BucketName, imageName)
+	sourceHTTPURL := fmt.Sprintf("%s/%s/%s", options.ImageStorageEndpoint, util.BucketName, imageName)
 	return v.DataVolume("disk-image", "10Gi", sourceHTTPURL)
 }
 

@@ -29,7 +29,7 @@ var defaultAdminLabel = map[string]string{
 
 // bootstrapAdmin checks if the bootstrapAdminConfig exists, if it does this indicates it has
 // already created the admin user and should not attempt it again. Otherwise attempt to create the admin.
-func BootstrapAdmin(mgmt *config.Management) error {
+func BootstrapAdmin(mgmt *config.Management, namespace string) error {
 	if settings.NoDefaultAdmin.Get() == "true" {
 		return nil
 	}
@@ -45,7 +45,7 @@ func BootstrapAdmin(mgmt *config.Management) error {
 		return nil
 	}
 
-	if _, err := mgmt.CoreFactory.Core().V1().ConfigMap().Get(config.Namespace, bootstrapAdminConfig, v1.GetOptions{}); err != nil {
+	if _, err := mgmt.CoreFactory.Core().V1().ConfigMap().Get(namespace, bootstrapAdminConfig, v1.GetOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
 			logrus.Warnf("Unable to determine if admin user already created: %v", err)
 			return err
@@ -61,7 +61,7 @@ func BootstrapAdmin(mgmt *config.Management) error {
 	}
 
 	if len(users.Items) == 0 {
-		// Config map does not exist and no users, attempt to create the default admin user
+		// Options map does not exist and no users, attempt to create the default admin user
 		hash, err := pkguser.HashPasswordString(defaultAdminPassword)
 		if err != nil {
 			return err
@@ -134,7 +134,7 @@ func BootstrapAdmin(mgmt *config.Management) error {
 	adminConfigMap := corev1.ConfigMap{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      bootstrapAdminConfig,
-			Namespace: config.Namespace,
+			Namespace: namespace,
 		},
 	}
 

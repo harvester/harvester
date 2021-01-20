@@ -25,7 +25,7 @@ var (
 )
 
 // Register registers the node controller
-func Register(ctx context.Context, management *config.Management) error {
+func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
 	pods := management.CoreFactory.Core().V1().Pod()
 	statefulsets := management.AppsFactory.Apps().V1().StatefulSet()
@@ -33,6 +33,7 @@ func Register(ctx context.Context, management *config.Management) error {
 		podCache:         pods.Cache(),
 		statefulSets:     statefulsets,
 		statefulSetCache: statefulsets.Cache(),
+		namespace:        options.Namespace,
 	}
 
 	nodes.OnChange(ctx, controllerAgentName, controller.OnChanged)
@@ -44,6 +45,7 @@ type Handler struct {
 	podCache         v1.PodCache
 	statefulSets     appsv1.StatefulSetClient
 	statefulSetCache appsv1.StatefulSetCache
+	namespace        string
 }
 
 // OnChanged tries to make minio pods balanced if they are not
@@ -73,7 +75,7 @@ func (h *Handler) OnChanged(key string, node *apiv1.Node) (*apiv1.Node, error) {
 	sets := labels.Set{
 		appLabelKey: minioName,
 	}
-	pods, err := h.podCache.List(config.Namespace, sets.AsSelector())
+	pods, err := h.podCache.List(h.namespace, sets.AsSelector())
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +106,7 @@ func (h *Handler) OnChanged(key string, node *apiv1.Node) (*apiv1.Node, error) {
 }
 
 func (h *Handler) redeployMinio() error {
-	ss, err := h.statefulSetCache.Get(config.Namespace, minioName)
+	ss, err := h.statefulSetCache.Get(h.namespace, minioName)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}

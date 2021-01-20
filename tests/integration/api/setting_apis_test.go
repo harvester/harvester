@@ -22,7 +22,7 @@ var _ = Describe("verify settings APIs", func() {
 		)
 
 		BeforeEach(func() {
-			settingsAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.settings")
+			settingsAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.settings", options.HTTPSListenPort)
 		})
 
 		Specify("view all the settings", func() {

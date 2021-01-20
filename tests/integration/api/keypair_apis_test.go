@@ -13,7 +13,6 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/util"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
@@ -27,7 +26,7 @@ var _ = Describe("verify keypair APIs", func() {
 	BeforeEach(func() {
 
 		// keypair is stored in the same namespace of harvester
-		keypairNamespace = config.Namespace
+		keypairNamespace = options.Namespace
 
 	})
 
@@ -37,7 +36,7 @@ var _ = Describe("verify keypair APIs", func() {
 
 		BeforeEach(func() {
 
-			keypairsAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.keypairs")
+			keypairsAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.keypairs", options.HTTPSListenPort)
 
 		})
 

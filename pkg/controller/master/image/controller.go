@@ -27,11 +27,12 @@ var (
 	importIdleTimeout    = 5 * time.Minute
 )
 
-func RegisterController(ctx context.Context, management *config.Management) {
+func RegisterController(ctx context.Context, management *config.Management, options config.Options) {
 	images := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineImage()
 	controller := &Handler{
 		images:     images,
 		imageCache: images.Cache(),
+		options:    options,
 	}
 
 	images.OnChange(ctx, controllerAgentName, controller.OnImageChanged)
@@ -42,6 +43,7 @@ func RegisterController(ctx context.Context, management *config.Management) {
 type Handler struct {
 	images     v1alpha1.VirtualMachineImageClient
 	imageCache v1alpha1.VirtualMachineImageCache
+	options    config.Options
 }
 
 func (h *Handler) OnImageChanged(key string, image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
@@ -105,11 +107,11 @@ func (h *Handler) OnImageRemove(key string, image *apisv1alpha1.VirtualMachineIm
 		return image, nil
 	}
 	logrus.Debugf("removing image %s in minio", image.Name)
-	return image, removeImageFromStorage(image)
+	return image, removeImageFromStorage(image, h.options)
 }
 
-func removeImageFromStorage(image *apisv1alpha1.VirtualMachineImage) error {
-	mc, err := util.NewMinioClient()
+func removeImageFromStorage(image *apisv1alpha1.VirtualMachineImage, options config.Options) error {
+	mc, err := util.NewMinioClient(options)
 	if err != nil {
 		return err
 	}
@@ -165,7 +167,7 @@ func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelF
 
 	go h.syncProgress(ctx, cancel, reader, image)
 
-	mc, err := util.NewMinioClient()
+	mc, err := util.NewMinioClient(h.options)
 	if err != nil {
 		return err
 	}
@@ -184,7 +186,7 @@ func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelF
 	toUpdate.Status.DownloadedBytes = uploaded
 	apisv1alpha1.ImageImported.True(toUpdate)
 	apisv1alpha1.ImageImported.Message(toUpdate, "completed image importing")
-	toUpdate.Status.DownloadURL = fmt.Sprintf("%s/%s/%s", config.ImageStorageEndpoint, util.BucketName, image.Name)
+	toUpdate.Status.DownloadURL = fmt.Sprintf("%s/%s/%s", h.options.ImageStorageEndpoint, util.BucketName, image.Name)
 	if _, err := h.UpdateStatusRetryOnConflict(toUpdate); err != nil {
 		return err
 	}

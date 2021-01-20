@@ -98,7 +98,7 @@ var _ = Describe("verify network APIs", func() {
 
 		BeforeEach(func() {
 
-			networkAPI = helper.BuildAPIURL("v1", "k8s.cni.cncf.io.network-attachment-definitions")
+			networkAPI = helper.BuildAPIURL("v1", "k8s.cni.cncf.io.network-attachment-definitions", options.HTTPSListenPort)
 
 		})
 

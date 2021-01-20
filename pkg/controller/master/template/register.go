@@ -11,7 +11,7 @@ const (
 	templateVersionControllerAgentName = "template-version-controller"
 )
 
-func Register(ctx context.Context, management *config.Management) error {
+func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	templates := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate()
 	templateVersions := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion()
 

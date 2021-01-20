@@ -12,7 +12,6 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1alpha12 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/util"
 )
@@ -29,6 +28,7 @@ func CollectionFormatter(request *types.APIRequest, collection *types.GenericCol
 type KeyGenActionHandler struct {
 	KeyPairs     v1alpha1.KeyPairClient
 	KeyPairCache v1alpha1.KeyPairCache
+	Namespace    string
 }
 
 func (h KeyGenActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -65,7 +65,7 @@ func (h KeyGenActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	keyPair := &v1alpha12.KeyPair{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      input.Name,
-			Namespace: config.Namespace,
+			Namespace: h.Namespace,
 		},
 		Spec: v1alpha12.KeyPairSpec{
 			PublicKey: string(publicKey),

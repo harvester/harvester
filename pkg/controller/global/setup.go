@@ -12,7 +12,7 @@ import (
 	"github.com/rancher/harvester/pkg/indexeres"
 )
 
-type registerFunc func(context.Context, *config.Scaled, *server.Server) error
+type registerFunc func(context.Context, *config.Scaled, *server.Server, config.Options) error
 
 var registerFuncs = []registerFunc{
 	settings.Register,
@@ -20,11 +20,11 @@ var registerFuncs = []registerFunc{
 	auth.Register,
 }
 
-func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers) error {
+func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
 	indexeres.RegisterScaledIndexers(scaled)
 	for _, f := range registerFuncs {
-		if err := f(ctx, scaled, server); err != nil {
+		if err := f(ctx, scaled, server, options); err != nil {
 			return err
 		}
 	}

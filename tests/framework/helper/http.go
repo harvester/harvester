@@ -10,8 +10,6 @@ import (
 	"github.com/guonaihong/gout/dataflow"
 	"github.com/rancher/apiserver/pkg/types"
 	"sigs.k8s.io/yaml"
-
-	"github.com/rancher/harvester/pkg/config"
 )
 
 func NewHTTPClient() *dataflow.Gout {
@@ -23,8 +21,8 @@ func NewHTTPClient() *dataflow.Gout {
 		})
 }
 
-func BuildAPIURL(version, resource string) string {
-	return fmt.Sprintf("https://localhost:%d/%s/%s", config.HTTPSListenPort, version, resource)
+func BuildAPIURL(version, resource string, httpsPort int) string {
+	return fmt.Sprintf("https://localhost:%d/%s/%s", httpsPort, version, resource)
 }
 
 func BuildResourceURL(api, namespace, name string) string {

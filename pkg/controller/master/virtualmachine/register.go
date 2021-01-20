@@ -13,7 +13,7 @@ const (
 	vmControllerSetDefaultManagementNetworkMac    = "VMController.SetDefaultManagementNetworkMacAddress"
 )
 
-func Register(ctx context.Context, management *config.Management) error {
+func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	var dataVolumeClient = management.CDIFactory.Cdi().V1beta1().DataVolume()
 	var dataVolumeCache = dataVolumeClient.Cache()
 

@@ -24,17 +24,19 @@ type (
 	_scaledKey struct{}
 )
 
-var (
+type Options struct {
 	Namespace       string
 	Threadiness     int
 	HTTPListenPort  int
 	HTTPSListenPort int
+	Debug           bool
+	Trace           bool
 
 	ImageStorageEndpoint  string
 	ImageStorageAccessKey string
 	ImageStorageSecretKey string
 	SkipAuthentication    bool
-)
+}
 
 type Scaled struct {
 	ctx               context.Context
@@ -68,7 +70,7 @@ type Management struct {
 	starters []start.Starter
 }
 
-func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.FactoryOptions) (context.Context, *Scaled, error) {
+func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.FactoryOptions, namespace string) (context.Context, *Scaled, error) {
 	scaled := &Scaled{
 		ctx: ctx,
 	}
@@ -126,7 +128,7 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 		return nil, nil, err
 	}
 
-	scaled.TokenManager, err = jwe.NewJWETokenManager(scaled.CoreFactory.Core().V1().Secret(), Namespace)
+	scaled.TokenManager, err = jwe.NewJWETokenManager(scaled.CoreFactory.Core().V1().Secret(), namespace)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -187,9 +189,9 @@ func ScaledWithContext(ctx context.Context) *Scaled {
 	return ctx.Value(_scaledKey{}).(*Scaled)
 }
 
-func (s *Scaled) Start() error {
-	return start.All(s.ctx, Threadiness, s.starters...)
+func (s *Scaled) Start(threadiness int) error {
+	return start.All(s.ctx, threadiness, s.starters...)
 }
-func (s *Management) Start() error {
-	return start.All(s.ctx, Threadiness, s.starters...)
+func (s *Management) Start(threadiness int) error {
+	return start.All(s.ctx, threadiness, s.starters...)
 }

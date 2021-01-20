@@ -41,12 +41,12 @@ type HarvesterServer struct {
 	steve          *steveserver.Server
 	controllers    *steveserver.Controllers
 	startHooks     []StartHook
-	postStartHooks []func() error
+	postStartHooks []PostStartHook
 
 	Handler http.Handler
 }
 
-func New(ctx context.Context, clientConfig clientcmd.ClientConfig) (*HarvesterServer, error) {
+func New(ctx context.Context, clientConfig clientcmd.ClientConfig, options config.Options) (*HarvesterServer, error) {
 	var err error
 	server := &HarvesterServer{
 		Context: ctx,
@@ -71,7 +71,7 @@ func New(ctx context.Context, clientConfig clientcmd.ClientConfig) (*HarvesterSe
 		return nil, fmt.Errorf("kubernetes dynamic client create error:%s", err.Error())
 	}
 
-	if err := server.generateSteveServer(); err != nil {
+	if err := server.generateSteveServer(options); err != nil {
 		return nil, err
 	}
 
@@ -102,19 +102,19 @@ func Wait(ctx context.Context, config *rest.Config) error {
 	return nil
 }
 
-func (s *HarvesterServer) ListenAndServe(listenOpts *dynamiclistener.Config) error {
-	opts := &server.ListenOpts{
+func (s *HarvesterServer) ListenAndServe(listenerCfg *dynamiclistener.Config, opts config.Options) error {
+	listenOpts := &server.ListenOpts{
 		Secrets: s.controllers.Core.Secret(),
 		TLSListenerConfig: dynamiclistener.Config{
 			CloseConnOnCertChange: true,
 		},
 	}
 
-	if listenOpts != nil {
-		opts.TLSListenerConfig = *listenOpts
+	if listenerCfg != nil {
+		listenOpts.TLSListenerConfig = *listenerCfg
 	}
 
-	return s.steve.ListenAndServe(s.Context, config.HTTPSListenPort, config.HTTPListenPort, opts)
+	return s.steve.ListenAndServe(s.Context, opts.HTTPSListenPort, opts.HTTPListenPort, listenOpts)
 }
 
 // Scaled returns the *config.Scaled,
@@ -123,24 +123,24 @@ func (s *HarvesterServer) Scaled() *config.Scaled {
 	return config.ScaledWithContext(s.Context)
 }
 
-func (s *HarvesterServer) generateSteveServer() error {
+func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 	factory, err := controller.NewSharedControllerFactoryFromConfig(s.RESTConfig, Scheme)
 	if err != nil {
 		return err
 	}
 
-	opts := &generic.FactoryOptions{
+	factoryOpts := &generic.FactoryOptions{
 		SharedControllerFactory: factory,
 	}
 
 	var scaled *config.Scaled
 
-	s.Context, scaled, err = config.SetupScaled(s.Context, s.RESTConfig, opts)
+	s.Context, scaled, err = config.SetupScaled(s.Context, s.RESTConfig, factoryOpts, options.Namespace)
 	if err != nil {
 		return err
 	}
 
-	s.controllers, err = steveserver.NewController(s.RESTConfig, opts)
+	s.controllers, err = steveserver.NewController(s.RESTConfig, factoryOpts)
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func (s *HarvesterServer) generateSteveServer() error {
 	}
 
 	var authMiddleware steveauth.Middleware
-	if !config.SkipAuthentication {
+	if !options.SkipAuthentication {
 		md := auth.NewMiddleware(scaled)
 		authMiddleware = md.ToAuthMiddleware()
 	}
@@ -175,16 +175,16 @@ func (s *HarvesterServer) generateSteveServer() error {
 		api.Setup,
 	}
 
-	s.postStartHooks = []func() error{
+	s.postStartHooks = []PostStartHook{
 		scaled.Start,
 	}
 
-	return s.start()
+	return s.start(options)
 }
 
-func (s *HarvesterServer) start() error {
+func (s *HarvesterServer) start(options config.Options) error {
 	for _, hook := range s.startHooks {
-		if err := hook(s.Context, s.steve, s.controllers); err != nil {
+		if err := hook(s.Context, s.steve, s.controllers, options); err != nil {
 			return err
 		}
 	}
@@ -194,7 +194,7 @@ func (s *HarvesterServer) start() error {
 	}
 
 	for _, hook := range s.postStartHooks {
-		if err := hook(); err != nil {
+		if err := hook(options.Threadiness); err != nil {
 			return err
 		}
 	}
@@ -202,4 +202,5 @@ func (s *HarvesterServer) start() error {
 	return nil
 }
 
-type StartHook func(context.Context, *steveserver.Server, *steveserver.Controllers) error
+type StartHook func(context.Context, *steveserver.Server, *steveserver.Controllers, config.Options) error
+type PostStartHook func(int) error

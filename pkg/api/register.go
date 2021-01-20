@@ -16,20 +16,20 @@ import (
 	"github.com/rancher/steve/pkg/server"
 )
 
-type registerSchema func(scaled *config.Scaled, server *server.Server) error
+type registerSchema func(scaled *config.Scaled, server *server.Server, options config.Options) error
 
-func registerSchemas(scaled *config.Scaled, server *server.Server, registers ...registerSchema) error {
+func registerSchemas(scaled *config.Scaled, server *server.Server, options config.Options, registers ...registerSchema) error {
 	for _, register := range registers {
-		if err := register(scaled, server); err != nil {
+		if err := register(scaled, server, options); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers) error {
+func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
-	return registerSchemas(scaled, server,
+	return registerSchemas(scaled, server, options,
 		image.RegisterSchema,
 		keypair.RegisterSchema,
 		vmtemplate.RegisterSchema,

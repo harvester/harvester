@@ -274,6 +274,10 @@ containers:
     ##
     readinessProbe: {}
 
+    ## Specify whether to enable the debug flag.
+    ##
+    debug: false
+
     ## Specify the resources.
     ##
     resources:
@@ -330,6 +334,11 @@ service:
     ## defaults to "8443".
     ##
     httpsPort: 8443
+
+    ## Specify the port of golang pprof endpoint.
+    ## defaults to "6060".
+    ##
+    profile: 6060
 
     ## Specify the port of HTTP endpoint,
     ## this port will be closed if set to 0.

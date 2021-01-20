@@ -12,7 +12,7 @@ const (
 	nadSchemaID = "k8s.cni.cncf.io.networkattachmentdefinition"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
 	nadStore := &networkStore{
 		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		nadCache: scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition().Cache(),

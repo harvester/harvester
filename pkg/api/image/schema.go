@@ -13,12 +13,13 @@ import (
 	"github.com/rancher/harvester/pkg/config"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
 	t := schema.Template{
 		ID: "harvester.cattle.io.virtualmachineimage",
 		Store: store.DisplayNameValidatorStore{
 			Store: store.NamespaceStore{
-				Store: proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
+				Store:     proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
+				Namespace: options.Namespace,
 			},
 		},
 		Customize: func(s *types.APISchema) {
@@ -31,6 +32,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server) error {
 				"upload": UploadActionHandler{
 					Images:     scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineImage(),
 					ImageCache: scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineImage().Cache(),
+					Options:    options,
 				},
 			}
 		},
