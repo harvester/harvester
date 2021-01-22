@@ -85,6 +85,11 @@ kubevirt:
         ##
         permitBridgeInterfaceOnPodNetwork: true
 
+      ## Specify the machine type regex for validating the emulation of VirtualMachineInstance,
+      ## defaults to discover automatically, "pseries*" if arch is ppc64le, otherwise "q35, pc-g35*, pc, pc-i440fx*".
+      ##
+      emulatedMachines: ["q35","pc-q35*","pc","pc-i440fx*"]
+
 ## Specify the parameters to override the sub-chart.
 ##
 cdi-operator:
