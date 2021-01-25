@@ -125,3 +125,20 @@ func NewUser(namespace, name string, obj User) *User {
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// PreferenceList is a list of Preference resources
+type PreferenceList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []Preference `json:"items"`
+}
+
+func NewPreference(namespace, name string, obj Preference) *Preference {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("Preference").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}

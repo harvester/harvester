@@ -29,6 +29,7 @@ import (
 
 var (
 	KeyPairResourceName                       = "keypairs"
+	PreferenceResourceName                    = "preferences"
 	SettingResourceName                       = "settings"
 	UserResourceName                          = "users"
 	VirtualMachineImageResourceName           = "virtualmachineimages"
@@ -59,6 +60,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&KeyPair{},
 		&KeyPairList{},
+		&Preference{},
+		&PreferenceList{},
 		&Setting{},
 		&SettingList{},
 		&User{},

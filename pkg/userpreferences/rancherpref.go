@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	rancherSchema = "management.cattle.io.preference"
+	rancherSchema = "harvester.cattle.io.preference"
 )
 
 type rancherPrefStore struct {

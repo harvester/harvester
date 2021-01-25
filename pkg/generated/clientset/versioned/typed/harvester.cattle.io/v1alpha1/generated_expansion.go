@@ -20,6 +20,8 @@ package v1alpha1
 
 type KeyPairExpansion interface{}
 
+type PreferenceExpansion interface{}
+
 type SettingExpansion interface{}
 
 type UserExpansion interface{}
