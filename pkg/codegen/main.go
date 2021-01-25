@@ -30,6 +30,7 @@ func main() {
 					harv1.VirtualMachineTemplate{},
 					harv1.VirtualMachineTemplateVersion{},
 					harv1.User{},
+					harv1.Preference{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,

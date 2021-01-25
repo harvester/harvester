@@ -32,6 +32,10 @@ func (c *FakeHarvesterV1alpha1) KeyPairs(namespace string) v1alpha1.KeyPairInter
 	return &FakeKeyPairs{c, namespace}
 }
 
+func (c *FakeHarvesterV1alpha1) Preferences(namespace string) v1alpha1.PreferenceInterface {
+	return &FakePreferences{c, namespace}
+}
+
 func (c *FakeHarvesterV1alpha1) Settings() v1alpha1.SettingInterface {
 	return &FakeSettings{c}
 }

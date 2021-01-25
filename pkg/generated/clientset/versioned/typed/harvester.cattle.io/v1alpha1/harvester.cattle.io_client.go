@@ -27,6 +27,7 @@ import (
 type HarvesterV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	KeyPairsGetter
+	PreferencesGetter
 	SettingsGetter
 	UsersGetter
 	VirtualMachineImagesGetter
@@ -41,6 +42,10 @@ type HarvesterV1alpha1Client struct {
 
 func (c *HarvesterV1alpha1Client) KeyPairs(namespace string) KeyPairInterface {
 	return newKeyPairs(c, namespace)
+}
+
+func (c *HarvesterV1alpha1Client) Preferences(namespace string) PreferenceInterface {
+	return newPreferences(c, namespace)
 }
 
 func (c *HarvesterV1alpha1Client) Settings() SettingInterface {

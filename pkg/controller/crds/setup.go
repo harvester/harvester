@@ -31,6 +31,7 @@ func createCRDs(ctx context.Context, server *server.Server) error {
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "KeyPair"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplate"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplateVersion"),
+			crd.FromGV(v1alpha1.SchemeGroupVersion, "Preference"),
 			createNetworkAttachmentDefinitionCRD(),
 		).
 		Wait()
