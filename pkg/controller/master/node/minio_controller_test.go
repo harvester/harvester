@@ -326,7 +326,7 @@ func TestNodeHandler_OnChanged(t *testing.T) {
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
 		}
 
-		var handler = &Handler{
+		var handler = &BalanceHandler{
 			podCache:         fakePodCache(clientset.CoreV1().Pods),
 			statefulSets:     fakeStatefulSetClient(clientset.AppsV1().StatefulSets),
 			statefulSetCache: fakeStatefulSetCache(clientset.AppsV1().StatefulSets),

@@ -23,7 +23,8 @@ type registerFunc func(context.Context, *config.Management, config.Options) erro
 var registerFuncs = []registerFunc{
 	image.Register,
 	keypair.Register,
-	node.Register,
+	node.BalanceRegister,
+	node.PromoteRegister,
 	template.Register,
 	virtualmachine.Register,
 	user.Register,
