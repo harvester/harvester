@@ -14,34 +14,34 @@ import (
 )
 
 const (
-	controllerAgentName = "balance-minio-node-controller"
-	appLabelKey         = "app"
-	minioName           = "minio"
-	timestampAnnoKey    = "cattle.io/timestamp"
+	balanceControllerName = "balance-minio-node-controller"
+	appLabelKey           = "app"
+	minioName             = "minio"
+	timestampAnnoKey      = "cattle.io/timestamp"
 )
 
 var (
 	throttleDelay = 1 * time.Minute
 )
 
-// Register registers the node controller
-func Register(ctx context.Context, management *config.Management, options config.Options) error {
+// BalanceRegister registers the node controller
+func BalanceRegister(ctx context.Context, management *config.Management, options config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
 	pods := management.CoreFactory.Core().V1().Pod()
 	statefulsets := management.AppsFactory.Apps().V1().StatefulSet()
-	controller := &Handler{
+	controller := &BalanceHandler{
 		podCache:         pods.Cache(),
 		statefulSets:     statefulsets,
 		statefulSetCache: statefulsets.Cache(),
 		namespace:        options.Namespace,
 	}
 
-	nodes.OnChange(ctx, controllerAgentName, controller.OnChanged)
+	nodes.OnChange(ctx, balanceControllerName, controller.OnChanged)
 	return nil
 }
 
-// Handler balances minio pods if applicable when new nodes join
-type Handler struct {
+// BalanceHandler balances minio pods if applicable when new nodes join
+type BalanceHandler struct {
 	podCache         v1.PodCache
 	statefulSets     appsv1.StatefulSetClient
 	statefulSetCache appsv1.StatefulSetCache
@@ -49,7 +49,7 @@ type Handler struct {
 }
 
 // OnChanged tries to make minio pods balanced if they are not
-func (h *Handler) OnChanged(key string, node *apiv1.Node) (*apiv1.Node, error) {
+func (h *BalanceHandler) OnChanged(key string, node *apiv1.Node) (*apiv1.Node, error) {
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
 	}
@@ -105,7 +105,7 @@ func (h *Handler) OnChanged(key string, node *apiv1.Node) (*apiv1.Node, error) {
 	return node, nil
 }
 
-func (h *Handler) redeployMinio() error {
+func (h *BalanceHandler) redeployMinio() error {
 	ss, err := h.statefulSetCache.Get(h.namespace, minioName)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
