@@ -31,8 +31,8 @@ kubevirt-operator:
   containers:
     operator:
       image:
-        repository: kubevirt/virt-operator
-        tag: &kubevirtVersion v0.35.0
+        repository: quay.io/kubevirt/virt-operator
+        tag: &kubevirtVersion v0.37.2
     ## The following four images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
