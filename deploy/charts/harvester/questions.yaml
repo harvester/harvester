@@ -143,7 +143,7 @@ questions:
         group: "KubeVirt Settings"
         show_if: "tags.kubevirt=true"
       - variable: kubevirt-operator.containers.operator.image.tag
-        default: "v0.35.0"
+        default: "v0.37.2"
         label: "Operator Image Tag"
         description: "specify the tag of operator image"
         type: "string"

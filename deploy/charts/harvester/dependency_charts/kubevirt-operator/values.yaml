@@ -54,11 +54,11 @@ containers:
 
       ## Specify the repository of image.
       ##
-      repository: kubevirt/virt-operator
+      repository: quay.io/kubevirt/virt-operator
 
       ## Specify the tag of image.
       ##
-      tag: v0.35.0
+      tag: v0.37.2
 
     ## Specify the command.
     ##
