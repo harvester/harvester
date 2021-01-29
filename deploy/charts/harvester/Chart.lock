@@ -20,5 +20,8 @@ dependencies:
 - name: minio
   repository: https://helm.min.io
   version: 8.0.5
-digest: sha256:febd3483fdb0621e2d5fd3d832a3b12b133929e2f5dda19a4fbb5dedef4a82c7
-generated: "2020-12-04T14:46:43.678381+08:00"
+- name: longhorn
+  repository: https://charts.longhorn.io
+  version: 1.1.0
+digest: sha256:6fc87ae83cd71ce89b482ca4bd5509a784fa6d74ec16053414f55cb9d68faff6
+generated: "2021-01-29T07:47:58.900817567+01:00"
