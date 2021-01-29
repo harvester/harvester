@@ -204,7 +204,7 @@ questions:
         group: "CDI Settings"
         show_if: "tags.cdi=true"
       - variable: cdi-operator.containers.operator.image.tag
-        default: "v1.26.1"
+        default: "v1.28.3"
         label: "Operator Image Tag"
         description: "specify the tag of operator image"
         type: "string"
