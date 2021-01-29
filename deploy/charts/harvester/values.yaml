@@ -97,7 +97,7 @@ cdi-operator:
     operator:
       image:
         repository: kubevirt/cdi-operator
-        tag: &cdiVersion v1.26.1
+        tag: &cdiVersion v1.28.3
     controller:
       image:
         repository: kubevirt/cdi-controller
