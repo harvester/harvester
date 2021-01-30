@@ -53,8 +53,8 @@ if [ ! -f /var/lib/rancher/k3os/config.yaml ]; then \
 	echo done clone config; \
 fi && \
 echo update config && \
-sudo sed -i ':a;N;s/k3sArgs:\n  - agent/k3sArgs:\n  - server/g;ta' /var/lib/rancher/k3os/config.yaml && \
-sudo sed -i 's/command_args=\"agent/command_args=\"server/g' /etc/init.d/k3s-service && \
+sudo yq -i eval '.k3os.k3sArgs[0] = \"server\"' /var/lib/rancher/k3os/config.yaml && \
+sudo yq -i eval '.k3os.k3sArgs |= . + [\"--disable\",\"local-storage\"]' /var/lib/rancher/k3os/config.yaml && \
 echo restart and promote k3s node && \
 cat /var/run/k3s-restarter-trap.pid | xargs -r kill -HUP && \
 echo finish promote
