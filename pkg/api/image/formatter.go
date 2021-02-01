@@ -1,8 +1,10 @@
 package image
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/minio/minio-go/v6"
 	"github.com/pkg/errors"
@@ -10,8 +12,7 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/rand"
+	kapierror "k8s.io/apimachinery/pkg/api/errors"
 
 	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
@@ -47,13 +48,19 @@ func (h UploadActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 }
 
 func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
-	imageName := req.FormValue("displayName")
-	if imageName == "" {
+	resource := req.FormValue("resource")
+	if resource == "" {
+		return apierror.NewAPIError(validation.MissingRequired, "resource is required")
+	}
+	image := &apisv1alpha1.VirtualMachineImage{}
+	if err := json.Unmarshal([]byte(resource), image); err != nil {
+		return err
+	}
+	if image.Spec.DisplayName == "" {
 		return apierror.NewAPIError(validation.MissingRequired, "displayName is required")
 	}
-	namespace := req.FormValue("namespace")
-	if namespace == "" {
-		namespace = h.Options.Namespace
+	if image.Namespace == "" {
+		image.Namespace = h.Options.Namespace
 	}
 	file, fileHeader, err := req.FormFile("file")
 	if err != nil {
@@ -61,34 +68,58 @@ func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	}
 	defer file.Close()
 
+	apisv1alpha1.ImageImported.Unknown(image)
+	image, err = h.Images.Create(image)
+	if err != nil {
+		return err
+	}
+	imageName := image.Name
+
 	fileName := fileHeader.Filename
-	generatedName := fmt.Sprintf("%s-%s", "image", rand.String(5))
 	mc, err := util.NewMinioClient(h.Options)
 	if err != nil {
+		h.recordUploadError(image, err)
 		return err
 	}
-	n, err := mc.PutObject(util.BucketName, generatedName, file, fileHeader.Size, minio.PutObjectOptions{ContentType: fileHeader.Header.Get("Content-Type")})
+	size, err := mc.PutObject(util.BucketName, imageName, file, fileHeader.Size, minio.PutObjectOptions{ContentType: fileHeader.Header.Get("Content-Type")})
 	if err != nil {
+		h.recordUploadError(image, err)
 		return err
 	}
-	logrus.Debugf("Successfully uploaded %s of size %d\n", fileName, n)
+	logrus.Debugf("Successfully uploaded %s of size %d\n", fileName, size)
 
-	downloadURL := fmt.Sprintf("%s/%s/%s", h.Options.ImageStorageEndpoint, util.BucketName, generatedName)
-	image := &apisv1alpha1.VirtualMachineImage{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      generatedName,
-			Namespace: namespace,
-		},
-		Spec: apisv1alpha1.VirtualMachineImageSpec{
-			DisplayName: imageName,
-		},
-		Status: apisv1alpha1.VirtualMachineImageStatus{
-			DownloadURL: downloadURL,
-			Progress:    100,
-		},
-	}
+	downloadURL := fmt.Sprintf("%s/%s/%s", h.Options.ImageStorageEndpoint, util.BucketName, imageName)
+	image.Status.DownloadURL = downloadURL
+	image.Status.Progress = 100
+	image.Status.DownloadedBytes = size
 	apisv1alpha1.ImageImported.True(image)
-	apisv1alpha1.ImageImported.Message(image, "uploaded by user")
-	_, err = h.Images.Create(image)
-	return err
+	return h.updateWithRetries(image)
+}
+
+func (h UploadActionHandler) recordUploadError(image *apisv1alpha1.VirtualMachineImage, err error) {
+	apisv1alpha1.ImageImported.False(image)
+	apisv1alpha1.ImageImported.Message(image, err.Error())
+	if err := h.updateWithRetries(image); err != nil {
+		logrus.Errorf("Failed to update image: %v", err)
+	}
+}
+
+func (h UploadActionHandler) updateWithRetries(image *apisv1alpha1.VirtualMachineImage) error {
+	const retries = 3
+	for i := 0; i < retries; {
+		currentImage, err := h.ImageCache.Get(image.Namespace, image.Name)
+		if err != nil {
+			return err
+		}
+		toUpdate := currentImage.DeepCopy()
+		toUpdate.Spec = image.Spec
+		toUpdate.Status = image.Status
+		if _, err := h.Images.Update(toUpdate); err == nil {
+			return nil
+		} else if err != nil && !kapierror.IsConflict(err) {
+			return err
+		}
+		time.Sleep(time.Second)
+	}
+	return fmt.Errorf("exceeded maximum retries for image update")
 }
