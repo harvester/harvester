@@ -3,6 +3,7 @@ package api_test
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -330,24 +331,33 @@ var _ = Describe("verify image APIs", func() {
 			imageDisplayName := fuzz.String(5)
 			imagePath, imageChecksum, err := fuzz.File(10 * fuzz.MB)
 			MustNotError(err)
+			image := v1alpha1.VirtualMachineImage{
+				ObjectMeta: v1.ObjectMeta{
+					GenerateName: "image-",
+					Namespace:    imageNamespace,
+				},
+				Spec: v1alpha1.VirtualMachineImageSpec{
+					DisplayName: imageDisplayName,
+				},
+			}
+			imageBytes, err := json.Marshal(image)
+			MustNotError(err)
 
 			By("when call upload action")
 			var (
 				respCode int
 				respBody []byte
-				image    = struct {
-					Namespace   string `form:"namespace"`
-					DisplayName string `form:"displayName"`
-					Path        string `form:"file" form-file:"true"`
+				form     = struct {
+					Resource string `form:"resource"`
+					Path     string `form:"file" form-file:"true"`
 				}{
-					Namespace:   imageNamespace,
-					DisplayName: imageDisplayName,
-					Path:        imagePath,
+					Resource: string(imageBytes),
+					Path:     imagePath,
 				}
 			)
 			err = helper.NewHTTPClient().
 				POST(fmt.Sprintf("%s?action=upload", imageAPI)).
-				SetForm(image).
+				SetForm(form).
 				BindBody(&respBody).
 				Code(&respCode).
 				Do()
