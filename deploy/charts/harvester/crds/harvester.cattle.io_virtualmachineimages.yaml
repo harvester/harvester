@@ -63,8 +63,6 @@ spec:
                 type: string
               url:
                 type: string
-            required:
-            - url
             type: object
           status:
             properties:
