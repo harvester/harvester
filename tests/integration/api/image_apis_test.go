@@ -3,7 +3,6 @@ package api_test
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -328,42 +327,46 @@ var _ = Describe("verify image APIs", func() {
 		Specify("verify the upload action", func() {
 
 			By("given a random size image")
-			imageDisplayName := fuzz.String(5)
+			var (
+				imageName        = fuzz.String(5)
+				imageDisplayName = fuzz.String(5)
+				image            = v1alpha1.VirtualMachineImage{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      imageName,
+						Namespace: imageNamespace,
+					},
+					Spec: v1alpha1.VirtualMachineImageSpec{
+						DisplayName: imageDisplayName,
+					},
+				}
+			)
 			imagePath, imageChecksum, err := fuzz.File(10 * fuzz.MB)
 			MustNotError(err)
-			image := v1alpha1.VirtualMachineImage{
-				ObjectMeta: v1.ObjectMeta{
-					GenerateName: "image-",
-					Namespace:    imageNamespace,
-				},
-				Spec: v1alpha1.VirtualMachineImageSpec{
-					DisplayName: imageDisplayName,
-				},
-			}
-			imageBytes, err := json.Marshal(image)
-			MustNotError(err)
+
+			By("create an image", func() {
+				respCode, respBody, err := helper.PostObject(imageAPI, image)
+				MustRespCodeIs(http.StatusCreated, "post image", err, respCode, respBody)
+			})
 
 			By("when call upload action")
 			var (
 				respCode int
 				respBody []byte
 				form     = struct {
-					Resource string `form:"resource"`
-					Path     string `form:"file" form-file:"true"`
+					File string `form:"file" form-file:"true"`
 				}{
-					Resource: string(imageBytes),
-					Path:     imagePath,
+					File: imagePath,
 				}
 			)
 			err = helper.NewHTTPClient().
-				POST(fmt.Sprintf("%s?action=upload", imageAPI)).
+				POST(fmt.Sprintf("%s/%s/%s?action=upload", imageAPI, imageNamespace, imageName)).
 				SetForm(form).
 				BindBody(&respBody).
 				Code(&respCode).
 				Do()
-			MustRespCodeIs(http.StatusOK, "post image", err, respCode, respBody)
+			MustRespCodeIs(http.StatusOK, "upload image", err, respCode, respBody)
 
-			By("then the same display name image is created")
+			By("then the image is uploaded")
 			var imageDownloadURL string
 			MustFinallyBeTrue(func() bool {
 				var (

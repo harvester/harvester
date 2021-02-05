@@ -1,32 +1,31 @@
 package image
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
-	"github.com/minio/minio-go/v6"
+	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
-	"github.com/rancher/apiserver/pkg/types"
+	imagectl "github.com/rancher/harvester/pkg/controller/master/image"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	kapierror "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/util"
 )
 
-func Formatter(request *types.APIRequest, resource *types.RawResource) {
-	resource.Actions = nil
-}
-
-func CollectionFormatter(request *types.APIRequest, collection *types.GenericCollection) {
-	collection.AddAction(request, "upload")
-}
+const (
+	actionUpload   = "upload"
+	fileFormName   = "file"
+	fileSizeHeader = "File-Size"
+)
 
 type UploadActionHandler struct {
 	Options    config.Options
@@ -48,52 +47,73 @@ func (h UploadActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 }
 
 func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
-	resource := req.FormValue("resource")
-	if resource == "" {
-		return apierror.NewAPIError(validation.MissingRequired, "resource is required")
+	vars := mux.Vars(req)
+	action := vars["action"]
+	switch action {
+	case actionUpload:
+		return h.uploadImage(req)
+	default:
+		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
-	image := &apisv1alpha1.VirtualMachineImage{}
-	if err := json.Unmarshal([]byte(resource), image); err != nil {
+}
+
+func (h UploadActionHandler) uploadImage(req *http.Request) error {
+	vars := mux.Vars(req)
+	namespace := vars["namespace"]
+	name := vars["name"]
+	image, err := h.Images.Get(namespace, name, metav1.GetOptions{})
+	if err != nil {
 		return err
 	}
-	if image.Spec.DisplayName == "" {
-		return apierror.NewAPIError(validation.MissingRequired, "displayName is required")
+
+	if image.Spec.URL != "" {
+		return apierror.NewAPIError(validation.InvalidAction, "Cannot upload image with URL set")
 	}
-	if image.Namespace == "" {
-		image.Namespace = h.Options.Namespace
-	}
-	file, fileHeader, err := req.FormFile("file")
-	if err != nil {
-		return errors.Wrap(err, "Failed reading image file from request")
-	}
-	defer file.Close()
 
 	apisv1alpha1.ImageImported.Unknown(image)
-	image, err = h.Images.Create(image)
-	if err != nil {
+	if err := h.updateWithRetries(image); err != nil {
 		return err
 	}
-	imageName := image.Name
 
-	fileName := fileHeader.Filename
-	mc, err := util.NewMinioClient(h.Options)
+	mr, err := req.MultipartReader()
 	if err != nil {
+		h.recordUploadError(image, err)
+		return errors.Wrap(err, "Failed reading file from request")
+	}
+
+	part, err := mr.NextPart()
+	if err != nil {
+		h.recordUploadError(image, err)
+		return errors.Wrap(err, "Failed reading file from request")
+	}
+	defer part.Close()
+
+	if part.FormName() != fileFormName {
+		return errors.New("Expected file form in request")
+	}
+
+	size := int64(-1)
+	sizeHeader := req.Header.Get(fileSizeHeader)
+	if sizeHeader != "" {
+		size, err = strconv.ParseInt(sizeHeader, 10, 64)
+		if err != nil {
+			h.recordUploadError(image, err)
+			return err
+		}
+	}
+
+	importer := imagectl.MinioImporter{
+		Images:     h.Images,
+		ImageCache: h.ImageCache,
+		Options:    h.Options,
+	}
+
+	ctx, cancel := context.WithCancel(req.Context())
+	if err := importer.ImportImageToMinio(ctx, cancel, part, image, size); err != nil {
 		h.recordUploadError(image, err)
 		return err
 	}
-	size, err := mc.PutObject(util.BucketName, imageName, file, fileHeader.Size, minio.PutObjectOptions{ContentType: fileHeader.Header.Get("Content-Type")})
-	if err != nil {
-		h.recordUploadError(image, err)
-		return err
-	}
-	logrus.Debugf("Successfully uploaded %s of size %d\n", fileName, size)
-
-	downloadURL := fmt.Sprintf("%s/%s/%s", h.Options.ImageStorageEndpoint, util.BucketName, imageName)
-	image.Status.DownloadURL = downloadURL
-	image.Status.Progress = 100
-	image.Status.DownloadedBytes = size
-	apisv1alpha1.ImageImported.True(image)
-	return h.updateWithRetries(image)
+	return nil
 }
 
 func (h UploadActionHandler) recordUploadError(image *apisv1alpha1.VirtualMachineImage, err error) {

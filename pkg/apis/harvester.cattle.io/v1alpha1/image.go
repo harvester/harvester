@@ -28,10 +28,10 @@ type VirtualMachineImage struct {
 }
 
 type VirtualMachineImageSpec struct {
-	// +kubebuilder:validation:Required
+	// +optional
 	URL string `json:"url"`
 
-	// +optional
+	// +kubebuilder:validation:Required
 	DisplayName string `json:"displayName,omitempty"`
 
 	// +optional
