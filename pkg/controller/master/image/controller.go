@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/minio/minio-go/v6"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -88,8 +87,8 @@ func (h *Handler) OnImageChanged(key string, image *apisv1alpha1.VirtualMachineI
 			toUpdate := currentImage.DeepCopy()
 			toUpdate.Status.AppliedURL = image.Spec.URL
 			apisv1alpha1.ImageImported.False(toUpdate)
-			apisv1alpha1.ImageImported.Reason(toUpdate, err.Error())
-			if _, err := h.UpdateStatusRetryOnConflict(toUpdate); err != nil {
+			apisv1alpha1.ImageImported.Message(toUpdate, err.Error())
+			if _, err := updateStatusRetryOnConflict(h.images, h.imageCache, toUpdate); err != nil {
 				logrus.Errorln(err)
 			}
 		}
@@ -149,55 +148,19 @@ func (h *Handler) importImageToMinio(ctx context.Context, cancel context.CancelF
 			return err
 		}
 	}
-	contentType := resp.Header.Get("Content-Type")
-	reader := &util.CountingReader{
-		Reader: resp.Body,
-		Total:  fileSize,
+	importer := MinioImporter{
+		Images:     h.images,
+		ImageCache: h.imageCache,
+		Options:    h.options,
 	}
-
-	toUpdate := image.DeepCopy()
-	apisv1alpha1.ImageImported.Unknown(toUpdate)
-	apisv1alpha1.ImageImported.Message(toUpdate, "started image importing")
-	toUpdate.Status.AppliedURL = toUpdate.Spec.URL
-	toUpdate.Status.Progress = 0
-	_, err = h.UpdateStatusRetryOnConflict(toUpdate)
-	if err != nil {
-		return err
-	}
-
-	go h.syncProgress(ctx, cancel, reader, image)
-
-	mc, err := util.NewMinioClient(h.options)
-	if err != nil {
-		return err
-	}
-	uploaded, err := mc.PutObjectWithContext(ctx, util.BucketName, image.Name, reader, fileSize, minio.PutObjectOptions{ContentType: contentType})
-	if err != nil {
-		return err
-	}
-
-	//Succeed
-	currentImage, err := h.imageCache.Get(image.Namespace, image.Name)
-	if err != nil {
-		return err
-	}
-	toUpdate = currentImage.DeepCopy()
-	toUpdate.Status.Progress = 100
-	toUpdate.Status.DownloadedBytes = uploaded
-	apisv1alpha1.ImageImported.True(toUpdate)
-	apisv1alpha1.ImageImported.Message(toUpdate, "completed image importing")
-	toUpdate.Status.DownloadURL = fmt.Sprintf("%s/%s/%s", h.options.ImageStorageEndpoint, util.BucketName, image.Name)
-	if _, err := h.UpdateStatusRetryOnConflict(toUpdate); err != nil {
-		return err
-	}
-	logrus.Debugf("Successfully imported image in size %d from %s\n", uploaded, image.Spec.URL)
-	return nil
+	return importer.ImportImageToMinio(ctx, cancel, resp.Body, image, fileSize)
 }
 
-func (h *Handler) UpdateStatusRetryOnConflict(image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
+func updateStatusRetryOnConflict(images v1alpha1.VirtualMachineImageClient,
+	imageCache v1alpha1.VirtualMachineImageCache, image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
 	retry := 3
 	for i := 0; i < retry; i++ {
-		current, err := h.imageCache.Get(image.Namespace, image.Name)
+		current, err := imageCache.Get(image.Namespace, image.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +169,7 @@ func (h *Handler) UpdateStatusRetryOnConflict(image *apisv1alpha1.VirtualMachine
 		}
 		toUpdate := current.DeepCopy()
 		toUpdate.Status = image.Status
-		current, err = h.images.Update(toUpdate)
+		current, err = images.Update(toUpdate)
 		if err == nil {
 			return current, nil
 		}
@@ -225,50 +188,4 @@ func resetImageStatus(image *apisv1alpha1.VirtualMachineImage) {
 	image.Status.Progress = 0
 	image.Status.DownloadedBytes = 0
 	image.Status.DownloadURL = ""
-}
-
-func (h Handler) syncProgress(ctx context.Context, cancel context.CancelFunc, reader *util.CountingReader, image *apisv1alpha1.VirtualMachineImage) {
-	var count int64
-	var progress int
-	lastUpdate := time.Now()
-	for {
-		if count < reader.Current {
-			currentImage, err := h.imageCache.Get(image.Namespace, image.Name)
-			if err != nil {
-				logrus.Errorf("fail to get image syncing progress: %v", err)
-			}
-
-			if currentImage.Status.DownloadedBytes != reader.Current {
-				toUpdate := currentImage.DeepCopy()
-				if reader.Total > 0 {
-					progress = int(float32(reader.Current) * 100 / float32(reader.Total))
-					toUpdate.Status.Progress = progress
-				} else {
-					toUpdate.Status.Progress = -1
-				}
-				toUpdate.Status.DownloadedBytes = reader.Current
-				if _, err := h.images.Update(toUpdate); err != nil && !apierrors.IsConflict(err) {
-					logrus.Errorf("fail to update image syncing progress: %v", err)
-				}
-			}
-			lastUpdate = time.Now()
-			count = reader.Current
-		}
-
-		if time.Now().After(lastUpdate.Add(importIdleTimeout)) {
-			logrus.Errorf("exceeded idle time importing image %q", image.Name)
-			cancel()
-		}
-
-		if count == reader.Total {
-			return
-		}
-
-		select {
-		case <-time.After(syncProgressInterval):
-			continue
-		case <-ctx.Done():
-			return
-		}
-	}
 }

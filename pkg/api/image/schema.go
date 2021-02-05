@@ -23,13 +23,11 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 			},
 		},
 		Customize: func(s *types.APISchema) {
-			s.CollectionFormatter = CollectionFormatter
-			s.CollectionActions = map[string]schemas.Action{
-				"upload": {},
+			s.ResourceActions = map[string]schemas.Action{
+				actionUpload: {},
 			}
-			s.Formatter = Formatter
 			s.ActionHandlers = map[string]http.Handler{
-				"upload": UploadActionHandler{
+				actionUpload: UploadActionHandler{
 					Images:     scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineImage(),
 					ImageCache: scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineImage().Cache(),
 					Options:    options,
