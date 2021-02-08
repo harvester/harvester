@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	ctlbatchv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1"
@@ -25,8 +24,9 @@ import (
 const (
 	promoteControllerName = "promote-node-controller"
 
-	KubeNodeRoleLabelPrefix = "node-role.kubernetes.io/"
-	KubeMasterNodeLabelKey  = KubeNodeRoleLabelPrefix + "master"
+	KubeNodeRoleLabelPrefix      = "node-role.kubernetes.io/"
+	KubeMasterNodeLabelKey       = KubeNodeRoleLabelPrefix + "master"
+	KubeControlPlaneNodeLabelKey = KubeNodeRoleLabelPrefix + "control-plane"
 
 	KubeNodeSVCLabelPrefix      = "svccontroller.k3s.cattle.io/"
 	KubeNodeSVCEnableLBLabelKey = KubeNodeSVCLabelPrefix + "enablelb"
@@ -41,7 +41,7 @@ const (
 	PromoteStatusUnknown  = "unknown"
 	PromoteStatusFailed   = "failed"
 
-	defaultSpecMasterNumber = 3
+	defaultSpecManagementNumber = 3
 
 	promoteImage         = "busybox:1.32.0"
 	promoteRootMountPath = "/host"
@@ -100,8 +100,8 @@ func PromoteRegister(ctx context.Context, management *config.Management, options
 }
 
 // OnNodeChanged automate the upgrade of node roles
-// If the number of masters in the cluster is less than spec number,
-// the harvester node with the smallest age is automatically promoted to be master.
+// If the number of managements in the cluster is less than spec number,
+// the harvester oldest node will be automatically promoted to be management.
 func (h *PromoteHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.Node, error) {
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
@@ -112,18 +112,16 @@ func (h *PromoteHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.N
 		return nil, err
 	}
 
-	promoteNodeList, err := h.selectPromoteNodeList(nodeList)
-	if err != nil {
+	promoteNode := selectPromoteNode(nodeList)
+	if promoteNode == nil {
+		return node, nil
+	}
+
+	if _, err = h.promote(promoteNode); err != nil {
 		return nil, err
 	}
 
-	for _, promoteNode := range promoteNodeList {
-		if _, err = h.promote(promoteNode); err != nil {
-			return nil, err
-		}
-	}
-
-	return nil, nil
+	return node, nil
 }
 
 // OnJobChanged
@@ -249,64 +247,57 @@ func (h *PromoteHandler) setPromoteResult(job *batchv1.Job, node *corev1.Node, s
 	return job, err
 }
 
-type SortByAgeNodeList []*corev1.Node
-
-func (s SortByAgeNodeList) Len() int      { return len(s) }
-func (s SortByAgeNodeList) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s SortByAgeNodeList) Less(i, j int) bool {
-	// reverse order
-	return s[i].CreationTimestamp.Before(&s[j].CreationTimestamp)
-}
-
-// selectPromoteNodeList return a list contain nodes need to be promoted
+// selectPromoteNode select the oldest ready worker node to promote
 // If the cluster doesn't need to be promoted, return nil
-func (h *PromoteHandler) selectPromoteNodeList(nodeList []*corev1.Node) ([]*corev1.Node, error) {
-	var masterNumber int
-	canBePromoteNodeList := make([]*corev1.Node, 0, len(nodeList))
+func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
+	var (
+		managementNumber     int
+		managementRoleNumber int
+		canPromoteNumber     int
+		promoteNode          *corev1.Node
+	)
+
+	promoteNode = nil
 	for _, node := range nodeList {
-		if h.shouldBeMaster(node) {
-			masterNumber++
+		if isManagementRole(node) {
+			managementNumber++
+			managementRoleNumber++
+		} else if hasPromoteStatus(node) {
+			managementNumber++
 		} else if isHarvesterNode(node) && isHealthyNode(node) {
-			canBePromoteNodeList = append(canBePromoteNodeList, node)
+			canPromoteNumber++
+			if promoteNode == nil || node.CreationTimestamp.Before(&promoteNode.CreationTimestamp) {
+				promoteNode = node
+			}
 		}
 	}
 
-	if len(canBePromoteNodeList) == 0 {
-		return nil, nil
+	// waiting for the other node completed
+	if managementRoleNumber != managementNumber {
+		return nil
 	}
 
 	// there is no need to promote if the spec number has been reached
-	specMasterNumber := getSpecMasterNumber(len(nodeList))
-	promoteNodeNumber := specMasterNumber - masterNumber
+	specManagementNumber := getSpecManagementNumber(len(nodeList))
+	promoteNodeNumber := specManagementNumber - managementNumber
 	if promoteNodeNumber <= 0 {
-		return nil, nil
+		return nil
 	}
 
 	// make sure have enough nodes can be promote
-	if len(canBePromoteNodeList) < promoteNodeNumber {
-		return nil, nil
+	if canPromoteNumber < promoteNodeNumber {
+		return nil
 	}
 
-	// sort by creation time from largest to smallest to find the oldest node that can be promoted
-	promoteNodeList := make([]*corev1.Node, 0, promoteNodeNumber)
-	var sortByAgeNodeList SortByAgeNodeList = canBePromoteNodeList
-	sort.Sort(sortByAgeNodeList)
-	for _, node := range sortByAgeNodeList {
-		if promoteNodeNumber > 0 {
-			promoteNodeList = append(promoteNodeList, node)
-			promoteNodeNumber--
-		}
-	}
-
-	return promoteNodeList, nil
+	return promoteNode
 }
 
-// getSpecMasterNumber get spec master number by all node number
-func getSpecMasterNumber(nodeNumber int) int {
+// getSpecMasterNumber get spec management number by all node number
+func getSpecManagementNumber(nodeNumber int) int {
 	if nodeNumber < 3 {
 		return 1
 	}
-	return defaultSpecMasterNumber
+	return defaultSpecManagementNumber
 }
 
 // isHealthyNode determine whether it's an healthy node
@@ -332,9 +323,14 @@ func isHarvesterNode(node *corev1.Node) bool {
 	return ok
 }
 
-// isMasterRole determine whether it's an master node based on the node's label
-func isMasterRole(node *corev1.Node) bool {
+// isManagementRole determine whether it's an management node based on the node's label
+func isManagementRole(node *corev1.Node) bool {
 	if value, ok := node.Labels[KubeMasterNodeLabelKey]; ok {
+		return value == "true"
+	}
+
+	// Related to https://github.com/kubernetes/kubernetes/pull/95382
+	if value, ok := node.Labels[KubeControlPlaneNodeLabelKey]; ok {
 		return value == "true"
 	}
 
@@ -359,21 +355,6 @@ func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
 	}
 
 	return false
-}
-
-func (h *PromoteHandler) hasPromoteJob(node *corev1.Node) bool {
-	jobName := buildPromoteJobName(node.Name)
-	_, err := h.jobCache.Get(h.namespace, jobName)
-	return err == nil
-}
-
-func (h *PromoteHandler) hasBeenPromoted(node *corev1.Node) bool {
-	return h.hasPromoteJob(node) || hasPromoteStatus(node)
-}
-
-// shouldBeMaster determine whether it should be an master node
-func (h *PromoteHandler) shouldBeMaster(node *corev1.Node) bool {
-	return isMasterRole(node) || h.hasBeenPromoted(node)
 }
 
 func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, error) {
