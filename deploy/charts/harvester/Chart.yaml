@@ -1,6 +1,6 @@
 apiVersion: v2
 name: harvester
-version: 0.1.0
+version: dev
 appVersion: 0.1.x
 description: Rancher Harvester is an open source Hyper-Converged Infrastructure(HCI) solution based on Kubernetes.
 icon: https://rancher.com/imgs/brand-guidelines/rancher-logo-cow-blue.svg
@@ -11,9 +11,6 @@ keywords:
 home: https://github.com/rancher/harvester
 sources:
   - https://github.com/rancher/harvester
-maintainers:
-  - name: thxCode
-    email: frank@rancher.com
 dependencies:
   - name: kubevirt-operator
     version: 0.1.0

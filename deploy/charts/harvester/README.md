@@ -1,6 +1,8 @@
-# Harvester Helm Chart
+# Harvester Helm Chart [Development]
 
 Rancher Harvester is an open source Hyper-Converged Infrastructure(HCI) solution based on Kubernetes.
+
+Note: the master branch is under active development, please use the `stable` branch if you need a stable version of the Harvester chart.
 
 ## Chart Details
 
