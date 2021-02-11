@@ -7,7 +7,7 @@ import (
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
-	kv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+	kv1 "kubevirt.io/client-go/api/v1"
 
 	cdiv1beta1 "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	"github.com/rancher/harvester/pkg/ref"
@@ -47,7 +47,7 @@ func (s *dvStore) canDelete(namespace, name string) error {
 		return fmt.Errorf("failed to get schema owners from annotation: %w", err)
 	}
 
-	attachedList := annotationSchemaOwners.List(kv1alpha3.VirtualMachineGroupVersionKind.GroupKind())
+	attachedList := annotationSchemaOwners.List(kv1.VirtualMachineGroupVersionKind.GroupKind())
 	if len(attachedList) != 0 {
 		return fmt.Errorf("can not delete the volume %s which is currently attached by these VMs: %s", name, strings.Join(attachedList, ","))
 	}
@@ -58,7 +58,7 @@ func (s *dvStore) canDelete(namespace, name string) error {
 
 	var ownerList []string
 	for _, owner := range dv.OwnerReferences {
-		if owner.Kind == kv1alpha3.VirtualMachineGroupVersionKind.Kind {
+		if owner.Kind == kv1.VirtualMachineGroupVersionKind.Kind {
 			ownerList = append(ownerList, owner.Name)
 		}
 	}

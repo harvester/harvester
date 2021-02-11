@@ -9,11 +9,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	kubevirtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+	kubevirtv1 "kubevirt.io/client-go/api/v1"
 
 	apivm "github.com/rancher/harvester/pkg/api/vm"
 	"github.com/rancher/harvester/pkg/config"
-	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
+	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
 	"github.com/rancher/harvester/tests/framework/helper"
@@ -23,15 +23,15 @@ var _ = Describe("verify vm APIs", func() {
 
 	var (
 		scaled        *config.Scaled
-		vmController  ctlkubevirtv1alpha3.VirtualMachineController
-		vmiController ctlkubevirtv1alpha3.VirtualMachineInstanceController
+		vmController  ctlkubevirtv1.VirtualMachineController
+		vmiController ctlkubevirtv1.VirtualMachineInstanceController
 		vmNamespace   string
 	)
 
 	BeforeEach(func() {
 		scaled = harvester.Scaled()
-		vmController = scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine()
-		vmiController = scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstance()
+		vmController = scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
+		vmiController = scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 		vmNamespace = testVMNamespace
 	})
 
@@ -108,7 +108,7 @@ var _ = Describe("verify vm APIs", func() {
 			MustRespCodeIs(http.StatusOK, "put edit action", err, respCode, respBody)
 
 			By("then the virtual machine is changed")
-			AfterVMRunning(vmController, vmNamespace, vmName, func(vm *kubevirtv1alpha3.VirtualMachine) bool {
+			AfterVMRunning(vmController, vmNamespace, vmName, func(vm *kubevirtv1.VirtualMachine) bool {
 				spec := vm.Spec.Template.Spec
 				MustEqual(len(spec.Domain.Devices.Disks), 4)
 				MustEqual(spec.Domain.CPU.Cores, updatedCPUCore)
@@ -118,7 +118,7 @@ var _ = Describe("verify vm APIs", func() {
 
 			By("but the virtual machine instance isn't changed")
 			AfterVMIRunning(vmController, vmNamespace, vmName, vmiController,
-				func(vmi *kubevirtv1alpha3.VirtualMachineInstance) bool {
+				func(vmi *kubevirtv1.VirtualMachineInstance) bool {
 					MustEqual(vmiUID, string(vmi.UID))
 					return true
 				})
@@ -130,7 +130,7 @@ var _ = Describe("verify vm APIs", func() {
 
 			By("then the virtual machine instance is changed")
 			AfterVMIRestarted(vmController, vmNamespace, vmName, vmiController, vmiUID,
-				func(vmi *kubevirtv1alpha3.VirtualMachineInstance) bool {
+				func(vmi *kubevirtv1.VirtualMachineInstance) bool {
 					spec := vm.Spec.Template.Spec
 					MustEqual(len(spec.Domain.Devices.Disks), 4)
 					MustEqual(spec.Domain.CPU.Cores, updatedCPUCore)
@@ -160,7 +160,7 @@ var _ = Describe("verify vm APIs", func() {
 
 			By("then the CdRom is ejected")
 			AfterVMIRunning(vmController, vmNamespace, vmName, vmiController,
-				func(vmi *kubevirtv1alpha3.VirtualMachineInstance) bool {
+				func(vmi *kubevirtv1.VirtualMachineInstance) bool {
 					for _, disk := range vmi.Spec.Domain.Devices.Disks {
 						if disk.CDRom != nil && disk.Name == testVMCDRomDiskName {
 							return false

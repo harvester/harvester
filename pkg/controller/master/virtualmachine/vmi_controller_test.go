@@ -11,13 +11,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/pointer"
-	kubevirtapis "kubevirt.io/client-go/api/v1alpha3"
+	kubevirtapis "kubevirt.io/client-go/api/v1"
 	cdiapisalpha "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiapis "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	kubevirttype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
-	kubevirtctrl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
+	kubevirttype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	kubevirtctrl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/rancher/harvester/pkg/ref"
 )
 
@@ -175,7 +175,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -198,7 +198,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -225,7 +225,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -258,7 +258,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -285,7 +285,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -317,7 +317,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -344,7 +344,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -463,7 +463,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -533,7 +533,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -683,7 +683,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -753,7 +753,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -856,7 +856,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -926,7 +926,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -1054,7 +1054,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -1146,7 +1146,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -1247,7 +1247,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -1284,7 +1284,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -1345,7 +1345,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						UID:       "fake-dv-uid",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -1391,7 +1391,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 		}
 
 		var ctrl = &VMIController{
-			virtualMachineCache: fakeVirtualMachineCache(clientset.KubevirtV1alpha3().VirtualMachines),
+			virtualMachineCache: fakeVirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
 			dataVolumeClient:    fakeDataVolumeClient(clientset.CdiV1beta1().DataVolumes),
 			dataVolumeCache:     fakeDataVolumeCache(clientset.CdiV1beta1().DataVolumes),
 		}

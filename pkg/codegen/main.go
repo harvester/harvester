@@ -10,7 +10,7 @@ import (
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 	"github.com/sirupsen/logrus"
-	kubevirtv1 "kubevirt.io/client-go/api/v1alpha3"
+	kv1 "kubevirt.io/client-go/api/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	harv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
@@ -35,11 +35,11 @@ func main() {
 				GenerateTypes:   true,
 				GenerateClients: true,
 			},
-			kubevirtv1.GroupName: {
+			kv1.GroupName: {
 				Types: []interface{}{
-					kubevirtv1.VirtualMachine{},
-					kubevirtv1.VirtualMachineInstance{},
-					kubevirtv1.VirtualMachineInstanceMigration{},
+					kv1.VirtualMachine{},
+					kv1.VirtualMachineInstance{},
+					kv1.VirtualMachineInstanceMigration{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	kv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+	kv1 "kubevirt.io/client-go/api/v1"
 	cdiapis "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
@@ -55,7 +55,7 @@ func TestDataVolumeDelete(t *testing.T) {
 						Name:      "test-no-delete-owned",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								Kind: kv1alpha3.VirtualMachineGroupVersionKind.Kind,
+								Kind: kv1.VirtualMachineGroupVersionKind.Kind,
 								Name: "foo",
 							},
 						},
