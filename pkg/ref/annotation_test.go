@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	kubevirtapis "kubevirt.io/client-go/api/v1alpha3"
+	kubevirtapis "kubevirt.io/client-go/api/v1"
 )
 
 func TestAnnotationSchemaReferences_MarshalJSON(t *testing.T) {

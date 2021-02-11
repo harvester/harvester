@@ -3,7 +3,7 @@ package virtualmachine
 import (
 	"fmt"
 
-	kubevirtapis "kubevirt.io/client-go/api/v1alpha3"
+	kubevirtapis "kubevirt.io/client-go/api/v1"
 	cdiapis "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	cdictrl "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"

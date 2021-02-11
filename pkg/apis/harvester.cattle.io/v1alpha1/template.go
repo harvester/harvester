@@ -3,7 +3,7 @@ package v1alpha1
 import (
 	"github.com/rancher/wrangler/pkg/condition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	virtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+	kv1 "kubevirt.io/client-go/api/v1"
 )
 
 var (
@@ -74,7 +74,7 @@ type VirtualMachineTemplateVersionSpec struct {
 	KeyPairIDs []string `json:"keyPairIds,omitempty"`
 
 	// +optional
-	VM virtv1alpha3.VirtualMachineSpec `json:"vm,omitempty"`
+	VM kv1.VirtualMachineSpec `json:"vm,omitempty"`
 }
 
 type VirtualMachineTemplateVersionStatus struct {

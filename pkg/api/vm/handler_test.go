@@ -11,11 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
-	kubevirtapis "kubevirt.io/client-go/api/v1alpha3"
+	kubevirtapis "kubevirt.io/client-go/api/v1"
 
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	kubevirttype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1alpha3"
-	kubevirtctrl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
+	kubevirttype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	kubevirtctrl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 func TestMigrateAction(t *testing.T) {
@@ -105,10 +105,10 @@ func TestMigrateAction(t *testing.T) {
 		}
 
 		var handler = &vmActionHandler{
-			vmis:      fakeVirtualMachineInstanceClient(clientset.KubevirtV1alpha3().VirtualMachineInstances),
-			vmiCache:  fakeVirtualMachineInstanceCache(clientset.KubevirtV1alpha3().VirtualMachineInstances),
-			vmims:     fakeVirtualMachineInstanceMigrationClient(clientset.KubevirtV1alpha3().VirtualMachineInstanceMigrations),
-			vmimCache: fakeVirtualMachineInstanceMigrationCache(clientset.KubevirtV1alpha3().VirtualMachineInstanceMigrations),
+			vmis:      fakeVirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+			vmiCache:  fakeVirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+			vmims:     fakeVirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			vmimCache: fakeVirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
 		}
 
 		var actual output
@@ -265,10 +265,10 @@ func TestAbortMigrateAction(t *testing.T) {
 		}
 
 		var handler = &vmActionHandler{
-			vmis:      fakeVirtualMachineInstanceClient(clientset.KubevirtV1alpha3().VirtualMachineInstances),
-			vmiCache:  fakeVirtualMachineInstanceCache(clientset.KubevirtV1alpha3().VirtualMachineInstances),
-			vmims:     fakeVirtualMachineInstanceMigrationClient(clientset.KubevirtV1alpha3().VirtualMachineInstanceMigrations),
-			vmimCache: fakeVirtualMachineInstanceMigrationCache(clientset.KubevirtV1alpha3().VirtualMachineInstanceMigrations),
+			vmis:      fakeVirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+			vmiCache:  fakeVirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+			vmims:     fakeVirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			vmimCache: fakeVirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
 		}
 
 		var actual output

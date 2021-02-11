@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/utils/pointer"
-	kubevirtapis "kubevirt.io/client-go/api/v1alpha3"
+	kubevirtapis "kubevirt.io/client-go/api/v1"
 	cdiapisalpha "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiapis "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
@@ -326,7 +326,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 							UID:       "fake-dv-uid",
 							OwnerReferences: []metav1.OwnerReference{
 								{
-									APIVersion:         "kubevirt.io/v1alpha3",
+									APIVersion:         "kubevirt.io/v1",
 									Kind:               "VirtualMachine",
 									Name:               "test",
 									UID:                "fake-vm-uid",
@@ -444,7 +444,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 							},
 							OwnerReferences: []metav1.OwnerReference{
 								{
-									APIVersion:         "kubevirt.io/v1alpha3",
+									APIVersion:         "kubevirt.io/v1",
 									Kind:               "VirtualMachine",
 									Name:               "test",
 									UID:                "fake-vm-uid",
@@ -1027,7 +1027,7 @@ func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {
 							},
 							OwnerReferences: []metav1.OwnerReference{
 								{
-									APIVersion:         "kubevirt.io/v1alpha3",
+									APIVersion:         "kubevirt.io/v1",
 									Kind:               "VirtualMachine",
 									Name:               "test",
 									UID:                "fake-vm-uid",
@@ -1512,7 +1512,7 @@ func TestVMController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",
@@ -1627,7 +1627,7 @@ func TestVMController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						UID:       "fake-dv-uid",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "kubevirt.io/v1alpha3",
+								APIVersion:         "kubevirt.io/v1",
 								Kind:               "VirtualMachine",
 								Name:               "test",
 								UID:                "fake-vm-uid",

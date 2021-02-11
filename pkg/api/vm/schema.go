@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	kubevirtSubResouceGroupVersion = k8sschema.GroupVersion{Group: "subresources.kubevirt.io", Version: "v1alpha3"}
+	kubevirtSubResouceGroupVersion = k8sschema.GroupVersion{Group: "subresources.kubevirt.io", Version: "v1"}
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
@@ -29,9 +29,9 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	// https://github.com/rancher/wrangler/blob/master/pkg/schemas/reflection.go#L26
 	server.BaseSchemas.MustImportAndCustomize(EjectCdRomActionInput{}, nil)
 
-	vms := scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine()
-	vmis := scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstance()
-	vmims := scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstanceMigration()
+	vms := scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
+	vmis := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
+	vmims := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration()
 
 	copyConfig := rest.CopyConfig(server.RESTConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion
@@ -58,7 +58,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 
 	vmStore := &vmStore{
 		Store:            proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
-		vmCache:          scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine().Cache(),
+		vmCache:          scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 		dataVolumes:      scaled.CDIFactory.Cdi().V1beta1().DataVolume(),
 		dataVolumesCache: scaled.CDIFactory.Cdi().V1beta1().DataVolume().Cache(),
 	}

@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
-	kubevirtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 
 	"github.com/rancher/harvester/pkg/util"
@@ -143,10 +143,10 @@ func CreateTmpFile(dir, pattern, content string, mode os.FileMode) (string, erro
 }
 
 type VMBuilder struct {
-	vm *kubevirtv1alpha3.VirtualMachine
+	vm *kubevirtv1.VirtualMachine
 }
 
-func NewVMBuilder(vm *kubevirtv1alpha3.VirtualMachine) *VMBuilder {
+func NewVMBuilder(vm *kubevirtv1.VirtualMachine) *VMBuilder {
 	return &VMBuilder{
 		vm: vm,
 	}
@@ -159,51 +159,51 @@ func NewDefaultTestVMBuilder() *VMBuilder {
 		Labels:       testResourceLabels,
 	}
 	running := pointer.BoolPtr(false)
-	cpu := &kubevirtv1alpha3.CPU{
+	cpu := &kubevirtv1.CPU{
 		Cores: testVMCPUCores,
 	}
-	resources := kubevirtv1alpha3.ResourceRequirements{
+	resources := kubevirtv1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceMemory: resource.MustParse(testVMMemory),
 		},
 	}
-	interfaces := []kubevirtv1alpha3.Interface{
+	interfaces := []kubevirtv1.Interface{
 		{
 			Name:  testVMManagementInterfaceName,
 			Model: testVMInterfaceModel,
-			InterfaceBindingMethod: kubevirtv1alpha3.InterfaceBindingMethod{
-				Masquerade: &kubevirtv1alpha3.InterfaceMasquerade{},
+			InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+				Masquerade: &kubevirtv1.InterfaceMasquerade{},
 			},
 		},
 	}
-	networks := []kubevirtv1alpha3.Network{
+	networks := []kubevirtv1.Network{
 		{
 			Name: testVMManagementNetworkName,
-			NetworkSource: kubevirtv1alpha3.NetworkSource{
-				Pod: &kubevirtv1alpha3.PodNetwork{},
+			NetworkSource: kubevirtv1.NetworkSource{
+				Pod: &kubevirtv1.PodNetwork{},
 			},
 		},
 	}
-	template := &kubevirtv1alpha3.VirtualMachineInstanceTemplateSpec{
-		Spec: kubevirtv1alpha3.VirtualMachineInstanceSpec{
-			Domain: kubevirtv1alpha3.DomainSpec{
+	template := &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+		Spec: kubevirtv1.VirtualMachineInstanceSpec{
+			Domain: kubevirtv1.DomainSpec{
 				CPU: cpu,
-				Devices: kubevirtv1alpha3.Devices{
-					Disks:      []kubevirtv1alpha3.Disk{},
+				Devices: kubevirtv1.Devices{
+					Disks:      []kubevirtv1.Disk{},
 					Interfaces: interfaces,
 				},
 				Resources: resources,
 			},
 			Networks: networks,
-			Volumes:  []kubevirtv1alpha3.Volume{},
+			Volumes:  []kubevirtv1.Volume{},
 		},
 	}
-	vm := &kubevirtv1alpha3.VirtualMachine{
+	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: objectMeta,
-		Spec: kubevirtv1alpha3.VirtualMachineSpec{
+		Spec: kubevirtv1.VirtualMachineSpec{
 			Running:             running,
 			Template:            template,
-			DataVolumeTemplates: []kubevirtv1alpha3.DataVolumeTemplateSpec{},
+			DataVolumeTemplates: []kubevirtv1.DataVolumeTemplateSpec{},
 		},
 	}
 	return &VMBuilder{
@@ -260,7 +260,7 @@ func (v *VMBuilder) DataVolume(diskName, storageSize string, sourceHTTPURL ...st
 			},
 		}
 	}
-	dataVolumeTemplate := kubevirtv1alpha3.DataVolumeTemplateSpec{
+	dataVolumeTemplate := kubevirtv1.DataVolumeTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolumeName,
 			Labels:      nil,
@@ -285,10 +285,10 @@ func (v *VMBuilder) DataVolume(diskName, storageSize string, sourceHTTPURL ...st
 	v.vm.Spec.DataVolumeTemplates = dataVolumeTemplates
 	// Disks
 	disks := v.vm.Spec.Template.Spec.Domain.Devices.Disks
-	disks = append(disks, kubevirtv1alpha3.Disk{
+	disks = append(disks, kubevirtv1.Disk{
 		Name: diskName,
-		DiskDevice: kubevirtv1alpha3.DiskDevice{
-			Disk: &kubevirtv1alpha3.DiskTarget{
+		DiskDevice: kubevirtv1.DiskDevice{
+			Disk: &kubevirtv1.DiskTarget{
 				Bus: testVMDefaultDiskBus,
 			},
 		},
@@ -296,10 +296,10 @@ func (v *VMBuilder) DataVolume(diskName, storageSize string, sourceHTTPURL ...st
 	v.vm.Spec.Template.Spec.Domain.Devices.Disks = disks
 	// Volumes
 	volumes := v.vm.Spec.Template.Spec.Volumes
-	volumes = append(volumes, kubevirtv1alpha3.Volume{
+	volumes = append(volumes, kubevirtv1.Volume{
 		Name: diskName,
-		VolumeSource: kubevirtv1alpha3.VolumeSource{
-			DataVolume: &kubevirtv1alpha3.DataVolumeSource{
+		VolumeSource: kubevirtv1.VolumeSource{
+			DataVolume: &kubevirtv1.DataVolumeSource{
 				Name: dataVolumeName,
 			},
 		},
@@ -311,10 +311,10 @@ func (v *VMBuilder) DataVolume(diskName, storageSize string, sourceHTTPURL ...st
 func (v *VMBuilder) ExistingDataVolume(diskName, dataVolumeName string) *VMBuilder {
 	// Disks
 	disks := v.vm.Spec.Template.Spec.Domain.Devices.Disks
-	disks = append(disks, kubevirtv1alpha3.Disk{
+	disks = append(disks, kubevirtv1.Disk{
 		Name: diskName,
-		DiskDevice: kubevirtv1alpha3.DiskDevice{
-			Disk: &kubevirtv1alpha3.DiskTarget{
+		DiskDevice: kubevirtv1.DiskDevice{
+			Disk: &kubevirtv1.DiskTarget{
 				Bus: testVMDefaultDiskBus,
 			},
 		},
@@ -322,10 +322,10 @@ func (v *VMBuilder) ExistingDataVolume(diskName, dataVolumeName string) *VMBuild
 	v.vm.Spec.Template.Spec.Domain.Devices.Disks = disks
 	// Volumes
 	volumes := v.vm.Spec.Template.Spec.Volumes
-	volumes = append(volumes, kubevirtv1alpha3.Volume{
+	volumes = append(volumes, kubevirtv1.Volume{
 		Name: diskName,
-		VolumeSource: kubevirtv1alpha3.VolumeSource{
-			DataVolume: &kubevirtv1alpha3.DataVolumeSource{
+		VolumeSource: kubevirtv1.VolumeSource{
+			DataVolume: &kubevirtv1.DataVolumeSource{
 				Name: dataVolumeName,
 			},
 		},
@@ -337,29 +337,29 @@ func (v *VMBuilder) ExistingDataVolume(diskName, dataVolumeName string) *VMBuild
 func (v *VMBuilder) ContainerDisk(diskName, imageName string, isCDRom bool) *VMBuilder {
 	// Disks
 	disks := v.vm.Spec.Template.Spec.Domain.Devices.Disks
-	diskDevice := kubevirtv1alpha3.DiskDevice{
-		Disk: &kubevirtv1alpha3.DiskTarget{
+	diskDevice := kubevirtv1.DiskDevice{
+		Disk: &kubevirtv1.DiskTarget{
 			Bus: testVMDefaultDiskBus,
 		},
 	}
 	if isCDRom {
-		diskDevice = kubevirtv1alpha3.DiskDevice{
-			CDRom: &kubevirtv1alpha3.CDRomTarget{
+		diskDevice = kubevirtv1.DiskDevice{
+			CDRom: &kubevirtv1.CDRomTarget{
 				Bus: testVMCDRomBus,
 			},
 		}
 	}
-	disks = append(disks, kubevirtv1alpha3.Disk{
+	disks = append(disks, kubevirtv1.Disk{
 		Name:       diskName,
 		DiskDevice: diskDevice,
 	})
 	v.vm.Spec.Template.Spec.Domain.Devices.Disks = disks
 	// Volumes
 	volumes := v.vm.Spec.Template.Spec.Volumes
-	volumes = append(volumes, kubevirtv1alpha3.Volume{
+	volumes = append(volumes, kubevirtv1.Volume{
 		Name: diskName,
-		VolumeSource: kubevirtv1alpha3.VolumeSource{
-			ContainerDisk: &kubevirtv1alpha3.ContainerDiskSource{
+		VolumeSource: kubevirtv1.VolumeSource{
+			ContainerDisk: &kubevirtv1.ContainerDiskSource{
 				Image:           imageName,
 				ImagePullPolicy: testVMContainerDiskImagePullPolicy,
 			},
@@ -394,10 +394,10 @@ func (v *VMBuilder) CloudInit(vmCloudInit *VMCloudInit) *VMBuilder {
 		}
 	}
 
-	disks = append(disks, kubevirtv1alpha3.Disk{
+	disks = append(disks, kubevirtv1.Disk{
 		Name: testVMCloudInitDiskName,
-		DiskDevice: kubevirtv1alpha3.DiskDevice{
-			Disk: &kubevirtv1alpha3.DiskTarget{
+		DiskDevice: kubevirtv1.DiskDevice{
+			Disk: &kubevirtv1.DiskTarget{
 				Bus: testVMDefaultDiskBus,
 			},
 		},
@@ -414,10 +414,10 @@ func (v *VMBuilder) CloudInit(vmCloudInit *VMCloudInit) *VMBuilder {
 		}
 	}
 	volumes := v.vm.Spec.Template.Spec.Volumes
-	volumes = append(volumes, kubevirtv1alpha3.Volume{
+	volumes = append(volumes, kubevirtv1.Volume{
 		Name: testVMCloudInitDiskName,
-		VolumeSource: kubevirtv1alpha3.VolumeSource{
-			CloudInitNoCloud: &kubevirtv1alpha3.CloudInitNoCloudSource{
+		VolumeSource: kubevirtv1.VolumeSource{
+			CloudInitNoCloud: &kubevirtv1.CloudInitNoCloudSource{
 				UserData:    userData,
 				NetworkData: networkData,
 			},
@@ -430,10 +430,10 @@ func (v *VMBuilder) CloudInit(vmCloudInit *VMCloudInit) *VMBuilder {
 func (v *VMBuilder) Network(networkName string) *VMBuilder {
 	// Networks
 	networks := v.vm.Spec.Template.Spec.Networks
-	networks = append(networks, kubevirtv1alpha3.Network{
+	networks = append(networks, kubevirtv1.Network{
 		Name: networkName,
-		NetworkSource: kubevirtv1alpha3.NetworkSource{
-			Multus: &kubevirtv1alpha3.MultusNetwork{
+		NetworkSource: kubevirtv1.NetworkSource{
+			Multus: &kubevirtv1.MultusNetwork{
 				NetworkName: networkName,
 				Default:     false,
 			},
@@ -442,22 +442,22 @@ func (v *VMBuilder) Network(networkName string) *VMBuilder {
 	v.vm.Spec.Template.Spec.Networks = networks
 	// Interfaces
 	interfaces := v.vm.Spec.Template.Spec.Domain.Devices.Interfaces
-	interfaces = append(interfaces, kubevirtv1alpha3.Interface{
+	interfaces = append(interfaces, kubevirtv1.Interface{
 		Name:  networkName,
 		Model: testVMInterfaceModel,
-		InterfaceBindingMethod: kubevirtv1alpha3.InterfaceBindingMethod{
-			Bridge: &kubevirtv1alpha3.InterfaceBridge{},
+		InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+			Bridge: &kubevirtv1.InterfaceBridge{},
 		},
 	})
 	v.vm.Spec.Template.Spec.Domain.Devices.Interfaces = interfaces
 	return v
 }
 
-func (v *VMBuilder) Run() *kubevirtv1alpha3.VirtualMachine {
+func (v *VMBuilder) Run() *kubevirtv1.VirtualMachine {
 	v.vm.Spec.Running = pointer.BoolPtr(true)
 	return v.VM()
 }
 
-func (v *VMBuilder) VM() *kubevirtv1alpha3.VirtualMachine {
+func (v *VMBuilder) VM() *kubevirtv1.VirtualMachine {
 	return v.vm
 }

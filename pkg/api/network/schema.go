@@ -16,7 +16,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	nadStore := &networkStore{
 		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		nadCache: scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition().Cache(),
-		vmCache:  scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine().Cache(),
+		vmCache:  scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 	}
 
 	t := schema.Template{

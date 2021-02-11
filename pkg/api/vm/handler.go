@@ -15,9 +15,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
-	v1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+	kv1 "kubevirt.io/client-go/api/v1"
 
-	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
+	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 const (
@@ -26,12 +26,12 @@ const (
 )
 
 type vmActionHandler struct {
-	vms        ctlkubevirtv1alpha3.VirtualMachineClient
-	vmis       ctlkubevirtv1alpha3.VirtualMachineInstanceClient
-	vmCache    ctlkubevirtv1alpha3.VirtualMachineCache
-	vmiCache   ctlkubevirtv1alpha3.VirtualMachineInstanceCache
-	vmims      ctlkubevirtv1alpha3.VirtualMachineInstanceMigrationClient
-	vmimCache  ctlkubevirtv1alpha3.VirtualMachineInstanceMigrationCache
+	vms        ctlkubevirtv1.VirtualMachineClient
+	vmis       ctlkubevirtv1.VirtualMachineInstanceClient
+	vmCache    ctlkubevirtv1.VirtualMachineCache
+	vmiCache   ctlkubevirtv1.VirtualMachineInstanceCache
+	vmims      ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+	vmimCache  ctlkubevirtv1.VirtualMachineInstanceMigrationCache
 	restClient *rest.RESTClient
 }
 
@@ -109,8 +109,8 @@ func (h *vmActionHandler) subresourceOperate(ctx context.Context, resource, name
 	return h.restClient.Put().Namespace(namespace).Resource(resource).SubResource(subresourece).Name(name).Do(ctx).Error()
 }
 
-func ejectCdRomFromVM(vm *v1alpha3.VirtualMachine, diskNames []string) error {
-	disks := make([]v1alpha3.Disk, 0, len(vm.Spec.Template.Spec.Domain.Devices.Disks))
+func ejectCdRomFromVM(vm *kv1.VirtualMachine, diskNames []string) error {
+	disks := make([]kv1.Disk, 0, len(vm.Spec.Template.Spec.Domain.Devices.Disks))
 	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
 		if slice.ContainsString(diskNames, disk.Name) {
 			if disk.CDRom == nil {
@@ -121,7 +121,7 @@ func ejectCdRomFromVM(vm *v1alpha3.VirtualMachine, diskNames []string) error {
 		disks = append(disks, disk)
 	}
 
-	volumes := make([]v1alpha3.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
+	volumes := make([]kv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
 	ejectedVolumeNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
 	for _, vol := range vm.Spec.Template.Spec.Volumes {
 		if vol.VolumeSource.DataVolume != nil && slice.ContainsString(diskNames, vol.Name) {
@@ -131,7 +131,7 @@ func ejectCdRomFromVM(vm *v1alpha3.VirtualMachine, diskNames []string) error {
 		volumes = append(volumes, vol)
 	}
 
-	dvs := make([]v1alpha3.DataVolumeTemplateSpec, 0, len(vm.Spec.DataVolumeTemplates))
+	dvs := make([]kv1.DataVolumeTemplateSpec, 0, len(vm.Spec.DataVolumeTemplates))
 	for _, v := range vm.Spec.DataVolumeTemplates {
 		if slice.ContainsString(ejectedVolumeNames, v.Name) {
 			continue
@@ -156,12 +156,12 @@ func (h *vmActionHandler) migrate(namespace, name string) error {
 	if vmi.Status.MigrationState != nil && !vmi.Status.MigrationState.Completed {
 		return errors.New("The VM is already in migrating state")
 	}
-	vmim := &v1alpha3.VirtualMachineInstanceMigration{
+	vmim := &kv1.VirtualMachineInstanceMigration{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: name + "-",
 			Namespace:    namespace,
 		},
-		Spec: v1alpha3.VirtualMachineInstanceMigrationSpec{
+		Spec: kv1.VirtualMachineInstanceMigrationSpec{
 			VMIName: name,
 		},
 	}

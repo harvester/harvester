@@ -22,7 +22,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		dataVolumeClient: dataVolumeClient,
 		dataVolumeCache:  dataVolumeCache,
 	}
-	var virtualMachineClient = management.VirtFactory.Kubevirt().V1alpha3().VirtualMachine()
+	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	virtualMachineClient.OnChange(ctx, vmControllerSetOwnerOfDataVolumesAgentName, vmCtrl.SetOwnerOfDataVolumes)
 	virtualMachineClient.OnRemove(ctx, vmControllerUnsetOwnerOfDataVolumesAgentName, vmCtrl.UnsetOwnerOfDataVolumes)
 
@@ -33,14 +33,14 @@ func Register(ctx context.Context, management *config.Management, options config
 		dataVolumeClient:    dataVolumeClient,
 		dataVolumeCache:     dataVolumeCache,
 	}
-	var virtualMachineInstanceClient = management.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstance()
+	var virtualMachineInstanceClient = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	virtualMachineInstanceClient.OnRemove(ctx, vmiControllerUnsetOwnerOfDataVolumesAgentName, vmiCtrl.UnsetOwnerOfDataVolumes)
 
 	// register the vm network controller upon the VMI changes
 	var (
-		vmClient  = management.VirtFactory.Kubevirt().V1alpha3().VirtualMachine()
-		vmCache   = management.VirtFactory.Kubevirt().V1alpha3().VirtualMachine().Cache()
-		vmiClient = management.VirtFactory.Kubevirt().V1alpha3().VirtualMachineInstance()
+		vmClient  = management.VirtFactory.Kubevirt().V1().VirtualMachine()
+		vmCache   = management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
+		vmiClient = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	)
 	var vmNetworkCtl = &VMNetworkController{
 		vmClient:  vmClient,

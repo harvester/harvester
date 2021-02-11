@@ -3,9 +3,9 @@ package vm
 import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/data/convert"
-	v1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+	kv1 "kubevirt.io/client-go/api/v1"
 
-	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
+	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 )
 
 type vmformatter struct {
-	vmiCache ctlkubevirtv1alpha3.VirtualMachineInstanceCache
+	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache
 }
 
 func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -28,7 +28,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	// but current framework can't support use formatter to remove key from action map
 	resource.Actions = make(map[string]string, 1)
 
-	vm := &v1alpha3.VirtualMachine{}
+	vm := &kv1.VirtualMachine{}
 	err := convert.ToObj(resource.APIObject.Data(), vm)
 	if err != nil {
 		return
@@ -68,7 +68,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	}
 }
 
-func canEjectCdRom(vm *v1alpha3.VirtualMachine) bool {
+func canEjectCdRom(vm *kv1.VirtualMachine) bool {
 	if !vmReady.IsTrue(vm) {
 		return false
 	}
@@ -81,12 +81,12 @@ func canEjectCdRom(vm *v1alpha3.VirtualMachine) bool {
 	return false
 }
 
-func (vf *vmformatter) canPause(vmi *v1alpha3.VirtualMachineInstance) bool {
+func (vf *vmformatter) canPause(vmi *kv1.VirtualMachineInstance) bool {
 	if vmi == nil {
 		return false
 	}
 
-	if vmi.Status.Phase != v1alpha3.Running {
+	if vmi.Status.Phase != kv1.Running {
 		return false
 	}
 
@@ -97,73 +97,73 @@ func (vf *vmformatter) canPause(vmi *v1alpha3.VirtualMachineInstance) bool {
 	return !vmiPaused.IsTrue(vmi)
 }
 
-func (vf *vmformatter) canUnPause(vmi *v1alpha3.VirtualMachineInstance) bool {
+func (vf *vmformatter) canUnPause(vmi *kv1.VirtualMachineInstance) bool {
 	if vmi == nil {
 		return false
 	}
 
-	if vmi.Status.Phase != v1alpha3.Running {
+	if vmi.Status.Phase != kv1.Running {
 		return false
 	}
 
 	return vmiPaused.IsTrue(vmi)
 }
 
-func (vf *vmformatter) canStart(vm *v1alpha3.VirtualMachine, vmi *v1alpha3.VirtualMachineInstance) bool {
+func (vf *vmformatter) canStart(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineInstance) bool {
 	if vf.isVMRenaming(vm) {
 		return false
 	}
 
-	if vmi != nil && !vmi.IsFinal() && vmi.Status.Phase != v1alpha3.Unknown && vmi.Status.Phase != v1alpha3.VmPhaseUnset {
+	if vmi != nil && !vmi.IsFinal() && vmi.Status.Phase != kv1.Unknown && vmi.Status.Phase != kv1.VmPhaseUnset {
 		return false
 	}
 	return true
 }
 
-func (vf *vmformatter) canRestart(vm *v1alpha3.VirtualMachine, vmi *v1alpha3.VirtualMachineInstance) bool {
+func (vf *vmformatter) canRestart(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineInstance) bool {
 	if vf.isVMRenaming(vm) {
 		return false
 	}
 
-	if runStrategy, err := vm.RunStrategy(); err != nil || runStrategy == v1alpha3.RunStrategyHalted {
+	if runStrategy, err := vm.RunStrategy(); err != nil || runStrategy == kv1.RunStrategyHalted {
 		return false
 	}
 
 	return vmi != nil
 }
 
-func (vf *vmformatter) canStop(vmi *v1alpha3.VirtualMachineInstance) bool {
-	if vmi == nil || vmi.IsFinal() || vmi.Status.Phase == v1alpha3.Unknown || vmi.Status.Phase == v1alpha3.VmPhaseUnset {
+func (vf *vmformatter) canStop(vmi *kv1.VirtualMachineInstance) bool {
+	if vmi == nil || vmi.IsFinal() || vmi.Status.Phase == kv1.Unknown || vmi.Status.Phase == kv1.VmPhaseUnset {
 		return false
 	}
 
 	return true
 }
 
-func (vf *vmformatter) canMigrate(vmi *v1alpha3.VirtualMachineInstance) bool {
+func (vf *vmformatter) canMigrate(vmi *kv1.VirtualMachineInstance) bool {
 	if vmi != nil && vmi.IsRunning() && (vmi.Status.MigrationState == nil || vmi.Status.MigrationState.Completed) {
 		return true
 	}
 	return false
 }
 
-func (vf *vmformatter) canAbortMigrate(vmi *v1alpha3.VirtualMachineInstance) bool {
+func (vf *vmformatter) canAbortMigrate(vmi *kv1.VirtualMachineInstance) bool {
 	if vmi != nil && vmi.Status.MigrationState != nil && !vmi.Status.MigrationState.Completed {
 		return true
 	}
 	return false
 }
 
-func (vf *vmformatter) isVMRenaming(vm *v1alpha3.VirtualMachine) bool {
+func (vf *vmformatter) isVMRenaming(vm *kv1.VirtualMachine) bool {
 	for _, req := range vm.Status.StateChangeRequests {
-		if req.Action == v1alpha3.RenameRequest {
+		if req.Action == kv1.RenameRequest {
 			return true
 		}
 	}
 	return false
 }
 
-func (vf *vmformatter) getVMI(vm *v1alpha3.VirtualMachine) *v1alpha3.VirtualMachineInstance {
+func (vf *vmformatter) getVMI(vm *kv1.VirtualMachine) *kv1.VirtualMachineInstance {
 	if vmi, err := vf.vmiCache.Get(vm.Namespace, vm.Name); err == nil {
 		return vmi
 	}

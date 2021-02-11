@@ -6,7 +6,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	kubevirtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+	kv1 "kubevirt.io/client-go/api/v1"
 
 	ctlcdiv1beta1 "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	"github.com/rancher/harvester/pkg/indexeres"
@@ -19,7 +19,7 @@ type VMController struct {
 }
 
 // SetOwnerOfDataVolumes records the target VirtualMachine as the owner of the DataVolumes in annotation.
-func (h *VMController) SetOwnerOfDataVolumes(_ string, vm *kubevirtv1alpha3.VirtualMachine) (*kubevirtv1alpha3.VirtualMachine, error) {
+func (h *VMController) SetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
 		return vm, nil
 	}
@@ -33,7 +33,7 @@ func (h *VMController) SetOwnerOfDataVolumes(_ string, vm *kubevirtv1alpha3.Virt
 		return nil, fmt.Errorf("failed to get attached datavolumes by vm index: %w", err)
 	}
 
-	vmGVK := kubevirtv1alpha3.VirtualMachineGroupVersionKind
+	vmGVK := kv1.VirtualMachineGroupVersionKind
 	vmAPIVersion, vmKind := vmGVK.ToAPIVersionAndKind()
 	vmGK := vmGVK.GroupKind()
 
@@ -108,7 +108,7 @@ func (h *VMController) SetOwnerOfDataVolumes(_ string, vm *kubevirtv1alpha3.Virt
 }
 
 // UnsetOwnerOfDataVolumes erases the target VirtualMachine from the owner of the DataVolumes in annotation.
-func (h *VMController) UnsetOwnerOfDataVolumes(_ string, vm *kubevirtv1alpha3.VirtualMachine) (*kubevirtv1alpha3.VirtualMachine, error) {
+func (h *VMController) UnsetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp == nil || vm.Spec.Template == nil {
 		return vm, nil
 	}
@@ -138,7 +138,7 @@ func (h *VMController) UnsetOwnerOfDataVolumes(_ string, vm *kubevirtv1alpha3.Vi
 }
 
 // getDataVolumeNames returns a name set of the DataVolumes.
-func getDataVolumeNames(vmiSpecPtr *kubevirtv1alpha3.VirtualMachineInstanceSpec) sets.String {
+func getDataVolumeNames(vmiSpecPtr *kv1.VirtualMachineInstanceSpec) sets.String {
 	var dataVolumeNames = sets.String{}
 
 	// collects all DataVolumes

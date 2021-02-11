@@ -16,14 +16,14 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	cni "github.com/rancher/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
-	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
+	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/rancher/harvester/pkg/indexeres"
 )
 
 type networkStore struct {
 	types.Store
 	nadCache cni.NetworkAttachmentDefinitionCache
-	vmCache  ctlkubevirtv1alpha3.VirtualMachineCache
+	vmCache  ctlkubevirtv1.VirtualMachineCache
 }
 
 type NetConf struct {

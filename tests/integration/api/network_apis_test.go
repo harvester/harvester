@@ -12,7 +12,7 @@ import (
 
 	"github.com/rancher/harvester/pkg/config"
 	ctlcniv1 "github.com/rancher/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
-	ctlkubevirtv1alpha3 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1alpha3"
+	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
 	"github.com/rancher/harvester/tests/framework/helper"
@@ -65,7 +65,7 @@ var _ = Describe("verify network APIs", func() {
 		scaled        *config.Scaled
 		vmBuilder     *VMBuilder
 		vmNamespace   string
-		vmController  ctlkubevirtv1alpha3.VirtualMachineController
+		vmController  ctlkubevirtv1.VirtualMachineController
 		nadController ctlcniv1.NetworkAttachmentDefinitionController
 		networkName   string
 	)
@@ -74,7 +74,7 @@ var _ = Describe("verify network APIs", func() {
 		scaled = harvester.Scaled()
 		vmBuilder = NewDefaultTestVMBuilder()
 		vmNamespace = testVMNamespace
-		vmController = scaled.VirtFactory.Kubevirt().V1alpha3().VirtualMachine()
+		vmController = scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 		nadController = scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition()
 	})
 
