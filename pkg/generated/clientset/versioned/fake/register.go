@@ -26,7 +26,7 @@ import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	kubevirtv1alpha3 "kubevirt.io/client-go/api/v1alpha3"
+	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
@@ -37,7 +37,7 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	cdiv1beta1.AddToScheme,
 	harvesterv1alpha1.AddToScheme,
 	k8scnicncfiov1.AddToScheme,
-	kubevirtv1alpha3.AddToScheme,
+	kubevirtv1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

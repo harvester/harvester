@@ -92,6 +92,26 @@ spec:
                         spec:
                           description: DataVolumeSpec contains the DataVolume specification.
                           properties:
+                            checkpoints:
+                              description: Checkpoints is a list of DataVolumeCheckpoints,
+                                representing stages in a multistage import.
+                              items:
+                                description: DataVolumeCheckpoint defines a stage
+                                  in a warm migration.
+                                properties:
+                                  current:
+                                    description: Current is the identifier of the
+                                      snapshot created for this checkpoint.
+                                    type: string
+                                  previous:
+                                    description: Previous is the identifier of the
+                                      snapshot from the previous checkpoint.
+                                    type: string
+                                required:
+                                - current
+                                - previous
+                                type: object
+                              type: array
                             contentType:
                               description: 'DataVolumeContentType options: "kubevirt",
                                 "archive"'
@@ -99,6 +119,10 @@ spec:
                               - kubevirt
                               - archive
                               type: string
+                            finalCheckpoint:
+                              description: FinalCheckpoint indicates whether the current
+                                DataVolumeCheckpoint is the final checkpoint.
+                              type: boolean
                             pvc:
                               description: PVC is the PVC specification
                               properties:
@@ -406,6 +430,112 @@ spec:
                         description: VirtualMachineInstance Spec contains the VirtualMachineInstance
                           specification.
                         properties:
+                          accessCredentials:
+                            description: Specifies a set of public keys to inject
+                              into the vm guest
+                            items:
+                              description: AccessCredential represents a credential
+                                source that can be used to authorize remote access
+                                to the vm guest Only one of its members may be specified.
+                              properties:
+                                sshPublicKey:
+                                  description: SSHPublicKey represents the source
+                                    and method of applying a ssh public key into a
+                                    guest virtual machine.
+                                  properties:
+                                    propagationMethod:
+                                      description: PropagationMethod represents how
+                                        the public key is injected into the vm guest.
+                                      properties:
+                                        configDrive:
+                                          description: ConfigDrivePropagation means
+                                            that the ssh public keys are injected
+                                            into the VM using metadata using the configDrive
+                                            cloud-init provider
+                                          type: object
+                                        qemuGuestAgent:
+                                          description: QemuGuestAgentAccessCredentailPropagation
+                                            means ssh public keys are dynamically
+                                            injected into the vm at runtime via the
+                                            qemu guest agent. This feature requires
+                                            the qemu guest agent to be running within
+                                            the guest.
+                                          properties:
+                                            users:
+                                              description: Users represents a list
+                                                of guest users that should have the
+                                                ssh public keys added to their authorized_keys
+                                                file.
+                                              items:
+                                                type: string
+                                              type: array
+                                              x-kubernetes-list-type: set
+                                          required:
+                                          - users
+                                          type: object
+                                      type: object
+                                    source:
+                                      description: Source represents where the public
+                                        keys are pulled from
+                                      properties:
+                                        secret:
+                                          description: Secret means that the access
+                                            credential is pulled from a kubernetes
+                                            secret
+                                          properties:
+                                            secretName:
+                                              description: SecretName represents the
+                                                name of the secret in the VMI's namespace
+                                              type: string
+                                          required:
+                                          - secretName
+                                          type: object
+                                      type: object
+                                  required:
+                                  - propagationMethod
+                                  - source
+                                  type: object
+                                userPassword:
+                                  description: UserPassword represents the source
+                                    and method for applying a guest user's password
+                                  properties:
+                                    propagationMethod:
+                                      description: propagationMethod represents how
+                                        the user passwords are injected into the vm
+                                        guest.
+                                      properties:
+                                        qemuGuestAgent:
+                                          description: QemuGuestAgentAccessCredentailPropagation
+                                            means passwords are dynamically injected
+                                            into the vm at runtime via the qemu guest
+                                            agent. This feature requires the qemu
+                                            guest agent to be running within the guest.
+                                          type: object
+                                      type: object
+                                    source:
+                                      description: Source represents where the user
+                                        passwords are pulled from
+                                      properties:
+                                        secret:
+                                          description: Secret means that the access
+                                            credential is pulled from a kubernetes
+                                            secret
+                                          properties:
+                                            secretName:
+                                              description: SecretName represents the
+                                                name of the secret in the VMI's namespace
+                                              type: string
+                                          required:
+                                          - secretName
+                                          type: object
+                                      type: object
+                                  required:
+                                  - propagationMethod
+                                  - source
+                                  type: object
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
                           affinity:
                             description: If affinity is specifies, obey all the affinity
                               rules
@@ -1355,6 +1485,10 @@ spec:
                                     description: Whether or not to enable virtio multi-queue
                                       for block devices
                                     type: boolean
+                                  disableHotplug:
+                                    description: DisableHotplug disabled the ability
+                                      to hotplug disks.
+                                    type: boolean
                                   disks:
                                     description: Disks describes disks, cdroms, floppy
                                       and luns which are connected to the vmi.
@@ -1410,7 +1544,7 @@ spec:
                                             pciAddress:
                                               description: 'If specified, the virtual
                                                 disk will be placed on the guests
-                                                pci address with the specifed PCI
+                                                pci address with the specified PCI
                                                 address. For example: 0000:81:01.10'
                                               type: string
                                             readonly:
@@ -1482,6 +1616,7 @@ spec:
                                       - virtiofs
                                       type: object
                                     type: array
+                                    x-kubernetes-list-type: atomic
                                   gpus:
                                     description: Whether to attach a GPU device to
                                       the vmi.
@@ -1498,6 +1633,25 @@ spec:
                                       - name
                                       type: object
                                     type: array
+                                    x-kubernetes-list-type: atomic
+                                  hostDevices:
+                                    description: Whether to attach a host device to
+                                      the vmi.
+                                    items:
+                                      properties:
+                                        deviceName:
+                                          description: DeviceName is the resource
+                                            name of the host device exposed by a device
+                                            plugin
+                                          type: string
+                                        name:
+                                          type: string
+                                      required:
+                                      - deviceName
+                                      - name
+                                      type: object
+                                    type: array
+                                    x-kubernetes-list-type: atomic
                                   inputs:
                                     description: Inputs describe input devices
                                     items:
@@ -1600,8 +1754,8 @@ spec:
                                         pciAddress:
                                           description: 'If specified, the virtual
                                             network interface will be placed on the
-                                            guests pci address with the specifed PCI
-                                            address. For example: 0000:81:01.10'
+                                            guests pci address with the specified
+                                            PCI address. For example: 0000:81:01.10'
                                           type: string
                                         ports:
                                           description: List of ports to be forwarded
@@ -1659,6 +1813,13 @@ spec:
                                     description: Whether to have random number generator
                                       from host
                                     type: object
+                                  useVirtioTransitional:
+                                    description: Fall back to legacy virtio 0.9 support
+                                      if virtio bus is selected on devices. This is
+                                      helpful for old machines like CentOS6 or RHEL6
+                                      which do not understand virtio_non_transitional
+                                      (virtio 1.0).
+                                    type: boolean
                                   watchdog:
                                     description: Watchdog describes a watchdog device
                                       which can be added to the vmi.
