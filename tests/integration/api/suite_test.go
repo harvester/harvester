@@ -32,7 +32,10 @@ var (
 	options          config.Options
 
 	testResourceLabels = map[string]string{
-		"test.harvester.cattle.io": "harvester-test",
+		"harvester.test.io": "harvester-test",
+	}
+	testVMBackupLabels = map[string]string{
+		"harvester.test.io/type": "vm-backup",
 	}
 )
 

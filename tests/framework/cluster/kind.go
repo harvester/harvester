@@ -248,7 +248,7 @@ func NewLocalKindCluster() *LocalKindCluster {
 			ExportIngressHTTPPort:  envFinder.GetInt("exportIngressHttpPort", 0),
 			ExportIngressHTTPSPort: envFinder.GetInt("exportIngressHttpsPort", 0),
 			ExportImageStoragePort: envFinder.GetInt("exportImageStoragePort", 0),
-			Image:                  envFinder.Get("image", "kindest/node:v1.18.2"),
+			Image:                  envFinder.Get("image", "kindest/node:v1.19.7"),
 			ImageMirror:            envFinder.Get("imageMirror", ""),
 			ClusterName:            envFinder.Get("clusterName", "harvester"),
 			ControlPlanes:          envFinder.GetInt("controlPlanes", DefaultControlPlanes),

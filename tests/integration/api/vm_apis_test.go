@@ -63,7 +63,7 @@ var _ = Describe("verify vm APIs", func() {
 
 			// create
 			By("create a virtual machine should fail if name missing")
-			vm := NewDefaultTestVMBuilder().Name("").Blank().VM()
+			vm := NewDefaultTestVMBuilder(testResourceLabels).Name("").Blank().VM()
 			respCode, respBody, err := helper.PostObject(vmsAPI, vm)
 			MustRespCodeIs(http.StatusUnprocessableEntity, "create vm", err, respCode, respBody)
 
@@ -76,7 +76,7 @@ var _ = Describe("verify vm APIs", func() {
 				Address:  "10.5.2.100/24",
 				Gateway:  "10.5.2.1",
 			}
-			vm = NewDefaultTestVMBuilder().Name(vmName).
+			vm = NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
 				Container().
 				Blank().
 				CloudInit(vmCloudInit).
