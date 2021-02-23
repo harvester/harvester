@@ -22,8 +22,8 @@ replace (
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.16.4
 	k8s.io/code-generator => k8s.io/code-generator v0.18.3
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
-	kubevirt.io/client-go => github.com/rancher/kubevirt-client-go v0.20.2-0.20201124032527-ff3943be35bf
-	kubevirt.io/containerized-data-importer => github.com/rancher/kubevirt-containerized-data-importer v1.22.1-0.20201127032458-4f73ed532d31
+	kubevirt.io/client-go => github.com/rancher/kubevirt-client-go v0.20.2-0.20210201144041-d294c131c268
+	kubevirt.io/containerized-data-importer => github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210201143124-afdd470ff718
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2
 )
 

@@ -1,4 +1,4 @@
-package v1alpha3
+package v1
 
 // This code is copied from
 // https://github.com/kubevirt/controller-lifecycle-operator-sdk/blob/master/pkg/sdk/api/types.go

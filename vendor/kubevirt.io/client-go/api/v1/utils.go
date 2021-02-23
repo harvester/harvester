@@ -17,7 +17,7 @@
  *
  */
 
-package v1alpha3
+package v1
 
 import (
 	k8sv1 "k8s.io/api/core/v1"
