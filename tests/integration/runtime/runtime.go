@@ -16,6 +16,7 @@ import (
 const (
 	testChartDir               = "../../../deploy/charts/harvester"
 	testHarvesterNamespace     = "harvester-system"
+	testLonghornNamespace      = "longhorn-system"
 	testChartReleaseName       = "harvester"
 	testImageStorageAccessKey  = "YOURACCESSKEY"
 	testImageStorageSecretKey  = "YOURSECRETKEY"
@@ -36,6 +37,18 @@ var (
 	}
 	testDaemonSetManifest = []string{
 		"virt-handler",
+	}
+	longhornDeploymentManifest = []string{
+		"csi-attacher",
+		"csi-snapshotter",
+		"csi-provisioner",
+		"csi-resizer",
+		"longhorn-driver-deployer",
+	}
+	longhornDaemonSetManifest = []string{
+		"longhorn-manager",
+		"engine-image-ei-2938e020",
+		"longhorn-csi-plugin",
 	}
 )
 

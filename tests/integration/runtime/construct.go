@@ -42,6 +42,9 @@ func installHarvesterChart(ctx context.Context, kubeConfig *restclient.Config) e
 		"minio.mode":             "standalone",
 		"minio.persistence.size": "5Gi",
 	}
+	if env.IsE2ETestsEnabled() {
+		patches["longhorn.enabled"] = "true"
+	}
 
 	if env.IsUsingEmulation() {
 		patches["kubevirt.spec.configuration.developerConfiguration.useEmulation"] = "true"
@@ -54,12 +57,29 @@ func installHarvesterChart(ctx context.Context, kubeConfig *restclient.Config) e
 	}
 
 	// verifies chart installation
-	namespaceReadyCondition, err := ready.NewNamespaceCondition(kubeConfig, testHarvesterNamespace)
+	harvesterReadyCondition, err := ready.NewNamespaceCondition(kubeConfig, testHarvesterNamespace)
 	if err != nil {
 		return fmt.Errorf("faield to create namespace ready condition from kubernetes config: %w", err)
 	}
-	namespaceReadyCondition.AddDeploymentsReady(testDeploymentManifest...)
-	namespaceReadyCondition.AddDaemonSetsReady(testDaemonSetManifest...)
+	harvesterReadyCondition.AddDeploymentsReady(testDeploymentManifest...)
+	harvesterReadyCondition.AddDaemonSetsReady(testDaemonSetManifest...)
 
-	return namespaceReadyCondition.Wait(ctx)
+	if env.IsE2ETestsEnabled() {
+		longhornReadyCondition, err := ready.NewNamespaceCondition(kubeConfig, testLonghornNamespace)
+		if err != nil {
+			return fmt.Errorf("faield to create namespace ready condition from kubernetes config: %w", err)
+		}
+		longhornReadyCondition.AddDeploymentsReady(longhornDeploymentManifest...)
+		longhornReadyCondition.AddDaemonSetsReady(longhornDaemonSetManifest...)
+
+		if err := longhornReadyCondition.Wait(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := harvesterReadyCondition.Wait(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }

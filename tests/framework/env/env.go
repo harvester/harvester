@@ -30,6 +30,10 @@ const (
 	// default is to drop it.
 	envDontUseEmulation = "DONT_USE_EMULATION"
 
+	// Specify whether to run e2e tests, an existing cluster is required
+	// default to false.
+	envEnableE2ETests = "ENABLE_E2E_TESTS"
+
 	// In summary, default is:
 	// 1. Create a new local cluster
 	// 2. Deploy runtime
@@ -81,4 +85,9 @@ func IsKeepingTestingResource() bool {
 // if "DONT_USE_EMULATION=true", will not use qemu soft emulation.
 func IsUsingEmulation() bool {
 	return !IsTrue(envDontUseEmulation)
+}
+
+// IsE2ETestsEnabled validates whether to enabled the e2e tests
+func IsE2ETestsEnabled() bool {
+	return IsTrue(envEnableE2ETests)
 }
