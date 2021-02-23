@@ -17,7 +17,7 @@
  *
  */
 
-package v1alpha3
+package v1
 
 //go:generate swagger-doc
 //go:generate deepcopy-gen -i . --go-header-file ../../../../../../hack/boilerplate/boilerplate.go.txt
@@ -151,6 +151,10 @@ type VirtualMachineInstanceSpec struct {
 	// configuration based on DNSPolicy.
 	// +optional
 	DNSConfig *k8sv1.PodDNSConfig `json:"dnsConfig,omitempty" protobuf:"bytes,26,opt,name=dnsConfig"`
+	// Specifies a set of public keys to inject into the vm guest
+	// +listType=atomic
+	// +optional
+	AccessCredentials []AccessCredential `json:"accessCredentials,omitempty"`
 }
 
 // VirtualMachineInstanceStatus represents information about the status of a VirtualMachineInstance. Status may trail the actual
@@ -189,7 +193,59 @@ type VirtualMachineInstanceStatus struct {
 	// ActivePods is a mapping of pod UID to node name.
 	// It is possible for multiple pods to be running for a single VMI during migration.
 	ActivePods map[types.UID]string `json:"activePods,omitempty"`
+
+	// VolumeStatus contains the statuses of all the volumes
+	// +optional
+	// +listType=atomic
+	VolumeStatus []VolumeStatus `json:"volumeStatus,omitempty"`
 }
+
+// VolumeStatus represents information about the status of volumes attached to the VirtualMachineInstance.
+// +k8s:openapi-gen=true
+type VolumeStatus struct {
+	// Name is the name of the volume
+	Name string `json:"name"`
+	// Target is the target name used when adding the volume to the VM, eg: vda
+	Target string `json:"target"`
+	// Phase is the phase
+	Phase VolumePhase `json:"phase,omitempty"`
+	// Reason is a brief description of why we are in the current hotplug volume phase
+	Reason string `json:"reason,omitempty"`
+	// Message is a detailed message about the current hotplug volume phase
+	Message string `json:"message,omitempty"`
+	// If the volume is hotplug, this will contain the hotplug status.
+	HotplugVolume *HotplugVolumeStatus `json:"hotplugVolume,omitempty"`
+}
+
+// HotplugVolumeStatus represents the hotplug status of the volume
+// +k8s:openapi-gen=true
+type HotplugVolumeStatus struct {
+	// AttachPodName is the name of the pod used to attach the volume to the node.
+	AttachPodName string `json:"attachPodName,omitempty"`
+	// AttachPodUID is the UID of the pod used to attach the volume to the node.
+	AttachPodUID types.UID `json:"attachPodUID,omitempty"`
+}
+
+// VolumePhase indicates the current phase of the hotplug process.
+// +k8s:openapi-gen=true
+type VolumePhase string
+
+const (
+	// VolumePending means the Volume is pending and cannot be attached to the node yet.
+	VolumePending VolumePhase = "Pending"
+	// VolumeBound means the Volume is bound and can be attach to the node.
+	VolumeBound VolumePhase = "Bound"
+	// HotplugVolumeAttachedToNode means the volume has been attached to the node.
+	HotplugVolumeAttachedToNode VolumePhase = "AttachedToNode"
+	// HotplugVolumeMounted means the volume has been attached to the node and is mounted to the virt-launcher pod.
+	HotplugVolumeMounted VolumePhase = "MountedToPod"
+	// VolumeReady means the volume is ready to be used by the VirtualMachineInstance.
+	VolumeReady VolumePhase = "Ready"
+	// HotplugVolumeDetaching means the volume is being detached from the node, and the attachment pod is being removed.
+	HotplugVolumeDetaching VolumePhase = "Detaching"
+	// HotplugVolumeUnMounted means the volume has been unmounted from the virt-launcer pod.
+	HotplugVolumeUnMounted VolumePhase = "UnMountedFromPod"
+)
 
 func (v *VirtualMachineInstance) IsScheduling() bool {
 	return v.Status.Phase == Scheduling
@@ -251,6 +307,10 @@ type VirtualMachineInstanceConditionType string
 
 // These are valid conditions of VMIs.
 const (
+	// Provisioning means, a VMI depends on DataVolumes which are in Pending/WaitForFirstConsumer status,
+	// and some actions are taken to provision the PVCs for the DataVolumes
+	VirtualMachineInstanceProvisioning VirtualMachineInstanceConditionType = "Provisioning"
+
 	// VMIReady means the pod is able to service requests and should be added to the
 	// load balancing pools of all matching services.
 	VirtualMachineInstanceReady VirtualMachineInstanceConditionType = "Ready"
@@ -265,6 +325,9 @@ const (
 	// Reflects whether the QEMU guest agent is connected through the channel
 	VirtualMachineInstanceAgentConnected VirtualMachineInstanceConditionType = "AgentConnected"
 
+	// Reflects whether the QEMU guest agent updated access credentials successfully
+	VirtualMachineInstanceAccessCredentialsSynchronized VirtualMachineInstanceConditionType = "AccessCredentialsSynchronized"
+
 	// Reflects whether the QEMU guest agent is connected through the channel
 	VirtualMachineInstanceUnsupportedAgent VirtualMachineInstanceConditionType = "AgentVersionNotSupported"
 
@@ -274,6 +337,8 @@ const (
 	VirtualMachineInstanceReasonDisksNotMigratable = "DisksNotLiveMigratable"
 	// Reason means that VMI is not live migratioable because of it's network interfaces collection
 	VirtualMachineInstanceReasonInterfaceNotMigratable = "InterfaceNotLiveMigratable"
+	// Reason means that VMI is not live migratioable because of it's network interfaces collection
+	VirtualMachineInstanceReasonHotplugNotMigratable = "HotplugNotLiveMigratable"
 )
 
 const (
@@ -410,7 +475,7 @@ type VirtualMachineInstanceMigrationState struct {
 	AbortStatus MigrationAbortStatus `json:"abortStatus,omitempty"`
 	// The VirtualMachineInstanceMigration object associated with this migration
 	MigrationUID types.UID `json:"migrationUid,omitempty"`
-	// Lets us know if the vmi is currenly running pre or post copy migration
+	// Lets us know if the vmi is currently running pre or post copy migration
 	Mode MigrationMode `json:"mode,omitempty"`
 }
 
@@ -432,9 +497,9 @@ const (
 type MigrationMode string
 
 const (
-	// MigrationPreCopy means the VMI migrations that is currenly running is in pre copy mode
+	// MigrationPreCopy means the VMI migrations that is currently running is in pre copy mode
 	MigrationPreCopy MigrationMode = "PreCopy"
-	// MigrationPostCopy means the VMI migrations that is currenly running is in post copy mode
+	// MigrationPostCopy means the VMI migrations that is currently running is in post copy mode
 	MigrationPostCopy MigrationMode = "PostCopy"
 )
 
@@ -503,6 +568,9 @@ const (
 	// Machine Instance migration job. Needed because with CRDs we can't use field
 	// selectors. Used on VirtualMachineInstance.
 	MigrationTargetNodeNameLabel string = "kubevirt.io/migrationTargetNodeName"
+	// This annotation indicates that a migration is the result of an
+	// automated evacuation
+	EvacuationMigrationAnnotation string = "kubevirt.io/evacuationMigration"
 	// This label declares whether a particular node is available for
 	// scheduling virtual machine instances on it. Used on Node.
 	NodeSchedulable string = "kubevirt.io/schedulable"
@@ -541,6 +609,8 @@ const (
 	KubeVirtGenerationAnnotation = "kubevirt.io/generation"
 	// This annotation represents that this object is for temporary use during updates
 	EphemeralBackupObject = "kubevirt.io/ephemeral-backup-object"
+	// This annotation represents that the annotated object is for temporary use during pod/volume provisioning
+	EphemeralProvisioningObject string = "kubevirt.io/ephemeral-provisioning"
 
 	// This label indicates the object is a part of the install strategy retrieval process.
 	InstallStrategyLabel = "kubevirt.io/install-strategy"
@@ -578,18 +648,20 @@ func NewVMI(name string, uid types.UID) *VirtualMachineInstance {
 type SyncEvent string
 
 const (
-	Created         SyncEvent = "Created"
-	Deleted         SyncEvent = "Deleted"
-	PresetFailed    SyncEvent = "PresetFailed"
-	Override        SyncEvent = "Override"
-	Started         SyncEvent = "Started"
-	ShuttingDown    SyncEvent = "ShuttingDown"
-	Stopped         SyncEvent = "Stopped"
-	PreparingTarget SyncEvent = "PreparingTarget"
-	Migrating       SyncEvent = "Migrating"
-	Migrated        SyncEvent = "Migrated"
-	SyncFailed      SyncEvent = "SyncFailed"
-	Resumed         SyncEvent = "Resumed"
+	Created                      SyncEvent = "Created"
+	Deleted                      SyncEvent = "Deleted"
+	PresetFailed                 SyncEvent = "PresetFailed"
+	Override                     SyncEvent = "Override"
+	Started                      SyncEvent = "Started"
+	ShuttingDown                 SyncEvent = "ShuttingDown"
+	Stopped                      SyncEvent = "Stopped"
+	PreparingTarget              SyncEvent = "PreparingTarget"
+	Migrating                    SyncEvent = "Migrating"
+	Migrated                     SyncEvent = "Migrated"
+	SyncFailed                   SyncEvent = "SyncFailed"
+	Resumed                      SyncEvent = "Resumed"
+	AccessCredentialsSyncFailed  SyncEvent = "AccessCredentialsSyncFailed"
+	AccessCredentialsSyncSuccess SyncEvent = "AccessCredentialsSyncSuccess"
 )
 
 func (s SyncEvent) String() string {
@@ -767,7 +839,7 @@ type DataVolumeTemplateDummyStatus struct{}
 //
 // +k8s:openapi-gen=true
 type DataVolumeTemplateSpec struct {
-	// TypeMeta only exists on DataVolumeTemplate for API backwards compatiblity
+	// TypeMeta only exists on DataVolumeTemplate for API backwards compatibility
 	// this field is not used by our controllers and is a no-op.
 	// +nullable
 	metav1.TypeMeta `json:",inline"`
@@ -1023,6 +1095,11 @@ type VirtualMachineStatus struct {
 	// StateChangeRequests indicates a list of actions that should be taken on a VMI
 	// e.g. stop a specific VMI then start a new one.
 	StateChangeRequests []VirtualMachineStateChangeRequest `json:"stateChangeRequests,omitempty" optional:"true"`
+	// VolumeRequests indicates a list of volumes add or remove from the VMI template and
+	// hotplug on an active running VMI.
+	// +listType=atomic
+	VolumeRequests []VirtualMachineVolumeRequest `json:"volumeRequests,omitempty" optional:"true"`
+
 	// VolumeSnapshotStatuses indicates a list of statuses whether snapshotting is
 	// supported by each volume.
 	VolumeSnapshotStatuses []VolumeSnapshotStatus `json:"volumeSnapshotStatuses,omitempty" optional:"true"`
@@ -1036,6 +1113,16 @@ type VolumeSnapshotStatus struct {
 	Enabled bool `json:"enabled"`
 	// Empty if snapshotting is enabled, contains reason otherwise
 	Reason string `json:"reason,omitempty" optional:"true"`
+}
+
+// +k8s:openapi-gen=true
+type VirtualMachineVolumeRequest struct {
+	// AddVolumeOptions when set indicates a volume should be added. The details
+	// within this field specify how to add the volume
+	AddVolumeOptions *AddVolumeOptions `json:"addVolumeOptions,omitempty" optional:"true"`
+	// RemoveVolumeOptions when set indicates a volume should be removed. The details
+	// within this field specify how to add the volume
+	RemoveVolumeOptions *RemoveVolumeOptions `json:"removeVolumeOptions,omitempty" optional:"true"`
 }
 
 // +k8s:openapi-gen=true
@@ -1197,7 +1284,7 @@ type KubeVirtList struct {
 	Items           []KubeVirt `json:"items"`
 }
 
-// ---
+//
 // +k8s:openapi-gen=true
 type KubeVirtSelfSignConfiguration struct {
 	CARotateInterval   *metav1.Duration `json:"caRotateInterval,omitempty"`
@@ -1205,13 +1292,13 @@ type KubeVirtSelfSignConfiguration struct {
 	CAOverlapInterval  *metav1.Duration `json:"caOverlapInterval,omitempty"`
 }
 
-// ---
+//
 // +k8s:openapi-gen=true
 type KubeVirtCertificateRotateStrategy struct {
 	SelfSigned *KubeVirtSelfSignConfiguration `json:"selfSigned,omitempty"`
 }
 
-// ---
+//
 // +k8s:openapi-gen=true
 type KubeVirtSpec struct {
 	// The image tag to use for the continer images installed.
@@ -1453,6 +1540,27 @@ type RenameOptions struct {
 	OldName         *string `json:"oldName,omitempty"`
 }
 
+// AddVolumeOptions is provided when dynamically hot plugging a volume and disk
+// +k8s:openapi-gen=true
+type AddVolumeOptions struct {
+	// Name represents the name that will be used to map the
+	// disk to the corresponding volume. This overrides any name
+	// set inside the Disk struct itself.
+	Name string `json:"name"`
+	// Disk represents the hotplug disk that will be plugged into the running VMI
+	Disk *Disk `json:"disk"`
+	// VolumeSource represents the source of the volume to map to the disk.
+	VolumeSource *HotplugVolumeSource `json:"volumeSource"`
+}
+
+// RemoveVolumeOptions is provided when dynamically hot unplugging volume and disk
+// +k8s:openapi-gen=true
+type RemoveVolumeOptions struct {
+	// Name represents the name that maps to both the disk and volume that
+	// should be removed
+	Name string `json:"name"`
+}
+
 // KubeVirtConfiguration holds all kubevirt configurations
 // +k8s:openapi-gen=true
 type KubeVirtConfiguration struct {
@@ -1469,9 +1577,10 @@ type KubeVirtConfiguration struct {
 	SMBIOSConfig                *SMBiosConfiguration    `json:"smbios,omitempty"`
 	SupportedGuestAgentVersions []string                `json:"supportedGuestAgentVersions,omitempty"`
 	MemBalloonStatsPeriod       *uint32                 `json:"memBalloonStatsPeriod,omitempty"`
+	PermittedHostDevices        *PermittedHostDevices   `json:"permittedHostDevices,omitempty"`
 }
 
-// ---
+//
 // +k8s:openapi-gen=true
 type SMBiosConfiguration struct {
 	Manufacturer string `json:"manufacturer,omitempty"`
@@ -1504,6 +1613,31 @@ type DeveloperConfiguration struct {
 	NodeSelectors          map[string]string `json:"nodeSelectors,omitempty"`
 	UseEmulation           bool              `json:"useEmulation,omitempty"`
 	CPUAllocationRatio     int               `json:"cpuAllocationRatio,omitempty"`
+}
+
+// PermittedHostDevices holds inforamtion about devices allowed for passthrough
+// +k8s:openapi-gen=true
+type PermittedHostDevices struct {
+	// +listType=atomic
+	PciHostDevices []PciHostDevice `json:"pciHostDevices,omitempty"`
+	// +listType=atomic
+	MediatedDevices []MediatedHostDevice `json:"mediatedDevices,omitempty"`
+}
+
+// PciHostDevice represents a host PCI device allowed for passthrough
+// +k8s:openapi-gen=true
+type PciHostDevice struct {
+	PCIVendorSelector        string `json:"pciVendorSelector"`
+	ResourceName             string `json:"resourceName"`
+	ExternalResourceProvider bool   `json:"externalResourceProvider,omitempty"`
+}
+
+// MediatedHostDevice represents a host mediated device allowed for passthrough
+// +k8s:openapi-gen=true
+type MediatedHostDevice struct {
+	MDEVNameSelector         string `json:"mdevNameSelector"`
+	ResourceName             string `json:"resourceName"`
+	ExternalResourceProvider bool   `json:"externalResourceProvider,omitempty"`
 }
 
 // NetworkConfiguration holds network options

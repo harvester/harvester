@@ -732,10 +732,10 @@ github.com/prometheus/tsdb v0.8.0/go.mod h1:fSI0j+IUQrDd7+ZtR9WKIGtoYAYAJUKcKhYL
 github.com/qri-io/starlib v0.4.2-0.20200213133954-ff2e8cd5ef8d/go.mod h1:7DPO4domFU579Ga6E61sB9VFNaniPVwJP5C4bBCu3wA=
 github.com/rancher/dynamiclistener v0.2.1-0.20200714201033-9c1939da3af9 h1:Mo5mPXi7k/TgzMcUIuDpbNxiX2bYh68+yEpaur5Nx80=
 github.com/rancher/dynamiclistener v0.2.1-0.20200714201033-9c1939da3af9/go.mod h1:qr0QfhwzcVCR+Ao9WyfnE+jmOpfEAdRhXtNOZGJ3nCQ=
-github.com/rancher/kubevirt-client-go v0.20.2-0.20201124032527-ff3943be35bf h1:+BcQzqVO3xPTB9D2btLuVdwP2ftFCx7pkEr3y1vhJPI=
-github.com/rancher/kubevirt-client-go v0.20.2-0.20201124032527-ff3943be35bf/go.mod h1:H7w/toi2lEbJ1K6EK3hd2ZatVvm793iZOKFVxx18hzg=
-github.com/rancher/kubevirt-containerized-data-importer v1.22.1-0.20201127032458-4f73ed532d31 h1:h1YKgrSCVkgw7JZaUD+HlG/b+6tymm+JTqoPfUHSY9c=
-github.com/rancher/kubevirt-containerized-data-importer v1.22.1-0.20201127032458-4f73ed532d31/go.mod h1:gV0UGj0JybVFobLjkUzRxFJFgeUUhZb7zs1HgvnDsOQ=
+github.com/rancher/kubevirt-client-go v0.20.2-0.20210201144041-d294c131c268 h1:BHEWX4yu3wEJ1m/v5Iu3MgGbu+lyjnxB1PAhSHWc3sE=
+github.com/rancher/kubevirt-client-go v0.20.2-0.20210201144041-d294c131c268/go.mod h1:ZR+pS7E7iROhKVSGO4y6PCMGy/iEYzMAUEo4Ky0/I6A=
+github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210201143124-afdd470ff718 h1:nxFuABYJe3HI+3BI1/ulnoirSiabj3wM7yF9L0HD5mQ=
+github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210201143124-afdd470ff718/go.mod h1:9Rh/R77LF9L6FUugX6v+WHktVgwGhHvtSDzAvlNoHq4=
 github.com/rancher/lasso v0.0.0-20200515155337-a34e1e26ad91 h1:p4VVl0tr6YAeUILFMCn+0DKzbUOS0ah9biSsL7Sy6S4=
 github.com/rancher/lasso v0.0.0-20200515155337-a34e1e26ad91/go.mod h1:G6Vv2aj6xB2YjTVagmu4NkhBvbE8nBcGykHRENH6arI=
 github.com/rancher/lasso v0.0.0-20200905045615-7fcb07d6a20b h1:DQLpu44dsR+2qYvg1wyYadk108MWMHUOqvb2z4274Vs=

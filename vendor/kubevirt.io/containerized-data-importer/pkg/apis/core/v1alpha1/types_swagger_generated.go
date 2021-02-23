@@ -10,10 +10,20 @@ func (DataVolume) SwaggerDoc() map[string]string {
 
 func (DataVolumeSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":            "DataVolumeSpec defines the DataVolume type specification",
-		"source":      "Source is the src of the data for the requested DataVolume",
-		"pvc":         "PVC is the PVC specification",
-		"contentType": "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
+		"":                "DataVolumeSpec defines the DataVolume type specification",
+		"source":          "Source is the src of the data for the requested DataVolume",
+		"pvc":             "PVC is the PVC specification",
+		"contentType":     "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
+		"checkpoints":     "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+		"finalCheckpoint": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+	}
+}
+
+func (DataVolumeCheckpoint) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":         "DataVolumeCheckpoint defines a stage in a warm migration.",
+		"previous": "Previous is the identifier of the snapshot from the previous checkpoint.",
+		"current":  "Current is the identifier of the snapshot created for this checkpoint.",
 	}
 }
 
@@ -120,12 +130,13 @@ func (CDI) SwaggerDoc() map[string]string {
 
 func (CDISpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                  "CDISpec defines our specification for the CDI installation",
-		"imagePullPolicy":   "+kubebuilder:validation:Enum=Always;IfNotPresent;Never\nPullPolicy describes a policy for if/when to pull a container image",
-		"uninstallStrategy": "+kubebuilder:validation:Enum=RemoveWorkloads;BlockUninstallIfWorkloadsExist\nCDIUninstallStrategy defines the state to leave CDI on uninstall",
-		"infra":             "Rules on which nodes CDI infrastructure pods will be scheduled",
-		"workload":          "Restrict on which nodes CDI workload pods will be scheduled",
-		"config":            "CDIConfig at CDI level",
+		"":                      "CDISpec defines our specification for the CDI installation",
+		"imagePullPolicy":       "+kubebuilder:validation:Enum=Always;IfNotPresent;Never\nPullPolicy describes a policy for if/when to pull a container image",
+		"uninstallStrategy":     "+kubebuilder:validation:Enum=RemoveWorkloads;BlockUninstallIfWorkloadsExist\nCDIUninstallStrategy defines the state to leave CDI on uninstall",
+		"infra":                 "Rules on which nodes CDI infrastructure pods will be scheduled",
+		"workload":              "Restrict on which nodes CDI workload pods will be scheduled",
+		"cloneStrategyOverride": "Clone strategy override: should we use a host-assisted copy even if snapshots are available?\n+kubebuilder:validation:Enum=\"copy\";\"snapshot\"",
+		"config":                "CDIConfig at CDI level",
 	}
 }
 

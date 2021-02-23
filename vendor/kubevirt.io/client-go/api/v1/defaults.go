@@ -1,4 +1,4 @@
-package v1alpha3
+package v1
 
 import (
 	"github.com/pborman/uuid"

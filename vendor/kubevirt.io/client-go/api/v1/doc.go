@@ -4,4 +4,4 @@
 // +groupName=kubevirt.io
 // +versionName=v1alpha3
 // Package v1 is the v1 version of the API.
-package v1alpha3
+package v1
