@@ -335,6 +335,11 @@ service:
     ##
     type: ClusterIP
 
+    ## Specify the nodePort of HTTPs endpoint.
+    ## defaults to "30443".
+    ##
+    # httpsNodePort: 30443
+
     ## Specify the port of HTTPs endpoint.
     ## defaults to "8443".
     ##
