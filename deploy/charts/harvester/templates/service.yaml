@@ -21,6 +21,9 @@ spec:
   ports:
     - name: https
       port: {{ .Values.service.harvester.httpsPort }}
+{{- if and (eq .Values.service.harvester.type "NodePort") (gt (.Values.service.harvester.httpsNodePort | int) 0) }}
+      nodePort: {{ .Values.service.harvester.httpsNodePort }}
+{{- end }}
       targetPort: https
 {{- if gt (.Values.service.harvester.httpPort | int) 0 }}
     - name: http
