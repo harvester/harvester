@@ -208,7 +208,7 @@ fullnameOverride: ""
 
 ## Specify the replicas of workload.
 ##
-replicas: 1
+replicas: 3
 
 ## Specify the security context of workload.
 ##
