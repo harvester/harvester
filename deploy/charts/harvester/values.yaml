@@ -37,19 +37,19 @@ kubevirt-operator:
     ## They are not used by the kubevirt-operator chart.
     controller:
       image:
-        repository: kubevirt/virt-controller
+        repository: quay.io/kubevirt/virt-controller
         tag: *kubevirtVersion
     handler:
       image:
-        repository: kubevirt/virt-handler
+        repository: quay.io/kubevirt/virt-handler
         tag: *kubevirtVersion
     api:
       image:
-        repository: kubevirt/virt-api
+        repository: quay.io/kubevirt/virt-api
         tag: *kubevirtVersion
     launcher:
       image:
-        repository: kubevirt/virt-launcher
+        repository: quay.io/kubevirt/virt-launcher
         tag: *kubevirtVersion
 
 ## Specify the parameters to override the sub-chart.
@@ -96,23 +96,23 @@ cdi-operator:
   containers:
     operator:
       image:
-        repository: kubevirt/cdi-operator
+        repository: quay.io/kubevirt/cdi-operator
         tag: &cdiVersion v1.28.3
     controller:
       image:
-        repository: kubevirt/cdi-controller
+        repository: quay.io/kubevirt/cdi-controller
         tag: *cdiVersion
     importer:
       image:
-        repository: kubevirt/cdi-importer
+        repository: quay.io/kubevirt/cdi-importer
         tag: *cdiVersion
     apiserver:
       image:
-        repository: kubevirt/cdi-apiserver
+        repository: quay.io/kubevirt/cdi-apiserver
         tag: *cdiVersion
     uploadproxy:
       image:
-        repository: kubevirt/cdi-uploadproxy
+        repository: quay.io/kubevirt/cdi-uploadproxy
         tag: *cdiVersion
 
 ## Specify the parameters to override the sub-chart.
