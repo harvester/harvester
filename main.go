@@ -117,7 +117,7 @@ func main() {
 		},
 		cli.StringFlag{
 			Name:        "profile-listen-address",
-			Value:       "127.0.0.1:6060",
+			Value:       "0.0.0.0:6060",
 			Usage:       "Address to listen on for profiling",
 			Destination: &profileAddress,
 		},

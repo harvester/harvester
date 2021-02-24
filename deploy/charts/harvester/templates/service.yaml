@@ -30,6 +30,3 @@ spec:
       port: {{ .Values.service.harvester.httpPort }}
       targetPort: http
 {{- end }}
-    - name: profile
-      port: {{ .Values.service.harvester.profile }}
-      targetPort: profile
