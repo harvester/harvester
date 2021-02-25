@@ -2,13 +2,13 @@
 
 Harvester can be installed in a mass manner. This document provides an example to do the automatic installation with PXE boot.
 
-## Preparing TFTP and HTTP servers
+We recommend using [iPXE](https://ipxe.org/) to perform the network boot. It has more features than the traditional PXE Boot program and is likely available in modern NIC cards. If NIC cards don't come with iPXE firmware, iPXE firmware images can be loaded from the TFTP server first.
 
-TFTP or HTTP servers are required to serve boot files. Please ensure these servers are setup correctly before continuing.
+## Preparing HTTP servers
 
-We recommend using [iPXE](https://ipxe.org/) to perform the network boot. It has more features than PXELINUX and is likely available in modern NIC cards. If NIC cards don't come with iPXE firmware, iPXE firmware images can be loaded from the TFTP server first. TFTP server is also used to serve iPXE scripts.
+An HTTP server is required to serve boot files. Please ensure these servers are set up correctly before continuing.
 
-Let's assume the HTTP server's IP is `10.100.0.10`, and the HTTP server serves `/usr/share/nginx/html/` folder at path `http://10.100.0.10/`.
+Let's assume an nginx HTTP server's IP is `10.100.0.10`, and it serves `/usr/share/nginx/html/` folder at path `http://10.100.0.10/`.
 
 ## Preparing boot files
 
@@ -16,7 +16,7 @@ Let's assume the HTTP server's IP is `10.100.0.10`, and the HTTP server serves `
 
 - Serve the ISO file.
   
-  Copy or move the ISO file to an appropriate location so it can be downloaded via HTTP server. e.g.,
+  Copy or move the ISO file to an appropriate location so it can be downloaded via the HTTP server. e.g.,
 
   ```
   sudo mkdir -p /usr/share/nginx/html/harvester/
@@ -71,10 +71,12 @@ For machines that needs to be installed as `CREATE` mode, the following is an iP
 
 ```
 #!ipxe
-kernel http://10.100.0.10/harvester/vmlinuz k3os.mode=install console=ttyS0 console=tty1 harvester.install.automatic=true harvester.install.config_url=http://10.100.0.10/harvester/config-create.yaml
-initrd http://10.100.0.10/harvester/initrd
+kernel vmlinuz k3os.mode=install console=ttyS0 console=tty1 harvester.install.automatic=true harvester.install.config_url=http://10.100.0.10/harvester/config-create.yaml
+initrd initrd
 boot
 ```
+
+Let's assume the iPXE script is stored in `/usr/share/nginx/html/harvester/ipxe-create`
 
 ### JOIN mode
 
@@ -105,15 +107,145 @@ For machines that needs to be installed as `JOIN` mode, the following is an iPXE
 
 ```
 #!ipxe
-kernel http://10.100.0.10/harvester/vmlinuz k3os.mode=install console=ttyS0 console=tty1 harvester.install.automatic=true harvester.install.config_url=http://10.100.0.10/harvester/config-join.yaml
-initrd http://10.100.0.10/harvester/initrd
+kernel vmlinuz k3os.mode=install console=ttyS0 console=tty1 harvester.install.automatic=true harvester.install.config_url=http://10.100.0.10/harvester/config-join.yaml
+initrd initrd
 boot
 ```
 
+Let's assume the iPXE script is stored in `/usr/share/nginx/html/harvester/ipxe-join`
+
 **NOTE**: Nodes need to have at least **8G** of RAM because the full ISO file is loaded into tmpfs during the installation.
+
+## DHCP server configuration
+
+Here is an example to configure the ISC DHCP server to offer iPXE scripts: 
+
+```
+option architecture-type code 93 = unsigned integer 16;
+
+subnet 10.100.0.0 netmask 255.255.255.0 {
+	option routers 10.100.0.10;
+        option domain-name-servers 192.168.2.1;
+	range 10.100.0.100 10.100.0.253;
+}
+
+group {
+  # create group
+  if exists user-class and option user-class = "iPXE" {
+    # iPXE Boot
+    if option architecture-type = 00:07 {
+      filename "http://10.100.0.10/harvester/ipxe-create-efi";
+    } else {
+      filename "http://10.100.0.10/harvester/ipxe-create";
+    }
+  } else {
+    # PXE Boot
+    if option architecture-type = 00:07 {
+      # UEFI
+      filename "ipxe.efi";
+    } else {
+      # Non-UEFI
+      filename "undionly.kpxe";
+    }
+  }
+
+  host node1 { hardware ethernet 52:54:00:6b:13:e2; }
+}
+
+
+group {
+  # join group
+  if exists user-class and option user-class = "iPXE" {
+    # iPXE Boot
+    if option architecture-type = 00:07 {
+      filename "http://10.100.0.10/harvester/ipxe-join-efi";
+    } else {
+      filename "http://10.100.0.10/harvester/ipxe-join";
+    }
+  } else {
+    # PXE Boot
+    if option architecture-type = 00:07 {
+      # UEFI
+      filename "ipxe.efi";
+    } else {
+      # Non-UEFI
+      filename "undionly.kpxe";
+    }
+  }
+
+  host node2 { hardware ethernet 52:54:00:69:d5:92; }
+}
+```
+
+The config file declares a subnet and two groups. The first group is for hosts to boot with `CREATE` mode and the other one is for `JOIN` mode. By default, the iPXE path is chosen, but if it sees a PXE client, it also offers the iPXE image according to client architecture. Please prepare those images and a tftp server first.
 
 ## Harvester configuration
 
 For more information about Harvester configuration, please refer to the [Harvester configuration](./harvester-configuration.md).
 
 Users can also provide configuration via kernel parameters. For example, to specify the `CREATE` install mode, the user can pass `harvester.install.mode=create` kernel parameter when booting. Values passed through kernel parameters have higher priority than values specified in the config file.
+
+
+## UEFI HTTP Boot support
+
+UEFI firmware supports loading a boot image from HTTP server. This section demonstrates how to use UEFI HTTP boot to load the iPXE program and perform the automatic installation.
+
+### Serve the iPXE program
+
+Download the iPXE uefi program from http://boot.ipxe.org/ipxe.efi and make `ipxe.efi` can be downloaded from the HTTP server. e.g.:
+
+```bash
+cd /usr/share/nginx/html/harvester/
+wget http://boot.ipxe.org/ipxe.efi
+# The file now can be downloaded from http://10.100.0.10/harvester/ipxe.efi
+```
+
+The file now can be downloaded from http://10.100.0.10/harvester/ipxe.efi
+
+### DHCP server configuration
+
+If the user plans to use the UEFI HTTP boot feature by getting a dynamic IP first, the DHCP server needs to provides the iPXE program URL when it sees such a request. Here is an updated ISC DHCP server group example: 
+
+```
+group {
+  # create group
+  if exists user-class and option user-class = "iPXE" {
+    # iPXE Boot
+    if option architecture-type = 00:07 {
+      filename "http://10.100.0.10/harvester/ipxe-create-efi";
+    } else {
+      filename "http://10.100.0.10/harvester/ipxe-create";
+    }
+  } elsif substring (option vendor-class-identifier, 0, 10) = "HTTPClient" {
+    # UEFI HTTP Boot
+    option vendor-class-identifier "HTTPClient";
+    filename "http://10.100.0.10/harvester/ipxe.efi";
+  } else {
+    # PXE Boot
+    if option architecture-type = 00:07 {
+      # UEFI
+      filename "ipxe.efi";
+    } else {
+      # Non-UEFI
+      filename "undionly.kpxe";
+    }
+  }
+
+  host node1 { hardware ethernet 52:54:00:6b:13:e2; }
+}
+```
+
+The `elsif substring` statement is new, and it offers `http://10.100.0.10/harvester/ipxe.efi` when it sees a UEFI HTTP boot DHCP request. After the client fetches the iPXE program and runs it, the iPXE program will send a DHCP request again and load the iPXE script from URL `http://10.100.0.10/harvester/ipxe-create-efi`.
+
+### The iPXE script for UEFI boot
+
+It's mandatory to specify the initrd image for UEFI boot in the kernel parameters. Here is an updated version of iPXE script for `CREATE` mode.
+
+```
+#!ipxe
+kernel vmlinuz initrd=initrd k3os.mode=install console=ttyS0 console=tty1 harvester.install.automatic=true harvester.install.config_url=http://10.100.0.10/harvester/config-create.yaml
+initrd initrd
+boot
+```
+
+The parameter `initrd=initrd` is required for initrd to be chrooted.
