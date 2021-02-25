@@ -46,7 +46,7 @@ install:
 
 ## Configuration Reference
 
-The configuration file is a YAML file and derived from the [k3os configuration](https://github.com/rancher/k3os#configuration-reference). Below is a reference of all configuration keys.
+Below is a reference of all configuration keys.
 
 ### `server_url`
 
@@ -279,3 +279,10 @@ Run installation with more logging and configure debug for installed system.
 ### `install.tty`
 
 The tty device used for console.
+
+Example
+
+```yaml
+install:
+  tty: ttyS0,115200n8
+```
