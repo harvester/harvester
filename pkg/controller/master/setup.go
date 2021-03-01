@@ -25,6 +25,7 @@ var registerFuncs = []registerFunc{
 	keypair.Register,
 	node.BalanceRegister,
 	node.PromoteRegister,
+	node.MaintainRegister,
 	template.Register,
 	virtualmachine.Register,
 	user.Register,
