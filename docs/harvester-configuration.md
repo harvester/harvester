@@ -48,6 +48,8 @@ install:
 
 Below is a reference of all configuration keys.
 
+> :warning: **Security Risks**: The configuration file contains credentials which should be kept secretly. Please do not make the configuration file publicly accessible at the moment.
+
 ### `server_url`
 
 The URL of the Harvester server to join as an agent.

@@ -49,6 +49,8 @@ When performing automatic installation, there are two modes:
 
 ### CREATE mode
 
+> :warning: **Security Risks**: The configuration file below contains credentials which should be kept secretly. Please do not make the configuration file publicly accessible at the moment.
+
 Create a [Harvester configuration file](./harvester-configuration.md) `config-create.yaml` for `CREATE` mode, modify the values as needed:
 
 ```
@@ -79,6 +81,8 @@ boot
 Let's assume the iPXE script is stored in `/usr/share/nginx/html/harvester/ipxe-create`
 
 ### JOIN mode
+
+> :warning: **Security Risks**: The configuration file below contains credentials which should be kept secretly. Please do not make the configuration file publicly accessible at the moment.
 
 Create a [Harvester configuration file](./harvester-configuration.md) `config-join.yaml` for `JOIN` mode, modify the values as needed:
 
