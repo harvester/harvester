@@ -54,7 +54,7 @@ if [ ! -f /var/lib/rancher/k3os/config.yaml ]; then \
 fi && \
 echo update config && \
 sudo yq -i eval '.k3os.k3sArgs[0] = \"server\"' /var/lib/rancher/k3os/config.yaml && \
-sudo yq -i eval '.k3os.k3sArgs |= . + [\"--disable\",\"local-storage\"]' /var/lib/rancher/k3os/config.yaml && \
+sudo yq -i eval '.k3os.k3sArgs |= . + [\"--disable\",\"local-storage\",\"--disable\",\"servicelb\",\"--disable\",\"traefik\"]' /var/lib/rancher/k3os/config.yaml && \
 echo restart and promote k3s node && \
 cat /var/run/k3s-restarter-trap.pid | xargs -r kill -HUP && \
 echo finish promote
