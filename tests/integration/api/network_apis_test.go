@@ -8,10 +8,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/tidwall/gjson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/rancher/harvester/pkg/config"
-	ctlcniv1 "github.com/rancher/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
@@ -62,12 +60,11 @@ func NewNAD(name, networkType, config string) *cniv1.NetworkAttachmentDefinition
 var _ = Describe("verify network APIs", func() {
 
 	var (
-		scaled        *config.Scaled
-		vmBuilder     *VMBuilder
-		vmNamespace   string
-		vmController  ctlkubevirtv1.VirtualMachineController
-		nadController ctlcniv1.NetworkAttachmentDefinitionController
-		networkName   string
+		scaled       *config.Scaled
+		vmBuilder    *VMBuilder
+		vmNamespace  string
+		vmController ctlkubevirtv1.VirtualMachineController
+		networkName  string
 	)
 
 	BeforeEach(func() {
@@ -75,21 +72,6 @@ var _ = Describe("verify network APIs", func() {
 		vmBuilder = NewDefaultTestVMBuilder()
 		vmNamespace = testVMNamespace
 		vmController = scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
-		nadController = scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition()
-	})
-
-	Cleanup(func() {
-		nadList, err := nadController.List(testNetworkNamespace, metav1.ListOptions{
-			LabelSelector: labels.FormatLabels(testResourceLabels)})
-		if err != nil {
-			GinkgoT().Logf("failed to list test networks, %v", err)
-			return
-		}
-		for _, item := range nadList.Items {
-			if err = nadController.Delete(item.Namespace, item.Name, &metav1.DeleteOptions{}); err != nil {
-				GinkgoT().Logf("failed to delete test network %s/%s, %v", item.Namespace, item.Name, err)
-			}
-		}
 	})
 
 	Context("operate via steve API", func() {
