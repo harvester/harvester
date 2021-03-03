@@ -1,0 +1,142 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    {}
+  creationTimestamp: null
+  name: virtualmachinebackups.harvester.cattle.io
+spec:
+  group: harvester.cattle.io
+  names:
+    kind: VirtualMachineBackup
+    listKind: VirtualMachineBackupList
+    plural: virtualmachinebackups
+    shortNames:
+    - vmbackup
+    - vmbackups
+    singular: virtualmachinebackup
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.source.kind
+      name: SOURCE_KIND
+      type: string
+    - jsonPath: .spec.source.name
+      name: SOURCE_NAME
+      type: string
+    - jsonPath: .status.readyToUse
+      name: READY_TO_USE
+      type: boolean
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    - jsonPath: .status.error.message
+      name: ERROR
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              source:
+                description: TypedLocalObjectReference contains enough information
+                  to let you locate the typed referenced object inside the same namespace.
+                properties:
+                  apiGroup:
+                    description: APIGroup is the group for the resource being referenced.
+                      If APIGroup is not specified, the specified Kind must be in
+                      the core API group. For any other third-party types, APIGroup
+                      is required.
+                    type: string
+                  kind:
+                    description: Kind is the type of resource being referenced
+                    type: string
+                  name:
+                    description: Name is the name of resource being referenced
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+            required:
+            - source
+            type: object
+          status:
+            description: VirtualMachineBackupStatus is the status for a VirtualMachineBackup
+              resource
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another.
+                      type: string
+                    lastUpdateTime:
+                      description: The last time this condition was updated.
+                      type: string
+                    message:
+                      description: Human-readable message indicating details about
+                        last transition
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: Type of the condition.
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              error:
+                description: Error is the last error encountered during the snapshot/restore
+                properties:
+                  message:
+                    type: string
+                  time:
+                    format: date-time
+                    type: string
+                type: object
+              readyToUse:
+                type: boolean
+              sourceUID:
+                description: UID is a type that holds unique ID values, including
+                  UUIDs.  Because we don't ONLY use UUIDs, this is an alias to string.  Being
+                  a type captures intent and helps make sure that UIDs and names do
+                  not get conflated.
+                type: string
+              virtualMachineBackupContentName:
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

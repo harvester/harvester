@@ -28,10 +28,15 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	// and because wrangler converts the struct typeName to lower title, so the action input should start with lower case.
 	// https://github.com/rancher/wrangler/blob/master/pkg/schemas/reflection.go#L26
 	server.BaseSchemas.MustImportAndCustomize(EjectCdRomActionInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(BackupInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(RestoreInput{}, nil)
 
 	vms := scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	vmims := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration()
+	backups := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineBackup()
+	restores := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineRestore()
+	settings := scaled.HarvesterFactory.Harvester().V1alpha1().Setting()
 
 	copyConfig := rest.CopyConfig(server.RESTConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion
@@ -43,17 +48,21 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 
 	actionHandler := vmActionHandler{
-		vms:        vms,
-		vmCache:    vms.Cache(),
-		vmis:       vmis,
-		vmiCache:   vmis.Cache(),
-		vmims:      vmims,
-		vmimCache:  vmims.Cache(),
-		restClient: restClient,
+		vms:         vms,
+		vmCache:     vms.Cache(),
+		vmis:        vmis,
+		vmiCache:    vmis.Cache(),
+		vmims:       vmims,
+		vmimCache:   vmims.Cache(),
+		backups:     backups,
+		backupCache: backups.Cache(),
+		restores:    restores,
+		restClient:  restClient,
 	}
 
 	vmformatter := vmformatter{
-		vmiCache: vmis.Cache(),
+		vmiCache:     vmis.Cache(),
+		settingCache: settings.Cache(),
 	}
 
 	vmStore := &vmStore{
@@ -75,6 +84,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				unpauseVM:      &actionHandler,
 				migrate:        &actionHandler,
 				abortMigration: &actionHandler,
+				backupVM:       &actionHandler,
+				restoreVM:      &actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:        {},
@@ -86,6 +97,12 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				abortMigration: {},
 				ejectCdRom: {
 					Input: "ejectCdRomActionInput",
+				},
+				backupVM: {
+					Input: "backupInput",
+				},
+				restoreVM: {
+					Input: "restoreInput",
 				},
 			}
 		},

@@ -17,11 +17,14 @@ dependencies:
 - name: multus
   repository: file://dependency_charts/multus
   version: 0.1.0
+- name: csi-snapshotter
+  repository: file://dependency_charts/csi-snapshotter
+  version: 0.1.0
 - name: minio
   repository: https://helm.min.io
   version: 8.0.5
 - name: longhorn
   repository: https://charts.longhorn.io
   version: 1.1.0
-digest: sha256:6fc87ae83cd71ce89b482ca4bd5509a784fa6d74ec16053414f55cb9d68faff6
-generated: "2021-01-29T07:47:58.900817567+01:00"
+digest: sha256:551d884a60b4588b6a7ad6787aee06823cd03ac5e9ba4ef1d8906ecf71f5ed93
+generated: "2021-03-02T14:39:17.456662+08:00"

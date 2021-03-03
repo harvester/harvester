@@ -48,6 +48,10 @@ dependencies:
     version: 0.1.0
     repository: file://dependency_charts/multus
     condition: multus.enabled
+  - name: csi-snapshotter
+    version: 0.1.0
+    repository: file://dependency_charts/csi-snapshotter
+    condition: csi-snapshotter.enabled
   - name: minio
     # Note: Update minio image in harvester values.yaml when this version is updated.
     version: 8.0.5

@@ -27,7 +27,11 @@ var (
 	UIIndex                = NewSetting("ui-index", "https://releases.rancher.com/harvester-ui/latest/index.html")
 	UIPath                 = NewSetting("ui-path", "/usr/share/rancher/harvester")
 	APIUISource            = NewSetting("api-ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
+	VolumeSnapshotClass    = NewSetting("volume-snapshot-class", "longhorn")
+	BackupTargetSet        = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
 )
+
+const BackupTargetSettingName = "backup-target"
 
 func init() {
 	if InjectDefaults == "" {
@@ -125,4 +129,31 @@ func GetEnvKey(key string) string {
 
 func IsRelease() bool {
 	return !strings.Contains(ServerVersion.Get(), "head") && releasePattern.MatchString(ServerVersion.Get())
+}
+
+type TargetType string
+
+const (
+	S3BackupType  TargetType = "s3"
+	NFSBackupType TargetType = "nfs"
+)
+
+type BackupTarget struct {
+	Type               TargetType `json:"type"`
+	Endpoint           string     `json:"endpoint"`
+	AccessKeyID        string     `json:"accessKeyId"`
+	SecretAccessKey    string     `json:"secretAccessKey"`
+	BucketName         string     `json:"bucketName"`
+	BucketRegion       string     `json:"bucketRegion"`
+	Cert               string     `json:"cert"`
+	VirtualHostedStyle bool       `json:"virtualHostedStyle"`
+}
+
+func InitBackupTargetToString() string {
+	target := &BackupTarget{}
+	targetStr, err := json.Marshal(target)
+	if err != nil {
+		logrus.Errorf("failed to init string backupTarget, error: %s", err.Error())
+	}
+	return string(targetStr)
 }

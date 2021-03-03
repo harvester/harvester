@@ -10,3 +10,12 @@ var (
 type EjectCdRomActionInput struct {
 	DiskNames []string `json:"diskNames,omitempty"`
 }
+
+type BackupInput struct {
+	Name string `json:"name"`
+}
+
+type RestoreInput struct {
+	Name       string `json:"name"`
+	BackupName string `json:"backupName"`
+}

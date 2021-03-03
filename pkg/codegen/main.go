@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	storagev1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 	"github.com/sirupsen/logrus"
@@ -31,6 +33,9 @@ func main() {
 					harv1.VirtualMachineTemplateVersion{},
 					harv1.User{},
 					harv1.Preference{},
+					harv1.VirtualMachineBackup{},
+					harv1.VirtualMachineBackupContent{},
+					harv1.VirtualMachineRestore{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,
@@ -54,6 +59,23 @@ func main() {
 			cniv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
 					cniv1.NetworkAttachmentDefinition{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			storagev1beta1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					storagev1beta1.VolumeSnapshotClass{},
+					storagev1beta1.VolumeSnapshot{},
+					storagev1beta1.VolumeSnapshotContent{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			longhornv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					longhornv1.Volume{},
+					longhornv1.Setting{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

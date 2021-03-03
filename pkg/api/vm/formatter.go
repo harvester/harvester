@@ -5,7 +5,10 @@ import (
 	"github.com/rancher/wrangler/pkg/data/convert"
 	kv1 "kubevirt.io/client-go/api/v1"
 
+	harvesterapiv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/rancher/harvester/pkg/settings"
 )
 
 const (
@@ -17,10 +20,13 @@ const (
 	ejectCdRom     = "ejectCdRom"
 	migrate        = "migrate"
 	abortMigration = "abortMigration"
+	backupVM       = "backup"
+	restoreVM      = "restore"
 )
 
 type vmformatter struct {
-	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache
+	vmiCache     ctlkubevirtv1.VirtualMachineInstanceCache
+	settingCache ctlharvesterv1.SettingCache
 }
 
 func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -65,6 +71,14 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canAbortMigrate(vmi) {
 		resource.AddAction(request, abortMigration)
+	}
+
+	if vf.canDoBackup(vm, vmi) {
+		resource.AddAction(request, backupVM)
+	}
+
+	if vf.canDoRestore(vm) {
+		resource.AddAction(request, restoreVM)
 	}
 }
 
@@ -154,6 +168,34 @@ func (vf *vmformatter) canAbortMigrate(vmi *kv1.VirtualMachineInstance) bool {
 	return false
 }
 
+func (vf *vmformatter) canDoBackup(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineInstance) bool {
+	if !vf.checkBackupTargetConfigured() {
+		return false
+	}
+
+	if vm.Status.Created && vm.Status.Ready && vm.Status.SnapshotInProgress == nil && (vmi == nil || IsVMIRunning(vmi)) {
+		return true
+	}
+
+	if !vm.Status.Created && !vm.Status.Ready && vm.Status.SnapshotInProgress == nil && (vmi == nil || IsVMIRunning(vmi)) {
+		return true
+	}
+
+	return false
+}
+
+func (vf *vmformatter) canDoRestore(vm *kv1.VirtualMachine) bool {
+	if !vf.checkBackupTargetConfigured() {
+		return false
+	}
+
+	if !vm.Status.Created && !vm.Status.Ready && vm.Status.SnapshotInProgress == nil {
+		return true
+	}
+
+	return false
+}
+
 func (vf *vmformatter) isVMRenaming(vm *kv1.VirtualMachine) bool {
 	for _, req := range vm.Status.StateChangeRequests {
 		if req.Action == kv1.RenameRequest {
@@ -168,4 +210,22 @@ func (vf *vmformatter) getVMI(vm *kv1.VirtualMachine) *kv1.VirtualMachineInstanc
 		return vmi
 	}
 	return nil
+}
+
+func (vf *vmformatter) checkBackupTargetConfigured() bool {
+	target, err := vf.settingCache.Get(settings.BackupTargetSettingName)
+	if err == nil && harvesterapiv1.SettingConfigured.IsTrue(target) {
+		return true
+	}
+	return false
+}
+
+func IsVMIRunning(vmi *kv1.VirtualMachineInstance) bool {
+	if vmi == nil {
+		return false
+	}
+	if vmi.Status.Phase == kv1.Running {
+		return true
+	}
+	return false
 }

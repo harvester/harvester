@@ -8,6 +8,7 @@ import (
 
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/controller/master/auth"
+	"github.com/rancher/harvester/pkg/controller/master/backup"
 	"github.com/rancher/harvester/pkg/controller/master/image"
 	"github.com/rancher/harvester/pkg/controller/master/keypair"
 	"github.com/rancher/harvester/pkg/controller/master/node"
@@ -29,6 +30,10 @@ var registerFuncs = []registerFunc{
 	template.Register,
 	virtualmachine.Register,
 	user.Register,
+	backup.RegisterBackup,
+	backup.RegisterContent,
+	backup.RegisterRestore,
+	backup.RegisterBackupTarget,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {

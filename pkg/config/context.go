@@ -25,6 +25,8 @@ import (
 	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io"
 	cniv1 "github.com/rancher/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	"github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io"
+	longhornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io"
+	snapshotv1 "github.com/rancher/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
 )
 
 type (
@@ -56,6 +58,8 @@ type Scaled struct {
 	AppsFactory      *appsv1.Factory
 	RbacFactory      *rbacv1.Factory
 	CniFactory       *cniv1.Factory
+	SnapshotFactory  *snapshotv1.Factory
+	LonghornFactory  *longhornv1.Factory
 	starters         []start.Starter
 
 	Management   *Management
@@ -74,6 +78,8 @@ type Management struct {
 	RbacFactory      *rbacv1.Factory
 	StorageFactory   *storagev1.Factory
 	BatchFactory     *batchv1.Factory
+	SnapshotFactory  *snapshotv1.Factory
+	LonghornFactory  *longhornv1.Factory
 
 	ClientSet *kubernetes.Clientset
 
@@ -132,6 +138,20 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	}
 	scaled.CniFactory = cni
 	scaled.starters = append(scaled.starters, cni)
+
+	snapshot, err := snapshotv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.SnapshotFactory = snapshot
+	scaled.starters = append(scaled.starters, snapshot)
+
+	longhorn, err := longhornv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.LonghornFactory = longhorn
+	scaled.starters = append(scaled.starters, longhorn)
 
 	scaled.Management, err = setupManagement(ctx, restConfig, opts)
 	if err != nil {
@@ -198,6 +218,27 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.BatchFactory = batch
 	management.starters = append(management.starters, batch)
+
+	storage, err := storagev1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.StorageFactory = storage
+	management.starters = append(management.starters, storage)
+
+	longhorn, err := longhornv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.LonghornFactory = longhorn
+	management.starters = append(management.starters, longhorn)
+
+	snapshot, err := snapshotv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.SnapshotFactory = snapshot
+	management.starters = append(management.starters, snapshot)
 
 	management.ClientSet, err = kubernetes.NewForConfig(restConfig)
 	if err != nil {
