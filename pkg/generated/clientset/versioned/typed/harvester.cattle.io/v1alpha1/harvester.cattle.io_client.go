@@ -30,7 +30,10 @@ type HarvesterV1alpha1Interface interface {
 	PreferencesGetter
 	SettingsGetter
 	UsersGetter
+	VirtualMachineBackupsGetter
+	VirtualMachineBackupContentsGetter
 	VirtualMachineImagesGetter
+	VirtualMachineRestoresGetter
 	VirtualMachineTemplatesGetter
 	VirtualMachineTemplateVersionsGetter
 }
@@ -56,8 +59,20 @@ func (c *HarvesterV1alpha1Client) Users() UserInterface {
 	return newUsers(c)
 }
 
+func (c *HarvesterV1alpha1Client) VirtualMachineBackups(namespace string) VirtualMachineBackupInterface {
+	return newVirtualMachineBackups(c, namespace)
+}
+
+func (c *HarvesterV1alpha1Client) VirtualMachineBackupContents(namespace string) VirtualMachineBackupContentInterface {
+	return newVirtualMachineBackupContents(c, namespace)
+}
+
 func (c *HarvesterV1alpha1Client) VirtualMachineImages(namespace string) VirtualMachineImageInterface {
 	return newVirtualMachineImages(c, namespace)
+}
+
+func (c *HarvesterV1alpha1Client) VirtualMachineRestores(namespace string) VirtualMachineRestoreInterface {
+	return newVirtualMachineRestores(c, namespace)
 }
 
 func (c *HarvesterV1alpha1Client) VirtualMachineTemplates(namespace string) VirtualMachineTemplateInterface {

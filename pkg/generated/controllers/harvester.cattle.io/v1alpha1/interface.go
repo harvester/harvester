@@ -34,7 +34,10 @@ type Interface interface {
 	Preference() PreferenceController
 	Setting() SettingController
 	User() UserController
+	VirtualMachineBackup() VirtualMachineBackupController
+	VirtualMachineBackupContent() VirtualMachineBackupContentController
 	VirtualMachineImage() VirtualMachineImageController
+	VirtualMachineRestore() VirtualMachineRestoreController
 	VirtualMachineTemplate() VirtualMachineTemplateController
 	VirtualMachineTemplateVersion() VirtualMachineTemplateVersionController
 }
@@ -61,8 +64,17 @@ func (c *version) Setting() SettingController {
 func (c *version) User() UserController {
 	return NewUserController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "User"}, "users", false, c.controllerFactory)
 }
+func (c *version) VirtualMachineBackup() VirtualMachineBackupController {
+	return NewVirtualMachineBackupController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "VirtualMachineBackup"}, "virtualmachinebackups", true, c.controllerFactory)
+}
+func (c *version) VirtualMachineBackupContent() VirtualMachineBackupContentController {
+	return NewVirtualMachineBackupContentController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "VirtualMachineBackupContent"}, "virtualmachinebackupcontents", true, c.controllerFactory)
+}
 func (c *version) VirtualMachineImage() VirtualMachineImageController {
 	return NewVirtualMachineImageController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "VirtualMachineImage"}, "virtualmachineimages", true, c.controllerFactory)
+}
+func (c *version) VirtualMachineRestore() VirtualMachineRestoreController {
+	return NewVirtualMachineRestoreController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "VirtualMachineRestore"}, "virtualmachinerestores", true, c.controllerFactory)
 }
 func (c *version) VirtualMachineTemplate() VirtualMachineTemplateController {
 	return NewVirtualMachineTemplateController(schema.GroupVersionKind{Group: "harvester.cattle.io", Version: "v1alpha1", Kind: "VirtualMachineTemplate"}, "virtualmachinetemplates", true, c.controllerFactory)

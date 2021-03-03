@@ -44,8 +44,20 @@ func (c *FakeHarvesterV1alpha1) Users() v1alpha1.UserInterface {
 	return &FakeUsers{c}
 }
 
+func (c *FakeHarvesterV1alpha1) VirtualMachineBackups(namespace string) v1alpha1.VirtualMachineBackupInterface {
+	return &FakeVirtualMachineBackups{c, namespace}
+}
+
+func (c *FakeHarvesterV1alpha1) VirtualMachineBackupContents(namespace string) v1alpha1.VirtualMachineBackupContentInterface {
+	return &FakeVirtualMachineBackupContents{c, namespace}
+}
+
 func (c *FakeHarvesterV1alpha1) VirtualMachineImages(namespace string) v1alpha1.VirtualMachineImageInterface {
 	return &FakeVirtualMachineImages{c, namespace}
+}
+
+func (c *FakeHarvesterV1alpha1) VirtualMachineRestores(namespace string) v1alpha1.VirtualMachineRestoreInterface {
+	return &FakeVirtualMachineRestores{c, namespace}
 }
 
 func (c *FakeHarvesterV1alpha1) VirtualMachineTemplates(namespace string) v1alpha1.VirtualMachineTemplateInterface {
