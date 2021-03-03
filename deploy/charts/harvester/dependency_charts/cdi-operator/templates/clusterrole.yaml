@@ -89,6 +89,7 @@ rules:
       - datavolumes
     verbs:
       - list
+      - get
   - apiGroups:
       - cdi.kubevirt.io
     resources:
@@ -111,6 +112,7 @@ rules:
   - apiGroups:
       - ""
     resources:
+      - persistentvolumes
       - persistentvolumeclaims
       - volumesnapshots
     verbs:
@@ -165,6 +167,14 @@ rules:
       - route.openshift.io
     resources:
       - routes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - config.openshift.io
+    resources:
+      - proxies
     verbs:
       - get
       - list

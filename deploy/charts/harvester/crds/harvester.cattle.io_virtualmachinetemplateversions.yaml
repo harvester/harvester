@@ -123,6 +123,10 @@ spec:
                               description: FinalCheckpoint indicates whether the current
                                 DataVolumeCheckpoint is the final checkpoint.
                               type: boolean
+                            preallocation:
+                              description: Preallocation controls whether storage
+                                for DataVolumes should be allocated in advance.
+                              type: boolean
                             pvc:
                               description: PVC is the PVC specification
                               properties:
@@ -134,20 +138,15 @@ spec:
                                   type: array
                                 dataSource:
                                   description: 'This field can be used to specify
-                                    either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot
-                                    - Beta) * An existing PVC (PersistentVolumeClaim)
-                                    * An existing custom resource/object that implements
-                                    data population (Alpha) In order to use VolumeSnapshot
-                                    object types, the appropriate feature gate must
-                                    be enabled (VolumeSnapshotDataSource or AnyVolumeDataSource)
-                                    If the provisioner or an external controller can
-                                    support the specified data source, it will create
-                                    a new volume based on the contents of the specified
-                                    data source. If the specified data source is not
-                                    supported, the volume will not be created and
-                                    the failure will be reported as an event. In the
-                                    future, we plan to support more data source types
-                                    and the behavior of the provisioner may change.'
+                                    either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
+                                    * An existing PVC (PersistentVolumeClaim) * An
+                                    existing custom resource that implements data
+                                    population (Alpha) In order to use custom resource
+                                    types that implement data population, the AnyVolumeDataSource
+                                    feature gate must be enabled. If the provisioner
+                                    or an external controller can support the specified
+                                    data source, it will create a new volume based
+                                    on the contents of the specified data source.'
                                   properties:
                                     apiGroup:
                                       description: APIGroup is the group for the resource
@@ -355,6 +354,11 @@ spec:
                                   description: DataVolumeSourceS3 provides the parameters
                                     to create a Data Volume from an S3 source
                                   properties:
+                                    certConfigMap:
+                                      description: CertConfigMap is a configmap reference,
+                                        containing a Certificate Authority(CA) public
+                                        key, and a base64 encoded pem certificate
+                                      type: string
                                     secretRef:
                                       description: SecretRef provides the secret reference
                                         needed to access the S3 source
@@ -2696,12 +2700,16 @@ spec:
                                             - fieldPath
                                             type: object
                                           mode:
-                                            description: 'Optional: mode bits to use
-                                              on this file, must be a value between
-                                              0 and 0777. If not specified, the volume
-                                              defaultMode will be used. This might
-                                              be in conflict with other options that
-                                              affect the file mode, like fsGroup,
+                                            description: 'Optional: mode bits used
+                                              to set permissions on this file, must
+                                              be an octal value between 0000 and 0777
+                                              or a decimal value between 0 and 511.
+                                              YAML accepts both octal and decimal
+                                              values, JSON requires decimal values
+                                              for mode bits. If not specified, the
+                                              volume defaultMode will be used. This
+                                              might be in conflict with other options
+                                              that affect the file mode, like fsGroup,
                                               and the result can be other mode bits
                                               set.'
                                             format: int32

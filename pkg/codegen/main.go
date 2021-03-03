@@ -35,7 +35,7 @@ func main() {
 				GenerateTypes:   true,
 				GenerateClients: true,
 			},
-			kv1.GroupName: {
+			kv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
 					kv1.VirtualMachine{},
 					kv1.VirtualMachineInstance{},

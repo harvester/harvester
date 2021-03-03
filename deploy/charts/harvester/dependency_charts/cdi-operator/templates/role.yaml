@@ -41,3 +41,11 @@ rules:
       - routes/custom-host
     verbs:
       - '*'
+  - apiGroups:
+      - config.openshift.io
+    resources:
+      - proxies
+    verbs:
+      - get
+      - list
+      - watch
