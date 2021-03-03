@@ -3,14 +3,21 @@ package crd
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync"
+	"time"
 
+	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/crd"
+	"github.com/rancher/wrangler/pkg/name"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
+	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 )
 
@@ -28,78 +35,190 @@ func NonNamespacedFromGV(gv schema.GroupVersion, kind string) crd.CRD {
 
 // NewFactoryFromClient returns a CRD initialization factory.
 func NewFactoryFromClient(ctx context.Context, config *rest.Config) (*Factory, error) {
-	var f, err = clientset.NewForConfig(config)
+	apply, err := apply.NewForConfig(config)
 	if err != nil {
 		return nil, err
 	}
-	var eg, subCtx = errgroup.WithContext(ctx)
+
+	f, err := clientset.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Factory{
-		eg:     eg,
-		ctx:    subCtx,
+		ctx:    ctx,
 		client: f,
+		apply:  apply.WithDynamicLookup().WithNoDelete(),
 	}, nil
 }
 
 type Factory struct {
-	eg     *errgroup.Group
+	err    error
+	wg     sync.WaitGroup
 	ctx    context.Context
 	client clientset.Interface
+	apply  apply.Apply
 }
 
-// CreateCRDs concurrently creates the target CRDs or overwrites the existed items.
-func (f *Factory) CreateCRDs(crds ...crd.CRD) *Factory {
-	return f.createCRDs(crds, true)
+func (f *Factory) BatchWait() error {
+	f.wg.Wait()
+	return f.err
 }
 
-// CreateCRDs concurrently creates the target CRDs which are not existed.
-func (f *Factory) CreateCRDsIfNotExisted(crds ...crd.CRD) *Factory {
-	return f.createCRDs(crds, false)
+// CreateCRDsIfNotExisted concurrently creates the target CRDs which are not existed.
+func (f *Factory) BatchCreateCRDsIfNotExisted(crds ...crd.CRD) *Factory {
+	f.wg.Add(1)
+	go func() {
+		defer f.wg.Done()
+		if _, err := f.CreateCRDs(f.ctx, false, crds...); err != nil && err == nil {
+			f.err = err
+		}
+	}()
+	return f
+
 }
 
-func (f *Factory) createCRDs(crds []crd.CRD, updateIfExisted bool) *Factory {
-	if len(crds) != 0 {
-		for _, ci := range crds {
-			var ciCopy = ci // copy
-			f.eg.Go(func() error {
-				var expected, err = ciCopy.ToCustomResourceDefinition()
-				if err != nil {
-					return fmt.Errorf("failed to convert to CRD %s: %w", ciCopy.GVK, err)
-				}
+func getCRDName(pluralName, group string) string {
+	return fmt.Sprintf("%s.%s", pluralName, group)
+}
 
-				var crdCli = f.client.ApiextensionsV1beta1().CustomResourceDefinitions()
-				actual, err := crdCli.Get(f.ctx, expected.Name, metav1.GetOptions{})
-				switch {
-				case apierrors.IsForbidden(err):
-					logrus.Warnf("No permission to get CRD %s, assuming it is pre-created", expected.Name)
-					return nil
-				case apierrors.IsNotFound(err):
-					_, err = crdCli.Create(f.ctx, &expected, metav1.CreateOptions{})
-					if err != nil {
-						return fmt.Errorf("failed to create CRD %s: %w", expected.Name, err)
-					}
-					logrus.Infof("Created CRD %s", expected.Name)
-				case err != nil:
-					return fmt.Errorf("failed to query CRD %s: %w", expected.Name, err)
-				default:
-					if !updateIfExisted {
-						logrus.Warnf("Do not update the existing CRD %s", expected.Name)
-						return nil
-					}
-					expected.SetResourceVersion(actual.GetResourceVersion())
-					_, err = crdCli.Update(f.ctx, &expected, metav1.UpdateOptions{})
-					if err != nil {
-						return fmt.Errorf("failed to update CRD %s: %w", expected.Name, err)
-					}
-					logrus.Infof("Updated CRD %s", expected.Name)
-				}
-				return nil
-			})
+func (f *Factory) CreateCRDs(ctx context.Context, updateIfExisted bool, crds ...crd.CRD) (map[schema.GroupVersionKind]*apiext.CustomResourceDefinition, error) {
+	if len(crds) == 0 {
+		return nil, nil
+	}
+
+	if ok, err := f.ensureAccess(ctx); err != nil {
+		return nil, err
+	} else if !ok {
+		logrus.Infof("No access to list CRDs, assuming CRDs are pre-created.")
+		return nil, err
+	}
+
+	crdStatus := map[schema.GroupVersionKind]*apiext.CustomResourceDefinition{}
+
+	ready, err := f.getReadyCRDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, crdDef := range crds {
+		plural := crdDef.PluralName
+		if len(plural) == 0 {
+			plural = strings.ToLower(name.GuessPluralName(crdDef.GVK.Kind))
+		}
+		crdName := getCRDName(plural, crdDef.GVK.Group)
+
+		// skip to update existing CRD
+		if !updateIfExisted && ready[crdName] != nil {
+			logrus.Infof("Do not update the existing CRD %s", crdDef.GVK.Kind)
+			continue
+		}
+
+		crd, err := f.createCRD(ctx, crdDef, ready)
+		if err != nil {
+			return nil, err
+		}
+		crdStatus[crdDef.GVK] = crd
+	}
+
+	ready, err = f.getReadyCRDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for gvk, crd := range crdStatus {
+		if readyCrd, ok := ready[crd.Name]; ok {
+			crdStatus[gvk] = readyCrd
+		} else {
+			if err := f.waitCRD(ctx, crd.Name, gvk, crdStatus); err != nil {
+				return nil, err
+			}
 		}
 	}
-	return f
+
+	return crdStatus, nil
 }
 
-// Wait waits the creation progress.
-func (f *Factory) Wait() error {
-	return f.eg.Wait()
+func (f *Factory) createCRD(ctx context.Context, crdDef crd.CRD, ready map[string]*apiext.CustomResourceDefinition) (*apiext.CustomResourceDefinition, error) {
+	crd, err := crdDef.ToCustomResourceDefinition()
+	if err != nil {
+		return nil, err
+	}
+
+	meta, err := meta.Accessor(crd)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Infof("Applying CRD %s", meta.GetName())
+	if err := f.apply.WithOwner(crd).ApplyObjects(crd); err != nil {
+		return nil, err
+	}
+
+	return f.client.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, meta.GetName(), metav1.GetOptions{})
+
+}
+
+func (f *Factory) ensureAccess(ctx context.Context) (bool, error) {
+	_, err := f.client.ApiextensionsV1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
+	if apierrors.IsForbidden(err) {
+		return false, nil
+	}
+	return true, err
+}
+
+func (f *Factory) getReadyCRDs(ctx context.Context) (map[string]*apiext.CustomResourceDefinition, error) {
+	list, err := f.client.ApiextensionsV1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	result := map[string]*apiext.CustomResourceDefinition{}
+
+	for i, crd := range list.Items {
+		for _, cond := range crd.Status.Conditions {
+			switch cond.Type {
+			case apiext.Established:
+				if cond.Status == apiext.ConditionTrue {
+					result[crd.Name] = &list.Items[i]
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func (f *Factory) waitCRD(ctx context.Context, crdName string, gvk schema.GroupVersionKind, crdStatus map[schema.GroupVersionKind]*apiext.CustomResourceDefinition) error {
+	logrus.Infof("Waiting for CRD %s to become available", crdName)
+	defer logrus.Infof("Done waiting for CRD %s to become available", crdName)
+
+	first := true
+	return wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+		if !first {
+			logrus.Infof("Waiting for CRD %s to become available", crdName)
+		}
+		first = false
+
+		crd, err := f.client.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		for _, cond := range crd.Status.Conditions {
+			switch cond.Type {
+			case apiext.Established:
+				if cond.Status == apiext.ConditionTrue {
+					crdStatus[gvk] = crd
+					return true, err
+				}
+			case apiext.NamesAccepted:
+				if cond.Status == apiext.ConditionFalse {
+					logrus.Infof("Name conflict on %s: %v\n", crdName, cond.Reason)
+				}
+			}
+		}
+
+		return false, ctx.Err()
+	})
 }

@@ -22,11 +22,11 @@ func createCRDs(ctx context.Context, server *server.Server) error {
 		return err
 	}
 	return factory.
-		CreateCRDsIfNotExisted(
+		BatchCreateCRDsIfNotExisted(
 			crd.NonNamespacedFromGV(v1alpha1.SchemeGroupVersion, "Setting"),
 			crd.NonNamespacedFromGV(v1alpha1.SchemeGroupVersion, "User"),
 		).
-		CreateCRDsIfNotExisted(
+		BatchCreateCRDsIfNotExisted(
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineImage"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "KeyPair"),
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplate"),
@@ -34,7 +34,7 @@ func createCRDs(ctx context.Context, server *server.Server) error {
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "Preference"),
 			createNetworkAttachmentDefinitionCRD(),
 		).
-		Wait()
+		BatchWait()
 }
 
 func createNetworkAttachmentDefinitionCRD() wcrd.CRD {

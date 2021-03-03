@@ -6,21 +6,21 @@ metadata:
   name: kubevirts.kubevirt.io
 spec:
   additionalPrinterColumns:
-  - JSONPath: .metadata.creationTimestamp
-    name: Age
-    type: date
-  - JSONPath: .status.phase
-    name: Phase
-    type: string
+    - JSONPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - JSONPath: .status.phase
+      name: Phase
+      type: string
   group: kubevirt.io
   names:
     categories:
-    - all
+      - all
     kind: KubeVirt
     plural: kubevirts
     shortNames:
-    - kv
-    - kvs
+      - kv
+      - kvs
     singular: kubevirt
   preserveUnknownFields: false
   scope: Namespaced
@@ -59,8 +59,8 @@ spec:
                   type: string
                 cpuRequest:
                   anyOf:
-                  - type: integer
-                  - type: string
+                    - type: integer
+                    - type: string
                   pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                   x-kubernetes-int-or-string: true
                 developerConfiguration:
@@ -72,6 +72,25 @@ spec:
                       items:
                         type: string
                       type: array
+                    logVerbosity:
+                      description: LogVerbosity sets log verbosity level of  various components
+                      properties:
+                        nodeVerbosity:
+                          additionalProperties:
+                            type: integer
+                          description: NodeVerbosity represents a map of nodes with a specific verbosity level
+                          type: object
+                        virtAPI:
+                          type: integer
+                        virtController:
+                          type: integer
+                        virtHandler:
+                          type: integer
+                        virtLauncher:
+                          type: integer
+                        virtOperator:
+                          type: integer
+                      type: object
                     memoryOvercommit:
                       type: integer
                     nodeSelectors:
@@ -104,8 +123,8 @@ spec:
                       type: boolean
                     bandwidthPerMigration:
                       anyOf:
-                      - type: integer
-                      - type: string
+                        - type: integer
+                        - type: string
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
                     completionTimeoutPerGiB:
@@ -151,8 +170,8 @@ spec:
                           resourceName:
                             type: string
                         required:
-                        - mdevNameSelector
-                        - resourceName
+                          - mdevNameSelector
+                          - resourceName
                         type: object
                       type: array
                       x-kubernetes-list-type: atomic
@@ -167,8 +186,8 @@ spec:
                           resourceName:
                             type: string
                         required:
-                        - pciVendorSelector
-                        - resourceName
+                          - pciVendorSelector
+                          - resourceName
                         type: object
                       type: array
                       x-kubernetes-list-type: atomic
@@ -256,8 +275,8 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                       matchFields:
@@ -277,8 +296,8 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                     type: object
@@ -287,8 +306,8 @@ spec:
                                     format: int32
                                     type: integer
                                 required:
-                                - preference
-                                - weight
+                                  - preference
+                                  - weight
                                 type: object
                               type: array
                             requiredDuringSchedulingIgnoredDuringExecution:
@@ -316,8 +335,8 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                       matchFields:
@@ -337,14 +356,14 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                     type: object
                                   type: array
                               required:
-                              - nodeSelectorTerms
+                                - nodeSelectorTerms
                               type: object
                           type: object
                         podAffinity:
@@ -378,8 +397,8 @@ spec:
                                                     type: string
                                                   type: array
                                               required:
-                                              - key
-                                              - operator
+                                                - key
+                                                - operator
                                               type: object
                                             type: array
                                           matchLabels:
@@ -397,15 +416,15 @@ spec:
                                         description: This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.
                                         type: string
                                     required:
-                                    - topologyKey
+                                      - topologyKey
                                     type: object
                                   weight:
                                     description: weight associated with matching the corresponding podAffinityTerm, in the range 1-100.
                                     format: int32
                                     type: integer
                                 required:
-                                - podAffinityTerm
-                                - weight
+                                  - podAffinityTerm
+                                  - weight
                                 type: object
                               type: array
                             requiredDuringSchedulingIgnoredDuringExecution:
@@ -433,8 +452,8 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                       matchLabels:
@@ -452,7 +471,7 @@ spec:
                                     description: This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.
                                     type: string
                                 required:
-                                - topologyKey
+                                  - topologyKey
                                 type: object
                               type: array
                           type: object
@@ -487,8 +506,8 @@ spec:
                                                     type: string
                                                   type: array
                                               required:
-                                              - key
-                                              - operator
+                                                - key
+                                                - operator
                                               type: object
                                             type: array
                                           matchLabels:
@@ -506,15 +525,15 @@ spec:
                                         description: This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.
                                         type: string
                                     required:
-                                    - topologyKey
+                                      - topologyKey
                                     type: object
                                   weight:
                                     description: weight associated with matching the corresponding podAffinityTerm, in the range 1-100.
                                     format: int32
                                     type: integer
                                 required:
-                                - podAffinityTerm
-                                - weight
+                                  - podAffinityTerm
+                                  - weight
                                 type: object
                               type: array
                             requiredDuringSchedulingIgnoredDuringExecution:
@@ -542,8 +561,8 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                       matchLabels:
@@ -561,7 +580,7 @@ spec:
                                     description: This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.
                                     type: string
                                 required:
-                                - topologyKey
+                                  - topologyKey
                                 type: object
                               type: array
                           type: object
@@ -648,8 +667,8 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                       matchFields:
@@ -669,8 +688,8 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                     type: object
@@ -679,8 +698,8 @@ spec:
                                     format: int32
                                     type: integer
                                 required:
-                                - preference
-                                - weight
+                                  - preference
+                                  - weight
                                 type: object
                               type: array
                             requiredDuringSchedulingIgnoredDuringExecution:
@@ -708,8 +727,8 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                       matchFields:
@@ -729,14 +748,14 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                     type: object
                                   type: array
                               required:
-                              - nodeSelectorTerms
+                                - nodeSelectorTerms
                               type: object
                           type: object
                         podAffinity:
@@ -770,8 +789,8 @@ spec:
                                                     type: string
                                                   type: array
                                               required:
-                                              - key
-                                              - operator
+                                                - key
+                                                - operator
                                               type: object
                                             type: array
                                           matchLabels:
@@ -789,15 +808,15 @@ spec:
                                         description: This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.
                                         type: string
                                     required:
-                                    - topologyKey
+                                      - topologyKey
                                     type: object
                                   weight:
                                     description: weight associated with matching the corresponding podAffinityTerm, in the range 1-100.
                                     format: int32
                                     type: integer
                                 required:
-                                - podAffinityTerm
-                                - weight
+                                  - podAffinityTerm
+                                  - weight
                                 type: object
                               type: array
                             requiredDuringSchedulingIgnoredDuringExecution:
@@ -825,8 +844,8 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                       matchLabels:
@@ -844,7 +863,7 @@ spec:
                                     description: This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.
                                     type: string
                                 required:
-                                - topologyKey
+                                  - topologyKey
                                 type: object
                               type: array
                           type: object
@@ -879,8 +898,8 @@ spec:
                                                     type: string
                                                   type: array
                                               required:
-                                              - key
-                                              - operator
+                                                - key
+                                                - operator
                                               type: object
                                             type: array
                                           matchLabels:
@@ -898,15 +917,15 @@ spec:
                                         description: This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.
                                         type: string
                                     required:
-                                    - topologyKey
+                                      - topologyKey
                                     type: object
                                   weight:
                                     description: weight associated with matching the corresponding podAffinityTerm, in the range 1-100.
                                     format: int32
                                     type: integer
                                 required:
-                                - podAffinityTerm
-                                - weight
+                                  - podAffinityTerm
+                                  - weight
                                 type: object
                               type: array
                             requiredDuringSchedulingIgnoredDuringExecution:
@@ -934,8 +953,8 @@ spec:
                                                 type: string
                                               type: array
                                           required:
-                                          - key
-                                          - operator
+                                            - key
+                                            - operator
                                           type: object
                                         type: array
                                       matchLabels:
@@ -953,7 +972,7 @@ spec:
                                     description: This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.
                                     type: string
                                 required:
-                                - topologyKey
+                                  - topologyKey
                                 type: object
                               type: array
                           type: object
@@ -1013,8 +1032,8 @@ spec:
                   type:
                     type: string
                 required:
-                - status
-                - type
+                  - status
+                  - type
                 type: object
               type: array
             observedDeploymentConfig:
@@ -1040,14 +1059,13 @@ spec:
               type: string
           type: object
       required:
-      - spec
+        - spec
       type: object
   version: v1
   versions:
-  - name: v1
-    served: true
-    storage: false
-  - name: v1alpha3
-    served: true
-    storage: true
-
+    - name: v1
+      served: true
+      storage: false
+    - name: v1alpha3
+      served: true
+      storage: true

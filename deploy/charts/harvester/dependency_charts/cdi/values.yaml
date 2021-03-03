@@ -28,3 +28,14 @@ spec:
   ## -- If specifies to BlockUninstallIfWorkloadsExist, we cannot drop CDI CRD directly, we need to change this field to blank or RemoveWorkloads.
   ##
   uninstallStrategy: "RemoveWorkloads"
+
+  ## Specify the CDI infra config
+  infra:
+    nodeSelector:
+      kubernetes.io/os: linux
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+    workload:
+      nodeSelector:
+        kubernetes.io/os: linux

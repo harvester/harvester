@@ -95,7 +95,7 @@ spec:
               value: {{ .Values.containers.uploadserver.image.repository }}:{{ default .Values.containers.operator.image.tag .Values.containers.uploadserver.image.tag }}
             - name: UPLOAD_PROXY_IMAGE
               value: {{ .Values.containers.uploadproxy.image.repository }}:{{ default .Values.containers.operator.image.tag .Values.containers.uploadproxy.image.tag }}
-          # NB(thxCode): there is not metrics exporter from cdi-operator implementation.
+          # NB(thxCode): there is no metrics exporter from cdi-operator implementation.
           # ports:
             # - containerPort: 60000
             #  name: metrics

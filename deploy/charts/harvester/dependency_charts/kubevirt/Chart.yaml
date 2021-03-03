@@ -1,7 +1,7 @@
 apiVersion: v2
 name: kubevirt
 version: 0.1.0
-appVersion: v1alpha3
+appVersion: v1
 description: KubeVirt creates a KubeVirt CRD instance into target Namespace.
 icon: https://kubevirt.io/assets/images/KubeVirt_logo_color.svg
 type: application

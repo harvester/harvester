@@ -32,7 +32,7 @@ kubevirt-operator:
     operator:
       image:
         repository: quay.io/kubevirt/virt-operator
-        tag: &kubevirtVersion v0.37.2
+        tag: &kubevirtVersion v0.38.1
     ## The following four images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
@@ -97,7 +97,7 @@ cdi-operator:
     operator:
       image:
         repository: quay.io/kubevirt/cdi-operator
-        tag: &cdiVersion v1.28.3
+        tag: &cdiVersion v1.31.0
     controller:
       image:
         repository: quay.io/kubevirt/cdi-controller
@@ -442,7 +442,7 @@ harvester-network-controller:
     repository: rancher/harvester-network-controller
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "master-head"
+    tag: master-head
 
 multus:
   ## Specify whether to install the multus-cni,
