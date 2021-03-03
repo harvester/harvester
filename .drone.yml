@@ -161,6 +161,24 @@ steps:
     instance:
       - drone-publish.rancher.io
 
+- name: docker-publish
+  image: plugins/docker
+  settings:
+    build_args:
+      - ARCH=amd64
+    context: package/
+    custom_dns: 1.1.1.1
+    dockerfile: package/Dockerfile.bundle
+    password:
+      from_secret: docker_password
+    repo: "rancher/harvester-bundle"
+    tag: "${DRONE_TAG}"
+    username:
+      from_secret: docker_username
+  when:
+    instance:
+      - drone-publish.rancher.io
+
 trigger:
   event:
   - tag
