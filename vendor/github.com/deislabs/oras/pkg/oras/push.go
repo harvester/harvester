@@ -18,9 +18,6 @@ func Push(ctx context.Context, resolver remotes.Resolver, ref string, provider c
 	if resolver == nil {
 		return ocispec.Descriptor{}, ErrResolverUndefined
 	}
-	if len(descriptors) == 0 {
-		return ocispec.Descriptor{}, ErrEmptyDescriptors
-	}
 	opt := pushOptsDefaults()
 	for _, o := range opts {
 		if err := o(opt); err != nil {
@@ -87,6 +84,9 @@ func pack(provider content.Provider, descriptors []ocispec.Descriptor, opts *pus
 		return *opts.manifest, store, nil
 	}
 
+	if descriptors == nil {
+		descriptors = []ocispec.Descriptor{} // make it an empty array to prevent potential server-side bugs
+	}
 	manifest := ocispec.Manifest{
 		Versioned: specs.Versioned{
 			SchemaVersion: 2, // historical value. does not pertain to OCI or docker version

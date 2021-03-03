@@ -35,6 +35,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 )
 
@@ -99,8 +101,6 @@ type Builder struct {
 	continueOnError    bool
 
 	singleItemImplied bool
-
-	export bool
 
 	schema ContentValidator
 
@@ -176,6 +176,25 @@ func newBuilder(clientConfigFn ClientConfigFunc, restMapper RESTMapperFunc, cate
 		categoryExpanderFn: categoryExpander,
 		requireObject:      true,
 	}
+}
+
+// noopClientGetter implements RESTClientGetter returning only errors.
+// used as a dummy getter in a local-only builder.
+type noopClientGetter struct{}
+
+func (noopClientGetter) ToRESTConfig() (*rest.Config, error) {
+	return nil, fmt.Errorf("local operation only")
+}
+func (noopClientGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	return nil, fmt.Errorf("local operation only")
+}
+func (noopClientGetter) ToRESTMapper() (meta.RESTMapper, error) {
+	return nil, fmt.Errorf("local operation only")
+}
+
+// NewLocalBuilder returns a builder that is configured not to create REST clients and avoids asking the server for results.
+func NewLocalBuilder() *Builder {
+	return NewBuilder(noopClientGetter{}).Local()
 }
 
 func NewBuilder(restClientGetter RESTClientGetter) *Builder {
@@ -458,12 +477,6 @@ func (b *Builder) FieldSelectorParam(s string) *Builder {
 		return b
 	}
 	b.fieldSelector = &s
-	return b
-}
-
-// ExportParam accepts the export boolean for these resources
-func (b *Builder) ExportParam(export bool) *Builder {
-	b.export = export
 	return b
 }
 
@@ -870,7 +883,7 @@ func (b *Builder) visitBySelector() *Result {
 		if mapping.Scope.Name() != meta.RESTScopeNameNamespace {
 			selectorNamespace = ""
 		}
-		visitors = append(visitors, NewSelector(client, mapping, selectorNamespace, labelSelector, fieldSelector, b.export, b.limitChunks))
+		visitors = append(visitors, NewSelector(client, mapping, selectorNamespace, labelSelector, fieldSelector, b.limitChunks))
 	}
 	if b.continueOnError {
 		result.visitor = EagerVisitorList(visitors)
@@ -970,7 +983,6 @@ func (b *Builder) visitByResource() *Result {
 			Mapping:   mapping,
 			Namespace: selectorNamespace,
 			Name:      tuple.Name,
-			Export:    b.export,
 		}
 		items = append(items, info)
 	}
@@ -1035,7 +1047,6 @@ func (b *Builder) visitByName() *Result {
 			Mapping:   mapping,
 			Namespace: selectorNamespace,
 			Name:      name,
-			Export:    b.export,
 		}
 		visitors = append(visitors, info)
 	}

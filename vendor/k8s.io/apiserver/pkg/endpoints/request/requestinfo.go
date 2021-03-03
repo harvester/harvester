@@ -28,7 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // LongRunningRequestCheck is a predicate which is true for long-running http requests.
@@ -77,7 +77,7 @@ var specialVerbsNoSubresources = sets.NewString("proxy")
 // this list allows the parser to distinguish between a namespace subresource, and a namespaced resource
 var namespaceSubresources = sets.NewString("status", "finalize")
 
-// NamespaceSubResourcesForTest exports namespaceSubresources for testing in pkg/master/master_test.go, so we never drift
+// NamespaceSubResourcesForTest exports namespaceSubresources for testing in pkg/controlplane/master_test.go, so we never drift
 var NamespaceSubResourcesForTest = sets.NewString(namespaceSubresources.List()...)
 
 type RequestInfoFactory struct {

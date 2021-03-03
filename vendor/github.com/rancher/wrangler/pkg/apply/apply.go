@@ -131,10 +131,22 @@ type clients struct {
 	clients       map[schema.GroupVersionKind]dynamic.NamespaceableResourceInterface
 }
 
-func (c *clients) IsNamespaced(gvk schema.GroupVersionKind) bool {
+func (c *clients) IsNamespaced(gvk schema.GroupVersionKind) (bool, error) {
+	c.Lock()
+	ok, exists := c.namespaced[gvk]
+	c.Unlock()
+
+	if exists {
+		return ok, nil
+	}
+	_, err := c.client(gvk)
+	if err != nil {
+		return false, err
+	}
+
 	c.Lock()
 	defer c.Unlock()
-	return c.namespaced[gvk]
+	return c.namespaced[gvk], nil
 }
 
 func (c *clients) gvr(gvk schema.GroupVersionKind) schema.GroupVersionResource {

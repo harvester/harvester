@@ -91,8 +91,8 @@ var (
 		"Progressing": "inactive",
 	}
 
-	// True ==
-	// False == transitioning
+	// True == transitioning
+	// False ==
 	// Unknown == error
 	TransitioningTrue = map[string]string{
 		"Reconciling": "reconciling",

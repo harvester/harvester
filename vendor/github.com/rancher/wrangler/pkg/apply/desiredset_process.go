@@ -46,7 +46,7 @@ func (o *desiredSet) getControllerAndClient(debugID string, gvk schema.GroupVers
 		informer = newInformer
 	}
 	if informer == nil && o.strictCaching {
-		return nil, nil, fmt.Errorf("failed to find informer for %s for %s", gvk, debugID)
+		return nil, nil, fmt.Errorf("failed to find informer for %s for %s: %w", gvk, debugID, ErrNoInformerFound)
 	}
 
 	return informer, client, nil
@@ -61,17 +61,29 @@ func (o *desiredSet) assignOwnerReference(gvk schema.GroupVersionKind, objs map[
 		return err
 	}
 	ownerGVK, err := gvk2.Get(o.owner)
-	ownerNSed := o.a.clients.IsNamespaced(ownerGVK)
+	if err != nil {
+		return err
+	}
+	ownerNSed, err := o.a.clients.IsNamespaced(ownerGVK)
+	if err != nil {
+		return err
+	}
 
 	for k, v := range objs {
 		// can't set owners across boundaries
-		if ownerNSed && !o.a.clients.IsNamespaced(gvk) {
-			continue
+		if ownerNSed {
+			if nsed, err := o.a.clients.IsNamespaced(gvk); err != nil {
+				return err
+			} else if !nsed {
+				continue
+			}
 		}
 
 		assignNS := false
 		assignOwner := true
-		if o.a.clients.IsNamespaced(gvk) {
+		if nsed, err := o.a.clients.IsNamespaced(gvk); err != nil {
+			return err
+		} else if nsed {
 			if k.Namespace == "" {
 				assignNS = true
 			} else if k.Namespace != ownerMeta.GetNamespace() && ownerNSed {
@@ -198,7 +210,11 @@ func (o *desiredSet) process(debugID string, set labels.Selector, gvk schema.Gro
 		return
 	}
 
-	nsed := o.a.clients.IsNamespaced(gvk)
+	nsed, err := o.a.clients.IsNamespaced(gvk)
+	if err != nil {
+		o.err(err)
+		return
+	}
 
 	if !nsed && o.restrictClusterScoped {
 		o.err(fmt.Errorf("invalid cluster scoped gvk: %v", gvk))

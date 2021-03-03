@@ -13,9 +13,10 @@ import (
 )
 
 type Options struct {
-	Namespace string
-	Resync    time.Duration
-	TweakList TweakListOptionsFunc
+	Namespace   string
+	Resync      time.Duration
+	TweakList   TweakListOptionsFunc
+	WaitHealthy func(ctx context.Context)
 }
 
 func NewCache(obj, listObj runtime.Object, client *client.Client, opts *Options) cache.SharedIndexInformer {
@@ -28,10 +29,11 @@ func NewCache(obj, listObj runtime.Object, client *client.Client, opts *Options)
 	opts = applyDefaultCacheOptions(opts)
 
 	lw := &deferredListWatcher{
-		client:    client,
-		tweakList: opts.TweakList,
-		namespace: opts.Namespace,
-		listObj:   listObj,
+		client:      client,
+		tweakList:   opts.TweakList,
+		namespace:   opts.Namespace,
+		listObj:     listObj,
+		waitHealthy: opts.WaitHealthy,
 	}
 
 	return &deferredCache{
@@ -65,11 +67,12 @@ type deferredCache struct {
 }
 
 type deferredListWatcher struct {
-	lw        cache.ListerWatcher
-	client    *client.Client
-	tweakList TweakListOptionsFunc
-	namespace string
-	listObj   runtime.Object
+	lw          cache.ListerWatcher
+	client      *client.Client
+	tweakList   TweakListOptionsFunc
+	namespace   string
+	listObj     runtime.Object
+	waitHealthy func(ctx context.Context)
 }
 
 func (d *deferredListWatcher) List(options metav1.ListOptions) (runtime.Object, error) {
@@ -104,6 +107,9 @@ func (d *deferredListWatcher) run(stopCh <-chan struct{}) {
 			}
 			listObj := d.listObj.DeepCopyObject()
 			err := d.client.List(ctx, d.namespace, listObj, options)
+			if err != nil && d.waitHealthy != nil {
+				d.waitHealthy(ctx)
+			}
 			return listObj, err
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {

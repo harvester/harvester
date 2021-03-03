@@ -36,7 +36,7 @@ type sharedController struct {
 	sharedCacheFactory cache.SharedCacheFactory
 	controller         Controller
 	gvk                schema.GroupVersionKind
-	handler            *sharedHandler
+	handler            *SharedHandler
 	startLock          sync.Mutex
 	started            bool
 	startError         error

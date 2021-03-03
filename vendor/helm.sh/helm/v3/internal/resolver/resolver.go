@@ -27,10 +27,14 @@ import (
 	"github.com/pkg/errors"
 
 	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/gates"
 	"helm.sh/helm/v3/pkg/helmpath"
 	"helm.sh/helm/v3/pkg/provenance"
 	"helm.sh/helm/v3/pkg/repo"
 )
+
+const FeatureGateOCI = gates.Gate("HELM_EXPERIMENTAL_OCI")
 
 // Resolver resolves dependencies from semantic version ranges to a particular version.
 type Resolver struct {
@@ -68,17 +72,26 @@ func (r *Resolver) Resolve(reqs []*chart.Dependency, repoNames map[string]string
 		}
 		if strings.HasPrefix(d.Repository, "file://") {
 
-			if _, err := GetLocalPath(d.Repository, r.chartpath); err != nil {
+			chartpath, err := GetLocalPath(d.Repository, r.chartpath)
+			if err != nil {
+				return nil, err
+			}
+
+			// The version of the chart locked will be the version of the chart
+			// currently listed in the file system within the chart.
+			ch, err := loader.LoadDir(chartpath)
+			if err != nil {
 				return nil, err
 			}
 
 			locked[i] = &chart.Dependency{
 				Name:       d.Name,
 				Repository: d.Repository,
-				Version:    d.Version,
+				Version:    ch.Metadata.Version,
 			}
 			continue
 		}
+
 		constraint, err := semver.NewConstraint(d.Version)
 		if err != nil {
 			return nil, errors.Wrapf(err, "dependency %q has an invalid version/constraint format", d.Name)
@@ -95,21 +108,34 @@ func (r *Resolver) Resolve(reqs []*chart.Dependency, repoNames map[string]string
 			continue
 		}
 
-		repoIndex, err := repo.LoadIndexFile(filepath.Join(r.cachepath, helmpath.CacheIndexFile(repoName)))
-		if err != nil {
-			return nil, errors.Wrapf(err, "no cached repository for %s found. (try 'helm repo update')", repoName)
-		}
+		var vs repo.ChartVersions
+		var version string
+		var ok bool
+		found := true
+		if !strings.HasPrefix(d.Repository, "oci://") {
+			repoIndex, err := repo.LoadIndexFile(filepath.Join(r.cachepath, helmpath.CacheIndexFile(repoName)))
+			if err != nil {
+				return nil, errors.Wrapf(err, "no cached repository for %s found. (try 'helm repo update')", repoName)
+			}
 
-		vs, ok := repoIndex.Entries[d.Name]
-		if !ok {
-			return nil, errors.Errorf("%s chart not found in repo %s", d.Name, d.Repository)
+			vs, ok = repoIndex.Entries[d.Name]
+			if !ok {
+				return nil, errors.Errorf("%s chart not found in repo %s", d.Name, d.Repository)
+			}
+			found = false
+		} else {
+			version = d.Version
+			if !FeatureGateOCI.IsEnabled() {
+				return nil, errors.Wrapf(FeatureGateOCI.Error(),
+					"repository %s is an OCI registry", d.Repository)
+			}
 		}
 
 		locked[i] = &chart.Dependency{
 			Name:       d.Name,
 			Repository: d.Repository,
+			Version:    version,
 		}
-		found := false
 		// The version are already sorted and hence the first one to satisfy the constraint is used
 		for _, ver := range vs {
 			v, err := semver.NewVersion(ver.Version)

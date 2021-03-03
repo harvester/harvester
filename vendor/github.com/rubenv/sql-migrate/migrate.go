@@ -193,6 +193,7 @@ var MigrationDialects = map[string]gorp.Dialect{
 	"mysql":    gorp.MySQLDialect{Engine: "InnoDB", Encoding: "UTF8"},
 	"mssql":    gorp.SqlServerDialect{},
 	"oci8":     OracleDialect{},
+	"godror":   OracleDialect{},
 }
 
 type MigrationSource interface {
@@ -274,7 +275,8 @@ func findMigrations(dir http.FileSystem) ([]*Migration, error) {
 }
 
 func migrationFromFile(dir http.FileSystem, info os.FileInfo) (*Migration, error) {
-	file, err := dir.Open(info.Name())
+	path := fmt.Sprintf("/%s", strings.TrimPrefix(info.Name(), "/"))
+	file, err := dir.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("Error while opening %s: %s", info.Name(), err)
 	}
@@ -706,7 +708,7 @@ func (ms MigrationSet) GetMigrationRecords(db *sql.DB, dialect string) ([]*Migra
 	}
 
 	var records []*MigrationRecord
-	query := fmt.Sprintf("SELECT * FROM %s ORDER BY id ASC", dbMap.Dialect.QuotedTableForQuery(ms.SchemaName, ms.getTableName()))
+	query := fmt.Sprintf("SELECT * FROM %s ORDER BY %s ASC", dbMap.Dialect.QuotedTableForQuery(ms.SchemaName, ms.getTableName()), dbMap.Dialect.QuoteField("id"))
 	_, err = dbMap.Select(&records, query)
 	if err != nil {
 		return nil, err
@@ -746,7 +748,7 @@ Check https://github.com/go-sql-driver/mysql#parsetime for more info.`)
 	table := dbMap.AddTableWithNameAndSchema(MigrationRecord{}, ms.SchemaName, ms.getTableName()).SetKeys(false, "Id")
 	//dbMap.TraceOn("", log.New(os.Stdout, "migrate: ", log.Lmicroseconds))
 
-	if dialect == "oci8" {
+	if dialect == "oci8" || dialect == "godror" {
 		table.ColMap("Id").SetMaxSize(4000)
 	}
 
@@ -754,7 +756,7 @@ Check https://github.com/go-sql-driver/mysql#parsetime for more info.`)
 	if err != nil {
 		// Oracle database does not support `if not exists`, so use `ORA-00955:` error code
 		// to check if the table exists.
-		if dialect == "oci8" && strings.HasPrefix(err.Error(), "ORA-00955:") {
+		if (dialect == "oci8" || dialect == "godror") && strings.Contains(err.Error(), "ORA-00955:") {
 			return dbMap, nil
 		}
 		return nil, err

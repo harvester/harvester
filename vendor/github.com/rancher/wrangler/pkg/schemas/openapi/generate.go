@@ -27,10 +27,10 @@ func ToOpenAPIFromStruct(obj interface{}) (*v1beta1.JSONSchemaProps, error) {
 		return nil, err
 	}
 
-	return toOpenAPI(schema.ID, schemas)
+	return ToOpenAPI(schema.ID, schemas)
 }
 
-func toOpenAPI(name string, schemas *types.Schemas) (*v1beta1.JSONSchemaProps, error) {
+func ToOpenAPI(name string, schemas *types.Schemas) (*v1beta1.JSONSchemaProps, error) {
 	schema := schemas.Schema(name)
 	if schema == nil {
 		return nil, fmt.Errorf("failed to find schema: %s", name)
