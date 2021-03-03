@@ -16,6 +16,8 @@ limitations under the License.
 package downloader
 
 import (
+	"crypto"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -31,6 +34,7 @@ import (
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
 
+	"helm.sh/helm/v3/internal/experimental/registry"
 	"helm.sh/helm/v3/internal/resolver"
 	"helm.sh/helm/v3/internal/third_party/dep/fs"
 	"helm.sh/helm/v3/internal/urlutil"
@@ -41,6 +45,17 @@ import (
 	"helm.sh/helm/v3/pkg/helmpath"
 	"helm.sh/helm/v3/pkg/repo"
 )
+
+// ErrRepoNotFound indicates that chart repositories can't be found in local repo cache.
+// The value of Repos is missing repos.
+type ErrRepoNotFound struct {
+	Repos []string
+}
+
+// Error implements the error interface.
+func (e ErrRepoNotFound) Error() string {
+	return fmt.Sprintf("no repository definition for %s", strings.Join(e.Repos, ", "))
+}
 
 // Manager handles the lifecycle of fetching, resolving, and storing dependencies.
 type Manager struct {
@@ -58,6 +73,7 @@ type Manager struct {
 	SkipUpdate bool
 	// Getter collection for the operation
 	Getters          []getter.Provider
+	RegistryClient   *registry.Client
 	RepositoryConfig string
 	RepositoryCache  string
 }
@@ -147,14 +163,27 @@ func (m *Manager) Update() error {
 		return nil
 	}
 
-	// Check that all of the repos we're dependent on actually exist and
-	// the repo index names.
+	// Get the names of the repositories the dependencies need that Helm is
+	// configured to know about.
 	repoNames, err := m.resolveRepoNames(req)
 	if err != nil {
 		return err
 	}
 
-	// For each repo in the file, update the cached copy of that repo
+	// For the repositories Helm is not configured to know about, ensure Helm
+	// has some information about them and, when possible, the index files
+	// locally.
+	// TODO(mattfarina): Repositories should be explicitly added by end users
+	// rather than automattic. In Helm v4 require users to add repositories. They
+	// should have to add them in order to make sure they are aware of the
+	// respoitories and opt-in to any locations, for security.
+	repoNames, err = m.ensureMissingRepos(repoNames, req)
+	if err != nil {
+		return err
+	}
+
+	// For each of the repositories Helm is configured to know about, update
+	// the index information locally.
 	if !m.SkipUpdate {
 		if err := m.UpdateRepositories(); err != nil {
 			return err
@@ -306,7 +335,24 @@ func (m *Manager) downloadAll(deps []*chart.Dependency) error {
 			},
 		}
 
-		if _, _, err := dl.DownloadTo(churl, "", destPath); err != nil {
+		version := ""
+		if strings.HasPrefix(churl, "oci://") {
+			if !resolver.FeatureGateOCI.IsEnabled() {
+				return errors.Wrapf(resolver.FeatureGateOCI.Error(),
+					"the repository %s is an OCI registry", churl)
+			}
+
+			churl, version, err = parseOCIRef(churl)
+			if err != nil {
+				return errors.Wrapf(err, "could not parse OCI reference")
+			}
+			dl.Options = append(dl.Options,
+				getter.WithRegistryClient(m.RegistryClient),
+				getter.WithTagName(version))
+		}
+
+		_, _, err = dl.DownloadTo(churl, version, destPath)
+		if err != nil {
 			saveError = errors.Wrapf(err, "could not download %s", churl)
 			break
 		}
@@ -347,6 +393,18 @@ func (m *Manager) downloadAll(deps []*chart.Dependency) error {
 		return saveError
 	}
 	return nil
+}
+
+func parseOCIRef(chartRef string) (string, string, error) {
+	refTagRegexp := regexp.MustCompile(`^(oci://[^:]+(:[0-9]{1,5})?[^:]+):(.*)$`)
+	caps := refTagRegexp.FindStringSubmatch(chartRef)
+	if len(caps) != 4 {
+		return "", "", errors.Errorf("improperly formatted oci chart reference: %s", chartRef)
+	}
+	chartRef = caps[1]
+	tag := caps[3]
+
+	return chartRef, tag, nil
 }
 
 // safeDeleteDep deletes any versions of the given dependency in the given directory.
@@ -395,8 +453,8 @@ func (m *Manager) hasAllRepos(deps []*chart.Dependency) error {
 	missing := []string{}
 Loop:
 	for _, dd := range deps {
-		// If repo is from local path, continue
-		if strings.HasPrefix(dd.Repository, "file://") {
+		// If repo is from local path or OCI, continue
+		if strings.HasPrefix(dd.Repository, "file://") || strings.HasPrefix(dd.Repository, "oci://") {
 			continue
 		}
 
@@ -411,9 +469,71 @@ Loop:
 		missing = append(missing, dd.Repository)
 	}
 	if len(missing) > 0 {
-		return errors.Errorf("no repository definition for %s. Please add the missing repos via 'helm repo add'", strings.Join(missing, ", "))
+		return ErrRepoNotFound{missing}
 	}
 	return nil
+}
+
+// ensureMissingRepos attempts to ensure the repository information for repos
+// not managed by Helm is present. This takes in the repoNames Helm is configured
+// to work with along with the chart dependencies. It will find the deps not
+// in a known repo and attempt to ensure the data is present for steps like
+// version resolution.
+func (m *Manager) ensureMissingRepos(repoNames map[string]string, deps []*chart.Dependency) (map[string]string, error) {
+
+	var ru []*repo.Entry
+
+	for _, dd := range deps {
+
+		// If the chart is in the local charts directory no repository needs
+		// to be specified.
+		if dd.Repository == "" {
+			continue
+		}
+
+		// When the repoName for a dependency is known we can skip ensuring
+		if _, ok := repoNames[dd.Name]; ok {
+			continue
+		}
+
+		// The generated repository name, which will result in an index being
+		// locally cached, has a name pattern of "helm-manager-" followed by a
+		// sha256 of the repo name. This assumes end users will never create
+		// repositories with these names pointing to other repositories. Using
+		// this method of naming allows the existing repository pulling and
+		// resolution code to do most of the work.
+		rn, err := key(dd.Repository)
+		if err != nil {
+			return repoNames, err
+		}
+		rn = managerKeyPrefix + rn
+
+		repoNames[dd.Name] = rn
+
+		// Assuming the repository is generally available. For Helm managed
+		// access controls the repository needs to be added through the user
+		// managed system. This path will work for public charts, like those
+		// supplied by Bitnami, but not for protected charts, like corp ones
+		// behind a username and pass.
+		ri := &repo.Entry{
+			Name: rn,
+			URL:  dd.Repository,
+		}
+		ru = append(ru, ri)
+	}
+
+	// Calls to UpdateRepositories (a public function) will only update
+	// repositories configured by the user. Here we update repos found in
+	// the dependencies that are not known to the user if update skipping
+	// is not configured.
+	if !m.SkipUpdate && len(ru) > 0 {
+		fmt.Fprintln(m.Out, "Getting updates for unmanaged Helm repositories...")
+		if err := m.parallelRepoUpdate(ru); err != nil {
+			return repoNames, err
+		}
+	}
+
+	return repoNames, nil
 }
 
 // resolveRepoNames returns the repo names of the referenced deps which can be used to fetch the cached index file
@@ -435,7 +555,8 @@ func (m *Manager) resolveRepoNames(deps []*chart.Dependency) (map[string]string,
 	missing := []string{}
 	for _, dd := range deps {
 		// Don't map the repository, we don't need to download chart from charts directory
-		if dd.Repository == "" {
+		// When OCI is used there is no Helm repository
+		if dd.Repository == "" || strings.HasPrefix(dd.Repository, "oci://") {
 			continue
 		}
 		// if dep chart is from local path, verify the path is valid
@@ -447,6 +568,11 @@ func (m *Manager) resolveRepoNames(deps []*chart.Dependency) (map[string]string,
 			if m.Debug {
 				fmt.Fprintf(m.Out, "Repository from local path: %s\n", dd.Repository)
 			}
+			reposMap[dd.Name] = dd.Repository
+			continue
+		}
+
+		if strings.HasPrefix(dd.Repository, "oci://") {
 			reposMap[dd.Name] = dd.Repository
 			continue
 		}
@@ -506,16 +632,18 @@ func (m *Manager) UpdateRepositories() error {
 	}
 	repos := rf.Repositories
 	if len(repos) > 0 {
+		fmt.Fprintln(m.Out, "Hang tight while we grab the latest from your chart repositories...")
 		// This prints warnings straight to out.
 		if err := m.parallelRepoUpdate(repos); err != nil {
 			return err
 		}
+		fmt.Fprintln(m.Out, "Update Complete. ⎈Happy Helming!⎈")
 	}
 	return nil
 }
 
 func (m *Manager) parallelRepoUpdate(repos []*repo.Entry) error {
-	fmt.Fprintln(m.Out, "Hang tight while we grab the latest from your chart repositories...")
+
 	var wg sync.WaitGroup
 	for _, c := range repos {
 		r, err := repo.NewChartRepository(c, m.Getters)
@@ -525,15 +653,27 @@ func (m *Manager) parallelRepoUpdate(repos []*repo.Entry) error {
 		wg.Add(1)
 		go func(r *repo.ChartRepository) {
 			if _, err := r.DownloadIndexFile(); err != nil {
-				fmt.Fprintf(m.Out, "...Unable to get an update from the %q chart repository (%s):\n\t%s\n", r.Config.Name, r.Config.URL, err)
+				// For those dependencies that are not known to helm and using a
+				// generated key name we display the repo url.
+				if strings.HasPrefix(r.Config.Name, managerKeyPrefix) {
+					fmt.Fprintf(m.Out, "...Unable to get an update from the %q chart repository:\n\t%s\n", r.Config.URL, err)
+				} else {
+					fmt.Fprintf(m.Out, "...Unable to get an update from the %q chart repository (%s):\n\t%s\n", r.Config.Name, r.Config.URL, err)
+				}
 			} else {
-				fmt.Fprintf(m.Out, "...Successfully got an update from the %q chart repository\n", r.Config.Name)
+				// For those dependencies that are not known to helm and using a
+				// generated key name we display the repo url.
+				if strings.HasPrefix(r.Config.Name, managerKeyPrefix) {
+					fmt.Fprintf(m.Out, "...Successfully got an update from the %q chart repository\n", r.Config.URL)
+				} else {
+					fmt.Fprintf(m.Out, "...Successfully got an update from the %q chart repository\n", r.Config.Name)
+				}
 			}
 			wg.Done()
 		}(r)
 	}
 	wg.Wait()
-	fmt.Fprintln(m.Out, "Update Complete. ⎈Happy Helming!⎈")
+
 	return nil
 }
 
@@ -546,7 +686,12 @@ func (m *Manager) parallelRepoUpdate(repos []*repo.Entry) error {
 //
 // If it finds a URL that is "relative", it will prepend the repoURL.
 func (m *Manager) findChartURL(name, version, repoURL string, repos map[string]*repo.ChartRepository) (url, username, password string, err error) {
+	if strings.HasPrefix(repoURL, "oci://") {
+		return fmt.Sprintf("%s/%s:%s", repoURL, name, version), "", "", nil
+	}
+
 	for _, cr := range repos {
+
 		if urlutil.Equal(repoURL, cr.Config.URL) {
 			var entry repo.ChartVersions
 			entry, err = findEntryByName(name, cr)
@@ -569,10 +714,10 @@ func (m *Manager) findChartURL(name, version, repoURL string, repos map[string]*
 	}
 	url, err = repo.FindChartInRepoURL(repoURL, name, version, "", "", "", m.Getters)
 	if err == nil {
-		return
+		return url, username, password, err
 	}
-	err = errors.Errorf("chart %s not found in %s", name, repoURL)
-	return
+	err = errors.Errorf("chart %s not found in %s: %s", name, repoURL, err)
+	return url, username, password, err
 }
 
 // findEntryByName finds an entry in the chart repository whose name matches the given name.
@@ -727,4 +872,19 @@ func move(tmpPath, destPath string) error {
 		}
 	}
 	return nil
+}
+
+// The prefix to use for cache keys created by the manager for repo names
+const managerKeyPrefix = "helm-manager-"
+
+// key is used to turn a name, such as a repository url, into a filesystem
+// safe name that is unique for querying. To accomplish this a unique hash of
+// the string is used.
+func key(name string) (string, error) {
+	in := strings.NewReader(name)
+	hash := crypto.SHA256.New()
+	if _, err := io.Copy(hash, in); err != nil {
+		return "", nil
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }

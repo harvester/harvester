@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/build"
+	"go/constant"
 	"go/parser"
 	"go/token"
 	tc "go/types"
@@ -335,7 +336,8 @@ func (b *Builder) addDir(dir string, userRequested bool) error {
 	return nil
 }
 
-var regexErrPackageNotFound = regexp.MustCompile(`^unable to import ".*?": cannot find package ".*?" in any of:`)
+// regexErrPackageNotFound helps test the expected error for not finding a package.
+var regexErrPackageNotFound = regexp.MustCompile(`^unable to import ".*?":.*`)
 
 func isErrPackageNotFound(err error) bool {
 	return regexErrPackageNotFound.MatchString(err.Error())
@@ -589,7 +591,7 @@ func (b *Builder) importWithMode(dir string, mode build.ImportMode) (*build.Pack
 	if err != nil {
 		return nil, fmt.Errorf("unable to get current directory: %v", err)
 	}
-	buildPkg, err := b.context.Import(dir, cwd, mode)
+	buildPkg, err := b.context.Import(filepath.ToSlash(dir), cwd, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -763,7 +765,8 @@ func (b *Builder) walkType(u types.Universe, useName *types.Name, in tc.Type) *t
 				out.Methods = map[string]*types.Type{}
 			}
 			method := t.Method(i)
-			mt := b.walkType(u, nil, method.Type())
+			name := tcNameToName(method.String())
+			mt := b.walkType(u, &name, method.Type())
 			mt.CommentLines = splitLines(b.priorCommentLines(method.Pos(), 1).Text())
 			out.Methods[method.Name()] = mt
 		}
@@ -798,7 +801,8 @@ func (b *Builder) walkType(u types.Universe, useName *types.Name, in tc.Type) *t
 					out.Methods = map[string]*types.Type{}
 				}
 				method := t.Method(i)
-				mt := b.walkType(u, nil, method.Type())
+				name := tcNameToName(method.String())
+				mt := b.walkType(u, &name, method.Type())
 				mt.CommentLines = splitLines(b.priorCommentLines(method.Pos(), 1).Text())
 				out.Methods[method.Name()] = mt
 			}
@@ -845,6 +849,22 @@ func (b *Builder) addConstant(u types.Universe, useName *types.Name, in *tc.Cons
 	out := u.Constant(name)
 	out.Kind = types.DeclarationOf
 	out.Underlying = b.walkType(u, nil, in.Type())
+
+	var constval string
+
+	// For strings, we use `StringVal()` to get the un-truncated,
+	// un-quoted string. For other values, `.String()` is preferable to
+	// get something relatively human readable (especially since for
+	// floating point types, `ExactString()` will generate numeric
+	// expressions using `big.(*Float).Text()`.
+	switch in.Val().Kind() {
+	case constant.String:
+		constval = constant.StringVal(in.Val())
+	default:
+		constval = in.Val().String()
+	}
+
+	out.ConstValue = &constval
 	return out
 }
 

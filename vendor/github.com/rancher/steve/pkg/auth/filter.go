@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/token/cache"
 	"k8s.io/apiserver/pkg/authentication/user"
@@ -14,6 +15,16 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/transport"
+)
+
+var (
+	// Default value taken from DefaultAuthWebhookRetryBackoff
+	WebhookBackoff = wait.Backoff{
+		Duration: 500 * time.Millisecond,
+		Factor:   1.5,
+		Jitter:   0.2,
+		Steps:    5,
+	}
 )
 
 var ExistingContext = ToMiddleware(AuthenticatorFunc(func(req *http.Request) (user.Info, bool, error) {
@@ -72,7 +83,7 @@ func WebhookConfigForURL(url string) (string, error) {
 }
 
 func NewWebhookAuthenticator(cacheTTL time.Duration, kubeConfigFile string) (Authenticator, error) {
-	wh, err := webhook.New(kubeConfigFile, "v1", nil, nil)
+	wh, err := webhook.New(kubeConfigFile, "v1", nil, WebhookBackoff, nil)
 	if err != nil {
 		return nil, err
 	}

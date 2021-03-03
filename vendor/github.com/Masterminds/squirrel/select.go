@@ -184,6 +184,9 @@ func (b SelectBuilder) PlaceholderFormat(f PlaceholderFormat) SelectBuilder {
 // Runner methods
 
 // RunWith sets a Runner (like database/sql.DB) to be used with e.g. Exec.
+// For most cases runner will be a database connection.
+//
+// Internally we use this to mock out the database connection for testing.
 func (b SelectBuilder) RunWith(runner BaseRunner) SelectBuilder {
 	return setRunWith(b, runner).(SelectBuilder)
 }
@@ -299,6 +302,16 @@ func (b SelectBuilder) LeftJoin(join string, rest ...interface{}) SelectBuilder 
 // RightJoin adds a RIGHT JOIN clause to the query.
 func (b SelectBuilder) RightJoin(join string, rest ...interface{}) SelectBuilder {
 	return b.JoinClause("RIGHT JOIN "+join, rest...)
+}
+
+// InnerJoin adds a INNER JOIN clause to the query.
+func (b SelectBuilder) InnerJoin(join string, rest ...interface{}) SelectBuilder {
+	return b.JoinClause("INNER JOIN "+join, rest...)
+}
+
+// CrossJoin adds a CROSS JOIN clause to the query.
+func (b SelectBuilder) CrossJoin(join string, rest ...interface{}) SelectBuilder {
+	return b.JoinClause("CROSS JOIN "+join, rest...)
 }
 
 // Where adds an expression to the WHERE clause of the query.

@@ -17,6 +17,7 @@ limitations under the License.
 package registry // import "helm.sh/helm/v3/internal/experimental/registry"
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ import (
 	"sort"
 
 	auth "github.com/deislabs/oras/pkg/auth/docker"
+	"github.com/deislabs/oras/pkg/content"
 	"github.com/deislabs/oras/pkg/oras"
 	"github.com/gosuri/uitable"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -42,11 +44,13 @@ const (
 type (
 	// Client works with OCI-compliant registries and local Helm chart cache
 	Client struct {
-		debug      bool
-		out        io.Writer
-		authorizer *Authorizer
-		resolver   *Resolver
-		cache      *Cache
+		debug bool
+		// path to repository config file e.g. ~/.docker/config.json
+		credentialsFile string
+		out             io.Writer
+		authorizer      *Authorizer
+		resolver        *Resolver
+		cache           *Cache
 	}
 )
 
@@ -59,9 +63,11 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 		opt(client)
 	}
 	// set defaults if fields are missing
+	if client.credentialsFile == "" {
+		client.credentialsFile = helmpath.CachePath("registry", CredentialsFileBasename)
+	}
 	if client.authorizer == nil {
-		credentialsFile := helmpath.CachePath("registry", CredentialsFileBasename)
-		authClient, err := auth.NewClient(credentialsFile)
+		authClient, err := auth.NewClient(client.credentialsFile)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +146,60 @@ func (c *Client) PushChart(ref *Reference) error {
 }
 
 // PullChart downloads a chart from a registry
-func (c *Client) PullChart(ref *Reference) error {
+func (c *Client) PullChart(ref *Reference) (*bytes.Buffer, error) {
+	buf := bytes.NewBuffer(nil)
+
+	if ref.Tag == "" {
+		return buf, errors.New("tag explicitly required")
+	}
+
+	fmt.Fprintf(c.out, "%s: Pulling from %s\n", ref.Tag, ref.Repo)
+
+	store := content.NewMemoryStore()
+	fullname := ref.FullName()
+	_ = fullname
+	_, layerDescriptors, err := oras.Pull(ctx(c.out, c.debug), c.resolver, ref.FullName(), store,
+		oras.WithPullEmptyNameAllowed(),
+		oras.WithAllowedMediaTypes(KnownMediaTypes()))
+	if err != nil {
+		return buf, err
+	}
+
+	numLayers := len(layerDescriptors)
+	if numLayers < 1 {
+		return buf, errors.New(
+			fmt.Sprintf("manifest does not contain at least 1 layer (total: %d)", numLayers))
+	}
+
+	var contentLayer *ocispec.Descriptor
+	for _, layer := range layerDescriptors {
+		layer := layer
+		switch layer.MediaType {
+		case HelmChartContentLayerMediaType:
+			contentLayer = &layer
+
+		}
+	}
+
+	if contentLayer == nil {
+		return buf, errors.New(
+			fmt.Sprintf("manifest does not contain a layer with mediatype %s",
+				HelmChartContentLayerMediaType))
+	}
+
+	_, b, ok := store.Get(*contentLayer)
+	if !ok {
+		return buf, errors.Errorf("Unable to retrieve blob with digest %s", contentLayer.Digest)
+	}
+
+	buf = bytes.NewBuffer(b)
+	return buf, nil
+}
+
+// PullChartToCache pulls a chart from an OCI Registry to the Registry Cache.
+// This function is needed for `helm chart pull`, which is experimental and will be deprecated soon.
+// Likewise, the Registry cache will soon be deprecated as will this function.
+func (c *Client) PullChartToCache(ref *Reference) error {
 	if ref.Tag == "" {
 		return errors.New("tag explicitly required")
 	}
@@ -236,7 +295,7 @@ func (c *Client) PrintChartTable() error {
 // printCacheRefSummary prints out chart ref summary
 func (c *Client) printCacheRefSummary(r *CacheRefSummary) {
 	fmt.Fprintf(c.out, "ref:     %s\n", r.Name)
-	fmt.Fprintf(c.out, "digest:  %s\n", r.Digest.Hex())
+	fmt.Fprintf(c.out, "digest:  %s\n", r.Manifest.Digest.Hex())
 	fmt.Fprintf(c.out, "size:    %s\n", byteCountBinary(r.Size))
 	fmt.Fprintf(c.out, "name:    %s\n", r.Chart.Metadata.Name)
 	fmt.Fprintf(c.out, "version: %s\n", r.Chart.Metadata.Version)
@@ -253,7 +312,7 @@ func (c *Client) getChartTableRows() ([][]interface{}, error) {
 		refsMap[r.Name] = map[string]string{
 			"name":    r.Chart.Metadata.Name,
 			"version": r.Chart.Metadata.Version,
-			"digest":  shortDigest(r.Digest.Hex()),
+			"digest":  shortDigest(r.Manifest.Digest.Hex()),
 			"size":    byteCountBinary(r.Size),
 			"created": timeAgo(r.CreatedAt),
 		}

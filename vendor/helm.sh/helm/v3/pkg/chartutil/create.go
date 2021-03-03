@@ -18,9 +18,11 @@ package chartutil
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -29,6 +31,12 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
+
+// chartName is a regular expression for testing the supplied name of a chart.
+// This regular expression is probably stricter than it needs to be. We can relax it
+// somewhat. Newline characters, as well as $, quotes, +, parens, and % are known to be
+// problematic.
+var chartName = regexp.MustCompile("^[a-zA-Z0-9._-]+$")
 
 const (
 	// ChartfileName is the default Chart file name.
@@ -63,6 +71,10 @@ const (
 	TestConnectionName = TemplatesTestsDir + sep + "test-connection.yaml"
 )
 
+// maxChartNameLength is lower than the limits we know of with certain file systems,
+// and with certain Kubernetes fields.
+const maxChartNameLength = 250
+
 const sep = string(filepath.Separator)
 
 const defaultChartfile = `apiVersion: v2
@@ -87,7 +99,8 @@ version: 0.1.0
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
-appVersion: 1.16.0
+# It is recommended to use it with quotes.
+appVersion: "1.16.0"
 `
 
 const defaultValues = `# Default values for %s.
@@ -99,7 +112,7 @@ replicaCount: 1
 image:
   repository: nginx
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart version.
+  # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
 imagePullSecrets: []
@@ -230,7 +243,7 @@ spec:
       http:
         paths:
           {{- range .paths }}
-          - path: {{ . }}
+          - path: {{ .path }}
             backend:
               serviceName: {{ $fullName }}
               servicePort: {{ $svcPort }}
@@ -246,18 +259,18 @@ metadata:
   labels:
     {{- include "<CHARTNAME>.labels" . | nindent 4 }}
 spec:
-{{- if not .Values.autoscaling.enabled }}
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-{{- end }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "<CHARTNAME>.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-    {{- with .Values.podAnnotations }}
+      {{- with .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
-    {{- end }}
+      {{- end }}
       labels:
         {{- include "<CHARTNAME>.selectorLabels" . | nindent 8 }}
     spec:
@@ -348,18 +361,18 @@ spec:
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:
-  {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
     - type: Resource
       resource:
         name: cpu
         targetAverageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
-  {{- end }}
-  {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
     - type: Resource
       resource:
         name: memory
         targetAverageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
-  {{- end }}
+    {{- end }}
 {{- end }}
 `
 
@@ -367,7 +380,7 @@ const defaultNotes = `1. Get the application URL by running these commands:
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
   {{- range .paths }}
-  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ . }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
   {{- end }}
 {{- end }}
 {{- else if contains "NodePort" .Values.service.type }}
@@ -381,13 +394,13 @@ const defaultNotes = `1. Get the application URL by running these commands:
   echo http://$SERVICE_IP:{{ .Values.service.port }}
 {{- else if contains "ClusterIP" .Values.service.type }}
   export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "<CHARTNAME>.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
   echo "Visit http://127.0.0.1:8080 to use your application"
-  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:80
+  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
 {{- end }}
 `
 
-const defaultHelpers = `{{/* vim: set filetype=mustache: */}}
-{{/*
+const defaultHelpers = `{{/*
 Expand the name of the chart.
 */}}
 {{- define "<CHARTNAME>.name" -}}
@@ -458,7 +471,7 @@ metadata:
   labels:
     {{- include "<CHARTNAME>.labels" . | nindent 4 }}
   annotations:
-    "helm.sh/hook": test-success
+    "helm.sh/hook": test
 spec:
   containers:
     - name: wget
@@ -467,6 +480,12 @@ spec:
       args: ['{{ include "<CHARTNAME>.fullname" . }}:{{ .Values.service.port }}']
   restartPolicy: Never
 `
+
+// Stderr is an io.Writer to which error messages can be written
+//
+// In Helm 4, this will be replaced. It is needed in Helm 3 to preserve API backward
+// compatibility.
+var Stderr io.Writer = os.Stderr
 
 // CreateFrom creates a new chart, but scaffolds it from the src chart.
 func CreateFrom(chartfile *chart.Metadata, dest, src string) error {
@@ -522,6 +541,12 @@ func CreateFrom(chartfile *chart.Metadata, dest, src string) error {
 // error. In such a case, this will attempt to clean up by removing the
 // new chart directory.
 func Create(name, dir string) (string, error) {
+
+	// Sanity-check the name of a chart so user doesn't create one that causes problems.
+	if err := validateChartName(name); err != nil {
+		return "", err
+	}
+
 	path, err := filepath.Abs(dir)
 	if err != nil {
 		return path, err
@@ -601,8 +626,8 @@ func Create(name, dir string) (string, error) {
 
 	for _, file := range files {
 		if _, err := os.Stat(file.path); err == nil {
-			// File exists and is okay. Skip it.
-			continue
+			// There is no handle to a preferred output stream here.
+			fmt.Fprintf(Stderr, "WARNING: File %q already exists. Overwriting.\n", file.path)
 		}
 		if err := writeFile(file.path, file.content); err != nil {
 			return cdir, err
@@ -626,4 +651,14 @@ func writeFile(name string, content []byte) error {
 		return err
 	}
 	return ioutil.WriteFile(name, content, 0644)
+}
+
+func validateChartName(name string) error {
+	if name == "" || len(name) > maxChartNameLength {
+		return fmt.Errorf("chart name must be between 1 and %d characters", maxChartNameLength)
+	}
+	if !chartName.MatchString(name) {
+		return fmt.Errorf("chart name must match the regular expression %q", chartName.String())
+	}
+	return nil
 }

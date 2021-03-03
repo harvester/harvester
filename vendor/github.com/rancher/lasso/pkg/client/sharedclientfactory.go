@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/lasso/pkg/mapper"
 	"github.com/rancher/lasso/pkg/scheme"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -26,6 +27,7 @@ type SharedClientFactory interface {
 	NewObjects(gvk schema.GroupVersionKind) (runtime.Object, runtime.Object, error)
 	GVKForObject(obj runtime.Object) (schema.GroupVersionKind, error)
 	GVKForResource(gvr schema.GroupVersionResource) (schema.GroupVersionKind, error)
+	IsNamespaced(gvk schema.GroupVersionKind) (bool, error)
 	ResourceForGVK(gvk schema.GroupVersionKind) (schema.GroupVersionResource, bool, error)
 }
 
@@ -89,6 +91,15 @@ func (s *sharedClientFactory) GVKForResource(gvr schema.GroupVersionResource) (s
 	return s.Mapper.KindFor(gvr)
 }
 
+func (s *sharedClientFactory) IsNamespaced(gvk schema.GroupVersionKind) (bool, error) {
+	mapping, err := s.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return false, err
+	}
+
+	return IsNamespaced(mapping.Resource, s.Mapper)
+}
+
 func (s *sharedClientFactory) ResourceForGVK(gvk schema.GroupVersionKind) (schema.GroupVersionResource, bool, error) {
 	mapping, err := s.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
@@ -116,7 +127,9 @@ func (s *sharedClientFactory) GVKForObject(obj runtime.Object) (schema.GroupVers
 
 func (s *sharedClientFactory) NewObjects(gvk schema.GroupVersionKind) (runtime.Object, runtime.Object, error) {
 	obj, err := s.Scheme.New(gvk)
-	if err != nil {
+	if runtime.IsNotRegisteredError(err) {
+		return &unstructured.Unstructured{}, &unstructured.UnstructuredList{}, nil
+	} else if err != nil {
 		return nil, nil, err
 	}
 
@@ -173,11 +186,36 @@ func (s *sharedClientFactory) getClient(gvr schema.GroupVersionResource) *Client
 
 func populateConfig(scheme *runtime.Scheme, config *rest.Config) (*rest.Config, time.Duration) {
 	config = rest.CopyConfig(config)
-	config.NegotiatedSerializer = serializer.NewCodecFactory(scheme).WithoutConversion()
+	config.NegotiatedSerializer = unstructuredNegotiator{
+		NegotiatedSerializer: serializer.NewCodecFactory(scheme).WithoutConversion(),
+	}
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()
 	}
 	timeout := config.Timeout
 	config.Timeout = 0
 	return config, timeout
+}
+
+type unstructuredNegotiator struct {
+	runtime.NegotiatedSerializer
+}
+
+func (u unstructuredNegotiator) DecoderToVersion(serializer runtime.Decoder, gv runtime.GroupVersioner) runtime.Decoder {
+	result := u.NegotiatedSerializer.DecoderToVersion(serializer, gv)
+	return unstructuredDecoder{
+		Decoder: result,
+	}
+}
+
+type unstructuredDecoder struct {
+	runtime.Decoder
+}
+
+func (u unstructuredDecoder) Decode(data []byte, defaults *schema.GroupVersionKind, into runtime.Object) (runtime.Object, *schema.GroupVersionKind, error) {
+	obj, gvk, err := u.Decoder.Decode(data, defaults, into)
+	if into == nil && runtime.IsNotRegisteredError(err) {
+		return u.Decode(data, defaults, &unstructured.Unstructured{})
+	}
+	return obj, gvk, err
 }
