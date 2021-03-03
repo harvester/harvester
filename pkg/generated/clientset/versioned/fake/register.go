@@ -32,7 +32,7 @@ import (
 
 var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
-var parameterCodec = runtime.NewParameterCodec(scheme)
+
 var localSchemeBuilder = runtime.SchemeBuilder{
 	cdiv1beta1.AddToScheme,
 	harvesterv1alpha1.AddToScheme,
