@@ -26,3 +26,35 @@ tolerations:
     effect: NoSchedule
 
 affinity: {}
+
+# Default value for harvester-network-controller-manager deployment
+manager:
+  replicas: 3
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: beta.kubernetes.io/os
+              operator: In
+              values:
+                - linux
+        - matchExpressions:
+            - key: kubernetes.io/os
+              operator: In
+              values:
+                - linux
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - harvester-network-controller-manager
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - network
+          topologyKey: kubernetes.io/hostname
+        weight: 1

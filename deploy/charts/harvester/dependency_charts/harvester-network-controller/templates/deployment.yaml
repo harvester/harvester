@@ -1,60 +1,46 @@
+---
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
-  name: {{ include "harvester-network-controller.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "harvester-network-controller.labels" . | nindent 4 }}
+  name: {{ include "harvester-network-controller.name" . }}-manager
 spec:
+  replicas: {{ .Values.manager.replicas }}
   selector:
     matchLabels:
       {{- include "harvester-network-controller.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-    {{- with .Values.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-    {{- end }}
       labels:
         {{- include "harvester-network-controller.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "harvester-network-controller.name" . }}
-      hostNetwork: true
       containers:
-        - name: network
+        - name: network-manager
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - harvester-network-controller
           args:
-            - agent
-          securityContext:
-            privileged: true
-          volumeMounts:
-          - mountPath: /dev
-            name: dev
-          - mountPath: /lib/modules
-            name: modules
+            - manager
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- with .Values.manager.nodeAffinity }}
+        nodeAffinity:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.manager.podAntiAffinity }}
+        podAntiAffinity:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      volumes:
-        - hostPath:
-            path: /dev
-            type: Directory
-          name: dev
-        - hostPath:
-            path: /lib/modules
-            type: Directory
-          name: modules
