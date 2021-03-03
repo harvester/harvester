@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -129,21 +131,27 @@ func BootstrapAdmin(mgmt *config.Management, namespace string) error {
 				logrus.Info("Created default admin user and binding")
 			}
 		}
-	}
 
-	adminConfigMap := corev1.ConfigMap{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      bootstrapAdminConfig,
-			Namespace: namespace,
-		},
-	}
-
-	_, err = mgmt.CoreFactory.Core().V1().ConfigMap().Create(&adminConfigMap)
-	if err != nil {
-		if !apierrors.IsAlreadyExists(err) {
-			logrus.Warnf("Error creating admin config map: %v", err)
+		adminConfigMap := corev1.ConfigMap{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      bootstrapAdminConfig,
+				Namespace: namespace,
+				OwnerReferences: []v1.OwnerReference{
+					{
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						Kind:       "User",
+						Name:       users.Items[0].Name,
+						UID:        users.Items[0].UID,
+					},
+				},
+			},
 		}
 
+		_, err = mgmt.CoreFactory.Core().V1().ConfigMap().Create(&adminConfigMap)
+		if err != nil && !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("error creating admin config map: %v", err)
+		}
 	}
+
 	return nil
 }

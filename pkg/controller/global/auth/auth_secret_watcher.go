@@ -51,7 +51,7 @@ func WatchSecret(ctx context.Context, scaled *config.Scaled, namespace, name str
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			if sec, ok := newObj.(*corev1.Secret); ok {
-				logrus.Infof("update auth secret in secret informer")
+				logrus.Debugf("update auth secret in secret informer")
 				if err := refreshKeyInTokenManager(sec, scaled); err != nil {
 					logrus.Errorf("Failed to update tokenManager with secret %s:%s, %v", namespace, name, err)
 				}

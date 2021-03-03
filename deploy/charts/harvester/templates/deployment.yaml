@@ -59,6 +59,9 @@ spec:
         - name: apiserver
           image: {{ .Values.containers.apiserver.image.repository }}:{{ .Values.containers.apiserver.image.tag }}
           imagePullPolicy: {{ .Values.containers.apiserver.image.imagePullPolicy }}
+          securityContext:
+            capabilities:
+              add: ["SYS_ADMIN"]
 {{- if .Values.containers.apiserver.command }}
           command:
 {{ toYaml .Values.containers.apiserver.command | indent 12 }}

@@ -1,5 +1,5 @@
 FROM alpine
-RUN apk update && apk add -u --no-cache git curl unzip tar tini bash && \
+RUN apk update && apk add -u --no-cache git curl unzip tar tini bash nfs-utils && \
     adduser -D harvester && su -l harvester && \
     mkdir -p /var/lib/rancher/harvester && \
     chown -R harvester /var/lib/rancher/harvester /usr/local/bin

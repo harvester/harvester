@@ -461,6 +461,14 @@ multus:
   args:
     - "--multus-kubeconfig-file-host=/var/lib/rancher/k3s/agent/etc/cni/net.d/multus.d/multus.kubeconfig"
 
+csi-snapshotter:
+  ## Specify whether to install the csi-snapshotter
+  enabled: true
+
+  image:
+    repository: k8s.gcr.io/sig-storage/snapshot-controller
+    tag: v4.0.0
+
 longhorn:
   ## Specify whether to install longhorn,
   ## defaults to "false", this will be enabled in ISO mode installation.

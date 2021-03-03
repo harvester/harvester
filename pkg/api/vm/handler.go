@@ -12,11 +12,14 @@ import (
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/rancher/wrangler/pkg/slice"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
 	kv1 "kubevirt.io/client-go/api/v1"
 
+	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
@@ -26,13 +29,16 @@ const (
 )
 
 type vmActionHandler struct {
-	vms        ctlkubevirtv1.VirtualMachineClient
-	vmis       ctlkubevirtv1.VirtualMachineInstanceClient
-	vmCache    ctlkubevirtv1.VirtualMachineCache
-	vmiCache   ctlkubevirtv1.VirtualMachineInstanceCache
-	vmims      ctlkubevirtv1.VirtualMachineInstanceMigrationClient
-	vmimCache  ctlkubevirtv1.VirtualMachineInstanceMigrationCache
-	restClient *rest.RESTClient
+	vms         ctlkubevirtv1.VirtualMachineClient
+	vmis        ctlkubevirtv1.VirtualMachineInstanceClient
+	vmCache     ctlkubevirtv1.VirtualMachineCache
+	vmiCache    ctlkubevirtv1.VirtualMachineInstanceCache
+	vmims       ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+	vmimCache   ctlkubevirtv1.VirtualMachineInstanceMigrationCache
+	backups     ctlharvesterv1.VirtualMachineBackupClient
+	backupCache ctlharvesterv1.VirtualMachineBackupCache
+	restores    ctlharvesterv1.VirtualMachineRestoreClient
+	restClient  *rest.RESTClient
 }
 
 func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -78,6 +84,33 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		if err := h.subresourceOperate(r.Context(), vmiResource, namespace, name, action); err != nil {
 			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
 		}
+	case backupVM:
+		var input BackupInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+
+		if input.Name == "" {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter backup name is required")
+		}
+		if err := h.createVMBackup(name, namespace, input); err != nil {
+			return err
+		}
+		return nil
+	case restoreVM:
+		var input RestoreInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+
+		if input.Name == "" || input.BackupName == "" {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter name and backupName are required")
+		}
+
+		if err := h.restoreBackup(name, namespace, input); err != nil {
+			return err
+		}
+		return nil
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -193,5 +226,54 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 			}
 		}
 	}
+	return nil
+}
+
+func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input BackupInput) error {
+	apiGroup := kv1.SchemeGroupVersion.Group
+	backup := &harvesterv1alpha1.VirtualMachineBackup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      input.Name,
+			Namespace: vmNamespace,
+		},
+		Spec: harvesterv1alpha1.VirtualMachineBackupSpec{
+			Source: corev1.TypedLocalObjectReference{
+				APIGroup: &apiGroup,
+				Kind:     kv1.VirtualMachineGroupVersionKind.Kind,
+				Name:     vmName,
+			},
+		},
+	}
+	if _, err := h.backups.Create(backup); err != nil {
+		return fmt.Errorf("failed to create VM backup, error: %s", err.Error())
+	}
+	return nil
+}
+
+func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input RestoreInput) error {
+	if _, err := h.backupCache.Get(vmNamespace, input.BackupName); err != nil {
+		return err
+	}
+	apiGroup := kv1.SchemeGroupVersion.Group
+	backup := &harvesterv1alpha1.VirtualMachineRestore{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      input.Name,
+			Namespace: vmNamespace,
+		},
+		Spec: harvesterv1alpha1.VirtualMachineRestoreSpec{
+			Target: corev1.TypedLocalObjectReference{
+				APIGroup: &apiGroup,
+				Kind:     kv1.VirtualMachineGroupVersionKind.Kind,
+				Name:     vmName,
+			},
+			VirtualMachineBackupName: input.BackupName,
+			NewVM:                    false,
+		},
+	}
+	_, err := h.restores.Create(backup)
+	if err != nil {
+		return fmt.Errorf("failed to create restore, error: %s", err.Error())
+	}
+
 	return nil
 }
