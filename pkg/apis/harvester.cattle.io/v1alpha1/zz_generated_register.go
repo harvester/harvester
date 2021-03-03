@@ -32,7 +32,10 @@ var (
 	PreferenceResourceName                    = "preferences"
 	SettingResourceName                       = "settings"
 	UserResourceName                          = "users"
+	VirtualMachineBackupResourceName          = "virtualmachinebackups"
+	VirtualMachineBackupContentResourceName   = "virtualmachinebackupcontents"
 	VirtualMachineImageResourceName           = "virtualmachineimages"
+	VirtualMachineRestoreResourceName         = "virtualmachinerestores"
 	VirtualMachineTemplateResourceName        = "virtualmachinetemplates"
 	VirtualMachineTemplateVersionResourceName = "virtualmachinetemplateversions"
 )
@@ -66,8 +69,14 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&SettingList{},
 		&User{},
 		&UserList{},
+		&VirtualMachineBackup{},
+		&VirtualMachineBackupList{},
+		&VirtualMachineBackupContent{},
+		&VirtualMachineBackupContentList{},
 		&VirtualMachineImage{},
 		&VirtualMachineImageList{},
+		&VirtualMachineRestore{},
+		&VirtualMachineRestoreList{},
 		&VirtualMachineTemplate{},
 		&VirtualMachineTemplateList{},
 		&VirtualMachineTemplateVersion{},

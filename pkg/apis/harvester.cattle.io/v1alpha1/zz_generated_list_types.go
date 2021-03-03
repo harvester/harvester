@@ -142,3 +142,54 @@ func NewPreference(namespace, name string, obj Preference) *Preference {
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// VirtualMachineBackupList is a list of VirtualMachineBackup resources
+type VirtualMachineBackupList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []VirtualMachineBackup `json:"items"`
+}
+
+func NewVirtualMachineBackup(namespace, name string, obj VirtualMachineBackup) *VirtualMachineBackup {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VirtualMachineBackup").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// VirtualMachineBackupContentList is a list of VirtualMachineBackupContent resources
+type VirtualMachineBackupContentList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []VirtualMachineBackupContent `json:"items"`
+}
+
+func NewVirtualMachineBackupContent(namespace, name string, obj VirtualMachineBackupContent) *VirtualMachineBackupContent {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VirtualMachineBackupContent").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// VirtualMachineRestoreList is a list of VirtualMachineRestore resources
+type VirtualMachineRestoreList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []VirtualMachineRestore `json:"items"`
+}
+
+func NewVirtualMachineRestore(namespace, name string, obj VirtualMachineRestore) *VirtualMachineRestore {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VirtualMachineRestore").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
