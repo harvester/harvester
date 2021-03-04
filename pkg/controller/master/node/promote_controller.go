@@ -28,9 +28,6 @@ const (
 	KubeMasterNodeLabelKey       = KubeNodeRoleLabelPrefix + "master"
 	KubeControlPlaneNodeLabelKey = KubeNodeRoleLabelPrefix + "control-plane"
 
-	KubeNodeSVCLabelPrefix      = "svccontroller.k3s.cattle.io/"
-	KubeNodeSVCEnableLBLabelKey = KubeNodeSVCLabelPrefix + "enablelb"
-
 	HarvesterLabelAnnotationPrefix      = "harvester.cattle.io/"
 	HarvesterManagedNodeLabelKey        = HarvesterLabelAnnotationPrefix + "managed"
 	HarvesterPromoteNodeLabelKey        = HarvesterLabelAnnotationPrefix + "promote-node"
@@ -226,7 +223,6 @@ func (h *PromoteHandler) setPromoteStart(node *corev1.Node) (*corev1.Node, error
 	}
 	h.logPromoteEvent(node, PromoteStatusRunning)
 	toUpdate := node.DeepCopy()
-	toUpdate.Labels[KubeNodeSVCEnableLBLabelKey] = "true"
 	toUpdate.Annotations[HarvesterPromoteStatusAnnotationKey] = PromoteStatusRunning
 	toUpdate.Spec.Unschedulable = true
 	return h.nodes.Update(toUpdate)
