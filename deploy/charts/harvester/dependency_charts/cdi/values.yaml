@@ -36,6 +36,6 @@ spec:
     tolerations:
       - key: CriticalAddonsOnly
         operator: Exists
-    workload:
-      nodeSelector:
-        kubernetes.io/os: linux
+  workload:
+    nodeSelector:
+      kubernetes.io/os: linux
