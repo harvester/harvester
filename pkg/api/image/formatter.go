@@ -10,7 +10,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
-	imagectl "github.com/rancher/harvester/pkg/controller/master/image"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	kapierror "k8s.io/apimachinery/pkg/api/errors"
@@ -18,6 +17,7 @@ import (
 
 	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
+	imagectl "github.com/rancher/harvester/pkg/controller/master/image"
 	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 )
 
