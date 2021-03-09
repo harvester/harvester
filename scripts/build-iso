@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+source $(dirname $0)/version
+
 cd $(dirname $0)/..
 
 echo "Start building ISO image"
@@ -13,6 +15,16 @@ cd ../harvester-installer/scripts
 
 ./ci
 
-mkdir -p ../../harvester/dist/artifacts
-cp ../dist/artifacts/* ../../harvester/dist/artifacts
+cd ..
+HARVESTER_DIR=../harvester
+
+# Prepare files for the bundle image
+cp -r manifests ${HARVESTER_DIR}/package
+cp k3os/images/70-iso/charts/harvester-*.tgz ${HARVESTER_DIR}/package
+id=$(docker create rancher/k3os:harvester-${TAG})
+docker cp $id:/k3os ${HARVESTER_DIR}/package
+docker rm -v $id
+
+mkdir -p ${HARVESTER_DIR}/dist/artifacts
+cp dist/artifacts/* ${HARVESTER_DIR}/dist/artifacts
 

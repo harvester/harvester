@@ -32,7 +32,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     echo "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/debian buster stable" > /etc/apt/sources.list.d/docker.list; \
     \
     apt-get update -qq && apt-get install -y --no-install-recommends \
-        docker-ce-cli=5:19.03.* \
+        docker-ce=5:20.10.* \
     && rm -rf /var/lib/apt/lists/*
 ## install golangci
 RUN if [ "${ARCH}" = "amd64" ]; then \
@@ -49,11 +49,11 @@ RUN if [ "${ARCH}" = "amd64" ]; then \
 # -- for make rules
 
 # -- for dapper
-ENV DAPPER_RUN_ARGS --privileged --network host
+ENV DAPPER_RUN_ARGS --privileged --network host -v /run/containerd/containerd.sock:/run/containerd/containerd.sock
 ENV GO111MODULE off
 ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS GOPROXY
 ENV DAPPER_SOURCE /go/src/github.com/rancher/harvester/
-ENV DAPPER_OUTPUT ./bin ./dist
+ENV DAPPER_OUTPUT ./bin ./dist ./package
 ENV DAPPER_DOCKER_SOCKET true
 ENV HOME ${DAPPER_SOURCE}
 # -- for dapper
