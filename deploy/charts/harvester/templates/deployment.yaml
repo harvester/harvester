@@ -41,6 +41,10 @@ spec:
                     operator: In
                     values:
                       - apiserver
+                  - key: app.kubernetes.io/version
+                    operator: In
+                    values:
+                      - {{ .Chart.AppVersion }}
               topologyKey: kubernetes.io/hostname
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
