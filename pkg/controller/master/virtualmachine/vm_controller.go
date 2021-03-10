@@ -2,7 +2,9 @@ package virtualmachine
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/rancher/wrangler/pkg/slice"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -11,6 +13,7 @@ import (
 	ctlcdiv1beta1 "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	"github.com/rancher/harvester/pkg/indexeres"
 	"github.com/rancher/harvester/pkg/ref"
+	"github.com/rancher/harvester/pkg/util"
 )
 
 type VMController struct {
@@ -112,11 +115,16 @@ func (h *VMController) UnsetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine)
 	if vm == nil || vm.DeletionTimestamp == nil || vm.Spec.Template == nil {
 		return vm, nil
 	}
-
-	var dataVolumeNames = getDataVolumeNames(&vm.Spec.Template.Spec)
-
-	var dataVolumeNamespace = vm.Namespace
+	var (
+		dataVolumeNamespace = vm.Namespace
+		dataVolumeNames     = getDataVolumeNames(&vm.Spec.Template.Spec)
+		removedDataVolumes  = getRemovedDataVolumes(vm)
+	)
 	for _, dataVolumeName := range dataVolumeNames.List() {
+		if slice.ContainsString(removedDataVolumes, dataVolumeName) {
+			// skip removedDataVolumes
+			continue
+		}
 		var dataVolume, err = h.dataVolumeCache.Get(dataVolumeNamespace, dataVolumeName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -135,6 +143,11 @@ func (h *VMController) UnsetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine)
 	}
 
 	return vm, nil
+}
+
+// getRemovedDataVolumes returns removed DataVolumes.
+func getRemovedDataVolumes(vm *kv1.VirtualMachine) []string {
+	return strings.Split(vm.Annotations[util.RemovedDataVolumesAnnotationKey], ",")
 }
 
 // getDataVolumeNames returns a name set of the DataVolumes.

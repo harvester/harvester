@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
@@ -20,6 +21,7 @@ import (
 type vmStore struct {
 	types.Store
 
+	vms              ctlkubevirtv1.VirtualMachineClient
 	vmCache          ctlkubevirtv1.VirtualMachineCache
 	dataVolumes      ctlcdiv1beta1.DataVolumeClient
 	dataVolumesCache ctlcdiv1beta1.DataVolumeCache
@@ -43,7 +45,7 @@ func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id 
 	}
 
 	var savedDataVolumes []string
-	var removedDataVolume []string
+	var removedDataVolumes []string
 	if vm.Spec.Template != nil {
 		for _, vol := range vm.Spec.Template.Spec.Volumes {
 			if vol.DataVolume == nil {
@@ -51,14 +53,18 @@ func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id 
 			}
 
 			if slice.ContainsString(removedDisks, vol.Name) {
-				removedDataVolume = append(removedDataVolume, vol.DataVolume.Name)
+				removedDataVolumes = append(removedDataVolumes, vol.DataVolume.Name)
 			} else {
 				savedDataVolumes = append(savedDataVolumes, vol.DataVolume.Name)
 			}
 		}
 	}
 
-	if err := s.removeVMDataVolumeOwnerRef(vm.Namespace, vm.Name, savedDataVolumes); err != nil {
+	if err = s.setRemovedDataVolumes(vm, removedDataVolumes); err != nil {
+		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to set removedDataVolumes to virtualMachine %s/%s, %v", request.Namespace, request.Name, err))
+	}
+
+	if err = s.removeVMDataVolumeOwnerRef(vm.Namespace, vm.Name, savedDataVolumes); err != nil {
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to remove virtualMachine %s/%s from dataVolume's OwnerReferences, %v", request.Namespace, request.Name, err))
 	}
 
@@ -67,10 +73,18 @@ func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id 
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to remove vm %s/%s, %v", request.Namespace, request.Name, err))
 	}
 
-	if err := s.deleteDataVolumes(vm.Namespace, removedDataVolume); err != nil {
+	if err = s.deleteDataVolumes(vm.Namespace, removedDataVolumes); err != nil {
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to remove dataVolume, %v", err))
 	}
+
 	return apiObj, nil
+}
+
+func (s *vmStore) setRemovedDataVolumes(vm *kv1.VirtualMachine, removedDataVolumes []string) error {
+	vmCopy := vm.DeepCopy()
+	vmCopy.Annotations[util.RemovedDataVolumesAnnotationKey] = strings.Join(removedDataVolumes, ",")
+	_, err := s.vms.Update(vmCopy)
+	return err
 }
 
 func (s *vmStore) removeVMDataVolumeOwnerRef(vmNamespace, vmName string, savedDataVolumes []string) error {
