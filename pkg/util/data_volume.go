@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	defaultNamespace      = "default"
-	certNoneConfigMapName = "importer-ca-none"
+	defaultNamespace                = "default"
+	certNoneConfigMapName           = "importer-ca-none"
+	RemovedDataVolumesAnnotationKey = "harvester.cattle.io/removedDataVolumes"
 )
 
 // SetHTTPSourceDataVolume sets the requiresScratch annotation, and certConfigMap with an existing empty configmap
