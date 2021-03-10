@@ -227,6 +227,9 @@ tolerations: []
 ## Specify the update strategy of workload.
 ##
 strategy:
+  rollingUpdate:
+    maxSurge: 2
+    maxUnavailable: 2
   type: RollingUpdate
 
 ## Specify the parameter of containers.
