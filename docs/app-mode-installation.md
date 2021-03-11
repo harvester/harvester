@@ -35,7 +35,7 @@ cat /proc/cpuinfo | grep vmx
 
 1. Go to the Helm chart:
     ```
-    $ cd deploy/charts
+    $ cd harvester/deploy/charts
    ```
 
 1. Install the Harvester chart with the following commands:
