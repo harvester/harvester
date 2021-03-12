@@ -122,17 +122,16 @@ func setup(ctx context.Context, server *Server) error {
 
 	ccache := clustercache.NewClusterCache(ctx, cf.AdminDynamicClient())
 	server.ClusterCache = ccache
+	sf := schema.NewCollection(ctx, server.BaseSchemas, asl)
 
-	server.BaseSchemas, err = resources.DefaultSchemas(ctx, server.BaseSchemas, ccache, cf)
-	if err != nil {
+	if err = resources.DefaultSchemas(ctx, server.BaseSchemas, ccache, server.ClientFactory, sf); err != nil {
 		return err
 	}
 
-	sf := schema.NewCollection(ctx, server.BaseSchemas, asl)
 	summaryCache := summarycache.New(sf, ccache)
 	summaryCache.Start(ctx)
 
-	for _, template := range resources.DefaultSchemaTemplates(cf, summaryCache, asl, server.controllers.K8s.Discovery()) {
+	for _, template := range resources.DefaultSchemaTemplates(cf, server.BaseSchemas, summaryCache, asl, server.controllers.K8s.Discovery()) {
 		sf.AddTemplate(template)
 	}
 

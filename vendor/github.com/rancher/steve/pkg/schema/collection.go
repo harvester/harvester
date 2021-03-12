@@ -10,7 +10,6 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/attributes"
-	"github.com/rancher/steve/pkg/schema/converter"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -31,7 +30,7 @@ type Collection struct {
 	toSync     int32
 	baseSchema *types.APISchemas
 	schemas    map[string]*types.APISchema
-	templates  map[string]*Template
+	templates  map[string][]*Template
 	notifiers  map[int]func()
 	notifierID int
 	byGVR      map[schema.GroupVersionResource]string
@@ -81,7 +80,7 @@ func NewCollection(ctx context.Context, baseSchema *types.APISchemas, access acc
 	return &Collection{
 		baseSchema: baseSchema,
 		schemas:    map[string]*types.APISchema{},
-		templates:  map[string]*Template{},
+		templates:  map[string][]*Template{},
 		byGVR:      map[schema.GroupVersionResource]string{},
 		byGVK:      map[schema.GroupVersionKind]string{},
 		cache:      cache.NewLRUExpireCache(1000),
@@ -140,18 +139,30 @@ func (c *Collection) Reset(schemas map[string]*types.APISchema) {
 	c.lock.RUnlock()
 }
 
+func start(ctx context.Context, templates []*Template) error {
+	for _, template := range templates {
+		if template.Start == nil {
+			continue
+		}
+		if err := template.Start(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *Collection) startStopTemplate(schemas map[string]*types.APISchema) {
 	for id := range schemas {
 		if _, ok := c.running[id]; ok {
 			continue
 		}
-		template := c.templates[id]
-		if template == nil || template.Start == nil {
+		templates := c.templates[id]
+		if len(templates) == 0 {
 			continue
 		}
 
 		subCtx, cancel := context.WithCancel(c.ctx)
-		if err := template.Start(subCtx); err != nil {
+		if err := start(subCtx, templates); err != nil {
 			cancel()
 			logrus.Errorf("failed to start schema template: %s", id)
 			continue
@@ -218,17 +229,12 @@ func (c *Collection) AddTemplate(templates ...Template) {
 
 	for i, template := range templates {
 		if template.Kind != "" {
-			c.templates[template.Group+"/"+template.Kind] = &templates[i]
-			c.templates[converter.GVKToSchemaID(schema.GroupVersionKind{
-				Group: template.Group,
-				Kind:  template.Kind,
-			})] = &templates[i]
-		}
-		if template.ID != "" {
-			c.templates[template.ID] = &templates[i]
+			c.templates[template.Group+"/"+template.Kind] = append(c.templates[template.Group+"/"+template.Kind], &templates[i])
+		} else if template.ID != "" {
+			c.templates[template.ID] = append(c.templates[template.ID], &templates[i])
 		}
 		if template.Kind == "" && template.Group == "" && template.ID == "" {
-			c.templates[""] = &templates[i]
+			c.templates[""] = append(c.templates[""], &templates[i])
 		}
 	}
 }
