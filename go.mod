@@ -3,8 +3,6 @@ module github.com/rancher/harvester
 go 1.13
 
 replace (
-	github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.2+incompatible
-	github.com/crewjam/saml => github.com/rancher/saml v0.0.0-20180713225824-ce1532152fde
 	github.com/dgrijalva/jwt-go => github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible
 	github.com/docker/distribution => github.com/docker/distribution v0.0.0-20191216044856-a8371794149d
 	github.com/docker/docker => github.com/docker/docker v1.4.2-0.20200203170920-46ec8731fbce
@@ -14,7 +12,8 @@ replace (
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20191125132246-f6563a70e19a
 	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
 	github.com/rancher/apiserver => github.com/cnrancher/apiserver v0.0.0-20210302022932-069aa785cb9f
-
+	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20210304063736-65f7c844267b
+	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20210304063736-65f7c844267b
 	k8s.io/api => k8s.io/api v0.20.4
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.4
 	k8s.io/apimachinery => k8s.io/apimachinery v0.20.4
@@ -52,6 +51,7 @@ require (
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/fatih/color v1.9.0 // indirect
 	github.com/gorilla/mux v1.8.0
+	github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc // indirect
 	github.com/guonaihong/gout v0.1.3
 	github.com/iancoleman/strcase v0.1.2
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
@@ -61,15 +61,17 @@ require (
 	github.com/longhorn/longhorn-manager v1.1.0
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12
+	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2 // indirect
 	github.com/minio/minio-go/v6 v6.0.57
 	github.com/nxadm/tail v1.4.5 // indirect
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.2
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/apiserver v0.0.0-20201023000256-1a0a904f9197
-	github.com/rancher/dynamiclistener v0.2.1-0.20200714201033-9c1939da3af9
+	github.com/rancher/apiserver v0.0.0-20210209001659-a17289640582
+	github.com/rancher/dynamiclistener v0.2.1-0.20200910203214-85f32491cb09
 	github.com/rancher/lasso v0.0.0-20210219160604-9baf1c12751b
-	github.com/rancher/steve v0.0.0-20210219172118-2cf9f857b073
+	github.com/rancher/rancher v0.0.0-20210312225102-c824d91cd247
+	github.com/rancher/steve v0.0.0-20210302143000-362617a677a9
 	github.com/rancher/wrangler v0.7.3-0.20210219161540-ef7fe9ce2443
 	github.com/rancher/wrangler-api v0.6.1-0.20200515193802-dcf70881b087
 	github.com/sirupsen/logrus v1.7.0
@@ -78,7 +80,6 @@ require (
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	google.golang.org/appengine v1.6.5
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	helm.sh/helm/v3 v3.5.2

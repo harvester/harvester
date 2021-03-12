@@ -132,30 +132,32 @@ func (c *Collection) applyTemplates(schema *types.APISchema) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	templates := []*Template{
+	templates := [][]*Template{
 		c.templates[schema.ID],
 		c.templates[fmt.Sprintf("%s/%s", attributes.Group(schema), attributes.Kind(schema))],
 		c.templates[""],
 	}
 
-	for _, t := range templates {
-		if t == nil {
-			continue
-		}
-		if schema.Formatter == nil {
-			schema.Formatter = t.Formatter
-		} else if t.Formatter != nil {
-			schema.Formatter = types.FormatterChain(t.Formatter, schema.Formatter)
-		}
-		if schema.Store == nil {
-			if t.StoreFactory == nil {
-				schema.Store = t.Store
-			} else {
-				schema.Store = t.StoreFactory(templates[2].Store)
+	for _, templates := range templates {
+		for _, t := range templates {
+			if t == nil {
+				continue
 			}
-		}
-		if t.Customize != nil {
-			t.Customize(schema)
+			if schema.Formatter == nil {
+				schema.Formatter = t.Formatter
+			} else if t.Formatter != nil {
+				schema.Formatter = types.FormatterChain(t.Formatter, schema.Formatter)
+			}
+			if schema.Store == nil {
+				if t.StoreFactory == nil {
+					schema.Store = t.Store
+				} else {
+					schema.Store = t.StoreFactory(templates[2].Store)
+				}
+			}
+			if t.Customize != nil {
+				t.Customize(schema)
+			}
 		}
 	}
 }

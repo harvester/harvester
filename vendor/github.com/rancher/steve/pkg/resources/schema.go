@@ -10,23 +10,30 @@ import (
 	"github.com/rancher/steve/pkg/client"
 	"github.com/rancher/steve/pkg/clustercache"
 	"github.com/rancher/steve/pkg/resources/apigroups"
+	"github.com/rancher/steve/pkg/resources/cluster"
 	"github.com/rancher/steve/pkg/resources/common"
 	"github.com/rancher/steve/pkg/resources/counts"
 	"github.com/rancher/steve/pkg/resources/formatters"
+	"github.com/rancher/steve/pkg/resources/userpreferences"
 	"github.com/rancher/steve/pkg/schema"
+	steveschema "github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/steve/pkg/summarycache"
 	"k8s.io/client-go/discovery"
 )
 
-func DefaultSchemas(ctx context.Context, baseSchema *types.APISchemas, ccache clustercache.ClusterCache, cg proxy.ClientGetter) (*types.APISchemas, error) {
+func DefaultSchemas(ctx context.Context, baseSchema *types.APISchemas, ccache clustercache.ClusterCache,
+	cg proxy.ClientGetter, schemaFactory steveschema.Factory) error {
 	counts.Register(baseSchema, ccache)
 	subscribe.Register(baseSchema)
 	apiroot.Register(baseSchema, []string{"v1"}, "proxy:/apis")
-	return baseSchema, nil
+	cluster.Register(ctx, baseSchema, cg, schemaFactory)
+	userpreferences.Register(baseSchema)
+	return nil
 }
 
 func DefaultSchemaTemplates(cf *client.Factory,
+	baseSchemas *types.APISchemas,
 	summaryCache *summarycache.SummaryCache,
 	lookup accesscontrol.AccessSetLookup,
 	discovery discovery.DiscoveryInterface) []schema.Template {
@@ -44,6 +51,12 @@ func DefaultSchemaTemplates(cf *client.Factory,
 		{
 			ID:        "pod",
 			Formatter: formatters.Pod,
+		},
+		{
+			ID: "management.cattle.io.cluster",
+			Customize: func(apiSchema *types.APISchema) {
+				cluster.AddApply(baseSchemas, apiSchema)
+			},
 		},
 	}
 }
