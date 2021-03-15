@@ -48,21 +48,21 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 
 	actionHandler := vmActionHandler{
-		vms:         vms,
-		vmCache:     vms.Cache(),
-		vmis:        vmis,
-		vmiCache:    vmis.Cache(),
-		vmims:       vmims,
-		vmimCache:   vmims.Cache(),
-		backups:     backups,
-		backupCache: backups.Cache(),
-		restores:    restores,
-		restClient:  restClient,
+		vms:          vms,
+		vmCache:      vms.Cache(),
+		vmis:         vmis,
+		vmiCache:     vmis.Cache(),
+		vmims:        vmims,
+		vmimCache:    vmims.Cache(),
+		backups:      backups,
+		backupCache:  backups.Cache(),
+		restores:     restores,
+		settingCache: settings.Cache(),
+		restClient:   restClient,
 	}
 
 	vmformatter := vmformatter{
-		vmiCache:     vmis.Cache(),
-		settingCache: settings.Cache(),
+		vmiCache: vmis.Cache(),
 	}
 
 	vmStore := &vmStore{

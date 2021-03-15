@@ -23,6 +23,7 @@ import (
 	harvesterapiv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/config"
 	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	"github.com/rancher/harvester/pkg/settings"
 )
@@ -40,12 +41,14 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, op
 	settings := management.HarvesterFactory.Harvester().V1alpha1().Setting()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta1().Setting()
+	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 
 	backupTargetController := &TargetHandler{
 		longhornSettings:     longhornSettings,
 		longhornSettingCache: longhornSettings.Cache(),
 		secrets:              secrets,
 		secretCache:          secrets.Cache(),
+		vms:                  vms,
 		settings:             settings,
 	}
 
@@ -58,6 +61,7 @@ type TargetHandler struct {
 	longhornSettingCache ctllonghornv1.SettingCache
 	secrets              ctlcorev1.SecretClient
 	secretCache          ctlcorev1.SecretCache
+	vms                  ctlkubevirtv1.VirtualMachineController
 	settings             ctlharvesterv1.SettingClient
 }
 
@@ -148,30 +152,35 @@ func setBackupSecret(target *settings.BackupTarget) map[string]string {
 }
 
 func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) error {
+	var found = true
 	secret, err := h.secretCache.Get(LonghornSystemNameSpace, backupTargetSecretName)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			newSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      backupTargetSecretName,
-					Namespace: LonghornSystemNameSpace,
-				},
-			}
-
-			newSecret.StringData = setBackupSecret(target)
-			_, err := h.secrets.Create(newSecret)
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		return err
+
+		found = false
+		newSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      backupTargetSecretName,
+				Namespace: LonghornSystemNameSpace,
+			},
+		}
+
+		newSecret.StringData = setBackupSecret(target)
+		if _, err = h.secrets.Create(newSecret); err != nil {
+			return err
+		}
 	}
 
-	secretCpy := secret.DeepCopy()
-	secretCpy.StringData = setBackupSecret(target)
+	if found {
+		secretCpy := secret.DeepCopy()
+		secretCpy.StringData = setBackupSecret(target)
 
-	if !reflect.DeepEqual(secret, secretCpy) {
-		_, err := h.secrets.Update(secretCpy)
-		if err != nil {
-			return err
+		if !reflect.DeepEqual(secret.StringData, secretCpy.StringData) {
+			if _, err := h.secrets.Update(secretCpy); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -183,10 +192,12 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 	targetSecCpy := targetSecret.DeepCopy()
 	targetSecCpy.Value = backupTargetSecretName
 
-	if !reflect.DeepEqual(target, targetSecCpy) {
-		_, err := h.longhornSettings.Update(targetSecCpy)
-		return err
+	if targetSecret.Value != targetSecCpy.Value {
+		if _, err := h.longhornSettings.Update(targetSecCpy); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
