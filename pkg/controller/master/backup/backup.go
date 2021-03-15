@@ -23,14 +23,18 @@ import (
 	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	"github.com/rancher/harvester/pkg/settings"
 )
 
 const (
 	backupControllerName = "harvester-vm-backup-controller"
-	vmBackupKindName     = "VirtualMachineBackup"
-	vmKindName           = "VirtualMachine"
 
-	backupTargetAnnotation = "backup.harvester.io/backupTarget"
+	vmBackupKindName = "VirtualMachineBackup"
+	vmKindName       = "VirtualMachine"
+
+	backupTargetAnnotation       = "backup.harvester.cattle.io/backupTarget"
+	backupBucketNameAnnotation   = "backup.harvester.cattle.io/BucketName"
+	backupBucketRegionAnnotation = "backup.harvester.cattle.io/BucketRegion"
 )
 
 var vmBackupKind = harvesterapiv1.SchemeGroupVersion.WithKind(vmBackupKindName)
@@ -158,9 +162,11 @@ func (h *Handler) createContent(vmBackup *harvesterapiv1.VirtualMachineBackup, v
 			Name:       &volumeBackupName,
 			VolumeName: volumeName,
 			PersistentVolumeClaim: harvesterapiv1.PersistentVolumeClaimSpec{
-				Name:      pvc.ObjectMeta.Name,
-				Namespace: pvc.ObjectMeta.Namespace,
-				Spec:      pvc.Spec,
+				Name:        pvc.ObjectMeta.Name,
+				Namespace:   pvc.ObjectMeta.Namespace,
+				Labels:      pvc.Labels,
+				Annotations: pvc.Annotations,
+				Spec:        pvc.Spec,
 			},
 		}
 
@@ -263,21 +269,23 @@ func (h *Handler) updateStatus(vmBackup *harvesterapiv1.VirtualMachineBackup, so
 		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionUnknown, "Unknown state"))
 	}
 
-	if vmBackup.Annotations == nil {
-		vmBackup.Annotations = make(map[string]string)
+	if vmBackupCpy.Annotations == nil {
+		vmBackupCpy.Annotations = make(map[string]string)
 	}
 
-	if vmBackup.Annotations[backupTargetAnnotation] == "" {
-		target, err := h.longhornSettingCache.Get(LonghornSystemNameSpace, longhornBackupTargetSettingName)
-		if err != nil && !apierrors.IsNotFound(err) {
+	if vmBackupCpy.Annotations[backupTargetAnnotation] == "" {
+		target, err := decodeTarget(settings.BackupTargetSet.Get())
+		if err != nil {
 			return err
 		}
-		if target != nil && target.Value != "" {
-			vmBackup.Annotations[backupTargetAnnotation] = target.Value
+		vmBackupCpy.Annotations[backupTargetAnnotation] = target.Endpoint
+		if target.Type == settings.S3BackupType {
+			vmBackupCpy.Annotations[backupBucketNameAnnotation] = target.BucketName
+			vmBackupCpy.Annotations[backupBucketRegionAnnotation] = target.BucketRegion
 		}
 	}
 
-	if !reflect.DeepEqual(vmBackupCpy, vmBackup) {
+	if !reflect.DeepEqual(vmBackup, vmBackupCpy) {
 		if vmBackupCpy.Status != nil {
 			if _, err := h.vmBackups.Update(vmBackupCpy); err != nil {
 				return err

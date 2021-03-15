@@ -140,6 +140,12 @@ type PersistentVolumeClaimSpec struct {
 	Namespace string `json:"namespace"`
 
 	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// +optional
 	Spec corev1.PersistentVolumeClaimSpec `json:"spec,omitempty"`
 }
 
@@ -230,10 +236,7 @@ type VirtualMachineRestoreStatus struct {
 type VolumeRestore struct {
 	VolumeName string `json:"volumeName"`
 
-	PersistentVolumeClaimName string `json:"persistentVolumeClaim"`
+	PersistentVolumeClaim PersistentVolumeClaimSpec `json:"persistentVolumeClaimSpec"`
 
 	VolumeBackupName string `json:"volumeBackupName"`
-
-	// +optional
-	DataVolumeName *string `json:"dataVolumeName,omitempty"`
 }

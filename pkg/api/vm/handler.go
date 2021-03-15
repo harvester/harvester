@@ -21,6 +21,7 @@ import (
 	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/rancher/harvester/pkg/settings"
 )
 
 const (
@@ -29,16 +30,17 @@ const (
 )
 
 type vmActionHandler struct {
-	vms         ctlkubevirtv1.VirtualMachineClient
-	vmis        ctlkubevirtv1.VirtualMachineInstanceClient
-	vmCache     ctlkubevirtv1.VirtualMachineCache
-	vmiCache    ctlkubevirtv1.VirtualMachineInstanceCache
-	vmims       ctlkubevirtv1.VirtualMachineInstanceMigrationClient
-	vmimCache   ctlkubevirtv1.VirtualMachineInstanceMigrationCache
-	backups     ctlharvesterv1.VirtualMachineBackupClient
-	backupCache ctlharvesterv1.VirtualMachineBackupCache
-	restores    ctlharvesterv1.VirtualMachineRestoreClient
-	restClient  *rest.RESTClient
+	vms          ctlkubevirtv1.VirtualMachineClient
+	vmis         ctlkubevirtv1.VirtualMachineInstanceClient
+	vmCache      ctlkubevirtv1.VirtualMachineCache
+	vmiCache     ctlkubevirtv1.VirtualMachineInstanceCache
+	vmims        ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+	vmimCache    ctlkubevirtv1.VirtualMachineInstanceMigrationCache
+	backups      ctlharvesterv1.VirtualMachineBackupClient
+	backupCache  ctlharvesterv1.VirtualMachineBackupCache
+	restores     ctlharvesterv1.VirtualMachineRestoreClient
+	settingCache ctlharvesterv1.SettingCache
+	restClient   *rest.RESTClient
 }
 
 func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -93,6 +95,11 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		if input.Name == "" {
 			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter backup name is required")
 		}
+
+		if err := h.checkBackupTargetConfigured(); err != nil {
+			return err
+		}
+
 		if err := h.createVMBackup(name, namespace, input); err != nil {
 			return err
 		}
@@ -105,6 +112,10 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 
 		if input.Name == "" || input.BackupName == "" {
 			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter name and backupName are required")
+		}
+
+		if err := h.checkBackupTargetConfigured(); err != nil {
+			return err
 		}
 
 		if err := h.restoreBackup(name, namespace, input); err != nil {
@@ -276,4 +287,12 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 	}
 
 	return nil
+}
+
+func (h *vmActionHandler) checkBackupTargetConfigured() error {
+	target, err := h.settingCache.Get(settings.BackupTargetSettingName)
+	if err == nil && harvesterv1alpha1.SettingConfigured.IsTrue(target) {
+		return nil
+	}
+	return fmt.Errorf("backup target is invalid")
 }
