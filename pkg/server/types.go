@@ -154,7 +154,10 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 
 	var authMiddleware steveauth.Middleware
 	if !options.SkipAuthentication {
-		md := auth.NewMiddleware(scaled)
+		md, err := auth.NewMiddleware(s.Context, scaled, s.RESTConfig)
+		if err != nil {
+			return err
+		}
 		authMiddleware = md.ToAuthMiddleware()
 	}
 

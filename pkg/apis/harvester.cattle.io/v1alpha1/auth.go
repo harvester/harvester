@@ -61,6 +61,7 @@ type AuthenticationMode string
 const (
 	KubernetesCredentials AuthenticationMode = "kubernetesCredentials"
 	LocalUser             AuthenticationMode = "localUser"
+	Rancher               AuthenticationMode = "rancher"
 )
 
 type AuthenticationModesResponse struct {
