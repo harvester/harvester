@@ -12,14 +12,11 @@ metadata:
   name: {{ include "harvester-network-controller.name" . }}
 rules:
   - apiGroups: [ "network.harvester.cattle.io" ]
-    resources: [ "globalnetworks", "hostnetworks", "hostnetworks/status" ]
-    verbs: [ "get", "watch", "list", "update", "create" ]
-  - apiGroups: [ "harvester.cattle.io" ]
-    resources: [ "settings" ]
-    verbs: [ "get", "watch", "list" ]
+    resources: [ "clusternetworks", "nodenetworks", "nodenetworks/status" ]
+    verbs: [ "get", "watch", "list", "update", "create", "delete" ]
   - apiGroups: [ "k8s.cni.cncf.io" ]
     resources: [ "network-attachment-definitions" ]
-    verbs: [ "get", "watch", "list" ]
+    verbs: [ "get", "watch", "list", "update" ]
   - apiGroups: [ "" ]
     resources: [ "nodes", "configmaps", "events" ]
     verbs: [ "get", "watch", "list", "update", "create" ]

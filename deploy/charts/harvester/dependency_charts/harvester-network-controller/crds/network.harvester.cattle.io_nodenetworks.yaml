@@ -6,25 +6,25 @@ metadata:
   annotations:
     {}
   creationTimestamp: null
-  name: hostnetworks.network.harvester.cattle.io
+  name: nodenetworks.network.harvester.cattle.io
 spec:
   group: network.harvester.cattle.io
   names:
-    kind: HostNetwork
-    listKind: HostNetworkList
-    plural: hostnetworks
+    kind: NodeNetwork
+    listKind: NodeNetworkList
+    plural: nodenetworks
     shortNames:
-    - hn
-    - hns
-    singular: hostnetwork
+    - nn
+    - nns
+    singular: nodenetwork
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.description
       name: DESCRIPTION
       type: string
-    - jsonPath: .spec.hostName
-      name: HOSTNAME
+    - jsonPath: .spec.nodeName
+      name: NODENAME
       type: string
     - jsonPath: .spec.type
       name: TYPE
@@ -52,14 +52,16 @@ spec:
             properties:
               description:
                 type: string
-              hostName:
-                type: string
               nic:
+                type: string
+              nodeName:
                 type: string
               type:
                 enum:
                 - vlan
                 type: string
+            required:
+            - nodeName
             type: object
           status:
             properties:
@@ -135,7 +137,7 @@ spec:
                       type: array
                     mac:
                       type: string
-                    manager:
+                    master:
                       type: string
                     promiscuous:
                       type: boolean
@@ -149,14 +151,14 @@ spec:
                       type: string
                   type: object
                 type: object
-              physicalNics:
+              physicalNICs:
                 items:
                   properties:
                     index:
                       type: integer
                     name:
                       type: string
-                    usedByManageNetwork:
+                    usedByManagementNetwork:
                       type: boolean
                   type: object
                 type: array

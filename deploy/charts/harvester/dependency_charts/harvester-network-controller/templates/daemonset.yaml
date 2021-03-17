@@ -21,21 +21,27 @@ spec:
       serviceAccountName: {{ include "harvester-network-controller.name" . }}
       hostNetwork: true
       containers:
-        - name: network
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command:
-            - harvester-network-controller
-          args:
-            - agent
-          securityContext:
-            privileged: true
-          volumeMounts:
-          - mountPath: /dev
-            name: dev
-          - mountPath: /lib/modules
-            name: modules
-          resources:
+      - name: network
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - harvester-network-controller
+        args:
+        - agent
+        env:
+        - name: NODENAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /dev
+          name: dev
+        - mountPath: /lib/modules
+          name: modules
+        resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -52,7 +58,9 @@ spec:
       volumes:
         - hostPath:
             path: /dev
+            type: Directory
           name: dev
         - hostPath:
             path: /lib/modules
+            type: Directory
           name: modules
