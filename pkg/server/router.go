@@ -9,6 +9,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/rancher/harvester/pkg/api/auth"
+	"github.com/rancher/harvester/pkg/api/proxy"
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/server/ui"
 )
@@ -41,6 +42,8 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	loginHandler := auth.NewLoginHandler(r.scaled, r.restConfig)
 	m.Path("/v1-public/auth").Handler(loginHandler)
 	m.Path("/v1-public/auth-modes").HandlerFunc(auth.ModeHandler)
+	m.PathPrefix("/v3-public/").Handler(&proxy.Handler{})
+	m.PathPrefix("/v3/").Handler(&proxy.Handler{})
 
 	vueUI := ui.Vue
 	m.Handle("/dashboard/", vueUI.IndexFile())

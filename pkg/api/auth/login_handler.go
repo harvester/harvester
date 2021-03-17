@@ -32,6 +32,7 @@ const (
 	logoutActionName = "logout"
 	//default cluserName/userName/contextName
 	defaultRestConfigResourceName = "default"
+	rancherAuthCookieName         = "R_SESS"
 )
 
 var (
@@ -73,16 +74,8 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if action == logoutActionName {
-		tokenCookie := &http.Cookie{
-			Name:     JWETokenHeader,
-			Value:    "",
-			Secure:   isSecure,
-			Path:     "/",
-			HttpOnly: true,
-			MaxAge:   -1,
-			Expires:  time.Unix(1, 0), //January 1, 1970 UTC
-		}
-		http.SetCookie(rw, tokenCookie)
+		resetCookie(rw, JWETokenHeader, isSecure)
+		resetCookie(rw, rancherAuthCookieName, isSecure)
 		responseOK(rw)
 		return
 	}
@@ -235,6 +228,19 @@ func authenticationModeVerify(input *v1alpha1.Login) (v1alpha1.AuthenticationMod
 		return v1alpha1.KubernetesCredentials, nil
 	}
 	return "", apierror.NewAPIError(validation.Unauthorized, "unsupported authentication mode")
+}
+
+func resetCookie(rw http.ResponseWriter, name string, isSecure bool) {
+	cookie := &http.Cookie{
+		Name:     name,
+		Value:    "",
+		Secure:   isSecure,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   -1,
+		Expires:  time.Unix(1, 0), //January 1, 1970 UTC
+	}
+	http.SetCookie(rw, cookie)
 }
 
 func responseBody(obj interface{}) []byte {

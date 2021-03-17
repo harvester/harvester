@@ -3,6 +3,7 @@ package userpreferences
 import (
 	"github.com/rancher/apiserver/pkg/store/empty"
 	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/harvester/pkg/auth"
 	"github.com/rancher/steve/pkg/attributes"
 	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/wrangler/pkg/data/convert"
@@ -13,9 +14,18 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-var (
-	rancherSchema = "harvester.cattle.io.preference"
+const (
+	rancherSchema   = "management.cattle.io.preference"
+	harvesterSchema = "harvester.cattle.io.preference"
 )
+
+func getPreferenceSchema() string {
+	schema := harvesterSchema
+	if auth.IsRancherAuthMode() {
+		schema = rancherSchema
+	}
+	return schema
+}
 
 type rancherPrefStore struct {
 	empty.Store
@@ -28,7 +38,7 @@ func (e *rancherPrefStore) getClient(apiOp *types.APIRequest) (dynamic.ResourceI
 		return nil, validation.Unauthorized
 	}
 	u := user.GetName()
-	cmSchema := apiOp.Schemas.LookupSchema(rancherSchema)
+	cmSchema := apiOp.Schemas.LookupSchema(getPreferenceSchema())
 	if cmSchema == nil {
 		return nil, validation.NotFound
 	}
@@ -109,7 +119,7 @@ func (e *rancherPrefStore) Update(apiOp *types.APIRequest, schema *types.APISche
 		return types.APIObject{}, validation.Unauthorized
 	}
 
-	gvk := attributes.GVK(apiOp.Schemas.LookupSchema(rancherSchema))
+	gvk := attributes.GVK(apiOp.Schemas.LookupSchema(getPreferenceSchema()))
 
 	newValues := map[string]string{}
 	for k, v := range data.Data().Map("data") {
