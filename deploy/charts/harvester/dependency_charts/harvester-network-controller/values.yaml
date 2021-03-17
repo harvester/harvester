@@ -29,7 +29,7 @@ affinity: {}
 
 # Default value for harvester-network-controller-manager deployment
 manager:
-  replicas: 3
+  replicas: 2
   nodeAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:
       nodeSelectorTerms:
