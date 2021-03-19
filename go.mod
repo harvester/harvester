@@ -14,6 +14,7 @@ replace (
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20191125132246-f6563a70e19a
 	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
 	github.com/rancher/apiserver => github.com/cnrancher/apiserver v0.0.0-20210302022932-069aa785cb9f
+	github.com/rancher/harvester-network-controller => github.com/rancher/harvester-network-controller v0.0.0-20210312095958-8c1d132076dc
 
 	k8s.io/api => k8s.io/api v0.20.4
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.4
@@ -62,12 +63,12 @@ require (
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12
 	github.com/minio/minio-go/v6 v6.0.57
-	github.com/nxadm/tail v1.4.5 // indirect
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.2
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/apiserver v0.0.0-20201023000256-1a0a904f9197
 	github.com/rancher/dynamiclistener v0.2.1-0.20200714201033-9c1939da3af9
+	github.com/rancher/harvester-network-controller v0.0.0-00010101000000-000000000000
 	github.com/rancher/lasso v0.0.0-20210219160604-9baf1c12751b
 	github.com/rancher/steve v0.0.0-20210219172118-2cf9f857b073
 	github.com/rancher/wrangler v0.7.3-0.20210219161540-ef7fe9ce2443
@@ -78,9 +79,7 @@ require (
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	google.golang.org/appengine v1.6.5
 	gopkg.in/square/go-jose.v2 v2.3.1
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	helm.sh/helm/v3 v3.5.2
 	k8s.io/api v0.20.4
 	k8s.io/apiextensions-apiserver v0.20.4

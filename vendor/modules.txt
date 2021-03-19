@@ -419,6 +419,9 @@ github.com/rancher/dynamiclistener/server
 github.com/rancher/dynamiclistener/storage/file
 github.com/rancher/dynamiclistener/storage/kubernetes
 github.com/rancher/dynamiclistener/storage/memory
+# github.com/rancher/harvester-network-controller v0.0.0-00010101000000-000000000000 => github.com/rancher/harvester-network-controller v0.0.0-20210312095958-8c1d132076dc
+github.com/rancher/harvester-network-controller/pkg/apis/network.harvester.cattle.io
+github.com/rancher/harvester-network-controller/pkg/apis/network.harvester.cattle.io/v1alpha1
 # github.com/rancher/lasso v0.0.0-20210219160604-9baf1c12751b
 github.com/rancher/lasso/pkg/cache
 github.com/rancher/lasso/pkg/client
@@ -633,7 +636,7 @@ golang.org/x/text/unicode/norm
 golang.org/x/text/width
 # golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20210106214847-113979e3529a
+# golang.org/x/tools v0.1.0
 golang.org/x/tools/go/ast/astutil
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/gcimporter
