@@ -52,6 +52,7 @@ fi && \
 echo update config && \
 sudo yq -i eval '.k3os.k3sArgs[0] = \"server\"' /var/lib/rancher/k3os/config.yaml && \
 sudo yq -i eval '.k3os.k3sArgs |= . + [\"--disable\",\"local-storage\",\"--disable\",\"servicelb\",\"--disable\",\"traefik\"]' /var/lib/rancher/k3os/config.yaml && \
+sudo yq -i eval '.k3os.k3sArgs |= . + [\"--cluster-cidr\",\"10.52.0.0/16\",\"--service-cidr\",\"10.53.0.0/16\",\"--cluster-dns\",\"10.53.0.10\"]' /var/lib/rancher/k3os/config.yaml && \
 echo restart and promote k3s node && \
 cat /var/run/k3s-restarter-trap.pid | xargs -r kill -HUP && \
 echo finish promote
