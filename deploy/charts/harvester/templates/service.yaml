@@ -13,6 +13,7 @@ metadata:
     kubernetes.io/cluster-service: "true"
 {{- end }}
 spec:
+  sessionAffinity: {{ .Values.service.harvester.sessionAffinity }}
   type: {{ .Values.service.harvester.type }}
   selector:
 {{ include "harvester.labels" . | indent 4 }}
