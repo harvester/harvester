@@ -23,6 +23,7 @@ var (
 	AuthSecretName         = NewSetting("auth-secret-name", "harvester-key-holder")
 	AuthTokenMaxTTLMinutes = NewSetting("auth-token-max-ttl-minutes", "720")
 	NoDefaultAdmin         = NewSetting("no-default-admin", "")
+	ServerURL              = NewSetting("server-url", "")
 	ServerVersion          = NewSetting("server-version", "dev")
 	UIIndex                = NewSetting("ui-index", "https://releases.rancher.com/harvester-ui/latest/index.html")
 	UIPath                 = NewSetting("ui-path", "/usr/share/rancher/harvester")
