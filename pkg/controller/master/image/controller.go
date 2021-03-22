@@ -17,26 +17,10 @@ import (
 	"github.com/rancher/harvester/pkg/util"
 )
 
-const (
-	controllerAgentName = "vm-image-controller"
-)
-
 var (
 	syncProgressInterval = 2 * time.Second
 	importIdleTimeout    = 5 * time.Minute
 )
-
-func RegisterController(ctx context.Context, management *config.Management, options config.Options) {
-	images := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineImage()
-	controller := &Handler{
-		images:     images,
-		imageCache: images.Cache(),
-		options:    options,
-	}
-
-	images.OnChange(ctx, controllerAgentName, controller.OnImageChanged)
-	images.OnRemove(ctx, controllerAgentName, controller.OnImageRemove)
-}
 
 // Handler implements harvester image import
 type Handler struct {
