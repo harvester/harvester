@@ -359,6 +359,10 @@ service:
     ##
     httpPort: 0
 
+    ## Specify the session affinity,
+    ## defaults to "ClientIP".
+    sessionAffinity: ClientIP
+
 ## Specify the lifecycle jobs.
 ##
 jobs:
