@@ -58,9 +58,7 @@ spec:
       volumes:
         - hostPath:
             path: /dev
-            type: Directory
           name: dev
         - hostPath:
             path: /lib/modules
-            type: Directory
           name: modules
