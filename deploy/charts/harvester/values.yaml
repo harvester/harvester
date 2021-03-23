@@ -136,7 +136,7 @@ minio:
 
   ## Specify the mode.
   ##
-  mode: distributed
+  mode: standalone
 
   ## Specify the full name of Minio.
   ##
@@ -190,7 +190,7 @@ minio:
 
     ## Specify the size of Minio.
     ##
-    size: 20Gi
+    size: 80Gi
 
 ###########################################################################
 ###########################################################################
@@ -485,3 +485,7 @@ longhorn:
   csi:
     ## Specify the kubelet root directory.
     kubeletRootDir: /var/lib/kubelet
+
+  defaultSettings:
+    ## Specify the concurrent automatic engine upgrade per node limit
+    concurrentAutomaticEngineUpgradePerNodeLimit: 3

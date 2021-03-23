@@ -24,7 +24,6 @@ type registerFunc func(context.Context, *config.Management, config.Options) erro
 var registerFuncs = []registerFunc{
 	image.Register,
 	keypair.Register,
-	node.BalanceRegister,
 	node.PromoteRegister,
 	node.MaintainRegister,
 	template.Register,
