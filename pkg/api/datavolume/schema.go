@@ -6,7 +6,6 @@ import (
 	"github.com/rancher/steve/pkg/stores/proxy"
 
 	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/util"
 )
 
 const (
@@ -25,5 +24,5 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 
 	server.SchemaFactory.AddTemplate(t)
-	return util.InitCertConfigMap(scaled)
+	return nil
 }
