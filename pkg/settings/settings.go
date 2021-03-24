@@ -30,6 +30,7 @@ var (
 	APIUISource            = NewSetting("api-ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
 	VolumeSnapshotClass    = NewSetting("volume-snapshot-class", "longhorn")
 	BackupTargetSet        = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
+	RancherEnabled         = NewSetting("rancher-enabled", "false") // Specify whether the UI should display the Rancher UI navigation
 )
 
 const BackupTargetSettingName = "backup-target"

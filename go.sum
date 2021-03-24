@@ -1142,6 +1142,7 @@ github.com/rancher/lasso v0.0.0-20200905045615-7fcb07d6a20b/go.mod h1:OhBBBO1pBw
 github.com/rancher/lasso v0.0.0-20210218221607-54c79222a9ad/go.mod h1:OhBBBO1pBwYp0hacWdnvSGOj+XE9yMLOLnaypIlic18=
 github.com/rancher/lasso v0.0.0-20210219160604-9baf1c12751b h1:CqS7xql6zJ7AKc1IFeKSy+3JZqVuEoEvKRE3bSj78JU=
 github.com/rancher/lasso v0.0.0-20210219160604-9baf1c12751b/go.mod h1:OhBBBO1pBwYp0hacWdnvSGOj+XE9yMLOLnaypIlic18=
+github.com/rancher/machine v0.15.0-rancher25 h1:i78iohBm9QLmxHOMM1ZssYwSNIObPdDUQjZ9h1mo8Jc=
 github.com/rancher/machine v0.15.0-rancher25/go.mod h1:Q7gKLOkNb8z8A/fYUhHFJ/ChJfpF8JVFxHPKZgEgpPA=
 github.com/rancher/norman v0.0.0-20200517050325-f53cae161640/go.mod h1:92rz/7QN7DOeLQZlJY/8aFBOmF085igIVguR0wpxLas=
 github.com/rancher/norman v0.0.0-20200714195611-b3163ad4ebc4 h1:9lH3XiG7lSoQVaqeZTmydzxasRSiYoc3PdOoAvpQAyc=
@@ -1206,6 +1207,7 @@ github.com/russross/blackfriday v1.5.2/go.mod h1:JO/DiYxRf+HjHt06OyowR9PTA263kcR
 github.com/russross/blackfriday/v2 v2.0.1 h1:lPqVAte+HuHNfhJ/0LC98ESWRz8afy9tM/0RK8m9o+Q=
 github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/ryanuber/columnize v0.0.0-20160712163229-9b3edd62028f/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
+github.com/samalba/dockerclient v0.0.0-20151231000007-f661dd4754aa h1:kIglQ8vg9EkWKEYTBuUl6ESDc65LFrhdoq7a9EvROGI=
 github.com/samalba/dockerclient v0.0.0-20151231000007-f661dd4754aa/go.mod h1:yeYR4SlaRZJct6lwNRKR+qd0CocnxxWDE7Vh5dxsn/w=
 github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da/go.mod h1:gi+0XIa01GRL2eRQVjQkKGqKF3SF9vZR/HnPullcV2E=
 github.com/satori/go.uuid v0.0.0-20151028231719-d41af8bb6a77/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
@@ -1883,6 +1885,7 @@ k8s.io/component-base v0.20.4 h1:gdvPs4G11e99meQnW4zN+oYOjH8qkLz1sURrAzvKWqc=
 k8s.io/component-base v0.20.4/go.mod h1:t4p9EdiagbVCJKrQ1RsA5/V4rFQNDfRlevJajlGwgjI=
 k8s.io/component-helpers v0.20.4/go.mod h1:S7jGg8zQp3kwvSzfuGtNaQAMVmvzomXDioTm5vABn9g=
 k8s.io/controller-manager v0.20.4/go.mod h1:WEvFUeeywQl0dIUvorC8Zx/vSqgB8sGKrzNncUEcjlE=
+k8s.io/cri-api v0.20.4 h1:AwwzhJMfaxiw8NnEJAUQI+FWlX1mAp9tHODTVxnkEQg=
 k8s.io/cri-api v0.20.4/go.mod h1:2JRbKt+BFLTjtrILYVqQK5jqhI+XNdF6UiGMgczeBCI=
 k8s.io/csi-translation-lib v0.20.4/go.mod h1:WisLItCdoDKB4lr6nkhzQsfgBNBJDI/TD9m4Crw92JM=
 k8s.io/gengo v0.0.0-20181113154421-fd15ee9cc2f7/go.mod h1:ezvh/TsK7cY6rbqRK0oQQ8IAqLxYwwyPxAX1Pzy0ii0=

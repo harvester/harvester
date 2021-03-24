@@ -71,6 +71,7 @@ require (
 	github.com/rancher/dynamiclistener v0.2.1-0.20200910203214-85f32491cb09
 	github.com/rancher/lasso v0.0.0-20210219160604-9baf1c12751b
 	github.com/rancher/rancher v0.0.0-20210312225102-c824d91cd247
+	github.com/rancher/rancher/pkg/apis v0.0.0
 	github.com/rancher/steve v0.0.0-20210302143000-362617a677a9
 	github.com/rancher/wrangler v0.7.3-0.20210219161540-ef7fe9ce2443
 	github.com/rancher/wrangler-api v0.6.1-0.20200515193802-dcf70881b087

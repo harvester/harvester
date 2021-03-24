@@ -113,13 +113,25 @@ func main() {
 		cli.StringFlag{
 			Name:   "authentication-mode",
 			EnvVar: "HARVESTER_AUTHENTICATION_MODE",
-			Usage:  "Define authentication mode, kubernetesCredentials and localUser are supported, could config more than one mode, separated by comma",
+			Usage:  "Define authentication mode, kubernetesCredentials, localUser and rancher are supported, could config more than one mode, separated by comma",
 		},
 		cli.StringFlag{
 			Name:        "profile-listen-address",
 			Value:       "0.0.0.0:6060",
 			Usage:       "Address to listen on for profiling",
 			Destination: &profileAddress,
+		},
+		cli.BoolFlag{
+			Name:        "rancher-embedded",
+			EnvVar:      "RANCHER_EMBEDDED",
+			Usage:       "Specify whether the Harvester is running with embedded Rancher mode, default to false",
+			Destination: &options.RancherEmbedded,
+		},
+		cli.StringFlag{
+			Name:        "rancher-server-url",
+			EnvVar:      "RANCHER_SERVER_URL",
+			Usage:       "Specify the URL to connect to the Rancher server",
+			Destination: &options.RancherURL,
 		},
 	}
 	app.Action = func(c *cli.Context) error {

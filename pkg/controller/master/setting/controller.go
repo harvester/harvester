@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	certNamespace = "kube-system"
-	certName      = "serving-cert"
-	cnPrefix      = "listener.cattle.io/cn-"
+	CertNamespace = "kube-system"
+	CNPrefix      = "listener.cattle.io/cn-"
+
+	certName = "serving-cert"
 )
 
 // Handler updates harvester certificate SANs on server-url setting changes
@@ -31,14 +32,14 @@ func (h *Handler) OnChanged(key string, setting *v1alpha1.Setting) (*v1alpha1.Se
 		return setting, err
 	}
 
-	secret, err := h.SecretCache.Get(certNamespace, certName)
+	secret, err := h.SecretCache.Get(CertNamespace, certName)
 	if errors.IsNotFound(err) {
 		return setting, nil
 	} else if err != nil {
 		return setting, err
 	}
 	cn := u.Hostname()
-	if secret.Annotations[cnPrefix+cn] == cn {
+	if secret.Annotations[CNPrefix+cn] == cn {
 		return setting, nil
 	}
 	toUpdate := secret.DeepCopy()
@@ -49,12 +50,12 @@ func (h *Handler) OnChanged(key string, setting *v1alpha1.Setting) (*v1alpha1.Se
 	//clean up other cns
 	newAnnotations := map[string]string{}
 	for k, v := range toUpdate.Annotations {
-		if !strings.Contains(k, cnPrefix) {
+		if !strings.Contains(k, CNPrefix) {
 			newAnnotations[k] = v
 		}
 	}
 	toUpdate.Annotations = newAnnotations
-	toUpdate.Annotations[cnPrefix+cn] = cn
+	toUpdate.Annotations[CNPrefix+cn] = cn
 	_, err = h.SecretClient.Update(toUpdate)
 	return setting, err
 }

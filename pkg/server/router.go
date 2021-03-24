@@ -2,6 +2,9 @@ package server
 
 import (
 	"net/http"
+	"net/url"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
@@ -17,12 +20,14 @@ import (
 type Router struct {
 	scaled     *config.Scaled
 	restConfig *rest.Config
+	options    config.Options
 }
 
-func NewRouter(scaled *config.Scaled, restConfig *rest.Config) (*Router, error) {
+func NewRouter(scaled *config.Scaled, restConfig *rest.Config, options config.Options) (*Router, error) {
 	return &Router{
 		scaled:     scaled,
 		restConfig: restConfig,
+		options:    options,
 	}, nil
 }
 
@@ -42,15 +47,38 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	loginHandler := auth.NewLoginHandler(r.scaled, r.restConfig)
 	m.Path("/v1-public/auth").Handler(loginHandler)
 	m.Path("/v1-public/auth-modes").HandlerFunc(auth.ModeHandler)
-	m.PathPrefix("/v3-public/").Handler(&proxy.Handler{})
-	m.PathPrefix("/v3/").Handler(&proxy.Handler{})
 
 	vueUI := ui.Vue
 	m.Handle("/dashboard/", vueUI.IndexFile())
 	m.PathPrefix("/dashboard/").Handler(vueUI.IndexFileOnNotFound())
 	m.PathPrefix("/api-ui").Handler(vueUI.ServeAsset())
 
+	if r.options.RancherEmbedded {
+		host, err := parseRancherServerURL(r.options.RancherURL)
+		if err != nil {
+			logrus.Fatal(err)
+		}
+		v3Handler := &proxy.Handler{
+			Host: host,
+		}
+		m.PathPrefix("/v3-public/").Handler(v3Handler)
+		m.PathPrefix("/v3/").Handler(v3Handler)
+	}
+
 	m.NotFoundHandler = router.Routes(h)
 
 	return m
+}
+
+func parseRancherServerURL(endpoint string) (string, error) {
+	if endpoint == "" {
+		return "", nil
+	}
+
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return "", err
+	}
+
+	return u.Host, nil
 }

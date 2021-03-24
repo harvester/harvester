@@ -83,6 +83,10 @@ spec:
               value: {{ .Values.containers.apiserver.debug | quote }}
             - name: HARVESTER_SERVER_HTTP_PORT
               value: {{ .Values.service.harvester.httpPort | quote }}
+            {{- if .Values.rancherEmbedded }}
+            - name: RANCHER_EMBEDDED
+              value: "true"
+            {{- end }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:

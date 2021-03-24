@@ -5,20 +5,20 @@ import (
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	"github.com/rancher/steve/pkg/server"
+	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	wcrd "github.com/rancher/wrangler/pkg/crd"
+	"k8s.io/client-go/rest"
 
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/util/crd"
 )
 
-func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
-	return createCRDs(ctx, server)
+func Setup(ctx context.Context, restConfig *rest.Config) error {
+	return createCRDs(ctx, restConfig)
 }
 
-func createCRDs(ctx context.Context, server *server.Server) error {
-	factory, err := crd.NewFactoryFromClient(ctx, server.RESTConfig)
+func createCRDs(ctx context.Context, restConfig *rest.Config) error {
+	factory, err := crd.NewFactoryFromClient(ctx, restConfig)
 	if err != nil {
 		return err
 	}
@@ -26,6 +26,10 @@ func createCRDs(ctx context.Context, server *server.Server) error {
 		BatchCreateCRDsIfNotExisted(
 			crd.NonNamespacedFromGV(v1alpha1.SchemeGroupVersion, "Setting"),
 			crd.NonNamespacedFromGV(v1alpha1.SchemeGroupVersion, "User"),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "Setting"),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "User"),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "UserAttribute"),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "Token"),
 		).
 		BatchCreateCRDsIfNotExisted(
 			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineImage"),

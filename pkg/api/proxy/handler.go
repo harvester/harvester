@@ -8,6 +8,7 @@ import (
 
 // Handler proxies requests to the rancher service
 type Handler struct {
+	Host string
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -15,6 +16,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		r.URL.Scheme = "https"
 		r.URL.Host = "rancher.cattle-system"
 		r.URL.Path = req.URL.Path
+		if h.Host != "" {
+			r.URL.Host = h.Host
+		}
 	}
 	httpProxy := &httputil.ReverseProxy{
 		Director: director,
