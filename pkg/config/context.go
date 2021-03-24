@@ -5,6 +5,7 @@ import (
 
 	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/rancher/lasso/pkg/controller"
+	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	appsv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
 	batchv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch"
 	corev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core"
@@ -45,22 +46,25 @@ type Options struct {
 	ImageStorageAccessKey string
 	ImageStorageSecretKey string
 	SkipAuthentication    bool
+	RancherEmbedded       bool
+	RancherURL            string
 }
 
 type Scaled struct {
 	ctx               context.Context
 	ControllerFactory controller.SharedControllerFactory
 
-	VirtFactory      *kubevirt.Factory
-	CDIFactory       *cdi.Factory
-	HarvesterFactory *harvester.Factory
-	CoreFactory      *corev1.Factory
-	AppsFactory      *appsv1.Factory
-	RbacFactory      *rbacv1.Factory
-	CniFactory       *cniv1.Factory
-	SnapshotFactory  *snapshotv1.Factory
-	LonghornFactory  *longhornv1.Factory
-	starters         []start.Starter
+	VirtFactory              *kubevirt.Factory
+	CDIFactory               *cdi.Factory
+	HarvesterFactory         *harvester.Factory
+	CoreFactory              *corev1.Factory
+	AppsFactory              *appsv1.Factory
+	RbacFactory              *rbacv1.Factory
+	CniFactory               *cniv1.Factory
+	SnapshotFactory          *snapshotv1.Factory
+	LonghornFactory          *longhornv1.Factory
+	RancherManagementFactory *rancherv3.Factory
+	starters                 []start.Starter
 
 	Management   *Management
 	TokenManager dashboardapi.TokenManager
@@ -70,16 +74,17 @@ type Management struct {
 	ctx               context.Context
 	ControllerFactory controller.SharedControllerFactory
 
-	VirtFactory      *kubevirt.Factory
-	CDIFactory       *cdi.Factory
-	HarvesterFactory *harvester.Factory
-	CoreFactory      *corev1.Factory
-	AppsFactory      *appsv1.Factory
-	RbacFactory      *rbacv1.Factory
-	StorageFactory   *storagev1.Factory
-	BatchFactory     *batchv1.Factory
-	SnapshotFactory  *snapshotv1.Factory
-	LonghornFactory  *longhornv1.Factory
+	VirtFactory              *kubevirt.Factory
+	CDIFactory               *cdi.Factory
+	HarvesterFactory         *harvester.Factory
+	CoreFactory              *corev1.Factory
+	AppsFactory              *appsv1.Factory
+	RbacFactory              *rbacv1.Factory
+	StorageFactory           *storagev1.Factory
+	BatchFactory             *batchv1.Factory
+	SnapshotFactory          *snapshotv1.Factory
+	LonghornFactory          *longhornv1.Factory
+	RancherManagementFactory *rancherv3.Factory
 
 	ClientSet *kubernetes.Clientset
 
@@ -152,6 +157,13 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	}
 	scaled.LonghornFactory = longhorn
 	scaled.starters = append(scaled.starters, longhorn)
+
+	rancher, err := rancherv3.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.RancherManagementFactory = rancher
+	scaled.starters = append(scaled.starters, rancher)
 
 	scaled.Management, err = setupManagement(ctx, restConfig, opts)
 	if err != nil {
@@ -239,6 +251,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.SnapshotFactory = snapshot
 	management.starters = append(management.starters, snapshot)
+
+	rancher, err := rancherv3.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.RancherManagementFactory = rancher
+	management.starters = append(management.starters, rancher)
 
 	management.ClientSet, err = kubernetes.NewForConfig(restConfig)
 	if err != nil {

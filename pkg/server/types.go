@@ -147,14 +147,18 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 
 	s.ASL = accesscontrol.NewAccessStore(s.Context, true, s.controllers.RBAC)
 
-	router, err := NewRouter(scaled, s.RESTConfig)
+	router, err := NewRouter(scaled, s.RESTConfig, options)
 	if err != nil {
+		return err
+	}
+
+	if err := crds.Setup(s.Context, s.RESTConfig); err != nil {
 		return err
 	}
 
 	var authMiddleware steveauth.Middleware
 	if !options.SkipAuthentication {
-		md, err := auth.NewMiddleware(s.Context, scaled, s.RESTConfig)
+		md, err := auth.NewMiddleware(s.Context, scaled, s.RESTConfig, options.RancherEmbedded)
 		if err != nil {
 			return err
 		}
@@ -172,7 +176,6 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 	}
 
 	s.startHooks = []StartHook{
-		crds.Setup,
 		master.Setup,
 		global.Setup,
 		api.Setup,
