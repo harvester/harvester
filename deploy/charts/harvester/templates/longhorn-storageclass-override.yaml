@@ -1,5 +1,5 @@
 # This configmap is a hook to add the migratable param to the longhorn storage class
-{{- if .Values.longhorn.enabled -}}
+{{ if .Values.longhorn.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -29,4 +29,4 @@ data:
       {{- if .Values.longhorn.persistence.recurringJobs.enable }}
       recurringJobs: '{{ .Values.longhorn.persistence.recurringJobs.jobList }}'
       {{- end }}
-  {{- end -}}
+{{- end -}}
