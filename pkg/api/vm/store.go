@@ -27,16 +27,6 @@ type vmStore struct {
 	dataVolumesCache ctlcdiv1beta1.DataVolumeCache
 }
 
-func (s *vmStore) Create(request *types.APIRequest, schema *types.APISchema, data types.APIObject) (types.APIObject, error) {
-	setHTTPSourceDVTemplates(data)
-	return s.Store.Create(request, request.Schema, data)
-}
-
-func (s *vmStore) Update(request *types.APIRequest, schema *types.APISchema, data types.APIObject, id string) (types.APIObject, error) {
-	setHTTPSourceDVTemplates(data)
-	return s.Store.Update(request, request.Schema, data, id)
-}
-
 func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
 	removedDisks := request.Query["removedDisks"]
 	vm, err := s.vmCache.Get(request.Namespace, request.Name)
@@ -125,12 +115,4 @@ func (s *vmStore) deleteDataVolumes(namespace string, names []string) error {
 		}
 	}
 	return nil
-}
-
-func setHTTPSourceDVTemplates(data types.APIObject) {
-	dvTemplates := data.Data().Slice("spec", "dataVolumeTemplates")
-	for _, t := range dvTemplates {
-		util.SetHTTPSourceDataVolume(t)
-	}
-	data.Data().SetNested(dvTemplates, "spec", "dataVolumeTemplates")
 }
