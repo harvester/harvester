@@ -40,6 +40,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	restores := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineRestore()
 	settings := scaled.HarvesterFactory.Harvester().V1alpha1().Setting()
 	nodes := scaled.CoreFactory.Core().V1().Node()
+	vmt := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate()
+	vmtv := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion()
 
 	copyConfig := rest.CopyConfig(server.RESTConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion
@@ -61,6 +63,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		vmiCache:                  vmis.Cache(),
 		vmims:                     vmims,
 		vmimCache:                 vmims.Cache(),
+		vmTemplateClient:          vmt,
+		vmTemplateVersionClient:   vmtv,
 		backups:                   backups,
 		backupCache:               backups.Cache(),
 		restores:                  restores,
@@ -96,6 +100,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				abortMigration: &actionHandler,
 				backupVM:       &actionHandler,
 				restoreVM:      &actionHandler,
+				createTemplate: &actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:   {},
@@ -116,6 +121,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				restoreVM: {
 					Input: "restoreInput",
 				},
+				createTemplate: {},
 			}
 		},
 		Formatter: vmformatter.formatter,
