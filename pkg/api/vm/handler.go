@@ -20,15 +20,18 @@ import (
 	kv1 "kubevirt.io/client-go/api/v1"
 
 	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	v1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/rancher/harvester/pkg/settings"
 	"github.com/rancher/harvester/pkg/util"
 )
 
 const (
-	vmResource  = "virtualmachines"
-	vmiResource = "virtualmachineinstances"
+	vmResource    = "virtualmachines"
+	vmiResource   = "virtualmachineinstances"
+	sshAnnotation = "harvester.cattle.io/sshNames"
 )
 
 type vmActionHandler struct {
@@ -38,6 +41,8 @@ type vmActionHandler struct {
 	vmCache                   ctlkubevirtv1.VirtualMachineCache
 	vmiCache                  ctlkubevirtv1.VirtualMachineInstanceCache
 	vmims                     ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+	vmTemplateClient          ctlvmv1alpha1.VirtualMachineTemplateClient
+	vmTemplateVersionClient   ctlvmv1alpha1.VirtualMachineTemplateVersionClient
 	vmimCache                 ctlkubevirtv1.VirtualMachineInstanceMigrationCache
 	backups                   ctlharvesterv1.VirtualMachineBackupClient
 	backupCache               ctlharvesterv1.VirtualMachineBackupCache
@@ -131,6 +136,8 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			return err
 		}
 		return nil
+	case createTemplate:
+		return h.createTemplate(namespace, name)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -339,4 +346,73 @@ func getMigrationUID(vmi *kv1.VirtualMachineInstance) string {
 		return string(vmi.Status.MigrationState.MigrationUID)
 	}
 	return ""
+}
+
+// createTemplate creates a template and version that are derived from the given virtual machine.
+func (h *vmActionHandler) createTemplate(namespace, name string) error {
+	vmt, err := h.vmTemplateClient.Create(
+		&v1alpha1.VirtualMachineTemplate{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: fmt.Sprintf("%s-clone-", name),
+				Namespace:    namespace,
+			},
+			Spec: v1alpha1.VirtualMachineTemplateSpec{},
+		})
+	if err != nil {
+		return err
+	}
+
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	keyPairIDs, err := getSSHKeysFromVMITemplateSpec(vm.Spec.Template)
+	if err != nil {
+		return err
+	}
+	vmID := fmt.Sprintf("%s/%s", vmt.Namespace, vmt.Name)
+
+	_, err = h.vmTemplateVersionClient.Create(
+		&v1alpha1.VirtualMachineTemplateVersion{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: fmt.Sprintf("%s-", vmt.Name),
+				Namespace:    namespace,
+			},
+			Spec: v1alpha1.VirtualMachineTemplateVersionSpec{
+				TemplateID:  vmID,
+				Description: fmt.Sprintf("Template drived from virtual machine [%s]", vmID),
+				VM:          removeMacAddresses(vm.Spec),
+				KeyPairIDs:  keyPairIDs,
+			},
+		})
+	return err
+}
+
+// removeMacAddresses replaces the mac address of each device interface with an empty string.
+// This is because macAddresses are unique, and should not reuse the original's.
+func removeMacAddresses(vmSpec kv1.VirtualMachineSpec) kv1.VirtualMachineSpec {
+	censoredSpec := vmSpec
+	for index := range censoredSpec.Template.Spec.Domain.Devices.Interfaces {
+		censoredSpec.Template.Spec.Domain.Devices.Interfaces[index].MacAddress = ""
+	}
+	return censoredSpec
+}
+
+// getSSHKeysFromVMITemplateSpec first checks the given VirtualMachineInstanceTemplateSpec
+// for ssh key annotation. If found, it attempts to parse it into a string slice and return
+// it.
+func getSSHKeysFromVMITemplateSpec(vmitSpec *kv1.VirtualMachineInstanceTemplateSpec) ([]string, error) {
+	if vmitSpec == nil {
+		return nil, nil
+	}
+	annos := vmitSpec.ObjectMeta.Annotations
+	if annos == nil {
+		return nil, nil
+	}
+	var sshKeys []string
+	if err := json.Unmarshal([]byte(annos[sshAnnotation]), &sshKeys); err != nil {
+		return nil, err
+	}
+	return sshKeys, nil
 }
