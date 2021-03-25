@@ -21,6 +21,7 @@ const (
 	abortMigration = "abortMigration"
 	backupVM       = "backup"
 	restoreVM      = "restore"
+	createTemplate = "createTemplate"
 )
 
 type vmformatter struct {
@@ -77,6 +78,10 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canDoRestore(vm, vmi) {
 		resource.AddAction(request, restoreVM)
+	}
+
+	if vf.canCreateTemplate(vmi) {
+		resource.AddAction(request, createTemplate)
 	}
 }
 
@@ -189,6 +194,10 @@ func (vf *vmformatter) isVMRenaming(vm *kv1.VirtualMachine) bool {
 		}
 	}
 	return false
+}
+
+func (vf *vmformatter) canCreateTemplate(vmi *kv1.VirtualMachineInstance) bool {
+	return vmi != nil
 }
 
 func (vf *vmformatter) getVMI(vm *kv1.VirtualMachine) *kv1.VirtualMachineInstance {
