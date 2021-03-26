@@ -24,7 +24,9 @@ var registerFuncs = []registerFunc{
 func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
 	indexeres.RegisterScaledIndexers(scaled)
-	registerControllers(ctx, scaled)
+	if options.RancherEmbedded {
+		registerControllers(ctx, scaled)
+	}
 	for _, f := range registerFuncs {
 		if err := f(ctx, scaled, server, options); err != nil {
 			return err
