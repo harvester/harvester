@@ -14,7 +14,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	sett "github.com/rancher/harvester/pkg/controller/master/setting"
 	harvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 )
@@ -42,6 +41,7 @@ type Handler struct {
 	SecretCache     corev1.SecretCache
 	RancherSettings rancherv3.SettingClient
 	Settings        harvesterv1.SettingClient
+	NodeDrivers     rancherv3.NodeDriverClient
 }
 
 func (h *Handler) SettingOnChange(key string, setting *rancherv3api.Setting) (*rancherv3api.Setting, error) {
@@ -79,29 +79,6 @@ func (h *Handler) SettingOnChange(key string, setting *rancherv3api.Setting) (*r
 	toUpdate.Annotations = newAnnotations
 	toUpdate.Annotations[sett.CNPrefix+cn] = cn
 	if _, err = h.Secrets.Update(toUpdate); err != nil {
-		return setting, err
-	}
-
-	return setting, nil
-}
-
-func (h *Handler) ServerURLOnChange(key string, setting *harvesterv1alpha1.Setting) (*harvesterv1alpha1.Setting, error) {
-	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != ServerURLSettingName || setting.Value == "" {
-		return nil, nil
-	}
-
-	serverURL, err := h.RancherSettings.Get(ServerURLSettingName, metav1.GetOptions{})
-	if err != nil {
-		return setting, err
-	}
-
-	if serverURL.Value != "" {
-		return setting, nil
-	}
-
-	toUpdate := serverURL.DeepCopy()
-	toUpdate.Value = strings.Replace(setting.Value, "30443", "30444", 1)
-	if _, err = h.RancherSettings.Update(toUpdate); err != nil {
 		return setting, err
 	}
 
