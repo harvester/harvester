@@ -22,6 +22,7 @@ var (
 	AuthenticationMode     = NewSetting("authentication-mode", fmt.Sprintf("%s,%s", v1alpha1.KubernetesCredentials, v1alpha1.LocalUser))
 	AuthSecretName         = NewSetting("auth-secret-name", "harvester-key-holder")
 	AuthTokenMaxTTLMinutes = NewSetting("auth-token-max-ttl-minutes", "720")
+	FirstLogin             = NewSetting("first-login", "true")
 	NoDefaultAdmin         = NewSetting("no-default-admin", "")
 	ServerURL              = NewSetting("server-url", "")
 	ServerVersion          = NewSetting("server-version", "dev")

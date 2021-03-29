@@ -23,6 +23,7 @@ import (
 	"github.com/rancher/harvester/pkg/config"
 	ctlalpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/indexeres"
+	"github.com/rancher/harvester/pkg/settings"
 )
 
 const (
@@ -105,6 +106,12 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		responseError(rw, status, err.Error())
 		return
+	}
+
+	if !strings.EqualFold(settings.FirstLogin.Get(), "false") {
+		if err := settings.FirstLogin.Set("false"); err != nil {
+			responseError(rw, http.StatusInternalServerError, err.Error())
+		}
 	}
 
 	tokenCookie := &http.Cookie{
