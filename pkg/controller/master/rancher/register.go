@@ -15,18 +15,23 @@ func Register(ctx context.Context, management *config.Management, options config
 		secrets := management.CoreFactory.Core().V1().Secret()
 		rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 		settings := management.HarvesterFactory.Harvester().V1alpha1().Setting()
+		nodeDrivers := management.RancherManagementFactory.Management().V3().NodeDriver()
 		h := Handler{
 			Secrets:         secrets,
 			SecretCache:     secrets.Cache(),
 			RancherSettings: rancherSettings,
 			Settings:        settings,
+			NodeDrivers:     nodeDrivers,
 		}
 
 		// add Rancher private CA
 		go h.registerPrivateCA(ctx)
 
+		if _, err := h.AddHarvesterNodeDriver(); err != nil {
+			return err
+		}
+
 		rancherSettings.OnChange(ctx, controllerRancherName, h.SettingOnChange)
-		settings.OnChange(ctx, controllerRancherName, h.ServerURLOnChange)
 	}
 	return nil
 }
