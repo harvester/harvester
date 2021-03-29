@@ -71,27 +71,6 @@ steps:
     event:
     - tag
 
-- name: github_binary_release
-  image: plugins/github-release
-  settings:
-    api_key:
-      from_secret: github_token
-    prerelease: true
-    checksum:
-    - sha256
-    checksum_file: CHECKSUMsum-amd64.txt
-    checksum_flatten: true
-    files:
-    - "dist/artifacts/*"
-  when:
-    instance:
-    - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event:
-    - tag
-
 volumes:
 - name: docker
   host:
@@ -168,21 +147,19 @@ steps:
     instance:
     - drone-publish.rancher.io
 
-- name: github_binary_release
-  image: plugins/github-release
+- name: upload_iso_release
+  image: plugins/gcs
   settings:
-    api_key:
-      from_secret: github_token
-    prerelease: true
-    checksum:
-    - sha256
-    checksum_file: CHECKSUMsum-iso.txt
-    checksum_flatten: true
-    files:
-    - "dist/artifacts/*"
+    acl:
+      - allUsers:READER
+    cache_control: "public,no-cache,proxy-revalidate"
+    source: dist/artifacts
+    target: releases.rancher.com/harvester/${DRONE_TAG}
+    token:
+      from_secret: google_auth_key
   when:
     instance:
-    - drone-publish.rancher.io
+      - drone-publish.rancher.io
 
 trigger:
   event:
@@ -195,4 +172,3 @@ volumes:
 
 depends_on:
 - manifest
-  
