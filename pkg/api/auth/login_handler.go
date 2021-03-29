@@ -11,6 +11,7 @@ import (
 	dashboardauthapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
+	"github.com/rancher/rancher/pkg/auth/tokens"
 	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
@@ -20,6 +21,7 @@ import (
 	kubeconfigutil "k8s.io/kubernetes/cmd/kubeadm/app/util/kubeconfig"
 
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	"github.com/rancher/harvester/pkg/auth"
 	"github.com/rancher/harvester/pkg/config"
 	ctlalpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	"github.com/rancher/harvester/pkg/indexeres"
@@ -32,7 +34,6 @@ const (
 	logoutActionName = "logout"
 	//default cluserName/userName/contextName
 	defaultRestConfigResourceName = "default"
-	rancherAuthCookieName         = "R_SESS"
 )
 
 var (
@@ -75,7 +76,9 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	if action == logoutActionName {
 		resetCookie(rw, JWETokenHeader, isSecure)
-		resetCookie(rw, rancherAuthCookieName, isSecure)
+		if auth.IsRancherAuthMode() {
+			resetCookie(rw, tokens.CookieName, isSecure)
+		}
 		responseOK(rw)
 		return
 	}
