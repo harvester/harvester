@@ -30,7 +30,6 @@ const (
 	backupControllerName = "harvester-vm-backup-controller"
 
 	vmBackupKindName = "VirtualMachineBackup"
-	vmKindName       = "VirtualMachine"
 
 	backupTargetAnnotation       = "backup.harvester.cattle.io/backupTarget"
 	backupBucketNameAnnotation   = "backup.harvester.cattle.io/BucketName"
@@ -120,7 +119,7 @@ func (h *Handler) OnBackupChange(key string, vmBackup *harvesterapiv1.VirtualMac
 
 func (h *Handler) getBackupSource(vmBackup *harvesterapiv1.VirtualMachineBackup) (*kv1.VirtualMachine, error) {
 	switch vmBackup.Spec.Source.Kind {
-	case vmKindName:
+	case kv1.VirtualMachineGroupVersionKind.Kind:
 		vm, err := h.vmCache.Get(vmBackup.Namespace, vmBackup.Spec.Source.Name)
 		if err != nil {
 			return nil, err

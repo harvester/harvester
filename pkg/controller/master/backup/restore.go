@@ -249,7 +249,7 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterapiv1.Vi
 func (h *RestoreHandler) getTarget(vmRestore *harvesterapiv1.VirtualMachineRestore) (*vmRestoreTarget, error) {
 	isNewVM := false
 	switch vmRestore.Spec.Target.Kind {
-	case vmKindName:
+	case kv1.VirtualMachineGroupVersionKind.Kind:
 		vm, err := h.vmCache.Get(vmRestore.Namespace, vmRestore.Spec.Target.Name)
 		if err != nil {
 			if !apierrors.IsNotFound(err) && !vmRestore.Spec.NewVM {
@@ -352,15 +352,15 @@ func (h *RestoreHandler) reconcileVolumeRestores(vmRestore *harvesterapiv1.Virtu
 	waitingPVC := false
 	for i, restore := range restores {
 		pvc, err := h.pvcCache.Get(restore.PersistentVolumeClaim.Namespace, restore.PersistentVolumeClaim.Name)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				backup := content.Spec.VolumeBackups[i]
-				if err = h.createRestorePVC(vmRestore, backup, restore); err != nil {
-					return false, err
-				}
-				createdPVC = true
-				continue
+		if apierrors.IsNotFound(err) {
+			backup := content.Spec.VolumeBackups[i]
+			if err = h.createRestorePVC(vmRestore, backup, restore); err != nil {
+				return false, err
 			}
+			createdPVC = true
+			continue
+		}
+		if err != nil {
 			return false, err
 		}
 
@@ -411,8 +411,8 @@ func (h *RestoreHandler) getBackupContent(vmRestore *harvesterapiv1.VirtualMachi
 func configVMOwner(vm *kv1.VirtualMachine) []metav1.OwnerReference {
 	return []metav1.OwnerReference{
 		{
-			APIVersion:         snapshotv1.SchemeGroupVersion.String(),
-			Kind:               vmKindName,
+			APIVersion:         kv1.SchemeGroupVersion.String(),
+			Kind:               kv1.VirtualMachineGroupVersionKind.Kind,
 			Name:               vm.Name,
 			UID:                vm.UID,
 			Controller:         pointer.BoolPtr(true),
@@ -662,12 +662,9 @@ func (h *RestoreHandler) createNewVM(restore *harvesterapiv1.VirtualMachineResto
 	vm.Spec.DataVolumeTemplates = newTemplates
 	vm.Spec.Template.Spec.Volumes = newVolumes
 
-	for i, net := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
-		// remove the copied mac address of the default management network
-		if net.Name == "default" {
-			vm.Spec.Template.Spec.Domain.Devices.Interfaces[i].MacAddress = ""
-			break
-		}
+	for i := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		// remove the copied mac address of the new VM
+		vm.Spec.Template.Spec.Domain.Devices.Interfaces[i].MacAddress = ""
 	}
 
 	newVM, err := h.vms.Create(vm)
@@ -735,7 +732,7 @@ func (h *RestoreHandler) createRestorePVC(vmRestore *harvesterapiv1.VirtualMachi
 
 	pvc.SetOwnerReferences([]metav1.OwnerReference{
 		{
-			APIVersion:         harvesterapiv1.SchemeGroupVersion.Group,
+			APIVersion:         harvesterapiv1.SchemeGroupVersion.String(),
 			Kind:               vmRestoreKindName,
 			Name:               vmRestore.Name,
 			UID:                vmRestore.UID,
@@ -743,7 +740,6 @@ func (h *RestoreHandler) createRestorePVC(vmRestore *harvesterapiv1.VirtualMachi
 			BlockOwnerDeletion: pointer.BoolPtr(true),
 		},
 	})
-
 	if volumeBackup.Name == nil {
 		return fmt.Errorf("missing VolumeSnapshot name")
 	}
@@ -760,10 +756,8 @@ func (h *RestoreHandler) createRestorePVC(vmRestore *harvesterapiv1.VirtualMachi
 		}
 	}
 	pvc.Annotations[restoreNameAnnotation] = vmRestore.Name
-
-	apiGroup := snapshotv1.GroupName
 	pvc.Spec.DataSource = &corev1.TypedLocalObjectReference{
-		APIGroup: &apiGroup,
+		APIGroup: pointer.StringPtr(snapshotv1.SchemeGroupVersion.Group),
 		Kind:     volumeSnapshotKindName,
 		Name:     *volumeBackup.Name,
 	}

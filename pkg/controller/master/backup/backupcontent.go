@@ -247,7 +247,7 @@ func (h *ContentHandler) createVolumeSnapshot(content *harvesterapiv1.VirtualMac
 			Namespace: content.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         snapshotv1.SchemeGroupVersion.String(),
+					APIVersion:         harvesterapiv1.SchemeGroupVersion.String(),
 					Kind:               vmBackupContentKindName,
 					Name:               content.Name,
 					UID:                content.UID,
