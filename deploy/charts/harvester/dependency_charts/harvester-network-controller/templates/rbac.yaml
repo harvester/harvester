@@ -12,7 +12,7 @@ metadata:
   name: {{ include "harvester-network-controller.name" . }}
 rules:
   - apiGroups: [ "network.harvester.cattle.io" ]
-    resources: [ "clusternetworks", "nodenetworks", "nodenetworks/status" ]
+    resources: [ "clusternetworks", "nodenetworks" ]
     verbs: [ "get", "watch", "list", "update", "create", "delete" ]
   - apiGroups: [ "k8s.cni.cncf.io" ]
     resources: [ "network-attachment-definitions" ]
