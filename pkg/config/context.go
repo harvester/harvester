@@ -90,7 +90,8 @@ type Management struct {
 	RancherManagementFactory *rancherv3.Factory
 	UpgradeFactory           *upgrade.Factory
 
-	ClientSet *kubernetes.Clientset
+	ClientSet  *kubernetes.Clientset
+	RestConfig *rest.Config
 
 	starters []start.Starter
 }
@@ -99,6 +100,7 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	scaled := &Scaled{
 		ctx: ctx,
 	}
+
 	virt, err := kubevirt.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return nil, nil, err
@@ -277,6 +279,7 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.RancherManagementFactory = rancher
 	management.starters = append(management.starters, rancher)
 
+	management.RestConfig = restConfig
 	management.ClientSet, err = kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return nil, err
