@@ -19,3 +19,7 @@ type RestoreInput struct {
 	Name       string `json:"name"`
 	BackupName string `json:"backupName"`
 }
+
+type MigrateInput struct {
+	NodeName string `json:"nodeName"`
+}
