@@ -16,7 +16,11 @@ spec:
     singular: setting
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .value
+      name: VALUE
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -74,6 +78,7 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
 status:
   acceptedNames:
     kind: ""
