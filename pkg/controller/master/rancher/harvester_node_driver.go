@@ -5,21 +5,30 @@ import (
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/rancher/harvester/pkg/settings"
 )
 
 const (
 	harvesterDriverName = "harvester"
-	driverURL           = "https://github.com/harvester/docker-machine-driver-harvester/releases/download/v0.1.0/docker-machine-driver-harvester-amd64.tar.gz"
-	driverUIURL         = "https://github.com/harvester/ui-driver-harvester/releases/download/v0.1.0/component.js"
+	driverURL           = "https://harvester-node-driver.s3.amazonaws.com/driver/v0.1.2/docker-machine-driver-harvester-amd64.tar.gz"
+	driverUIURL         = "https://harvester-node-driver.s3.amazonaws.com/ui/v0.1.2/component.js"
+	serverVersionAnno   = "harvester.cattle.io/serverVersion"
 )
 
+var whitelistDomains = []string{"harvester-node-driver.s3.amazonaws.com"}
+
 func (h *Handler) AddHarvesterNodeDriver() (*rancherv3api.NodeDriver, error) {
+	serverVersion := settings.ServerVersion.Get()
 	driver, err := h.NodeDrivers.Get(harvesterDriverName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		logrus.Infof("Add default harvester node driver: %s", harvesterDriverName)
 		harvesterDriver := &rancherv3api.NodeDriver{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: harvesterDriverName,
+				Annotations: map[string]string{
+					serverVersionAnno: serverVersion,
+				},
 			},
 			Spec: rancherv3api.NodeDriverSpec{
 				DisplayName:      harvesterDriverName,
@@ -28,7 +37,7 @@ func (h *Handler) AddHarvesterNodeDriver() (*rancherv3api.NodeDriver, error) {
 				UIURL:            driverUIURL,
 				Builtin:          false,
 				Active:           true,
-				WhitelistDomains: []string{"github.com"},
+				WhitelistDomains: whitelistDomains,
 			},
 		}
 
@@ -39,7 +48,7 @@ func (h *Handler) AddHarvesterNodeDriver() (*rancherv3api.NodeDriver, error) {
 		return nil, err
 	}
 
-	if driver.Spec.URL == driverURL && driver.Spec.UIURL == driverUIURL {
+	if driver.Annotations[serverVersionAnno] == serverVersion || (driver.Spec.URL == driverURL && driver.Spec.UIURL == driverUIURL) {
 		return nil, nil
 	}
 
