@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
+	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/rancher/wrangler/pkg/slice"
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +23,7 @@ import (
 	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/rancher/harvester/pkg/settings"
+	"github.com/rancher/harvester/pkg/util"
 )
 
 const (
@@ -30,17 +32,20 @@ const (
 )
 
 type vmActionHandler struct {
-	vms          ctlkubevirtv1.VirtualMachineClient
-	vmis         ctlkubevirtv1.VirtualMachineInstanceClient
-	vmCache      ctlkubevirtv1.VirtualMachineCache
-	vmiCache     ctlkubevirtv1.VirtualMachineInstanceCache
-	vmims        ctlkubevirtv1.VirtualMachineInstanceMigrationClient
-	vmimCache    ctlkubevirtv1.VirtualMachineInstanceMigrationCache
-	backups      ctlharvesterv1.VirtualMachineBackupClient
-	backupCache  ctlharvesterv1.VirtualMachineBackupCache
-	restores     ctlharvesterv1.VirtualMachineRestoreClient
-	settingCache ctlharvesterv1.SettingCache
-	restClient   *rest.RESTClient
+	namespace                 string
+	vms                       ctlkubevirtv1.VirtualMachineClient
+	vmis                      ctlkubevirtv1.VirtualMachineInstanceClient
+	vmCache                   ctlkubevirtv1.VirtualMachineCache
+	vmiCache                  ctlkubevirtv1.VirtualMachineInstanceCache
+	vmims                     ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+	vmimCache                 ctlkubevirtv1.VirtualMachineInstanceMigrationCache
+	backups                   ctlharvesterv1.VirtualMachineBackupClient
+	backupCache               ctlharvesterv1.VirtualMachineBackupCache
+	restores                  ctlharvesterv1.VirtualMachineRestoreClient
+	settingCache              ctlharvesterv1.SettingCache
+	nodeCache                 ctlcorev1.NodeCache
+	virtSubresourceRestClient rest.Interface
+	virtRestClient            rest.Interface
 }
 
 func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -75,7 +80,11 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 
 		return h.ejectCdRom(name, namespace, input.DiskNames)
 	case migrate:
-		return h.migrate(namespace, name)
+		var input MigrateInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return h.migrate(r.Context(), namespace, name, input.NodeName)
 	case abortMigration:
 		return h.abortMigration(namespace, name)
 	case startVM, stopVM, restartVM:
@@ -150,7 +159,7 @@ func (h *vmActionHandler) ejectCdRom(name, namespace string, diskNames []string)
 }
 
 func (h *vmActionHandler) subresourceOperate(ctx context.Context, resource, namespace, name, subresourece string) error {
-	return h.restClient.Put().Namespace(namespace).Resource(resource).SubResource(subresourece).Name(name).Do(ctx).Error()
+	return h.virtSubresourceRestClient.Put().Namespace(namespace).Resource(resource).SubResource(subresourece).Name(name).Do(ctx).Error()
 }
 
 func ejectCdRomFromVM(vm *kv1.VirtualMachine, diskNames []string) error {
@@ -189,8 +198,8 @@ func ejectCdRomFromVM(vm *kv1.VirtualMachine, diskNames []string) error {
 	return nil
 }
 
-func (h *vmActionHandler) migrate(namespace, name string) error {
-	vmi, err := h.vmiCache.Get(namespace, name)
+func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string, nodeName string) error {
+	vmi, err := h.vmiCache.Get(namespace, vmName)
 	if err != nil {
 		return err
 	}
@@ -202,13 +211,38 @@ func (h *vmActionHandler) migrate(namespace, name string) error {
 	}
 	vmim := &kv1.VirtualMachineInstanceMigration{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: name + "-",
+			GenerateName: vmName + "-",
 			Namespace:    namespace,
 		},
 		Spec: kv1.VirtualMachineInstanceMigrationSpec{
-			VMIName: name,
+			VMIName: vmName,
 		},
 	}
+	if nodeName != "" {
+		// check node name is valid
+		if _, err := h.nodeCache.Get(nodeName); err != nil {
+			return err
+		}
+		if nodeName == vmi.Status.NodeName {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "The VM is currently running on the target node")
+		}
+
+		// set vmi node selector before starting the migration
+		toUpdateVmi := vmi.DeepCopy()
+		if toUpdateVmi.Annotations == nil {
+			toUpdateVmi.Annotations = make(map[string]string)
+		}
+		if toUpdateVmi.Spec.NodeSelector == nil {
+			toUpdateVmi.Spec.NodeSelector = make(map[string]string)
+		}
+		toUpdateVmi.Annotations[util.AnnotationMigrationTarget] = nodeName
+		toUpdateVmi.Spec.NodeSelector[corev1.LabelHostname] = nodeName
+
+		if err := util.VirtClientUpdateVmi(ctx, h.virtRestClient, h.namespace, namespace, vmName, toUpdateVmi); err != nil {
+			return err
+		}
+	}
+
 	_, err = h.vmims.Create(vmim)
 	return err
 }
