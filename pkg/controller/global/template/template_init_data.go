@@ -117,6 +117,7 @@ spec:
     running: true
     template:
       spec:
+        evictionStrategy: LiveMigrate
         domain:
           cpu:
             cores: 1
@@ -149,23 +150,26 @@ spec:
           name: rootdisk
     dataVolumeTemplates:
     - metadata:
+        annotations:
+          harvester.cattle.io/imageId: $occupancy_url
         name: datavolume-cdrom-disk
       spec:
         pvc:
           accessModes:
-          - ReadWriteOnce
+          - ReadWriteMany
+          volumeMode: Block
           resources:
             requests:
               storage: 10Gi
         source:
-          http:
-            url: ""
+          blank: {}
     - metadata:
         name: datavolume-rootdisk
       spec:
         pvc:
           accessModes:
-          - ReadWriteOnce
+          - ReadWriteMany
+          volumeMode: Block
           resources:
             requests:
               storage: 10Gi
@@ -183,6 +187,7 @@ spec:
     running: true
     template:
       spec:
+        evictionStrategy: LiveMigrate
         domain:
           cpu:
             cores: 1
@@ -207,17 +212,19 @@ spec:
           name: rootdisk
     dataVolumeTemplates:
     - metadata:
+        annotations:
+          harvester.cattle.io/imageId: $occupancy_url
         name: datavolume-rootdisk
       spec:
         pvc:
           accessModes:
-          - ReadWriteOnce
+          - ReadWriteMany
+          volumeMode: Block
           resources:
             requests:
               storage: 10Gi
         source:
-          http:
-            url: ""
+          blank: {}
 ---
 apiVersion: harvester.cattle.io/v1alpha1
 kind: VirtualMachineTemplateVersion
@@ -230,6 +237,7 @@ spec:
     running: true
     template:
       spec:
+        evictionStrategy: LiveMigrate
         domain:
           cpu:
             cores: 1
@@ -242,6 +250,7 @@ spec:
             - disk:
                 bus: virtio
               name: rootdisk
+              bootOrder: 2
             - cdrom:
                 bus: sata
               name: virtio-container-disk
@@ -272,23 +281,26 @@ spec:
           name: virtio-container-disk
     dataVolumeTemplates:
     - metadata:
+        annotations:
+          harvester.cattle.io/imageId: $occupancy_url
         name: datavolume-cdrom-disk
       spec:
         pvc:
           accessModes:
-          - ReadWriteOnce
+          - ReadWriteMany
+          volumeMode: Block
           resources:
             requests:
               storage: 20Gi
         source:
-          http:
-            url: ""
+          blank: {}
     - metadata:
         name: datavolume-rootdisk
       spec:
         pvc:
           accessModes:
-          - ReadWriteOnce
+          - ReadWriteMany
+          volumeMode: Block
           resources:
             requests:
               storage: 32Gi
