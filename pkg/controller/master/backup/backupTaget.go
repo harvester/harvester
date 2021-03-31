@@ -67,7 +67,8 @@ type TargetHandler struct {
 
 // OnBackupTargetChange handles backupTarget setting object on change
 func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterapiv1.Setting) (*harvesterapiv1.Setting, error) {
-	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != settings.BackupTargetSettingName {
+	if setting == nil || setting.DeletionTimestamp != nil ||
+		setting.Name != settings.BackupTargetSettingName || setting.Value == "" {
 		return nil, nil
 	}
 
@@ -82,40 +83,32 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterapiv1
 		return nil, nil
 	}
 
-	if target.Endpoint == "" {
-		if err = h.updateLonghornTarget(target); err != nil {
-			return nil, err
-		}
+	target, err = validateTargetEndpoint(target)
+	if err != nil {
 		harvesterapiv1.SettingConfigured.False(settingCpy)
-		harvesterapiv1.SettingConfigured.Reason(settingCpy, "Empty backup target")
-	} else {
-		target, err = validateTargetEndpoint(target)
-		if err != nil {
-			harvesterapiv1.SettingConfigured.False(settingCpy)
-			harvesterapiv1.SettingConfigured.Reason(settingCpy, err.Error())
-			_, err := h.settings.Update(settingCpy)
+		harvesterapiv1.SettingConfigured.Reason(settingCpy, err.Error())
+		_, err := h.settings.Update(settingCpy)
+		return nil, err
+	}
+
+	if err = h.updateLonghornTarget(target); err != nil {
+		return nil, err
+	}
+
+	if target.Type == settings.S3BackupType {
+		if err = h.updateBackupTargetSecret(target); err != nil {
 			return nil, err
 		}
+	}
 
-		if err = h.updateLonghornTarget(target); err != nil {
-			return nil, err
-		}
+	harvesterapiv1.SettingConfigured.True(settingCpy)
+	harvesterapiv1.SettingConfigured.Reason(settingCpy, "")
 
-		if target.Type == settings.S3BackupType {
-			if err = h.updateBackupTargetSecret(target); err != nil {
-				return nil, err
-			}
-		}
-
-		harvesterapiv1.SettingConfigured.True(settingCpy)
-		harvesterapiv1.SettingConfigured.Reason(settingCpy, "")
-
-		target.SecretAccessKey = ""
-		target.AccessKeyID = ""
-		settingCpy.Value, err = encodeTarget(target)
-		if err != nil {
-			return nil, err
-		}
+	target.SecretAccessKey = ""
+	target.AccessKeyID = ""
+	settingCpy.Value, err = encodeTarget(target)
+	if err != nil {
+		return nil, err
 	}
 
 	return h.settings.Update(settingCpy)
@@ -263,8 +256,10 @@ func validateS3BackupTarget(target *settings.BackupTarget) error {
 
 	var secure bool
 	var endpoint = target.Endpoint
-	if strings.HasPrefix(endpoint, "http://") ||
-		strings.HasPrefix(endpoint, "https://") {
+	if endpoint == "" {
+		endpoint = "s3.amazonaws.com"
+	}
+	if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
 		u, err := url.Parse(endpoint)
 		if err != nil {
 			return err

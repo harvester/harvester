@@ -13,6 +13,7 @@ var (
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="VALUE",type="string",JSONPath=`.value`
 
 type Setting struct {
 	metav1.TypeMeta   `json:",inline"`
