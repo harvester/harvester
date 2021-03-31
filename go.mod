@@ -49,7 +49,6 @@ require (
 	github.com/containernetworking/cni v0.8.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
-	github.com/fatih/color v1.9.0 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc // indirect
 	github.com/guonaihong/gout v0.1.3
@@ -82,6 +81,7 @@ require (
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	golang.org/x/tools v0.1.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	helm.sh/helm/v3 v3.5.2
@@ -95,6 +95,7 @@ require (
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	kubevirt.io/client-go v0.38.1
 	kubevirt.io/containerized-data-importer v1.31.0
+	kubevirt.io/kubevirt v0.38.1
 	sigs.k8s.io/kind v0.9.0
 	sigs.k8s.io/yaml v1.2.0
 )
