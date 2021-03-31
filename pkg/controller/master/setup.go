@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/harvester/pkg/controller/master/backup"
 	"github.com/rancher/harvester/pkg/controller/master/image"
 	"github.com/rancher/harvester/pkg/controller/master/keypair"
+	"github.com/rancher/harvester/pkg/controller/master/migration"
 	"github.com/rancher/harvester/pkg/controller/master/node"
 	"github.com/rancher/harvester/pkg/controller/master/rancher"
 	"github.com/rancher/harvester/pkg/controller/master/setting"
@@ -27,6 +28,7 @@ type registerFunc func(context.Context, *config.Management, config.Options) erro
 var registerFuncs = []registerFunc{
 	image.Register,
 	keypair.Register,
+	migration.Register,
 	node.PromoteRegister,
 	node.MaintainRegister,
 	setting.Register,

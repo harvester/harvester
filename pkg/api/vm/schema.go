@@ -13,6 +13,7 @@ import (
 
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
+	virtv1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 )
 
 const (
@@ -30,6 +31,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	server.BaseSchemas.MustImportAndCustomize(EjectCdRomActionInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(BackupInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(RestoreInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(MigrateInput{}, nil)
 
 	vms := scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
@@ -37,28 +39,35 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	backups := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineBackup()
 	restores := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineRestore()
 	settings := scaled.HarvesterFactory.Harvester().V1alpha1().Setting()
+	nodes := scaled.CoreFactory.Core().V1().Node()
 
 	copyConfig := rest.CopyConfig(server.RESTConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion
 	copyConfig.APIPath = "/apis"
 	copyConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
-	restClient, err := rest.RESTClientFor(copyConfig)
+	virtSubresourceClient, err := rest.RESTClientFor(copyConfig)
 	if err != nil {
 		return err
 	}
-
+	virtv1Client, err := virtv1.NewForConfig(copyConfig)
+	if err != nil {
+		return err
+	}
 	actionHandler := vmActionHandler{
-		vms:          vms,
-		vmCache:      vms.Cache(),
-		vmis:         vmis,
-		vmiCache:     vmis.Cache(),
-		vmims:        vmims,
-		vmimCache:    vmims.Cache(),
-		backups:      backups,
-		backupCache:  backups.Cache(),
-		restores:     restores,
-		settingCache: settings.Cache(),
-		restClient:   restClient,
+		namespace:                 options.Namespace,
+		vms:                       vms,
+		vmCache:                   vms.Cache(),
+		vmis:                      vmis,
+		vmiCache:                  vmis.Cache(),
+		vmims:                     vmims,
+		vmimCache:                 vmims.Cache(),
+		backups:                   backups,
+		backupCache:               backups.Cache(),
+		restores:                  restores,
+		settingCache:              settings.Cache(),
+		nodeCache:                 nodes.Cache(),
+		virtSubresourceRestClient: virtSubresourceClient,
+		virtRestClient:            virtv1Client.RESTClient(),
 	}
 
 	vmformatter := vmformatter{
@@ -89,12 +98,14 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				restoreVM:      &actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
-				startVM:        {},
-				stopVM:         {},
-				restartVM:      {},
-				pauseVM:        {},
-				unpauseVM:      {},
-				migrate:        {},
+				startVM:   {},
+				stopVM:    {},
+				restartVM: {},
+				pauseVM:   {},
+				unpauseVM: {},
+				migrate: {
+					Input: "migrateInput",
+				},
 				abortMigration: {},
 				ejectCdRom: {
 					Input: "ejectCdRomActionInput",

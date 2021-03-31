@@ -22,6 +22,7 @@ func TestMigrateAction(t *testing.T) {
 	type input struct {
 		namespace  string
 		name       string
+		nodeName   string
 		vmInstance *kubevirtapis.VirtualMachineInstance
 	}
 	type output struct {
@@ -113,7 +114,7 @@ func TestMigrateAction(t *testing.T) {
 
 		var actual output
 		var err error
-		actual.err = handler.migrate(tc.given.namespace, tc.given.name)
+		actual.err = handler.migrate(context.Background(), tc.given.namespace, tc.given.name, tc.given.nodeName)
 		actual.vmInstanceMigrations, err = handler.vmimCache.List(tc.given.namespace, labels.Everything())
 		assert.Nil(t, err, "List should return no error")
 
