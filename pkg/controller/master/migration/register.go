@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	controllerName = "migrationTargetController"
+	vmiControllerName  = "migrationTargetController"
+	vmimControllerName = "migrationAnnotationController"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -19,12 +20,19 @@ func Register(ctx context.Context, management *config.Management, options config
 	if err != nil {
 		return err
 	}
+	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
+	vmims := management.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration()
 	handler := &Handler{
 		namespace:  options.Namespace,
+		vmiCache:   vmis.Cache(),
+		vms:        vms,
+		vmCache:    vms.Cache(),
 		restClient: virtv1Client.RESTClient(),
 	}
 
-	vmis.OnChange(ctx, controllerName, handler.OnVmiChanged)
+	vmis.OnChange(ctx, vmiControllerName, handler.OnVmiChanged)
+	vmims.OnChange(ctx, vmimControllerName, handler.OnVmimChanged)
+	vmims.OnRemove(ctx, vmimControllerName, handler.OnVmimRemove)
 	return nil
 }
