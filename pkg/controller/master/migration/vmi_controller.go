@@ -12,10 +12,11 @@ import (
 
 // Handler resets the node target in vmi annotations and nodeSelector when a migration completes
 type Handler struct {
-	namespace    string
-	vmiCache     ctlv1.VirtualMachineInstanceCache
-	vmController ctlv1.VirtualMachineController
-	restClient   rest.Interface
+	namespace  string
+	vmiCache   ctlv1.VirtualMachineInstanceCache
+	vms        ctlv1.VirtualMachineClient
+	vmCache    ctlv1.VirtualMachineCache
+	restClient rest.Interface
 }
 
 func (h *Handler) OnVmiChanged(_ string, vmi *v1.VirtualMachineInstance) (*v1.VirtualMachineInstance, error) {
