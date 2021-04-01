@@ -206,7 +206,7 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 	if !vmi.IsRunning() {
 		return errors.New("The VM is not in running state")
 	}
-	if vmi.Status.MigrationState != nil && !vmi.Status.MigrationState.Completed {
+	if !canMigrate(vmi) {
 		return errors.New("The VM is already in migrating state")
 	}
 	vmim := &kv1.VirtualMachineInstanceMigration{
@@ -252,7 +252,7 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 	if err != nil {
 		return err
 	}
-	if vmi.Status.MigrationState == nil || vmi.Status.MigrationState.Completed {
+	if !canAbortMigrate(vmi) {
 		return errors.New("The VM is not in migrating state")
 	}
 
@@ -260,8 +260,9 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 	if err != nil {
 		return err
 	}
+	migrationUID := getMigrationUID(vmi)
 	for _, vmim := range vmims {
-		if vmi.Status.MigrationState.MigrationUID == vmim.UID {
+		if migrationUID == string(vmim.UID) {
 			if !vmim.IsRunning() {
 				return fmt.Errorf("cannot abort the migration as it is in %q phase", vmim.Status.Phase)
 			}
@@ -329,4 +330,13 @@ func (h *vmActionHandler) checkBackupTargetConfigured() error {
 		return nil
 	}
 	return fmt.Errorf("backup target is invalid")
+}
+
+func getMigrationUID(vmi *kv1.VirtualMachineInstance) string {
+	if vmi.Annotations[util.AnnotationMigrationUID] != "" {
+		return vmi.Annotations[util.AnnotationMigrationUID]
+	} else if vmi.Status.MigrationState != nil {
+		return string(vmi.Status.MigrationState.MigrationUID)
+	}
+	return ""
 }

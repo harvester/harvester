@@ -1,6 +1,10 @@
 package util
 
 const (
-	RemovedDataVolumesAnnotationKey = "harvester.cattle.io/removedDataVolumes"
-	AnnotationMigrationTarget       = "harvester.cattle.io/migrationTargetNodeName"
+	prefix                          = "harvester.cattle.io"
+	RemovedDataVolumesAnnotationKey = prefix + "/removedDataVolumes"
+	AnnotationMigrationTarget       = prefix + "/migrationTargetNodeName"
+	AnnotationMigrationUID          = prefix + "/migrationUID"
+	AnnotationMigrationState        = prefix + "/migrationState"
+	AnnotationTimestamp             = prefix + "/timestamp"
 )

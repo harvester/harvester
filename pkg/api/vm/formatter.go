@@ -5,7 +5,9 @@ import (
 	"github.com/rancher/wrangler/pkg/data/convert"
 	kv1 "kubevirt.io/client-go/api/v1"
 
+	"github.com/rancher/harvester/pkg/controller/master/migration"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/rancher/harvester/pkg/util"
 )
 
 const (
@@ -61,11 +63,11 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 		resource.AddAction(request, unpauseVM)
 	}
 
-	if vf.canMigrate(vmi) {
+	if canMigrate(vmi) {
 		resource.AddAction(request, migrate)
 	}
 
-	if vf.canAbortMigrate(vmi) {
+	if canAbortMigrate(vmi) {
 		resource.AddAction(request, abortMigration)
 	}
 
@@ -150,15 +152,17 @@ func (vf *vmformatter) canStop(vmi *kv1.VirtualMachineInstance) bool {
 	return true
 }
 
-func (vf *vmformatter) canMigrate(vmi *kv1.VirtualMachineInstance) bool {
-	if vmi != nil && vmi.IsRunning() && (vmi.Status.MigrationState == nil || vmi.Status.MigrationState.Completed) {
+func canMigrate(vmi *kv1.VirtualMachineInstance) bool {
+	if vmi != nil && vmi.IsRunning() &&
+		vmi.Annotations[util.AnnotationMigrationUID] == "" {
 		return true
 	}
 	return false
 }
 
-func (vf *vmformatter) canAbortMigrate(vmi *kv1.VirtualMachineInstance) bool {
-	if vmi != nil && vmi.Status.MigrationState != nil && !vmi.Status.MigrationState.Completed {
+func canAbortMigrate(vmi *kv1.VirtualMachineInstance) bool {
+	if vmi != nil &&
+		vmi.Annotations[util.AnnotationMigrationState] == migration.StateMigrating {
 		return true
 	}
 	return false
