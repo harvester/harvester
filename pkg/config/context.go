@@ -43,13 +43,10 @@ type Options struct {
 	Debug           bool
 	Trace           bool
 
-	ImageStorageEndpoint  string
-	ImageStorageAccessKey string
-	ImageStorageSecretKey string
-	SkipAuthentication    bool
-	RancherEmbedded       bool
-	RancherURL            string
-	HCIMode               bool
+	SkipAuthentication bool
+	RancherEmbedded    bool
+	RancherURL         string
+	HCIMode            bool
 }
 
 type Scaled struct {

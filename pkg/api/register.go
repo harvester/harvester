@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	"github.com/rancher/steve/pkg/server"
+
 	"github.com/rancher/harvester/pkg/api/datavolume"
 	"github.com/rancher/harvester/pkg/api/image"
 	"github.com/rancher/harvester/pkg/api/keypair"
@@ -15,8 +17,6 @@ import (
 	"github.com/rancher/harvester/pkg/api/vm"
 	"github.com/rancher/harvester/pkg/api/vmtemplate"
 	"github.com/rancher/harvester/pkg/config"
-
-	"github.com/rancher/steve/pkg/server"
 )
 
 type registerSchema func(scaled *config.Scaled, server *server.Server, options config.Options) error

@@ -83,27 +83,6 @@ func main() {
 			Usage:       "The default namespace to store management resources",
 			Required:    true,
 		},
-		cli.StringFlag{
-			Name:        "image-storage-endpoint",
-			Usage:       "S3 compatible storage endpoint(format: http://example.com:9000). It should be accessible across the cluster",
-			EnvVar:      "IMAGE_STORAGE_ENDPOINT",
-			Destination: &options.ImageStorageEndpoint,
-			Required:    true,
-		},
-		cli.StringFlag{
-			Name:        "image-storage-access-key",
-			Usage:       "Image storage access key",
-			EnvVar:      "IMAGE_STORAGE_ACCESS_KEY",
-			Destination: &options.ImageStorageAccessKey,
-			Required:    true,
-		},
-		cli.StringFlag{
-			Name:        "image-storage-secret-key",
-			Usage:       "Image storage secret key",
-			EnvVar:      "IMAGE_STORAGE_SECRET_KEY",
-			Destination: &options.ImageStorageSecretKey,
-			Required:    true,
-		},
 		cli.BoolFlag{
 			Name:        "skip-authentication",
 			EnvVar:      "SKIP_AUTHENTICATION",

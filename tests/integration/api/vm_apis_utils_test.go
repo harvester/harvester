@@ -15,7 +15,6 @@ import (
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 
-	"github.com/rancher/harvester/pkg/util"
 	"github.com/rancher/harvester/tests/framework/env"
 	"github.com/rancher/harvester/tests/framework/fuzz"
 )
@@ -236,16 +235,15 @@ func (v *VMBuilder) CPU(cores uint32) *VMBuilder {
 }
 
 func (v *VMBuilder) Blank() *VMBuilder {
-	v.DataVolume("disk-blank", "10Mi")
+	v.DataVolume("disk-blank", "10Mi", "")
 	return v
 }
 
 func (v *VMBuilder) Image(imageName string) *VMBuilder {
-	sourceHTTPURL := fmt.Sprintf("%s/%s/%s", options.ImageStorageEndpoint, util.BucketName, imageName)
-	return v.DataVolume("disk-image", "10Gi", sourceHTTPURL)
+	return v.DataVolume("disk-image", "10Gi", fmt.Sprintf("longhorn-%s", imageName))
 }
 
-func (v *VMBuilder) DataVolume(diskName, storageSize string, sourceHTTPURL ...string) *VMBuilder {
+func (v *VMBuilder) DataVolume(diskName, storageSize string, storageClass string) *VMBuilder {
 	volumeMode := corev1.PersistentVolumeFilesystem
 	if env.IsE2ETestsEnabled() {
 		volumeMode = corev1.PersistentVolumeBlock
@@ -257,13 +255,6 @@ func (v *VMBuilder) DataVolume(diskName, storageSize string, sourceHTTPURL ...st
 		Blank: &cdiv1alpha1.DataVolumeBlankImage{},
 	}
 
-	if len(sourceHTTPURL) > 0 && sourceHTTPURL[0] != "" {
-		dataVolumeSpecSource = cdiv1alpha1.DataVolumeSource{
-			HTTP: &cdiv1alpha1.DataVolumeSourceHTTP{
-				URL: sourceHTTPURL[0],
-			},
-		}
-	}
 	dataVolumeTemplate := kubevirtv1.DataVolumeTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolumeName,
@@ -285,7 +276,10 @@ func (v *VMBuilder) DataVolume(diskName, storageSize string, sourceHTTPURL ...st
 			},
 		},
 	}
-	if env.IsE2ETestsEnabled() {
+
+	if storageClass != "" {
+		dataVolumeTemplate.Spec.PVC.StorageClassName = &storageClass
+	} else if env.IsE2ETestsEnabled() {
 		dataVolumeTemplate.Spec.PVC.StorageClassName = pointer.StringPtr("longhorn")
 	}
 

@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	ImageImported condition.Cond = "imported"
+	ImageInitialized condition.Cond = "Initialized"
 )
 
 // +genclient
@@ -16,7 +16,7 @@ var (
 // +kubebuilder:printcolumn:name="DISPLAY_NAME",type=string,priority=8,JSONPath=`.spec.displayName`
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,priority=10,JSONPath=`.spec.description`
 // +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.spec.url`
-// +kubebuilder:printcolumn:name="PROGRESS",type=integer,JSONPath=`.status.progress`
+// +kubebuilder:printcolumn:name="SIZE",type=integer,JSONPath=`.status.size`
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`
 
 type VirtualMachineImage struct {
@@ -46,13 +46,7 @@ type VirtualMachineImageStatus struct {
 	AppliedURL string `json:"appliedUrl,omitempty"`
 
 	// +optional
-	DownloadURL string `json:"downloadUrl,omitempty"`
-
-	// +optional
-	Progress int `json:"progress,omitempty"`
-
-	// +optional
-	DownloadedBytes int64 `json:"downloadedBytes,omitempty"`
+	Size int64 `json:"size,omitempty"`
 
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
