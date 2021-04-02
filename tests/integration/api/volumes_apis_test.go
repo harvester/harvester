@@ -12,7 +12,6 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
 	"github.com/rancher/harvester/tests/framework/helper"
@@ -303,86 +302,6 @@ var _ = Describe("verify volume APIs", func() {
 			respCode, respBody, err := helper.PostObject(volumeAPI, volume)
 			MustRespCodeIs(http.StatusCreated, "post volume", err, respCode, respBody)
 
-			MustFinallyBeTrue(func() bool {
-				respCode, respBody, err = helper.GetObject(getVolumeURL, &retVolume)
-				MustRespCodeIs(http.StatusOK, "get volume", err, respCode, respBody)
-
-				return retVolume.Status.Phase == cdiv1beta1.Succeeded
-			}, 2*time.Minute, 2*time.Second)
-		})
-
-		Specify("verify VM image source volumes", func() {
-
-			var imageDownloadURL string
-
-			By("Prepare VM image for volumes", func() {
-
-				var (
-					imageAPI         = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachineimage", options.HTTPSListenPort)
-					imageName        = fuzz.String(5)
-					imageDisplayName = fuzz.String(5)
-					cirrosURL        = "https://download.cirros-cloud.net/0.5.1/cirros-0.5.1-x86_64-disk.img"
-					image            = v1alpha1.VirtualMachineImage{
-						ObjectMeta: v1.ObjectMeta{
-							Name:      imageName,
-							Namespace: namespace,
-						},
-						Spec: v1alpha1.VirtualMachineImageSpec{
-							DisplayName: imageDisplayName,
-							URL:         cirrosURL,
-						},
-					}
-					getImageURL = fmt.Sprintf("%s/%s/%s", imageAPI, namespace, imageName)
-					retImage    v1alpha1.VirtualMachineImage
-				)
-
-				respCode, respBody, err := helper.PostObject(imageAPI, image)
-				MustRespCodeIs(http.StatusCreated, "post image", err, respCode, respBody)
-				MustFinallyBeTrue(func() bool {
-					respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
-					MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
-					Expect(v1alpha1.ImageImported.IsFalse(retImage)).NotTo(BeTrue())
-					if retImage.Status.DownloadURL != "" {
-						imageDownloadURL = retImage.Status.DownloadURL
-					}
-					return v1alpha1.ImageImported.IsTrue(retImage)
-				}, 1*time.Minute, 1*time.Second)
-			})
-
-			var (
-				volumeName = fuzz.String(5)
-				volumeMode = corev1.PersistentVolumeFilesystem
-				volume     = cdiv1beta1.DataVolume{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      volumeName,
-						Namespace: namespace,
-					},
-					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: cdiv1beta1.DataVolumeSource{
-							HTTP: &cdiv1beta1.DataVolumeSourceHTTP{
-								URL: imageDownloadURL,
-							},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-							VolumeMode:  &volumeMode,
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("1Gi"),
-								},
-							},
-						},
-					},
-				}
-				getVolumeURL = fmt.Sprintf("%s/%s/%s", volumeAPI, namespace, volumeName)
-				retVolume    cdiv1beta1.DataVolume
-			)
-
-			By("create an VM image source volume")
-			respCode, respBody, err := helper.PostObject(volumeAPI, volume)
-			MustRespCodeIs(http.StatusCreated, "post volume", err, respCode, respBody)
-
-			By("then succeeded")
 			MustFinallyBeTrue(func() bool {
 				respCode, respBody, err = helper.GetObject(getVolumeURL, &retVolume)
 				MustRespCodeIs(http.StatusOK, "get volume", err, respCode, respBody)
