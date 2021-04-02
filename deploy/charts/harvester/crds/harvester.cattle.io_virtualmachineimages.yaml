@@ -31,8 +31,8 @@ spec:
     - jsonPath: .spec.url
       name: URL
       type: string
-    - jsonPath: .status.progress
-      name: PROGRESS
+    - jsonPath: .status.size
+      name: SIZE
       type: integer
     - jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -96,12 +96,8 @@ spec:
                   - type
                   type: object
                 type: array
-              downloadUrl:
-                type: string
-              downloadedBytes:
+              size:
                 format: int64
-                type: integer
-              progress:
                 type: integer
             type: object
         type: object

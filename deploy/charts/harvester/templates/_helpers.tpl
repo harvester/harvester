@@ -52,24 +52,6 @@ app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
 {{- end }}
 
 {{/*
-NB(thxCode): Get the default fully qualified name of Minio,
-the below logic is from "charts/minio/templates/_helpers.tpl",
-and then we indicate the values from "minio" domain.
-*/}}
-{{- define "charts.minio.fullname" }}
-{{- if .Values.minio.fullnameOverride -}}
-{{- .Values.minio.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default "minio" .Values.minio.nameOverride -}}
-{{- if contains $name .Release.Name -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-{{- end }}
-
-{{/*
 NB(thxCode): Use this value to unify the control tag and condition of KubeVirt Operator.
 */}}
 {{- define "conditions.is_kubevirt_operator_enabled" }}
