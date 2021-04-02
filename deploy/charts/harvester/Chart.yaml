@@ -52,11 +52,6 @@ dependencies:
     version: 0.1.0
     repository: file://dependency_charts/csi-snapshotter
     condition: csi-snapshotter.enabled
-  - name: minio
-    # Note: Update minio image in harvester values.yaml when this version is updated.
-    version: 8.0.5
-    repository: https://helm.min.io
-    condition: minio.enabled
   - name: longhorn
     version: 1.1.1-preview1
     repository: https://charts.longhorn.io

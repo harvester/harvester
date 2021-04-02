@@ -76,11 +76,6 @@ spec:
               echo '[INFO] deleting cdi ...';
               kubectl delete cdi --wait --all;
               {{ end }}
-              {{ if .Values.minio.enabled }}
-              echo '[INFO] deleting minio ...';
-              kubectl -n {{ .Release.Namespace }} delete statefulset/minio --ignore-not-found=true --wait;
-              kubectl -n {{ .Release.Namespace }} delete deployment/minio --ignore-not-found=true --wait;
-              {{ end }}
               exit
 {{- if .Values.jobs.preDelete.containers.kubectl.resources }}
           resources:

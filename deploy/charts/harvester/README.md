@@ -12,16 +12,14 @@ This chart will do the following:
 - Deploy a KubeVirt CRD resource to enable KubeVirt if needed, defaults to deploy.
 - Deploy a KubeVirt Containerized Data Importer(CDI) Operator if needed, defaults to deploy.
 - Deploy a CDI CRD resource to enable KubeVirt Containerized Data Importer(CDI) if needed, default to deploy.
-- Deploy a Minio as virtual machine image storage if needed, defaults to deploy.
 - Deploy the Harvester resources.
-- Longhorn as build-in storage management(enable by set `longhorn.enabled=true` in the helm install).
+- Deploy [Longhorn](https://longhorn.io) as the built-in storage management.
 - [Multus-CNI](https://github.com/intel/multus-cni) as default multi networks management solution(enable by set `multus.enabled=true` in the helm install).
 
 ### Prerequisites
 
 - Kubernetes 1.16+.
 - Helm 3.2+.
-- **Default** [StorageClass](https://v1-16.docs.kubernetes.io/docs/concepts/storage/storage-classes/) if the Longhorn in Harvester is disabled.
 
 ### Installing the Chart
 
@@ -32,8 +30,7 @@ To install the chart with the release name `harvester`.
 $ kubectl create ns harvester-system
 
 ## install chart to target namespace
-$ helm install harvester harvester --namespace harvester-system \
-    --set longhorn.enabled=true,minio.persistence.storageClass=longhorn,service.harvester.type=NodePort
+$ helm install harvester harvester --namespace harvester-system --set service.harvester.type=NodePort
 ```
 
 ### Uninstalling the Chart
@@ -47,20 +44,20 @@ $ helm uninstall harvester --namespace harvester-system
 
 #### Notes
 
-- Use the existing KubeVirt/CDI/Image-Storage Service.
+- Use the existing KubeVirt/CDI/Longhorn Service.
 
-    If you have already prepared the KubeVirt, CDI or image storage compatible with S3 like Minio, you can disable these installations in this chart.
+    If you have already prepared the KubeVirt, CDI or Longhorn, you can disable these installations in this chart.
     
     ```bash
     $ helm install harvester harvester --namespace harvester-system \
         --set kubevirt.enabled=false --set kubevirt-operator.enabled=false \
         --set cdi.enabled=false --set cdi-operator.enabled=false \
-        --set minio.enabled=false
+        --set longhorn.enabled=false
     ```
 
-- Change the default StorageClass.
+- Use other storage drivers.
     
-    By default, the default StorageClass is required for both the Minio and [`DataVolume`](https://github.com/kubevirt/containerized-data-importer#datavolumes). You can follow the [official document](https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/) to change the default StorageClass of Kubernetes cluster.
+    Currently, storage drivers other than Longhorn are not supported.
 
 ### Configuration
 
@@ -140,26 +137,6 @@ If you don't want to install KubeVirt Containerized Data Importer CRD resource, 
 ```bash
 $ helm install harvester harvester --namespace harvester-system \
     --set cdi.enabled=false
-```
-
-#### Configure Minio
-
-> **Noted:** Minio chart mirrors from the [Minio official](https://github.com/minio/charts).
-
-To configure the Minio, you need to know its [parameters](https://github.com/minio/charts#configuration) and put all items under `minio` domain.
-
-For example, if you want to use "distributed" mode Minio, you can do as below.
-
-```bash
-$ helm install harvester harvester --namespace harvester-system \
-    --set minio.mode=distributed
-```
-
-If you don't want to install Minio, you can do the following.
-
-```bash
-$ helm install harvester harvester --namespace harvester-system \
-    --set minio.enabled=false
 ```
 
 ## License
