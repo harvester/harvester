@@ -119,79 +119,6 @@ cdi-operator:
 ##
 cdi: {}
 
-## Specify the parameters to override the sub-chart.
-##
-minio:
-
-  ## Specify to install Minio,
-  ## defaults to "true".
-  ##
-  enabled: true
-
-  ## Specify the image.
-  ##
-  image:
-    repository: minio/minio
-    tag: RELEASE.2020-11-19T23-48-16Z
-
-  ## Specify the mode.
-  ##
-  mode: standalone
-
-  ## Specify the full name of Minio.
-  ##
-  fullnameOverride: "minio"
-
-  ## Specify the resources of Minio container.
-  ##
-  resources:
-    limits:
-      cpu: 2
-      memory: 4Gi
-    requests:
-      cpu: 500m
-      memory: 512Mi
-
-  ## Specify the access key.
-  ##
-  accessKey: YOURACCESSKEY
-
-  ## Specify the secret key.
-  ##
-  secretKey: YOURSECRETKEY
-
-  ## Specify the affinity.
-  ##
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchExpressions:
-            - key: app
-              operator: In
-              values:
-              - minio
-          topologyKey: kubernetes.io/hostname
-
-  ## Specify the persistence of Minio.
-  ##
-  persistence:
-
-    ## Specify to use persistent storage or not.
-    ##
-    enabled: true
-
-    ## Specify the StorageClass of Minio,
-    ## otherwise, Minio will use the default StorageClass.
-    ##
-    storageClass: ""
-
-    ## Specify the size of Minio.
-    ##
-    size: 80Gi
-
 ###########################################################################
 ###########################################################################
 ##                    Default values for Harvester                       ##
@@ -296,29 +223,6 @@ containers:
       requests:
         cpu: 250m
         memory: 256Mi
-
-    ## Specify the gateway to access Minio-like VM image storage service which is compatible with S3,
-    ## only valid if Minio sub-charts is disabled in the same chart release.
-    ##
-    vmImageStorageGateway:
-
-      ## Specify the endpoint.
-      ##
-      endpoint: ""
-
-      ## Specify the name of the same namespace existing Secret instance,
-      ## which stored the access key(in "accessKey" field) and secret key(in "secretKey" field).
-      secretName: ""
-
-      ## Specify the access key,
-      ## the value will be stored in "accessKey" field of a specified Secret(named as the default fully qualified app name).
-      ##
-      accessKey: ""
-
-      ## Specify the secret key,
-      ## the value will store in "secretKey" field of a specified Secret(named as the default fully qualified app name).
-      ##
-      secretKey: ""
 
 ## Specify the service configuration.
 ##
@@ -479,8 +383,8 @@ csi-snapshotter:
 
 longhorn:
   ## Specify whether to install longhorn,
-  ## defaults to "false", this will be enabled in ISO mode installation.
-  enabled: false
+  ## defaults to "true"
+  enabled: true
 
   createNamespace: true
 
