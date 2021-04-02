@@ -1,15 +1,12 @@
 package api_test
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/tidwall/gjson"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
@@ -224,7 +221,7 @@ var _ = Describe("verify image APIs", func() {
 			})
 		})
 
-		Specify("verify import fails with invalid url", func() {
+		Specify("verify init fails with invalid url", func() {
 
 			var (
 				imageName        = fuzz.String(5)
@@ -248,15 +245,15 @@ var _ = Describe("verify image APIs", func() {
 			respCode, respBody, err := helper.PostObject(imageAPI, image)
 			MustRespCodeIs(http.StatusCreated, "post image", err, respCode, respBody)
 
-			By("then the imported condition is false")
+			By("then the Initialized condition is false")
 			MustFinallyBeTrue(func() bool {
 				respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
 				MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
-				return v1alpha1.ImageImported.IsFalse(retImage)
+				return v1alpha1.ImageInitialized.IsFalse(retImage)
 			}, 1*time.Minute, 1*time.Second)
 		})
 
-		Specify("verify import fails with invalid url by yaml", func() {
+		Specify("verify init fails with invalid url by yaml", func() {
 
 			var (
 				imageName        = fuzz.String(5)
@@ -281,15 +278,15 @@ var _ = Describe("verify image APIs", func() {
 				MustRespCodeIs(http.StatusCreated, "post image", err, respCode, respBody)
 			})
 
-			By("then the imported condition is false")
+			By("then the Initialized condition is false")
 			MustFinallyBeTrue(func() bool {
 				respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
 				MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
-				return v1alpha1.ImageImported.IsFalse(retImage)
+				return v1alpha1.ImageInitialized.IsFalse(retImage)
 			}, 1*time.Minute, 1*time.Second)
 		})
 
-		Specify("verify image import", func() {
+		Specify("verify image initialization succeeds", func() {
 
 			var (
 				imageName        = fuzz.String(5)
@@ -315,94 +312,13 @@ var _ = Describe("verify image APIs", func() {
 				MustRespCodeIs(http.StatusCreated, "post image", err, respCode, respBody)
 			})
 
-			By("then the imported condition is true")
+			By("then the Initialized condition is true")
 			MustFinallyBeTrue(func() bool {
 				respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
 				MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
-				Expect(v1alpha1.ImageImported.IsFalse(retImage)).NotTo(BeTrue())
-				return v1alpha1.ImageImported.IsTrue(retImage)
+				Expect(v1alpha1.ImageInitialized.IsFalse(retImage)).NotTo(BeTrue())
+				return v1alpha1.ImageInitialized.IsTrue(retImage)
 			}, 1*time.Minute, 1*time.Second)
-		})
-
-		Specify("verify the upload action", func() {
-
-			By("given a random size image")
-			var (
-				imageName        = fuzz.String(5)
-				imageDisplayName = fuzz.String(5)
-				image            = v1alpha1.VirtualMachineImage{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      imageName,
-						Namespace: imageNamespace,
-					},
-					Spec: v1alpha1.VirtualMachineImageSpec{
-						DisplayName: imageDisplayName,
-					},
-				}
-			)
-			imagePath, imageChecksum, err := fuzz.File(10 * fuzz.MB)
-			MustNotError(err)
-
-			By("create an image", func() {
-				respCode, respBody, err := helper.PostObject(imageAPI, image)
-				MustRespCodeIs(http.StatusCreated, "post image", err, respCode, respBody)
-			})
-
-			By("when call upload action")
-			var (
-				respCode int
-				respBody []byte
-				form     = struct {
-					File string `form:"file" form-file:"true"`
-				}{
-					File: imagePath,
-				}
-			)
-			err = helper.NewHTTPClient().
-				POST(fmt.Sprintf("%s/%s/%s?action=upload", imageAPI, imageNamespace, imageName)).
-				SetForm(form).
-				BindBody(&respBody).
-				Code(&respCode).
-				Do()
-			MustRespCodeIs(http.StatusOK, "upload image", err, respCode, respBody)
-
-			By("then the image is uploaded")
-			var imageDownloadURL string
-			MustFinallyBeTrue(func() bool {
-				var (
-					respCode int
-					respBody []byte
-				)
-				err := helper.NewHTTPClient().GET(imageAPI).
-					BindBody(&respBody).
-					Code(&respCode).
-					Do()
-
-				if ok := CheckRespCodeIs(http.StatusOK, "list image", err, respCode, respBody); !ok {
-					return false
-				}
-
-				selectImageJSONPath := fmt.Sprintf("data.#(spec.displayName==\"%s\")", imageDisplayName)
-				imageJSON := gjson.GetBytes(respBody, selectImageJSONPath)
-				if imageJSON.Get("status.conditions.#(type==\"imported\").status").String() == "True" {
-					imageDownloadURL = imageJSON.Get("status.downloadUrl").String()
-					return true
-				}
-				return false
-			})
-
-			By("when download the image from storage")
-			err = helper.NewHTTPClient().
-				GET(imageDownloadURL).
-				BindBody(&respBody).
-				Code(&respCode).
-				Do()
-			MustRespCodeIs(http.StatusOK, "download image", err, respCode, respBody)
-
-			By("then the downloaded image has the same checksum as the source")
-			imageChecksumActualArr := sha256.Sum256(respBody)
-			imageChecksumActual := hex.EncodeToString(imageChecksumActualArr[:])
-			MustEqual(imageChecksumActual, imageChecksum)
 		})
 
 	})

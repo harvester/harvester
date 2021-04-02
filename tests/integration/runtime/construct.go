@@ -38,13 +38,10 @@ func installHarvesterChart(ctx context.Context, kubeConfig *restclient.Config) e
 	// chart values patches
 	patches := map[string]interface{}{
 		"replicas":                             0,
-		"minio.service.type":                   "NodePort",
-		"minio.mode":                           "standalone",
-		"minio.persistence.size":               "5Gi",
 		"harvester-network-controller.enabled": false,
 	}
-	if env.IsE2ETestsEnabled() {
-		patches["longhorn.enabled"] = "true"
+	if !env.IsE2ETestsEnabled() {
+		patches["longhorn.enabled"] = "false"
 	}
 
 	if env.IsUsingEmulation() {
