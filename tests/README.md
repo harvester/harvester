@@ -17,5 +17,5 @@ The integration test is performed on every pull request and is run by the Drone 
     - set `export ENABLE_E2E_TESTS=true` if want to run e2e test, the user must have an existing Kubernetes cluster.
 
 * Run `./scripts/test-integration` or `make test-integration`.
-    - if you want to use an existing cluster with a pre-installed harvester chart, make sure set the `minio` service type to `NodePort` and config the replicas of `harvester` deployment to be `0`, then run `$ env USE_EXISTING_CLUSTER=true SKIP_HARVESTER_INSTALLATION=true ./scripts/test-integration`. 
+    - if you want to use an existing cluster with a pre-installed harvester chart, make sure to config the replicas of `harvester` deployment to be `0`, then run `$ env USE_EXISTING_CLUSTER=true SKIP_HARVESTER_INSTALLATION=true ./scripts/test-integration`. 
 
