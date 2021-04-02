@@ -95,36 +95,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: IMAGE_STORAGE_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: accesskey
-{{- if .Values.minio.enabled }}
-                  name: {{ if .Values.minio.existingSecret }}{{ .Values.minio.existingSecret }}{{ else }}{{ template "charts.minio.fullname" . }}{{ end }}
-{{- else }}
-                  {{- with .Values.containers.apiserver.vmImageStorageGateway }}
-                  name: {{ if .secretName }}{{ .secretName }}{{ else }}harvester-vm-image-storage-gateway{{ end }}
-                  {{- end }}
-{{- end }}
-            - name: IMAGE_STORAGE_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: secretkey
-{{- if .Values.minio.enabled }}
-                  name: {{ if .Values.minio.existingSecret }}{{ .Values.minio.existingSecret }}{{ else }}{{ template "charts.minio.fullname" . }}{{ end }}
-{{- else }}
-                  {{- with .Values.containers.apiserver.vmImageStorageGateway }}
-                  name: {{ if .secretName }}{{ .secretName }}{{ else }}harvester-vm-image-storage-gateway{{ end }}
-                  {{- end }}
-{{- end }}
-            - name: IMAGE_STORAGE_ENDPOINT
-{{- if .Values.minio.enabled }}
-              value: {{printf "http://%s.%s:%s" (include "charts.minio.fullname" .) .Release.Namespace (.Values.minio.service.port | toString) }}
-{{- else }}
-              {{- with .Values.containers.apiserver.vmImageStorageGateway }}
-              value: {{ if .endpoint }}{{ .endpoint }}{{ else }}{{ fail "Please indicate the endpoint of S3 service if disabled default Minio deployment" }}{{ end }}
-              {{- end }}
-{{- end }}
 {{- if .Values.containers.apiserver.env }}
 {{ toYaml .Values.containers.apiserver.env | indent 12 }}
 {{- end }}
