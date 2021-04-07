@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	v1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
@@ -23,7 +24,7 @@ type Handler struct {
 	v1.SecretCache
 }
 
-func (h *Handler) OnChanged(key string, setting *v1alpha1.Setting) (*v1alpha1.Setting, error) {
+func (h *Handler) ServerURLOnChanged(key string, setting *v1alpha1.Setting) (*v1alpha1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != "server-url" || setting.Value == "" {
 		return setting, nil
 	}
@@ -58,4 +59,19 @@ func (h *Handler) OnChanged(key string, setting *v1alpha1.Setting) (*v1alpha1.Se
 	toUpdate.Annotations[CNPrefix+cn] = cn
 	_, err = h.SecretClient.Update(toUpdate)
 	return setting, err
+}
+
+func (h *Handler) LogLevelOnChanged(key string, setting *v1alpha1.Setting) (*v1alpha1.Setting, error) {
+	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != "log-level" || setting.Value == "" {
+		return setting, nil
+	}
+
+	level, err := logrus.ParseLevel(setting.Value)
+	if err != nil {
+		return setting, err
+	}
+
+	logrus.Infof("set log level to %s", level)
+	logrus.SetLevel(level)
+	return setting, nil
 }

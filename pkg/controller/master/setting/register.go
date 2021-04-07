@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	controllerName = "server-url-setting-controller"
+	controllerName = "harvester-setting-controller"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -18,6 +18,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		SecretClient: secrets,
 	}
 
-	settings.OnChange(ctx, controllerName, controller.OnChanged)
+	settings.OnChange(ctx, controllerName, controller.ServerURLOnChanged)
+	settings.OnChange(ctx, controllerName, controller.LogLevelOnChanged)
 	return nil
 }
