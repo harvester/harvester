@@ -34,6 +34,7 @@ var (
 	RancherEnabled         = NewSetting("rancher-enabled", "false") // Specify whether the UI should display the Rancher UI navigation
 	UpgradableVersions     = NewSetting("upgradable-versions", "")
 	VersionMetadataURL     = NewSetting("version-metadata-url", "")
+	LogLevel               = NewSetting("log-level", "info") // options are info, debug and trace
 )
 
 const BackupTargetSettingName = "backup-target"
