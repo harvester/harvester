@@ -1,8 +1,10 @@
 # Automatic Installation
 
-Harvester can be installed in a mass manner. This document provides an example to do the automatic installation with PXE boot.
+Starting from version `0.2.0`, Harvester can be installed in a mass manner. This document provides an example to do the automatic installation with PXE boot.
 
 We recommend using [iPXE](https://ipxe.org/) to perform the network boot. It has more features than the traditional PXE Boot program and is likely available in modern NIC cards. If NIC cards don't come with iPXE firmware, iPXE firmware images can be loaded from the TFTP server first.
+
+To see sample iPXE scripts, please visit https://github.com/harvester/ipxe-examples.
 
 ## Preparing HTTP servers
 
@@ -12,34 +14,21 @@ Let's assume an nginx HTTP server's IP is `10.100.0.10`, and it serves `/usr/sha
 
 ## Preparing boot files
 
-- Download the [Harvester ISO](https://github.com/rancher/harvester/tags).
+- Download required files from https://github.com/rancher/harvester/tags. Choose an appropriate version.
+  - The ISO: `harvester-amd64.iso`
+  - The kernel: `harvester-vmlinuz-amd64`
+  - The initrd: `harvester-initrd-amd64`
 
-- Serve the ISO file.
+- Serve the files.
   
-  Copy or move the ISO file to an appropriate location so it can be downloaded via the HTTP server. e.g.,
+  Copy or move the downloaded files to an appropriate location so they can be downloaded via the HTTP server. e.g.,
 
   ```
   sudo mkdir -p /usr/share/nginx/html/harvester/
   sudo cp /path/to/harvester-amd64.iso /usr/share/nginx/html/harvester/
+  sudo cp /path/to/harvester-vmlinuz-amd64 /usr/share/nginx/html/harvester/
+  sudo cp /path/to/harvester-initrd-amd64 /usr/share/nginx/html/harvester/
   ```
-
-- Extract kernel and initrd file from the ISO file.
-
-  ```
-  mkdir /tmp/harvester-iso
-  mkdir /tmp/harvester-squashfs
-  sudo mount -o loop /path/to/harvester-amd64.iso /tmp/harvester-iso
-  sudo mount /tmp/harvester-iso/k3os/system/kernel/current/kernel.squashfs /tmp/harvester-squashfs
-
-  sudo cp /tmp/harvester-squashfs/vmlinuz /usr/share/nginx/html/harvester/
-  sudo cp /tmp/harvester-iso/k3os/system/kernel/current/initrd /usr/share/nginx/html/harvester/
-
-  sudo umount /tmp/harvester-squashfs
-  sudo umount /tmp/harvester-iso
-  rm -r /tmp/harvester-iso /tmp/harvester-squashfs
-  ```
-
-  Make sure the `vmlinuz` and `initrd` files can be downloaded from the HTTP server.
 
 ## Preparing iPXE boot scripts
 
