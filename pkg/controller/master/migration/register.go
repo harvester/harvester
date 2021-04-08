@@ -21,6 +21,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		return err
 	}
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
+	pods := management.CoreFactory.Core().V1().Pod()
 	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	vmims := management.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration()
 	handler := &Handler{
@@ -28,11 +29,12 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmiCache:   vmis.Cache(),
 		vms:        vms,
 		vmCache:    vms.Cache(),
+		pods:       pods,
+		podCache:   pods.Cache(),
 		restClient: virtv1Client.RESTClient(),
 	}
 
 	vmis.OnChange(ctx, vmiControllerName, handler.OnVmiChanged)
 	vmims.OnChange(ctx, vmimControllerName, handler.OnVmimChanged)
-	vmims.OnRemove(ctx, vmimControllerName, handler.OnVmimRemove)
 	return nil
 }
