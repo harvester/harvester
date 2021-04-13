@@ -21,7 +21,7 @@ package fake
 import (
 	k8scnicncfiov1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	snapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterhciv1beta1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -37,7 +37,7 @@ var codecs = serializer.NewCodecFactory(scheme)
 
 var localSchemeBuilder = runtime.SchemeBuilder{
 	cdiv1beta1.AddToScheme,
-	harvesterv1alpha1.AddToScheme,
+	harvesterhciv1beta1.AddToScheme,
 	k8scnicncfiov1.AddToScheme,
 	kubevirtv1.AddToScheme,
 	snapshotv1beta1.AddToScheme,
