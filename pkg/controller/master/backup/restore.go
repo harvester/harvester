@@ -24,10 +24,10 @@ import (
 	kv1 "kubevirt.io/client-go/api/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 
-	harvesterapiv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/config"
 	ctlcdiv1 "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
@@ -41,7 +41,7 @@ var (
 
 type vmRestoreTarget struct {
 	handler   *RestoreHandler
-	vmRestore *harvesterapiv1.VirtualMachineRestore
+	vmRestore *harvesterv1.VirtualMachineRestore
 	vm        *kv1.VirtualMachine
 	newVM     bool
 }
@@ -52,22 +52,22 @@ const (
 	volumeSnapshotKindName = "VolumeSnapshot"
 	vmRestoreKindName      = "VirtualMachineRestore"
 
-	restoreNameAnnotation = "restore.harvester.cattle.io/name"
-	lastRestoreAnnotation = "restore.harvester.cattle.io/lastRestoreUID"
+	restoreNameAnnotation = "restore.harvesterhci.io/name"
+	lastRestoreAnnotation = "restore.harvesterhci.io/lastRestoreUID"
 
 	populatedForPVCAnnotation = "cdi.kubevirt.io/storage.populatedFor"
 
-	vmCreatorLabel = "harvester.cattle.io/creator"
-	vmNameLabel    = "harvester.cattle.io/vmName"
+	vmCreatorLabel = "harvesterhci.io/creator"
+	vmNameLabel    = "harvesterhci.io/vmName"
 
 	restoreErrorEvent    = "VirtualMachineRestoreError"
 	restoreCompleteEvent = "VirtualMachineRestoreComplete"
 )
 
 func RegisterRestore(ctx context.Context, management *config.Management, opts config.Options) error {
-	restores := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineRestore()
-	backups := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineBackup()
-	contents := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineBackupContent()
+	restores := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore()
+	backups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
+	contents := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackupContent()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	dataVolumes := management.CDIFactory.Cdi().V1beta1().DataVolume()
@@ -111,17 +111,17 @@ type RestoreHandler struct {
 	restClient *rest.RESTClient
 }
 
-func restorePVCName(vmRestore *harvesterapiv1.VirtualMachineRestore, name string) string {
+func restorePVCName(vmRestore *harvesterv1.VirtualMachineRestore, name string) string {
 	s := fmt.Sprintf("restore-%s-%s-%s", vmRestore.Spec.VirtualMachineBackupName, vmRestore.UID, name)
 	return s
 }
 
-func vmRestoreProgressing(vmRestore *harvesterapiv1.VirtualMachineRestore) bool {
+func vmRestoreProgressing(vmRestore *harvesterv1.VirtualMachineRestore) bool {
 	return vmRestore.Status == nil || vmRestore.Status.Complete == nil || !*vmRestore.Status.Complete
 }
 
 // RestoreOnChanged handles vmresotre CRD object on change state
-func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterapiv1.VirtualMachineRestore) (*harvesterapiv1.VirtualMachineRestore, error) {
+func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
 	if restore == nil || restore.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -133,7 +133,7 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterapiv1.Vi
 	restoreCpy := restore.DeepCopy()
 
 	if restoreCpy.Status == nil {
-		restoreCpy.Status = &harvesterapiv1.VirtualMachineRestoreStatus{
+		restoreCpy.Status = &harvesterv1.VirtualMachineRestoreStatus{
 			Complete: pointer.BoolPtr(false),
 		}
 	}
@@ -246,7 +246,7 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterapiv1.Vi
 	return nil, h.doUpdate(restore, restoreCpy)
 }
 
-func (h *RestoreHandler) getTarget(vmRestore *harvesterapiv1.VirtualMachineRestore) (*vmRestoreTarget, error) {
+func (h *RestoreHandler) getTarget(vmRestore *harvesterv1.VirtualMachineRestore) (*vmRestoreTarget, error) {
 	isNewVM := false
 	switch vmRestore.Spec.Target.Kind {
 	case kv1.VirtualMachineGroupVersionKind.Kind:
@@ -269,7 +269,7 @@ func (h *RestoreHandler) getTarget(vmRestore *harvesterapiv1.VirtualMachineResto
 	return nil, fmt.Errorf("unknown source %+v", vmRestore.Spec.Target)
 }
 
-func (h *RestoreHandler) doUpdateError(original, updated *harvesterapiv1.VirtualMachineRestore, err error, createEvent bool) error {
+func (h *RestoreHandler) doUpdateError(original, updated *harvesterv1.VirtualMachineRestore, err error, createEvent bool) error {
 	if createEvent {
 		h.recorder.Eventf(
 			updated,
@@ -288,11 +288,11 @@ func (h *RestoreHandler) doUpdateError(original, updated *harvesterapiv1.Virtual
 	return err
 }
 
-func updateRestoreCondition(r *harvesterapiv1.VirtualMachineRestore, c harvesterapiv1.Condition) {
+func updateRestoreCondition(r *harvesterv1.VirtualMachineRestore, c harvesterv1.Condition) {
 	r.Status.Conditions = updateCondition(r.Status.Conditions, c, true)
 }
 
-func (h *RestoreHandler) doUpdate(original, updated *harvesterapiv1.VirtualMachineRestore) error {
+func (h *RestoreHandler) doUpdate(original, updated *harvesterv1.VirtualMachineRestore) error {
 	if !reflect.DeepEqual(original, updated) {
 		if _, err := h.restores.Update(updated); err != nil {
 			return err
@@ -302,15 +302,15 @@ func (h *RestoreHandler) doUpdate(original, updated *harvesterapiv1.VirtualMachi
 	return nil
 }
 
-func (h *RestoreHandler) enqueueAfter(original, updated *harvesterapiv1.VirtualMachineRestore, t time.Duration) {
+func (h *RestoreHandler) enqueueAfter(original, updated *harvesterv1.VirtualMachineRestore, t time.Duration) {
 	if !reflect.DeepEqual(original, updated) {
 		h.restoreController.EnqueueAfter(updated.Namespace, updated.Name, t)
 	}
 }
 
-func (h *RestoreHandler) reconcileVolumeRestores(vmRestore *harvesterapiv1.VirtualMachineRestore,
-	content *harvesterapiv1.VirtualMachineBackupContent) (bool, error) {
-	restores := make([]harvesterapiv1.VolumeRestore, 0, len(content.Spec.VolumeBackups))
+func (h *RestoreHandler) reconcileVolumeRestores(vmRestore *harvesterv1.VirtualMachineRestore,
+	content *harvesterv1.VirtualMachineBackupContent) (bool, error) {
+	restores := make([]harvesterv1.VolumeRestore, 0, len(content.Spec.VolumeBackups))
 	for _, vb := range content.Spec.VolumeBackups {
 		found := false
 		for _, vr := range vmRestore.Status.VolumeRestores {
@@ -326,9 +326,9 @@ func (h *RestoreHandler) reconcileVolumeRestores(vmRestore *harvesterapiv1.Virtu
 				return false, fmt.Errorf("VolumeSnapshotName missing %+v", vb)
 			}
 
-			vr := harvesterapiv1.VolumeRestore{
+			vr := harvesterv1.VolumeRestore{
 				VolumeName: vb.VolumeName,
-				PersistentVolumeClaim: harvesterapiv1.PersistentVolumeClaimSpec{
+				PersistentVolumeClaim: harvesterv1.PersistentVolumeClaimSpec{
 					Name:      restorePVCName(vmRestore, vb.VolumeName),
 					Namespace: vb.PersistentVolumeClaim.Namespace,
 					Spec:      vb.PersistentVolumeClaim.Spec,
@@ -374,7 +374,7 @@ func (h *RestoreHandler) reconcileVolumeRestores(vmRestore *harvesterapiv1.Virtu
 	return createdPVC || waitingPVC, nil
 }
 
-func (h *RestoreHandler) getBackupContent(vmRestore *harvesterapiv1.VirtualMachineRestore, targetUID types.UID, newVM bool) (*harvesterapiv1.VirtualMachineBackupContent, error) {
+func (h *RestoreHandler) getBackupContent(vmRestore *harvesterv1.VirtualMachineRestore, targetUID types.UID, newVM bool) (*harvesterv1.VirtualMachineBackupContent, error) {
 	backup, err := h.backupCache.Get(vmRestore.Namespace, vmRestore.Spec.VirtualMachineBackupName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -422,7 +422,7 @@ func configVMOwner(vm *kv1.VirtualMachine) []metav1.OwnerReference {
 }
 
 func (t *vmRestoreTarget) Cleanup() error {
-	if t.vmRestore.Spec.NewVM || t.vmRestore.Spec.DeletionPolicy == harvesterapiv1.VirtualMachineRestoreRetain {
+	if t.vmRestore.Spec.NewVM || t.vmRestore.Spec.DeletionPolicy == harvesterv1.VirtualMachineRestoreRetain {
 		logrus.Infof("skip clean up carryover resources of vm %s/%s", t.vm.Name, t.vm.Namespace)
 		return nil
 	}
@@ -476,7 +476,7 @@ func (t *vmRestoreTarget) RestartVM() error {
 }
 
 func (h *RestoreHandler) ReconcileVMTemplate(vm *kv1.VirtualMachineSpec,
-	vmRestore *harvesterapiv1.VirtualMachineRestore) ([]kv1.DataVolumeTemplateSpec, []kv1.Volume, bool, error) {
+	vmRestore *harvesterv1.VirtualMachineRestore) ([]kv1.DataVolumeTemplateSpec, []kv1.Volume, bool, error) {
 	var newTemplates = make([]kv1.DataVolumeTemplateSpec, len(vm.DataVolumeTemplates))
 	var newVolumes = make([]kv1.Volume, len(vm.Template.Spec.Volumes))
 	updatedStatus := false
@@ -625,7 +625,7 @@ func (t *vmRestoreTarget) Reconcile() (bool, error) {
 	return true, nil
 }
 
-func (h *RestoreHandler) createNewVM(restore *harvesterapiv1.VirtualMachineRestore, content *harvesterapiv1.VirtualMachineBackupContent) (*kv1.VirtualMachine, error) {
+func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore, content *harvesterv1.VirtualMachineBackupContent) (*kv1.VirtualMachine, error) {
 	vmName := restore.Spec.Target.Name
 	logrus.Infof("restore target does not exist, creating a new vm %s", vmName)
 
@@ -713,12 +713,12 @@ func (h *RestoreHandler) VMOnChange(key string, vm *kv1.VirtualMachine) (*kv1.Vi
 	return nil, nil
 }
 
-func getRestoreID(vmRestore *harvesterapiv1.VirtualMachineRestore) string {
+func getRestoreID(vmRestore *harvesterv1.VirtualMachineRestore) string {
 	return fmt.Sprintf("%s-%s", vmRestore.Name, vmRestore.UID)
 }
 
-func (h *RestoreHandler) createRestorePVC(vmRestore *harvesterapiv1.VirtualMachineRestore,
-	volumeBackup harvesterapiv1.VolumeBackup, volumeRestore harvesterapiv1.VolumeRestore) error {
+func (h *RestoreHandler) createRestorePVC(vmRestore *harvesterv1.VirtualMachineRestore,
+	volumeBackup harvesterv1.VolumeBackup, volumeRestore harvesterv1.VolumeRestore) error {
 	sourcePVC := volumeBackup.PersistentVolumeClaim
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -732,7 +732,7 @@ func (h *RestoreHandler) createRestorePVC(vmRestore *harvesterapiv1.VirtualMachi
 
 	pvc.SetOwnerReferences([]metav1.OwnerReference{
 		{
-			APIVersion:         harvesterapiv1.SchemeGroupVersion.String(),
+			APIVersion:         harvesterv1.SchemeGroupVersion.String(),
 			Kind:               vmRestoreKindName,
 			Name:               vmRestore.Name,
 			UID:                vmRestore.UID,

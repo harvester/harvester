@@ -11,7 +11,7 @@ import (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
 	t := schema.Template{
-		ID: "harvester.cattle.io.virtualmachineimage",
+		ID: "harvesterhci.io.virtualmachineimage",
 		Store: store.DisplayNameValidatorStore{
 			Store: store.NamespaceStore{
 				Store:     proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),

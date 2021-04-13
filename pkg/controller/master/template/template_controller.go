@@ -3,20 +3,20 @@ package template
 import (
 	"reflect"
 
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	ctlapisv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/ref"
 )
 
 // templateHandler sets status.Version to template objects
 type templateHandler struct {
-	templates            ctlapisv1alpha1.VirtualMachineTemplateClient
-	templateVersions     ctlapisv1alpha1.VirtualMachineTemplateVersionClient
-	templateVersionCache ctlapisv1alpha1.VirtualMachineTemplateVersionCache
-	templateController   ctlapisv1alpha1.VirtualMachineTemplateController
+	templates            ctlharvesterv1.VirtualMachineTemplateClient
+	templateVersions     ctlharvesterv1.VirtualMachineTemplateVersionClient
+	templateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache
+	templateController   ctlharvesterv1.VirtualMachineTemplateController
 }
 
-func (h *templateHandler) OnChanged(key string, tp *apisv1alpha1.VirtualMachineTemplate) (*apisv1alpha1.VirtualMachineTemplate, error) {
+func (h *templateHandler) OnChanged(key string, tp *harvesterv1.VirtualMachineTemplate) (*harvesterv1.VirtualMachineTemplate, error) {
 	if tp == nil || tp.DeletionTimestamp != nil {
 		return tp, nil
 	}
@@ -54,7 +54,7 @@ func (h *templateHandler) OnChanged(key string, tp *apisv1alpha1.VirtualMachineT
 			return nil, err
 		}
 
-		if !apisv1alpha1.VersionAssigned.IsTrue(version) {
+		if !harvesterv1.VersionAssigned.IsTrue(version) {
 			h.templateController.Enqueue(tp.Namespace, tp.Name)
 			return tp, nil
 		}

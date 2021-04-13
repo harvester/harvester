@@ -9,7 +9,7 @@ import (
 	wcrd "github.com/rancher/wrangler/pkg/crd"
 	"k8s.io/client-go/rest"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/util/crd"
 )
 
@@ -24,8 +24,8 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 	}
 	return factory.
 		BatchCreateCRDsIfNotExisted(
-			crd.NonNamespacedFromGV(v1alpha1.SchemeGroupVersion, "Setting"),
-			crd.NonNamespacedFromGV(v1alpha1.SchemeGroupVersion, "User"),
+			crd.NonNamespacedFromGV(harvesterv1.SchemeGroupVersion, "Setting"),
+			crd.NonNamespacedFromGV(harvesterv1.SchemeGroupVersion, "User"),
 			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "Setting"),
 			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "User"),
 			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "UserAttribute"),
@@ -33,15 +33,15 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "NodeDriver"),
 		).
 		BatchCreateCRDsIfNotExisted(
-			crd.FromGV(v1alpha1.SchemeGroupVersion, "KeyPair"),
-			crd.FromGV(v1alpha1.SchemeGroupVersion, "Upgrade"),
-			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineImage"),
-			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplate"),
-			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineTemplateVersion"),
-			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineBackup"),
-			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineBackupContent"),
-			crd.FromGV(v1alpha1.SchemeGroupVersion, "VirtualMachineRestore"),
-			crd.FromGV(v1alpha1.SchemeGroupVersion, "Preference"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "KeyPair"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "Upgrade"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineImage"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineTemplate"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineTemplateVersion"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineBackup"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineBackupContent"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineRestore"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "Preference"),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Volume"),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Setting"),
 			createNetworkAttachmentDefinitionCRD(),

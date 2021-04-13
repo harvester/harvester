@@ -7,8 +7,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	upgradev1 "github.com/rancher/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 )
 
@@ -19,7 +19,7 @@ const (
 	helmChartLabel     = "helmcharts.helm.cattle.io/chart"
 	upgradePlanLabel   = "upgrade.cattle.io/plan"
 	upgradeNodeLabel   = "upgrade.cattle.io/node"
-	upgradeStateLabel  = "harvester.cattle.io/upgradeState"
+	upgradeStateLabel  = "harvesterhci.io/upgradeState"
 	harvesterChartname = "harvester"
 )
 
@@ -27,8 +27,8 @@ const (
 type jobHandler struct {
 	namespace     string
 	planCache     upgradev1.PlanCache
-	upgradeClient v1alpha1.UpgradeClient
-	upgradeCache  v1alpha1.UpgradeCache
+	upgradeClient ctlharvesterv1.UpgradeClient
+	upgradeCache  ctlharvesterv1.UpgradeCache
 }
 
 func (h *jobHandler) OnChanged(key string, job *batchv1.Job) (*batchv1.Job, error) {
@@ -97,7 +97,7 @@ func (h *jobHandler) syncHelmChartJob(job *batchv1.Job) (*batchv1.Job, error) {
 	currentUpgrade := onGoingUpgrades[0]
 	toUpdate := currentUpgrade.DeepCopy()
 
-	if !apisv1alpha1.SystemServicesUpgraded.IsUnknown(currentUpgrade) || job.Status.Active > 0 {
+	if !harvesterv1.SystemServicesUpgraded.IsUnknown(currentUpgrade) || job.Status.Active > 0 {
 		return job, nil
 	}
 

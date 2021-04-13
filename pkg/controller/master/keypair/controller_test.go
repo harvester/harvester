@@ -14,18 +14,18 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 
-	harvesterapis "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	harvestertype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
+	typeharv1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 )
 
 func TestHandler_OnKeyPairChanged(t *testing.T) {
 	type input struct {
 		key     string
-		keyPair *harvesterapis.KeyPair
+		keyPair *harvesterv1.KeyPair
 	}
 	type output struct {
-		keyPair *harvesterapis.KeyPair
+		keyPair *harvesterv1.KeyPair
 		err     error
 	}
 
@@ -51,7 +51,7 @@ func TestHandler_OnKeyPairChanged(t *testing.T) {
 			name: "deleted resource",
 			given: input{
 				key: "default/test",
-				keyPair: &harvesterapis.KeyPair{
+				keyPair: &harvesterv1.KeyPair{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace:         "default",
 						Name:              "test",
@@ -60,7 +60,7 @@ func TestHandler_OnKeyPairChanged(t *testing.T) {
 				},
 			},
 			expected: output{
-				keyPair: &harvesterapis.KeyPair{
+				keyPair: &harvesterv1.KeyPair{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace:         "default",
 						Name:              "test",
@@ -74,23 +74,23 @@ func TestHandler_OnKeyPairChanged(t *testing.T) {
 			name: "blank public key",
 			given: input{
 				key: "default/test",
-				keyPair: &harvesterapis.KeyPair{
+				keyPair: &harvesterv1.KeyPair{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: "",
 					},
 				},
 			},
 			expected: output{
-				keyPair: &harvesterapis.KeyPair{
+				keyPair: &harvesterv1.KeyPair{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: "",
 					},
 				},
@@ -101,29 +101,29 @@ func TestHandler_OnKeyPairChanged(t *testing.T) {
 			name: "not blank fingerprint",
 			given: input{
 				key: "default/test",
-				keyPair: &harvesterapis.KeyPair{
+				keyPair: &harvesterv1.KeyPair{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: "FAKE_PUBLIC_KEY",
 					},
-					Status: harvesterapis.KeyPairStatus{
+					Status: harvesterv1.KeyPairStatus{
 						FingerPrint: "FAKE_FINGER_PRINT",
 					},
 				},
 			},
 			expected: output{
-				keyPair: &harvesterapis.KeyPair{
+				keyPair: &harvesterv1.KeyPair{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: "FAKE_PUBLIC_KEY",
 					},
-					Status: harvesterapis.KeyPairStatus{
+					Status: harvesterv1.KeyPairStatus{
 						FingerPrint: "FAKE_FINGER_PRINT",
 					},
 				},
@@ -134,29 +134,29 @@ func TestHandler_OnKeyPairChanged(t *testing.T) {
 			name: "illegal public key",
 			given: input{
 				key: "default/test",
-				keyPair: &harvesterapis.KeyPair{
+				keyPair: &harvesterv1.KeyPair{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: "FAKE_PUBLIC_KEY",
 					},
 				},
 			},
 			expected: output{
-				keyPair: &harvesterapis.KeyPair{
+				keyPair: &harvesterv1.KeyPair{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: "FAKE_PUBLIC_KEY",
 					},
-					Status: harvesterapis.KeyPairStatus{
-						Conditions: []harvesterapis.Condition{
+					Status: harvesterv1.KeyPairStatus{
+						Conditions: []harvesterv1.Condition{
 							{
-								Type:   harvesterapis.KeyPairValidated,
+								Type:   harvesterv1.KeyPairValidated,
 								Status: corev1.ConditionFalse,
 								Reason: "failed to parse the public key, error: ssh: no key found",
 							},
@@ -170,29 +170,29 @@ func TestHandler_OnKeyPairChanged(t *testing.T) {
 			name: "generate fingerprint for legal public key",
 			given: input{
 				key: "default/test",
-				keyPair: &harvesterapis.KeyPair{
+				keyPair: &harvesterv1.KeyPair{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: testPublicKey,
 					},
 				},
 			},
 			expected: output{
-				keyPair: &harvesterapis.KeyPair{
+				keyPair: &harvesterv1.KeyPair{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: testPublicKey,
 					},
-					Status: harvesterapis.KeyPairStatus{
-						Conditions: []harvesterapis.Condition{
+					Status: harvesterv1.KeyPairStatus{
+						Conditions: []harvesterv1.Condition{
 							{
-								Type:   harvesterapis.KeyPairValidated,
+								Type:   harvesterv1.KeyPairValidated,
 								Status: corev1.ConditionTrue,
 							},
 						},
@@ -212,7 +212,7 @@ func TestHandler_OnKeyPairChanged(t *testing.T) {
 		}
 
 		var handler = &Handler{
-			keyPairClient: fakeKeyPairClient(clientset.HarvesterV1alpha1().KeyPairs),
+			keyPairClient: fakeKeyPairClient(clientset.HarvesterhciV1beta1().KeyPairs),
 		}
 		var actual output
 		actual.keyPair, actual.err = handler.OnKeyPairChanged(tc.given.key, tc.given.keyPair)
@@ -242,17 +242,17 @@ func generateSSHPublicKey() (pk string, fingerprint string, err error) {
 	return pk, fingerprint, nil
 }
 
-type fakeKeyPairClient func(string) harvestertype.KeyPairInterface
+type fakeKeyPairClient func(string) typeharv1.KeyPairInterface
 
-func (c fakeKeyPairClient) Create(pair *harvesterapis.KeyPair) (*harvesterapis.KeyPair, error) {
+func (c fakeKeyPairClient) Create(pair *harvesterv1.KeyPair) (*harvesterv1.KeyPair, error) {
 	return c(pair.Namespace).Create(context.TODO(), pair, metav1.CreateOptions{})
 }
 
-func (c fakeKeyPairClient) Update(pair *harvesterapis.KeyPair) (*harvesterapis.KeyPair, error) {
+func (c fakeKeyPairClient) Update(pair *harvesterv1.KeyPair) (*harvesterv1.KeyPair, error) {
 	return c(pair.Namespace).Update(context.TODO(), pair, metav1.UpdateOptions{})
 }
 
-func (c fakeKeyPairClient) UpdateStatus(pair *harvesterapis.KeyPair) (*harvesterapis.KeyPair, error) {
+func (c fakeKeyPairClient) UpdateStatus(pair *harvesterv1.KeyPair) (*harvesterv1.KeyPair, error) {
 	return c(pair.Namespace).UpdateStatus(context.TODO(), pair, metav1.UpdateOptions{})
 }
 
@@ -260,11 +260,11 @@ func (c fakeKeyPairClient) Delete(namespace, name string, opts *metav1.DeleteOpt
 	return c(namespace).Delete(context.TODO(), name, *opts)
 }
 
-func (c fakeKeyPairClient) Get(namespace, name string, opts metav1.GetOptions) (*harvesterapis.KeyPair, error) {
+func (c fakeKeyPairClient) Get(namespace, name string, opts metav1.GetOptions) (*harvesterv1.KeyPair, error) {
 	return c(namespace).Get(context.TODO(), name, opts)
 }
 
-func (c fakeKeyPairClient) List(namespace string, opts metav1.ListOptions) (*harvesterapis.KeyPairList, error) {
+func (c fakeKeyPairClient) List(namespace string, opts metav1.ListOptions) (*harvesterv1.KeyPairList, error) {
 	return c(namespace).List(context.TODO(), opts)
 }
 
@@ -272,6 +272,6 @@ func (c fakeKeyPairClient) Watch(namespace string, opts metav1.ListOptions) (wat
 	return c(namespace).Watch(context.TODO(), opts)
 }
 
-func (c fakeKeyPairClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterapis.KeyPair, err error) {
+func (c fakeKeyPairClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterv1.KeyPair, err error) {
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
 }

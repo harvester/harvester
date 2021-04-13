@@ -10,8 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
-	v1alpha12 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	upgradectlv1 "github.com/rancher/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 )
 
@@ -20,8 +20,8 @@ import (
 // When a agent plan completes, it set the NodesUpgraded condition of upgrade CRD to be true.
 type planHandler struct {
 	namespace     string
-	upgradeClient v1alpha1.UpgradeClient
-	upgradeCache  v1alpha1.UpgradeCache
+	upgradeClient ctlharvesterv1.UpgradeClient
+	upgradeCache  ctlharvesterv1.UpgradeCache
 	nodeCache     v1.NodeCache
 	planClient    upgradectlv1.PlanClient
 }
@@ -70,7 +70,7 @@ func (h *planHandler) OnChanged(key string, plan *upgradev1.Plan) (*upgradev1.Pl
 		if _, err := h.planClient.Create(agentPlan); err != nil && !errors.IsAlreadyExists(err) {
 			return plan, err
 		}
-	} else if !v1alpha12.NodesUpgraded.IsTrue(upgrade) && component == agentComponent {
+	} else if !harvesterv1.NodesUpgraded.IsTrue(upgrade) && component == agentComponent {
 		// all nodes are upgraded
 		toUpdate := upgrade.DeepCopy()
 		setNodesUpgradedCondition(toUpdate, corev1.ConditionTrue, "", "")

@@ -11,14 +11,14 @@ import (
 )
 
 const (
-	userSchemaID = "harvester.cattle.io.user"
+	userSchemaID = "harvesterhci.io.user"
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
 	userStore := &userStore{
 		mu:        sync.Mutex{},
 		Store:     proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
-		userCache: scaled.HarvesterFactory.Harvester().V1alpha1().User().Cache(),
+		userCache: scaled.HarvesterFactory.Harvesterhci().V1beta1().User().Cache(),
 	}
 
 	t := schema.Template{

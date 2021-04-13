@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
-	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/config"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
@@ -50,21 +50,21 @@ var _ = Describe("verify users APIs", func() {
 		BeforeEach(func() {
 
 			var port = options.HTTPSListenPort
-			usersAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.users", port)
-			usersKubeAPI = helper.BuildAPIURL("", "apis/harvester.cattle.io/v1alpha1/users", port)
+			usersAPI = helper.BuildAPIURL("v1", "harvesterhci.io.users", port)
+			usersKubeAPI = helper.BuildAPIURL("", "apis/harvesterhci.io/v1beta1/users", port)
 			loginAPI = helper.BuildAPIURL("", "v1-public/auth?action=login", port)
 		})
 
 		Specify("create a user", func() {
 
 			By("given a username & password")
-			user := harvesterv1alpha1.User{
+			user := harvesterv1.User{
 				Username: userName,
 				Password: password,
 				IsAdmin:  true,
 			}
 
-			By("when calling harvester.cattle.io.users")
+			By("when calling harvesterhci.io.users")
 			respCode, respBody, err := helper.PostObject(usersAPI, user)
 			MustRespCodeIs(http.StatusCreated, "create user", err, respCode, respBody)
 			userID = gjson.GetBytes(respBody, "metadata.name").Str
@@ -74,7 +74,7 @@ var _ = Describe("verify users APIs", func() {
 
 		Specify("list users to check if the user is created or not", func() {
 
-			By("when calling harvester.cattle.io.users to get user list")
+			By("when calling harvesterhci.io.users to get user list")
 			respCode, respBody, err := helper.GetObject(usersAPI, nil)
 			MustRespCodeIs(http.StatusOK, "get user list", err, respCode, respBody)
 
@@ -88,7 +88,7 @@ var _ = Describe("verify users APIs", func() {
 		Specify("login in by using local user", func() {
 
 			By("login in with the created user and invalid password")
-			login := harvesterv1alpha1.Login{
+			login := harvesterv1.Login{
 				Username: userName,
 				Password: fuzz.String(8),
 			}
@@ -96,7 +96,7 @@ var _ = Describe("verify users APIs", func() {
 			MustRespCodeIs(http.StatusUnauthorized, "password incorrect", err, respCode, respBody)
 
 			By("login in with invalid username and password")
-			login = harvesterv1alpha1.Login{
+			login = harvesterv1.Login{
 				Username: fuzz.String(6),
 				Password: fuzz.String(10),
 			}
@@ -104,7 +104,7 @@ var _ = Describe("verify users APIs", func() {
 			MustRespCodeIs(http.StatusUnauthorized, "user name or password incorrect", err, respCode, respBody)
 
 			By("login in with the correct username and password")
-			login = harvesterv1alpha1.Login{
+			login = harvesterv1.Login{
 				Username: userName,
 				Password: password,
 			}
@@ -118,10 +118,10 @@ var _ = Describe("verify users APIs", func() {
 			By("update the user's password")
 			updateAPI := fmt.Sprintf("%s/%s", usersAPI, userID)
 			updatedPassword = fuzz.String(8)
-			user := harvesterv1alpha1.User{
+			user := harvesterv1.User{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "User",
-					APIVersion: "harvester.cattle.io/v1alpha1",
+					APIVersion: "harvesterhci.io/v1beta1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: resourceVersion,
@@ -174,14 +174,14 @@ var _ = Describe("verify users APIs", func() {
 			MustNotError(err)
 
 			By("login in with token")
-			loginToken := harvesterv1alpha1.Login{
+			loginToken := harvesterv1.Login{
 				Token: string(secret.Data["token"]),
 			}
 			respCode, respBody, err := helper.PostObject(loginAPI, loginToken)
 			MustRespCodeIs(http.StatusOK, "login", err, respCode, respBody)
 
 			By("use invalid service account secret to login")
-			loginInvalidToken := harvesterv1alpha1.Login{
+			loginInvalidToken := harvesterv1.Login{
 				Token: fuzz.String(16),
 			}
 			respCode, respBody, err = helper.PostObject(loginAPI, loginInvalidToken)
@@ -197,14 +197,14 @@ var _ = Describe("verify users APIs", func() {
 			MustNotError(err)
 
 			By("login with valid kubeConfig")
-			loginValidConfig := harvesterv1alpha1.Login{
+			loginValidConfig := harvesterv1.Login{
 				KubeConfig: string(validKubeConfig),
 			}
 			respCode, respBody, err := helper.PostObject(loginAPI, loginValidConfig)
 			MustRespCodeIs(http.StatusOK, "login with kubeConfig", err, respCode, respBody)
 
 			By("login with invalid kubeConfig")
-			loginInvalidConfig := harvesterv1alpha1.Login{
+			loginInvalidConfig := harvesterv1.Login{
 				KubeConfig: fuzz.String(20),
 			}
 			respCode, respBody, err = helper.PostObject(loginAPI, loginInvalidConfig)

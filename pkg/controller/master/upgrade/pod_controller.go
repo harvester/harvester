@@ -6,8 +6,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	upgradev1 "github.com/rancher/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 )
 
@@ -15,8 +15,8 @@ import (
 type podHandler struct {
 	namespace     string
 	planCache     upgradev1.PlanCache
-	upgradeClient v1alpha1.UpgradeClient
-	upgradeCache  v1alpha1.UpgradeCache
+	upgradeClient ctlharvesterv1.UpgradeClient
+	upgradeCache  ctlharvesterv1.UpgradeCache
 }
 
 func (h *podHandler) OnChanged(key string, pod *v1.Pod) (*v1.Pod, error) {
@@ -51,7 +51,7 @@ func (h *podHandler) syncHelmChartPod(pod *v1.Pod) (*v1.Pod, error) {
 		return pod, nil
 	}
 	upgrade := onGoingUpgrades[0]
-	if !apisv1alpha1.SystemServicesUpgraded.IsUnknown(upgrade) {
+	if !harvesterv1.SystemServicesUpgraded.IsUnknown(upgrade) {
 		return pod, nil
 	}
 	toUpdate := upgrade.DeepCopy()

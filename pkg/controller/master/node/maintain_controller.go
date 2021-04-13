@@ -15,7 +15,7 @@ const (
 	maintainNodeControllerName = "maintain-node-controller"
 	labelNodeNameKey           = "kubevirt.io/nodeName"
 
-	MaintainStatusAnnotationKey = "harvester.cattle.io/maintain-status"
+	MaintainStatusAnnotationKey = "harvesterhci.io/maintain-status"
 	MaintainStatusComplete      = "completed"
 	MaintainStatusRunning       = "running"
 )

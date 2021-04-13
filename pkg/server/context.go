@@ -7,12 +7,12 @@ import (
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
-	harv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 var (
 	localSchemeBuilder = runtime.SchemeBuilder{
-		harv1.AddToScheme,
+		harvesterv1.AddToScheme,
 		kubevirtv1.AddToScheme,
 		cdiv1.AddToScheme,
 	}

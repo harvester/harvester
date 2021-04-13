@@ -14,7 +14,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	if options.RancherEmbedded {
 		secrets := management.CoreFactory.Core().V1().Secret()
 		rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
-		settings := management.HarvesterFactory.Harvester().V1alpha1().Setting()
+		settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 		nodeDrivers := management.RancherManagementFactory.Management().V3().NodeDriver()
 		h := Handler{
 			Secrets:         secrets,

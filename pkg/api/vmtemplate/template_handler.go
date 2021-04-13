@@ -11,11 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/rancher/harvester/pkg/controller/master/template"
-	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 type templateLinkHandler struct {
-	templateVersionCache ctlvmv1alpha1.VirtualMachineTemplateVersionCache
+	templateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache
 }
 
 func (h *templateLinkHandler) byIDHandler(request *types.APIRequest) (types.APIObject, error) {

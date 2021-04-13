@@ -37,12 +37,12 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	vms := scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	vmims := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration()
-	backups := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineBackup()
-	restores := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineRestore()
-	settings := scaled.HarvesterFactory.Harvester().V1alpha1().Setting()
+	backups := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
+	restores := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore()
+	settings := scaled.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	nodes := scaled.CoreFactory.Core().V1().Node()
-	vmt := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate()
-	vmtv := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion()
+	vmt := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
+	vmtv := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
 
 	copyConfig := rest.CopyConfig(server.RESTConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion

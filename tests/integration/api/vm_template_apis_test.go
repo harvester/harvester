@@ -9,9 +9,9 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/config"
-	ctlapisv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
 	"github.com/rancher/harvester/tests/framework/helper"
@@ -26,15 +26,15 @@ var _ = Describe("verify vm template APIs", func() {
 
 	var (
 		scaled            *config.Scaled
-		templates         ctlapisv1alpha1.VirtualMachineTemplateClient
-		templateVersions  ctlapisv1alpha1.VirtualMachineTemplateVersionClient
+		templates         ctlharvesterv1.VirtualMachineTemplateClient
+		templateVersions  ctlharvesterv1.VirtualMachineTemplateVersionClient
 		templateNamespace string
 	)
 
 	BeforeEach(func() {
 		scaled = harvester.Scaled()
-		templates = scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate()
-		templateVersions = scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion()
+		templates = scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
+		templateVersions = scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
 		templateNamespace = options.Namespace
 	})
 
@@ -67,31 +67,31 @@ var _ = Describe("verify vm template APIs", func() {
 	Context("operate via steve API", func() {
 
 		var (
-			template = v1alpha1.VirtualMachineTemplate{
+			template = harvesterv1.VirtualMachineTemplate{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "vm-template-0",
 					Namespace: templateNamespace,
 					Labels:    testResourceLabels,
 				},
-				Spec: v1alpha1.VirtualMachineTemplateSpec{
+				Spec: harvesterv1.VirtualMachineTemplateSpec{
 					Description: "testing vm template",
 				},
 			}
-			templateVersion = v1alpha1.VirtualMachineTemplateVersion{
+			templateVersion = harvesterv1.VirtualMachineTemplateVersion{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      fuzz.String(5),
 					Namespace: templateNamespace,
 					Labels:    testResourceLabels,
 				},
-				Spec: v1alpha1.VirtualMachineTemplateVersionSpec{},
+				Spec: harvesterv1.VirtualMachineTemplateVersionSpec{},
 			}
 			templateAPI, templateVersionAPI string
 		)
 
 		BeforeEach(func() {
 			var port = options.HTTPSListenPort
-			templateAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachinetemplates", port)
-			templateVersionAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachinetemplateversions", port)
+			templateAPI = helper.BuildAPIURL("v1", "harvesterhci.io.virtualmachinetemplates", port)
+			templateVersionAPI = helper.BuildAPIURL("v1", "harvesterhci.io.virtualmachinetemplateversions", port)
 
 		})
 

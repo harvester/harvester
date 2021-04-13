@@ -99,10 +99,10 @@ var _ = Describe("verify volume APIs", func() {
 						Name:      volumeName,
 						Namespace: namespace,
 						Labels: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 						Annotations: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 					},
 					Spec: cdiv1beta1.DataVolumeSpec{
@@ -146,10 +146,10 @@ var _ = Describe("verify volume APIs", func() {
 						Name:      volumeName,
 						Namespace: namespace,
 						Labels: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 						Annotations: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 					},
 					Spec: cdiv1beta1.DataVolumeSpec{
@@ -192,10 +192,10 @@ var _ = Describe("verify volume APIs", func() {
 						Name:      volumeName,
 						Namespace: namespace,
 						Labels: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 						Annotations: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 					},
 					Spec: cdiv1beta1.DataVolumeSpec{
@@ -219,10 +219,10 @@ var _ = Describe("verify volume APIs", func() {
 						Name:      volumeName,
 						Namespace: namespace,
 						Labels: map[string]string{
-							"test.harvester.cattle.io": "for-test-update",
+							"test.harvesterhci.io": "for-test-update",
 						},
 						Annotations: map[string]string{
-							"test.harvester.cattle.io": "for-test-update",
+							"test.harvesterhci.io": "for-test-update",
 						},
 					},
 					// data volume spec is not updatable
