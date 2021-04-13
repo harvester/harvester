@@ -12,7 +12,7 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 
-	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/indexeres"
 	pkguser "github.com/rancher/harvester/pkg/user"
 )
@@ -25,7 +25,7 @@ const (
 type userStore struct {
 	types.Store
 	mu        sync.Mutex
-	userCache ctlvmv1alpha1.UserCache
+	userCache ctlharvesterv1.UserCache
 }
 
 func (s *userStore) Create(request *types.APIRequest, schema *types.APISchema, data types.APIObject) (types.APIObject, error) {

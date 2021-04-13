@@ -9,8 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/controller/master/node"
 )
 
@@ -25,18 +24,18 @@ const (
 	defaultTTLSecondsAfterFinished = 900
 )
 
-func setNodeUpgradeStatus(upgrade *v1alpha1.Upgrade, nodeName string, state, reason, message string) {
+func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {
 	if upgrade == nil {
 		return
 	}
 	if upgrade.Status.NodeStatuses == nil {
-		upgrade.Status.NodeStatuses = make(map[string]v1alpha1.NodeUpgradeStatus)
+		upgrade.Status.NodeStatuses = make(map[string]harvesterv1.NodeUpgradeStatus)
 	}
 	if current, ok := upgrade.Status.NodeStatuses[nodeName]; ok &&
 		current.State == state && current.Reason == reason && current.Message == message {
 		return
 	}
-	upgrade.Status.NodeStatuses[nodeName] = v1alpha1.NodeUpgradeStatus{
+	upgrade.Status.NodeStatuses[nodeName] = harvesterv1.NodeUpgradeStatus{
 		State:   state,
 		Reason:  reason,
 		Message: message,
@@ -46,42 +45,42 @@ func setNodeUpgradeStatus(upgrade *v1alpha1.Upgrade, nodeName string, state, rea
 	}
 }
 
-func setNodesUpgradedCondition(upgrade *v1alpha1.Upgrade, status v1.ConditionStatus, reason, message string) {
-	apisv1alpha1.NodesUpgraded.SetStatus(upgrade, string(status))
-	apisv1alpha1.NodesUpgraded.Reason(upgrade, reason)
-	apisv1alpha1.NodesUpgraded.Message(upgrade, message)
+func setNodesUpgradedCondition(upgrade *harvesterv1.Upgrade, status v1.ConditionStatus, reason, message string) {
+	harvesterv1.NodesUpgraded.SetStatus(upgrade, string(status))
+	harvesterv1.NodesUpgraded.Reason(upgrade, reason)
+	harvesterv1.NodesUpgraded.Message(upgrade, message)
 	markComplete(upgrade)
 }
 
-func setHelmChartUpgradeStatus(upgrade *v1alpha1.Upgrade, status v1.ConditionStatus, reason, message string) {
+func setHelmChartUpgradeStatus(upgrade *harvesterv1.Upgrade, status v1.ConditionStatus, reason, message string) {
 	if upgrade == nil ||
-		v1alpha1.SystemServicesUpgraded.IsTrue(upgrade) ||
-		v1alpha1.SystemServicesUpgraded.IsFalse(upgrade) {
+		harvesterv1.SystemServicesUpgraded.IsTrue(upgrade) ||
+		harvesterv1.SystemServicesUpgraded.IsFalse(upgrade) {
 		return
 	}
-	v1alpha1.SystemServicesUpgraded.SetStatus(upgrade, string(status))
-	v1alpha1.SystemServicesUpgraded.Reason(upgrade, reason)
-	v1alpha1.SystemServicesUpgraded.Message(upgrade, message)
+	harvesterv1.SystemServicesUpgraded.SetStatus(upgrade, string(status))
+	harvesterv1.SystemServicesUpgraded.Reason(upgrade, reason)
+	harvesterv1.SystemServicesUpgraded.Message(upgrade, message)
 	markComplete(upgrade)
 }
 
-func markComplete(upgrade *v1alpha1.Upgrade) {
+func markComplete(upgrade *harvesterv1.Upgrade) {
 	if upgrade.Labels == nil {
 		upgrade.Labels = make(map[string]string)
 	}
-	if v1alpha1.SystemServicesUpgraded.IsTrue(upgrade) &&
-		v1alpha1.NodesUpgraded.IsTrue(upgrade) {
-		v1alpha1.UpgradeCompleted.True(upgrade)
+	if harvesterv1.SystemServicesUpgraded.IsTrue(upgrade) &&
+		harvesterv1.NodesUpgraded.IsTrue(upgrade) {
+		harvesterv1.UpgradeCompleted.True(upgrade)
 		upgrade.Labels[upgradeStateLabel] = stateSucceeded
 	}
-	if v1alpha1.SystemServicesUpgraded.IsFalse(upgrade) ||
-		v1alpha1.NodesUpgraded.IsFalse(upgrade) {
-		v1alpha1.UpgradeCompleted.False(upgrade)
+	if harvesterv1.SystemServicesUpgraded.IsFalse(upgrade) ||
+		harvesterv1.NodesUpgraded.IsFalse(upgrade) {
+		harvesterv1.UpgradeCompleted.False(upgrade)
 		upgrade.Labels[upgradeStateLabel] = stateFailed
 	}
 }
 
-func serverPlan(upgrade *apisv1alpha1.Upgrade, disableEviction bool) *upgradev1.Plan {
+func serverPlan(upgrade *harvesterv1.Upgrade, disableEviction bool) *upgradev1.Plan {
 	plan := basePlan(upgrade, disableEviction)
 	plan.Name = fmt.Sprintf("%s-server", upgrade.Name)
 	plan.Labels[harvesterUpgradeComponentLabel] = serverComponent
@@ -95,7 +94,7 @@ func serverPlan(upgrade *apisv1alpha1.Upgrade, disableEviction bool) *upgradev1.
 	return plan
 }
 
-func agentPlan(upgrade *apisv1alpha1.Upgrade) *upgradev1.Plan {
+func agentPlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
 	plan := basePlan(upgrade, false)
 	plan.Name = fmt.Sprintf("%s-agent", upgrade.Name)
 	plan.Labels[harvesterUpgradeComponentLabel] = agentComponent
@@ -108,7 +107,7 @@ func agentPlan(upgrade *apisv1alpha1.Upgrade) *upgradev1.Plan {
 	return plan
 }
 
-func basePlan(upgrade *apisv1alpha1.Upgrade, disableEviction bool) *upgradev1.Plan {
+func basePlan(upgrade *harvesterv1.Upgrade, disableEviction bool) *upgradev1.Plan {
 	version := upgrade.Spec.Version
 	return &upgradev1.Plan{
 		ObjectMeta: metav1.ObjectMeta{
@@ -177,7 +176,7 @@ func basePlan(upgrade *apisv1alpha1.Upgrade, disableEviction bool) *upgradev1.Pl
 	}
 }
 
-func applyManifestsJob(upgrade *apisv1alpha1.Upgrade) *batchv1.Job {
+func applyManifestsJob(upgrade *harvesterv1.Upgrade) *batchv1.Job {
 	version := upgrade.Spec.Version
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -334,12 +333,12 @@ func (j *jobBuilder) Build() *batchv1.Job {
 }
 
 type upgradeBuilder struct {
-	upgrade *apisv1alpha1.Upgrade
+	upgrade *harvesterv1.Upgrade
 }
 
 func newUpgradeBuilder(name string) *upgradeBuilder {
 	return &upgradeBuilder{
-		upgrade: &apisv1alpha1.Upgrade{
+		upgrade: &harvesterv1.Upgrade{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: harvesterSystemNamespace,
@@ -381,7 +380,7 @@ func (p *upgradeBuilder) InitStatus() *upgradeBuilder {
 	return p
 }
 
-func (p *upgradeBuilder) Build() *apisv1alpha1.Upgrade {
+func (p *upgradeBuilder) Build() *harvesterv1.Upgrade {
 	return p.upgrade
 }
 

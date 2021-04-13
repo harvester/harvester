@@ -7,8 +7,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	upgradectlv1 "github.com/rancher/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 	"github.com/rancher/harvester/pkg/settings"
 )
@@ -19,11 +19,11 @@ const (
 	k3osUpgradeServiceAccount      = "k3os-upgrade"
 	kubeSystemNamespace            = "kube-system"
 	harvesterSystemNamespace       = "harvester-system"
-	harvesterVersionLabel          = "harvester.cattle.io/version"
-	harvesterUpgradeLabel          = "harvester.cattle.io/upgrade"
-	harvesterManagedLabel          = "harvester.cattle.io/managed"
-	harvesterLatestUpgradeLabel    = "harvester.cattle.io/latestUpgrade"
-	harvesterUpgradeComponentLabel = "harvester.cattle.io/upgradeComponent"
+	harvesterVersionLabel          = "harvesterhci.io/version"
+	harvesterUpgradeLabel          = "harvesterhci.io/upgrade"
+	harvesterManagedLabel          = "harvesterhci.io/managed"
+	harvesterLatestUpgradeLabel    = "harvesterhci.io/latestUpgrade"
+	harvesterUpgradeComponentLabel = "harvesterhci.io/upgradeComponent"
 	upgradeImageRepository         = "rancher/harvester-bundle"
 )
 
@@ -32,17 +32,17 @@ type upgradeHandler struct {
 	namespace     string
 	nodeCache     ctlcorev1.NodeCache
 	jobClient     v1.JobClient
-	upgradeClient v1alpha1.UpgradeClient
-	upgradeCache  v1alpha1.UpgradeCache
+	upgradeClient ctlharvesterv1.UpgradeClient
+	upgradeCache  ctlharvesterv1.UpgradeCache
 	planClient    upgradectlv1.PlanClient
 }
 
-func (h *upgradeHandler) OnChanged(key string, upgrade *apisv1alpha1.Upgrade) (*apisv1alpha1.Upgrade, error) {
+func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
 	if upgrade == nil || upgrade.DeletionTimestamp != nil {
 		return upgrade, nil
 	}
 
-	if apisv1alpha1.UpgradeCompleted.GetStatus(upgrade) == "" {
+	if harvesterv1.UpgradeCompleted.GetStatus(upgrade) == "" {
 		if err := h.resetLatestUpgradeLabel(upgrade.Name); err != nil {
 			return upgrade, err
 		}
@@ -62,7 +62,7 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *apisv1alpha1.Upgrade) (*
 		return h.upgradeClient.Update(toUpdate)
 	}
 
-	if apisv1alpha1.NodesUpgraded.IsTrue(upgrade) && apisv1alpha1.SystemServicesUpgraded.GetStatus(upgrade) == "" {
+	if harvesterv1.NodesUpgraded.IsTrue(upgrade) && harvesterv1.SystemServicesUpgraded.GetStatus(upgrade) == "" {
 		//nodes are upgraded, now upgrade the chart. Create a job to apply the manifests
 		toUpdate := upgrade.DeepCopy()
 		if _, err := h.jobClient.Create(applyManifestsJob(upgrade)); err != nil && !apierrors.IsAlreadyExists(err) {
@@ -84,9 +84,9 @@ func (h *upgradeHandler) isSingleNodeCluster() (bool, error) {
 	return len(nodes) == 1, nil
 }
 
-func initStatus(upgrade *apisv1alpha1.Upgrade) {
-	apisv1alpha1.UpgradeCompleted.CreateUnknownIfNotExists(upgrade)
-	apisv1alpha1.NodesUpgraded.CreateUnknownIfNotExists(upgrade)
+func initStatus(upgrade *harvesterv1.Upgrade) {
+	harvesterv1.UpgradeCompleted.CreateUnknownIfNotExists(upgrade)
+	harvesterv1.NodesUpgraded.CreateUnknownIfNotExists(upgrade)
 	if upgrade.Labels == nil {
 		upgrade.Labels = make(map[string]string)
 	}

@@ -8,8 +8,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	ctlapisv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 var (
@@ -17,8 +17,8 @@ var (
 	templateVersionTmpl = template.Must(template.New("templateVersion").Parse(initBaseTemplateVersions))
 )
 
-func initData(vmTemplates ctlapisv1alpha1.VirtualMachineTemplateClient,
-	vmTemplateVersions ctlapisv1alpha1.VirtualMachineTemplateVersionClient, namespace string) error {
+func initData(vmTemplates ctlharvesterv1.VirtualMachineTemplateClient,
+	vmTemplateVersions ctlharvesterv1.VirtualMachineTemplateVersionClient, namespace string) error {
 	if err := initBaseTemplate(vmTemplates, namespace); err != nil {
 		return err
 	}
@@ -39,14 +39,14 @@ func generateYmls(tmpl *template.Template, namespace string) ([][]byte, error) {
 	return bytes.Split(templateBuffer.Bytes(), []byte("\n---\n")), nil
 }
 
-func initBaseTemplate(vmTemplates ctlapisv1alpha1.VirtualMachineTemplateClient, namespace string) error {
+func initBaseTemplate(vmTemplates ctlharvesterv1.VirtualMachineTemplateClient, namespace string) error {
 	ymls, err := generateYmls(templateTmpl, namespace)
 	if err != nil {
 		return err
 	}
 
 	for _, yml := range ymls {
-		var vmTemplate apisv1alpha1.VirtualMachineTemplate
+		var vmTemplate harvesterv1.VirtualMachineTemplate
 		if err := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(yml), 1024).Decode(&vmTemplate); err != nil {
 			return errors.Wrap(err, "Failed to convert virtualMachineTemplate from yaml to object")
 		}
@@ -58,14 +58,14 @@ func initBaseTemplate(vmTemplates ctlapisv1alpha1.VirtualMachineTemplateClient, 
 	return nil
 }
 
-func initBaseTemplateVersion(vmTemplateVersions ctlapisv1alpha1.VirtualMachineTemplateVersionClient, namespace string) error {
+func initBaseTemplateVersion(vmTemplateVersions ctlharvesterv1.VirtualMachineTemplateVersionClient, namespace string) error {
 	ymls, err := generateYmls(templateVersionTmpl, namespace)
 	if err != nil {
 		return err
 	}
 
 	for _, yml := range ymls {
-		var vmTemplateVersion apisv1alpha1.VirtualMachineTemplateVersion
+		var vmTemplateVersion harvesterv1.VirtualMachineTemplateVersion
 		if err := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(yml), 1024).Decode(&vmTemplateVersion); err != nil {
 			return errors.Wrap(err, "Failed to convert virtualMachineTemplateVersion from yaml to object")
 		}
@@ -79,7 +79,7 @@ func initBaseTemplateVersion(vmTemplateVersions ctlapisv1alpha1.VirtualMachineTe
 
 var (
 	initBaseTemplates = `
-apiVersion: harvester.cattle.io/v1alpha1
+apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplate
 metadata:
   name: iso-image-base-template
@@ -87,7 +87,7 @@ metadata:
 spec:
   description: Template for booting the virtual machine from an ISO image
 ---
-apiVersion: harvester.cattle.io/v1alpha1
+apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplate
 metadata:
   name: raw-image-base-template
@@ -95,7 +95,7 @@ metadata:
 spec:
   description: Template for booting the virtual machine from a qcow2/raw image
 ---
-apiVersion: harvester.cattle.io/v1alpha1
+apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplate
 metadata:
   name: windows-iso-image-base-template
@@ -106,7 +106,7 @@ spec:
 
 	// windows default resource request refer to windows server docs https://docs.microsoft.com/en-us/windows-server/get-started-19/sys-reqs-19
 	initBaseTemplateVersions = `
-apiVersion: harvester.cattle.io/v1alpha1
+apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
 metadata:
   name: iso-image-base-version
@@ -151,7 +151,7 @@ spec:
     dataVolumeTemplates:
     - metadata:
         annotations:
-          harvester.cattle.io/imageId: $occupancy_url
+          harvesterhci.io/imageId: $occupancy_url
         name: datavolume-cdrom-disk
       spec:
         pvc:
@@ -176,7 +176,7 @@ spec:
         source:
           blank: {}
 ---
-apiVersion: harvester.cattle.io/v1alpha1
+apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
 metadata:
   name: raw-image-base-version
@@ -213,7 +213,7 @@ spec:
     dataVolumeTemplates:
     - metadata:
         annotations:
-          harvester.cattle.io/imageId: $occupancy_url
+          harvesterhci.io/imageId: $occupancy_url
         name: datavolume-rootdisk
       spec:
         pvc:
@@ -226,7 +226,7 @@ spec:
         source:
           blank: {}
 ---
-apiVersion: harvester.cattle.io/v1alpha1
+apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
 metadata:
   name: windows-iso-image-base-version
@@ -282,7 +282,7 @@ spec:
     dataVolumeTemplates:
     - metadata:
         annotations:
-          harvester.cattle.io/imageId: $occupancy_url
+          harvesterhci.io/imageId: $occupancy_url
         name: datavolume-cdrom-disk
       spec:
         pvc:

@@ -14,7 +14,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		vmCache: scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 	}
 	t := schema.Template{
-		ID:    "harvester.cattle.io.virtualmachinerestore",
+		ID:    "harvesterhci.io.virtualmachinerestore",
 		Store: vmRestore,
 	}
 	server.SchemaFactory.AddTemplate(t)

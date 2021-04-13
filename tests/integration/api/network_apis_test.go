@@ -42,8 +42,8 @@ func NewBridgeNetworkConfig(name string, vid int) string {
 
 func NewNAD(name, networkType, config string) *cniv1.NetworkAttachmentDefinition {
 	networkLabels := map[string]string{
-		"test.harvester.cattle.io":          "harvester-test",
-		"networks.harvester.cattle.io/type": networkType,
+		"test.harvesterhci.io":          "harvester-test",
+		"networks.harvesterhci.io/type": networkType,
 	}
 	return &cniv1.NetworkAttachmentDefinition{
 		ObjectMeta: metav1.ObjectMeta{

@@ -1,4 +1,4 @@
-package v1alpha1
+package v1beta1
 
 // NOTES: Harvester VM backup & restore is referenced from the Kubevirt's VM snapshot & restore,
 // currently, we have decided to use custom VM backup and restore controllers because of the following issues:

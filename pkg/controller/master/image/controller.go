@@ -12,8 +12,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 const (
@@ -26,14 +26,14 @@ const (
 type handler struct {
 	httpClient     http.Client
 	storageClasses v1.StorageClassClient
-	images         v1alpha1.VirtualMachineImageClient
+	images         ctlharvesterv1.VirtualMachineImageClient
 }
 
-func (h *handler) OnChanged(key string, image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
+func (h *handler) OnChanged(key string, image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	if image == nil || image.DeletionTimestamp != nil {
 		return image, nil
 	}
-	if !apisv1alpha1.ImageInitialized.IsTrue(image) {
+	if !harvesterv1.ImageInitialized.IsTrue(image) {
 		return h.createStorageClassAndUpdateStatus(image)
 	} else if image.Spec.URL != image.Status.AppliedURL {
 		// URL is changed, recreate the storageclass
@@ -46,7 +46,7 @@ func (h *handler) OnChanged(key string, image *apisv1alpha1.VirtualMachineImage)
 	return image, nil
 }
 
-func (h *handler) OnRemove(key string, image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
+func (h *handler) OnRemove(key string, image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	if image == nil {
 		return nil, nil
 	}
@@ -57,7 +57,7 @@ func (h *handler) OnRemove(key string, image *apisv1alpha1.VirtualMachineImage) 
 	return image, nil
 }
 
-func (h *handler) createStorageClassAndUpdateStatus(image *apisv1alpha1.VirtualMachineImage) (*apisv1alpha1.VirtualMachineImage, error) {
+func (h *handler) createStorageClassAndUpdateStatus(image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	sc := getBackingImageStorageClass(image)
 	if _, err := h.storageClasses.Create(sc); !errors.IsAlreadyExists(err) && err != nil {
 		return image, err
@@ -65,21 +65,21 @@ func (h *handler) createStorageClassAndUpdateStatus(image *apisv1alpha1.VirtualM
 
 	toUpdate := image.DeepCopy()
 	toUpdate.Status.AppliedURL = toUpdate.Spec.URL
-	apisv1alpha1.ImageInitialized.True(toUpdate)
-	apisv1alpha1.ImageInitialized.Message(toUpdate, "")
+	harvesterv1.ImageInitialized.True(toUpdate)
+	harvesterv1.ImageInitialized.Message(toUpdate, "")
 
 	if image.Spec.URL != "" {
 		resp, err := h.httpClient.Head(image.Spec.URL)
 		if err != nil {
-			apisv1alpha1.ImageInitialized.False(toUpdate)
-			apisv1alpha1.ImageInitialized.Message(toUpdate, err.Error())
+			harvesterv1.ImageInitialized.False(toUpdate)
+			harvesterv1.ImageInitialized.Message(toUpdate, err.Error())
 			return h.images.Update(toUpdate)
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
-			apisv1alpha1.ImageInitialized.False(toUpdate)
-			apisv1alpha1.ImageInitialized.Message(toUpdate, fmt.Sprintf("got %d status code from %s", resp.StatusCode, image.Spec.URL))
+			harvesterv1.ImageInitialized.False(toUpdate)
+			harvesterv1.ImageInitialized.Message(toUpdate, fmt.Sprintf("got %d status code from %s", resp.StatusCode, image.Spec.URL))
 			return h.images.Update(toUpdate)
 		}
 
@@ -95,7 +95,7 @@ func getBackingImageStorageClassName(imageName string) string {
 	return fmt.Sprintf("longhorn-%s", imageName)
 }
 
-func getBackingImageStorageClass(image *apisv1alpha1.VirtualMachineImage) *storagev1.StorageClass {
+func getBackingImageStorageClass(image *harvesterv1.VirtualMachineImage) *storagev1.StorageClass {
 	recliamPolicy := corev1.PersistentVolumeReclaimDelete
 	volumeBindingMode := storagev1.VolumeBindingImmediate
 	return &storagev1.StorageClass{

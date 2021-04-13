@@ -6,9 +6,9 @@ metadata:
   annotations:
     {}
   creationTimestamp: null
-  name: virtualmachinetemplateversions.harvester.cattle.io
+  name: virtualmachinetemplateversions.harvesterhci.io
 spec:
-  group: harvester.cattle.io
+  group: harvesterhci.io
   names:
     kind: VirtualMachineTemplateVersion
     listKind: VirtualMachineTemplateVersionList
@@ -33,7 +33,7 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: AGE
       type: date
-    name: v1alpha1
+    name: v1beta1
     schema:
       openAPIV3Schema:
         properties:

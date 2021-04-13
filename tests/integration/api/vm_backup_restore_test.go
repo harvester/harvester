@@ -13,9 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	apivm "github.com/rancher/harvester/pkg/api/vm"
-	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/config"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	. "github.com/rancher/harvester/tests/framework/dsl"
@@ -42,8 +42,8 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 
 		BeforeEach(func() {
 			scaled = harvester.Scaled()
-			backupController = scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineBackup()
-			restoreController = scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineRestore()
+			backupController = scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
+			restoreController = scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore()
 			vmController = scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 			vmiController = scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 			settingController = scaled.LonghornFactory.Longhorn().V1beta1().Setting()
@@ -98,7 +98,7 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 
 			BeforeEach(func() {
 				vmsAPI = helper.BuildAPIURL("v1", "kubevirt.io.virtualmachines", options.HTTPSListenPort)
-				restoresAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachinerestores", options.HTTPSListenPort)
+				restoresAPI = helper.BuildAPIURL("v1", "harvesterhci.io.virtualmachinerestores", options.HTTPSListenPort)
 			})
 
 			Specify("config the vm backup server", func() {
@@ -186,15 +186,15 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 				By("then validate restore an new vm", func() {
 					restoreName := "restore-" + fuzz.String(3)
 					vmName := "new-vm" + fuzz.String(3)
-					newVM := harvesterv1alpha1.VirtualMachineRestore{
+					newVM := harvesterv1.VirtualMachineRestore{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      restoreName,
 							Namespace: backupNamespace,
 							Labels:    testVMBackupLabels,
 						},
-						Spec: harvesterv1alpha1.VirtualMachineRestoreSpec{
+						Spec: harvesterv1.VirtualMachineRestoreSpec{
 							Target: corev1.TypedLocalObjectReference{
-								APIGroup: &harvesterv1alpha1.SchemeGroupVersion.Group,
+								APIGroup: &harvesterv1.SchemeGroupVersion.Group,
 								Kind:     "VirtualMachine",
 								Name:     vmName,
 							},

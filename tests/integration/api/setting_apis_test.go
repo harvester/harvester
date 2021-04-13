@@ -8,7 +8,7 @@ import (
 	"github.com/tidwall/gjson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/helper"
 )
@@ -22,7 +22,7 @@ var _ = Describe("verify settings APIs", func() {
 		)
 
 		BeforeEach(func() {
-			settingsAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.settings", options.HTTPSListenPort)
+			settingsAPI = helper.BuildAPIURL("v1", "harvesterhci.io.settings", options.HTTPSListenPort)
 		})
 
 		Specify("view all the settings", func() {
@@ -41,10 +41,10 @@ var _ = Describe("verify settings APIs", func() {
 
 			By("update api-ui-version's value")
 			resourceVersion = gjson.GetBytes(respBody, "metadata.resourceVersion").Str
-			APIUIVersion := harvesterv1alpha1.Setting{
+			APIUIVersion := harvesterv1.Setting{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Setting",
-					APIVersion: "harvester.cattle.io/v1alpha1",
+					APIVersion: "harvesterhci.io/v1beta1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "api-ui-version",

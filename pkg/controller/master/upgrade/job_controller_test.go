@@ -8,7 +8,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/rancher/harvester/pkg/util/fakeclients"
 )
@@ -18,12 +18,12 @@ func TestJobHandler_OnChanged(t *testing.T) {
 		key     string
 		job     *batchv1.Job
 		plan    *upgradeapiv1.Plan
-		upgrade *v1alpha1.Upgrade
+		upgrade *harvesterv1.Upgrade
 	}
 	type output struct {
 		job     *batchv1.Job
 		plan    *upgradeapiv1.Plan
-		upgrade *v1alpha1.Upgrade
+		upgrade *harvesterv1.Upgrade
 		err     error
 	}
 	var testCases = []struct {
@@ -121,8 +121,8 @@ func TestJobHandler_OnChanged(t *testing.T) {
 		var handler = &jobHandler{
 			namespace:     harvesterSystemNamespace,
 			planCache:     fakeclients.PlanCache(clientset.UpgradeV1().Plans),
-			upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterV1alpha1().Upgrades),
-			upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterV1alpha1().Upgrades),
+			upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 		}
 		var actual output
 		actual.job, actual.err = handler.OnChanged(tc.given.key, tc.given.job)

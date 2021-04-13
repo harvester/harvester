@@ -20,10 +20,10 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	kubeconfigutil "k8s.io/kubernetes/cmd/kubeadm/app/util/kubeconfig"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/auth"
 	"github.com/rancher/harvester/pkg/config"
-	ctlalpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/indexeres"
 	"github.com/rancher/harvester/pkg/settings"
 )
@@ -48,7 +48,7 @@ func NewLoginHandler(scaled *config.Scaled, restConfig *rest.Config) *LoginHandl
 	}
 	return &LoginHandler{
 		secrets:      scaled.CoreFactory.Core().V1().Secret(),
-		userCache:    scaled.Management.HarvesterFactory.Harvester().V1alpha1().User().Cache(),
+		userCache:    scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().User().Cache(),
 		restConfig:   restConfig,
 		tokenManager: scaled.TokenManager,
 		invalidHash:  invalidHash,
@@ -57,7 +57,7 @@ func NewLoginHandler(scaled *config.Scaled, restConfig *rest.Config) *LoginHandl
 
 type LoginHandler struct {
 	secrets      ctlcorev1.SecretClient
-	userCache    ctlalpha1.UserCache
+	userCache    ctlharvesterv1.UserCache
 	restConfig   *rest.Config
 	tokenManager dashboardauthapi.TokenManager
 	invalidHash  []byte
@@ -89,7 +89,7 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input v1alpha1.Login
+	var input harvesterv1.Login
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		responseError(rw, http.StatusBadRequest, "Failed to decode request body, "+err.Error())
 		return
@@ -129,7 +129,7 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	responseOKWithBody(rw, tokenResp)
 }
 
-func (h *LoginHandler) login(input *v1alpha1.Login, mode v1alpha1.AuthenticationMode) (tokenResp *v1alpha1.TokenResponse, err error) {
+func (h *LoginHandler) login(input *harvesterv1.Login, mode harvesterv1.AuthenticationMode) (tokenResp *harvesterv1.TokenResponse, err error) {
 	//handle panic from calling kubernetes dashboard tokenManager.Generate
 	defer func() {
 		if recoveryMessage := recover(); recoveryMessage != nil {
@@ -138,7 +138,7 @@ func (h *LoginHandler) login(input *v1alpha1.Login, mode v1alpha1.Authentication
 	}()
 
 	var impersonateAuthInfo *clientcmdapi.AuthInfo
-	if mode == v1alpha1.LocalUser {
+	if mode == harvesterv1.LocalUser {
 		impersonateAuthInfo, err = h.userLogin(input)
 		if err != nil {
 			return nil, err
@@ -157,10 +157,10 @@ func (h *LoginHandler) login(input *v1alpha1.Login, mode v1alpha1.Authentication
 	}
 
 	escapedToken := url.QueryEscape(token)
-	return &v1alpha1.TokenResponse{JWEToken: escapedToken}, nil
+	return &harvesterv1.TokenResponse{JWEToken: escapedToken}, nil
 }
 
-func (h *LoginHandler) userLogin(input *v1alpha1.Login) (*clientcmdapi.AuthInfo, error) {
+func (h *LoginHandler) userLogin(input *harvesterv1.Login) (*clientcmdapi.AuthInfo, error) {
 	username := input.Username
 	pwd := input.Password
 
@@ -184,7 +184,7 @@ func (h *LoginHandler) userLogin(input *v1alpha1.Login) (*clientcmdapi.AuthInfo,
 	return &clientcmdapi.AuthInfo{ImpersonateGroups: []string{publicInfoViewerGroup}}, nil
 }
 
-func (h *LoginHandler) k8sLogin(input *v1alpha1.Login) (*clientcmdapi.AuthInfo, error) {
+func (h *LoginHandler) k8sLogin(input *harvesterv1.Login) (*clientcmdapi.AuthInfo, error) {
 	authInfo, err := buildAuthInfo(input.Token, input.KubeConfig)
 	if err != nil {
 		return nil, apierror.NewAPIError(validation.Unauthorized, "Failed to build kubernetes api configure from authorization info, "+err.Error())
@@ -217,7 +217,7 @@ func (h *LoginHandler) accessCheck(authInfo *clientcmdapi.AuthInfo) error {
 	return err
 }
 
-func (h *LoginHandler) getUser(username string) (*v1alpha1.User, error) {
+func (h *LoginHandler) getUser(username string) (*harvesterv1.User, error) {
 	objs, err := h.userCache.GetByIndex(indexeres.UserNameIndex, username)
 	if err != nil {
 		return nil, err
@@ -231,11 +231,11 @@ func (h *LoginHandler) getUser(username string) (*v1alpha1.User, error) {
 	return objs[0], nil
 }
 
-func authenticationModeVerify(input *v1alpha1.Login) (v1alpha1.AuthenticationMode, error) {
+func authenticationModeVerify(input *harvesterv1.Login) (harvesterv1.AuthenticationMode, error) {
 	if input.Username != "" && input.Password != "" && enableLocalUser() {
-		return v1alpha1.LocalUser, nil
+		return harvesterv1.LocalUser, nil
 	} else if (input.Token != "" || input.KubeConfig != "") && enableKubernetesCredentials() {
-		return v1alpha1.KubernetesCredentials, nil
+		return harvesterv1.KubernetesCredentials, nil
 	}
 	return "", apierror.NewAPIError(validation.Unauthorized, "unsupported authentication mode")
 }
@@ -273,5 +273,5 @@ func responseOK(rw http.ResponseWriter) {
 
 func responseError(rw http.ResponseWriter, statusCode int, errMsg string) {
 	rw.WriteHeader(http.StatusUnauthorized)
-	_, _ = rw.Write(responseBody(v1alpha1.ErrorResponse{Errors: []string{errMsg}}))
+	_, _ = rw.Write(responseBody(harvesterv1.ErrorResponse{Errors: []string{errMsg}}))
 }

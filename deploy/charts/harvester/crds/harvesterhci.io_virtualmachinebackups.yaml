@@ -6,38 +6,36 @@ metadata:
   annotations:
     {}
   creationTimestamp: null
-  name: virtualmachineimages.harvester.cattle.io
+  name: virtualmachinebackups.harvesterhci.io
 spec:
-  group: harvester.cattle.io
+  group: harvesterhci.io
   names:
-    kind: VirtualMachineImage
-    listKind: VirtualMachineImageList
-    plural: virtualmachineimages
+    kind: VirtualMachineBackup
+    listKind: VirtualMachineBackupList
+    plural: virtualmachinebackups
     shortNames:
-    - vmimage
-    - vmimages
-    singular: virtualmachineimage
+    - vmbackup
+    - vmbackups
+    singular: virtualmachinebackup
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.displayName
-      name: DISPLAY_NAME
-      priority: 8
+    - jsonPath: .spec.source.kind
+      name: SOURCE_KIND
       type: string
-    - jsonPath: .spec.description
-      name: DESCRIPTION
-      priority: 10
+    - jsonPath: .spec.source.name
+      name: SOURCE_NAME
       type: string
-    - jsonPath: .spec.url
-      name: URL
-      type: string
-    - jsonPath: .status.size
-      name: SIZE
-      type: integer
+    - jsonPath: .status.readyToUse
+      name: READY_TO_USE
+      type: boolean
     - jsonPath: .metadata.creationTimestamp
       name: AGE
       type: date
-    name: v1alpha1
+    - jsonPath: .status.error.message
+      name: ERROR
+      type: date
+    name: v1beta1
     schema:
       openAPIV3Schema:
         properties:
@@ -55,19 +53,33 @@ spec:
             type: object
           spec:
             properties:
-              description:
-                type: string
-              displayName:
-                type: string
-              secretRef:
-                type: string
-              url:
-                type: string
+              source:
+                description: TypedLocalObjectReference contains enough information
+                  to let you locate the typed referenced object inside the same namespace.
+                properties:
+                  apiGroup:
+                    description: APIGroup is the group for the resource being referenced.
+                      If APIGroup is not specified, the specified Kind must be in
+                      the core API group. For any other third-party types, APIGroup
+                      is required.
+                    type: string
+                  kind:
+                    description: Kind is the type of resource being referenced
+                    type: string
+                  name:
+                    description: Name is the name of resource being referenced
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+            required:
+            - source
             type: object
           status:
+            description: VirtualMachineBackupStatus is the status for a VirtualMachineBackup
+              resource
             properties:
-              appliedUrl:
-                type: string
               conditions:
                 items:
                   properties:
@@ -96,10 +108,28 @@ spec:
                   - type
                   type: object
                 type: array
-              size:
-                format: int64
-                type: integer
+              error:
+                description: Error is the last error encountered during the snapshot/restore
+                properties:
+                  message:
+                    type: string
+                  time:
+                    format: date-time
+                    type: string
+                type: object
+              readyToUse:
+                type: boolean
+              sourceUID:
+                description: UID is a type that holds unique ID values, including
+                  UUIDs.  Because we don't ONLY use UUIDs, this is an alias to string.  Being
+                  a type captures intent and helps make sure that UIDs and names do
+                  not get conflated.
+                type: string
+              virtualMachineBackupContentName:
+                type: string
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

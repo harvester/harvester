@@ -6,30 +6,20 @@ metadata:
   annotations:
     {}
   creationTimestamp: null
-  name: users.harvester.cattle.io
+  name: preferences.harvesterhci.io
 spec:
-  group: harvester.cattle.io
+  group: harvesterhci.io
   names:
-    kind: User
-    listKind: UserList
-    plural: users
+    kind: Preference
+    listKind: PreferenceList
+    plural: preferences
     shortNames:
-    - user
-    - users
-    singular: user
-  scope: Cluster
+    - preference
+    - preferences
+    singular: preference
+  scope: Namespaced
   versions:
-  - additionalPrinterColumns:
-    - jsonPath: .displayName
-      name: DISPLAY_NAME
-      type: string
-    - jsonPath: .username
-      name: USERNAME
-      type: string
-    - jsonPath: .description
-      name: DESCRIPTION
-      type: string
-    name: v1alpha1
+  - name: v1beta1
     schema:
       openAPIV3Schema:
         properties:
@@ -38,12 +28,6 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
-          description:
-            type: string
-          displayName:
-            type: string
-          isAdmin:
-            type: boolean
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -51,14 +35,11 @@ spec:
             type: string
           metadata:
             type: object
-          password:
-            type: string
-          username:
+          value:
             type: string
         type: object
     served: true
     storage: true
-    subresources: {}
 status:
   acceptedNames:
     kind: ""

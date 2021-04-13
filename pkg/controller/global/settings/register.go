@@ -9,17 +9,17 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/config"
-	controllers "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/settings"
 )
 
 func Register(ctx context.Context, scaled *config.Scaled, server *server.Server, options config.Options) error {
 	sp := &settingsProvider{
 		context:        ctx,
-		settings:       scaled.HarvesterFactory.Harvester().V1alpha1().Setting(),
-		settingsLister: scaled.HarvesterFactory.Harvester().V1alpha1().Setting().Cache(),
+		settings:       scaled.HarvesterFactory.Harvesterhci().V1beta1().Setting(),
+		settingsLister: scaled.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 		fallback:       map[string]string{},
 	}
 
@@ -32,8 +32,8 @@ func Register(ctx context.Context, scaled *config.Scaled, server *server.Server,
 
 type settingsProvider struct {
 	context        context.Context
-	settings       controllers.SettingClient
-	settingsLister controllers.SettingCache
+	settings       ctlharvesterv1.SettingClient
+	settingsLister ctlharvesterv1.SettingCache
 	fallback       map[string]string
 }
 
@@ -95,7 +95,7 @@ func (s *settingsProvider) SetAll(settingsMap map[string]settings.Setting) error
 
 		obj, err := s.settings.Get(setting.Name, v1.GetOptions{})
 		if errors.IsNotFound(err) {
-			newSetting := &v1alpha1.Setting{
+			newSetting := &harvesterv1.Setting{
 				ObjectMeta: v1.ObjectMeta{
 					Name: setting.Name,
 				},

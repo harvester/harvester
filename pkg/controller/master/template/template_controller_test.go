@@ -14,20 +14,20 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	kv1 "kubevirt.io/client-go/api/v1"
 
-	harvesterapis "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	harvestertype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
-	ctrlapis "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	typeharv1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 func TestTemplateHandler_OnChanged(t *testing.T) {
 	type input struct {
 		key             string
-		template        *harvesterapis.VirtualMachineTemplate
-		templateVersion *harvesterapis.VirtualMachineTemplateVersion
+		template        *harvesterv1.VirtualMachineTemplate
+		templateVersion *harvesterv1.VirtualMachineTemplateVersion
 	}
 	type output struct {
-		template *harvesterapis.VirtualMachineTemplate
+		template *harvesterv1.VirtualMachineTemplate
 		err      error
 	}
 
@@ -51,7 +51,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 			name: "deleted resource",
 			given: input{
 				key: "default/test",
-				template: &harvesterapis.VirtualMachineTemplate{
+				template: &harvesterv1.VirtualMachineTemplate{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace:         "default",
 						Name:              "test",
@@ -60,7 +60,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 				},
 			},
 			expected: output{
-				template: &harvesterapis.VirtualMachineTemplate{
+				template: &harvesterv1.VirtualMachineTemplate{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace:         "default",
 						Name:              "test",
@@ -74,23 +74,23 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 			name: "blank default version ID",
 			given: input{
 				key: "default/test",
-				template: &harvesterapis.VirtualMachineTemplate{
+				template: &harvesterv1.VirtualMachineTemplate{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.VirtualMachineTemplateSpec{
+					Spec: harvesterv1.VirtualMachineTemplateSpec{
 						DefaultVersionID: "",
 					},
 				},
 			},
 			expected: output{
-				template: &harvesterapis.VirtualMachineTemplate{
+				template: &harvesterv1.VirtualMachineTemplate{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.VirtualMachineTemplateSpec{
+					Spec: harvesterv1.VirtualMachineTemplateSpec{
 						DefaultVersionID: "",
 					},
 				},
@@ -101,31 +101,31 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 			name: "not corresponding version template",
 			given: input{
 				key: "default/test",
-				template: &harvesterapis.VirtualMachineTemplate{
+				template: &harvesterv1.VirtualMachineTemplate{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.VirtualMachineTemplateSpec{
+					Spec: harvesterv1.VirtualMachineTemplateSpec{
 						DefaultVersionID: "default/test",
 					},
 				},
-				templateVersion: &harvesterapis.VirtualMachineTemplateVersion{
+				templateVersion: &harvesterv1.VirtualMachineTemplateVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "fake",
 					},
-					Spec: harvesterapis.VirtualMachineTemplateVersionSpec{
+					Spec: harvesterv1.VirtualMachineTemplateVersionSpec{
 						Description: "fake_description",
 						TemplateID:  "default/test",
 						ImageID:     "fake_image_id",
 						VM:          kv1.VirtualMachineSpec{},
 					},
-					Status: harvesterapis.VirtualMachineTemplateVersionStatus{
+					Status: harvesterv1.VirtualMachineTemplateVersionStatus{
 						Version: 1,
-						Conditions: []harvesterapis.Condition{
+						Conditions: []harvesterv1.Condition{
 							{
-								Type:   harvesterapis.VersionAssigned,
+								Type:   harvesterv1.VersionAssigned,
 								Status: v1.ConditionTrue,
 							},
 						},
@@ -134,41 +134,41 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 			},
 			expected: output{
 				template: nil,
-				err:      errors.NewNotFound(schema.GroupResource{Group: "harvester.cattle.io", Resource: "virtualmachinetemplateversions"}, "test"),
+				err:      errors.NewNotFound(schema.GroupResource{Group: "harvesterhci.io", Resource: "virtualmachinetemplateversions"}, "test"),
 			},
 		},
 		{
 			name: "directly return as the template version is the same",
 			given: input{
 				key: "default/test",
-				template: &harvesterapis.VirtualMachineTemplate{
+				template: &harvesterv1.VirtualMachineTemplate{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.VirtualMachineTemplateSpec{
+					Spec: harvesterv1.VirtualMachineTemplateSpec{
 						DefaultVersionID: "default/test",
 					},
-					Status: harvesterapis.VirtualMachineTemplateStatus{
+					Status: harvesterv1.VirtualMachineTemplateStatus{
 						DefaultVersion: 1,
 					},
 				},
-				templateVersion: &harvesterapis.VirtualMachineTemplateVersion{
+				templateVersion: &harvesterv1.VirtualMachineTemplateVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.VirtualMachineTemplateVersionSpec{
+					Spec: harvesterv1.VirtualMachineTemplateVersionSpec{
 						Description: "fake_description",
 						TemplateID:  "fake_template_id",
 						ImageID:     "fake_image_id",
 						VM:          kv1.VirtualMachineSpec{},
 					},
-					Status: harvesterapis.VirtualMachineTemplateVersionStatus{
+					Status: harvesterv1.VirtualMachineTemplateVersionStatus{
 						Version: 1,
-						Conditions: []harvesterapis.Condition{
+						Conditions: []harvesterv1.Condition{
 							{
-								Type:   harvesterapis.VersionAssigned,
+								Type:   harvesterv1.VersionAssigned,
 								Status: v1.ConditionTrue,
 							},
 						},
@@ -176,15 +176,15 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 				},
 			},
 			expected: output{
-				template: &harvesterapis.VirtualMachineTemplate{
+				template: &harvesterv1.VirtualMachineTemplate{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.VirtualMachineTemplateSpec{
+					Spec: harvesterv1.VirtualMachineTemplateSpec{
 						DefaultVersionID: "default/test",
 					},
-					Status: harvesterapis.VirtualMachineTemplateStatus{
+					Status: harvesterv1.VirtualMachineTemplateStatus{
 						DefaultVersion: 1,
 					},
 				},
@@ -195,35 +195,35 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 			name: "update template version",
 			given: input{
 				key: "default/test",
-				template: &harvesterapis.VirtualMachineTemplate{
+				template: &harvesterv1.VirtualMachineTemplate{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.VirtualMachineTemplateSpec{
+					Spec: harvesterv1.VirtualMachineTemplateSpec{
 						DefaultVersionID: "default/test",
 					},
-					Status: harvesterapis.VirtualMachineTemplateStatus{
+					Status: harvesterv1.VirtualMachineTemplateStatus{
 						DefaultVersion: 1,
 						LatestVersion:  1,
 					},
 				},
-				templateVersion: &harvesterapis.VirtualMachineTemplateVersion{
+				templateVersion: &harvesterv1.VirtualMachineTemplateVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.VirtualMachineTemplateVersionSpec{
+					Spec: harvesterv1.VirtualMachineTemplateVersionSpec{
 						Description: "fake_description",
 						TemplateID:  "default/test",
 						ImageID:     "fake_image_id",
 						VM:          kv1.VirtualMachineSpec{},
 					},
-					Status: harvesterapis.VirtualMachineTemplateVersionStatus{
+					Status: harvesterv1.VirtualMachineTemplateVersionStatus{
 						Version: 2,
-						Conditions: []harvesterapis.Condition{
+						Conditions: []harvesterv1.Condition{
 							{
-								Type:   harvesterapis.VersionAssigned,
+								Type:   harvesterv1.VersionAssigned,
 								Status: v1.ConditionTrue,
 							},
 						},
@@ -231,15 +231,15 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 				},
 			},
 			expected: output{
-				template: &harvesterapis.VirtualMachineTemplate{
+				template: &harvesterv1.VirtualMachineTemplate{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: harvesterapis.VirtualMachineTemplateSpec{
+					Spec: harvesterv1.VirtualMachineTemplateSpec{
 						DefaultVersionID: "default/test",
 					},
-					Status: harvesterapis.VirtualMachineTemplateStatus{
+					Status: harvesterv1.VirtualMachineTemplateStatus{
 						DefaultVersion: 2,
 						LatestVersion:  2,
 					},
@@ -261,9 +261,9 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 		}
 
 		var handler = &templateHandler{
-			templates:            fakeTemplateClient(clientset.HarvesterV1alpha1().VirtualMachineTemplates),
-			templateVersions:     fakeTemplateVersionClient(clientset.HarvesterV1alpha1().VirtualMachineTemplateVersions),
-			templateVersionCache: fakeTemplateVersionCache(clientset.HarvesterV1alpha1().VirtualMachineTemplateVersions),
+			templates:            fakeTemplateClient(clientset.HarvesterhciV1beta1().VirtualMachineTemplates),
+			templateVersions:     fakeTemplateVersionClient(clientset.HarvesterhciV1beta1().VirtualMachineTemplateVersions),
+			templateVersionCache: fakeTemplateVersionCache(clientset.HarvesterhciV1beta1().VirtualMachineTemplateVersions),
 		}
 		var actual output
 		actual.template, actual.err = handler.OnChanged(tc.given.key, tc.given.template)
@@ -271,17 +271,17 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 	}
 }
 
-type fakeTemplateClient func(string) harvestertype.VirtualMachineTemplateInterface
+type fakeTemplateClient func(string) typeharv1.VirtualMachineTemplateInterface
 
-func (c fakeTemplateClient) Create(template *harvesterapis.VirtualMachineTemplate) (*harvesterapis.VirtualMachineTemplate, error) {
+func (c fakeTemplateClient) Create(template *harvesterv1.VirtualMachineTemplate) (*harvesterv1.VirtualMachineTemplate, error) {
 	return c(template.Namespace).Create(context.TODO(), template, metav1.CreateOptions{})
 }
 
-func (c fakeTemplateClient) Update(template *harvesterapis.VirtualMachineTemplate) (*harvesterapis.VirtualMachineTemplate, error) {
+func (c fakeTemplateClient) Update(template *harvesterv1.VirtualMachineTemplate) (*harvesterv1.VirtualMachineTemplate, error) {
 	return c(template.Namespace).Update(context.TODO(), template, metav1.UpdateOptions{})
 }
 
-func (c fakeTemplateClient) UpdateStatus(template *harvesterapis.VirtualMachineTemplate) (*harvesterapis.VirtualMachineTemplate, error) {
+func (c fakeTemplateClient) UpdateStatus(template *harvesterv1.VirtualMachineTemplate) (*harvesterv1.VirtualMachineTemplate, error) {
 	return c(template.Namespace).UpdateStatus(context.TODO(), template, metav1.UpdateOptions{})
 }
 
@@ -289,11 +289,11 @@ func (c fakeTemplateClient) Delete(namespace, name string, opts *metav1.DeleteOp
 	return c(namespace).Delete(context.TODO(), name, *opts)
 }
 
-func (c fakeTemplateClient) Get(namespace, name string, opts metav1.GetOptions) (*harvesterapis.VirtualMachineTemplate, error) {
+func (c fakeTemplateClient) Get(namespace, name string, opts metav1.GetOptions) (*harvesterv1.VirtualMachineTemplate, error) {
 	return c(namespace).Get(context.TODO(), name, opts)
 }
 
-func (c fakeTemplateClient) List(namespace string, opts metav1.ListOptions) (*harvesterapis.VirtualMachineTemplateList, error) {
+func (c fakeTemplateClient) List(namespace string, opts metav1.ListOptions) (*harvesterv1.VirtualMachineTemplateList, error) {
 	return c(namespace).List(context.TODO(), opts)
 }
 
@@ -301,39 +301,39 @@ func (c fakeTemplateClient) Watch(namespace string, opts metav1.ListOptions) (wa
 	return c(namespace).Watch(context.TODO(), opts)
 }
 
-func (c fakeTemplateClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterapis.VirtualMachineTemplate, err error) {
+func (c fakeTemplateClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterv1.VirtualMachineTemplate, err error) {
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
 }
 
-type fakeTemplateVersionCache func(string) harvestertype.VirtualMachineTemplateVersionInterface
+type fakeTemplateVersionCache func(string) typeharv1.VirtualMachineTemplateVersionInterface
 
-func (c fakeTemplateVersionCache) Get(namespace, name string) (*harvesterapis.VirtualMachineTemplateVersion, error) {
+func (c fakeTemplateVersionCache) Get(namespace, name string) (*harvesterv1.VirtualMachineTemplateVersion, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c fakeTemplateVersionCache) List(namespace string, selector labels.Selector) (ret []*harvesterapis.VirtualMachineTemplateVersion, err error) {
+func (c fakeTemplateVersionCache) List(namespace string, selector labels.Selector) (ret []*harvesterv1.VirtualMachineTemplateVersion, err error) {
 	panic("implement me")
 }
 
-func (c fakeTemplateVersionCache) AddIndexer(indexName string, indexer ctrlapis.VirtualMachineTemplateVersionIndexer) {
+func (c fakeTemplateVersionCache) AddIndexer(indexName string, indexer ctlharvesterv1.VirtualMachineTemplateVersionIndexer) {
 	panic("implement me")
 }
 
-func (c fakeTemplateVersionCache) GetByIndex(indexName, key string) (ret []*harvesterapis.VirtualMachineTemplateVersion, err error) {
+func (c fakeTemplateVersionCache) GetByIndex(indexName, key string) (ret []*harvesterv1.VirtualMachineTemplateVersion, err error) {
 	panic("implement me")
 }
 
-type fakeTemplateVersionClient func(string) harvestertype.VirtualMachineTemplateVersionInterface
+type fakeTemplateVersionClient func(string) typeharv1.VirtualMachineTemplateVersionInterface
 
-func (c fakeTemplateVersionClient) Create(templateVersion *harvesterapis.VirtualMachineTemplateVersion) (*harvesterapis.VirtualMachineTemplateVersion, error) {
+func (c fakeTemplateVersionClient) Create(templateVersion *harvesterv1.VirtualMachineTemplateVersion) (*harvesterv1.VirtualMachineTemplateVersion, error) {
 	return c(templateVersion.Namespace).Create(context.TODO(), templateVersion, metav1.CreateOptions{})
 }
 
-func (c fakeTemplateVersionClient) UpdateStatus(templateVersion *harvesterapis.VirtualMachineTemplateVersion) (*harvesterapis.VirtualMachineTemplateVersion, error) {
+func (c fakeTemplateVersionClient) UpdateStatus(templateVersion *harvesterv1.VirtualMachineTemplateVersion) (*harvesterv1.VirtualMachineTemplateVersion, error) {
 	return c(templateVersion.Namespace).UpdateStatus(context.TODO(), templateVersion, metav1.UpdateOptions{})
 }
 
-func (c fakeTemplateVersionClient) Update(templateVersion *harvesterapis.VirtualMachineTemplateVersion) (*harvesterapis.VirtualMachineTemplateVersion, error) {
+func (c fakeTemplateVersionClient) Update(templateVersion *harvesterv1.VirtualMachineTemplateVersion) (*harvesterv1.VirtualMachineTemplateVersion, error) {
 	return c(templateVersion.Namespace).Update(context.TODO(), templateVersion, metav1.UpdateOptions{})
 }
 
@@ -341,11 +341,11 @@ func (c fakeTemplateVersionClient) Delete(namespace, name string, opts *metav1.D
 	return c(namespace).Delete(context.TODO(), name, *opts)
 }
 
-func (c fakeTemplateVersionClient) Get(namespace, name string, opts metav1.GetOptions) (*harvesterapis.VirtualMachineTemplateVersion, error) {
+func (c fakeTemplateVersionClient) Get(namespace, name string, opts metav1.GetOptions) (*harvesterv1.VirtualMachineTemplateVersion, error) {
 	return c(namespace).Get(context.TODO(), name, opts)
 }
 
-func (c fakeTemplateVersionClient) List(namespace string, opts metav1.ListOptions) (*harvesterapis.VirtualMachineTemplateVersionList, error) {
+func (c fakeTemplateVersionClient) List(namespace string, opts metav1.ListOptions) (*harvesterv1.VirtualMachineTemplateVersionList, error) {
 	return c(namespace).List(context.TODO(), opts)
 }
 
@@ -353,6 +353,6 @@ func (c fakeTemplateVersionClient) Watch(namespace string, opts metav1.ListOptio
 	return c(namespace).Watch(context.TODO(), opts)
 }
 
-func (c fakeTemplateVersionClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterapis.VirtualMachineTemplateVersion, err error) {
+func (c fakeTemplateVersionClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterv1.VirtualMachineTemplateVersion, err error) {
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
 }

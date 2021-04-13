@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/util"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
@@ -36,7 +36,7 @@ var _ = Describe("verify keypair APIs", func() {
 
 		BeforeEach(func() {
 
-			keypairsAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.keypairs", options.HTTPSListenPort)
+			keypairsAPI = helper.BuildAPIURL("v1", "harvesterhci.io.keypairs", options.HTTPSListenPort)
 
 		})
 
@@ -47,11 +47,11 @@ var _ = Describe("verify keypair APIs", func() {
 				MustNotError(err)
 				publicKey, err := util.GeneratePublicKey(&rsaKey.PublicKey)
 				MustNotError(err)
-				var keypair = v1alpha1.KeyPair{
+				var keypair = harvesterv1.KeyPair{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: keypairNamespace,
 					},
-					Spec: v1alpha1.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: string(publicKey),
 					},
 				}
@@ -60,12 +60,12 @@ var _ = Describe("verify keypair APIs", func() {
 			})
 
 			By("create a keypair with public key missing", func() {
-				var keypair = v1alpha1.KeyPair{
+				var keypair = harvesterv1.KeyPair{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      fuzz.String(5),
 						Namespace: keypairNamespace,
 					},
-					Spec: v1alpha1.KeyPairSpec{},
+					Spec: harvesterv1.KeyPairSpec{},
 				}
 				respCode, respBody, err := helper.PostObject(keypairsAPI, keypair)
 				MustRespCodeIs(http.StatusUnprocessableEntity, "post keypair", err, respCode, respBody)
@@ -75,12 +75,12 @@ var _ = Describe("verify keypair APIs", func() {
 		Specify("verify validation for invalid public key", func() {
 
 			By("create a keypair with invalid public key")
-			var keypair = v1alpha1.KeyPair{
+			var keypair = harvesterv1.KeyPair{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      fuzz.String(5),
 					Namespace: keypairNamespace,
 				},
-				Spec: v1alpha1.KeyPairSpec{
+				Spec: harvesterv1.KeyPairSpec{
 					PublicKey: "invalid test public key",
 				},
 			}
@@ -100,16 +100,16 @@ var _ = Describe("verify keypair APIs", func() {
 
 			var (
 				keypairName = fuzz.String(5)
-				keypair     = v1alpha1.KeyPair{
+				keypair     = harvesterv1.KeyPair{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      keypairName,
 						Namespace: keypairNamespace,
 					},
-					Spec: v1alpha1.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: string(publicKey),
 					},
 				}
-				retKeypair v1alpha1.KeyPair
+				retKeypair harvesterv1.KeyPair
 				keypairURL = fmt.Sprintf("%s/%s/%s", keypairsAPI, keypairNamespace, keypairName)
 			)
 			By("create a keypair")
@@ -125,7 +125,7 @@ var _ = Describe("verify keypair APIs", func() {
 			MustFinallyBeTrue(func() bool {
 				respCode, respBody, err = helper.GetObject(keypairURL, &retKeypair)
 				MustRespCodeIs(http.StatusOK, "get keypair", err, respCode, respBody)
-				MustNotEqual(v1alpha1.KeyPairValidated.IsFalse(retKeypair), true)
+				MustNotEqual(harvesterv1.KeyPairValidated.IsFalse(retKeypair), true)
 				return retKeypair.Status.FingerPrint == expectedFingerPrint
 			})
 
@@ -153,16 +153,16 @@ var _ = Describe("verify keypair APIs", func() {
 
 			var (
 				keypairName = fuzz.String(5)
-				keypair     = v1alpha1.KeyPair{
+				keypair     = harvesterv1.KeyPair{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      keypairName,
 						Namespace: keypairNamespace,
 					},
-					Spec: v1alpha1.KeyPairSpec{
+					Spec: harvesterv1.KeyPairSpec{
 						PublicKey: string(publicKey),
 					},
 				}
-				retKeypair v1alpha1.KeyPair
+				retKeypair harvesterv1.KeyPair
 				keypairURL = fmt.Sprintf("%s/%s/%s", keypairsAPI, keypairNamespace, keypairName)
 			)
 			By("create a keypair by yaml")
@@ -178,7 +178,7 @@ var _ = Describe("verify keypair APIs", func() {
 			MustFinallyBeTrue(func() bool {
 				respCode, respBody, err = helper.GetObject(keypairURL, &retKeypair)
 				MustRespCodeIs(http.StatusOK, "get keypair", err, respCode, respBody)
-				MustNotEqual(v1alpha1.KeyPairValidated.IsFalse(retKeypair), true)
+				MustNotEqual(harvesterv1.KeyPairValidated.IsFalse(retKeypair), true)
 				return retKeypair.Status.FingerPrint == expectedFingerPrint
 			})
 

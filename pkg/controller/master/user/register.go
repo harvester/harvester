@@ -11,7 +11,7 @@ const (
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
-	users := management.HarvesterFactory.Harvester().V1alpha1().User()
+	users := management.HarvesterFactory.Harvesterhci().V1beta1().User()
 
 	userRBACController := &userRBACHandler{
 		users:                   users,

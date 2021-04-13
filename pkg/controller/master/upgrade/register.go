@@ -19,8 +19,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		return nil
 	}
 
-	upgrades := management.HarvesterFactory.Harvester().V1alpha1().Upgrade()
-	settings := management.HarvesterFactory.Harvester().V1alpha1().Setting()
+	upgrades := management.HarvesterFactory.Harvesterhci().V1beta1().Upgrade()
+	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	plans := management.UpgradeFactory.Upgrade().V1().Plan()
 	nodes := management.CoreFactory.Core().V1().Node()
 	jobs := management.BatchFactory.Batch().V1().Job()

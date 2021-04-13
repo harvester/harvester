@@ -11,7 +11,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/settings"
 	pkguser "github.com/rancher/harvester/pkg/user"
@@ -19,9 +19,9 @@ import (
 
 const (
 	bootstrapAdminConfig   = "admincreated"
-	defaultAdminLabelKey   = "auth.harvester.cattle.io/bootstrapping"
+	defaultAdminLabelKey   = "auth.harvesterhci.io/bootstrapping"
 	defaultAdminLabelValue = "admin-user"
-	usernameLabelKey       = "harvester.cattle.io/username"
+	usernameLabelKey       = "harvesterhci.io/username"
 	defaultAdminPassword   = "password"
 )
 
@@ -37,7 +37,7 @@ func BootstrapAdmin(mgmt *config.Management, namespace string) error {
 	}
 
 	set := labels.Set(defaultAdminLabel)
-	admins, err := mgmt.HarvesterFactory.Harvester().V1alpha1().User().List(v1.ListOptions{LabelSelector: set.String()})
+	admins, err := mgmt.HarvesterFactory.Harvesterhci().V1beta1().User().List(v1.ListOptions{LabelSelector: set.String()})
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func BootstrapAdmin(mgmt *config.Management, namespace string) error {
 		return nil
 	}
 
-	users, err := mgmt.HarvesterFactory.Harvester().V1alpha1().User().List(v1.ListOptions{})
+	users, err := mgmt.HarvesterFactory.Harvesterhci().V1beta1().User().List(v1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func BootstrapAdmin(mgmt *config.Management, namespace string) error {
 			return err
 		}
 
-		_, err = mgmt.HarvesterFactory.Harvester().V1alpha1().User().Create(&v1alpha1.User{
+		_, err = mgmt.HarvesterFactory.Harvesterhci().V1beta1().User().Create(&harvesterv1.User{
 			ObjectMeta: v1.ObjectMeta{
 				GenerateName: "user-",
 				Labels:       defaultAdminLabel,
@@ -83,7 +83,7 @@ func BootstrapAdmin(mgmt *config.Management, namespace string) error {
 			return errors.Wrap(err, "can not ensure admin user exists")
 		}
 
-		users, err := mgmt.HarvesterFactory.Harvester().V1alpha1().User().List(v1.ListOptions{
+		users, err := mgmt.HarvesterFactory.Harvesterhci().V1beta1().User().List(v1.ListOptions{
 			LabelSelector: set.String(),
 		})
 		if err != nil && !apierrors.IsAlreadyExists(err) {
@@ -105,7 +105,7 @@ func BootstrapAdmin(mgmt *config.Management, namespace string) error {
 						},
 						OwnerReferences: []v1.OwnerReference{
 							{
-								APIVersion: v1alpha1.SchemeGroupVersion.String(),
+								APIVersion: harvesterv1.SchemeGroupVersion.String(),
 								Kind:       "User",
 								Name:       users.Items[0].Name,
 								UID:        users.Items[0].UID,
@@ -138,7 +138,7 @@ func BootstrapAdmin(mgmt *config.Management, namespace string) error {
 				Namespace: namespace,
 				OwnerReferences: []v1.OwnerReference{
 					{
-						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						APIVersion: harvesterv1.SchemeGroupVersion.String(),
 						Kind:       "User",
 						Name:       users.Items[0].Name,
 						UID:        users.Items[0].UID,

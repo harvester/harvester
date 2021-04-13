@@ -8,7 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/rancher/harvester/pkg/util/fakeclients"
 )
@@ -18,10 +18,10 @@ func TestPodHandler_OnChanged(t *testing.T) {
 		key     string
 		pod     *corev1.Pod
 		plan    *upgradeapiv1.Plan
-		upgrade *v1alpha1.Upgrade
+		upgrade *harvesterv1.Upgrade
 	}
 	type output struct {
-		upgrade *v1alpha1.Upgrade
+		upgrade *harvesterv1.Upgrade
 		err     error
 	}
 	var testCases = []struct {
@@ -145,8 +145,8 @@ func TestPodHandler_OnChanged(t *testing.T) {
 		var handler = &podHandler{
 			namespace:     harvesterSystemNamespace,
 			planCache:     fakeclients.PlanCache(clientset.UpgradeV1().Plans),
-			upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterV1alpha1().Upgrades),
-			upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterV1alpha1().Upgrades),
+			upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 		}
 		var actual output
 		var getErr error

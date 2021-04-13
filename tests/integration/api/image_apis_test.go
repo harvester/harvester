@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	. "github.com/rancher/harvester/tests/framework/dsl"
 	"github.com/rancher/harvester/tests/framework/fuzz"
 	"github.com/rancher/harvester/tests/framework/helper"
@@ -31,7 +31,7 @@ var _ = Describe("verify image APIs", func() {
 
 		BeforeEach(func() {
 
-			imageAPI = helper.BuildAPIURL("v1", "harvester.cattle.io.virtualmachineimages", options.HTTPSListenPort)
+			imageAPI = helper.BuildAPIURL("v1", "harvesterhci.io.virtualmachineimages", options.HTTPSListenPort)
 
 		})
 
@@ -39,13 +39,13 @@ var _ = Describe("verify image APIs", func() {
 
 			By("create an image with empty display name", func() {
 
-				var image = v1alpha1.VirtualMachineImage{
+				var image = harvesterv1.VirtualMachineImage{
 					ObjectMeta: v1.ObjectMeta{
 						GenerateName: "image-",
 						Namespace:    imageNamespace,
 					},
-					Spec: v1alpha1.VirtualMachineImageSpec{
-						URL: "http://harvester.cattle.io/test.img",
+					Spec: harvesterv1.VirtualMachineImageSpec{
+						URL: "http://harvesterhci.io/test.img",
 					},
 				}
 				respCode, respBody, err := helper.PostObject(imageAPI, image)
@@ -58,26 +58,26 @@ var _ = Describe("verify image APIs", func() {
 			var (
 				imageName        = fuzz.String(5)
 				imageDisplayName = fuzz.String(5)
-				image            = v1alpha1.VirtualMachineImage{
+				image            = harvesterv1.VirtualMachineImage{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      imageName,
 						Namespace: imageNamespace,
 						Labels: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 						Annotations: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 					},
-					Spec: v1alpha1.VirtualMachineImageSpec{
+					Spec: harvesterv1.VirtualMachineImageSpec{
 						Description: "test description",
 						DisplayName: imageDisplayName,
-						URL:         "http://harvester.cattle.io/test.img",
+						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
 
 				getImageURL = fmt.Sprintf("%s/%s/%s", imageAPI, imageNamespace, imageName)
-				retImage    v1alpha1.VirtualMachineImage
+				retImage    harvesterv1.VirtualMachineImage
 			)
 
 			By("create image", func() {
@@ -99,26 +99,26 @@ var _ = Describe("verify image APIs", func() {
 			var (
 				imageName        = fuzz.String(5)
 				imageDisplayName = fuzz.String(5)
-				image            = v1alpha1.VirtualMachineImage{
+				image            = harvesterv1.VirtualMachineImage{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      imageName,
 						Namespace: imageNamespace,
 						Labels: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 						Annotations: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 					},
-					Spec: v1alpha1.VirtualMachineImageSpec{
+					Spec: harvesterv1.VirtualMachineImageSpec{
 						Description: "test description",
 						DisplayName: imageDisplayName,
-						URL:         "http://harvester.cattle.io/test.img",
+						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
 
 				getImageURL = fmt.Sprintf("%s/%s/%s", imageAPI, imageNamespace, imageName)
-				retImage    v1alpha1.VirtualMachineImage
+				retImage    harvesterv1.VirtualMachineImage
 			)
 
 			By("create image", func() {
@@ -140,39 +140,39 @@ var _ = Describe("verify image APIs", func() {
 				imageName        = fuzz.String(5)
 				imageDisplayName = fuzz.String(5)
 
-				image = v1alpha1.VirtualMachineImage{
+				image = harvesterv1.VirtualMachineImage{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      imageName,
 						Namespace: imageNamespace,
 						Labels: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 						Annotations: map[string]string{
-							"test.harvester.cattle.io": "for-test",
+							"test.harvesterhci.io": "for-test",
 						},
 					},
-					Spec: v1alpha1.VirtualMachineImageSpec{
+					Spec: harvesterv1.VirtualMachineImageSpec{
 						Description: "test description",
 						DisplayName: imageDisplayName,
-						URL:         "http://harvester.cattle.io/test.img",
+						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
 
-				toUpdateImage = v1alpha1.VirtualMachineImage{
+				toUpdateImage = harvesterv1.VirtualMachineImage{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      imageName,
 						Namespace: imageNamespace,
 						Labels: map[string]string{
-							"test.harvester.cattle.io": "for-test-update",
+							"test.harvesterhci.io": "for-test-update",
 						},
 						Annotations: map[string]string{
-							"test.harvester.cattle.io": "for-test-update",
+							"test.harvesterhci.io": "for-test-update",
 						},
 					},
-					Spec: v1alpha1.VirtualMachineImageSpec{
+					Spec: harvesterv1.VirtualMachineImageSpec{
 						Description: "test description update",
 						DisplayName: imageDisplayName,
-						URL:         "http://harvester.cattle.io/test-update.img",
+						URL:         "http://harvesterhci.io/test-update.img",
 					},
 				}
 
@@ -180,7 +180,7 @@ var _ = Describe("verify image APIs", func() {
 				respBody []byte
 				err      error
 				imageURL = fmt.Sprintf("%s/%s/%s", imageAPI, imageNamespace, imageName)
-				retImage v1alpha1.VirtualMachineImage
+				retImage harvesterv1.VirtualMachineImage
 			)
 
 			By("create image")
@@ -226,19 +226,19 @@ var _ = Describe("verify image APIs", func() {
 			var (
 				imageName        = fuzz.String(5)
 				imageDisplayName = fuzz.String(5)
-				image            = v1alpha1.VirtualMachineImage{
+				image            = harvesterv1.VirtualMachineImage{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      imageName,
 						Namespace: imageNamespace,
 					},
-					Spec: v1alpha1.VirtualMachineImageSpec{
+					Spec: harvesterv1.VirtualMachineImageSpec{
 						DisplayName: imageDisplayName,
-						URL:         "http://harvester.cattle.io/test.img",
+						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
 
 				getImageURL = fmt.Sprintf("%s/%s/%s", imageAPI, imageNamespace, imageName)
-				retImage    v1alpha1.VirtualMachineImage
+				retImage    harvesterv1.VirtualMachineImage
 			)
 
 			By("create image")
@@ -249,7 +249,7 @@ var _ = Describe("verify image APIs", func() {
 			MustFinallyBeTrue(func() bool {
 				respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
 				MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
-				return v1alpha1.ImageInitialized.IsFalse(retImage)
+				return harvesterv1.ImageInitialized.IsFalse(retImage)
 			}, 1*time.Minute, 1*time.Second)
 		})
 
@@ -258,19 +258,19 @@ var _ = Describe("verify image APIs", func() {
 			var (
 				imageName        = fuzz.String(5)
 				imageDisplayName = fuzz.String(5)
-				image            = v1alpha1.VirtualMachineImage{
+				image            = harvesterv1.VirtualMachineImage{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      imageName,
 						Namespace: imageNamespace,
 					},
-					Spec: v1alpha1.VirtualMachineImageSpec{
+					Spec: harvesterv1.VirtualMachineImageSpec{
 						DisplayName: imageDisplayName,
-						URL:         "http://harvester.cattle.io/test.img",
+						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
 
 				getImageURL = fmt.Sprintf("%s/%s/%s", imageAPI, imageNamespace, imageName)
-				retImage    v1alpha1.VirtualMachineImage
+				retImage    harvesterv1.VirtualMachineImage
 			)
 
 			By("create image", func() {
@@ -282,7 +282,7 @@ var _ = Describe("verify image APIs", func() {
 			MustFinallyBeTrue(func() bool {
 				respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
 				MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
-				return v1alpha1.ImageInitialized.IsFalse(retImage)
+				return harvesterv1.ImageInitialized.IsFalse(retImage)
 			}, 1*time.Minute, 1*time.Second)
 		})
 
@@ -292,19 +292,19 @@ var _ = Describe("verify image APIs", func() {
 				imageName        = fuzz.String(5)
 				imageDisplayName = fuzz.String(5)
 				cirrosURL        = "https://download.cirros-cloud.net/0.5.1/cirros-0.5.1-x86_64-disk.img"
-				image            = v1alpha1.VirtualMachineImage{
+				image            = harvesterv1.VirtualMachineImage{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      imageName,
 						Namespace: imageNamespace,
 					},
-					Spec: v1alpha1.VirtualMachineImageSpec{
+					Spec: harvesterv1.VirtualMachineImageSpec{
 						DisplayName: imageDisplayName,
 						URL:         cirrosURL,
 					},
 				}
 
 				getImageURL = fmt.Sprintf("%s/%s/%s", imageAPI, imageNamespace, imageName)
-				retImage    v1alpha1.VirtualMachineImage
+				retImage    harvesterv1.VirtualMachineImage
 			)
 
 			By("create cirros image", func() {
@@ -316,8 +316,8 @@ var _ = Describe("verify image APIs", func() {
 			MustFinallyBeTrue(func() bool {
 				respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
 				MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
-				Expect(v1alpha1.ImageInitialized.IsFalse(retImage)).NotTo(BeTrue())
-				return v1alpha1.ImageInitialized.IsTrue(retImage)
+				Expect(harvesterv1.ImageInitialized.IsFalse(retImage)).NotTo(BeTrue())
+				return harvesterv1.ImageInitialized.IsTrue(retImage)
 			}, 1*time.Minute, 1*time.Second)
 		})
 

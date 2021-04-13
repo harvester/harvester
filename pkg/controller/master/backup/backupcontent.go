@@ -21,9 +21,9 @@ import (
 	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 
-	harvesterapiv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/config"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	ctlsnapshotv1 "github.com/rancher/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
@@ -40,11 +40,11 @@ const (
 	LonghornSystemNameSpace = "longhorn-system"
 )
 
-var vmBackupContentKind = harvesterapiv1.SchemeGroupVersion.WithKind(vmBackupContentKindName)
+var vmBackupContentKind = harvesterv1.SchemeGroupVersion.WithKind(vmBackupContentKindName)
 
 // RegisterContent register the vmbackupcontent and volumesnapshot controller
 func RegisterContent(ctx context.Context, management *config.Management, opts config.Options) error {
-	vmBackupContents := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineBackupContent()
+	vmBackupContents := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackupContent()
 	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
 	snapshotClass := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotClass()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
@@ -87,7 +87,7 @@ type ContentHandler struct {
 }
 
 // ContentOnChanged handles vm backup content on change and create volumesnapshot if not exist
-func (h *ContentHandler) ContentOnChanged(key string, content *harvesterapiv1.VirtualMachineBackupContent) (*harvesterapiv1.VirtualMachineBackupContent, error) {
+func (h *ContentHandler) ContentOnChanged(key string, content *harvesterv1.VirtualMachineBackupContent) (*harvesterv1.VirtualMachineBackupContent, error) {
 	if content == nil || content.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -113,7 +113,7 @@ func (h *ContentHandler) ContentOnChanged(key string, content *harvesterapiv1.Vi
 		}
 	}
 
-	volBackupStatus := make([]harvesterapiv1.VolumeBackupStatus, 0, len(content.Spec.VolumeBackups))
+	volBackupStatus := make([]harvesterv1.VolumeBackupStatus, 0, len(content.Spec.VolumeBackups))
 	var deletedSnapshots, skippedSnapshots []string
 
 	var contentReady = isContentReady(content)
@@ -159,7 +159,7 @@ func (h *ContentHandler) ContentOnChanged(key string, content *harvesterapiv1.Vi
 			}
 		}
 
-		vss := harvesterapiv1.VolumeBackupStatus{
+		vss := harvesterv1.VolumeBackupStatus{
 			VolumeBackupName: volumeSnapshot.Name,
 		}
 
@@ -176,7 +176,7 @@ func (h *ContentHandler) ContentOnChanged(key string, content *harvesterapiv1.Vi
 	var errorMessage = ""
 	contentCpy := content.DeepCopy()
 	if contentCpy.Status == nil {
-		contentCpy.Status = &harvesterapiv1.VirtualMachineBackupContentStatus{}
+		contentCpy.Status = &harvesterv1.VirtualMachineBackupContentStatus{}
 	}
 
 	if len(deletedSnapshots) > 0 {
@@ -204,7 +204,7 @@ func (h *ContentHandler) ContentOnChanged(key string, content *harvesterapiv1.Vi
 
 	// check if need to update the error status
 	if errorMessage != "" && (contentCpy.Status.Error == nil || contentCpy.Status.Error.Message == nil || *contentCpy.Status.Error.Message != errorMessage) {
-		contentCpy.Status.Error = &harvesterapiv1.Error{
+		contentCpy.Status.Error = &harvesterv1.Error{
 			Time:    currentTime(),
 			Message: &errorMessage,
 		}
@@ -232,7 +232,7 @@ func (h *ContentHandler) getVolumeSnapshot(namespace, name string) (*snapshotv1.
 	return snapshot, nil
 }
 
-func (h *ContentHandler) createVolumeSnapshot(content *harvesterapiv1.VirtualMachineBackupContent, volumeBackup harvesterapiv1.VolumeBackup) (*snapshotv1.VolumeSnapshot, error) {
+func (h *ContentHandler) createVolumeSnapshot(content *harvesterv1.VirtualMachineBackupContent, volumeBackup harvesterv1.VolumeBackup) (*snapshotv1.VolumeSnapshot, error) {
 	logrus.Debugf("attempting to create VolumeSnapshot %s", *volumeBackup.Name)
 
 	sc, err := h.snapshotClassCache.Get(settings.VolumeSnapshotClass.Get())
@@ -247,7 +247,7 @@ func (h *ContentHandler) createVolumeSnapshot(content *harvesterapiv1.VirtualMac
 			Namespace: content.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         harvesterapiv1.SchemeGroupVersion.String(),
+					APIVersion:         harvesterv1.SchemeGroupVersion.String(),
 					Kind:               vmBackupContentKindName,
 					Name:               content.Name,
 					UID:                content.UID,
@@ -301,7 +301,7 @@ func (h *ContentHandler) updateVolumeSnapshotChanged(key string, snapshot *snaps
 // resolveVolSnapshotRef returns the controller referenced by a ControllerRef,
 // or nil if the ControllerRef could not be resolved to a matching controller
 // of the correct Kind.
-func (h *ContentHandler) resolveVolSnapshotRef(namespace string, controllerRef *metav1.OwnerReference) *harvesterapiv1.VirtualMachineBackupContent {
+func (h *ContentHandler) resolveVolSnapshotRef(namespace string, controllerRef *metav1.OwnerReference) *harvesterv1.VirtualMachineBackupContent {
 	// We can't look up by UID, so look up by Name and then verify UID.
 	// Don't even try to look up by Name if it's the wrong Kind.
 	if controllerRef.Kind != vmBackupContentKind.Kind {
