@@ -20,9 +20,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	harvesterapiv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/config"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	"github.com/rancher/harvester/pkg/settings"
@@ -38,7 +38,7 @@ const (
 
 // RegisterBackupTarget register the setting controller and validate the configured backup target server
 func RegisterBackupTarget(ctx context.Context, management *config.Management, opts config.Options) error {
-	settings := management.HarvesterFactory.Harvester().V1alpha1().Setting()
+	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta1().Setting()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
@@ -66,7 +66,7 @@ type TargetHandler struct {
 }
 
 // OnBackupTargetChange handles backupTarget setting object on change
-func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterapiv1.Setting) (*harvesterapiv1.Setting, error) {
+func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil ||
 		setting.Name != settings.BackupTargetSettingName || setting.Value == "" {
 		return nil, nil
@@ -78,15 +78,15 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterapiv1
 	}
 
 	settingCpy := setting.DeepCopy()
-	if harvesterapiv1.SettingConfigured.IsTrue(settingCpy) && target.Type == settings.S3BackupType &&
+	if harvesterv1.SettingConfigured.IsTrue(settingCpy) && target.Type == settings.S3BackupType &&
 		(target.SecretAccessKey == "" || target.AccessKeyID == "") {
 		return nil, nil
 	}
 
 	target, err = validateTargetEndpoint(target)
 	if err != nil {
-		harvesterapiv1.SettingConfigured.False(settingCpy)
-		harvesterapiv1.SettingConfigured.Reason(settingCpy, err.Error())
+		harvesterv1.SettingConfigured.False(settingCpy)
+		harvesterv1.SettingConfigured.Reason(settingCpy, err.Error())
 		_, err := h.settings.Update(settingCpy)
 		return nil, err
 	}
@@ -101,8 +101,8 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterapiv1
 		}
 	}
 
-	harvesterapiv1.SettingConfigured.True(settingCpy)
-	harvesterapiv1.SettingConfigured.Reason(settingCpy, "")
+	harvesterv1.SettingConfigured.True(settingCpy)
+	harvesterv1.SettingConfigured.Reason(settingCpy, "")
 
 	target.SecretAccessKey = ""
 	target.AccessKeyID = ""

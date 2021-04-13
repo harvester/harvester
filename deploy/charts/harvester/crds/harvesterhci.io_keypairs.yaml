@@ -6,36 +6,27 @@ metadata:
   annotations:
     {}
   creationTimestamp: null
-  name: virtualmachinebackups.harvester.cattle.io
+  name: keypairs.harvesterhci.io
 spec:
-  group: harvester.cattle.io
+  group: harvesterhci.io
   names:
-    kind: VirtualMachineBackup
-    listKind: VirtualMachineBackupList
-    plural: virtualmachinebackups
+    kind: KeyPair
+    listKind: KeyPairList
+    plural: keypairs
     shortNames:
-    - vmbackup
-    - vmbackups
-    singular: virtualmachinebackup
+    - kp
+    - kps
+    singular: keypair
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.source.kind
-      name: SOURCE_KIND
+    - jsonPath: .status.fingerPrint
+      name: FINGER_PRINT
       type: string
-    - jsonPath: .spec.source.name
-      name: SOURCE_NAME
-      type: string
-    - jsonPath: .status.readyToUse
-      name: READY_TO_USE
-      type: boolean
     - jsonPath: .metadata.creationTimestamp
       name: AGE
       type: date
-    - jsonPath: .status.error.message
-      name: ERROR
-      type: date
-    name: v1alpha1
+    name: v1beta1
     schema:
       openAPIV3Schema:
         properties:
@@ -53,32 +44,12 @@ spec:
             type: object
           spec:
             properties:
-              source:
-                description: TypedLocalObjectReference contains enough information
-                  to let you locate the typed referenced object inside the same namespace.
-                properties:
-                  apiGroup:
-                    description: APIGroup is the group for the resource being referenced.
-                      If APIGroup is not specified, the specified Kind must be in
-                      the core API group. For any other third-party types, APIGroup
-                      is required.
-                    type: string
-                  kind:
-                    description: Kind is the type of resource being referenced
-                    type: string
-                  name:
-                    description: Name is the name of resource being referenced
-                    type: string
-                required:
-                - kind
-                - name
-                type: object
+              publicKey:
+                type: string
             required:
-            - source
+            - publicKey
             type: object
           status:
-            description: VirtualMachineBackupStatus is the status for a VirtualMachineBackup
-              resource
             properties:
               conditions:
                 items:
@@ -108,28 +79,9 @@ spec:
                   - type
                   type: object
                 type: array
-              error:
-                description: Error is the last error encountered during the snapshot/restore
-                properties:
-                  message:
-                    type: string
-                  time:
-                    format: date-time
-                    type: string
-                type: object
-              readyToUse:
-                type: boolean
-              sourceUID:
-                description: UID is a type that holds unique ID values, including
-                  UUIDs.  Because we don't ONLY use UUIDs, this is an alias to string.  Being
-                  a type captures intent and helps make sure that UIDs and names do
-                  not get conflated.
-                type: string
-              virtualMachineBackupContentName:
+              fingerPrint:
                 type: string
             type: object
-        required:
-        - spec
         type: object
     served: true
     storage: true

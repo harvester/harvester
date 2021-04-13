@@ -6,9 +6,9 @@ metadata:
   annotations:
     {}
   creationTimestamp: null
-  name: settings.harvester.cattle.io
+  name: settings.harvesterhci.io
 spec:
-  group: harvester.cattle.io
+  group: harvesterhci.io
   names:
     kind: Setting
     listKind: SettingList
@@ -20,7 +20,7 @@ spec:
     - jsonPath: .value
       name: VALUE
       type: string
-    name: v1alpha1
+    name: v1beta1
     schema:
       openAPIV3Schema:
         properties:

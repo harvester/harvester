@@ -18,9 +18,9 @@ import (
 	kutil "k8s.io/utils/pointer"
 	kv1 "kubevirt.io/client-go/api/v1"
 
-	harvesterapiv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/config"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	"github.com/rancher/harvester/pkg/settings"
@@ -31,17 +31,17 @@ const (
 
 	vmBackupKindName = "VirtualMachineBackup"
 
-	backupTargetAnnotation       = "backup.harvester.cattle.io/backupTarget"
-	backupBucketNameAnnotation   = "backup.harvester.cattle.io/BucketName"
-	backupBucketRegionAnnotation = "backup.harvester.cattle.io/BucketRegion"
+	backupTargetAnnotation       = "backup.harvesterhci.io/backupTarget"
+	backupBucketNameAnnotation   = "backup.harvesterhci.io/BucketName"
+	backupBucketRegionAnnotation = "backup.harvesterhci.io/BucketRegion"
 )
 
-var vmBackupKind = harvesterapiv1.SchemeGroupVersion.WithKind(vmBackupKindName)
+var vmBackupKind = harvesterv1.SchemeGroupVersion.WithKind(vmBackupKindName)
 
 // RegisterBackup register the vmbackup and vmbackupcontent controller
 func RegisterBackup(ctx context.Context, management *config.Management, opts config.Options) error {
-	vmBackups := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineBackup()
-	vmBackupContents := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineBackupContent()
+	vmBackups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
+	vmBackupContents := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackupContent()
 	pvc := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta1().Setting()
@@ -74,7 +74,7 @@ type Handler struct {
 }
 
 // OnBackupChange handles vm backup object on change and create vmbackup content if not exist
-func (h *Handler) OnBackupChange(key string, vmBackup *harvesterapiv1.VirtualMachineBackup) (*harvesterapiv1.VirtualMachineBackup, error) {
+func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
 	if vmBackup == nil || vmBackup.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -117,7 +117,7 @@ func (h *Handler) OnBackupChange(key string, vmBackup *harvesterapiv1.VirtualMac
 	return nil, nil
 }
 
-func (h *Handler) getBackupSource(vmBackup *harvesterapiv1.VirtualMachineBackup) (*kv1.VirtualMachine, error) {
+func (h *Handler) getBackupSource(vmBackup *harvesterv1.VirtualMachineBackup) (*kv1.VirtualMachine, error) {
 	switch vmBackup.Spec.Source.Kind {
 	case kv1.VirtualMachineGroupVersionKind.Kind:
 		vm, err := h.vmCache.Get(vmBackup.Namespace, vmBackup.Spec.Source.Name)
@@ -130,7 +130,7 @@ func (h *Handler) getBackupSource(vmBackup *harvesterapiv1.VirtualMachineBackup)
 	return nil, fmt.Errorf("unsupported source: %+v", vmBackup.Spec.Source)
 }
 
-func (h *Handler) getContent(vmBackup *harvesterapiv1.VirtualMachineBackup) (*harvesterapiv1.VirtualMachineBackupContent, error) {
+func (h *Handler) getContent(vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackupContent, error) {
 	contentName := getVMBackupContentName(vmBackup)
 	obj, err := h.vmBackupContentCache.Get(vmBackup.Namespace, contentName)
 	if err != nil {
@@ -142,12 +142,12 @@ func (h *Handler) getContent(vmBackup *harvesterapiv1.VirtualMachineBackup) (*ha
 	return obj, nil
 }
 
-func (h *Handler) createContent(vmBackup *harvesterapiv1.VirtualMachineBackup, vm *kv1.VirtualMachine) error {
+func (h *Handler) createContent(vmBackup *harvesterv1.VirtualMachineBackup, vm *kv1.VirtualMachine) error {
 	contentName := getVMBackupContentName(vmBackup)
 	logrus.Debugf("create vm backup content %s/%s", vmBackup.Namespace, contentName)
 
 	sourceVolumes := vm.Spec.Template.Spec.Volumes
-	var volumeBackups = make([]harvesterapiv1.VolumeBackup, 0, len(sourceVolumes))
+	var volumeBackups = make([]harvesterv1.VolumeBackup, 0, len(sourceVolumes))
 
 	for volumeName, pvcName := range volumeToPvcMappings(sourceVolumes) {
 		pvc, err := h.getBackupPVC(vmBackup.Namespace, pvcName)
@@ -157,10 +157,10 @@ func (h *Handler) createContent(vmBackup *harvesterapiv1.VirtualMachineBackup, v
 
 		volumeBackupName := fmt.Sprintf("%s-volume-%s", vmBackup.Name, pvcName)
 
-		vb := harvesterapiv1.VolumeBackup{
+		vb := harvesterv1.VolumeBackup{
 			Name:       &volumeBackupName,
 			VolumeName: volumeName,
-			PersistentVolumeClaim: harvesterapiv1.PersistentVolumeClaimSpec{
+			PersistentVolumeClaim: harvesterv1.PersistentVolumeClaimSpec{
 				Name:        pvc.ObjectMeta.Name,
 				Namespace:   pvc.ObjectMeta.Namespace,
 				Labels:      pvc.Labels,
@@ -172,7 +172,7 @@ func (h *Handler) createContent(vmBackup *harvesterapiv1.VirtualMachineBackup, v
 		volumeBackups = append(volumeBackups, vb)
 	}
 
-	content := &harvesterapiv1.VirtualMachineBackupContent{
+	content := &harvesterv1.VirtualMachineBackupContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      contentName,
 			Namespace: vmBackup.Namespace,
@@ -187,9 +187,9 @@ func (h *Handler) createContent(vmBackup *harvesterapiv1.VirtualMachineBackup, v
 				},
 			},
 		},
-		Spec: harvesterapiv1.VirtualMachineBackupContentSpec{
+		Spec: harvesterv1.VirtualMachineBackupContentSpec{
 			VirtualMachineBackupName: &vmBackup.Name,
-			Source: harvesterapiv1.SourceSpec{
+			Source: harvesterv1.SourceSpec{
 				Name:               vm.ObjectMeta.Name,
 				Namespace:          vm.ObjectMeta.Namespace,
 				VirtualMachineSpec: &vm.Spec,
@@ -222,10 +222,10 @@ func (h *Handler) getBackupPVC(namespace, name string) (*corev1.PersistentVolume
 	return pvc, nil
 }
 
-func (h *Handler) updateStatus(vmBackup *harvesterapiv1.VirtualMachineBackup, source *kv1.VirtualMachine) error {
+func (h *Handler) updateStatus(vmBackup *harvesterv1.VirtualMachineBackup, source *kv1.VirtualMachine) error {
 	var vmBackupCpy = vmBackup.DeepCopy()
 	if vmBackupCpy.Status == nil {
-		vmBackupCpy.Status = &harvesterapiv1.VirtualMachineBackupStatus{
+		vmBackupCpy.Status = &harvesterv1.VirtualMachineBackupStatus{
 			ReadyToUse: pointer.BoolPtr(false),
 		}
 	}
@@ -314,7 +314,7 @@ func volumeToPvcMappings(volumes []kv1.Volume) map[string]string {
 	return pvcs
 }
 
-func (h *Handler) updateContentChanged(key string, content *harvesterapiv1.VirtualMachineBackupContent) (*harvesterapiv1.VirtualMachineBackupContent, error) {
+func (h *Handler) updateContentChanged(key string, content *harvesterv1.VirtualMachineBackupContent) (*harvesterv1.VirtualMachineBackupContent, error) {
 	if content == nil || content.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -336,7 +336,7 @@ func (h *Handler) updateContentChanged(key string, content *harvesterapiv1.Virtu
 // resolveContentRef returns the controller referenced by a ControllerRef,
 // or nil if the ControllerRef could not be resolved to a matching controller
 // of the correct Kind.
-func (h *Handler) resolveContentRef(namespace string, controllerRef *metav1.OwnerReference) *harvesterapiv1.VirtualMachineBackup {
+func (h *Handler) resolveContentRef(namespace string, controllerRef *metav1.OwnerReference) *harvesterv1.VirtualMachineBackup {
 	// We can't look up by UID, so look up by Name and then verify UID.
 	// Don't even try to look up by Name if it's the wrong Kind.
 	if controllerRef.Kind != vmBackupKind.Kind {

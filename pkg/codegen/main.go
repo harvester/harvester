@@ -16,7 +16,7 @@ import (
 	kv1 "kubevirt.io/client-go/api/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
-	harv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 func main() {
@@ -25,19 +25,19 @@ func main() {
 		OutputPackage: "github.com/rancher/harvester/pkg/generated",
 		Boilerplate:   "scripts/boilerplate.go.txt",
 		Groups: map[string]args.Group{
-			"harvester.cattle.io": {
+			"harvesterhci.io": {
 				Types: []interface{}{
-					harv1.KeyPair{},
-					harv1.Preference{},
-					harv1.Setting{},
-					harv1.Upgrade{},
-					harv1.User{},
-					harv1.VirtualMachineBackup{},
-					harv1.VirtualMachineBackupContent{},
-					harv1.VirtualMachineRestore{},
-					harv1.VirtualMachineImage{},
-					harv1.VirtualMachineTemplate{},
-					harv1.VirtualMachineTemplateVersion{},
+					harvesterv1.KeyPair{},
+					harvesterv1.Preference{},
+					harvesterv1.Setting{},
+					harvesterv1.Upgrade{},
+					harvesterv1.User{},
+					harvesterv1.VirtualMachineBackup{},
+					harvesterv1.VirtualMachineBackupContent{},
+					harvesterv1.VirtualMachineRestore{},
+					harvesterv1.VirtualMachineImage{},
+					harvesterv1.VirtualMachineTemplate{},
+					harvesterv1.VirtualMachineTemplateVersion{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,

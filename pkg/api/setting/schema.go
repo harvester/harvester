@@ -11,7 +11,7 @@ import (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
 	t := schema.Template{
-		ID:        "harvester.cattle.io.setting",
+		ID:        "harvesterhci.io.setting",
 		Store:     proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		Customize: func(s *types.APISchema) {},
 	}

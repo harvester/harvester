@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 const (
@@ -24,7 +24,7 @@ type Handler struct {
 	v1.SecretCache
 }
 
-func (h *Handler) ServerURLOnChanged(key string, setting *v1alpha1.Setting) (*v1alpha1.Setting, error) {
+func (h *Handler) ServerURLOnChanged(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != "server-url" || setting.Value == "" {
 		return setting, nil
 	}
@@ -61,7 +61,7 @@ func (h *Handler) ServerURLOnChanged(key string, setting *v1alpha1.Setting) (*v1
 	return setting, err
 }
 
-func (h *Handler) LogLevelOnChanged(key string, setting *v1alpha1.Setting) (*v1alpha1.Setting, error) {
+func (h *Handler) LogLevelOnChanged(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != "log-level" || setting.Value == "" {
 		return setting, nil
 	}

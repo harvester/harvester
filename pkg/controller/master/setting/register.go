@@ -12,7 +12,7 @@ const (
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	secrets := management.CoreFactory.Core().V1().Secret()
-	settings := management.HarvesterFactory.Harvester().V1alpha1().Setting()
+	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	controller := &Handler{
 		SecretCache:  secrets.Cache(),
 		SecretClient: secrets,

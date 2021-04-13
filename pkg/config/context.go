@@ -23,7 +23,7 @@ import (
 	"github.com/rancher/harvester/pkg/auth/jwe"
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
 	"github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io"
-	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io"
 	cniv1 "github.com/rancher/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	"github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io"
 	longhornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io"
@@ -55,7 +55,7 @@ type Scaled struct {
 
 	VirtFactory              *kubevirt.Factory
 	CDIFactory               *cdi.Factory
-	HarvesterFactory         *harvester.Factory
+	HarvesterFactory         *ctlharvesterv1.Factory
 	CoreFactory              *corev1.Factory
 	AppsFactory              *appsv1.Factory
 	BatchFactory             *batchv1.Factory
@@ -76,7 +76,7 @@ type Management struct {
 
 	VirtFactory              *kubevirt.Factory
 	CDIFactory               *cdi.Factory
-	HarvesterFactory         *harvester.Factory
+	HarvesterFactory         *ctlharvesterv1.Factory
 	CoreFactory              *corev1.Factory
 	AppsFactory              *appsv1.Factory
 	BatchFactory             *batchv1.Factory
@@ -112,7 +112,7 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	scaled.CDIFactory = cdiFactory
 	scaled.starters = append(scaled.starters, cdiFactory)
 
-	harvesterFactory, err := harvester.NewFactoryFromConfigWithOptions(restConfig, opts)
+	harvesterFactory, err := ctlharvesterv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -206,7 +206,7 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.CDIFactory = cdiFactory
 	management.starters = append(management.starters, cdiFactory)
 
-	harv, err := harvester.NewFactoryFromConfigWithOptions(restConfig, opts)
+	harv, err := ctlharvesterv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return nil, err
 	}

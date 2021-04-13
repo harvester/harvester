@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/rancher/harvester/pkg/util/fakeclients"
 )
@@ -18,12 +18,12 @@ import (
 func TestUpgradeHandler_OnChanged(t *testing.T) {
 	type input struct {
 		key     string
-		upgrade *v1alpha1.Upgrade
+		upgrade *harvesterv1.Upgrade
 		nodes   []*v1.Node
 	}
 	type output struct {
 		plan    *upgradeapiv1.Plan
-		upgrade *v1alpha1.Upgrade
+		upgrade *harvesterv1.Upgrade
 		err     error
 	}
 	var testCases = []struct {
@@ -77,8 +77,8 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			namespace:     harvesterSystemNamespace,
 			nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
 			planClient:    fakeclients.PlanClient(clientset.UpgradeV1().Plans),
-			upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterV1alpha1().Upgrades),
-			upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterV1alpha1().Upgrades),
+			upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 		}
 		var actual output
 		var err error

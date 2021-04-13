@@ -12,8 +12,8 @@ const (
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
-	templates := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate()
-	templateVersions := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion()
+	templates := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
+	templateVersions := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
 
 	templateController := &templateHandler{
 		templates:            templates,

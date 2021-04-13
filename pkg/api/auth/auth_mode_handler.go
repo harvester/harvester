@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/settings"
 )
 
@@ -15,7 +15,7 @@ func ModeHandler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := json.Marshal(v1alpha1.AuthenticationModesResponse{Modes: authModes()})
+	body, err := json.Marshal(harvesterv1.AuthenticationModesResponse{Modes: authModes()})
 	if err != nil {
 		responseError(rw, http.StatusInternalServerError, "Failed to encode authenticationModes, "+err.Error())
 		return
@@ -25,19 +25,19 @@ func ModeHandler(rw http.ResponseWriter, r *http.Request) {
 	_, _ = rw.Write(body)
 }
 
-func authModes() []v1alpha1.AuthenticationMode {
+func authModes() []harvesterv1.AuthenticationMode {
 	ms := strings.Split(settings.AuthenticationMode.Get(), ",")
-	modes := make([]v1alpha1.AuthenticationMode, 0, len(ms))
+	modes := make([]harvesterv1.AuthenticationMode, 0, len(ms))
 	for _, v := range ms {
-		modes = append(modes, v1alpha1.AuthenticationMode(strings.TrimSpace(v)))
+		modes = append(modes, harvesterv1.AuthenticationMode(strings.TrimSpace(v)))
 	}
 	return modes
 }
 
 func enableKubernetesCredentials() bool {
-	return strings.Contains(settings.AuthenticationMode.Get(), string(v1alpha1.KubernetesCredentials))
+	return strings.Contains(settings.AuthenticationMode.Get(), string(harvesterv1.KubernetesCredentials))
 }
 
 func enableLocalUser() bool {
-	return strings.Contains(settings.AuthenticationMode.Get(), string(v1alpha1.LocalUser))
+	return strings.Contains(settings.AuthenticationMode.Get(), string(harvesterv1.LocalUser))
 }
