@@ -11,13 +11,13 @@ import (
 )
 
 const (
-	templateSchemaID        = "harvester.cattle.io.virtualmachinetemplate"
-	templateVersionSchemaID = "harvester.cattle.io.virtualmachinetemplateversion"
+	templateSchemaID        = "harvesterhci.io.virtualmachinetemplate"
+	templateVersionSchemaID = "harvesterhci.io.virtualmachinetemplateversion"
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
-	templates := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate()
-	templateVersionCache := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion().Cache()
+	templates := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
+	templateVersionCache := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache()
 	th := &templateLinkHandler{
 		templateVersionCache: templateVersionCache,
 	}
@@ -26,7 +26,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		Store:                proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		templateCache:        templates.Cache(),
 		templateVersionCache: templateVersionCache,
-		keyPairCache:         scaled.HarvesterFactory.Harvester().V1alpha1().KeyPair().Cache(),
+		keyPairCache:         scaled.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache(),
 	}
 
 	t := []schema.Template{

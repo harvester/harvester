@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	AnnotationSchemaOwnerKeyName = "harvester.cattle.io/owned-by"
+	AnnotationSchemaOwnerKeyName = "harvesterhci.io/owned-by"
 )
 
 // AnnotationSchemaReferences represents the reference collection.
@@ -45,7 +45,7 @@ type AnnotationSchemaReference struct {
 	References AnnotationSchemaReferences `json:"refs,omitempty"`
 }
 
-// AnnotationSchemaOwners structures the value recorded in "harvester.cattle.io/owned-by" annotation.
+// AnnotationSchemaOwners structures the value recorded in "harvesterhci.io/owned-by" annotation.
 type AnnotationSchemaOwners map[string]AnnotationSchemaReference
 
 func (o AnnotationSchemaOwners) String() string {

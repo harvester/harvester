@@ -5,16 +5,16 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 // Handler computes key pairs' fingerprints
 type Handler struct {
-	keyPairClient v1alpha1.KeyPairClient
+	keyPairClient ctlharvesterv1.KeyPairClient
 }
 
-func (h *Handler) OnKeyPairChanged(key string, keyPair *apisv1alpha1.KeyPair) (*apisv1alpha1.KeyPair, error) {
+func (h *Handler) OnKeyPairChanged(key string, keyPair *harvesterv1.KeyPair) (*harvesterv1.KeyPair, error) {
 	if keyPair == nil || keyPair.DeletionTimestamp != nil {
 		return keyPair, nil
 	}
@@ -27,12 +27,12 @@ func (h *Handler) OnKeyPairChanged(key string, keyPair *apisv1alpha1.KeyPair) (*
 	publicKey := []byte(keyPair.Spec.PublicKey)
 	pk, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
 	if err != nil {
-		apisv1alpha1.KeyPairValidated.False(toUpdate)
-		apisv1alpha1.KeyPairValidated.Reason(toUpdate, fmt.Sprintf("failed to parse the public key, error: %v", err))
+		harvesterv1.KeyPairValidated.False(toUpdate)
+		harvesterv1.KeyPairValidated.Reason(toUpdate, fmt.Sprintf("failed to parse the public key, error: %v", err))
 	} else {
 		fingerPrint := ssh.FingerprintLegacyMD5(pk)
 		toUpdate.Status.FingerPrint = fingerPrint
-		apisv1alpha1.KeyPairValidated.True(toUpdate)
+		harvesterv1.KeyPairValidated.True(toUpdate)
 	}
 	return h.keyPairClient.Update(toUpdate)
 }

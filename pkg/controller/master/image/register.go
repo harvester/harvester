@@ -13,7 +13,7 @@ const (
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
-	images := management.HarvesterFactory.Harvester().V1alpha1().VirtualMachineImage()
+	images := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	storageClasses := management.StorageFactory.Storage().V1().StorageClass()
 	backingImageStorageClassHandler := &handler{
 		storageClasses: storageClasses,

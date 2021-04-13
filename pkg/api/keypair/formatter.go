@@ -11,8 +11,8 @@ import (
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	v1alpha12 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/util"
 )
 
@@ -26,8 +26,8 @@ func CollectionFormatter(request *types.APIRequest, collection *types.GenericCol
 }
 
 type KeyGenActionHandler struct {
-	KeyPairs     v1alpha1.KeyPairClient
-	KeyPairCache v1alpha1.KeyPairCache
+	KeyPairs     ctlharvesterv1.KeyPairClient
+	KeyPairCache ctlharvesterv1.KeyPairCache
 	Namespace    string
 }
 
@@ -45,7 +45,7 @@ func (h KeyGenActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 }
 
 func (h KeyGenActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
-	input := &v1alpha12.KeyGenInput{}
+	input := &harvesterv1.KeyGenInput{}
 	if err := json.NewDecoder(req.Body).Decode(input); err != nil {
 		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to parse body: %v", err))
 	}
@@ -62,12 +62,12 @@ func (h KeyGenActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 		return err
 	}
 
-	keyPair := &v1alpha12.KeyPair{
+	keyPair := &harvesterv1.KeyPair{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      input.Name,
 			Namespace: h.Namespace,
 		},
-		Spec: v1alpha12.KeyPairSpec{
+		Spec: harvesterv1.KeyPairSpec{
 			PublicKey: string(publicKey),
 		},
 	}

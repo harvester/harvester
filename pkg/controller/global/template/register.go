@@ -9,8 +9,8 @@ import (
 )
 
 func Register(ctx context.Context, scaled *config.Scaled, server *server.Server, options config.Options) error {
-	templates := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplate()
-	templateVersions := scaled.HarvesterFactory.Harvester().V1alpha1().VirtualMachineTemplateVersion()
+	templates := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
+	templateVersions := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
 
 	return initData(templates, templateVersions, options.Namespace)
 }

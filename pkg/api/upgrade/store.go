@@ -6,19 +6,19 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 const (
 	stateUpgrading    = "Upgrading"
-	upgradeStateLabel = "harvester.cattle.io/upgradeState"
+	upgradeStateLabel = "harvesterhci.io/upgradeState"
 )
 
 // store block upgrade creation if there's any ongoing upgrade
 type store struct {
 	namespace string
 	types.Store
-	upgradeCache v1alpha1.UpgradeCache
+	upgradeCache ctlharvesterv1.UpgradeCache
 }
 
 func (s *store) Create(request *types.APIRequest, schema *types.APISchema, data types.APIObject) (types.APIObject, error) {

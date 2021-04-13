@@ -28,7 +28,7 @@ const (
 	KubeMasterNodeLabelKey       = KubeNodeRoleLabelPrefix + "master"
 	KubeControlPlaneNodeLabelKey = KubeNodeRoleLabelPrefix + "control-plane"
 
-	HarvesterLabelAnnotationPrefix      = "harvester.cattle.io/"
+	HarvesterLabelAnnotationPrefix      = "harvesterhci.io/"
 	HarvesterManagedNodeLabelKey        = HarvesterLabelAnnotationPrefix + "managed"
 	HarvesterPromoteNodeLabelKey        = HarvesterLabelAnnotationPrefix + "promote-node"
 	HarvesterPromoteStatusAnnotationKey = HarvesterLabelAnnotationPrefix + "promote-status"

@@ -3,7 +3,6 @@ package userpreferences
 import (
 	"github.com/rancher/apiserver/pkg/store/empty"
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/harvester/pkg/auth"
 	"github.com/rancher/steve/pkg/attributes"
 	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/wrangler/pkg/data/convert"
@@ -12,11 +11,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
+
+	"github.com/rancher/harvester/pkg/auth"
 )
 
 const (
 	rancherSchema   = "management.cattle.io.preference"
-	harvesterSchema = "harvester.cattle.io.preference"
+	harvesterSchema = "harvesterhci.io.preference"
 )
 
 func getPreferenceSchema() string {

@@ -1,7 +1,7 @@
 package util
 
 const (
-	prefix                          = "harvester.cattle.io"
+	prefix                          = "harvesterhci.io"
 	RemovedDataVolumesAnnotationKey = prefix + "/removedDataVolumes"
 	AnnotationMigrationTarget       = prefix + "/migrationTargetNodeName"
 	AnnotationMigrationUID          = prefix + "/migrationUID"

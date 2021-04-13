@@ -7,20 +7,20 @@ import (
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/config"
 	"github.com/rancher/harvester/pkg/ref"
 )
 
 const (
-	UserNameIndex           = "auth.harvester.cattle.io/user-username-index"
-	RbByRoleAndSubjectIndex = "auth.harvester.cattle.io/crb-by-role-and-subject"
-	DataVolumeByVMIndex     = "cdi.harvester.cattle.io/datavolume-by-vm"
-	VMByNetworkIndex        = "vm.harvester.cattle.io/vm-by-network"
+	UserNameIndex           = "auth.harvesterhci.io/user-username-index"
+	RbByRoleAndSubjectIndex = "auth.harvesterhci.io/crb-by-role-and-subject"
+	DataVolumeByVMIndex     = "cdi.harvesterhci.io/datavolume-by-vm"
+	VMByNetworkIndex        = "vm.harvesterhci.io/vm-by-network"
 )
 
 func RegisterScaledIndexers(scaled *config.Scaled) {
-	userInformer := scaled.Management.HarvesterFactory.Harvester().V1alpha1().User().Cache()
+	userInformer := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().User().Cache()
 	userInformer.AddIndexer(UserNameIndex, indexUserByUsername)
 	vmInformer := scaled.Management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(VMByNetworkIndex, vmByNetwork)
@@ -33,7 +33,7 @@ func RegisterManagementIndexers(management *config.Management) {
 	dataVolumeInformer.AddIndexer(DataVolumeByVMIndex, dataVolumeByVM)
 }
 
-func indexUserByUsername(obj *v1alpha1.User) ([]string, error) {
+func indexUserByUsername(obj *harvesterv1.User) ([]string, error) {
 	return []string{obj.Username}, nil
 }
 

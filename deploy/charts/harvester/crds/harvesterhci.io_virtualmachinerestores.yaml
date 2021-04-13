@@ -6,9 +6,9 @@ metadata:
   annotations:
     {}
   creationTimestamp: null
-  name: virtualmachinerestores.harvester.cattle.io
+  name: virtualmachinerestores.harvesterhci.io
 spec:
-  group: harvester.cattle.io
+  group: harvesterhci.io
   names:
     kind: VirtualMachineRestore
     listKind: VirtualMachineRestoreList
@@ -35,7 +35,7 @@ spec:
     - jsonPath: .status.error.message
       name: ERROR
       type: date
-    name: v1alpha1
+    name: v1beta1
     schema:
       openAPIV3Schema:
         properties:

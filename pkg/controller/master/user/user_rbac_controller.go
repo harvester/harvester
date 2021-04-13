@@ -7,26 +7,25 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	apisv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	ctlapisv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/rancher/harvester/pkg/indexeres"
 )
 
 const (
-	usernameLabelKey     = "harvester.cattle.io/username"
+	usernameLabelKey     = "harvesterhci.io/username"
 	adminRole            = "cluster-admin"
 	publicInfoViewerRole = "system:public-info-viewer"
 )
 
 // userHandler reconcile clusterRole and clusterRoleBinding to k8s cluster
 type userRBACHandler struct {
-	users                   ctlapisv1alpha1.UserClient
+	users                   ctlharvesterv1.UserClient
 	clusterRoleBindings     ctlrbacv1.ClusterRoleBindingClient
 	clusterRoleBindingCache ctlrbacv1.ClusterRoleBindingCache
 }
 
-func (h *userRBACHandler) OnChanged(key string, user *apisv1alpha1.User) (*apisv1alpha1.User, error) {
+func (h *userRBACHandler) OnChanged(key string, user *harvesterv1.User) (*harvesterv1.User, error) {
 	if user == nil || user.DeletionTimestamp != nil {
 		return user, nil
 	}
@@ -39,14 +38,14 @@ func (h *userRBACHandler) OnChanged(key string, user *apisv1alpha1.User) (*apisv
 	return user, h.ensureClusterBinding(roleName, user)
 }
 
-func buildSubjectFromUser(user *apisv1alpha1.User) k8srbacv1.Subject {
+func buildSubjectFromUser(user *harvesterv1.User) k8srbacv1.Subject {
 	return k8srbacv1.Subject{
 		Kind: "User",
 		Name: user.Name,
 	}
 }
 
-func (h *userRBACHandler) ensureClusterBinding(roleName string, user *apisv1alpha1.User) error {
+func (h *userRBACHandler) ensureClusterBinding(roleName string, user *harvesterv1.User) error {
 	subject := buildSubjectFromUser(user)
 	key := indexeres.RbRoleSubjectKey(roleName, subject)
 	crbs, err := h.clusterRoleBindingCache.GetByIndex(indexeres.RbByRoleAndSubjectIndex, key)
@@ -91,7 +90,7 @@ func (h *userRBACHandler) ensureClusterBinding(roleName string, user *apisv1alph
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					APIVersion: harvesterv1.SchemeGroupVersion.String(),
 					Kind:       "User",
 					Name:       user.Name,
 					UID:        user.UID,

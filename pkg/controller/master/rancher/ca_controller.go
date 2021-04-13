@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	sett "github.com/rancher/harvester/pkg/controller/master/setting"
-	harvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
+	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 const (
@@ -40,7 +40,7 @@ type Handler struct {
 	Secrets         corev1.SecretClient
 	SecretCache     corev1.SecretCache
 	RancherSettings rancherv3.SettingClient
-	Settings        harvesterv1.SettingClient
+	Settings        ctlharvesterv1.SettingClient
 	NodeDrivers     rancherv3.NodeDriverClient
 }
 
