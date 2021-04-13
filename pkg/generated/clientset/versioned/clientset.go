@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	cdiv1beta1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
-	harvesterv1alpha1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvester.cattle.io/v1alpha1"
+	harvesterhciv1beta1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	k8scnicncfiov1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 	kubevirtv1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	snapshotv1beta1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1"
@@ -35,7 +35,7 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	CdiV1beta1() cdiv1beta1.CdiV1beta1Interface
-	HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface
+	HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
 	KubevirtV1() kubevirtv1.KubevirtV1Interface
 	SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface
@@ -46,12 +46,12 @@ type Interface interface {
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	cdiV1beta1        *cdiv1beta1.CdiV1beta1Client
-	harvesterV1alpha1 *harvesterv1alpha1.HarvesterV1alpha1Client
-	k8sCniCncfIoV1    *k8scnicncfiov1.K8sCniCncfIoV1Client
-	kubevirtV1        *kubevirtv1.KubevirtV1Client
-	snapshotV1beta1   *snapshotv1beta1.SnapshotV1beta1Client
-	upgradeV1         *upgradev1.UpgradeV1Client
+	cdiV1beta1          *cdiv1beta1.CdiV1beta1Client
+	harvesterhciV1beta1 *harvesterhciv1beta1.HarvesterhciV1beta1Client
+	k8sCniCncfIoV1      *k8scnicncfiov1.K8sCniCncfIoV1Client
+	kubevirtV1          *kubevirtv1.KubevirtV1Client
+	snapshotV1beta1     *snapshotv1beta1.SnapshotV1beta1Client
+	upgradeV1           *upgradev1.UpgradeV1Client
 }
 
 // CdiV1beta1 retrieves the CdiV1beta1Client
@@ -59,9 +59,9 @@ func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
 	return c.cdiV1beta1
 }
 
-// HarvesterV1alpha1 retrieves the HarvesterV1alpha1Client
-func (c *Clientset) HarvesterV1alpha1() harvesterv1alpha1.HarvesterV1alpha1Interface {
-	return c.harvesterV1alpha1
+// HarvesterhciV1beta1 retrieves the HarvesterhciV1beta1Client
+func (c *Clientset) HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface {
+	return c.harvesterhciV1beta1
 }
 
 // K8sCniCncfIoV1 retrieves the K8sCniCncfIoV1Client
@@ -109,7 +109,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
-	cs.harvesterV1alpha1, err = harvesterv1alpha1.NewForConfig(&configShallowCopy)
+	cs.harvesterhciV1beta1, err = harvesterhciv1beta1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.cdiV1beta1 = cdiv1beta1.NewForConfigOrDie(c)
-	cs.harvesterV1alpha1 = harvesterv1alpha1.NewForConfigOrDie(c)
+	cs.harvesterhciV1beta1 = harvesterhciv1beta1.NewForConfigOrDie(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.NewForConfigOrDie(c)
 	cs.kubevirtV1 = kubevirtv1.NewForConfigOrDie(c)
 	cs.snapshotV1beta1 = snapshotv1beta1.NewForConfigOrDie(c)
@@ -156,7 +156,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.cdiV1beta1 = cdiv1beta1.New(c)
-	cs.harvesterV1alpha1 = harvesterv1alpha1.New(c)
+	cs.harvesterhciV1beta1 = harvesterhciv1beta1.New(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
 	cs.kubevirtV1 = kubevirtv1.New(c)
 	cs.snapshotV1beta1 = snapshotv1beta1.New(c)
