@@ -6,9 +6,9 @@ metadata:
   annotations:
     {}
   creationTimestamp: null
-  name: nodenetworks.network.harvester.cattle.io
+  name: nodenetworks.network.harvesterhci.io
 spec:
-  group: network.harvester.cattle.io
+  group: network.harvesterhci.io
   names:
     kind: NodeNetwork
     listKind: NodeNetworkList
@@ -32,7 +32,7 @@ spec:
     - jsonPath: .spec.nic
       name: NIC
       type: string
-    name: v1alpha1
+    name: v1beta1
     schema:
       openAPIV3Schema:
         properties:
