@@ -22,7 +22,7 @@ package v1
 //go:generate swagger-doc
 //go:generate deepcopy-gen -i . --go-header-file ../../../../../../hack/boilerplate/boilerplate.go.txt
 //go:generate defaulter-gen -i . --go-header-file ../../../../../../hack/boilerplate/boilerplate.go.txt
-//go:generate openapi-gen -i kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,k8s.io/apimachinery/pkg/util/intstr,k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,kubevirt.io/client-go/api/v1 --output-package=kubevirt.io/kubevirt/staging/src/kubevirt.io/client-go/api/v1  --go-header-file ../../../../../../hack/boilerplate/boilerplate.go.txt
+//go:generate openapi-gen -i kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,k8s.io/apimachinery/pkg/util/intstr,k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,kubevirt.io/client-go/api/v1,github.com/openshift/api/operator/v1 --output-package=kubevirt.io/kubevirt/staging/src/kubevirt.io/client-go/api/v1  --go-header-file ../../../../../../hack/boilerplate/boilerplate.go.txt
 
 /*
  ATTENTION: Rerun code generators when comments on structs or fields are modified.
@@ -37,6 +37,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+
+	operatorsv1 "github.com/openshift/api/operator/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
@@ -184,6 +186,9 @@ type VirtualMachineInstanceStatus struct {
 	// More info: https://git.k8s.io/community/contributors/design-proposals/node/resource-qos.md
 	// +optional
 	QOSClass *k8sv1.PodQOSClass `json:"qosClass,omitempty"`
+
+	// LauncherContainerImageVersion indicates what container image is currently active for the vmi.
+	LauncherContainerImageVersion string `json:"launcherContainerImageVersion,omitempty"`
 
 	// EvacuationNodeName is used to track the eviction process of a VMI. It stores the name of the node that we want
 	// to evacuate. It is meant to be used by KubeVirt core components only and can't be set or modified by users.
@@ -571,6 +576,9 @@ const (
 	// This annotation indicates that a migration is the result of an
 	// automated evacuation
 	EvacuationMigrationAnnotation string = "kubevirt.io/evacuationMigration"
+	// This annotation indicates that a migration is the result of an
+	// automated workload update
+	WorkloadUpdateMigrationAnnotation string = "kubevirt.io/workloadUpdateMigration"
 	// This label declares whether a particular node is available for
 	// scheduling virtual machine instances on it. Used on Node.
 	NodeSchedulable string = "kubevirt.io/schedulable"
@@ -578,6 +586,8 @@ const (
 	// if a particular node is alive and hence should be available for new
 	// virtual machine instance scheduling. Used on Node.
 	VirtHandlerHeartbeat string = "kubevirt.io/heartbeat"
+	// This label indicates what launcher image a VMI is currently running with.
+	OutdatedLauncherImageLabel string = "kubevirt.io/outdatedLauncherImage"
 	// Namespace recommended by Kubernetes for commonly recognized labels
 	AppLabelPrefix = "app.kubernetes.io"
 	// This label is commonly used by 3rd party management tools to identify
@@ -603,6 +613,8 @@ const (
 	InstallStrategyRegistryAnnotation = "kubevirt.io/install-strategy-registry"
 	// This annotation represents the kubevirt deployment identifier used for an install strategy configmap.
 	InstallStrategyIdentifierAnnotation = "kubevirt.io/install-strategy-identifier"
+	// This annotation shows the enconding used for the manifests in the Install Strategy ConfigMap.
+	InstallStrategyConfigMapEncoding = "kubevirt.io/install-strategy-cm-encoding"
 	// This annotation is a hash of all customizations that live under spec.CustomizeComponents
 	KubeVirtCustomizeComponentAnnotationHash = "kubevirt.io/customizer-identifier"
 	// This annotation represents the kubevirt generation that was used to create a resource
@@ -623,8 +635,17 @@ const (
 	IgnitionAnnotation           string = "kubevirt.io/ignitiondata"
 	PlacePCIDevicesOnRootComplex string = "kubevirt.io/placePCIDevicesOnRootComplex"
 
+	// This label represents supported cpu features on the node
+	CPUFeatureLabel = "cpu-feature.node.kubevirt.io/"
+	// This laberepresents supported cpu models on the node
+	CPUModelLabel = "cpu-model.node.kubevirt.io/"
+	// This label represents supported HyperV features on the node
+	HypervLabel = "hyperv.node.kubevirt.io/"
+
 	VirtualMachineLabel        = AppLabel + "/vm"
 	MemfdMemoryBackend  string = "kubevirt.io/memfd"
+
+	MigrationSelectorLabel = "kubevirt.io/vmi-name"
 )
 
 func NewVMI(name string, uid types.UID) *VirtualMachineInstance {
@@ -930,6 +951,8 @@ const (
 	MigrationFailed VirtualMachineInstanceMigrationPhase = "Failed"
 )
 
+// VirtualMachineInstancePreset defines a VMI spec.domain to be applied to all VMIs that match the provided label selector
+// More info: https://kubevirt.io/user-guide/virtual_machines/presets/#overrides
 //
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +k8s:openapi-gen=true
@@ -1300,6 +1323,57 @@ type KubeVirtCertificateRotateStrategy struct {
 
 //
 // +k8s:openapi-gen=true
+type WorkloadUpdateMethod string
+
+const (
+	// WorkloadUpdateMethodLiveMigrate allows VMIs which are capable of being
+	// migrated to automatically migrate during automated workload updates.
+	WorkloadUpdateMethodLiveMigrate WorkloadUpdateMethod = "LiveMigrate"
+	// WorkloadUpdateMethodEvict results in a VMI's pod being evicted. Unless the
+	// pod has a pod disruption budget allocated, the eviction will usually result in
+	// the VMI being shutdown.
+	// Depending on whether a VMI is backed by a VM or not, this will either result
+	// in a restart of the VM by rescheduling a new VMI, or the shutdown via eviction
+	// of a standalone VMI object.
+	WorkloadUpdateMethodEvict WorkloadUpdateMethod = "Evict"
+)
+
+//
+// KubeVirtWorkloadUpdateStrategy defines options related to updating a KubeVirt install
+//
+// +k8s:openapi-gen=true
+type KubeVirtWorkloadUpdateStrategy struct {
+	// WorkloadUpdateMethods defines the methods that can be used to disrupt workloads
+	// during automated workload updates.
+	// When multiple methods are present, the least disruptive method takes
+	// precedence over more disruptive methods. For example if both LiveMigrate and Shutdown
+	// methods are listed, only VMs which are not live migratable will be restarted/shutdown
+	//
+	// An empty list defaults to no automated workload updating
+	//
+	// +listType=atomic
+	// +optional
+	WorkloadUpdateMethods []WorkloadUpdateMethod `json:"workloadUpdateMethods,omitempty"`
+
+	// BatchEvictionSize Represents the number of VMIs that can be forced updated per
+	// the BatchShutdownInteral interval
+	//
+	// Defaults to 10
+	//
+	// +optional
+	BatchEvictionSize *int `json:"batchEvictionSize,omitempty"`
+
+	// BatchEvictionInterval Represents the interval to wait before issuing the next
+	// batch of shutdowns
+	//
+	// Defaults to 1 minute
+	//
+	// +optional
+	BatchEvictionInterval *metav1.Duration `json:"batchEvictionInterval,omitempty"`
+}
+
+//
+// +k8s:openapi-gen=true
 type KubeVirtSpec struct {
 	// The image tag to use for the continer images installed.
 	// Defaults to the same tag as the operator's container image.
@@ -1318,6 +1392,10 @@ type KubeVirtSpec struct {
 	// The name of the Prometheus service account that needs read-access to KubeVirt endpoints
 	// Defaults to prometheus-k8s
 	MonitorAccount string `json:"monitorAccount,omitempty"`
+
+	// WorkloadUpdateStrategy defines at the cluster level how to handle
+	// automated workload updates
+	WorkloadUpdateStrategy KubeVirtWorkloadUpdateStrategy `json:"workloadUpdateStrategy,omitempty"`
 
 	// Specifies if kubevirt can be deleted if workloads are still present.
 	// This is mainly a precaution to avoid accidental data loss
@@ -1358,10 +1436,12 @@ type CustomizeComponents struct {
 
 // +k8s:openapi-gen=true
 type CustomizeComponentsPatch struct {
-	ResourceName string    `json:"resourceName,omitempty"`
-	ResourceType string    `json:"resourceType,omitempty"`
-	Patch        string    `json:"patch,omitempty"`
-	Type         PatchType `json:"type,omitempty"`
+	// +kubebuilder:validation:MinLength=1
+	ResourceName string `json:"resourceName"`
+	// +kubebuilder:validation:MinLength=1
+	ResourceType string    `json:"resourceType"`
+	Patch        string    `json:"patch"`
+	Type         PatchType `json:"type"`
 }
 
 type PatchType string
@@ -1383,17 +1463,20 @@ const (
 //
 // +k8s:openapi-gen=true
 type KubeVirtStatus struct {
-	Phase                    KubeVirtPhase       `json:"phase,omitempty"`
-	Conditions               []KubeVirtCondition `json:"conditions,omitempty" optional:"true"`
-	OperatorVersion          string              `json:"operatorVersion,omitempty" optional:"true"`
-	TargetKubeVirtRegistry   string              `json:"targetKubeVirtRegistry,omitempty" optional:"true"`
-	TargetKubeVirtVersion    string              `json:"targetKubeVirtVersion,omitempty" optional:"true"`
-	TargetDeploymentConfig   string              `json:"targetDeploymentConfig,omitempty" optional:"true"`
-	TargetDeploymentID       string              `json:"targetDeploymentID,omitempty" optional:"true"`
-	ObservedKubeVirtRegistry string              `json:"observedKubeVirtRegistry,omitempty" optional:"true"`
-	ObservedKubeVirtVersion  string              `json:"observedKubeVirtVersion,omitempty" optional:"true"`
-	ObservedDeploymentConfig string              `json:"observedDeploymentConfig,omitempty" optional:"true"`
-	ObservedDeploymentID     string              `json:"observedDeploymentID,omitempty" optional:"true"`
+	Phase                                   KubeVirtPhase       `json:"phase,omitempty"`
+	Conditions                              []KubeVirtCondition `json:"conditions,omitempty" optional:"true"`
+	OperatorVersion                         string              `json:"operatorVersion,omitempty" optional:"true"`
+	TargetKubeVirtRegistry                  string              `json:"targetKubeVirtRegistry,omitempty" optional:"true"`
+	TargetKubeVirtVersion                   string              `json:"targetKubeVirtVersion,omitempty" optional:"true"`
+	TargetDeploymentConfig                  string              `json:"targetDeploymentConfig,omitempty" optional:"true"`
+	TargetDeploymentID                      string              `json:"targetDeploymentID,omitempty" optional:"true"`
+	ObservedKubeVirtRegistry                string              `json:"observedKubeVirtRegistry,omitempty" optional:"true"`
+	ObservedKubeVirtVersion                 string              `json:"observedKubeVirtVersion,omitempty" optional:"true"`
+	ObservedDeploymentConfig                string              `json:"observedDeploymentConfig,omitempty" optional:"true"`
+	ObservedDeploymentID                    string              `json:"observedDeploymentID,omitempty" optional:"true"`
+	OutdatedVirtualMachineInstanceWorkloads *int                `json:"outdatedVirtualMachineInstanceWorkloads,omitempty" optional:"true"`
+	// +listType=atomic
+	Generations []operatorsv1.GenerationStatus `json:"generations,omitempty" optional:"true"`
 }
 
 // KubeVirtPhase is a label for the phase of a KubeVirt deployment at the current time.
@@ -1500,7 +1583,6 @@ type VirtualMachineInstanceGuestOSUserList struct {
 
 // VirtualMachineGuestOSUser is the single user of the guest os
 // +k8s:openapi-gen=true
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type VirtualMachineInstanceGuestOSUser struct {
 	UserName  string  `json:"userName"`
 	Domain    string  `json:"domain,omitempty"`
@@ -1578,6 +1660,8 @@ type KubeVirtConfiguration struct {
 	SupportedGuestAgentVersions []string                `json:"supportedGuestAgentVersions,omitempty"`
 	MemBalloonStatsPeriod       *uint32                 `json:"memBalloonStatsPeriod,omitempty"`
 	PermittedHostDevices        *PermittedHostDevices   `json:"permittedHostDevices,omitempty"`
+	MinCPUModel                 string                  `json:"minCPUModel,omitempty"`
+	ObsoleteCPUModels           map[string]bool         `json:"obsoleteCPUModels,omitempty"`
 }
 
 //
