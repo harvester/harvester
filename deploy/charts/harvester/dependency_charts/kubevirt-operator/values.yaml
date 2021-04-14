@@ -58,7 +58,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: v0.38.1
+      tag: v0.40.0
 
     ## Specify the command.
     ##

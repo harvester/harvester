@@ -341,6 +341,12 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - pods/eviction
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
   - nodes
   verbs:
   - get
@@ -348,6 +354,12 @@ rules:
   - watch
   - update
   - patch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - list
 - apiGroups:
   - ""
   resources:
@@ -455,6 +467,17 @@ rules:
   - nodes
   verbs:
   - patch
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -605,6 +628,13 @@ rules:
   - patch
   - list
   - watch
+- apiGroups:
+  - kubevirt.io
+  resources:
+  - kubevirts
+  verbs:
+  - get
+  - list
 - apiGroups:
   - kubevirt.io
   resources:
