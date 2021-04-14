@@ -31,7 +31,8 @@ To get the Harvester server up and running the following minimum hardware is req
 |:---|:---|
 | CPU | 4 cores minimum, 16 cores or above preferred |
 | Memory | 8 GB minimum, 32 GB or above preferred |
-| Disk |  120 GB minimum, 500 GB or above preferred |
+| Disk Capacity |  120 GB minimum, 500 GB or above preferred |
+| Disk Performance |  Management nodes (first 3 nodes) must be [fast enough for Etcd](https://www.ibm.com/cloud/blog/using-fio-to-tell-whether-your-storage-is-fast-enough-for-etcd), SSD recommended |
 | Network Card | 1 Gbps Ethernet minimum, 10Gbps Ethernet recommended |
 | Network Switch | Trunking of ports required for VLAN support |
 
