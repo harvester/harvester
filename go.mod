@@ -40,7 +40,7 @@ replace (
 	k8s.io/mount-utils => k8s.io/mount-utils v0.20.4
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.4
 
-	kubevirt.io/client-go => github.com/rancher/kubevirt-client-go v0.20.2-0.20210226083314-113aa8c70a95
+	kubevirt.io/client-go => github.com/kubevirt/client-go v0.40.0-rc.2
 	kubevirt.io/containerized-data-importer => github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210303063201-9e7a78643487
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2
 )
@@ -81,7 +81,6 @@ require (
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	golang.org/x/tools v0.1.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	helm.sh/helm/v3 v3.5.2
@@ -93,9 +92,9 @@ require (
 	k8s.io/gengo v0.0.0-20201113003025-83324d819ded
 	k8s.io/kubernetes v1.20.2
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
-	kubevirt.io/client-go v0.38.1
+	kubevirt.io/client-go v0.40.0-rc.2
 	kubevirt.io/containerized-data-importer v1.31.0
-	kubevirt.io/kubevirt v0.38.1
+	kubevirt.io/kubevirt v0.40.0
 	sigs.k8s.io/kind v0.9.0
 	sigs.k8s.io/yaml v1.2.0
 )
