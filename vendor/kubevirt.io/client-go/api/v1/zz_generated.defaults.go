@@ -96,7 +96,10 @@ func SetObjectDefaults_VirtualMachine(in *VirtualMachine) {
 					SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.Hyperv.SyNIC)
 				}
 				if in.Spec.Template.Spec.Domain.Features.Hyperv.SyNICTimer != nil {
-					SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.Hyperv.SyNICTimer)
+					SetDefaults_SyNICTimer(in.Spec.Template.Spec.Domain.Features.Hyperv.SyNICTimer)
+					if in.Spec.Template.Spec.Domain.Features.Hyperv.SyNICTimer.Direct != nil {
+						SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.Hyperv.SyNICTimer.Direct)
+					}
 				}
 				if in.Spec.Template.Spec.Domain.Features.Hyperv.Reset != nil {
 					SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.Hyperv.Reset)
@@ -122,6 +125,9 @@ func SetObjectDefaults_VirtualMachine(in *VirtualMachine) {
 			}
 			if in.Spec.Template.Spec.Domain.Features.SMM != nil {
 				SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.SMM)
+			}
+			if in.Spec.Template.Spec.Domain.Features.Pvspinlock != nil {
+				SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.Pvspinlock)
 			}
 		}
 		for i := range in.Spec.Template.Spec.Domain.Devices.Disks {
@@ -206,7 +212,10 @@ func SetObjectDefaults_VirtualMachineInstance(in *VirtualMachineInstance) {
 				SetDefaults_FeatureState(in.Spec.Domain.Features.Hyperv.SyNIC)
 			}
 			if in.Spec.Domain.Features.Hyperv.SyNICTimer != nil {
-				SetDefaults_FeatureState(in.Spec.Domain.Features.Hyperv.SyNICTimer)
+				SetDefaults_SyNICTimer(in.Spec.Domain.Features.Hyperv.SyNICTimer)
+				if in.Spec.Domain.Features.Hyperv.SyNICTimer.Direct != nil {
+					SetDefaults_FeatureState(in.Spec.Domain.Features.Hyperv.SyNICTimer.Direct)
+				}
 			}
 			if in.Spec.Domain.Features.Hyperv.Reset != nil {
 				SetDefaults_FeatureState(in.Spec.Domain.Features.Hyperv.Reset)
@@ -232,6 +241,9 @@ func SetObjectDefaults_VirtualMachineInstance(in *VirtualMachineInstance) {
 		}
 		if in.Spec.Domain.Features.SMM != nil {
 			SetDefaults_FeatureState(in.Spec.Domain.Features.SMM)
+		}
+		if in.Spec.Domain.Features.Pvspinlock != nil {
+			SetDefaults_FeatureState(in.Spec.Domain.Features.Pvspinlock)
 		}
 	}
 	for i := range in.Spec.Domain.Devices.Disks {
@@ -308,7 +320,10 @@ func SetObjectDefaults_VirtualMachineInstancePreset(in *VirtualMachineInstancePr
 					SetDefaults_FeatureState(in.Spec.Domain.Features.Hyperv.SyNIC)
 				}
 				if in.Spec.Domain.Features.Hyperv.SyNICTimer != nil {
-					SetDefaults_FeatureState(in.Spec.Domain.Features.Hyperv.SyNICTimer)
+					SetDefaults_SyNICTimer(in.Spec.Domain.Features.Hyperv.SyNICTimer)
+					if in.Spec.Domain.Features.Hyperv.SyNICTimer.Direct != nil {
+						SetDefaults_FeatureState(in.Spec.Domain.Features.Hyperv.SyNICTimer.Direct)
+					}
 				}
 				if in.Spec.Domain.Features.Hyperv.Reset != nil {
 					SetDefaults_FeatureState(in.Spec.Domain.Features.Hyperv.Reset)
@@ -334,6 +349,9 @@ func SetObjectDefaults_VirtualMachineInstancePreset(in *VirtualMachineInstancePr
 			}
 			if in.Spec.Domain.Features.SMM != nil {
 				SetDefaults_FeatureState(in.Spec.Domain.Features.SMM)
+			}
+			if in.Spec.Domain.Features.Pvspinlock != nil {
+				SetDefaults_FeatureState(in.Spec.Domain.Features.Pvspinlock)
 			}
 		}
 		for i := range in.Spec.Domain.Devices.Disks {
@@ -411,7 +429,10 @@ func SetObjectDefaults_VirtualMachineInstanceReplicaSet(in *VirtualMachineInstan
 					SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.Hyperv.SyNIC)
 				}
 				if in.Spec.Template.Spec.Domain.Features.Hyperv.SyNICTimer != nil {
-					SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.Hyperv.SyNICTimer)
+					SetDefaults_SyNICTimer(in.Spec.Template.Spec.Domain.Features.Hyperv.SyNICTimer)
+					if in.Spec.Template.Spec.Domain.Features.Hyperv.SyNICTimer.Direct != nil {
+						SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.Hyperv.SyNICTimer.Direct)
+					}
 				}
 				if in.Spec.Template.Spec.Domain.Features.Hyperv.Reset != nil {
 					SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.Hyperv.Reset)
@@ -437,6 +458,9 @@ func SetObjectDefaults_VirtualMachineInstanceReplicaSet(in *VirtualMachineInstan
 			}
 			if in.Spec.Template.Spec.Domain.Features.SMM != nil {
 				SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.SMM)
+			}
+			if in.Spec.Template.Spec.Domain.Features.Pvspinlock != nil {
+				SetDefaults_FeatureState(in.Spec.Template.Spec.Domain.Features.Pvspinlock)
 			}
 		}
 		for i := range in.Spec.Template.Spec.Domain.Devices.Disks {

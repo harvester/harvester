@@ -25,7 +25,7 @@ import (
 	virtv1 "kubevirt.io/client-go/api/v1"
 )
 
-func GetAllCluster(namespace string) []interface{} {
+func GetAllCluster() []interface{} {
 	return []interface{}{
 		newDefaultClusterRole(),
 		newDefaultClusterRoleBinding(),
@@ -268,6 +268,17 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch",
+				},
+			},
+			{
+				APIGroups: []string{
+					"kubevirt.io",
+				},
+				Resources: []string{
+					"kubevirts",
+				},
+				Verbs: []string{
+					"get", "list",
 				},
 			},
 		},
