@@ -6,7 +6,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	"kubevirt.io/kubevirt/pkg/virt-operator/creation/rbac"
+	"kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/rbac"
 )
 
 func VirtClientUpdateVmi(ctx context.Context, client rest.Interface, managementNamespace, namespace, name string, obj runtime.Object) error {
