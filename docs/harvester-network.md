@@ -1,7 +1,6 @@
 ## Introduction of The Harvester network
 
 ### Table of Contents
-* [Introduction of The Harvester network](#introduction-of-the-harvester-network)
   * [Summary](#summary)
   * [Implementation](#implementation)
     * [Management Network](#management-network)
