@@ -418,6 +418,9 @@ github.com/opencontainers/go-digest
 # github.com/opencontainers/image-spec v1.0.2-0.20190823105129-775207bd45b6
 github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/image-spec/specs-go/v1
+# github.com/openshift/api v0.0.0 => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
+github.com/openshift/api/config/v1
+github.com/openshift/api/operator/v1
 # github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
 github.com/openshift/custom-resource-status/conditions/v1
 # github.com/pborman/uuid v1.2.0
@@ -1476,7 +1479,7 @@ k8s.io/utils/integer
 k8s.io/utils/path
 k8s.io/utils/pointer
 k8s.io/utils/trace
-# kubevirt.io/client-go v0.38.1 => github.com/rancher/kubevirt-client-go v0.20.2-0.20210226083314-113aa8c70a95
+# kubevirt.io/client-go v0.40.0-rc.2 => github.com/kubevirt/client-go v0.40.0-rc.2
 kubevirt.io/client-go/api/v1
 kubevirt.io/client-go/precond
 # kubevirt.io/containerized-data-importer v1.31.0 => github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210303063201-9e7a78643487
@@ -1485,8 +1488,8 @@ kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1
 kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1
 # kubevirt.io/controller-lifecycle-operator-sdk v0.1.2
 kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api
-# kubevirt.io/kubevirt v0.38.1
-kubevirt.io/kubevirt/pkg/virt-operator/creation/rbac
+# kubevirt.io/kubevirt v0.40.0
+kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/rbac
 # sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.14
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/proto/client

@@ -44,6 +44,14 @@ func (ServiceAccountVolumeSource) SwaggerDoc() map[string]string {
 	}
 }
 
+func (SysprepSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":          "Represents a Sysprep volume source.\n\n+k8s:openapi-gen=true",
+		"secret":    "Secret references a k8s Secret that contains Sysprep answer file named autounattend.xml that should be attached as disk of CDROM type.\n+ optional",
+		"configMap": "ConfigMap references a ConfigMap that contains Sysprep answer file named autounattend.xml that should be attached as disk of CDROM type.\n+ optional",
+	}
+}
+
 func (CloudInitNoCloudSource) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                     "Represents a cloud-init nocloud user data source.\nMore info: http://cloudinit.readthedocs.io/en/latest/topics/datasources/nocloud.html\n\n+k8s:openapi-gen=true",
@@ -187,7 +195,7 @@ func (Devices) SwaggerDoc() map[string]string {
 		"autoattachSerialConsole":    "Whether to attach the default serial console or not.\nSerial console access will not be available if set to false. Defaults to true.",
 		"autoattachMemBalloon":       "Whether to attach the Memory balloon device with default period.\nPeriod can be adjusted in virt-config.\nDefaults to true.\n+optional",
 		"rng":                        "Whether to have random number generator from host\n+optional",
-		"blockMultiQueue":            "Whether or not to enable virtio multi-queue for block devices\n+optional",
+		"blockMultiQueue":            "Whether or not to enable virtio multi-queue for block devices.\nDefaults to false.\n+optional",
 		"networkInterfaceMultiqueue": "If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature for network devices. The number of queues created depends on additional factors of the VirtualMachineInstance, like the number of guest CPUs.\n+optional",
 		"gpus":                       "Whether to attach a GPU device to the vmi.\n+optional\n+listType=atomic",
 		"filesystems":                "Filesystems describes filesystem which is connected to the vmi.\n+optional\n+listType=atomic",
@@ -239,7 +247,7 @@ func (Disk) SwaggerDoc() map[string]string {
 		"bootOrder":         "BootOrder is an integer value > 0, used to determine ordering of boot devices.\nLower values take precedence.\nEach disk or interface that has a boot order must have a unique value.\nDisks without a boot order are not tried if a disk with a boot order exists.\n+optional",
 		"serial":            "Serial provides the ability to specify a serial number for the disk device.\n+optional",
 		"dedicatedIOThread": "dedicatedIOThread indicates this disk should have an exclusive IO Thread.\nEnabling this implies useIOThreads = true.\nDefaults to false.\n+optional",
-		"cache":             "Cache specifies which kvm disk cache mode should be used.\n+optional",
+		"cache":             "Cache specifies which kvm disk cache mode should be used.\nSupported values are: CacheNone, CacheWriteThrough.\n+optional",
 		"io":                "IO specifies which QEMU disk IO mode should be used.\nSupported values are: native, default, threads.\n+optional",
 		"tag":               "If specified, disk address and its tag will be provided to the guest via config drive metadata\n+optional",
 	}
@@ -303,6 +311,7 @@ func (VolumeSource) SwaggerDoc() map[string]string {
 		"persistentVolumeClaim": "PersistentVolumeClaimVolumeSource represents a reference to a PersistentVolumeClaim in the same namespace.\nDirectly attached to the vmi via qemu.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims\n+optional",
 		"cloudInitNoCloud":      "CloudInitNoCloud represents a cloud-init NoCloud user-data source.\nThe NoCloud data will be added as a disk to the vmi. A proper cloud-init installation is required inside the guest.\nMore info: http://cloudinit.readthedocs.io/en/latest/topics/datasources/nocloud.html\n+optional",
 		"cloudInitConfigDrive":  "CloudInitConfigDrive represents a cloud-init Config Drive user-data source.\nThe Config Drive data will be added as a disk to the vmi. A proper cloud-init installation is required inside the guest.\nMore info: https://cloudinit.readthedocs.io/en/latest/topics/datasources/configdrive.html\n+optional",
+		"sysprep":               "Represents a Sysprep volume source.\n+optional",
 		"containerDisk":         "ContainerDisk references a docker image, embedding a qcow or raw disk.\nMore info: https://kubevirt.gitbooks.io/user-guide/registry-disk.html\n+optional",
 		"ephemeral":             "Ephemeral is a special volume source that \"wraps\" specified source and provides copy-on-write image on top of it.\n+optional",
 		"emptyDisk":             "EmptyDisk represents a temporary disk which shares the vmis lifecycle.\nMore info: https://kubevirt.gitbooks.io/user-guide/disks-and-volumes.html\n+optional",
@@ -427,12 +436,19 @@ func (HypervTimer) SwaggerDoc() map[string]string {
 
 func (Features) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":       "+k8s:openapi-gen=true",
-		"acpi":   "ACPI enables/disables ACPI inside the guest.\nDefaults to enabled.\n+optional",
-		"apic":   "Defaults to the machine type setting.\n+optional",
-		"hyperv": "Defaults to the machine type setting.\n+optional",
-		"smm":    "SMM enables/disables System Management Mode.\nTSEG not yet implemented.\n+optional",
-		"kvm":    "Configure how KVM presence is exposed to the guest.\n+optional",
+		"":           "+k8s:openapi-gen=true",
+		"acpi":       "ACPI enables/disables ACPI inside the guest.\nDefaults to enabled.\n+optional",
+		"apic":       "Defaults to the machine type setting.\n+optional",
+		"hyperv":     "Defaults to the machine type setting.\n+optional",
+		"smm":        "SMM enables/disables System Management Mode.\nTSEG not yet implemented.\n+optional",
+		"kvm":        "Configure how KVM presence is exposed to the guest.\n+optional",
+		"pvspinlock": "Notify the guest that the host supports paravirtual spinlocks.\nFor older kernels this feature should be explicitly disabled.\n+optional",
+	}
+}
+
+func (SyNICTimer) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "+k8s:openapi-gen=true",
 	}
 }
 
