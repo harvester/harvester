@@ -1,4 +1,4 @@
-# App Mode Installation
+# App Mode Installation [Development Mode]
 
 App mode is intended to be used for testing and development purposes.
 
