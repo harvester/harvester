@@ -7,7 +7,6 @@ or hang out with our developers on either our [Slack](https://slack.rancher.io/)
 
 - Installation
   * [ISO Mode](./iso-installation.md)
-  * [App Mode - for development](./app-mode-installation.md)
   * [Automatic Mode - for mass installation](./automatic-installation.md)
 - Upgrade
   * [Upgrading Harvester](./upgrade.md)
@@ -21,3 +20,6 @@ or hang out with our developers on either our [Slack](https://slack.rancher.io/)
   * [Live Migration](./live-migration.md)
 - Network
   * [Introduction of the Harvester Network](./harvester-network.md)
+- [Rancher Integration](./rancher-integration.md)
+    - [Harvester Node driver](./node-driver.md)
+- [Dev Mode](./docs/app-mode-installation.md)
