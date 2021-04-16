@@ -181,7 +181,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: v0.2.0-rc2
+      tag: v0.2.0-rc3
 
     ## Define the authentication mode, currently only kubernetesCredentials and localUser are supported,
     ## could config more than one mode, separated by comma
