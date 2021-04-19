@@ -1,0 +1,6 @@
+[
+  {
+    "version": "v0.2.0-rc3",
+    "minUpgradableVersion": "v0.2.0-rc2"
+  }
+]

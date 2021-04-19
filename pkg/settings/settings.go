@@ -33,7 +33,7 @@ var (
 	BackupTargetSet        = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
 	RancherEnabled         = NewSetting("rancher-enabled", "false") // Specify whether the UI should display the Rancher UI navigation
 	UpgradableVersions     = NewSetting("upgradable-versions", "")
-	VersionMetadataURL     = NewSetting("version-metadata-url", "")
+	VersionMetadataURL     = NewSetting("version-metadata-url", "https://raw.githubusercontent.com/rancher/harvester/v0.2/version-metadata.json")
 	LogLevel               = NewSetting("log-level", "info") // options are info, debug and trace
 )
 
