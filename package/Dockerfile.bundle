@@ -12,4 +12,4 @@ ENV PATH /k3os/system/k3os/current:/k3os/system/k3s/current:${PATH}
 RUN apt-get update && apt-get install -y curl && \
     curl -sLf https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl > /usr/bin/kubectl && \
     chmod +x /usr/bin/kubectl
-CMD ["upgrade_node.sh"]
+ENTRYPOINT ["upgrade_node.sh"]
