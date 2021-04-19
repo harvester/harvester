@@ -9,6 +9,8 @@ or hang out with our developers on either our [Slack](https://slack.rancher.io/)
   * [ISO Mode](./iso-installation.md)
   * [App Mode - for development](./app-mode-installation.md)
   * [Automatic Mode - for mass installation](./automatic-installation.md)
+- Upgrade
+  * [Upgrading Harvester](./upgrade.md)
 - Demo: Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
 - [Authentication](./authentication.md)
 - [Upload Images](./upload-image.md)
