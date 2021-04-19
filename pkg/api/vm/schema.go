@@ -32,6 +32,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	server.BaseSchemas.MustImportAndCustomize(BackupInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(RestoreInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(MigrateInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(CreateTemplateInput{}, nil)
 
 	vms := scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
@@ -121,7 +122,9 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				restoreVM: {
 					Input: "restoreInput",
 				},
-				createTemplate: {},
+				createTemplate: {
+					Input: "createTemplateInput",
+				},
 			}
 		},
 		Formatter: vmformatter.formatter,
