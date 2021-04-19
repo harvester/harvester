@@ -72,7 +72,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 		resource.AddAction(request, abortMigration)
 	}
 
-	if vf.canDoBackup(vm) {
+	if vf.canDoBackup(vm, vmi) {
 		resource.AddAction(request, backupVM)
 	}
 
@@ -173,8 +173,12 @@ func canAbortMigrate(vmi *kv1.VirtualMachineInstance) bool {
 	return false
 }
 
-func (vf *vmformatter) canDoBackup(vm *kv1.VirtualMachine) bool {
-	if !vm.Status.Created || vm.Status.SnapshotInProgress != nil {
+func (vf *vmformatter) canDoBackup(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineInstance) bool {
+	if vm.Status.SnapshotInProgress != nil {
+		return false
+	}
+
+	if vmi != nil && vmi.Status.Phase != kv1.Running {
 		return false
 	}
 	return true
@@ -197,7 +201,10 @@ func (vf *vmformatter) isVMRenaming(vm *kv1.VirtualMachine) bool {
 }
 
 func (vf *vmformatter) canCreateTemplate(vmi *kv1.VirtualMachineInstance) bool {
-	return vmi != nil
+	if vmi != nil && vmi.Status.Phase != kv1.Running {
+		return false
+	}
+	return true
 }
 
 func (vf *vmformatter) getVMI(vm *kv1.VirtualMachine) *kv1.VirtualMachineInstance {
