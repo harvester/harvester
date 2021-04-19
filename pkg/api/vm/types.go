@@ -23,3 +23,8 @@ type RestoreInput struct {
 type MigrateInput struct {
 	NodeName string `json:"nodeName"`
 }
+
+type CreateTemplateInput struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
