@@ -19,8 +19,8 @@ import (
 	"k8s.io/client-go/rest"
 	kv1 "kubevirt.io/client-go/api/v1"
 
-	harvesterv1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
-	v1alpha1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
+	harvesterapiv1 "github.com/rancher/harvester/pkg/apis/harvester.cattle.io/v1alpha1"
 	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	ctlvmv1alpha1 "github.com/rancher/harvester/pkg/generated/controllers/harvester.cattle.io/v1alpha1"
 	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -137,7 +137,15 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		}
 		return nil
 	case createTemplate:
-		return h.createTemplate(namespace, name)
+		var input CreateTemplateInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+
+		if input.Name == "" {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Template name is required")
+		}
+		return h.createTemplate(namespace, name, input)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -284,12 +292,12 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 
 func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input BackupInput) error {
 	apiGroup := kv1.SchemeGroupVersion.Group
-	backup := &harvesterv1alpha1.VirtualMachineBackup{
+	backup := &harvesterapiv1.VirtualMachineBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      input.Name,
 			Namespace: vmNamespace,
 		},
-		Spec: harvesterv1alpha1.VirtualMachineBackupSpec{
+		Spec: harvesterapiv1.VirtualMachineBackupSpec{
 			Source: corev1.TypedLocalObjectReference{
 				APIGroup: &apiGroup,
 				Kind:     kv1.VirtualMachineGroupVersionKind.Kind,
@@ -308,12 +316,12 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 		return err
 	}
 	apiGroup := kv1.SchemeGroupVersion.Group
-	backup := &harvesterv1alpha1.VirtualMachineRestore{
+	backup := &harvesterapiv1.VirtualMachineRestore{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      input.Name,
 			Namespace: vmNamespace,
 		},
-		Spec: harvesterv1alpha1.VirtualMachineRestoreSpec{
+		Spec: harvesterapiv1.VirtualMachineRestoreSpec{
 			Target: corev1.TypedLocalObjectReference{
 				APIGroup: &apiGroup,
 				Kind:     kv1.VirtualMachineGroupVersionKind.Kind,
@@ -333,7 +341,7 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 
 func (h *vmActionHandler) checkBackupTargetConfigured() error {
 	target, err := h.settingCache.Get(settings.BackupTargetSettingName)
-	if err == nil && harvesterv1alpha1.SettingConfigured.IsTrue(target) {
+	if err == nil && harvesterapiv1.SettingConfigured.IsTrue(target) {
 		return nil
 	}
 	return fmt.Errorf("backup target is invalid")
@@ -349,14 +357,16 @@ func getMigrationUID(vmi *kv1.VirtualMachineInstance) string {
 }
 
 // createTemplate creates a template and version that are derived from the given virtual machine.
-func (h *vmActionHandler) createTemplate(namespace, name string) error {
+func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTemplateInput) error {
 	vmt, err := h.vmTemplateClient.Create(
-		&v1alpha1.VirtualMachineTemplate{
+		&harv1.VirtualMachineTemplate{
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: fmt.Sprintf("%s-clone-", name),
-				Namespace:    namespace,
+				Name:      input.Name,
+				Namespace: namespace,
 			},
-			Spec: v1alpha1.VirtualMachineTemplateSpec{},
+			Spec: harv1.VirtualMachineTemplateSpec{
+				Description: input.Description,
+			},
 		})
 	if err != nil {
 		return err
@@ -374,12 +384,12 @@ func (h *vmActionHandler) createTemplate(namespace, name string) error {
 	vmID := fmt.Sprintf("%s/%s", vmt.Namespace, vmt.Name)
 
 	_, err = h.vmTemplateVersionClient.Create(
-		&v1alpha1.VirtualMachineTemplateVersion{
+		&harv1.VirtualMachineTemplateVersion{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: fmt.Sprintf("%s-", vmt.Name),
 				Namespace:    namespace,
 			},
-			Spec: v1alpha1.VirtualMachineTemplateVersionSpec{
+			Spec: harv1.VirtualMachineTemplateVersionSpec{
 				TemplateID:  vmID,
 				Description: fmt.Sprintf("Template drived from virtual machine [%s]", vmID),
 				VM:          removeMacAddresses(vm.Spec),
