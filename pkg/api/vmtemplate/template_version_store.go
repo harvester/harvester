@@ -33,6 +33,10 @@ func (s *templateVersionStore) Create(request *types.APIRequest, schema *types.A
 		return types.APIObject{}, apierror.NewAPIError(validation.InvalidBodyContent, "Template version and template should belong to same namespace")
 	}
 
+	if _, err := s.templateCache.Get(templateNs, templateName); err != nil {
+		return types.APIObject{}, apierror.NewAPIError(validation.InvalidBodyContent, err.Error())
+	}
+
 	keyPairIDs := newData.StringSlice("spec", "keyPairIds")
 	if len(keyPairIDs) != 0 {
 		for _, v := range keyPairIDs {
