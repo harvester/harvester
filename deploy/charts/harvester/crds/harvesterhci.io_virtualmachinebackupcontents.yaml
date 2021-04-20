@@ -1575,7 +1575,8 @@ spec:
                                         type: boolean
                                       blockMultiQueue:
                                         description: Whether or not to enable virtio
-                                          multi-queue for block devices
+                                          multi-queue for block devices. Defaults
+                                          to false.
                                         type: boolean
                                       disableHotplug:
                                         description: DisableHotplug disabled the ability
@@ -1598,8 +1599,9 @@ spec:
                                                 a boot order exists.
                                               type: integer
                                             cache:
-                                              description: Cache specifies which kvm
-                                                disk cache mode should be used.
+                                              description: 'Cache specifies which
+                                                kvm disk cache mode should be used.
+                                                Supported values are: CacheNone, CacheWriteThrough.'
                                               type: string
                                             cdrom:
                                               description: Attach a volume as a cdrom
@@ -2112,11 +2114,18 @@ spec:
                                               CPU load. Defaults to the machine type
                                               setting.
                                             properties:
+                                              direct:
+                                                description: Represents if a feature
+                                                  is enabled or disabled.
+                                                properties:
+                                                  enabled:
+                                                    description: Enabled determines
+                                                      if the feature should be enabled
+                                                      or disabled on the guest. Defaults
+                                                      to true.
+                                                    type: boolean
+                                                type: object
                                               enabled:
-                                                description: Enabled determines if
-                                                  the feature should be enabled or
-                                                  disabled on the guest. Defaults
-                                                  to true.
                                                 type: boolean
                                             type: object
                                           tlbflush:
@@ -2183,6 +2192,18 @@ spec:
                                             description: Hide the KVM hypervisor from
                                               standard MSR based discovery. Defaults
                                               to false
+                                            type: boolean
+                                        type: object
+                                      pvspinlock:
+                                        description: Notify the guest that the host
+                                          supports paravirtual spinlocks. For older
+                                          kernels this feature should be explicitly
+                                          disabled.
+                                        properties:
+                                          enabled:
+                                            description: Enabled determines if the
+                                              feature should be enabled or disabled
+                                              on the guest. Defaults to true.
                                             type: boolean
                                         type: object
                                       smm:
@@ -3045,6 +3066,36 @@ spec:
                                             in the pod''s namespace to use. More info:
                                             https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/'
                                           type: string
+                                      type: object
+                                    sysprep:
+                                      description: Represents a Sysprep volume source.
+                                      properties:
+                                        configMap:
+                                          description: ConfigMap references a ConfigMap
+                                            that contains Sysprep answer file named
+                                            autounattend.xml that should be attached
+                                            as disk of CDROM type.
+                                          properties:
+                                            name:
+                                              description: 'Name of the referent.
+                                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                                TODO: Add other useful fields. apiVersion,
+                                                kind, uid?'
+                                              type: string
+                                          type: object
+                                        secret:
+                                          description: Secret references a k8s Secret
+                                            that contains Sysprep answer file named
+                                            autounattend.xml that should be attached
+                                            as disk of CDROM type.
+                                          properties:
+                                            name:
+                                              description: 'Name of the referent.
+                                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                                TODO: Add other useful fields. apiVersion,
+                                                kind, uid?'
+                                              type: string
+                                          type: object
                                       type: object
                                   required:
                                   - name
