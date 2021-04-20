@@ -644,6 +644,7 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 			Running: pointer.BoolPtr(true),
 			Template: &kv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
+					Annotations: vmCpy.VirtualMachineSpec.Template.ObjectMeta.Annotations,
 					Labels: map[string]string{
 						vmCreatorLabel: "harvester",
 						vmNameLabel:    vmName,
