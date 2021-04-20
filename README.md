@@ -79,6 +79,7 @@ Please refer to the following documentation to find out more details:
 - [Upload Images](./docs/upload-image.md)
 - [Create a VM](./docs/create-vm.md)
 - [Access to the VM](./docs/access-to-the-vm.md)
+- [Node driver](./docs/node-driver.md)
 
 Demo: Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
 
