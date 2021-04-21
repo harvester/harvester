@@ -1,6 +1,6 @@
 # ISO Installation
 
-To get the Harvester ISO, download it from the [Github releases.](https://github.com/rancher/harvester/releases) 
+To get the Harvester ISO, download it from the [Github releases.](https://github.com/harvester/harvester/releases) 
 
 During installation you can either choose to form a new cluster, or join the node to an existing cluster.
 

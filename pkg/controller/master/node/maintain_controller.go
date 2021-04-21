@@ -7,8 +7,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/rancher/harvester/pkg/config"
-	v1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/config"
+	v1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 const (

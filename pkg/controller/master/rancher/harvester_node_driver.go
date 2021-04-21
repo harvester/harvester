@@ -6,7 +6,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/rancher/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 const (

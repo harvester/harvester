@@ -11,8 +11,8 @@ import (
 	"k8s.io/client-go/rest"
 	v1 "kubevirt.io/client-go/api/v1"
 
-	ctlv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/rancher/harvester/pkg/util"
+	ctlv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 // Handler resets vmi annotations and nodeSelector when a migration completes

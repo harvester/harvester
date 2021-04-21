@@ -15,10 +15,10 @@ import (
 	cdiapisalpha "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiapis "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	kubevirttype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
-	kubevirtctrl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/rancher/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	kubevirttype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/ref"
 )
 
 func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {

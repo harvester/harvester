@@ -20,15 +20,15 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 
-	"github.com/rancher/harvester/pkg/auth/jwe"
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
-	"github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io"
-	cniv1 "github.com/rancher/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
-	"github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io"
-	longhornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io"
-	snapshotv1 "github.com/rancher/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
-	"github.com/rancher/harvester/pkg/generated/controllers/upgrade.cattle.io"
+	"github.com/harvester/harvester/pkg/auth/jwe"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	"github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
+	cniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
+	"github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
+	longhornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
+	snapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
+	"github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io"
 )
 
 type (

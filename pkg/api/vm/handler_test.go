@@ -13,11 +13,11 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	kubevirtapis "kubevirt.io/client-go/api/v1"
 
-	"github.com/rancher/harvester/pkg/controller/master/migration"
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	kubevirttype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
-	kubevirtctrl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/rancher/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/controller/master/migration"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	kubevirttype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 func TestMigrateAction(t *testing.T) {

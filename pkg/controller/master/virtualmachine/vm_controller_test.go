@@ -17,11 +17,11 @@ import (
 	cdiapisalpha "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiapis "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	cditype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
-	cdictrl "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
-	"github.com/rancher/harvester/pkg/indexeres"
-	"github.com/rancher/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	cditype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
+	cdictrl "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
+	"github.com/harvester/harvester/pkg/indexeres"
+	"github.com/harvester/harvester/pkg/ref"
 )
 
 func TestVMController_SetOwnerOfDataVolumes(t *testing.T) {

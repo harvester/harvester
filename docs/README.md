@@ -1,6 +1,6 @@
 ## Overview
 
-If you have any questions that can't be found on the following docs, feel free to [file an issue](https://github.com/rancher/harvester/issues/new/choose)
+If you have any questions that can't be found on the following docs, feel free to [file an issue](https://github.com/harvester/harvester/issues/new/choose)
 or hang out with our developers on either our [Slack](https://slack.rancher.io/) or [Rancher forums](https://forums.rancher.com/).
 
 ## Table of Contents

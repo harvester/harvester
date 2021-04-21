@@ -11,10 +11,10 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/settings"
-	pkguser "github.com/rancher/harvester/pkg/user"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/settings"
+	pkguser "github.com/harvester/harvester/pkg/user"
 )
 
 const (

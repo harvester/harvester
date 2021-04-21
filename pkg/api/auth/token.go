@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/rancher/harvester/pkg/auth/jwt"
+	"github.com/harvester/harvester/pkg/auth/jwt"
 )
 
 const (

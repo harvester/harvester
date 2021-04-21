@@ -7,7 +7,7 @@ The volume snapshot feature supports CSI v1.0 and higher. It was introduced as a
 Introduction
 ------------
 
-This chart installs the csi-snapshotter on the [harvester](https://github.com/rancher/harvester) cluster using the [Helm](https://helm.sh) package manager.
+This chart installs the csi-snapshotter on the [harvester](https://github.com/harvester/harvester) cluster using the [Helm](https://helm.sh) package manager.
 
 For more details please find out in:
 

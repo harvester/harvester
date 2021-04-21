@@ -8,7 +8,7 @@ import (
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 type vmRestoreStore struct {

@@ -10,7 +10,7 @@ import (
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	corev1 "k8s.io/api/core/v1"
 
-	ctlnode "github.com/rancher/harvester/pkg/controller/master/node"
+	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 )
 
 const (

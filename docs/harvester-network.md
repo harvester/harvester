@@ -10,7 +10,7 @@
 
 
 ### Summary
-[Harvester](https://github.com/rancher/harvester) is built on Kubernetes, which uses [CNI](https://github.com/containernetworking/cni) as an interface between network providers and Kubernetes pod networking. Naturally, we implement the Harvester network based on CNI. Moreover, [Harvester UI](https://github.com/rancher/harvester-ui) integrates the Harvester network to provide a user-friendly way to configure networks for VMs.
+[Harvester](https://github.com/harvester/harvester) is built on Kubernetes, which uses [CNI](https://github.com/containernetworking/cni) as an interface between network providers and Kubernetes pod networking. Naturally, we implement the Harvester network based on CNI. Moreover, [Harvester UI](https://github.com/harvester/harvester-ui) integrates the Harvester network to provide a user-friendly way to configure networks for VMs.
 
 By version 0.2, Harvester supports two kinds of networks: 
 - management network
@@ -24,7 +24,7 @@ Harvester adopts [flannel](https://github.com/flannel-io/flannel) as the default
 
 #### VLAN
 
-[Harvester network-controller](https://github.com/rancher/harvester-network-controller) leverages the [multus](https://github.com/k8snetworkplumbingwg/multus-cni) and [bridge](https://www.cni.dev/plugins/current/main/bridge/) CNI plugins to implement the VLAN.  
+[Harvester network-controller](https://github.com/harvester/harvester-network-controller) leverages the [multus](https://github.com/k8snetworkplumbingwg/multus-cni) and [bridge](https://www.cni.dev/plugins/current/main/bridge/) CNI plugins to implement the VLAN.  
 
 Below is a use case of the VLAN in Harvester.
 

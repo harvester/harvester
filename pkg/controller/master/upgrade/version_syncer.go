@@ -12,7 +12,7 @@ import (
 	gversion "github.com/mcuadros/go-version"
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 const (

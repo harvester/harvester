@@ -4,7 +4,7 @@ import (
 	"github.com/sirupsen/logrus"
 	kv1 "kubevirt.io/client-go/api/v1"
 
-	vmv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	vmv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 type VMNetworkController struct {

@@ -3,7 +3,7 @@ package template
 import (
 	"context"
 
-	"github.com/rancher/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/config"
 )
 
 const (

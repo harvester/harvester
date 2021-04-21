@@ -5,7 +5,7 @@
 Introduction
 ------------
 
-This chart installs the multus-cni on the [harvester](https://github.com/rancher/harvester) cluster using the [Helm](https://helm.sh) package manager.
+This chart installs the multus-cni on the [harvester](https://github.com/harvester/harvester) cluster using the [Helm](https://helm.sh) package manager.
 
 For more details please find out in:
 

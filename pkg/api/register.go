@@ -5,18 +5,18 @@ import (
 
 	"github.com/rancher/steve/pkg/server"
 
-	"github.com/rancher/harvester/pkg/api/datavolume"
-	"github.com/rancher/harvester/pkg/api/image"
-	"github.com/rancher/harvester/pkg/api/keypair"
-	"github.com/rancher/harvester/pkg/api/network"
-	"github.com/rancher/harvester/pkg/api/node"
-	"github.com/rancher/harvester/pkg/api/restore"
-	"github.com/rancher/harvester/pkg/api/setting"
-	"github.com/rancher/harvester/pkg/api/upgrade"
-	"github.com/rancher/harvester/pkg/api/user"
-	"github.com/rancher/harvester/pkg/api/vm"
-	"github.com/rancher/harvester/pkg/api/vmtemplate"
-	"github.com/rancher/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/api/datavolume"
+	"github.com/harvester/harvester/pkg/api/image"
+	"github.com/harvester/harvester/pkg/api/keypair"
+	"github.com/harvester/harvester/pkg/api/network"
+	"github.com/harvester/harvester/pkg/api/node"
+	"github.com/harvester/harvester/pkg/api/restore"
+	"github.com/harvester/harvester/pkg/api/setting"
+	"github.com/harvester/harvester/pkg/api/upgrade"
+	"github.com/harvester/harvester/pkg/api/user"
+	"github.com/harvester/harvester/pkg/api/vm"
+	"github.com/harvester/harvester/pkg/api/vmtemplate"
+	"github.com/harvester/harvester/pkg/config"
 )
 
 type registerSchema func(scaled *config.Scaled, server *server.Server, options config.Options) error

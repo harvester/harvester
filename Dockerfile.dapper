@@ -52,7 +52,7 @@ RUN if [ "${ARCH}" = "amd64" ]; then \
 ENV DAPPER_RUN_ARGS --privileged --network host -v /run/containerd/containerd.sock:/run/containerd/containerd.sock
 ENV GO111MODULE off
 ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS GOPROXY
-ENV DAPPER_SOURCE /go/src/github.com/rancher/harvester/
+ENV DAPPER_SOURCE /go/src/github.com/harvester/harvester/
 ENV DAPPER_OUTPUT ./bin ./dist ./package
 ENV DAPPER_DOCKER_SOCKET true
 ENV HOME ${DAPPER_SOURCE}

@@ -11,9 +11,9 @@ import (
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
-	virtv1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	virtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 )
 
 const (
