@@ -65,12 +65,11 @@ var _ = Describe("verify vm template APIs", func() {
 	})
 
 	Context("operate via steve API", func() {
-
 		var (
 			template = harvesterv1.VirtualMachineTemplate{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "vm-template-0",
-					Namespace: templateNamespace,
+					Namespace: "harvester-system",
 					Labels:    testResourceLabels,
 				},
 				Spec: harvesterv1.VirtualMachineTemplateSpec{
@@ -80,7 +79,7 @@ var _ = Describe("verify vm template APIs", func() {
 			templateVersion = harvesterv1.VirtualMachineTemplateVersion{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      fuzz.String(5),
-					Namespace: templateNamespace,
+					Namespace: "harvester-system",
 					Labels:    testResourceLabels,
 				},
 				Spec: harvesterv1.VirtualMachineTemplateVersionSpec{},
