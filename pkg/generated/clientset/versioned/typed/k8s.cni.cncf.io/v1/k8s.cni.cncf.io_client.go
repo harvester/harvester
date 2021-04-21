@@ -19,8 +19,8 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 

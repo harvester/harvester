@@ -19,7 +19,7 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	rest "k8s.io/client-go/rest"
 )

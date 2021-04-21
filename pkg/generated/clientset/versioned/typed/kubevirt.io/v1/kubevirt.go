@@ -22,7 +22,7 @@ import (
 	"context"
 	"time"
 
-	scheme "github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
+	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
