@@ -22,8 +22,8 @@ import (
 	"context"
 	"time"
 
+	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	scheme "github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
