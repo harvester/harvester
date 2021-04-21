@@ -11,13 +11,13 @@ import (
 	"github.com/rancher/steve/pkg/resources/common"
 	schema2 "github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/schema/converter"
-	apiextcontrollerv1beta1 "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1beta1"
+	apiextcontrollerv1 "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apiregistration.k8s.io/v1"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 	authorizationv1 "k8s.io/api/authorization/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
@@ -43,7 +43,7 @@ type handler struct {
 	schemas *schema2.Collection
 	client  discovery.DiscoveryInterface
 	cols    *common.DynamicColumns
-	crd     apiextcontrollerv1beta1.CustomResourceDefinitionClient
+	crd     apiextcontrollerv1.CustomResourceDefinitionClient
 	ssar    authorizationv1client.SelfSubjectAccessReviewInterface
 	handler SchemasHandler
 }
@@ -51,7 +51,7 @@ type handler struct {
 func Register(ctx context.Context,
 	cols *common.DynamicColumns,
 	discovery discovery.DiscoveryInterface,
-	crd apiextcontrollerv1beta1.CustomResourceDefinitionController,
+	crd apiextcontrollerv1.CustomResourceDefinitionController,
 	apiService v1.APIServiceController,
 	ssar authorizationv1client.SelfSubjectAccessReviewInterface,
 	schemasHandler SchemasHandler,
@@ -71,7 +71,7 @@ func Register(ctx context.Context,
 	crd.OnChange(ctx, "schema", h.OnChangeCRD)
 }
 
-func (h *handler) OnChangeCRD(key string, crd *v1beta1.CustomResourceDefinition) (*v1beta1.CustomResourceDefinition, error) {
+func (h *handler) OnChangeCRD(key string, crd *apiextv1.CustomResourceDefinition) (*apiextv1.CustomResourceDefinition, error) {
 	h.queueRefresh()
 	return crd, nil
 }

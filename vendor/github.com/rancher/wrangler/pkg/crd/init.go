@@ -15,8 +15,8 @@ import (
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/schemas/openapi"
 	"github.com/sirupsen/logrus"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -39,9 +39,9 @@ type CRD struct {
 	PluralName   string
 	SingularName string
 	NonNamespace bool
-	Schema       *v1beta1.JSONSchemaProps
+	Schema       *v1.JSONSchemaProps
 	SchemaObject interface{}
-	Columns      []v1beta1.CustomResourceColumnDefinition
+	Columns      []v1.CustomResourceColumnDefinition
 	Status       bool
 	Scale        bool
 	Categories   []string
@@ -51,7 +51,7 @@ type CRD struct {
 	Override runtime.Object
 }
 
-func (c CRD) WithSchema(schema *v1beta1.JSONSchemaProps) CRD {
+func (c CRD) WithSchema(schema *v1.JSONSchemaProps) CRD {
 	c.Schema = schema
 	return c
 }
@@ -62,7 +62,7 @@ func (c CRD) WithSchemaFromStruct(obj interface{}) CRD {
 }
 
 func (c CRD) WithColumn(name, path string) CRD {
-	c.Columns = append(c.Columns, v1beta1.CustomResourceColumnDefinition{
+	c.Columns = append(c.Columns, v1.CustomResourceColumnDefinition{
 		Name:     name,
 		Type:     "string",
 		Priority: 0,
@@ -100,8 +100,8 @@ func fieldName(f reflect.StructField) string {
 	return name
 }
 
-func tagToColumn(f reflect.StructField) (v1beta1.CustomResourceColumnDefinition, bool) {
-	c := v1beta1.CustomResourceColumnDefinition{
+func tagToColumn(f reflect.StructField) (v1.CustomResourceColumnDefinition, bool) {
+	c := v1.CustomResourceColumnDefinition{
 		Name: f.Name,
 		Type: "string",
 	}
@@ -132,7 +132,7 @@ func tagToColumn(f reflect.StructField) (v1beta1.CustomResourceColumnDefinition,
 	return c, true
 }
 
-func readCustomColumns(t reflect.Type, path string) (result []v1beta1.CustomResourceColumnDefinition) {
+func readCustomColumns(t reflect.Type, path string) (result []v1.CustomResourceColumnDefinition) {
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 		fieldName := fieldName(f)
@@ -160,7 +160,7 @@ func readCustomColumns(t reflect.Type, path string) (result []v1beta1.CustomReso
 	return result
 }
 
-func (c CRD) WithCustomColumn(columns ...v1beta1.CustomResourceColumnDefinition) CRD {
+func (c CRD) WithCustomColumn(columns ...v1.CustomResourceColumnDefinition) CRD {
 	c.Columns = append(c.Columns, columns...)
 	return c
 }
@@ -227,14 +227,13 @@ func (c CRD) ToCustomResourceDefinition() (runtime.Object, error) {
 			Name: name,
 		},
 		Spec: apiext.CustomResourceDefinitionSpec{
-			AdditionalPrinterColumns: c.Columns,
-			Group:                    c.GVK.Group,
-			Version:                  c.GVK.Version,
+			Group: c.GVK.Group,
 			Versions: []apiext.CustomResourceDefinitionVersion{
 				{
-					Name:    c.GVK.Version,
-					Storage: true,
-					Served:  true,
+					Name:                     c.GVK.Version,
+					Storage:                  true,
+					Served:                   true,
+					AdditionalPrinterColumns: c.Columns,
 				},
 			},
 			Names: apiext.CustomResourceDefinitionNames{
@@ -248,7 +247,7 @@ func (c CRD) ToCustomResourceDefinition() (runtime.Object, error) {
 	}
 
 	if c.Schema != nil {
-		crd.Spec.Validation = &apiext.CustomResourceValidation{
+		crd.Spec.Versions[0].Schema = &apiext.CustomResourceValidation{
 			OpenAPIV3Schema: c.Schema,
 		}
 	}
@@ -258,18 +257,35 @@ func (c CRD) ToCustomResourceDefinition() (runtime.Object, error) {
 		if err != nil {
 			return nil, err
 		}
-		crd.Spec.Validation = &apiext.CustomResourceValidation{
+		crd.Spec.Versions[0].Schema = &apiext.CustomResourceValidation{
 			OpenAPIV3Schema: schema,
 		}
 	}
 
+	// add a dummy schema because v1 requires OpenAPIV3Schema to be set
+	if crd.Spec.Versions[0].Schema == nil {
+		crd.Spec.Versions[0].Schema = &apiext.CustomResourceValidation{
+			OpenAPIV3Schema: &apiext.JSONSchemaProps{
+				Type: "object",
+				Properties: map[string]apiext.JSONSchemaProps{
+					"spec": {
+						XPreserveUnknownFields: &[]bool{true}[0],
+					},
+					"status": {
+						XPreserveUnknownFields: &[]bool{true}[0],
+					},
+				},
+			},
+		}
+	}
+
 	if c.Status {
-		crd.Spec.Subresources = &apiext.CustomResourceSubresources{
+		crd.Spec.Versions[0].Subresources = &apiext.CustomResourceSubresources{
 			Status: &apiext.CustomResourceSubresourceStatus{},
 		}
 		if c.Scale {
 			sel := "Spec.Selector"
-			crd.Spec.Subresources.Scale = &apiext.CustomResourceSubresourceScale{
+			crd.Spec.Versions[0].Subresources.Scale = &apiext.CustomResourceSubresourceScale{
 				SpecReplicasPath:   "Spec.Replicas",
 				StatusReplicasPath: "Status.Replicas",
 				LabelSelectorPath:  &sel,
@@ -432,7 +448,7 @@ func (f *Factory) waitCRD(ctx context.Context, crdName string, gvk schema.GroupV
 		}
 		first = false
 
-		crd, err := f.CRDClient.ApiextensionsV1beta1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
+		crd, err := f.CRDClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -471,7 +487,7 @@ func (f *Factory) createCRD(ctx context.Context, crdDef CRD, ready map[string]*a
 		return nil, err
 	}
 
-	return f.CRDClient.ApiextensionsV1beta1().CustomResourceDefinitions().Get(ctx, meta.GetName(), metav1.GetOptions{})
+	return f.CRDClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, meta.GetName(), metav1.GetOptions{})
 }
 
 func (f *Factory) ensureAccess(ctx context.Context) (bool, error) {
@@ -483,7 +499,7 @@ func (f *Factory) ensureAccess(ctx context.Context) (bool, error) {
 }
 
 func (f *Factory) getReadyCRDs(ctx context.Context) (map[string]*apiext.CustomResourceDefinition, error) {
-	list, err := f.CRDClient.ApiextensionsV1beta1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
+	list, err := f.CRDClient.ApiextensionsV1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}

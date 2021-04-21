@@ -20,10 +20,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rancher/wrangler/pkg/randomtoken"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	corev1 "k8s.io/api/core/v1"
 	k8snet "k8s.io/apimachinery/pkg/util/net"
-	"k8s.io/client-go/util/keyutil"
 )
 
 type Options struct {
@@ -270,7 +270,7 @@ func (g *Git) setCredential(cred *corev1.Secret) error {
 		g.URL = u.String()
 		g.password = string(password)
 	} else if cred.Type == corev1.SecretTypeSSHAuth {
-		key, err := keyutil.ParsePrivateKeyPEM(cred.Data[corev1.SSHAuthPrivateKey])
+		key, err := ssh.ParseRawPrivateKey(cred.Data[corev1.SSHAuthPrivateKey])
 		if err != nil {
 			return err
 		}
