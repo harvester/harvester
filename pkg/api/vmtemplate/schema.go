@@ -6,7 +6,6 @@ import (
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/steve/pkg/stores/proxy"
 
-	"github.com/harvester/harvester/pkg/api/store"
 	"github.com/harvester/harvester/pkg/config"
 )
 
@@ -36,18 +35,12 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 			Customize: func(apiSchema *types.APISchema) {
 				apiSchema.ByIDHandler = th.byIDHandler
 			},
-			Store: store.NamespaceStore{
-				Store:     proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
-				Namespace: options.Namespace,
-			},
+			Store: proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		},
 		{
 			ID:        templateVersionSchemaID,
 			Formatter: versionFormatter,
-			Store: store.NamespaceStore{
-				Store:     templateVersionStore,
-				Namespace: options.Namespace,
-			},
+			Store:     templateVersionStore,
 		},
 	}
 

@@ -37,5 +37,6 @@ type KeyPairStatus struct {
 }
 
 type KeyGenInput struct {
-	Name string `json:"name"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }

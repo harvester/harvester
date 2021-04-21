@@ -28,7 +28,6 @@ func CollectionFormatter(request *types.APIRequest, collection *types.GenericCol
 type KeyGenActionHandler struct {
 	KeyPairs     ctlharvesterv1.KeyPairClient
 	KeyPairCache ctlharvesterv1.KeyPairCache
-	Namespace    string
 }
 
 func (h KeyGenActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -49,8 +48,8 @@ func (h KeyGenActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	if err := json.NewDecoder(req.Body).Decode(input); err != nil {
 		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to parse body: %v", err))
 	}
-	if input.Name == "" {
-		return apierror.NewAPIError(validation.InvalidBodyContent, "name is required")
+	if input.Name == "" || input.Namespace == "" {
+		return apierror.NewAPIError(validation.InvalidBodyContent, "both name and namespace is required")
 	}
 	rsaKey, err := util.GeneratePrivateKey(2048)
 	if err != nil {
@@ -65,7 +64,7 @@ func (h KeyGenActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	keyPair := &harvesterv1.KeyPair{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      input.Name,
-			Namespace: h.Namespace,
+			Namespace: input.Namespace,
 		},
 		Spec: harvesterv1.KeyPairSpec{
 			PublicKey: string(publicKey),

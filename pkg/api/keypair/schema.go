@@ -10,29 +10,33 @@ import (
 	"github.com/rancher/wrangler/pkg/schemas"
 
 	"github.com/harvester/harvester/pkg/api/store"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 )
 
+const (
+	keygen = "keygen"
+)
+
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
+	server.BaseSchemas.MustImportAndCustomize(harvesterv1.KeyGenInput{}, nil)
 	t := schema.Template{
 		ID: "harvesterhci.io.keypair",
 		Store: store.KeyPairStore{
-			Store: store.NamespaceStore{
-				Store:     proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
-				Namespace: options.Namespace,
-			},
+			Store: proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		},
 		Customize: func(s *types.APISchema) {
 			s.CollectionFormatter = CollectionFormatter
 			s.CollectionActions = map[string]schemas.Action{
-				"keygen": {},
+				keygen: {
+					Input: "keyGenInput",
+				},
 			}
 			s.Formatter = Formatter
 			s.ActionHandlers = map[string]http.Handler{
-				"keygen": KeyGenActionHandler{
+				keygen: KeyGenActionHandler{
 					KeyPairs:     scaled.HarvesterFactory.Harvesterhci().V1beta1().KeyPair(),
 					KeyPairCache: scaled.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache(),
-					Namespace:    options.Namespace,
 				},
 			}
 		},
