@@ -13,10 +13,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	t := schema.Template{
 		ID: "harvesterhci.io.virtualmachineimage",
 		Store: store.DisplayNameValidatorStore{
-			Store: store.NamespaceStore{
-				Store:     proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
-				Namespace: options.Namespace,
-			},
+			Store: proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
 		},
 	}
 	server.SchemaFactory.AddTemplate(t)

@@ -189,7 +189,8 @@ var _ = Describe("verify keypair APIs", func() {
 			By("given a random name keypair")
 			var keypairName = strings.ToLower(fuzz.String(5))
 			var keygen = gout.H{
-				"name": keypairName,
+				"name":      keypairName,
+				"namespace": keypairNamespace,
 			}
 
 			By("when call keygen action")
