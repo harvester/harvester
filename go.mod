@@ -68,18 +68,17 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/apiserver v0.0.0-20210209001659-a17289640582
 	github.com/rancher/dynamiclistener v0.2.1-0.20200910203214-85f32491cb09
-	github.com/rancher/lasso v0.0.0-20210219160604-9baf1c12751b
+	github.com/rancher/lasso v0.0.0-20210408231703-9ddd9378d08d
 	github.com/rancher/rancher v0.0.0-20210312225102-c824d91cd247
 	github.com/rancher/rancher/pkg/apis v0.0.0
-	github.com/rancher/steve v0.0.0-20210302143000-362617a677a9
+	github.com/rancher/steve v0.0.0-20210421204825-daab6aed6778
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20201117180404-6f0145c68124
-	github.com/rancher/wrangler v0.7.3-0.20210219161540-ef7fe9ce2443
-	github.com/rancher/wrangler-api v0.6.1-0.20200515193802-dcf70881b087
+	github.com/rancher/wrangler v0.8.1-0.20210421002857-0b7c314c3022
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.6.3
 	github.com/urfave/cli v1.22.2
-	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
+	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.4.0 // indirect
