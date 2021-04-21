@@ -9,11 +9,11 @@ import (
 	"github.com/tidwall/gjson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/rancher/harvester/pkg/config"
-	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	. "github.com/rancher/harvester/tests/framework/dsl"
-	"github.com/rancher/harvester/tests/framework/fuzz"
-	"github.com/rancher/harvester/tests/framework/helper"
+	"github.com/harvester/harvester/pkg/config"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	. "github.com/harvester/harvester/tests/framework/dsl"
+	"github.com/harvester/harvester/tests/framework/fuzz"
+	"github.com/harvester/harvester/tests/framework/helper"
 )
 
 const (

@@ -13,9 +13,9 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	corev1type "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/rancher/harvester/pkg/auth/jwe"
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/auth/jwe"
+	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 func TestRefreshKeyInTokenManager(t *testing.T) {

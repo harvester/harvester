@@ -9,8 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 
-	upgradev1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
-	upgradectlv1 "github.com/rancher/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
+	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
+	upgradectlv1 "github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 )
 
 type PlanClient func(string) upgradev1.PlanInterface

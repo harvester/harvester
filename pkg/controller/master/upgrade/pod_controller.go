@@ -6,9 +6,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	upgradev1 "github.com/rancher/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	upgradev1 "github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 )
 
 // podHandler syncs upgrade CRD status on upgrade pod status changes

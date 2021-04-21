@@ -6,7 +6,7 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 
-	"github.com/rancher/harvester/tests/framework/env"
+	"github.com/harvester/harvester/tests/framework/env"
 )
 
 const (

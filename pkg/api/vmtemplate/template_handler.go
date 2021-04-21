@@ -10,8 +10,8 @@ import (
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/rancher/harvester/pkg/controller/master/template"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/template"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 type templateLinkHandler struct {

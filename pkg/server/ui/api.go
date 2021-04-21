@@ -3,7 +3,7 @@ package ui
 import (
 	apiserver "github.com/rancher/apiserver/pkg/server"
 
-	"github.com/rancher/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 func ConfigureAPIUI(server *apiserver.Server) {

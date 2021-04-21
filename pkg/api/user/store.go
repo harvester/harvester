@@ -12,9 +12,9 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/indexeres"
-	pkguser "github.com/rancher/harvester/pkg/user"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/indexeres"
+	pkguser "github.com/harvester/harvester/pkg/user"
 )
 
 const (

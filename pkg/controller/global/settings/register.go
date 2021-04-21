@@ -9,10 +9,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/config"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/settings"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/config"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 func Register(ctx context.Context, scaled *config.Scaled, server *server.Server, options config.Options) error {

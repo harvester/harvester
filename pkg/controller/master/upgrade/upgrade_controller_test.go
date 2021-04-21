@@ -10,9 +10,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	"github.com/rancher/harvester/pkg/util/fakeclients"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
 func TestUpgradeHandler_OnChanged(t *testing.T) {

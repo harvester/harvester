@@ -18,12 +18,12 @@ import (
 	kutil "k8s.io/utils/pointer"
 	kv1 "kubevirt.io/client-go/api/v1"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/config"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	ctllonghornv1 "github.com/rancher/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
-	"github.com/rancher/harvester/pkg/settings"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/config"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 const (

@@ -9,8 +9,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/controller/master/node"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/node"
 )
 
 const (

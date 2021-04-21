@@ -6,9 +6,9 @@ import (
 
 	restclient "k8s.io/client-go/rest"
 
-	"github.com/rancher/harvester/tests/framework/env"
-	"github.com/rancher/harvester/tests/framework/helm"
-	"github.com/rancher/harvester/tests/framework/ready"
+	"github.com/harvester/harvester/tests/framework/env"
+	"github.com/harvester/harvester/tests/framework/helm"
+	"github.com/harvester/harvester/tests/framework/ready"
 )
 
 // Destruct releases the runtime if "SKIP_HARVESTER_INSTALLATION" is not "true".

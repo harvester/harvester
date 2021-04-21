@@ -6,11 +6,11 @@ import (
 	"github.com/rancher/steve/pkg/server"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/controller/global/auth"
-	"github.com/rancher/harvester/pkg/controller/global/settings"
-	"github.com/rancher/harvester/pkg/controller/global/template"
-	"github.com/rancher/harvester/pkg/indexeres"
+	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/controller/global/auth"
+	"github.com/harvester/harvester/pkg/controller/global/settings"
+	"github.com/harvester/harvester/pkg/controller/global/template"
+	"github.com/harvester/harvester/pkg/indexeres"
 )
 
 type registerFunc func(context.Context, *config.Scaled, *server.Server, config.Options) error

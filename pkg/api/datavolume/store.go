@@ -9,8 +9,8 @@ import (
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	kv1 "kubevirt.io/client-go/api/v1"
 
-	cdiv1beta1 "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
-	"github.com/rancher/harvester/pkg/ref"
+	cdiv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
+	"github.com/harvester/harvester/pkg/ref"
 )
 
 type dvStore struct {

@@ -8,8 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	kubevirtapis "kubevirt.io/client-go/api/v1"
 
-	cdictrl "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
-	kubevirtctrl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	cdictrl "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
+	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 type VMIController struct {

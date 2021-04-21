@@ -9,10 +9,10 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 
-	ctlnode "github.com/rancher/harvester/pkg/controller/master/node"
-	"github.com/rancher/harvester/tests/framework/cluster"
-	. "github.com/rancher/harvester/tests/framework/dsl"
-	"github.com/rancher/harvester/tests/framework/helper"
+	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
+	"github.com/harvester/harvester/tests/framework/cluster"
+	. "github.com/harvester/harvester/tests/framework/dsl"
+	"github.com/harvester/harvester/tests/framework/helper"
 )
 
 var _ = Describe("verify host APIs", func() {

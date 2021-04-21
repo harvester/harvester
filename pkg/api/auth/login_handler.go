@@ -20,12 +20,12 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	kubeconfigutil "k8s.io/kubernetes/cmd/kubeadm/app/util/kubeconfig"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/auth"
-	"github.com/rancher/harvester/pkg/config"
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/indexeres"
-	"github.com/rancher/harvester/pkg/settings"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/auth"
+	"github.com/harvester/harvester/pkg/config"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/indexeres"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 const (
