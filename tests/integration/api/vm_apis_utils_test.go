@@ -15,8 +15,8 @@ import (
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 
-	"github.com/rancher/harvester/tests/framework/env"
-	"github.com/rancher/harvester/tests/framework/fuzz"
+	"github.com/harvester/harvester/tests/framework/env"
+	"github.com/harvester/harvester/tests/framework/fuzz"
 )
 
 const (

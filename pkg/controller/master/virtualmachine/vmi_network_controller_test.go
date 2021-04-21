@@ -11,9 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	kv1 "kubevirt.io/client-go/api/v1"
 
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/fake"
-	virtualmachinetype "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
-	kv1ctl "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	virtualmachinetype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	kv1ctl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {

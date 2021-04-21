@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/rancher/harvester/pkg/auth"
+	"github.com/harvester/harvester/pkg/auth"
 )
 
 const (

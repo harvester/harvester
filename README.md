@@ -1,7 +1,7 @@
 Rancher Harvester
 ========
-[![Build Status](https://drone-publish.rancher.io/api/badges/rancher/harvester/status.svg)](https://drone-publish.rancher.io/rancher/harvester)
-[![Go Report Card](https://goreportcard.com/badge/github.com/rancher/harvester)](https://goreportcard.com/report/github.com/rancher/harvester)
+[![Build Status](https://drone-publish.rancher.io/api/badges/harvester/harvester/status.svg)](https://drone-publish.rancher.io/harvester/harvester)
+[![Go Report Card](https://goreportcard.com/badge/github.com/harvester/harvester)](https://goreportcard.com/report/github.com/harvester/harvester)
 
 Rancher Harvester is an open source [hyper-converged infrastructure](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) (HCI) software built on Kubernetes. It is an open source alternative to vSphere and Nutanix.
 
@@ -42,7 +42,7 @@ Harvester supports two modes of installation:
 ### Bare-metal
 In the `Bare-metal` mode, users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster.
 
-To get the Harvester ISO, download it from the [Github releases.](https://github.com/rancher/harvester/releases)
+To get the Harvester ISO, download it from the [Github releases.](https://github.com/harvester/harvester/releases)
 
 During installation you can either choose to form a new cluster, or join the node to an existing cluster.
 
@@ -65,7 +65,7 @@ Note: This [video](https://youtu.be/97ADieBX6bE) shows a quick overview of the I
 
 
 ### App [Development Mode]
-In the `App` mode, the user can deploy Harvester using [Helm](https://github.com/rancher/harvester/tree/master/deploy/charts/harvester) to an existing Kubernetes cluster.
+In the `App` mode, the user can deploy Harvester using [Helm](https://github.com/harvester/harvester/tree/master/deploy/charts/harvester) to an existing Kubernetes cluster.
 
 Note: Hardware-assisted virtualization must be supported on the Kubernetes nodes.
 
@@ -89,10 +89,10 @@ Harvester is 100% open-source software. The project source code is spread across
 
 | Name | Repo Address |
 |:---|:---|
-| Harvester | https://github.com/rancher/harvester |
-| Harvester UI | https://github.com/rancher/harvester-ui |
-| Harvester Installer | https://github.com/rancher/harvester-installer |
-| Harvester Network Controller | https://github.com/rancher/harvester-network-controller|
+| Harvester | https://github.com/harvester/harvester |
+| Harvester UI | https://github.com/harvester/harvester-ui |
+| Harvester Installer | https://github.com/harvester/harvester-installer |
+| Harvester Network Controller | https://github.com/harvester/harvester-network-controller|
 
 Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
 
@@ -100,7 +100,7 @@ Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of t
 ## Community
 If you need any help with Harvester, please join us at either our [Rancher forums](https://forums.rancher.com/) or [Slack](https://slack.rancher.io/) where most of our team hangs out at.
 
-If you have any feedback or questions, feel free to [file an issue](https://github.com/rancher/harvester/issues/new/choose).
+If you have any feedback or questions, feel free to [file an issue](https://github.com/harvester/harvester/issues/new/choose).
 
 
 ## License

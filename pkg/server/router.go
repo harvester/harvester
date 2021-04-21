@@ -11,10 +11,10 @@ import (
 	"github.com/rancher/steve/pkg/server/router"
 	"k8s.io/client-go/rest"
 
-	"github.com/rancher/harvester/pkg/api/auth"
-	"github.com/rancher/harvester/pkg/api/proxy"
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/server/ui"
+	"github.com/harvester/harvester/pkg/api/auth"
+	"github.com/harvester/harvester/pkg/api/proxy"
+	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/server/ui"
 )
 
 type Router struct {

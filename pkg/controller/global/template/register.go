@@ -5,7 +5,7 @@ import (
 
 	"github.com/rancher/steve/pkg/server"
 
-	"github.com/rancher/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/config"
 )
 
 func Register(ctx context.Context, scaled *config.Scaled, server *server.Server, options config.Options) error {

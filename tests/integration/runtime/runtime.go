@@ -6,10 +6,10 @@ import (
 
 	"k8s.io/client-go/rest"
 
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/settings"
-	"github.com/rancher/harvester/tests/framework/cluster"
-	"github.com/rancher/harvester/tests/framework/fuzz"
+	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/tests/framework/cluster"
+	"github.com/harvester/harvester/tests/framework/fuzz"
 )
 
 const (
@@ -46,7 +46,7 @@ var (
 	}
 )
 
-// SetConfig configures the public variables exported in github.com/rancher/harvester/pkg/config package.
+// SetConfig configures the public variables exported in github.com/harvester/harvester/pkg/config package.
 func SetConfig(kubeConfig *rest.Config, testCluster cluster.Cluster) (config.Options, error) {
 	var options config.Options
 

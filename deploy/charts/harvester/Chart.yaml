@@ -8,9 +8,9 @@ type: application
 keywords:
   - virtualization
   - HCI
-home: https://github.com/rancher/harvester
+home: https://github.com/harvester/harvester
 sources:
-  - https://github.com/rancher/harvester
+  - https://github.com/harvester/harvester
 dependencies:
   - name: kubevirt-operator
     version: 0.1.0

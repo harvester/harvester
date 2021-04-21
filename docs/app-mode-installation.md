@@ -7,13 +7,13 @@ Note: This [video](https://youtu.be/TG0GaAD_6J4) shows the App mode installation
 ## Requirements
 
 - For App mode, it is assumed that multus is installed across your cluster and a corresponding NetworkAttachmentDefinition CRD was created.
-- For App mode, if you are using an [RKE](https://rancher.com/docs/rke/latest/en/) cluster, please ensure the `ipv4.ip_forward` is enabled for the CNI plugin so that the pod network works as expected. [#94](https://github.com/rancher/harvester/issues/94). 
+- For App mode, if you are using an [RKE](https://rancher.com/docs/rke/latest/en/) cluster, please ensure the `ipv4.ip_forward` is enabled for the CNI plugin so that the pod network works as expected. [#94](https://github.com/harvester/harvester/issues/94). 
 
 ## Install as an App
 Harvester can be installed on a Kubernetes cluster in the following ways:
 
 - Install with the [Helm](https://helm.sh/) CLI
-- Install as a Rancher catalog app, in which case the [rancher/harvester](https://github.com/rancher/harvester) repo is added to the Rancher Catalog as a Helm `v3` app
+- Install as a Rancher catalog app, in which case the [harvester/harvester](https://github.com/harvester/harvester) repo is added to the Rancher Catalog as a Helm `v3` app
     
 Please refer to the Harvester [Helm chart](../deploy/charts/harvester) for more details on installing and configuring the Helm chart.
     
@@ -30,7 +30,7 @@ cat /proc/cpuinfo | grep vmx
 
 1. Clone the GitHub repository:
     ```
-    $ git clone https://github.com/rancher/harvester.git --depth=1
+    $ git clone https://github.com/harvester/harvester.git --depth=1
     ```
 
 1. Go to the Helm chart:
@@ -56,7 +56,7 @@ $ helm install harvester harvester \
 
 Tip: You can create a testing Kubernetes environment in Rancher using the Digital Ocean cloud provider. For details, see [this section.](#digital-ocean-test-environment)
 
-1. Add the Harvester repo `https://github.com/rancher/harvester` to your Rancher catalogs by clicking **Global > Tools > Catalogs.**
+1. Add the Harvester repo `https://github.com/harvester/harvester` to your Rancher catalogs by clicking **Global > Tools > Catalogs.**
 1. Specify the URL and name. Set the branch to `stable` if you need a stable release version. Set the `Helm version` to be `Helm v3`.
 ![harvester-catalog.png](./assets/harvester-catalog.png)
 1. Click **Create.**

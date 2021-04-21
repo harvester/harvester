@@ -5,8 +5,8 @@ import (
 
 	"k8s.io/client-go/rest"
 
-	"github.com/rancher/harvester/pkg/config"
-	virtv1 "github.com/rancher/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/config"
+	virtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 )
 
 const (

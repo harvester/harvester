@@ -12,12 +12,12 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/server"
-	"github.com/rancher/harvester/tests/framework/cluster"
-	. "github.com/rancher/harvester/tests/framework/dsl"
-	"github.com/rancher/harvester/tests/framework/printer"
-	"github.com/rancher/harvester/tests/integration/runtime"
+	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/server"
+	"github.com/harvester/harvester/tests/framework/cluster"
+	. "github.com/harvester/harvester/tests/framework/dsl"
+	"github.com/harvester/harvester/tests/framework/printer"
+	"github.com/harvester/harvester/tests/integration/runtime"
 )
 
 var (

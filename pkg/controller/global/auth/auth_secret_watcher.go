@@ -16,8 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/rancher/harvester/pkg/auth/jwe"
-	"github.com/rancher/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/auth/jwe"
+	"github.com/harvester/harvester/pkg/config"
 )
 
 const (

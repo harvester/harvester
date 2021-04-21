@@ -3,7 +3,7 @@ package cluster
 import (
 	"io"
 
-	"github.com/rancher/harvester/tests/framework/logs"
+	"github.com/harvester/harvester/tests/framework/logs"
 )
 
 var _ Cluster = &ExistingCluster{}

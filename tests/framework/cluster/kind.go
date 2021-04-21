@@ -11,9 +11,9 @@ import (
 
 	"sigs.k8s.io/kind/pkg/cluster"
 
-	"github.com/rancher/harvester/tests/framework/finder"
-	"github.com/rancher/harvester/tests/framework/fuzz"
-	"github.com/rancher/harvester/tests/framework/logs"
+	"github.com/harvester/harvester/tests/framework/finder"
+	"github.com/harvester/harvester/tests/framework/fuzz"
+	"github.com/harvester/harvester/tests/framework/logs"
 )
 
 var _ Cluster = &LocalKindCluster{}
