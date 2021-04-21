@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
-	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/rancher/wrangler/pkg/slice"
 	corev1 "k8s.io/api/core/v1"
