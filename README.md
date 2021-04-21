@@ -62,7 +62,6 @@ Note: This [video](https://youtu.be/97ADieBX6bE) shows a quick overview of the I
 ![iso-installed.png](./docs/assets/iso-installed.png)
 
 
-
 ## Documentation
 Please refer to the following documentation to find out more details:
 - [Authentication](./docs/authentication.md)
