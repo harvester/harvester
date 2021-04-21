@@ -122,6 +122,7 @@ type PodOptions struct {
 	ConfigMapsToCreate []*v1.ConfigMap
 	SecretsToCreate    []*v1.Secret
 	Wait               bool
+	ImageOverride      string
 }
 
 // CreatePod will create a pod with a service account that impersonates as user. Corresponding
@@ -338,7 +339,7 @@ func (s *PodImpersonation) createPod(ctx context.Context, user user.Info, role *
 		return nil, err
 	}
 
-	pod = s.augmentPod(pod, sa)
+	pod = s.augmentPod(pod, sa, podOptions.ImageOverride)
 
 	if err := s.createConfigMaps(ctx, user, role, pod, podOptions, client); err != nil {
 		return nil, err
@@ -488,7 +489,7 @@ func (s *PodImpersonation) adminKubeConfig(user user.Info, role *rbacv1.ClusterR
 	}, nil
 }
 
-func (s *PodImpersonation) augmentPod(pod *v1.Pod, sa *v1.ServiceAccount) *v1.Pod {
+func (s *PodImpersonation) augmentPod(pod *v1.Pod, sa *v1.ServiceAccount, imageOverride string) *v1.Pod {
 	var (
 		zero = int64(0)
 		t    = true
@@ -547,9 +548,14 @@ func (s *PodImpersonation) augmentPod(pod *v1.Pod, sa *v1.ServiceAccount) *v1.Po
 		}
 	}
 
+	image := imageOverride
+	if image == "" {
+		image = s.imageName()
+	}
+
 	pod.Spec.Containers = append(pod.Spec.Containers, v1.Container{
 		Name:            "proxy",
-		Image:           s.imageName(),
+		Image:           image,
 		ImagePullPolicy: v1.PullIfNotPresent,
 		Env: []v1.EnvVar{
 			{

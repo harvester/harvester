@@ -126,6 +126,39 @@ func checkPodProjectedVolume(obj data.Object, _ []Condition, summary Summary) Su
 	return summary
 }
 
+func addEnvRef(summary Summary, names map[string]bool, obj data.Object, fieldPrefix, kind string) Summary {
+	for _, container := range obj.Slice("spec", "containers") {
+		for _, env := range container.Slice("envFrom") {
+			name := env.String(fieldPrefix+"Ref", "name")
+			if name == "" || names[name] {
+				continue
+			}
+			names[name] = true
+			summary.Relationships = append(summary.Relationships, Relationship{
+				Name:       name,
+				Kind:       kind,
+				APIVersion: "v1",
+				Type:       "uses",
+			})
+		}
+		for _, env := range container.Slice("env") {
+			name := env.String("valueFrom", fieldPrefix+"KeyRef", "name")
+			if name == "" || names[name] {
+				continue
+			}
+			names[name] = true
+			summary.Relationships = append(summary.Relationships, Relationship{
+				Name:       name,
+				Kind:       kind,
+				APIVersion: "v1",
+				Type:       "uses",
+			})
+		}
+	}
+
+	return summary
+}
+
 func checkPodConfigMaps(obj data.Object, _ []Condition, summary Summary) Summary {
 	names := map[string]bool{}
 	for _, vol := range obj.Slice("spec", "volumes") {
@@ -141,6 +174,7 @@ func checkPodConfigMaps(obj data.Object, _ []Condition, summary Summary) Summary
 			Type:       "uses",
 		})
 	}
+	summary = addEnvRef(summary, names, obj, "configMap", "ConfigMap")
 	return summary
 }
 
@@ -159,6 +193,7 @@ func checkPodSecrets(obj data.Object, _ []Condition, summary Summary) Summary {
 			Type:       "uses",
 		})
 	}
+	summary = addEnvRef(summary, names, obj, "secret", "Secret")
 	return summary
 }
 
