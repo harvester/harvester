@@ -14,8 +14,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/rancher/harvester/pkg/auth"
-	"github.com/rancher/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/auth"
+	"github.com/harvester/harvester/pkg/config"
 )
 
 const (

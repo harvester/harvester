@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 
-	"github.com/rancher/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/config"
 )
 
 const (

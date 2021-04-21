@@ -9,7 +9,7 @@ import (
 
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/rancher/harvester/tests/framework/env"
+	"github.com/harvester/harvester/tests/framework/env"
 )
 
 const (

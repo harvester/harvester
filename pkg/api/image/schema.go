@@ -5,8 +5,8 @@ import (
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/steve/pkg/stores/proxy"
 
-	"github.com/rancher/harvester/pkg/api/store"
-	"github.com/rancher/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/api/store"
+	"github.com/harvester/harvester/pkg/config"
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {

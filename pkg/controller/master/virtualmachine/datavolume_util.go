@@ -6,8 +6,8 @@ import (
 	kubevirtapis "kubevirt.io/client-go/api/v1"
 	cdiapis "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
-	cdictrl "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
-	"github.com/rancher/harvester/pkg/ref"
+	cdictrl "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
+	"github.com/harvester/harvester/pkg/ref"
 )
 
 // setOwnerlessDataVolumeReference tries to set the target VirtualMachine as the annotation schema owner of the DataVolume.

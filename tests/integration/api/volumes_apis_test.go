@@ -12,9 +12,9 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
-	. "github.com/rancher/harvester/tests/framework/dsl"
-	"github.com/rancher/harvester/tests/framework/fuzz"
-	"github.com/rancher/harvester/tests/framework/helper"
+	. "github.com/harvester/harvester/tests/framework/dsl"
+	"github.com/harvester/harvester/tests/framework/fuzz"
+	"github.com/harvester/harvester/tests/framework/helper"
 )
 
 var _ = Describe("verify volume APIs", func() {

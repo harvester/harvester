@@ -3,7 +3,7 @@ package upgrade
 import (
 	"github.com/sirupsen/logrus"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 // settingHandler do version syncs on server-version setting changes

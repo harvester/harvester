@@ -25,7 +25,7 @@ type StoreDriver struct {
 
 const (
 	KIND                     = "nfs"
-	MountDir                 = "/var/lib/rancher/harvester-backupstore-mounts"
+	MountDir                 = "/var/lib/harvester/harvester-backupstore-mounts"
 	UnsupportedProtocolError = "Protocol not supported"
 )
 

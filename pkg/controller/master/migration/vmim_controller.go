@@ -8,7 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "kubevirt.io/client-go/api/v1"
 
-	"github.com/rancher/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (

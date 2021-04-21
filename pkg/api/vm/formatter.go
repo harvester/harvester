@@ -5,9 +5,9 @@ import (
 	"github.com/rancher/wrangler/pkg/data/convert"
 	kv1 "kubevirt.io/client-go/api/v1"
 
-	"github.com/rancher/harvester/pkg/controller/master/migration"
-	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/rancher/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/controller/master/migration"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (

@@ -10,10 +10,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	kv1 "kubevirt.io/client-go/api/v1"
 
-	ctlcdiv1beta1 "github.com/rancher/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
-	"github.com/rancher/harvester/pkg/indexeres"
-	"github.com/rancher/harvester/pkg/ref"
-	"github.com/rancher/harvester/pkg/util"
+	ctlcdiv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
+	"github.com/harvester/harvester/pkg/indexeres"
+	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 type VMController struct {

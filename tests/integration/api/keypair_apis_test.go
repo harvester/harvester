@@ -12,11 +12,11 @@ import (
 	"golang.org/x/crypto/ssh"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/util"
-	. "github.com/rancher/harvester/tests/framework/dsl"
-	"github.com/rancher/harvester/tests/framework/fuzz"
-	"github.com/rancher/harvester/tests/framework/helper"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
+	. "github.com/harvester/harvester/tests/framework/dsl"
+	"github.com/harvester/harvester/tests/framework/fuzz"
+	"github.com/harvester/harvester/tests/framework/helper"
 )
 
 var _ = Describe("verify keypair APIs", func() {

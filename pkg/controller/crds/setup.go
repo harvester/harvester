@@ -9,8 +9,8 @@ import (
 	wcrd "github.com/rancher/wrangler/pkg/crd"
 	"k8s.io/client-go/rest"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/harvester/pkg/util/crd"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util/crd"
 )
 
 func Setup(ctx context.Context, restConfig *rest.Config) error {

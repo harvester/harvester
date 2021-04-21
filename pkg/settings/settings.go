@@ -9,7 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	harvesterv1 "github.com/rancher/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 var (
@@ -27,7 +27,7 @@ var (
 	ServerURL              = NewSetting("server-url", "")
 	ServerVersion          = NewSetting("server-version", "dev")
 	UIIndex                = NewSetting("ui-index", "https://releases.rancher.com/harvester-ui/latest/index.html")
-	UIPath                 = NewSetting("ui-path", "/usr/share/rancher/harvester")
+	UIPath                 = NewSetting("ui-path", "/usr/share/harvester/harvester")
 	APIUISource            = NewSetting("api-ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
 	VolumeSnapshotClass    = NewSetting("volume-snapshot-class", "longhorn")
 	BackupTargetSet        = NewSetting(BackupTargetSettingName, InitBackupTargetToString())

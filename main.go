@@ -18,8 +18,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
-	"github.com/rancher/harvester/pkg/config"
-	"github.com/rancher/harvester/pkg/server"
+	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/server"
 )
 
 var (

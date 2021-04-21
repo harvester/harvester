@@ -6,7 +6,7 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"k8s.io/apimachinery/pkg/labels"
 
-	ctlharvesterv1 "github.com/rancher/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 const (

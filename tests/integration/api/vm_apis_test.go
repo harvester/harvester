@@ -11,12 +11,12 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 
-	apivm "github.com/rancher/harvester/pkg/api/vm"
-	"github.com/rancher/harvester/pkg/config"
-	ctlkubevirtv1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	. "github.com/rancher/harvester/tests/framework/dsl"
-	"github.com/rancher/harvester/tests/framework/fuzz"
-	"github.com/rancher/harvester/tests/framework/helper"
+	apivm "github.com/harvester/harvester/pkg/api/vm"
+	"github.com/harvester/harvester/pkg/config"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	. "github.com/harvester/harvester/tests/framework/dsl"
+	"github.com/harvester/harvester/tests/framework/fuzz"
+	"github.com/harvester/harvester/tests/framework/helper"
 )
 
 var _ = Describe("verify vm APIs", func() {
