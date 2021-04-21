@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	. "github.com/onsi/ginkgo"
-	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/tidwall/gjson"
 	"golang.org/x/crypto/bcrypt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

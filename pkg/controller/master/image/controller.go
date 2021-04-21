@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/longhorn/longhorn-manager/types"
-	v1 "github.com/rancher/wrangler-api/pkg/generated/controllers/storage/v1"
+	v1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"

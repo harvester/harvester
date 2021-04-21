@@ -3,7 +3,7 @@ package upgrade
 import (
 	"github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io"
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
-	v1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

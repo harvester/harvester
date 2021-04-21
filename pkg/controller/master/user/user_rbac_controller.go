@@ -1,7 +1,7 @@
 package user
 
 import (
-	ctlrbacv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac/v1"
+	ctlrbacv1 "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/sirupsen/logrus"
 	k8srbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
