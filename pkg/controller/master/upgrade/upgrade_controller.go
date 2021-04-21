@@ -1,8 +1,8 @@
 package upgrade
 
 import (
-	v1 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1"
-	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+	v1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"

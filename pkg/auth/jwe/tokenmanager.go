@@ -7,7 +7,7 @@ import (
 
 	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	dashboardjwt "github.com/kubernetes/dashboard/src/app/backend/auth/jwe"
-	ctlcorev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 
 	authsync "github.com/harvester/harvester/pkg/auth/sync"
 	"github.com/harvester/harvester/pkg/settings"
