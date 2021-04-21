@@ -19,8 +19,8 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 

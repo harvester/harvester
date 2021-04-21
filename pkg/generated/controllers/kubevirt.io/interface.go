@@ -19,7 +19,7 @@ limitations under the License.
 package kubevirt
 
 import (
-	v1 "github.com/rancher/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	v1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/rancher/lasso/pkg/controller"
 )
 

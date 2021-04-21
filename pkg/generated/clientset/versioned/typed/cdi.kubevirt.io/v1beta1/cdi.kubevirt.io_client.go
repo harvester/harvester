@@ -19,7 +19,7 @@ limitations under the License.
 package v1beta1
 
 import (
-	"github.com/rancher/harvester/pkg/generated/clientset/versioned/scheme"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 	v1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
