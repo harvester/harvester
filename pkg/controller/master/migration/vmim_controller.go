@@ -41,6 +41,12 @@ func (h *Handler) OnVmimChanged(_ string, vmim *v1.VirtualMachineInstanceMigrati
 		}
 	} else if vmim.Status.Phase == v1.MigrationScheduling {
 		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateMigrating)
+	} else if vmi.Annotations[util.AnnotationMigrationUID] == string(vmim.UID) && vmim.Status.Phase == v1.MigrationFailed {
+		// There are cases when VMIM failed but the status is not reported in VMI.status.migrationState
+		// https://github.com/kubevirt/kubevirt/issues/5503
+		if err := h.resetHarvesterMigrationStateInVMI(vmi); err != nil {
+			return vmim, err
+		}
 	}
 	return vmim, nil
 }

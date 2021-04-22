@@ -34,15 +34,7 @@ func (h *Handler) OnVmiChanged(_ string, vmi *v1.VirtualMachineInstance) (*v1.Vi
 
 	if vmi.Annotations[util.AnnotationMigrationUID] == string(vmi.Status.MigrationState.MigrationUID) &&
 		vmi.Status.MigrationState.Completed {
-		toUpdate := vmi.DeepCopy()
-		delete(toUpdate.Annotations, util.AnnotationMigrationUID)
-		delete(toUpdate.Annotations, util.AnnotationMigrationState)
-		if vmi.Annotations[util.AnnotationMigrationTarget] != "" {
-			delete(toUpdate.Annotations, util.AnnotationMigrationTarget)
-			delete(toUpdate.Spec.NodeSelector, corev1.LabelHostname)
-		}
-
-		if err := util.VirtClientUpdateVmi(context.Background(), h.restClient, h.namespace, vmi.Namespace, vmi.Name, toUpdate); err != nil {
+		if err := h.resetHarvesterMigrationStateInVMI(vmi); err != nil {
 			return vmi, err
 		}
 		if err := h.syncVM(vmi); err != nil {
@@ -68,4 +60,19 @@ func (h *Handler) OnVmiChanged(_ string, vmi *v1.VirtualMachineInstance) (*v1.Vi
 	}
 
 	return vmi, nil
+}
+
+func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *v1.VirtualMachineInstance) error {
+	toUpdate := vmi.DeepCopy()
+	delete(toUpdate.Annotations, util.AnnotationMigrationUID)
+	delete(toUpdate.Annotations, util.AnnotationMigrationState)
+	if vmi.Annotations[util.AnnotationMigrationTarget] != "" {
+		delete(toUpdate.Annotations, util.AnnotationMigrationTarget)
+		delete(toUpdate.Spec.NodeSelector, corev1.LabelHostname)
+	}
+
+	if err := util.VirtClientUpdateVmi(context.Background(), h.restClient, h.namespace, vmi.Namespace, vmi.Name, toUpdate); err != nil {
+		return err
+	}
+	return nil
 }
