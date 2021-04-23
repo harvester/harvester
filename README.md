@@ -29,7 +29,7 @@ To get the Harvester server up and running the following minimum hardware is req
 
 | Type | Requirements |
 |:---|:---|
-| CPU | 4 cores minimum, 16 cores or above preferred |
+| CPU | x86_64 only. Hardware assisted virtualization required. 4 cores minimum, 16 cores or above preferred |
 | Memory | 8 GB minimum, 32 GB or above preferred |
 | Disk Capacity |  120 GB minimum, 500 GB or above preferred |
 | Disk Performance |  5,000+ random IOPS per disk(SSD/NVMe). Management nodes (first 3 nodes) must be [fast enough for Etcd](https://www.ibm.com/cloud/blog/using-fio-to-tell-whether-your-storage-is-fast-enough-for-etcd). |
@@ -37,10 +37,8 @@ To get the Harvester server up and running the following minimum hardware is req
 | Network Switch | Trunking of ports required for VLAN support |
 
 ## Installation
-Harvester supports two modes of installation:
 
-### Bare-metal
-In the `Bare-metal` mode, users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster.
+Users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster.
 
 To get the Harvester ISO, download it from the [Github releases.](https://github.com/harvester/harvester/releases)
 
@@ -64,22 +62,15 @@ Note: This [video](https://youtu.be/97ADieBX6bE) shows a quick overview of the I
 ![iso-installed.png](./docs/assets/iso-installed.png)
 
 
-### App [Development Mode]
-In the `App` mode, the user can deploy Harvester using [Helm](https://github.com/harvester/harvester/tree/master/deploy/charts/harvester) to an existing Kubernetes cluster.
-
-Note: Hardware-assisted virtualization must be supported on the Kubernetes nodes.
-
 
 ## Documentation
 Please refer to the following documentation to find out more details:
-- Installation
-  * [ISO Mode](#bare-metal)
-  * [App Mode - for development](./docs/app-mode-installation.md)
 - [Authentication](./docs/authentication.md)
 - [Upload Images](./docs/upload-image.md)
 - [Create a VM](./docs/create-vm.md)
 - [Access to the VM](./docs/access-to-the-vm.md)
 - [Node driver](./docs/node-driver.md)
+- [Dev Mode](./docs/app-mode-installation.md)
 
 Demo: Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
 
