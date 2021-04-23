@@ -66,14 +66,14 @@ require (
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.2
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/apiserver v0.0.0-20210209001659-a17289640582
+	github.com/rancher/apiserver v0.0.0-20210423001905-8cca34223733
 	github.com/rancher/dynamiclistener v0.2.1-0.20200910203214-85f32491cb09
 	github.com/rancher/lasso v0.0.0-20210408231703-9ddd9378d08d
 	github.com/rancher/rancher v0.0.0-20210312225102-c824d91cd247
 	github.com/rancher/rancher/pkg/apis v0.0.0
-	github.com/rancher/steve v0.0.0-20210421204825-daab6aed6778
+	github.com/rancher/steve v0.0.0-20210423003643-0a9ab631701f
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20201117180404-6f0145c68124
-	github.com/rancher/wrangler v0.8.1-0.20210421002857-0b7c314c3022
+	github.com/rancher/wrangler v0.8.1-0.20210423003607-f71a90542852
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.6.3
