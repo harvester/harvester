@@ -450,7 +450,7 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/rancher/apiserver v0.0.0-20210423001905-8cca34223733 => github.com/cnrancher/apiserver v0.0.0-20210302022932-069aa785cb9f
+# github.com/rancher/apiserver v0.0.0-20210209001659-a17289640582 => github.com/cnrancher/apiserver v0.0.0-20210302022932-069aa785cb9f
 github.com/rancher/apiserver/pkg/apierror
 github.com/rancher/apiserver/pkg/builtin
 github.com/rancher/apiserver/pkg/handlers
@@ -610,7 +610,7 @@ github.com/rancher/remotedialer/metrics
 github.com/rancher/rke/types
 github.com/rancher/rke/types/image
 github.com/rancher/rke/types/kdm
-# github.com/rancher/steve v0.0.0-20210423003643-0a9ab631701f
+# github.com/rancher/steve v0.0.0-20210421204825-daab6aed6778
 github.com/rancher/steve/pkg/accesscontrol
 github.com/rancher/steve/pkg/aggregation
 github.com/rancher/steve/pkg/attributes
@@ -643,7 +643,7 @@ github.com/rancher/steve/pkg/summarycache
 github.com/rancher/system-upgrade-controller/pkg/apis/condition
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1
-# github.com/rancher/wrangler v0.8.1-0.20210423003607-f71a90542852
+# github.com/rancher/wrangler v0.8.1-0.20210421002857-0b7c314c3022
 github.com/rancher/wrangler/pkg/apply
 github.com/rancher/wrangler/pkg/apply/injectors
 github.com/rancher/wrangler/pkg/broadcast

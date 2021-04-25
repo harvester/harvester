@@ -7,7 +7,7 @@ import (
 
 	types "github.com/rancher/wrangler/pkg/schemas"
 	"github.com/rancher/wrangler/pkg/schemas/definition"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 func MustGenerate(obj interface{}) *v1.JSONSchemaProps {
@@ -87,16 +87,6 @@ func populateField(fieldJSP *v1.JSONSchemaProps, f *types.Field) error {
 		fieldJSP.Maximum = &fl
 	}
 
-	if f.Default != nil {
-		bytes, err := json.Marshal(f.Default)
-		if err != nil {
-			return err
-		}
-		fieldJSP.Default = &v1.JSON{
-			Raw: bytes,
-		}
-	}
-
 	return nil
 }
 
@@ -142,8 +132,6 @@ func typeToProps(typeName string, schemas *types.Schemas, inflight map[string]bo
 	default:
 		jsp.Type = t
 	}
-
-	jsp.XPreserveUnknownFields = nil
 
 	return jsp, nil
 }
