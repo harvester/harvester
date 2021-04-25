@@ -1227,8 +1227,6 @@ github.com/rancher/wrangler v0.7.3-0.20201028210318-d73835950c29/go.mod h1:goezj
 github.com/rancher/wrangler v0.7.3-0.20210219161540-ef7fe9ce2443 h1:M6GVpZFsc8GmjGwmIM45WXVGVu4FyGdIkCrAl2llQjk=
 github.com/rancher/wrangler v0.7.3-0.20210219161540-ef7fe9ce2443/go.mod h1:MXpKvxE/LGgLIY+ycpXD/l9zq14FOwMjfxwrf3iRIJM=
 github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e/go.mod h1:2lcWR98q8HU3U4mVETnXc8quNG0uXxrt8vKd6cAa/30=
-github.com/rancher/wrangler-api v0.6.1-0.20200515193802-dcf70881b087 h1:+hiZFORh4fMvRSg5SIClz4y6nD5wkKLAdtPzjxyeHgs=
-github.com/rancher/wrangler-api v0.6.1-0.20200515193802-dcf70881b087/go.mod h1:s95VCVHV19b+EUo7BAwwe6nhaDx2/lHu91hxxDHbZs0=
 github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a/go.mod h1:bCqnVzQkZxMG4s8nGwiZ5l3QUCyqpo9Y+/ZMZ9VjZe4=
 github.com/remyoudompheng/bigfft v0.0.0-20170806203942-52369c62f446/go.mod h1:uYEyJGbgTkfkS4+E/PavXkNJcbFIpEtjt2B0KDQ5+9M=
 github.com/robfig/cron v1.1.0/go.mod h1:JGuDeoQd7Z6yL4zQhZ3OPEVHB7fL6Ka6skscFHfmt2k=

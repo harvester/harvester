@@ -74,7 +74,6 @@ require (
 	github.com/rancher/steve v0.0.0-20210302143000-362617a677a9
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20201117180404-6f0145c68124
 	github.com/rancher/wrangler v0.7.3-0.20210219161540-ef7fe9ce2443
-	github.com/rancher/wrangler-api v0.6.1-0.20200515193802-dcf70881b087
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.6.3
