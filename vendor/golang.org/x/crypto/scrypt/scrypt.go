@@ -9,7 +9,6 @@ package scrypt // import "golang.org/x/crypto/scrypt"
 
 import (
 	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"math/bits"
 
@@ -144,34 +143,36 @@ func integer(b []uint32, r int) uint64 {
 
 func smix(b []byte, r, N int, v, xy []uint32) {
 	var tmp [16]uint32
-	R := 32 * r
 	x := xy
-	y := xy[R:]
+	y := xy[32*r:]
 
 	j := 0
-	for i := 0; i < R; i++ {
-		x[i] = binary.LittleEndian.Uint32(b[j:])
+	for i := 0; i < 32*r; i++ {
+		x[i] = uint32(b[j]) | uint32(b[j+1])<<8 | uint32(b[j+2])<<16 | uint32(b[j+3])<<24
 		j += 4
 	}
 	for i := 0; i < N; i += 2 {
-		blockCopy(v[i*R:], x, R)
+		blockCopy(v[i*(32*r):], x, 32*r)
 		blockMix(&tmp, x, y, r)
 
-		blockCopy(v[(i+1)*R:], y, R)
+		blockCopy(v[(i+1)*(32*r):], y, 32*r)
 		blockMix(&tmp, y, x, r)
 	}
 	for i := 0; i < N; i += 2 {
 		j := int(integer(x, r) & uint64(N-1))
-		blockXOR(x, v[j*R:], R)
+		blockXOR(x, v[j*(32*r):], 32*r)
 		blockMix(&tmp, x, y, r)
 
 		j = int(integer(y, r) & uint64(N-1))
-		blockXOR(y, v[j*R:], R)
+		blockXOR(y, v[j*(32*r):], 32*r)
 		blockMix(&tmp, y, x, r)
 	}
 	j = 0
-	for _, v := range x[:R] {
-		binary.LittleEndian.PutUint32(b[j:], v)
+	for _, v := range x[:32*r] {
+		b[j+0] = byte(v >> 0)
+		b[j+1] = byte(v >> 8)
+		b[j+2] = byte(v >> 16)
+		b[j+3] = byte(v >> 24)
 		j += 4
 	}
 }
