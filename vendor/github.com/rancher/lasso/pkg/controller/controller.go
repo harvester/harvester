@@ -217,7 +217,7 @@ func (c *controller) EnqueueKey(key string) {
 	if c.workqueue == nil {
 		c.startKeys = append(c.startKeys, startKey{key: key})
 	} else {
-		c.workqueue.Add(key)
+		c.workqueue.AddRateLimited(key)
 	}
 }
 

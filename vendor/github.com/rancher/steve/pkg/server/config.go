@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
-	apiextensionsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1"
+	apiextensionsv1beta1 "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1beta1"
 	"github.com/rancher/wrangler/pkg/generated/controllers/apiregistration.k8s.io"
 	apiregistrationv1 "github.com/rancher/wrangler/pkg/generated/controllers/apiregistration.k8s.io/v1"
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
@@ -25,7 +25,7 @@ type Controllers struct {
 	Core       corev1.Interface
 	RBAC       rbacv1.Interface
 	API        apiregistrationv1.Interface
-	CRD        apiextensionsv1.Interface
+	CRD        apiextensionsv1beta1.Interface
 	starters   []start.Starter
 }
 
@@ -75,7 +75,7 @@ func NewController(cfg *rest.Config, opts *generic.FactoryOptions) (*Controllers
 	c.Core = core.Core().V1()
 	c.RBAC = rbac.Rbac().V1()
 	c.API = api.Apiregistration().V1()
-	c.CRD = crd.Apiextensions().V1()
+	c.CRD = crd.Apiextensions().V1beta1()
 	c.RESTConfig = cfg
 
 	return c, nil
