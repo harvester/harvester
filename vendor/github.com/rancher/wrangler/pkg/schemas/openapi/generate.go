@@ -3,14 +3,13 @@ package openapi
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 
 	types "github.com/rancher/wrangler/pkg/schemas"
 	"github.com/rancher/wrangler/pkg/schemas/definition"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
 
-func MustGenerate(obj interface{}) *v1.JSONSchemaProps {
+func MustGenerate(obj interface{}) *v1beta1.JSONSchemaProps {
 	if obj == nil {
 		return nil
 	}
@@ -21,7 +20,7 @@ func MustGenerate(obj interface{}) *v1.JSONSchemaProps {
 	return result
 }
 
-func ToOpenAPIFromStruct(obj interface{}) (*v1.JSONSchemaProps, error) {
+func ToOpenAPIFromStruct(obj interface{}) (*v1beta1.JSONSchemaProps, error) {
 	schemas := types.EmptySchemas()
 	schema, err := schemas.Import(obj)
 	if err != nil {
@@ -31,7 +30,7 @@ func ToOpenAPIFromStruct(obj interface{}) (*v1.JSONSchemaProps, error) {
 	return ToOpenAPI(schema.ID, schemas)
 }
 
-func ToOpenAPI(name string, schemas *types.Schemas) (*v1.JSONSchemaProps, error) {
+func ToOpenAPI(name string, schemas *types.Schemas) (*v1beta1.JSONSchemaProps, error) {
 	schema := schemas.Schema(name)
 	if schema == nil {
 		return nil, fmt.Errorf("failed to find schema: %s", name)
@@ -48,7 +47,7 @@ func ToOpenAPI(name string, schemas *types.Schemas) (*v1.JSONSchemaProps, error)
 	return schemaToProps(newSchema, schemas, map[string]bool{})
 }
 
-func populateField(fieldJSP *v1.JSONSchemaProps, f *types.Field) error {
+func populateField(fieldJSP *v1beta1.JSONSchemaProps, f *types.Field) error {
 	fieldJSP.Description = f.Description
 	// don't reset this to not nullable
 	if f.Nullable {
@@ -63,7 +62,7 @@ func populateField(fieldJSP *v1.JSONSchemaProps, f *types.Field) error {
 			if err != nil {
 				return err
 			}
-			fieldJSP.Enum = append(fieldJSP.Enum, v1.JSON{
+			fieldJSP.Enum = append(fieldJSP.Enum, v1beta1.JSON{
 				Raw: bytes,
 			})
 		}
@@ -90,7 +89,7 @@ func populateField(fieldJSP *v1.JSONSchemaProps, f *types.Field) error {
 	return nil
 }
 
-func typeToProps(typeName string, schemas *types.Schemas, inflight map[string]bool) (*v1.JSONSchemaProps, error) {
+func typeToProps(typeName string, schemas *types.Schemas, inflight map[string]bool) (*v1beta1.JSONSchemaProps, error) {
 	t, subType, schema, err := typeAndSchema(typeName, schemas)
 	if err != nil {
 		return nil, err
@@ -100,7 +99,7 @@ func typeToProps(typeName string, schemas *types.Schemas, inflight map[string]bo
 		return schemaToProps(schema, schemas, inflight)
 	}
 
-	jsp := &v1.JSONSchemaProps{}
+	jsp := &v1beta1.JSONSchemaProps{}
 
 	switch t {
 	case "map":
@@ -111,7 +110,7 @@ func typeToProps(typeName string, schemas *types.Schemas, inflight map[string]bo
 		jsp.Type = "object"
 		jsp.Nullable = true
 		if additionalProps.Type != "object" {
-			jsp.AdditionalProperties = &v1.JSONSchemaPropsOrBool{
+			jsp.AdditionalProperties = &v1beta1.JSONSchemaPropsOrBool{
 				Allows: true,
 				Schema: additionalProps,
 			}
@@ -123,7 +122,7 @@ func typeToProps(typeName string, schemas *types.Schemas, inflight map[string]bo
 		}
 		jsp.Type = "array"
 		jsp.Nullable = true
-		jsp.Items = &v1.JSONSchemaPropsOrArray{
+		jsp.Items = &v1beta1.JSONSchemaPropsOrArray{
 			Schema: items,
 		}
 	case "string":
@@ -136,8 +135,8 @@ func typeToProps(typeName string, schemas *types.Schemas, inflight map[string]bo
 	return jsp, nil
 }
 
-func schemaToProps(schema *types.Schema, schemas *types.Schemas, inflight map[string]bool) (*v1.JSONSchemaProps, error) {
-	jsp := &v1.JSONSchemaProps{
+func schemaToProps(schema *types.Schema, schemas *types.Schemas, inflight map[string]bool) (*v1beta1.JSONSchemaProps, error) {
+	jsp := &v1beta1.JSONSchemaProps{
 		Description: schema.Description,
 		Type:        "object",
 	}
@@ -149,7 +148,7 @@ func schemaToProps(schema *types.Schema, schemas *types.Schemas, inflight map[st
 	inflight[schema.ID] = true
 	defer delete(inflight, schema.ID)
 
-	jsp.Properties = map[string]v1.JSONSchemaProps{}
+	jsp.Properties = map[string]v1beta1.JSONSchemaProps{}
 
 	for name, f := range schema.ResourceFields {
 		fieldJSP, err := typeToProps(f.Type, schemas, inflight)
@@ -165,7 +164,6 @@ func schemaToProps(schema *types.Schema, schemas *types.Schemas, inflight map[st
 		jsp.Properties[name] = *fieldJSP
 	}
 
-	sort.Strings(jsp.Required)
 	return jsp, nil
 }
 

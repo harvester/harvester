@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/rancher/wrangler/pkg/data"
-	unstructured2 "github.com/rancher/wrangler/pkg/unstructured"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -92,7 +91,6 @@ func dedupMessage(messages []string) []string {
 func Summarize(runtimeObj runtime.Object) Summary {
 	var (
 		obj     data.Object
-		err     error
 		summary Summary
 	)
 
@@ -102,10 +100,7 @@ func Summarize(runtimeObj runtime.Object) Summary {
 
 	unstr, ok := runtimeObj.(*unstructured.Unstructured)
 	if !ok {
-		unstr, err = unstructured2.ToUnstructured(runtimeObj)
-		if err != nil {
-			return summary
-		}
+		return summary
 	}
 
 	if unstr != nil {

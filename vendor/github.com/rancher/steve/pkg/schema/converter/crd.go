@@ -4,9 +4,9 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/attributes"
 	"github.com/rancher/steve/pkg/schema/table"
-	apiextv1 "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1"
+	"github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1beta1"
 	"github.com/rancher/wrangler/pkg/schemas"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -27,7 +27,7 @@ var (
 	}
 )
 
-func AddCustomResources(crd apiextv1.CustomResourceDefinitionClient, schemas map[string]*types.APISchema) error {
+func AddCustomResources(crd v1beta1.CustomResourceDefinitionClient, schemas map[string]*types.APISchema) error {
 	crds, err := crd.List(metav1.ListOptions{})
 	if err != nil {
 		return nil
@@ -38,19 +38,31 @@ func AddCustomResources(crd apiextv1.CustomResourceDefinitionClient, schemas map
 			continue
 		}
 
+		var columns []table.Column
+		for _, col := range crd.Spec.AdditionalPrinterColumns {
+			columns = append(columns, table.Column{
+				Name:  col.Name,
+				Field: col.JSONPath,
+				Type:  col.Type,
+			})
+		}
+
 		group, kind := crd.Spec.Group, crd.Status.AcceptedNames.Kind
 
+		if crd.Spec.Version != "" {
+			forVersion(&crd, group, crd.Spec.Version, kind, schemas, crd.Spec.AdditionalPrinterColumns, columns)
+		}
 		for _, version := range crd.Spec.Versions {
-			forVersion(&crd, group, kind, version, schemas)
+			forVersion(&crd, group, version.Name, kind, schemas, crd.Spec.AdditionalPrinterColumns, columns)
 		}
 	}
 
 	return nil
 }
 
-func forVersion(crd *v1.CustomResourceDefinition, group, kind string, version v1.CustomResourceDefinitionVersion, schemasMap map[string]*types.APISchema) {
+func forVersion(crd *beta1.CustomResourceDefinition, group, version, kind string, schemasMap map[string]*types.APISchema, columnDefs []beta1.CustomResourceColumnDefinition, columns []table.Column) {
 	var versionColumns []table.Column
-	for _, col := range version.AdditionalPrinterColumns {
+	for _, col := range columnDefs {
 		versionColumns = append(versionColumns, table.Column{
 			Name:   col.Name,
 			Field:  col.JSONPath,
@@ -58,10 +70,13 @@ func forVersion(crd *v1.CustomResourceDefinition, group, kind string, version v1
 			Format: col.Format,
 		})
 	}
+	if len(versionColumns) == 0 {
+		versionColumns = columns
+	}
 
 	id := GVKToVersionedSchemaID(schema.GroupVersionKind{
 		Group:   group,
-		Version: version.Name,
+		Version: version,
 		Kind:    kind,
 	})
 
@@ -69,11 +84,12 @@ func forVersion(crd *v1.CustomResourceDefinition, group, kind string, version v1
 	if schema == nil {
 		return
 	}
-	if len(versionColumns) > 0 {
-		attributes.SetColumns(schema, versionColumns)
+	if len(columns) > 0 {
+		attributes.SetColumns(schema, columns)
 	}
-	if version.Schema != nil && version.Schema.OpenAPIV3Schema != nil {
-		if fieldsSchema := modelV3ToSchema(id, crd.Spec.Versions[0].Schema.OpenAPIV3Schema, schemasMap); fieldsSchema != nil {
+
+	if crd.Spec.Validation != nil && crd.Spec.Validation.OpenAPIV3Schema != nil {
+		if fieldsSchema := modelV3ToSchema(id, crd.Spec.Validation.OpenAPIV3Schema, schemasMap); fieldsSchema != nil {
 			for k, v := range staticFields {
 				fieldsSchema.ResourceFields[k] = v
 			}
