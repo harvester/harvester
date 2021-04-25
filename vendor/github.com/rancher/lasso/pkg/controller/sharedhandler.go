@@ -9,7 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -71,14 +70,7 @@ func (h *SharedHandler) OnChange(key string, obj runtime.Object) error {
 			})
 		}
 		if newObj != nil && !reflect.ValueOf(newObj).IsNil() {
-			meta, err := meta.Accessor(newObj)
-			if err == nil && meta.GetUID() != "" {
-				// avoid using an empty object
-				obj = newObj
-			} else if err != nil {
-				// assign if we can't determine metadata
-				obj = newObj
-			}
+			obj = newObj
 		}
 	}
 
