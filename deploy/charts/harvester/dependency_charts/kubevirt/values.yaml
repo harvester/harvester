@@ -69,6 +69,13 @@ spec:
       ## defaults to "24h", 1d.
       # caOverlapInterval: "24h"
 
+  customizeComponents:
+    patches:
+      - patch: '{"webhooks":[{"name":"kubevirt-validator.kubevirt.io","failurePolicy":"Ignore"},{"name":"kubevirt-update-validator.kubevirt.io","failurePolicy":"Ignore"}]}'
+        resourceName: virt-operator-validator
+        resourceType: ValidatingWebhookConfiguration
+        type: strategic
+
   ## Specify the default configuration of KubeVirt virtual machine.
   ##
   configuration:
