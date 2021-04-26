@@ -22,7 +22,7 @@ questions:
       type: "string"
       group: "Harvester Settings"
     - variable: containers.apiserver.image.tag
-      default: "v0.2.0-rc3"
+      default: "v0.2.0-rc4"
       label: "Image Tag"
       description: "specify the tag of harvester image"
       type: "string"
@@ -34,7 +34,7 @@ questions:
       type: "string"
       group: "Harvester Settings"
     - variable: harvester-network-controller.image.tag
-      default: "v0.1.4"
+      default: "v0.1.5"
       label: "Image Tag"
       description: "specify the tag of harvester-network-controller image"
       type: "string"
