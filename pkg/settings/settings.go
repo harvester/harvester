@@ -18,23 +18,25 @@ var (
 	provider       Provider
 	InjectDefaults string
 
-	APIUIVersion           = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
-	AuthenticationMode     = NewSetting("authentication-mode", fmt.Sprintf("%s,%s", harvesterv1.KubernetesCredentials, harvesterv1.LocalUser))
-	AuthSecretName         = NewSetting("auth-secret-name", "harvester-key-holder")
-	AuthTokenMaxTTLMinutes = NewSetting("auth-token-max-ttl-minutes", "720")
-	FirstLogin             = NewSetting("first-login", "true")
-	NoDefaultAdmin         = NewSetting("no-default-admin", "")
-	ServerURL              = NewSetting("server-url", "")
-	ServerVersion          = NewSetting("server-version", "dev")
-	UIIndex                = NewSetting("ui-index", "https://releases.rancher.com/harvester-ui/latest/index.html")
-	UIPath                 = NewSetting("ui-path", "/usr/share/harvester/harvester")
-	APIUISource            = NewSetting("api-ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
-	VolumeSnapshotClass    = NewSetting("volume-snapshot-class", "longhorn")
-	BackupTargetSet        = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
-	RancherEnabled         = NewSetting("rancher-enabled", "false") // Specify whether the UI should display the Rancher UI navigation
-	UpgradableVersions     = NewSetting("upgradable-versions", "")
-	VersionMetadataURL     = NewSetting("version-metadata-url", "")
-	LogLevel               = NewSetting("log-level", "info") // options are info, debug and trace
+	APIUIVersion                 = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
+	AuthenticationMode           = NewSetting("authentication-mode", fmt.Sprintf("%s,%s", harvesterv1.KubernetesCredentials, harvesterv1.LocalUser))
+	AuthSecretName               = NewSetting("auth-secret-name", "harvester-key-holder")
+	AuthTokenMaxTTLMinutes       = NewSetting("auth-token-max-ttl-minutes", "720")
+	FirstLogin                   = NewSetting("first-login", "true")
+	NoDefaultAdmin               = NewSetting("no-default-admin", "")
+	ServerURL                    = NewSetting("server-url", "")
+	ServerVersion                = NewSetting("server-version", "dev")
+	UIIndex                      = NewSetting("ui-index", "https://releases.rancher.com/harvester-ui/latest/index.html")
+	UIPath                       = NewSetting("ui-path", "/usr/share/harvester/harvester")
+	APIUISource                  = NewSetting("api-ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
+	VolumeSnapshotClass          = NewSetting("volume-snapshot-class", "longhorn")
+	BackupTargetSet              = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
+	RancherEnabled               = NewSetting("rancher-enabled", "false") // Specify whether the UI should display the Rancher UI navigation
+	UpgradableVersions           = NewSetting("upgradable-versions", "")
+	VersionMetadataURL           = NewSetting("version-metadata-url", "")
+	LogLevel                     = NewSetting("log-level", "info") // options are info, debug and trace
+	SupportBundleImage           = NewSetting("support-bundle-image", "rancher/harvester-support-bundle-utils")
+	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
 )
 
 const BackupTargetSettingName = "backup-target"

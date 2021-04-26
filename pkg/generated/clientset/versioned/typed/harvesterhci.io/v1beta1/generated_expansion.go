@@ -24,6 +24,8 @@ type PreferenceExpansion interface{}
 
 type SettingExpansion interface{}
 
+type SupportBundleExpansion interface{}
+
 type UpgradeExpansion interface{}
 
 type UserExpansion interface{}

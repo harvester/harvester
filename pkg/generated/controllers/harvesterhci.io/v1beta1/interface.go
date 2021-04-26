@@ -33,6 +33,7 @@ type Interface interface {
 	KeyPair() KeyPairController
 	Preference() PreferenceController
 	Setting() SettingController
+	SupportBundle() SupportBundleController
 	Upgrade() UpgradeController
 	User() UserController
 	VirtualMachineBackup() VirtualMachineBackupController
@@ -61,6 +62,9 @@ func (c *version) Preference() PreferenceController {
 }
 func (c *version) Setting() SettingController {
 	return NewSettingController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Setting"}, "settings", false, c.controllerFactory)
+}
+func (c *version) SupportBundle() SupportBundleController {
+	return NewSupportBundleController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "SupportBundle"}, "supportbundles", true, c.controllerFactory)
 }
 func (c *version) Upgrade() UpgradeController {
 	return NewUpgradeController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Upgrade"}, "upgrades", true, c.controllerFactory)
