@@ -42,6 +42,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineBackupContent"),
 			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineRestore"),
 			crd.FromGV(harvesterv1.SchemeGroupVersion, "Preference"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "SupportBundle"),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Volume"),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Setting"),
 			createNetworkAttachmentDefinitionCRD(),

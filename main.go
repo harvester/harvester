@@ -20,11 +20,10 @@ import (
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/server"
+	"github.com/harvester/harvester/pkg/version"
 )
 
 var (
-	Version        = "v0.0.0-dev"
-	GitCommit      = "HEAD"
 	profileAddress = "localhost:6060"
 	KubeConfig     string
 )
@@ -34,7 +33,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Name = "rancher-harvester"
-	app.Version = fmt.Sprintf("%s (%s)", Version, GitCommit)
+	app.Version = version.FriendlyVersion()
 	app.Usage = ""
 	app.Flags = []cli.Flag{
 		cli.StringFlag{

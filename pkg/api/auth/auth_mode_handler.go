@@ -7,17 +7,18 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 func ModeHandler(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		responseError(rw, http.StatusMethodNotAllowed, "Only GET method is supported")
+		util.ResponseErrorMsg(rw, http.StatusMethodNotAllowed, "Only GET method is supported")
 		return
 	}
 
 	body, err := json.Marshal(harvesterv1.AuthenticationModesResponse{Modes: authModes()})
 	if err != nil {
-		responseError(rw, http.StatusInternalServerError, "Failed to encode authenticationModes, "+err.Error())
+		util.ResponseErrorMsg(rw, http.StatusInternalServerError, "Failed to encode authenticationModes, "+err.Error())
 		return
 	}
 

@@ -29,6 +29,7 @@ type HarvesterhciV1beta1Interface interface {
 	KeyPairsGetter
 	PreferencesGetter
 	SettingsGetter
+	SupportBundlesGetter
 	UpgradesGetter
 	UsersGetter
 	VirtualMachineBackupsGetter
@@ -54,6 +55,10 @@ func (c *HarvesterhciV1beta1Client) Preferences(namespace string) PreferenceInte
 
 func (c *HarvesterhciV1beta1Client) Settings() SettingInterface {
 	return newSettings(c)
+}
+
+func (c *HarvesterhciV1beta1Client) SupportBundles(namespace string) SupportBundleInterface {
+	return newSupportBundles(c, namespace)
 }
 
 func (c *HarvesterhciV1beta1Client) Upgrades(namespace string) UpgradeInterface {
