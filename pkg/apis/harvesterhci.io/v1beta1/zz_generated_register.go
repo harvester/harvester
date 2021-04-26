@@ -31,6 +31,7 @@ var (
 	KeyPairResourceName                       = "keypairs"
 	PreferenceResourceName                    = "preferences"
 	SettingResourceName                       = "settings"
+	SupportBundleResourceName                 = "supportbundles"
 	UpgradeResourceName                       = "upgrades"
 	UserResourceName                          = "users"
 	VirtualMachineBackupResourceName          = "virtualmachinebackups"
@@ -68,6 +69,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PreferenceList{},
 		&Setting{},
 		&SettingList{},
+		&SupportBundle{},
+		&SupportBundleList{},
 		&Upgrade{},
 		&UpgradeList{},
 		&User{},

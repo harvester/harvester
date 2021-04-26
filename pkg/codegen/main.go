@@ -38,6 +38,7 @@ func main() {
 					harvesterv1.VirtualMachineImage{},
 					harvesterv1.VirtualMachineTemplate{},
 					harvesterv1.VirtualMachineTemplateVersion{},
+					harvesterv1.SupportBundle{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,

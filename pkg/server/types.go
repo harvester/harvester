@@ -147,11 +147,6 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 
 	s.ASL = accesscontrol.NewAccessStore(s.Context, true, s.controllers.RBAC)
 
-	router, err := NewRouter(scaled, s.RESTConfig, options)
-	if err != nil {
-		return err
-	}
-
 	if err := crds.Setup(s.Context, s.RESTConfig); err != nil {
 		return err
 	}
@@ -163,6 +158,11 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 			return err
 		}
 		authMiddleware = md.ToAuthMiddleware()
+	}
+
+	router, err := NewRouter(scaled, s.RESTConfig, options, authMiddleware)
+	if err != nil {
+		return err
 	}
 
 	s.steve, err = steveserver.New(s.Context, s.RESTConfig, &steveserver.Options{

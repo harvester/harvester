@@ -50,7 +50,7 @@ type Options struct {
 }
 
 type Scaled struct {
-	ctx               context.Context
+	Ctx               context.Context
 	ControllerFactory controller.SharedControllerFactory
 
 	VirtFactory              *kubevirt.Factory
@@ -95,7 +95,7 @@ type Management struct {
 
 func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.FactoryOptions, namespace string) (context.Context, *Scaled, error) {
 	scaled := &Scaled{
-		ctx: ctx,
+		Ctx: ctx,
 	}
 
 	virt, err := kubevirt.NewFactoryFromConfigWithOptions(restConfig, opts)
@@ -184,7 +184,7 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	if err != nil {
 		return nil, nil, err
 	}
-	return context.WithValue(scaled.ctx, _scaledKey{}, scaled), scaled, nil
+	return context.WithValue(scaled.Ctx, _scaledKey{}, scaled), scaled, nil
 }
 
 func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic.FactoryOptions) (*Management, error) {
@@ -290,7 +290,7 @@ func ScaledWithContext(ctx context.Context) *Scaled {
 }
 
 func (s *Scaled) Start(threadiness int) error {
-	return start.All(s.ctx, threadiness, s.starters...)
+	return start.All(s.Ctx, threadiness, s.starters...)
 }
 func (s *Management) Start(threadiness int) error {
 	return start.All(s.ctx, threadiness, s.starters...)

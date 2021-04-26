@@ -26,6 +26,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -65,7 +66,7 @@ type LoginHandler struct {
 
 func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		responseError(rw, http.StatusMethodNotAllowed, "Only POST method is supported")
+		util.ResponseErrorMsg(rw, http.StatusMethodNotAllowed, "Only POST method is supported")
 		return
 	}
 
@@ -80,24 +81,24 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		if auth.IsRancherAuthMode() {
 			resetCookie(rw, tokens.CookieName, isSecure)
 		}
-		responseOK(rw)
+		util.ResponseOK(rw)
 		return
 	}
 
 	if action != loginActionName {
-		responseError(rw, http.StatusBadRequest, "Unsupported action")
+		util.ResponseErrorMsg(rw, http.StatusBadRequest, "Unsupported action")
 		return
 	}
 
 	var input harvesterv1.Login
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		responseError(rw, http.StatusBadRequest, "Failed to decode request body, "+err.Error())
+		util.ResponseErrorMsg(rw, http.StatusBadRequest, "Failed to decode request body, "+err.Error())
 		return
 	}
 
 	authMode, err := authenticationModeVerify(&input)
 	if err != nil {
-		responseError(rw, http.StatusUnauthorized, err.Error())
+		util.ResponseErrorMsg(rw, http.StatusUnauthorized, err.Error())
 		return
 	}
 
@@ -107,13 +108,13 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		if e, ok := err.(*apierror.APIError); ok {
 			status = e.Code.Status
 		}
-		responseError(rw, status, err.Error())
+		util.ResponseError(rw, status, err)
 		return
 	}
 
 	if !strings.EqualFold(settings.FirstLogin.Get(), "false") {
 		if err := settings.FirstLogin.Set("false"); err != nil {
-			responseError(rw, http.StatusInternalServerError, err.Error())
+			util.ResponseError(rw, http.StatusInternalServerError, err)
 		}
 	}
 
@@ -126,7 +127,7 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(rw, tokenCookie)
-	responseOKWithBody(rw, tokenResp)
+	util.ResponseOKWithBody(rw, tokenResp)
 }
 
 func (h *LoginHandler) login(input *harvesterv1.Login, mode harvesterv1.AuthenticationMode) (tokenResp *harvesterv1.TokenResponse, err error) {
@@ -251,27 +252,4 @@ func resetCookie(rw http.ResponseWriter, name string, isSecure bool) {
 		Expires:  time.Unix(1, 0), //January 1, 1970 UTC
 	}
 	http.SetCookie(rw, cookie)
-}
-
-func responseBody(obj interface{}) []byte {
-	respBody, err := json.Marshal(obj)
-	if err != nil {
-		return []byte(`{\"errors\":[\"Failed to parse response body\"]}`)
-	}
-	return respBody
-}
-
-func responseOKWithBody(rw http.ResponseWriter, obj interface{}) {
-	rw.Header().Set("Content-type", "application/json")
-	rw.WriteHeader(http.StatusOK)
-	_, _ = rw.Write(responseBody(obj))
-}
-
-func responseOK(rw http.ResponseWriter) {
-	rw.WriteHeader(http.StatusOK)
-}
-
-func responseError(rw http.ResponseWriter, statusCode int, errMsg string) {
-	rw.WriteHeader(http.StatusUnauthorized)
-	_, _ = rw.Write(responseBody(harvesterv1.ErrorResponse{Errors: []string{errMsg}}))
 }

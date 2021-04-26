@@ -40,6 +40,10 @@ func (c *FakeHarvesterhciV1beta1) Settings() v1beta1.SettingInterface {
 	return &FakeSettings{c}
 }
 
+func (c *FakeHarvesterhciV1beta1) SupportBundles(namespace string) v1beta1.SupportBundleInterface {
+	return &FakeSupportBundles{c, namespace}
+}
+
 func (c *FakeHarvesterhciV1beta1) Upgrades(namespace string) v1beta1.UpgradeInterface {
 	return &FakeUpgrades{c, namespace}
 }
