@@ -16,6 +16,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/auth"
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -69,7 +70,7 @@ func (h *Middleware) ToAuthMiddleware() steveauth.Middleware {
 func (h *Middleware) rancherAuth(rw http.ResponseWriter, r *http.Request, next http.Handler) {
 	ok, u, groups, err := h.rancherAuthenticator.Authenticate(r)
 	if err != nil {
-		responseError(rw, http.StatusUnauthorized, err.Error())
+		util.ResponseError(rw, http.StatusUnauthorized, err)
 		return
 	}
 	info := &user.DefaultInfo{
@@ -95,13 +96,13 @@ func (h *Middleware) rancherAuth(rw http.ResponseWriter, r *http.Request, next h
 func (h *Middleware) auth(rw http.ResponseWriter, r *http.Request, next http.Handler) {
 	jweToken, err := extractJWETokenFromRequest(r)
 	if err != nil {
-		responseError(rw, http.StatusUnauthorized, err.Error())
+		util.ResponseError(rw, http.StatusUnauthorized, err)
 		return
 	}
 
 	userInfo, err := h.getUserInfoFromToken(jweToken)
 	if err != nil {
-		responseError(rw, http.StatusUnauthorized, err.Error())
+		util.ResponseError(rw, http.StatusUnauthorized, err)
 		return
 	}
 

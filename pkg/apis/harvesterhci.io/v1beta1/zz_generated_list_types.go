@@ -210,3 +210,20 @@ func NewVirtualMachineTemplateVersion(namespace, name string, obj VirtualMachine
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// SupportBundleList is a list of SupportBundle resources
+type SupportBundleList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []SupportBundle `json:"items"`
+}
+
+func NewSupportBundle(namespace, name string, obj SupportBundle) *SupportBundle {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("SupportBundle").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
