@@ -7,21 +7,6 @@ metadata:
   {{- include "harvester-network-controller.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ include "harvester-network-controller.name" . }}
-rules:
-  - apiGroups: [ "network.harvesterhci.io" ]
-    resources: [ "clusternetworks", "nodenetworks" ]
-    verbs: [ "get", "watch", "list", "update", "create", "delete" ]
-  - apiGroups: [ "k8s.cni.cncf.io" ]
-    resources: [ "network-attachment-definitions" ]
-    verbs: [ "get", "watch", "list", "update" ]
-  - apiGroups: [ "" ]
-    resources: [ "nodes", "configmaps", "events" ]
-    verbs: [ "get", "watch", "list", "update", "create" ]
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: {{ include "harvester-network-controller.name" . }}
@@ -30,7 +15,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "harvester-network-controller.name" . }}
+  name: cluster-admin
 subjects:
   - kind: ServiceAccount
     name: {{ include "harvester-network-controller.name" . }}
