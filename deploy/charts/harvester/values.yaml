@@ -31,25 +31,25 @@ kubevirt-operator:
   containers:
     operator:
       image:
-        repository: quay.io/kubevirt/virt-operator
-        tag: &kubevirtVersion v0.40.0
+        repository: registry.suse.com/harvester-beta/virt-operator
+        tag: &kubevirtVersion 0.40.0
     ## The following four images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
       image:
-        repository: quay.io/kubevirt/virt-controller
+        repository: registry.suse.com/harvester-beta/virt-controller
         tag: *kubevirtVersion
     handler:
       image:
-        repository: quay.io/kubevirt/virt-handler
+        repository: registry.suse.com/harvester-beta/virt-handler
         tag: *kubevirtVersion
     api:
       image:
-        repository: quay.io/kubevirt/virt-api
+        repository: registry.suse.com/harvester-beta/virt-api
         tag: *kubevirtVersion
     launcher:
       image:
-        repository: quay.io/kubevirt/virt-launcher
+        repository: registry.suse.com/harvester-beta/virt-launcher
         tag: *kubevirtVersion
 
 ## Specify the parameters to override the sub-chart.
@@ -96,23 +96,23 @@ cdi-operator:
   containers:
     operator:
       image:
-        repository: quay.io/kubevirt/cdi-operator
-        tag: &cdiVersion v1.31.0
+        repository: registry.suse.com/harvester-beta/cdi-operator
+        tag: &cdiVersion 1.30.0
     controller:
       image:
-        repository: quay.io/kubevirt/cdi-controller
+        repository: registry.suse.com/harvester-beta/cdi-controller
         tag: *cdiVersion
     importer:
       image:
-        repository: quay.io/kubevirt/cdi-importer
+        repository: registry.suse.com/harvester-beta/cdi-importer
         tag: *cdiVersion
     apiserver:
       image:
-        repository: quay.io/kubevirt/cdi-apiserver
+        repository: registry.suse.com/harvester-beta/cdi-apiserver
         tag: *cdiVersion
     uploadproxy:
       image:
-        repository: quay.io/kubevirt/cdi-uploadproxy
+        repository: registry.suse.com/harvester-beta/cdi-uploadproxy
         tag: *cdiVersion
 
 ## Specify the parameters to override the sub-chart.
