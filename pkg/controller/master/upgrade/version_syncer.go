@@ -1,10 +1,10 @@
 package upgrade
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -19,9 +19,19 @@ const (
 	syncInterval = time.Hour
 )
 
-type version struct {
-	Version              string `json:"version"`
-	MinUpgradableVersion string `json:"minUpgradableVersion"`
+type CheckUpgradeRequest struct {
+	HarvesterVersion string `json:"harvesterVersion"`
+}
+
+type CheckUpgradeResponse struct {
+	Versions []Version `json:"versions"`
+}
+
+type Version struct {
+	Name                 string   `json:"name"` // must be in semantic versioning
+	ReleaseDate          string   `json:"releaseDate"`
+	MinUpgradableVersion string   `json:"minUpgradableVersion,omitempty"`
+	Tags                 []string `json:"tags"`
 }
 
 type versionSyncer struct {
@@ -44,7 +54,7 @@ func (s *versionSyncer) start() {
 		select {
 		case <-ticker.C:
 			if err := s.sync(); err != nil {
-				logrus.Errorf("failed syncing version metadata: %v", err)
+				logrus.Warnf("failed syncing upgrade versions: %v", err)
 			}
 		case <-s.ctx.Done():
 			ticker.Stop()
@@ -54,40 +64,45 @@ func (s *versionSyncer) start() {
 }
 
 func (s *versionSyncer) sync() error {
-	versionMetadataURL := settings.VersionMetadataURL.Get()
-	if versionMetadataURL == "" {
+	upgradeCheckerEnabled := settings.UpgradeCheckerEnabled.Get()
+	upgradeCheckerURL := settings.UpgradeCheckerURL.Get()
+	if upgradeCheckerEnabled != "true" || upgradeCheckerURL == "" || !settings.IsRelease() {
 		return nil
 	}
-	resp, err := s.httpClient.Get(versionMetadataURL)
+	req := &CheckUpgradeRequest{
+		HarvesterVersion: settings.ServerVersion.Get(),
+	}
+	var requestBody bytes.Buffer
+	if err := json.NewEncoder(&requestBody).Encode(req); err != nil {
+		return err
+	}
+	resp, err := s.httpClient.Post(upgradeCheckerURL, "application/json", &requestBody)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("expected 200 response but got %d fetching the version metadata", resp.StatusCode)
+		return fmt.Errorf("expected 200 response but got %d checking upgrades", resp.StatusCode)
 	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
+
+	var checkResp CheckUpgradeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&checkResp); err != nil {
 		return err
 	}
 
 	current := settings.ServerVersion.Get()
-	versionMetaData, err := getUpgradableVersions(body, current)
+	versions, err := getUpgradableVersions(checkResp, current)
 	if err != nil {
 		return err
 	}
-	return settings.UpgradableVersions.Set(versionMetaData)
+	return settings.UpgradableVersions.Set(versions)
 }
 
-func getUpgradableVersions(versionMetaData []byte, currentVersion string) (string, error) {
-	var versions []version
+func getUpgradableVersions(resp CheckUpgradeResponse, currentVersion string) (string, error) {
 	var upgradableVersions []string
-	if err := json.Unmarshal(versionMetaData, &versions); err != nil {
-		return "", err
-	}
-	for _, v := range versions {
-		if gversion.Compare(currentVersion, v.Version, "<") && gversion.Compare(currentVersion, v.MinUpgradableVersion, ">=") {
-			upgradableVersions = append(upgradableVersions, v.Version)
+	for _, v := range resp.Versions {
+		if gversion.Compare(currentVersion, v.Name, "<") && gversion.Compare(currentVersion, v.MinUpgradableVersion, ">=") {
+			upgradableVersions = append(upgradableVersions, v.Name)
 		}
 	}
 	return strings.Join(upgradableVersions, ","), nil
