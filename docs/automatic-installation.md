@@ -107,7 +107,17 @@ boot
 
 Let's assume the iPXE script is stored in `/usr/share/nginx/html/harvester/ipxe-join`
 
-**NOTE**: Nodes need to have at least **8G** of RAM because the full ISO file is loaded into tmpfs during the installation.
+**NOTE**
+
+- Nodes need to have at least **8G** of RAM because the full ISO file is loaded into tmpfs during the installation.
+- Sometimes the installer might be not able to fetch the harvester configuration file because the network stack is not ready yet. To work around this, please add a `boot_cmd` parameter to the iPXE script, e.g.,
+
+  ```
+  #!ipxe
+  kernel vmlinuz k3os.mode=install console=ttyS0 console=tty1 harvester.install.automatic=true harvester.install.config_url=http://10.100.0.10/harvester/config-join.yaml boot_cmd="echo include_ping_test=yes >> /etc/conf.d/net-online"
+  initrd initrd
+  boot
+  ```
 
 ## DHCP server configuration
 
@@ -190,7 +200,6 @@ Download the iPXE uefi program from http://boot.ipxe.org/ipxe.efi and make `ipxe
 ```bash
 cd /usr/share/nginx/html/harvester/
 wget http://boot.ipxe.org/ipxe.efi
-# The file now can be downloaded from http://10.100.0.10/harvester/ipxe.efi
 ```
 
 The file now can be downloaded from http://10.100.0.10/harvester/ipxe.efi
