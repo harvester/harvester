@@ -33,7 +33,8 @@ var (
 	BackupTargetSet              = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
 	RancherEnabled               = NewSetting("rancher-enabled", "false") // Specify whether the UI should display the Rancher UI navigation
 	UpgradableVersions           = NewSetting("upgradable-versions", "")
-	VersionMetadataURL           = NewSetting("version-metadata-url", "")
+	UpgradeCheckerEnabled        = NewSetting("upgrade-checker-enabled", "true")
+	UpgradeCheckerURL            = NewSetting("upgrade-checker-url", "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
 	LogLevel                     = NewSetting("log-level", "info") // options are info, debug and trace
 	SupportBundleImage           = NewSetting("support-bundle-image", "rancher/harvester-support-bundle-utils")
 	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
