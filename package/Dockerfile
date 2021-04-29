@@ -6,7 +6,7 @@ RUN apk update && apk add -u --no-cache git curl unzip tar tini bash nfs-utils &
 
 WORKDIR /var/lib/harvester/harvester
 
-ENV HARVESTER_UI_VERSION v0.2.0-rc4
+ENV HARVESTER_UI_VERSION v0.2.0
 ENV HARVESTER_UI_PATH /usr/share/harvester/harvester
 # Please update the api-ui-version in pkg/settings/settings.go when updating the version here.
 ENV HARVESTER_API_UI_VERSION 1.1.9
