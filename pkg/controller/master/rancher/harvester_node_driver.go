@@ -11,7 +11,7 @@ import (
 
 const (
 	harvesterDriverName = "harvester"
-	driverURL           = "https://harvester-node-driver.s3.amazonaws.com/driver/v0.1.5/docker-machine-driver-harvester-amd64.tar.gz"
+	driverURL           = "https://harvester-node-driver.s3.amazonaws.com/driver/v0.1.6/docker-machine-driver-harvester-amd64.tar.gz"
 	driverUIURL         = "https://harvester-node-driver.s3.amazonaws.com/ui/v0.1.4/component.js"
 	serverVersionAnno   = "harvesterhci.io/serverVersion"
 )
