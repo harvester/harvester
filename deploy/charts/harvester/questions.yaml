@@ -136,14 +136,14 @@ questions:
     subquestions:
       #################### KubeVirt Operator Image Settings ####################
       - variable: kubevirt-operator.containers.operator.image.repository
-        default: "kubevirt/virt-operator"
+        default: "registry.suse.com/harvester-beta/virt-operator"
         label: "Operator Image"
         description: "specify the repository of operator image"
         type: "string"
         group: "KubeVirt Settings"
         show_if: "tags.kubevirt=true"
       - variable: kubevirt-operator.containers.operator.image.tag
-        default: "v0.40.0"
+        default: "0.40.0-1"
         label: "Operator Image Tag"
         description: "specify the tag of operator image"
         type: "string"
@@ -197,14 +197,14 @@ questions:
     subquestions:
       #################### CDI Operator Image Settings ####################
       - variable: cdi-operator.containers.operator.image.repository
-        default: "kubevirt/cdi-operator"
+        default: "registry.suse.com/harvester-beta/cdi-operator"
         label: "Operator Image"
         description: "specify the repository of operator image"
         type: "string"
         group: "CDI Settings"
         show_if: "tags.cdi=true"
       - variable: cdi-operator.containers.operator.image.tag
-        default: "v1.31.0"
+        default: "1.30.0"
         label: "Operator Image Tag"
         description: "specify the tag of operator image"
         type: "string"
@@ -258,7 +258,7 @@ questions:
         group: "CDI Settings"
       #################### CDI Controller Image Settings ####################
       - variable: cdi-operator.containers.controller.image.repository
-        default: "kubevirt/cdi-controller"
+        default: "registry.suse.com/harvester-beta/cdi-controller"
         label: "Controller Image"
         description: "specify the repository of controller image"
         type: "string"
@@ -273,7 +273,7 @@ questions:
         show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
       #################### CDI Importer Image Settings ####################
       - variable: cdi-operator.containers.importer.image.repository
-        default: "kubevirt/cdi-importer"
+        default: "registry.suse.com/harvester-beta/cdi-importer"
         label: "Importer Image"
         description: "specify the repository of importer image"
         type: "string"
@@ -286,24 +286,9 @@ questions:
         type: "string"
         group: "CDI Settings"
         show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      #################### CDI Cloner Image Settings ####################
-      - variable: cdi-operator.containers.cloner.image.repository
-        default: "kubevirt/cdi-cloner"
-        label: "Cloner Image"
-        description: "specify the repository of cloner image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      - variable: cdi-operator.containers.cloner.image.tag
-        default: ""
-        label: "Cloner Image Tag"
-        description: "specify the tag of cloner image, defaults to the tag of operator image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
       #################### CDI APIServer Image Settings ####################
       - variable: cdi-operator.containers.apiserver.image.repository
-        default: "kubevirt/cdi-apiserver"
+        default: "registry.suse.com/harvester-beta/cdi-apiserver"
         label: "APIServer Image"
         description: "specify the repository of apiserver image"
         type: "string"
@@ -316,24 +301,9 @@ questions:
         type: "string"
         group: "CDI Settings"
         show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      #################### CDI UploadServer Image Settings ####################
-      - variable: cdi-operator.containers.uploadserver.image.repository
-        default: "kubevirt/cdi-uploadserver"
-        label: "UploadServer Image"
-        description: "specify the repository of uploadserver image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      - variable: cdi-operator.containers.uploadserver.image.tag
-        default: ""
-        label: "UploadServer Image Tag"
-        description: "specify the tag of uploadserver image, defaults to the tag of operator image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
       #################### CDI UploadProxy Image Settings ####################
       - variable: cdi-operator.containers.uploadproxy.image.repository
-        default: "kubevirt/cdi-uploadproxy"
+        default: "registry.suse.com/harvester-beta/cdi-uploadproxy"
         label: "UploadProxy Image"
         description: "specify the repository of uploadproxy image"
         type: "string"
