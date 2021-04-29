@@ -18,5 +18,6 @@ or hang out with our developers on either our [Slack](https://slack.rancher.io/)
   * [Create a VM](./create-vm.md)
   * [Access to the VM](./access-to-the-vm.md)
   * [Backup & Restore](./backup-restore.md)
+  * [Live Migration](./live-migration.md)
 - Network
   * [Introduction of the Harvester Network](./harvester-network.md)
