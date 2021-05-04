@@ -11,6 +11,8 @@ Harvester provides two ways to upgrade.
 >- Zero downtime upgrade is supported when the Harvester cluster includes 3 or more nodes. If the cluster has less than 3 nodes, you can still perform upgrades but there'll be downtime during the upgrade.
 >- Upgrade nodes one by one.
 
+**NOTE: Due to pending OS changes in the roadmap, the upgradability to the GA release cannot be guaranteed at this moment.**
+
 ## Upgrade using the ISO image
 
 To get the Harvester ISO of a newer version, download it from the Github releases.

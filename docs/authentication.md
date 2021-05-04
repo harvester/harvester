@@ -13,8 +13,8 @@ The Harvester login page is shown below:
 
 
 
-## App Mode
-In `App mode`, which is intended only for development and testing purposes, more authentication modes are configurable using the environment variable `HARVESTER_AUTHENTICATION_MODE`.
+## Developer Mode
+In `developer mode`, which is intended only for development and testing purposes, more authentication modes are configurable using the environment variable `HARVESTER_AUTHENTICATION_MODE`.
 
 Harvester Dashboard default to use `local auth` mode for authentication. The default username and password is `admin/password`.
 

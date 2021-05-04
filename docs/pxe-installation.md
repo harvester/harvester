@@ -1,4 +1,4 @@
-# Automatic Installation
+# PXE Boot Install
 
 Starting from version `0.2.0`, Harvester can be installed in a mass manner. This document provides an example to do the automatic installation with PXE boot.
 
@@ -14,7 +14,7 @@ Let's assume an nginx HTTP server's IP is `10.100.0.10`, and it serves `/usr/sha
 
 ## Preparing boot files
 
-- Download required files from https://github.com/harvester/harvester/tags. Choose an appropriate version.
+- Download required files from https://github.com/harvester/harvester/releases. Choose an appropriate version.
   - The ISO: `harvester-amd64.iso`
   - The kernel: `harvester-vmlinuz-amd64`
   - The initrd: `harvester-initrd-amd64`

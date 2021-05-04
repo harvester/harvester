@@ -2,17 +2,17 @@
 
 > Available as of v0.2.0
 
-Users can choose to create VM backups from the **Virtual Machines** page, the VM backup volumes will be stored in the [backupTarget](#setting-a-backup-target) and users can use them to either restore a new VM or replace a existing VM.
+Users can choose to create VM backups from the **Virtual Machines** page, the VM backup volumes will be stored in the **Backup Target**(an NFS or S3 server) and users can use them to either restore a new VM or replace a existing VM.
 
-> Prerequisite: A backup target must be set up. For more information, see [Set the BackupTarget](#setting-a-backup-target). If the BackupTarget has not been set, you’ll be presented with a prompt message.
+> Prerequisite: A backup target must be set up. For more information, see [Backup Target Setup](#backup-target-setup). If the BackupTarget has not been set, you’ll be presented with a prompt message.
 
-## Setting a Backup Target
+## Backup Target Setup
 A backup target is an endpoint used to access a backup store in the Harvester. A backup store is an NFS server or S3 compatible server that stores the backups of VM volumes. The backup target can be set at `Settings > backup-target`.
 
 | Parameter | Type |Description |
 | ----------- | ----- | ----------- |
 | Type | string | Choose S3 or NFS |
-| Endpoint | string | EndPoint is a hostname or an IP address |
+| Endpoint | string | EndPoint is a hostname or an IP address. Can be left empty for AWS S3. |
 | BucketName | string | Name of the bucket |
 | BucketRegion | string | Region of the bucket |
 | AccessKeyID | string | AccessKeyID is like a user-id that uniquely identifies your account. |

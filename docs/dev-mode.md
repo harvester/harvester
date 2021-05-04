@@ -1,13 +1,13 @@
-# App Mode Installation [Development Mode]
+# Developer Mode Installation (Dev mode)
 
-App mode is intended to be used for testing and development purposes.
+Developer mode(dev mode) is intended to be used for testing and development purposes.
 
-Note: This [video](https://youtu.be/TG0GaAD_6J4) shows the App mode installation.
+Note: This [video](https://youtu.be/TG0GaAD_6J4) shows the dev mode installation.
 
 ## Requirements
 
-- For App mode, it is assumed that multus is installed across your cluster and a corresponding NetworkAttachmentDefinition CRD was created.
-- For App mode, if you are using an [RKE](https://rancher.com/docs/rke/latest/en/) cluster, please ensure the `ipv4.ip_forward` is enabled for the CNI plugin so that the pod network works as expected. [#94](https://github.com/harvester/harvester/issues/94). 
+- For dev mode, it is assumed that Multus is installed across your cluster and a corresponding NetworkAttachmentDefinition CRD was created.
+- For dev mode, if you are using an [RKE](https://rancher.com/docs/rke/latest/en/) cluster, please ensure the `ipv4.ip_forward` is enabled for the CNI plugin so that the pod network works as expected. [#94](https://github.com/harvester/harvester/issues/94). 
 
 ## Install as an App
 Harvester can be installed on a Kubernetes cluster in the following ways:
@@ -26,7 +26,7 @@ To validate the support, use this command:
 cat /proc/cpuinfo | grep vmx
 ```
 
-### Option 1: Install with Helm
+### Option 1: Install using Helm
 
 1. Clone the GitHub repository:
     ```
@@ -52,7 +52,7 @@ $ helm install harvester harvester \
   --set longhorn.enabled=true,minio.persistence.storageClass=longhorn
 ```
     
-### Option 2: Install as a Rancher Catalog App
+### Option 2: Install using Rancher
 
 Tip: You can create a testing Kubernetes environment in Rancher using the Digital Ocean cloud provider. For details, see [this section.](#digital-ocean-test-environment)
 
@@ -68,6 +68,8 @@ Tip: You can create a testing Kubernetes environment in Rancher using the Digita
 ![harvester-app.png](./assets/harvester-app.png)
 
 ### Digital Ocean Test Environment
+
+[Digital Ocean](https://www.digitalocean.com/) is one of the cloud providers who support nested virtualization by default.
 
 You can create a testing Kubernetes environment in Rancher using the Digital Ocean cloud provider.
 
