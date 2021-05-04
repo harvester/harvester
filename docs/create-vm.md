@@ -14,7 +14,7 @@ Create one or more virtual machines from the **Virtual Machines** page.
 
 ![](./assets/create-vm.png)
 
-### Cloud-init config examples
+### Cloud config examples
 
 - config the password of the default user
 ```YAML
@@ -38,6 +38,7 @@ config:
       - type: dhcp
 ```
 
+You can also use `Cloud Config Template` feature to include pre-defined cloud-init config for the VM.
 
 #### Networks
 
@@ -49,4 +50,4 @@ By default, a VM can be accessed via the management network.
 
 ##### Secondary Network
 
-It is also possible to connect VMs using additional networks with Harvester's built-in [vlan networks](./harvester-network.md). This is powered by [Multus](https://github.com/intel/multus-cni). 
+It is also possible to connect VMs using additional networks with Harvester's built-in [vlan networks](./harvester-network.md).

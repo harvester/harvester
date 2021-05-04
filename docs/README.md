@@ -1,18 +1,15 @@
 ## Overview
 
-If you have any questions that can't be found on the following docs, feel free to [file an issue](https://github.com/harvester/harvester/issues/new/choose)
-or hang out with our developers on either our [Slack](https://slack.rancher.io/) or [Rancher forums](https://forums.rancher.com/).
-
 ## Table of Contents
 
 - Installation
-  * [ISO Mode](./iso-installation.md)
-  * [Automatic Mode - for mass installation](./automatic-installation.md)
+  * [ISO Install](./iso-installation.md)
+  * [PXE Boot Install](./pxe-installation.md)
 - Upgrade
   * [Upgrading Harvester](./upgrade.md)
-- Demo: Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
+    * NOTE: Due to pending OS changes in the roadmap, the upgradability to the GA release cannot be guaranteed at this moment.
 - [Authentication](./authentication.md)
-- [Upload Images](./upload-image.md)
+- [Import Images](./import-image.md)
 - VM Management
   * [Create a VM](./create-vm.md)
   * [Access to the VM](./access-to-the-vm.md)
@@ -22,4 +19,12 @@ or hang out with our developers on either our [Slack](https://slack.rancher.io/)
   * [Introduction of the Harvester Network](./harvester-network.md)
 - [Rancher Integration](./rancher-integration.md)
     - [Harvester Node driver](./node-driver.md)
-- [Dev Mode](./docs/app-mode-installation.md)
+- Development
+  * [Developer Mode Install](./docs/dev-mode.md)
+
+
+## Community
+
+If you need any help with Harvester, please join us at either our [Slack](https://slack.rancher.io/) #harvester channel or [forums](https://forums.rancher.com/) where most of our team hangs out at.
+
+If you have any feedback or questions, feel free to [file an issue](https://github.com/harvester/harvester/issues/new/choose).

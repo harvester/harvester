@@ -13,7 +13,7 @@ Harvester implements HCI on bare metal servers. Here are some notable features o
 1. VM live migration support
 1. Supporting VM backup and restore
 1. Distributed block storage
-1. Multiple NICs connecting to the management network or VLANs
+1. Multiple NICs in the VM connecting to the management network or VLANs
 1. Virtual Machine and cloud-init templates
 1. Built-in [Rancher](https://github.com/rancher/rancher) integration and the Harvester node driver
 1. [PXE/iPXE boot support](https://github.com/rancher/harvester/blob/master/docs/automatic-installation.md)
@@ -24,7 +24,7 @@ The following diagram gives a high-level architecture of Harvester:
 
 - [Longhorn](https://longhorn.io/) is a lightweight, reliable and easy-to-use distributed block storage system for Kubernetes.
 - [KubeVirt](https://kubevirt.io/) is a virtual machine management add-on for Kubernetes.
-- [K3OS](https://k3os.io/) is a Linux distribution designed to remove as much OS maintenance as possible in a Kubernetes cluster. The OS is designed to be managed by kubectl.
+- [K3OS](https://k3os.io/) is a Linux distribution designed to remove as much OS maintenance as possible in a Kubernetes cluster.
 
 ## Hardware Requirements
 To get the Harvester server up and running the following minimum hardware is required:
@@ -38,9 +38,10 @@ To get the Harvester server up and running the following minimum hardware is req
 | Network Card | 1 Gbps Ethernet minimum, 10Gbps Ethernet recommended |
 | Network Switch | Trunking of ports required for VLAN support |
 
-## Installation
 
-Users can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster.
+## Quick start
+
+You can use the ISO to install Harvester directly on the bare-metal server to form a Harvester cluster. Users can add one or many compute nodes to join the existing cluster.
 
 To get the Harvester ISO, download it from the [Github releases.](https://github.com/harvester/harvester/releases)
 
@@ -67,22 +68,14 @@ Note: This [video](https://youtu.be/97ADieBX6bE) shows a quick overview of the I
 ![first-login.png](./docs/assets/first-log-in.png)
 
 
-
 ## Documentation
-Please refer to the following documentation to find out more details:
-- [Automatic Installation](./docs/automatic-installation.md)
-- [Authentication](./docs/authentication.md)
-- [Upload Images](./docs/upload-image.md)
-- VM Management
-  * [Create a VM](./docs/create-vm.md)
-  * [Access to the VM](./docs/access-to-the-vm.md)
-  * [Backup & Restore](./docs/backup-restore.md)
-- Network
-  * [Introduction of the Harvester Network](./docs/harvester-network.md)
-- [Node driver](./docs/node-driver.md)
-- [Dev Mode](./docs/app-mode-installation.md)
 
-Demo: Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
+Find more documentation [here](./docs/README.md)
+
+
+## Demo
+
+Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
 
 
 ## Source code
@@ -96,11 +89,8 @@ Harvester is 100% open-source software. The project source code is spread across
 | Harvester Network Controller | https://github.com/harvester/harvester-network-controller|
 | Harvester Node Driver | https://github.com/harvester/docker-machine-driver-harvester |
 
-Check out this [demo](https://youtu.be/wVBXkS1AgHg) to get a quick overview of the Harvester UI.
-
-
 ## Community
-If you need any help with Harvester, please join us at either our [Slack](https://slack.rancher.io/) or [forums](https://forums.rancher.com/) where most of our team hangs out at.
+If you need any help with Harvester, please join us at either our [Slack](https://slack.rancher.io/) #harvester channel or [forums](https://forums.rancher.com/) where most of our team hangs out at.
 
 If you have any feedback or questions, feel free to [file an issue](https://github.com/harvester/harvester/issues/new/choose).
 
