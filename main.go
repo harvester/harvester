@@ -32,7 +32,7 @@ func main() {
 	var options config.Options
 
 	app := cli.NewApp()
-	app.Name = "rancher-harvester"
+	app.Name = "harvester"
 	app.Version = version.FriendlyVersion()
 	app.Usage = ""
 	app.Flags = []cli.Flag{
