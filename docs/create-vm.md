@@ -4,8 +4,8 @@ Create one or more virtual machines from the **Virtual Machines** page.
 
 1. Choose the option to create either one or multiple VM instances.
 1. The VM name is required.
-1. (Optional) you can select to use the VM template. By default we have added iso, raw, and Windows image templates.
-1. Configure the CPU and Memory of the VM
+1. (Optional) you can select to use the VM template. By default we have added ISO, raw, and Windows image templates.
+1. Configure the CPU and Memory of the VM.
 1. Select a custom VM image.
 1. Select SSH keys or upload a new one.
 1. To add more disks to the VM, go to the **Volumes** tab. The default disk will be the root disk.
@@ -16,7 +16,8 @@ Create one or more virtual machines from the **Virtual Machines** page.
 
 ### Cloud config examples
 
-- config the password of the default user
+Config for the password of the default user:
+
 ```YAML
 #cloud-config
 password: password
@@ -24,7 +25,8 @@ chpasswd: { expire: False }
 ssh_pwauth: True
 ```
 
-- network-data configuration using DHCP 
+Network-data configuration using DHCP:
+
 ```YAML
 version: 1
 config:
@@ -38,7 +40,7 @@ config:
       - type: dhcp
 ```
 
-You can also use `Cloud Config Template` feature to include pre-defined cloud-init config for the VM.
+You can also use the `Cloud Config Template` feature to include a pre-defined cloud-init config for the VM.
 
 #### Networks
 
