@@ -1,6 +1,6 @@
 # Developer Mode Installation (Dev mode)
 
-Developer mode(dev mode) is intended to be used for testing and development purposes.
+Developer mode (dev mode) is intended to be used for testing and development purposes.
 
 Note: This [video](https://youtu.be/TG0GaAD_6J4) shows the dev mode installation.
 

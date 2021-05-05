@@ -16,7 +16,7 @@ The Harvester login page is shown below:
 ## Developer Mode
 In `developer mode`, which is intended only for development and testing purposes, more authentication modes are configurable using the environment variable `HARVESTER_AUTHENTICATION_MODE`.
 
-Harvester Dashboard default to use `local auth` mode for authentication. The default username and password is `admin/password`.
+By default, the Harvester Dashboard uses the `local auth` mode for authentication. The default username and password is `admin/password`.
 
 The currently supported options are `localUser` (the same as `local auth` mode) and `kubernetesCredentials`.
 

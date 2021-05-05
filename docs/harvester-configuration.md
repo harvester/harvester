@@ -1,6 +1,6 @@
 # Harvester Configuration
 
-Harvester configuration file can be provided during manual or automatic installation to configure various settings. The following is an configuration example:
+The Harvester configuration file can be provided during manual or automatic installation to configure various settings. The following is a configuration example:
 
 ```yaml
 server_url: https://someserver:6443
@@ -44,6 +44,10 @@ install:
   tty: ttyS0
 ```
 
+## Kernel Parameters
+
+Users can also provide configuration via kernel parameters. For example, to specify the CREATE install mode, the user can pass `harvester.install.mode=create` kernel parameter when booting. Values passed through kernel parameters have higher priority than values specified in the config file.
+
 ## Configuration Reference
 
 Below is a reference of all configuration keys.
@@ -72,15 +76,15 @@ install:
 The cluster secret or node token. If the value matches the format of a node token it will
 automatically be assumed to be a node token. Otherwise it is treated as a cluster secret.
 
-In order for a new node to join the Harvester cluster, the token should match from what server has.
+In order for a new node to join the Harvester cluster, the token should match what the server has.
 
-Example
+Example:
 
 ```yaml
 token: myclustersecret
 ```
 
-Or a node token
+Or a node token:
 
 ```yaml
 token: "K1074ec55daebdf54ef48294b0ddf0ce1c3cb64ee7e3d0b9ec79fbc7baf1f7ddac6::node:77689533d0140c7019416603a05275d4"
@@ -127,7 +131,8 @@ os:
 
 ### `os.sysctls`
 
-Kernel sysctl to setup on start. These are the same configuration you'd typically find in `/etc/sysctl.conf`.
+Kernel sysctl to setup on start. These are the same configuration options that you'd typically find in `/etc/sysctl.conf`.
+
 Must be specified as string values.
 
 ```yaml
@@ -141,7 +146,7 @@ os:
 
 **Fallback** ntp servers to use if NTP is not configured elsewhere in the OS.
 
-Example
+Example:
 
 ```yaml
 os:
@@ -154,7 +159,7 @@ os:
 
 **Fallback** DNS name servers to use if DNS is not configured by DHCP or in the OS.
 
-Example
+Example:
 
 ```yaml
 os:
@@ -186,14 +191,14 @@ value of the password can be clear text or an encrypted form. The easiest way to
 form is to just change your password on a Linux system and copy the value of the second field from
 `/etc/shadow`. You can also encrypt a password using `openssl passwd -1`.
 
-Example
+Example:
 
 ```yaml
 os:
   password: "$1$tYtghCfK$QHa51MS6MVAcfUKuOzNKt0"
 ```
 
-Or clear text
+Or clear text:
 
 ```yaml
 os:
@@ -203,10 +208,11 @@ os:
 
 ### `os.environment`
 
-Environment variables to be set on k3s and other processes like the boot process.
-Primary use of this field is to set the http proxy.
+Environment variables to be set on K3s and other processes like the boot process.
 
-Example
+The primary use of this field is to set the HTTP proxy.
+
+Example:
 
 ```yaml
 os:
@@ -223,7 +229,7 @@ Harvester installer mode:
 - `create`: Creating a new Harvester installer
 - `join`: Join an existing Harvester installer. Need to specify `server_url`.
 
-Example
+Example:
 
 ```yaml
 install:
@@ -265,17 +271,17 @@ ISO to download and install from if booting from kernel/vmlinuz and not ISO.
 
 ### `install.poweroff`
 
-Shutdown the machine after install instead of rebooting
+Shut down the machine after install instead of rebooting.
 
 
 ### `install.no_format`
 
-Do not partition and format, assume layout exists already.
+Do not partition and format. Assume the layout exists already.
 
 
 ### `install.debug`
 
-Run installation with more logging and configure debug for installed system.
+Run installation with more logging and configure debug for the installed system.
 
 
 ### `install.tty`

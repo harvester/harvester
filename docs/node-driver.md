@@ -1,25 +1,26 @@
-#  Harvester node driver
+#  Harvester Node Driver
 
-Harvester node driver is used to provision VMs in the Harvester cluster, which Rancher uses to launch and manage Kubernetes clusters.
+The Harvester node driver is used to provision VMs in the Harvester cluster. In this section, you'll learn how to configure Rancher to use the Harvester node driver to launch and manage Kubernetes clusters.
+
 A node driver is the same as a [Docker Machine driver](https://docs.docker.com/machine/drivers/), and the project repo is available at [harvester/docker-machine-driver-harvester](https://github.com/harvester/docker-machine-driver-harvester).
 
 >  Available as of v0.2.0
 
-## Add Harvester node driver
+## Add Harvester Node Driver
 
-### ISO mode
+### ISO Mode
 
 In the ISO mode, the Harvester driver has been installed by default, and the user does not need to add it manually.
 
-### App mode 
+### App Mode 
 1. Navigate to the **Rancher** UI.
-1. From the **Global** view, choose **Tools > Drivers** in the navigation bar. From the **Drivers** page, select the **Node Drivers** tab. In version before v2.2.0, you can select **Node Drivers** directly in the navigation bar.
+1. From the **Global** view, choose **Tools > Drivers** in the navigation bar. From the **Drivers** page, select the **Node Drivers** tab. In versions before v2.2.0, you can select **Node Drivers** directly in the navigation bar.
 1. Click **Add Node Driver**.
 1. Enter **Download URL**([docker-machine-driver-harvester](https://github.com/harvester/docker-machine-driver-harvester/releases)) and **Custom UI URL**([ui-driver-harvester](https://github.com/harvester/ui-driver-harvester/releases)). 
 1. Add domains to the **Whitelist Domains**.
 1. Click **Create**.
 
-## Create cluster
+## Create Cluster
 
 Now users can access the Rancher UI from Harvester, spin up Kubernetes clusters on top of the Harvester cluster, and manage them there.
 > Prerequisite: VLAN network is required for Harvester node driver
@@ -32,10 +33,10 @@ Now users can access the Rancher UI from Harvester, spin up Kubernetes clusters 
 
 See [launching kubernetes and provisioning nodes in an infrastructure provider](https://rancher.com/docs/rancher/v2.5/en/cluster-provisioning/#launching-kubernetes-and-provisioning-nodes-in-an-infrastructure-provider) for more info.
 
-## Create Node template
+## Create Node Template
 You can use the Harvester node driver to create node templates and eventually node pools for your Kubernetes cluster.
 
-1. Configure  **Account Access**, for Harvester embedding rancher, you can choose **Internal Harvester**,  which will use the  `harvester.harvester-system` as the default `Host`, `8443` as the default `Port`.
+1. Configure  **Account Access**. For Harvester embedding Rancher, you can choose **Internal Harvester**,  which will use the  `harvester.harvester-system` as the default `Host`, `8443` as the default `Port`.
 1. Configure **Instance Options**
     * Configure the CPU, memory, disk, and disk bus.
     * Select an OS image that is compatible with the `cloud-init` config.

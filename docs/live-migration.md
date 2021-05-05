@@ -22,8 +22,8 @@ Live migration means moving a virtual machine to a different host without downti
 
 ##### Completion timeout
 
-The live migration process will copy virtual machine memory pages and disk blocks to the destination. In some cases, the virtual machine can write to different memory pages / disk blocks at a higher rate than these can be copied, which will prevent the migration process from completing in a reasonable amount of time. Live migration will be aborted if it exceeds the completion timeout which is 800s per GiB of data. For example, a virtual machine with 8 GiB of memory will time out after 6400 seconds.
+The live migration process will copy virtual machine memory pages and disk blocks to the destination. In some cases, the virtual machine can write to different memory pages/disk blocks at a higher rate than these can be copied, which will prevent the migration process from being completed in a reasonable amount of time. Live migration will be aborted if it exceeds the completion timeout which is 800s per GiB of data. For example, a virtual machine with 8 GiB of memory will time out after 6400 seconds.
 
 ##### Progress timeout
 
-Live migration will also be aborted when it will be noticed that copying memory doesn't make any progress in 150s.
+Live migration will also be aborted when it is noticed that copying memory doesn't make any progress in 150s.

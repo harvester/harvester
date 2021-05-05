@@ -6,15 +6,15 @@ We recommend using [iPXE](https://ipxe.org/) to perform the network boot. It has
 
 To see sample iPXE scripts, please visit https://github.com/harvester/ipxe-examples.
 
-## Preparing HTTP servers
+## Preparing HTTP Servers
 
 An HTTP server is required to serve boot files. Please ensure these servers are set up correctly before continuing.
 
-Let's assume an nginx HTTP server's IP is `10.100.0.10`, and it serves `/usr/share/nginx/html/` folder at path `http://10.100.0.10/`.
+Let's assume an NGINX HTTP server's IP is `10.100.0.10`, and it serves `/usr/share/nginx/html/` folder at the path `http://10.100.0.10/`.
 
-## Preparing boot files
+## Preparing Boot Files
 
-- Download required files from https://github.com/harvester/harvester/releases. Choose an appropriate version.
+- Download the required files from https://github.com/harvester/harvester/releases. Choose an appropriate version.
   - The ISO: `harvester-amd64.iso`
   - The kernel: `harvester-vmlinuz-amd64`
   - The initrd: `harvester-initrd-amd64`
@@ -33,16 +33,21 @@ Let's assume an nginx HTTP server's IP is `10.100.0.10`, and it serves `/usr/sha
 ## Preparing iPXE boot scripts
 
 When performing automatic installation, there are two modes:
+
 - `CREATE`: we are installing a node to construct an initial Harvester cluster.
 - `JOIN`: we are installing a node to join an existing Harvester cluster.
+
+### Prerequisite
+
+Nodes need to have at least **8G** of RAM because the full ISO file is loaded into tmpfs during the installation.
 
 ### CREATE mode
 
 > :warning: **Security Risks**: The configuration file below contains credentials which should be kept secretly. Please do not make the configuration file publicly accessible at the moment.
 
-Create a [Harvester configuration file](./harvester-configuration.md) `config-create.yaml` for `CREATE` mode, modify the values as needed:
+Create a [Harvester configuration file](./harvester-configuration.md) `config-create.yaml` for `CREATE` mode. Modify the values as needed:
 
-```
+```YAML
 # cat /usr/share/nginx/html/harvester/config-create.yaml
 token: token
 os:
@@ -73,9 +78,9 @@ Let's assume the iPXE script is stored in `/usr/share/nginx/html/harvester/ipxe-
 
 > :warning: **Security Risks**: The configuration file below contains credentials which should be kept secretly. Please do not make the configuration file publicly accessible at the moment.
 
-Create a [Harvester configuration file](./harvester-configuration.md) `config-join.yaml` for `JOIN` mode, modify the values as needed:
+Create a [Harvester configuration file](./harvester-configuration.md) `config-join.yaml` for `JOIN` mode. Modify the values as needed:
 
-```
+```YAML
 # cat /usr/share/nginx/html/harvester/config-join.yaml
 server_url: https://10.100.0.130:6443
 token: token
@@ -94,9 +99,9 @@ install:
   iso_url: http://10.100.0.10/harvester/harvester-amd64.iso
 ```
 
-Note the `mode` is `join` and `server_url` needs to be provided.
+Note that the `mode` is `join` and the `server_url` needs to be provided.
 
-For machines that needs to be installed as `JOIN` mode, the following is an iPXE script that boots the kernel with the above config:
+For machines that needs to be installed in `JOIN` mode, the following is an iPXE script that boots the kernel with the above config:
 
 ```
 #!ipxe
@@ -105,12 +110,11 @@ initrd initrd
 boot
 ```
 
-Let's assume the iPXE script is stored in `/usr/share/nginx/html/harvester/ipxe-join`
+Let's assume the iPXE script is stored in `/usr/share/nginx/html/harvester/ipxe-join`.
 
-**NOTE**
+**TROUBLESHOOTING**
 
-- Nodes need to have at least **8G** of RAM because the full ISO file is loaded into tmpfs during the installation.
-- Sometimes the installer might be not able to fetch the harvester configuration file because the network stack is not ready yet. To work around this, please add a `boot_cmd` parameter to the iPXE script, e.g.,
+- Sometimes the installer might be not able to fetch the Harvester configuration file because the network stack is not ready yet. To work around this, please add a `boot_cmd` parameter to the iPXE script, e.g.,
 
   ```
   #!ipxe
@@ -123,7 +127,7 @@ Let's assume the iPXE script is stored in `/usr/share/nginx/html/harvester/ipxe-
 
 Here is an example to configure the ISC DHCP server to offer iPXE scripts: 
 
-```
+```sh
 option architecture-type code 93 = unsigned integer 16;
 
 subnet 10.100.0.0 netmask 255.255.255.0 {
@@ -186,7 +190,7 @@ The config file declares a subnet and two groups. The first group is for hosts t
 
 For more information about Harvester configuration, please refer to the [Harvester configuration](./harvester-configuration.md).
 
-Users can also provide configuration via kernel parameters. For example, to specify the `CREATE` install mode, the user can pass `harvester.install.mode=create` kernel parameter when booting. Values passed through kernel parameters have higher priority than values specified in the config file.
+Users can also provide configuration via kernel parameters. For example, to specify the `CREATE` install mode, the user can pass the `harvester.install.mode=create` kernel parameter when booting. Values passed through kernel parameters have higher priority than values specified in the config file.
 
 
 ## UEFI HTTP Boot support
@@ -208,7 +212,7 @@ The file now can be downloaded from http://10.100.0.10/harvester/ipxe.efi
 
 If the user plans to use the UEFI HTTP boot feature by getting a dynamic IP first, the DHCP server needs to provides the iPXE program URL when it sees such a request. Here is an updated ISC DHCP server group example: 
 
-```
+```sh
 group {
   # create group
   if exists user-class and option user-class = "iPXE" {
