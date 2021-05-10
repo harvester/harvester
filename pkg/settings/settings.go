@@ -38,6 +38,7 @@ var (
 	LogLevel                     = NewSetting("log-level", "info") // options are info, debug and trace
 	SupportBundleImage           = NewSetting("support-bundle-image", "rancher/harvester-support-bundle-utils:master-head")
 	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
+	DefaultStorageClass          = NewSetting("default-storage-class", "longhorn")
 )
 
 const BackupTargetSettingName = "backup-target"
