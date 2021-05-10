@@ -89,6 +89,8 @@ spec:
               filesize:
                 format: int64
                 type: integer
+              progress:
+                type: integer
               state:
                 type: string
             type: object

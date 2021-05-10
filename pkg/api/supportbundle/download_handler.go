@@ -13,11 +13,10 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 
-	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlsb "github.com/harvester/harvester/pkg/controller/master/supportbundle"
+	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -59,12 +58,12 @@ func (h *DownloadHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if sb.Status.State != ctlsb.StateReady || sb.Status.Filename == "" || sb.Status.Filesize == 0 {
+	if sb.Status.State != types.StateReady || sb.Status.Filename == "" || sb.Status.Filesize == 0 {
 		util.ResponseError(rw, http.StatusBadRequest, errors.New("support bundle is not ready"))
 		return
 	}
 
-	managerPodIP, err := h.getManagerPodIP(sb)
+	managerPodIP, err := ctlsb.GetManagerPodIP(h.podCache, sb)
 	if err != nil {
 		util.ResponseError(rw, http.StatusBadRequest, errors.Wrap(err, "fail to get support bundle manager pod IP"))
 		return
@@ -109,21 +108,4 @@ func (h *DownloadHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logrus.Errorf("fail to delete support bundle %s: %s", sb.Name, err)
 	}
-}
-
-func (h *DownloadHandler) getManagerPodIP(sb *harvesterv1.SupportBundle) (string, error) {
-	sets := labels.Set{
-		"app":                       ctlsb.AppManager,
-		ctlsb.SupportBundleLabelKey: sb.Name,
-	}
-
-	pods, err := h.podCache.List(sb.Namespace, sets.AsSelector())
-	if err != nil {
-		return "", err
-
-	}
-	if len(pods) != 1 {
-		return "", errors.New("more than one manager pods are found")
-	}
-	return pods[0].Status.PodIP, nil
 }

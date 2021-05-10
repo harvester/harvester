@@ -1,7 +1,10 @@
 package supportbundle
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
@@ -10,10 +13,11 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/settings"
-	"github.com/harvester/harvester/pkg/version"
 )
 
 const (
@@ -23,7 +27,11 @@ const (
 type Manager struct {
 	deployments ctlappsv1.DeploymentClient
 	nodeCache   ctlcorev1.NodeCache
+	podCache    ctlcorev1.PodCache
 	services    ctlcorev1.ServiceClient
+
+	// to talk with support bundle manager
+	httpClient http.Client
 }
 
 func (m *Manager) getManagerName(sb *harvesterv1.SupportBundle) string {
@@ -41,8 +49,8 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 			Name:      deployName,
 			Namespace: sb.Namespace,
 			Labels: map[string]string{
-				"app":                 AppManager,
-				SupportBundleLabelKey: sb.Name,
+				"app":                       types.AppManager,
+				types.SupportBundleLabelKey: sb.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -55,13 +63,13 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{"app": AppManager},
+				MatchLabels: map[string]string{"app": types.AppManager},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app":                 AppManager,
-						SupportBundleLabelKey: sb.Name,
+						"app":                       types.AppManager,
+						types.SupportBundleLabelKey: sb.Name,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -75,10 +83,6 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 								{
 									Name:  "HARVESTER_NAMESPACE",
 									Value: sb.Namespace,
-								},
-								{
-									Name:  "HARVESTER_VERSION",
-									Value: version.FriendlyVersion(),
 								},
 								{
 									Name:  "HARVESTER_SUPPORT_BUNDLE_NAME",
@@ -103,6 +107,10 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 								{
 									Name:  "HARVESTER_SUPPORT_BUNDLE_IMAGE_PULL_POLICY",
 									Value: string(pullPolicy),
+								},
+								{
+									Name:  "HARVESTER_SUPPORT_BUNDLE_WAIT_TIMEOUT",
+									Value: types.NodeBundleWaitTimeout,
 								},
 							},
 							Ports: []corev1.ContainerPort{
@@ -133,4 +141,53 @@ func (m *Manager) getImagePullPolicy() corev1.PullPolicy {
 	default:
 		return corev1.PullIfNotPresent
 	}
+}
+
+func (m *Manager) GetStatus(sb *harvesterv1.SupportBundle) (*types.ManagerStatus, error) {
+	podIP, err := GetManagerPodIP(m.podCache, sb)
+	if err != nil {
+		return nil, err
+	}
+
+	url := fmt.Sprintf("http://%s:8080/status", podIP)
+	resp, err := m.httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	s := &types.ManagerStatus{}
+	err = json.NewDecoder(resp.Body).Decode(s)
+	if err != nil {
+		return nil, err
+	}
+
+	return s, nil
+}
+
+func GetManagerPodIP(podCache ctlcorev1.PodCache, sb *harvesterv1.SupportBundle) (string, error) {
+	sets := labels.Set{
+		"app":                       types.AppManager,
+		types.SupportBundleLabelKey: sb.Name,
+	}
+
+	pods, err := podCache.List(sb.Namespace, sets.AsSelector())
+	if err != nil {
+		return "", err
+
+	}
+	if len(pods) == 0 {
+		return "", errors.New("manager pod is not created")
+	}
+	if len(pods) > 1 {
+		return "", errors.New("more than one manager pods found")
+	}
+	if pods[0].Status.PodIP == "" {
+		return "", errors.New("manager pod IP is not allocated")
+	}
+	return pods[0].Status.PodIP, nil
 }
