@@ -37,6 +37,9 @@ type SupportBundleStatus struct {
 	State string `json:"state,omitempty"`
 
 	// +optional
+	Progress int `json:"progress,omitempty"`
+
+	// +optional
 	Filename string `json:"filename,omitempty"`
 
 	// +optional

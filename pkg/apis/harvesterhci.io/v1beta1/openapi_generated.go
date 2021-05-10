@@ -1499,6 +1499,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_SupportBundleStatus(ref common.Refer
 							Format: "",
 						},
 					},
+					"progress": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 					"filename": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
