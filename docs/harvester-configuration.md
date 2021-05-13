@@ -9,6 +9,12 @@ os:
   ssh_authorized_keys:
   - ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB...
   - github:username
+  write_files:
+  - encoding: ""
+    content: test content
+    owner: root
+    path: /etc/test.txt
+    permissions: '0755'
   hostname: myhost
   modules:
   - kvm
@@ -102,6 +108,42 @@ os:
   ssh_authorized_keys:
   - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC2TBZGjE+J8ag11dzkFT58J3XPONrDVmalCNrKxsfADfyy0eqdZrG8hcAxAR/5zuj90Gin2uBR4Sw6Cn4VHsPZcFpXyQCjK1QDADj+WcuhpXOIOY3AB0LZBly9NI0ll+8lo3QtEaoyRLtrMBhQ6Mooy2M3MTG4JNwU9o3yInuqZWf9PvtW6KxMl+ygg1xZkljhemGZ9k0wSrjqif+8usNbzVlCOVQmZwZA+BZxbdcLNwkg7zWJSXzDIXyqM6iWPGXQDEbWLq3+HR1qKucTCSxjbqoe0FD5xcW7NHIME5XKX84yH92n6yn+rxSsyUfhJWYqJd+i0fKf5UbN6qLrtd/D"
   - "github:ibuildthecloud"
+```
+
+### `os.write_files`
+
+A list of files to write to disk on boot. The `encoding` field specifies the content's encoding. Valid `encoding` values are:
+
+- `""`: content data are written in plain text. In this case, the `encoding` field can be also omitted.
+- `b64`, `base64`: content data are base64-encoded.
+- `gz`, `gzip`: content data are gzip-compressed.
+- `gz+base64`, `gzip+base64`, `gz+b64`, `gzip+b64`: content data are gzip-compressed first and then base64-encoded.
+
+Example
+
+```yaml
+os:
+  write_files:
+  - encoding: b64
+    content: CiMgVGhpcyBmaWxlIGNvbnRyb2xzIHRoZSBzdGF0ZSBvZiBTRUxpbnV4...
+    owner: root:root
+    path: /etc/connman/main.conf
+    permissions: '0644'
+  - content: |
+      # My new /etc/sysconfig/samba file
+
+      SMDBOPTIONS="-D"
+    path: /etc/sysconfig/samba
+  - content: !!binary |
+      f0VMRgIBAQAAAAAAAAAAAAIAPgABAAAAwARAAAAAAABAAAAAAAAAAJAVAAAAAA
+      AEAAHgAdAAYAAAAFAAAAQAAAAAAAAABAAEAAAAAAAEAAQAAAAAAAwAEAAAAAAA
+      AAAAAAAAAwAAAAQAAAAAAgAAAAAAAAACQAAAAAAAAAJAAAAAAAAcAAAAAAAAAB
+      ...
+    path: /bin/arch
+    permissions: '0555'
+  - content: |
+      15 * * * * root ship_logs
+    path: /etc/crontab
 ```
 
 ### `os.hostname`
