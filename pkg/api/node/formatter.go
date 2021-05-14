@@ -1,11 +1,13 @@
 package node
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/norman/httperror"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	corev1 "k8s.io/api/core/v1"
@@ -17,14 +19,23 @@ const (
 	drainKey                     = "kubevirt.io/drain"
 	enableMaintenanceModeAction  = "enableMaintenanceMode"
 	disableMaintenanceModeAction = "disableMaintenanceMode"
+	cordonAction                 = "cordon"
+	uncordonAction               = "uncordon"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
-	resource.Actions = make(map[string]string)
+	resource.Actions = make(map[string]string, 1)
+
 	if resource.APIObject.Data().String("metadata", "annotations", ctlnode.MaintainStatusAnnotationKey) != "" {
 		resource.AddAction(request, disableMaintenanceModeAction)
 	} else {
 		resource.AddAction(request, enableMaintenanceModeAction)
+	}
+
+	if resource.APIObject.Data().Bool("spec", "unschedulable") {
+		resource.AddAction(request, "uncordon")
+	} else {
+		resource.AddAction(request, "cordon")
 	}
 }
 
@@ -60,21 +71,27 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 		return h.enableMaintenanceMode(toUpdate)
 	case disableMaintenanceModeAction:
 		return h.disableMaintenanceMode(toUpdate)
+	case cordonAction:
+		return h.cordonUncordonNode(toUpdate, cordonAction, true)
+	case uncordonAction:
+		return h.cordonUncordonNode(toUpdate, uncordonAction, false)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
 }
 
+func (h ActionHandler) cordonUncordonNode(node *corev1.Node, actionName string, cordon bool) error {
+	if cordon == node.Spec.Unschedulable {
+		return httperror.NewAPIError(httperror.InvalidAction, fmt.Sprintf("Node %s already %sed", node.Name, actionName))
+	}
+	node.Spec.Unschedulable = cordon
+	_, err := h.nodeClient.Update(node)
+	return err
+}
+
 func (h ActionHandler) enableMaintenanceMode(node *corev1.Node) error {
 	node.Spec.Unschedulable = true
-	noDrainTaint := true
-	for _, taint := range node.Spec.Taints {
-		if taint.Key == drainKey {
-			noDrainTaint = false
-			break
-		}
-	}
-	if noDrainTaint {
+	if !hasDrainTaint(node.Spec.Taints) {
 		node.Spec.Taints = append(node.Spec.Taints, corev1.Taint{
 			Key:    drainKey,
 			Value:  "scheduling",
@@ -87,6 +104,15 @@ func (h ActionHandler) enableMaintenanceMode(node *corev1.Node) error {
 	node.Annotations[ctlnode.MaintainStatusAnnotationKey] = ctlnode.MaintainStatusRunning
 	_, err := h.nodeClient.Update(node)
 	return err
+}
+
+func hasDrainTaint(taints []corev1.Taint) bool {
+	for _, taint := range taints {
+		if taint.Key == drainKey {
+			return true
+		}
+	}
+	return false
 }
 
 func (h ActionHandler) disableMaintenanceMode(node *corev1.Node) error {

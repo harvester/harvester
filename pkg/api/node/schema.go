@@ -23,10 +23,14 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 			s.ResourceActions = map[string]schemas.Action{
 				enableMaintenanceModeAction:  {},
 				disableMaintenanceModeAction: {},
+				cordonAction:                 {},
+				uncordonAction:               {},
 			}
 			s.ActionHandlers = map[string]http.Handler{
 				enableMaintenanceModeAction:  nodeHandler,
 				disableMaintenanceModeAction: nodeHandler,
+				cordonAction:                 nodeHandler,
+				uncordonAction:               nodeHandler,
 			}
 		},
 	}
