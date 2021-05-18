@@ -6,20 +6,6 @@ A node driver is the same as a [Docker Machine driver](https://docs.docker.com/m
 
 >  Available as of v0.2.0
 
-## Add Harvester Node Driver
-
-### ISO Mode
-
-In the ISO mode, the Harvester driver has been installed by default, and the user does not need to add it manually.
-
-### App Mode 
-1. Navigate to the **Rancher** UI.
-1. From the **Global** view, choose **Tools > Drivers** in the navigation bar. From the **Drivers** page, select the **Node Drivers** tab. In versions before v2.2.0, you can select **Node Drivers** directly in the navigation bar.
-1. Click **Add Node Driver**.
-1. Enter **Download URL**([docker-machine-driver-harvester](https://github.com/harvester/docker-machine-driver-harvester/releases)) and **Custom UI URL**([ui-driver-harvester](https://github.com/harvester/ui-driver-harvester/releases)). 
-1. Add domains to the **Whitelist Domains**.
-1. Click **Create**.
-
 ## Create Cluster
 
 Now users can access the Rancher UI from Harvester, spin up Kubernetes clusters on top of the Harvester cluster, and manage them there.
@@ -45,3 +31,14 @@ You can use the Harvester node driver to create node templates and eventually no
 1. Enter a **RANCHER TEMPLATE** name.
 
 See [nodes hosted by an infrastructure provider](https://rancher.com/docs/rancher/v2.5/en/cluster-provisioning/rke-clusters/node-pools/) for more info.
+
+## How to add Harvester Node Driver in dev mode
+
+Developer mode doesn't come with Harvester node driver pre-installed. Following the steps below to install it:
+
+1. Navigate to the **Rancher** UI.
+1. From the **Global** view, choose **Tools > Drivers** in the navigation bar. From the **Drivers** page, select the **Node Drivers** tab. In versions before v2.2.0, you can select **Node Drivers** directly in the navigation bar.
+1. Click **Add Node Driver**.
+1. Enter **Download URL**([docker-machine-driver-harvester](https://github.com/harvester/docker-machine-driver-harvester/releases)) and **Custom UI URL**([ui-driver-harvester](https://github.com/harvester/ui-driver-harvester/releases)). 
+1. Add domains to the **Whitelist Domains**.
+1. Click **Create**.
