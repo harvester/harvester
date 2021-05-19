@@ -16,7 +16,7 @@ Harvester implements HCI on bare metal servers. Here are some notable features o
 1. Multiple NICs in the VM connecting to the management network or VLANs
 1. Virtual Machine and cloud-init templates
 1. Built-in [Rancher](https://github.com/rancher/rancher) integration and the Harvester node driver
-1. [PXE/iPXE boot support](https://github.com/rancher/harvester/blob/master/docs/automatic-installation.md)
+1. [PXE/iPXE boot support](http://docs.harvesterhci.io/install/pxe-boot-install/)
 
 The following diagram gives a high-level architecture of Harvester:
 
