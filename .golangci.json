@@ -18,7 +18,8 @@
 	},
 	"run": {
 		"skip-files": [
-			"/zz_generated_"
+			"/zz_generated_",
+                        "_generated"
 		],
 		"skip-dirs": [
 			"generated"
