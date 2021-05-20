@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "kube-vip.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "kube-vip.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  name: {{ include "kube-vip.name" . }}
+rules:
+  - apiGroups: [""]
+    resources: ["services", "services/status", "nodes"]
+    verbs: ["list","get","watch", "update"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["list", "get", "watch", "update", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kube-vip.name" . }}
+  labels:
+  {{- include "kube-vip.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "kube-vip.name" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "kube-vip.name" . }}
+  namespace: {{ .Release.Namespace }}

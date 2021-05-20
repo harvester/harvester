@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "kube-vip.name" . }}
+  namespace: {{ .Release.Namespace | default "kube-system" }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "kube-vip.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kube-vip.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - args:
+        - manager
+        env:
+        - name: vip_arp
+          value: "true"
+        - name: vip_interface
+          value: {{ .Values.interface }}
+        - name: port
+          value: "6443"
+        - name: vip_cidr
+          value: "32"
+        - name: cp_enable
+          value: "true"
+        - name: cp_namespace
+          value: {{ .Release.Namespace }}
+        - name: svc_enable
+          value: "true"
+        - name: vip_startleader
+          value: "false"
+        - name: vip_addpeerstolb
+          value: "true"
+        - name: vip_address
+          value: {{ .Values.address }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "0.3.3" }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        name: kube-vip
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+      hostNetwork: true
+      serviceAccountName: {{ include "kube-vip.name" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
