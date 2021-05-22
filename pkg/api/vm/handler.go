@@ -81,7 +81,7 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter diskNames is empty")
 		}
 
-		return h.ejectCdRom(name, namespace, input.DiskNames)
+		return h.ejectCdRom(r.Context(), name, namespace, input.DiskNames)
 	case migrate:
 		var input MigrateInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -150,7 +150,7 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 	return nil
 }
 
-func (h *vmActionHandler) ejectCdRom(name, namespace string, diskNames []string) error {
+func (h *vmActionHandler) ejectCdRom(ctx context.Context, name, namespace string, diskNames []string) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func (h *vmActionHandler) ejectCdRom(name, namespace string, diskNames []string)
 		if _, err := h.vms.Update(vmCopy); err != nil {
 			return err
 		}
-		return h.vmis.Delete(namespace, name, &metav1.DeleteOptions{})
+		return h.subresourceOperate(ctx, vmResource, namespace, name, restartVM)
 	}
 
 	return nil
