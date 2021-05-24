@@ -65,7 +65,7 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 		downloadRoute.Handler(sbDownloadHandler)
 	}
 
-	if r.options.RancherEmbedded {
+	if r.options.RancherEmbedded || r.options.RancherURL != "" {
 		host, err := parseRancherServerURL(r.options.RancherURL)
 		if err != nil {
 			logrus.Fatal(err)
