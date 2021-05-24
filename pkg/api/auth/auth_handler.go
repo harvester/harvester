@@ -23,19 +23,19 @@ const (
 	jwtServiceAccountClaimSubject = "sub" // https://github.com/kubernetes/kubernetes/blob/3783e03dc9df61604c470aa21f198a888e3ec692/pkg/serviceaccount/claims.go#L64
 )
 
-func NewMiddleware(ctx context.Context, scaled *config.Scaled, restConfig *rest.Config, rancherEmbedded bool) (*Middleware, error) {
+func NewMiddleware(ctx context.Context, scaled *config.Scaled, rancherRestConfig *rest.Config, AddRancherAuthenticator bool) (*Middleware, error) {
 	middleware := &Middleware{
 		tokenManager: scaled.TokenManager,
 	}
 
-	if !rancherEmbedded {
+	if !AddRancherAuthenticator {
 		return middleware, nil
 	}
 
 	emptyClusterID := func(*http.Request) string {
 		return ""
 	}
-	sc, err := rancherconfig.NewScaledContext(*restConfig, nil)
+	sc, err := rancherconfig.NewScaledContext(*rancherRestConfig, nil)
 	if err != nil {
 		return nil, err
 	}

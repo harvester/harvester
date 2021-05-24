@@ -15,6 +15,8 @@ import (
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -33,6 +35,8 @@ import (
 type HarvesterServer struct {
 	Context context.Context
 
+	RancherRESTConfig *restclient.Config
+
 	RESTConfig    *restclient.Config
 	DynamicClient dynamic.Interface
 	ClientSet     *kubernetes.Clientset
@@ -44,6 +48,33 @@ type HarvesterServer struct {
 	postStartHooks []PostStartHook
 
 	Handler http.Handler
+}
+
+const (
+	RancherKubeConfigSecretName = "rancher-kubeconfig"
+	RancherKubeConfigSecretKey  = "kubernetes.kubeconfig"
+)
+
+func RancherRESTConfig(ctx context.Context, restConfig *restclient.Config, options config.Options) (*restclient.Config, error) {
+	clientSet, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	secret, err := clientSet.CoreV1().Secrets(options.Namespace).Get(ctx, RancherKubeConfigSecretName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return restConfig, nil
+		}
+		return nil, err
+	}
+
+	rancherClientConfig, err := clientcmd.NewClientConfigFromBytes(secret.Data[RancherKubeConfigSecretKey])
+	if err != nil {
+		return nil, err
+	}
+
+	return rancherClientConfig.ClientConfig()
 }
 
 func New(ctx context.Context, clientConfig clientcmd.ClientConfig, options config.Options) (*HarvesterServer, error) {
@@ -69,6 +100,16 @@ func New(ctx context.Context, clientConfig clientcmd.ClientConfig, options confi
 	server.DynamicClient, err = dynamic.NewForConfig(server.RESTConfig)
 	if err != nil {
 		return nil, fmt.Errorf("kubernetes dynamic client create error:%s", err.Error())
+	}
+
+	server.RancherRESTConfig, err = RancherRESTConfig(ctx, server.RESTConfig, options)
+	if err != nil {
+		return nil, err
+	}
+
+	server.RancherRESTConfig.RateLimiter = ratelimit.None
+	if err := Wait(ctx, server.RancherRESTConfig); err != nil {
+		return nil, err
 	}
 
 	if err := server.generateSteveServer(options); err != nil {
@@ -153,7 +194,7 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 
 	var authMiddleware steveauth.Middleware
 	if !options.SkipAuthentication {
-		md, err := auth.NewMiddleware(s.Context, scaled, s.RESTConfig, options.RancherEmbedded)
+		md, err := auth.NewMiddleware(s.Context, scaled, s.RancherRESTConfig, options.RancherEmbedded || options.RancherURL != "")
 		if err != nil {
 			return err
 		}
