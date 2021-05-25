@@ -75,22 +75,26 @@ spec:
 {{ toYaml .Values.containers.apiserver.args | indent 12 }}
 {{- end }}
           env:
-            - name: HARVESTER_AUTHENTICATION_MODE
-              value: {{ .Values.containers.apiserver.authMode | quote }}
-{{- if .Values.containers.apiserver.hciMode }}
-            - name: HCI_MODE
-              value: "true"
-{{- end }}
             - name: HARVESTER_SERVER_HTTPS_PORT
               value: {{ .Values.service.harvester.httpsPort | quote }}
             - name: HARVESTER_DEBUG
               value: {{ .Values.containers.apiserver.debug | quote }}
             - name: HARVESTER_SERVER_HTTP_PORT
               value: {{ .Values.service.harvester.httpPort | quote }}
-            {{- if .Values.rancherEmbedded }}
+            - name: HARVESTER_AUTHENTICATION_MODE
+              value: {{ .Values.containers.apiserver.authMode | quote }}
+{{- if .Values.containers.apiserver.hciMode }}
+            - name: HCI_MODE
+              value: "true"
+{{- end }}
+{{- if .Values.rancherEmbedded }}
             - name: RANCHER_EMBEDDED
               value: "true"
-            {{- end }}
+{{- end }}
+{{- if .Values.rancherURL }}
+            - name: RANCHER_SERVER_URL
+              value: {{  .Values.rancherURL }}
+{{- end }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
