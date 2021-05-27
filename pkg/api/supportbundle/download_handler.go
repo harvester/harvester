@@ -2,8 +2,10 @@ package supportbundle
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlsb "github.com/harvester/harvester/pkg/controller/master/supportbundle"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
@@ -83,7 +86,15 @@ func (h *DownloadHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		util.ResponseErrorMsg(rw, http.StatusInternalServerError, fmt.Sprintf("unexpected status code %d", resp.StatusCode))
+		msg := fmt.Sprintf("Unexpected status code %d from manager.", resp.StatusCode)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err == nil {
+			var errResp harvesterv1.ErrorResponse
+			if e := json.Unmarshal(body, &errResp); e == nil {
+				msg = fmt.Sprintf("%s %v", msg, errResp.Errors)
+			}
+		}
+		util.ResponseErrorMsg(rw, http.StatusInternalServerError, msg)
 		return
 	}
 
