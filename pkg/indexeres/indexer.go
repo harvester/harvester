@@ -21,7 +21,7 @@ const (
 
 func RegisterScaledIndexers(scaled *config.Scaled) {
 	userInformer := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().User().Cache()
-	userInformer.AddIndexer(UserNameIndex, indexUserByUsername)
+	userInformer.AddIndexer(UserNameIndex, IndexUserByUsername)
 	vmInformer := scaled.Management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(VMByNetworkIndex, VMByNetwork)
 }
@@ -33,7 +33,7 @@ func RegisterManagementIndexers(management *config.Management) {
 	dataVolumeInformer.AddIndexer(DataVolumeByVMIndex, dataVolumeByVM)
 }
 
-func indexUserByUsername(obj *harvesterv1.User) ([]string, error) {
+func IndexUserByUsername(obj *harvesterv1.User) ([]string, error) {
 	return []string{obj.Username}, nil
 }
 
