@@ -73,7 +73,7 @@ require (
 	github.com/onsi/gomega v1.10.2
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/apiserver v0.0.0-20210209001659-a17289640582
-	github.com/rancher/dynamiclistener v0.2.1-0.20200910203214-85f32491cb09
+	github.com/rancher/dynamiclistener v0.2.1-0.20201110045217-9b1b7d3132e8
 	github.com/rancher/lasso v0.0.0-20210219160604-9baf1c12751b
 	github.com/rancher/norman v0.0.0-20210225010917-c7fd1e24145b
 	github.com/rancher/rancher v0.0.0-20210312225102-c824d91cd247
