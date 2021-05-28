@@ -1,0 +1,8 @@
+FROM alpine
+RUN apk update && apk add -u --no-cache tini bash
+
+COPY entrypoint-webhook.sh  /usr/bin/entrypoint.sh
+COPY harvester-webhook /usr/bin/
+RUN chmod +x /usr/bin/entrypoint.sh
+
+ENTRYPOINT ["entrypoint.sh"]
