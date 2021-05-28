@@ -52,6 +52,42 @@ app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
 {{- end }}
 
 {{/*
+Generate API affinity. It makes pods of a workoad to run on different nodes.
+*/}}
+{{- define "harvester.apiAffinity" -}}
+podAntiAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+              - harvester
+          - key: app.kubernetes.io/component
+            operator: In
+            values:
+              - {{ .component }}
+          - key: app.kubernetes.io/version
+            operator: In
+            values:
+              - {{ .root.Chart.AppVersion }}
+      topologyKey: kubernetes.io/hostname
+nodeAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+      - matchExpressions:
+          - key: beta.kubernetes.io/os
+            operator: In
+            values:
+              - linux
+      - matchExpressions:
+          - key: kubernetes.io/os
+            operator: In
+            values:
+              - linux
+{{- end }}
+
+{{/*
 NB(thxCode): Use this value to unify the control tag and condition of KubeVirt Operator.
 */}}
 {{- define "conditions.is_kubevirt_operator_enabled" }}
