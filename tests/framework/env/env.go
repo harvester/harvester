@@ -34,6 +34,13 @@ const (
 	// default to false.
 	envEnableE2ETests = "ENABLE_E2E_TESTS"
 
+	// Specify images to be pre-loaded into nodes. Use comma "," to specify multiple
+	// images. e.g., "repo1/image1:tag1,repo2/image2:tag2"
+	envPreloadingImages = "PRELOADING_IMAGES"
+
+	// Specify Webhook image name. Use the value in the helm chart if not specified.
+	envWebhookImage = "WEBHOOK_IMAGE_NAME"
+
 	// In summary, default is:
 	// 1. Create a new local cluster
 	// 2. Deploy runtime
@@ -90,4 +97,27 @@ func IsUsingEmulation() bool {
 // IsE2ETestsEnabled validates whether to enabled the e2e tests
 func IsE2ETestsEnabled() bool {
 	return IsTrue(envEnableE2ETests)
+}
+
+// GetPreloadingImages returns preloading image names
+func GetPreloadingImages() []string {
+	images := []string{}
+	for _, image := range strings.Split(os.Getenv(envPreloadingImages), ",") {
+		images = append(images, strings.TrimSpace(image))
+	}
+	return images
+}
+
+// GetWebhookImage returns webhook image name and tag
+func GetWebhookImage() (string, string) {
+	image := os.Getenv(envWebhookImage)
+	if image == "" {
+		return "", ""
+	}
+
+	tokens := strings.Split(image, ":")
+	if len(tokens) > 1 {
+		return tokens[0], tokens[1]
+	}
+	return tokens[0], ""
 }

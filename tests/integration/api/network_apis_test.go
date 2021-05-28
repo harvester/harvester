@@ -121,7 +121,7 @@ var _ = Describe("verify network APIs", func() {
 				By("should fail if vid is existed")
 				network = NewBridgeNetwork("another-"+networkName, testBridgeVID).NAD
 				respCode, respBody, err = helper.PostObject(networkAPI, network)
-				MustRespCodeIs(http.StatusInternalServerError, "create network", err, respCode, respBody)
+				MustRespCodeIs(http.StatusUnprocessableEntity, "create network", err, respCode, respBody)
 			})
 
 		})

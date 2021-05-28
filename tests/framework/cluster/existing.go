@@ -26,6 +26,12 @@ func (e *ExistingCluster) Startup(output io.Writer) error {
 	return nil
 }
 
+func (e *ExistingCluster) LoadImages(output io.Writer) error {
+	var logger = logs.NewLogger(output, 0)
+	logger.V(0).Info("skip loading images")
+	return nil
+}
+
 func (e *ExistingCluster) Cleanup(output io.Writer) error {
 	var logger = logs.NewLogger(output, 0)
 	logger.V(0).Info("skip exist cluster")

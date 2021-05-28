@@ -162,7 +162,7 @@ var _ = Describe("verify vm template APIs", func() {
 			By("can't delete a default template version", func() {
 
 				respCode, respBody, err := helper.DeleteObject(templateVersionURL)
-				MustRespCodeIs(http.StatusInternalServerError, "delete template version", err, respCode, respBody)
+				MustRespCodeIs(http.StatusBadRequest, "delete template version", err, respCode, respBody)
 
 			})
 
