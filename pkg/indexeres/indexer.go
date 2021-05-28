@@ -23,7 +23,7 @@ func RegisterScaledIndexers(scaled *config.Scaled) {
 	userInformer := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().User().Cache()
 	userInformer.AddIndexer(UserNameIndex, indexUserByUsername)
 	vmInformer := scaled.Management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
-	vmInformer.AddIndexer(VMByNetworkIndex, vmByNetwork)
+	vmInformer.AddIndexer(VMByNetworkIndex, VMByNetwork)
 }
 
 func RegisterManagementIndexers(management *config.Management) {
@@ -57,7 +57,7 @@ func dataVolumeByVM(obj *cdiv1beta1.DataVolume) ([]string, error) {
 	return annotationSchemaOwners.List(kubevirtv1.VirtualMachineGroupVersionKind.GroupKind()), nil
 }
 
-func vmByNetwork(obj *kubevirtv1.VirtualMachine) ([]string, error) {
+func VMByNetwork(obj *kubevirtv1.VirtualMachine) ([]string, error) {
 	networks := obj.Spec.Template.Spec.Networks
 	networkNameList := make([]string, 0, len(networks))
 	for _, network := range networks {
