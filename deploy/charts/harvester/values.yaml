@@ -400,3 +400,22 @@ longhorn:
     concurrentAutomaticEngineUpgradePerNodeLimit: 3
 
 rancherEmbedded: false
+
+webhook:
+  replicas: 3
+  debug: false
+  image:
+
+    ## Specify the pull policy of image.
+    ##
+    imagePullPolicy: Always
+
+    ## Specify the repository of image.
+    ##
+    repository: rancher/harvester-webhook
+
+    ## Specify the tag of image.
+    ##
+    tag: master-head
+
+  httpsPort: 9443
