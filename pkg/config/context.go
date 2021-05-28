@@ -40,8 +40,6 @@ type Options struct {
 	Threadiness     int
 	HTTPListenPort  int
 	HTTPSListenPort int
-	Debug           bool
-	Trace           bool
 
 	SkipAuthentication bool
 	RancherEmbedded    bool
