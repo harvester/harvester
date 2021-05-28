@@ -7,6 +7,6 @@ cd $(dirname $0)
 ./validate-ci
 ./build
 ./test
+./package-webhook
 ./test-integration
 ./package
-./package-webhook

@@ -27,6 +27,9 @@ type Cluster interface {
 	// Startup runs a cluster.
 	Startup(output io.Writer) error
 
+	// Load images into a cluster.
+	LoadImages(output io.Writer) error
+
 	// Cleanup closes the cluster.
 	Cleanup(output io.Writer) error
 }
@@ -54,6 +57,12 @@ func Start(output io.Writer) (clientcmd.ClientConfig, Cluster, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to startup the local cluster %s, %v", cluster, err)
 	}
+
+	err = cluster.LoadImages(output)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load images into cluster %s, %v", cluster, err)
+	}
+
 	KubeClientConfig, err := GetConfig()
 	return KubeClientConfig, cluster, err
 }
