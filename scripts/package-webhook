@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+source $(dirname $0)/version
+
+cd $(dirname $0)/..
+
+mkdir -p dist/artifacts
+cp bin/harvester-webhook dist/artifacts/harvester-webhook${SUFFIX}
+
+cd $(dirname $0)/package
+
+IMAGE=${REPO}/harvester-webhook:${TAG}
+DOCKERFILE=Dockerfile.webhook
+if [ -e ${DOCKERFILE}.${ARCH} ]; then
+    DOCKERFILE=${DOCKERFILE}.${ARCH}
+fi
+
+cp ../bin/harvester-webhook .
+
+docker build -f ${DOCKERFILE} -t ${IMAGE} .
+echo Built ${IMAGE}

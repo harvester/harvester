@@ -9,3 +9,4 @@ cd $(dirname $0)
 ./test
 ./test-integration
 ./package
+./package-webhook

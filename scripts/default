@@ -6,3 +6,4 @@ cd $(dirname $0)
 ./build
 ./test
 ./package
+./package-webhook
