@@ -6,7 +6,6 @@ import (
 	"github.com/rancher/steve/pkg/server"
 
 	"github.com/harvester/harvester/pkg/api/keypair"
-	"github.com/harvester/harvester/pkg/api/network"
 	"github.com/harvester/harvester/pkg/api/node"
 	"github.com/harvester/harvester/pkg/api/restore"
 	"github.com/harvester/harvester/pkg/api/setting"
@@ -37,7 +36,6 @@ func Setup(ctx context.Context, server *server.Server, controllers *server.Contr
 		setting.RegisterSchema,
 		upgrade.RegisterSchema,
 		user.RegisterSchema,
-		network.RegisterSchema,
 		node.RegisterSchema,
 		restore.RegisterSchema)
 }
