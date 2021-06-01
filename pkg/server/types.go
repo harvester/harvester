@@ -26,6 +26,7 @@ import (
 	"github.com/harvester/harvester/pkg/api"
 	"github.com/harvester/harvester/pkg/api/auth"
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/controller/admission"
 	"github.com/harvester/harvester/pkg/controller/crds"
 	"github.com/harvester/harvester/pkg/controller/global"
 	"github.com/harvester/harvester/pkg/controller/master"
@@ -189,6 +190,12 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 	s.ASL = accesscontrol.NewAccessStore(s.Context, true, s.controllers.RBAC)
 
 	if err := crds.Setup(s.Context, s.RESTConfig); err != nil {
+		return err
+	}
+
+	// Once the controller starts its works, the controller might manipulate resources.
+	// Make sure admission webhook server is ready before that.
+	if err := admission.Wait(s.Context, s.ClientSet); err != nil {
 		return err
 	}
 
