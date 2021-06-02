@@ -34,9 +34,9 @@ func NoCache(handler http.Handler) http.Handler {
 	})
 }
 
-func DenyFrameOptions(handler http.Handler) http.Handler {
+func FrameOptions(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Frame-Options", "deny")
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		handler.ServeHTTP(w, r)
 	})
 }

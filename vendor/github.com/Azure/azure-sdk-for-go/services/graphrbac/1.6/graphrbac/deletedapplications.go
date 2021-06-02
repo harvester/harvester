@@ -73,6 +73,7 @@ func (client DeletedApplicationsClient) HardDelete(ctx context.Context, applicat
 	result, err = client.HardDeleteResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.DeletedApplicationsClient", "HardDelete", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -109,7 +110,6 @@ func (client DeletedApplicationsClient) HardDeleteSender(req *http.Request) (*ht
 func (client DeletedApplicationsClient) HardDeleteResponder(resp *http.Response) (result autorest.Response, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusNoContent),
 		autorest.ByClosing())
 	result.Response = resp
@@ -152,6 +152,11 @@ func (client DeletedApplicationsClient) List(ctx context.Context, filter string)
 	result.alr, err = client.ListResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.DeletedApplicationsClient", "List", resp, "Failure responding to request")
+		return
+	}
+	if result.alr.hasNextLink() && result.alr.IsEmpty() {
+		err = result.NextWithContext(ctx)
+		return
 	}
 
 	return
@@ -190,7 +195,6 @@ func (client DeletedApplicationsClient) ListSender(req *http.Request) (*http.Res
 func (client DeletedApplicationsClient) ListResponder(resp *http.Response) (result ApplicationListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -244,6 +248,7 @@ func (client DeletedApplicationsClient) ListNext(ctx context.Context, nextLink s
 	result, err = client.ListNextResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.DeletedApplicationsClient", "ListNext", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -280,7 +285,6 @@ func (client DeletedApplicationsClient) ListNextSender(req *http.Request) (*http
 func (client DeletedApplicationsClient) ListNextResponder(resp *http.Response) (result ApplicationListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -318,6 +322,7 @@ func (client DeletedApplicationsClient) Restore(ctx context.Context, objectID st
 	result, err = client.RestoreResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.DeletedApplicationsClient", "Restore", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -354,7 +359,6 @@ func (client DeletedApplicationsClient) RestoreSender(req *http.Request) (*http.
 func (client DeletedApplicationsClient) RestoreResponder(resp *http.Response) (result Application, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())

@@ -268,7 +268,6 @@ func (s *Schemas) readFields(schema *Schema, t reflect.Type) error {
 			fieldType = fieldType.Elem()
 		} else if fieldType.Kind() == reflect.Bool {
 			schemaField.Nullable = false
-			schemaField.Default = false
 		} else if fieldType.Kind() == reflect.Int ||
 			fieldType.Kind() == reflect.Uint32 ||
 			fieldType.Kind() == reflect.Int32 ||
@@ -277,7 +276,6 @@ func (s *Schemas) readFields(schema *Schema, t reflect.Type) error {
 			fieldType.Kind() == reflect.Float32 ||
 			fieldType.Kind() == reflect.Float64 {
 			schemaField.Nullable = false
-			schemaField.Default = 0
 		}
 
 		if err := applyTag(&field, &schemaField); err != nil {

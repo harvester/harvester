@@ -5,7 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiserverv1alpha1 "k8s.io/apiserver/pkg/apis/apiserver/v1alpha1"
 	auditv1 "k8s.io/apiserver/pkg/apis/audit/v1"
-	apiserverconfig "k8s.io/apiserver/pkg/apis/config"
+	configv1 "k8s.io/apiserver/pkg/apis/config/v1"
 )
 
 type RancherKubernetesEngineConfig struct {
@@ -21,7 +21,7 @@ type RancherKubernetesEngineConfig struct {
 	Addons string `yaml:"addons" json:"addons,omitempty"`
 	// List of urls or paths for addons
 	AddonsInclude []string `yaml:"addons_include" json:"addonsInclude,omitempty"`
-	// List of images used internally for proxy, cert downlaod and kubedns
+	// List of images used internally for proxy, cert download and kubedns
 	SystemImages RKESystemImages `yaml:"system_images" json:"systemImages,omitempty"`
 	// SSH Private Key Path
 	SSHKeyPath string `yaml:"ssh_key_path" json:"sshKeyPath,omitempty" norman:"nocreate,noupdate"`
@@ -33,7 +33,9 @@ type RancherKubernetesEngineConfig struct {
 	Authorization AuthzConfig `yaml:"authorization" json:"authorization,omitempty"`
 	// Enable/disable strict docker version checking
 	IgnoreDockerVersion *bool `yaml:"ignore_docker_version" json:"ignoreDockerVersion" norman:"default=true"`
-	// Kubernetes version to use (if kubernetes image is specifed, image version takes precedence)
+	// Enable/disable using cri-dockerd
+	EnableCRIDockerd *bool `yaml:"enable_cri_dockerd" json:"enableCriDockerd" norman:"default=false"`
+	// Kubernetes version to use (if kubernetes image is specified, image version takes precedence)
 	Version string `yaml:"kubernetes_version" json:"kubernetesVersion,omitempty"`
 	// List of private registries and their credentials
 	PrivateRegistries []PrivateRegistry `yaml:"private_registries" json:"privateRegistries,omitempty"`
@@ -95,6 +97,8 @@ type BastionHost struct {
 	SSHCert string `yaml:"ssh_cert" json:"sshCert,omitempty"`
 	// SSH Certificate Path
 	SSHCertPath string `yaml:"ssh_cert_path" json:"sshCertPath,omitempty"`
+	// Ignore proxy environment variables
+	IgnoreProxyEnvVars bool `yaml:"ignore_proxy_env_vars" json:"ignoreProxyEnvVars,omitempty"`
 }
 
 type PrivateRegistry struct {
@@ -980,7 +984,7 @@ type SecretsEncryptionConfig struct {
 	// Enable/disable secrets encryption provider config
 	Enabled bool `yaml:"enabled" json:"enabled,omitempty"`
 	// Custom Encryption Provider configuration object
-	CustomConfig *apiserverconfig.EncryptionConfiguration `yaml:"custom_config" json:"customConfig,omitempty" norman:"type=map[json]"`
+	CustomConfig *configv1.EncryptionConfiguration `yaml:"custom_config" json:"customConfig,omitempty"`
 }
 
 type File struct {

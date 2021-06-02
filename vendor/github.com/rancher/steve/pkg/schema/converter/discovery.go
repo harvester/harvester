@@ -23,8 +23,6 @@ var (
 )
 
 func AddDiscovery(client discovery.DiscoveryInterface, schemasMap map[string]*types.APISchema) error {
-	logrus.Info("Refreshing all schemas")
-
 	groups, resourceLists, err := client.ServerGroupsAndResources()
 	if gd, ok := err.(*discovery.ErrGroupDiscoveryFailed); ok {
 		logrus.Errorf("Failed to read API for groups %v", gd.Groups)
@@ -77,8 +75,6 @@ func refresh(gv schema.GroupVersion, groupToPreferredVersion map[string]string, 
 			Kind:    resource.Kind,
 		}
 		gvr := gvk.GroupVersion().WithResource(resource.Name)
-
-		logrus.Infof("APIVersion %s/%s Kind %s", gvk.Group, gvk.Version, gvk.Kind)
 
 		schema := schemasMap[GVKToVersionedSchemaID(gvk)]
 		if schema == nil {

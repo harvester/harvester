@@ -57,9 +57,11 @@ type PlanStatus struct {
 
 // ContainerSpec is a simplified container template.
 type ContainerSpec struct {
-	Image   string   `json:"image,omitempty"`
-	Command []string `json:"command,omitempty"`
-	Args    []string `json:"args,omitempty"`
+	Image   string                 `json:"image,omitempty"`
+	Command []string               `json:"command,omitempty"`
+	Args    []string               `json:"args,omitempty"`
+	Env     []corev1.EnvVar        `json:"envs,omitempty"`
+	EnvFrom []corev1.EnvFromSource `json:"envFrom,omitempty"`
 }
 
 // DrainSpec encapsulates `kubectl drain` parameters minus node/pod selectors.

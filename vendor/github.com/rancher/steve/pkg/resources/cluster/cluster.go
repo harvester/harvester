@@ -175,17 +175,17 @@ func (s *Store) List(apiOp *types.APIRequest, schema *types.APISchema) (types.AP
 
 func (s *Store) Watch(apiOp *types.APIRequest, schema *types.APISchema, w types.WatchRequest) (chan types.APIEvent, error) {
 	result := make(chan types.APIEvent, 1)
-	go func() {
-		<-apiOp.Context().Done()
-		close(result)
-	}()
-
 	result <- types.APIEvent{
 		Name:         "local",
 		ResourceType: "management.cattle.io.clusters",
 		ID:           "local",
 		Object:       s.getLocal(),
 	}
+
+	go func() {
+		<-apiOp.Context().Done()
+		close(result)
+	}()
 
 	return result, nil
 }

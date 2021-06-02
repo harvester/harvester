@@ -6,9 +6,6 @@ import (
 	"time"
 
 	"github.com/rancher/lasso/pkg/client"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
@@ -17,14 +14,14 @@ const (
 
 type healthcheck struct {
 	lock     sync.Mutex
-	nsClient *client.Client
+	cf       client.SharedClientFactory
 	callback func(bool)
 }
 
-func (h *healthcheck) ping(ctx context.Context) error {
+func (h *healthcheck) ping(ctx context.Context) bool {
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
-	return h.nsClient.Get(ctx, "", "kube-system", &v1.Namespace{}, metav1.GetOptions{})
+	return h.cf.IsHealthy(ctx)
 }
 
 func (h *healthcheck) start(ctx context.Context, cf client.SharedClientFactory) error {
@@ -41,20 +38,11 @@ func (h *healthcheck) start(ctx context.Context, cf client.SharedClientFactory) 
 func (h *healthcheck) initialize(cf client.SharedClientFactory) (bool, error) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
-	if h.nsClient != nil {
+	if h.cf != nil {
 		return false, nil
 	}
 
-	nsClient, err := cf.ForResource(schema.GroupVersionResource{
-		Group:    "",
-		Version:  "v1",
-		Resource: "namespaces",
-	}, false)
-	if err != nil {
-		return false, err
-	}
-	h.nsClient = nsClient
-
+	h.cf = cf
 	return true, nil
 }
 
@@ -72,7 +60,7 @@ func (h *healthcheck) report(good bool) {
 
 func (h *healthcheck) pingUntilGood(ctx context.Context) {
 	for {
-		if err := h.ping(ctx); err == nil {
+		if h.ping(ctx) {
 			h.report(true)
 			return
 		}

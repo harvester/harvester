@@ -79,6 +79,11 @@ func (client ObjectsClient) GetObjectsByObjectIds(ctx context.Context, parameter
 	result.dolr, err = client.GetObjectsByObjectIdsResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ObjectsClient", "GetObjectsByObjectIds", resp, "Failure responding to request")
+		return
+	}
+	if result.dolr.hasNextLink() && result.dolr.IsEmpty() {
+		err = result.NextWithContext(ctx)
+		return
 	}
 
 	return
@@ -116,7 +121,6 @@ func (client ObjectsClient) GetObjectsByObjectIdsSender(req *http.Request) (*htt
 func (client ObjectsClient) GetObjectsByObjectIdsResponder(resp *http.Response) (result DirectoryObjectListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -170,6 +174,7 @@ func (client ObjectsClient) GetObjectsByObjectIdsNext(ctx context.Context, nextL
 	result, err = client.GetObjectsByObjectIdsNextResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ObjectsClient", "GetObjectsByObjectIdsNext", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -206,7 +211,6 @@ func (client ObjectsClient) GetObjectsByObjectIdsNextSender(req *http.Request) (
 func (client ObjectsClient) GetObjectsByObjectIdsNextResponder(resp *http.Response) (result DirectoryObjectListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())

@@ -3,10 +3,10 @@ package converter
 import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/schemas"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
-func modelV3ToSchema(name string, k *v1beta1.JSONSchemaProps, schemasMap map[string]*types.APISchema) *types.APISchema {
+func modelV3ToSchema(name string, k *v1.JSONSchemaProps, schemasMap map[string]*types.APISchema) *types.APISchema {
 	s := types.APISchema{
 		Schema: &schemas.Schema{
 			ID:             name,
@@ -27,9 +27,10 @@ func modelV3ToSchema(name string, k *v1beta1.JSONSchemaProps, schemasMap map[str
 		}
 	}
 
-	if _, ok := schemasMap[s.ID]; !ok {
-		schemasMap[s.ID] = &s
+	if existing, ok := schemasMap[s.ID]; ok && len(existing.Attributes) > 0 {
+		s.Attributes = existing.Attributes
 	}
+	schemasMap[s.ID] = &s
 
 	for k, v := range s.ResourceFields {
 		if types.ReservedFields[k] {
@@ -41,14 +42,14 @@ func modelV3ToSchema(name string, k *v1beta1.JSONSchemaProps, schemasMap map[str
 	return &s
 }
 
-func toResourceField(name string, schema v1beta1.JSONSchemaProps, schemasMap map[string]*types.APISchema) schemas.Field {
+func toResourceField(name string, schema v1.JSONSchemaProps, schemasMap map[string]*types.APISchema) schemas.Field {
 	f := schemas.Field{
 		Description: schema.Description,
 		Nullable:    true,
 		Create:      true,
 		Update:      true,
 	}
-	var itemSchema *v1beta1.JSONSchemaProps
+	var itemSchema *v1.JSONSchemaProps
 	if schema.Items != nil {
 		if schema.Items.Schema != nil {
 			itemSchema = schema.Items.Schema

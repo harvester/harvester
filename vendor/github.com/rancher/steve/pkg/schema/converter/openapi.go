@@ -97,8 +97,7 @@ func toField(schema proto.Schema) schemas.Field {
 	case *proto.Map:
 		f.Type = "map[" + toField(v.SubType).Type + "]"
 	case *proto.Kind:
-		parts := v.Path.Get()
-		f.Type = parts[len(parts)-1]
+		f.Type = v.Path.String()
 	case proto.Reference:
 		sub := v.SubSchema()
 		if p, ok := sub.(*proto.Primitive); ok {

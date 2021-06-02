@@ -12,6 +12,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -99,7 +101,12 @@ func NewSignedCert(signer crypto.Signer, caCert *x509.Certificate, caKey crypto.
 		return nil, err
 	}
 
-	return x509.ParseCertificate(cert)
+	parsedCert, err := x509.ParseCertificate(cert)
+	if err == nil {
+		logrus.Infof("certificate %s signed by %s: notBefore=%s notAfter=%s",
+			parsedCert.Subject, caCert.Subject, parsedCert.NotBefore, parsedCert.NotAfter)
+	}
+	return parsedCert, err
 }
 
 func ParseCertPEM(pemCerts []byte) (*x509.Certificate, error) {

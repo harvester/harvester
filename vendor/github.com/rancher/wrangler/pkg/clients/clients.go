@@ -10,7 +10,7 @@ import (
 	admissionreg "github.com/rancher/wrangler/pkg/generated/controllers/admissionregistration.k8s.io"
 	admissionregcontrollers "github.com/rancher/wrangler/pkg/generated/controllers/admissionregistration.k8s.io/v1"
 	"github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
-	crdcontrollers "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1beta1"
+	crdcontrollers "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1"
 	"github.com/rancher/wrangler/pkg/generated/controllers/apiregistration.k8s.io"
 	apicontrollers "github.com/rancher/wrangler/pkg/generated/controllers/apiregistration.k8s.io/v1"
 	"github.com/rancher/wrangler/pkg/generated/controllers/apps"
@@ -144,7 +144,7 @@ func NewFromConfig(cfg *rest.Config, opts *generic.FactoryOptions) (*Clients, er
 		Core:                    core.Core().V1(),
 		RBAC:                    rbac.Rbac().V1(),
 		Apps:                    apps.Apps().V1(),
-		CRD:                     crd.Apiextensions().V1beta1(),
+		CRD:                     crd.Apiextensions().V1(),
 		API:                     api.Apiregistration().V1(),
 		Admission:               adminReg.Admissionregistration().V1(),
 		Batch:                   batch.Batch().V1(),

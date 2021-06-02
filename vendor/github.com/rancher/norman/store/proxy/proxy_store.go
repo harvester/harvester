@@ -134,6 +134,14 @@ func (s *Store) doAuthed(apiContext *types.APIContext, request *rest.Request) re
 	for _, header := range authHeaders {
 		request.SetHeader(header, apiContext.Request.Header[http.CanonicalHeaderKey(header)]...)
 	}
+
+	//set extra info headers
+	for header := range apiContext.Request.Header {
+		if strings.HasPrefix(header, "Impersonate-Extra-") {
+			request.SetHeader(header, apiContext.Request.Header[http.CanonicalHeaderKey(header)]...)
+		}
+	}
+
 	return request.Do(apiContext.Request.Context())
 }
 
