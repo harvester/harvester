@@ -81,6 +81,7 @@ func (client ApplicationsClient) AddOwner(ctx context.Context, applicationObject
 	result, err = client.AddOwnerResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "AddOwner", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -119,7 +120,6 @@ func (client ApplicationsClient) AddOwnerSender(req *http.Request) (*http.Respon
 func (client ApplicationsClient) AddOwnerResponder(resp *http.Response) (result autorest.Response, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusNoContent),
 		autorest.ByClosing())
 	result.Response = resp
@@ -162,6 +162,7 @@ func (client ApplicationsClient) Create(ctx context.Context, parameters Applicat
 	result, err = client.CreateResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "Create", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -199,7 +200,6 @@ func (client ApplicationsClient) CreateSender(req *http.Request) (*http.Response
 func (client ApplicationsClient) CreateResponder(resp *http.Response) (result Application, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusCreated),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -237,6 +237,7 @@ func (client ApplicationsClient) Delete(ctx context.Context, applicationObjectID
 	result, err = client.DeleteResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "Delete", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -273,7 +274,6 @@ func (client ApplicationsClient) DeleteSender(req *http.Request) (*http.Response
 func (client ApplicationsClient) DeleteResponder(resp *http.Response) (result autorest.Response, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusNoContent),
 		autorest.ByClosing())
 	result.Response = resp
@@ -310,6 +310,7 @@ func (client ApplicationsClient) Get(ctx context.Context, applicationObjectID st
 	result, err = client.GetResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "Get", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -346,7 +347,6 @@ func (client ApplicationsClient) GetSender(req *http.Request) (*http.Response, e
 func (client ApplicationsClient) GetResponder(resp *http.Response) (result Application, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -384,6 +384,7 @@ func (client ApplicationsClient) GetServicePrincipalsIDByAppID(ctx context.Conte
 	result, err = client.GetServicePrincipalsIDByAppIDResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "GetServicePrincipalsIDByAppID", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -420,7 +421,6 @@ func (client ApplicationsClient) GetServicePrincipalsIDByAppIDSender(req *http.R
 func (client ApplicationsClient) GetServicePrincipalsIDByAppIDResponder(resp *http.Response) (result ServicePrincipalObjectResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -464,6 +464,11 @@ func (client ApplicationsClient) List(ctx context.Context, filter string) (resul
 	result.alr, err = client.ListResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "List", resp, "Failure responding to request")
+		return
+	}
+	if result.alr.hasNextLink() && result.alr.IsEmpty() {
+		err = result.NextWithContext(ctx)
+		return
 	}
 
 	return
@@ -502,7 +507,6 @@ func (client ApplicationsClient) ListSender(req *http.Request) (*http.Response, 
 func (client ApplicationsClient) ListResponder(resp *http.Response) (result ApplicationListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -556,6 +560,7 @@ func (client ApplicationsClient) ListKeyCredentials(ctx context.Context, applica
 	result, err = client.ListKeyCredentialsResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "ListKeyCredentials", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -592,7 +597,6 @@ func (client ApplicationsClient) ListKeyCredentialsSender(req *http.Request) (*h
 func (client ApplicationsClient) ListKeyCredentialsResponder(resp *http.Response) (result KeyCredentialListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -630,6 +634,7 @@ func (client ApplicationsClient) ListNext(ctx context.Context, nextLink string) 
 	result, err = client.ListNextResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "ListNext", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -666,7 +671,6 @@ func (client ApplicationsClient) ListNextSender(req *http.Request) (*http.Respon
 func (client ApplicationsClient) ListNextResponder(resp *http.Response) (result ApplicationListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -705,6 +709,11 @@ func (client ApplicationsClient) ListOwners(ctx context.Context, applicationObje
 	result.dolr, err = client.ListOwnersResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "ListOwners", resp, "Failure responding to request")
+		return
+	}
+	if result.dolr.hasNextLink() && result.dolr.IsEmpty() {
+		err = result.NextWithContext(ctx)
+		return
 	}
 
 	return
@@ -741,7 +750,6 @@ func (client ApplicationsClient) ListOwnersSender(req *http.Request) (*http.Resp
 func (client ApplicationsClient) ListOwnersResponder(resp *http.Response) (result DirectoryObjectListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -816,6 +824,7 @@ func (client ApplicationsClient) ListPasswordCredentials(ctx context.Context, ap
 	result, err = client.ListPasswordCredentialsResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "ListPasswordCredentials", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -852,7 +861,6 @@ func (client ApplicationsClient) ListPasswordCredentialsSender(req *http.Request
 func (client ApplicationsClient) ListPasswordCredentialsResponder(resp *http.Response) (result PasswordCredentialListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -891,6 +899,7 @@ func (client ApplicationsClient) Patch(ctx context.Context, applicationObjectID 
 	result, err = client.PatchResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "Patch", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -929,7 +938,6 @@ func (client ApplicationsClient) PatchSender(req *http.Request) (*http.Response,
 func (client ApplicationsClient) PatchResponder(resp *http.Response) (result autorest.Response, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusNoContent),
 		autorest.ByClosing())
 	result.Response = resp
@@ -967,6 +975,7 @@ func (client ApplicationsClient) RemoveOwner(ctx context.Context, applicationObj
 	result, err = client.RemoveOwnerResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "RemoveOwner", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -1004,7 +1013,6 @@ func (client ApplicationsClient) RemoveOwnerSender(req *http.Request) (*http.Res
 func (client ApplicationsClient) RemoveOwnerResponder(resp *http.Response) (result autorest.Response, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusNoContent),
 		autorest.ByClosing())
 	result.Response = resp
@@ -1042,6 +1050,7 @@ func (client ApplicationsClient) UpdateKeyCredentials(ctx context.Context, appli
 	result, err = client.UpdateKeyCredentialsResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "UpdateKeyCredentials", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -1080,7 +1089,6 @@ func (client ApplicationsClient) UpdateKeyCredentialsSender(req *http.Request) (
 func (client ApplicationsClient) UpdateKeyCredentialsResponder(resp *http.Response) (result autorest.Response, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusNoContent),
 		autorest.ByClosing())
 	result.Response = resp
@@ -1118,6 +1126,7 @@ func (client ApplicationsClient) UpdatePasswordCredentials(ctx context.Context, 
 	result, err = client.UpdatePasswordCredentialsResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.ApplicationsClient", "UpdatePasswordCredentials", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -1156,7 +1165,6 @@ func (client ApplicationsClient) UpdatePasswordCredentialsSender(req *http.Reque
 func (client ApplicationsClient) UpdatePasswordCredentialsResponder(resp *http.Response) (result autorest.Response, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusNoContent),
 		autorest.ByClosing())
 	result.Response = resp

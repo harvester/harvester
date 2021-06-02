@@ -37,18 +37,18 @@ type EKSClusterConfigSpec struct {
 	DisplayName            string            `json:"displayName" norman:"noupdate"`
 	Region                 string            `json:"region" norman:"noupdate"`
 	Imported               bool              `json:"imported" norman:"noupdate"`
-	KubernetesVersion      *string           `json:"kubernetesVersion"`
-	Tags                   map[string]string `json:"tags"`
+	KubernetesVersion      *string           `json:"kubernetesVersion" norman:"pointer"`
+	Tags                   map[string]string `json:"tags" norman:"pointer"`
 	SecretsEncryption      *bool             `json:"secretsEncryption" norman:"noupdate"`
-	KmsKey                 *string           `json:"kmsKey" norman:"noupdate"`
+	KmsKey                 *string           `json:"kmsKey" norman:"noupdate,pointer"`
 	PublicAccess           *bool             `json:"publicAccess"`
 	PrivateAccess          *bool             `json:"privateAccess"`
-	PublicAccessSources    []string          `json:"publicAccessSources"`
-	LoggingTypes           []string          `json:"loggingTypes"`
-	Subnets                []string          `json:"subnets" norman:"noupdate"`
-	SecurityGroups         []string          `json:"securityGroups" norman:"noupdate"`
-	ServiceRole            *string           `json:"serviceRole" norman:"noupdate"`
-	NodeGroups             []NodeGroup       `json:"nodeGroups"`
+	PublicAccessSources    []string          `json:"publicAccessSources" norman:"pointer"`
+	LoggingTypes           []string          `json:"loggingTypes" norman:"pointer"`
+	Subnets                []string          `json:"subnets" norman:"noupdate,pointer"`
+	SecurityGroups         []string          `json:"securityGroups" norman:"noupdate,pointer"`
+	ServiceRole            *string           `json:"serviceRole" norman:"noupdate,pointer"`
+	NodeGroups             []NodeGroup       `json:"nodeGroups" norman:"pointer"`
 }
 
 type EKSClusterConfigStatus struct {
@@ -66,27 +66,27 @@ type EKSClusterConfigStatus struct {
 
 type NodeGroup struct {
 	Gpu                  *bool              `json:"gpu"`
-	ImageID              *string            `json:"imageId"`
-	NodegroupName        *string            `json:"nodegroupName" norman:"required" wrangler:"required"`
+	ImageID              *string            `json:"imageId" norman:"pointer"`
+	NodegroupName        *string            `json:"nodegroupName" norman:"required,pointer" wrangler:"required"`
 	DiskSize             *int64             `json:"diskSize"`
-	InstanceType         *string            `json:"instanceType"`
-	Labels               map[string]*string `json:"labels"`
-	Ec2SshKey            *string            `json:"ec2SshKey"`
+	InstanceType         *string            `json:"instanceType" norman:"pointer"`
+	Labels               map[string]*string `json:"labels" norman:"pointer"`
+	Ec2SshKey            *string            `json:"ec2SshKey" norman:"pointer"`
 	DesiredSize          *int64             `json:"desiredSize"`
 	MaxSize              *int64             `json:"maxSize"`
 	MinSize              *int64             `json:"minSize"`
-	Subnets              []string           `json:"subnets"`
-	Tags                 map[string]*string `json:"tags"`
-	ResourceTags         map[string]*string `json:"resourceTags"`
-	UserData             *string            `json:"userData"`
-	Version              *string            `json:"version"`
+	Subnets              []string           `json:"subnets" norman:"pointer"`
+	Tags                 map[string]*string `json:"tags" norman:"pointer"`
+	ResourceTags         map[string]*string `json:"resourceTags" norman:"pointer"`
+	UserData             *string            `json:"userData" norman:"pointer"`
+	Version              *string            `json:"version" norman:"pointer"`
 	LaunchTemplate       *LaunchTemplate    `json:"launchTemplate"`
 	RequestSpotInstances *bool              `json:"requestSpotInstances"`
-	SpotInstanceTypes    []*string          `json:"spotInstanceTypes"`
+	SpotInstanceTypes    []*string          `json:"spotInstanceTypes" norman:"pointer"`
 }
 
 type LaunchTemplate struct {
-	ID      *string `json:"id"`
-	Name    *string `json:"name"`
+	ID      *string `json:"id" norman:"pointer"`
+	Name    *string `json:"name" norman:"pointer"`
 	Version *int64  `json:"version"`
 }

@@ -64,7 +64,10 @@ func ListenAndServe(ctx context.Context, httpsPort, httpPort int, handler http.H
 		}
 
 		tlsServer := http.Server{
-			Handler:  handler,
+			Handler: handler,
+			BaseContext: func(listener net.Listener) context.Context {
+				return ctx
+			},
 			ErrorLog: errorLog,
 		}
 
@@ -86,6 +89,9 @@ func ListenAndServe(ctx context.Context, httpsPort, httpPort int, handler http.H
 			Addr:     fmt.Sprintf("%s:%d", opts.BindHost, httpPort),
 			Handler:  handler,
 			ErrorLog: errorLog,
+			BaseContext: func(listener net.Listener) context.Context {
+				return ctx
+			},
 		}
 		go func() {
 			logrus.Infof("Listening on %s:%d", opts.BindHost, httpPort)

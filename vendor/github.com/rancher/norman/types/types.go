@@ -150,6 +150,7 @@ type Field struct {
 	Description  string      `json:"description,omitempty"`
 	CodeName     string      `json:"-"`
 	DynamicField bool        `json:"dynamicField,omitempty"`
+	Pointer      bool        `json:"pointer,omitempty"`
 }
 
 type Action struct {

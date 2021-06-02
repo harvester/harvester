@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1beta1"
+	"github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 )
@@ -38,7 +38,7 @@ func GVRToPluralName(gvr schema.GroupVersionResource) string {
 	return fmt.Sprintf("%s.%s", gvr.Group, gvr.Resource)
 }
 
-func ToSchemas(crd v1beta1.CustomResourceDefinitionClient, client discovery.DiscoveryInterface) (map[string]*types.APISchema, error) {
+func ToSchemas(crd v1.CustomResourceDefinitionClient, client discovery.DiscoveryInterface) (map[string]*types.APISchema, error) {
 	result := map[string]*types.APISchema{}
 
 	if err := AddOpenAPI(client, result); err != nil {

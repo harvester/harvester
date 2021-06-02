@@ -35,6 +35,9 @@ import (
 	"google.golang.org/grpc/internal/binarylog"
 	"google.golang.org/grpc/internal/channelz"
 	"google.golang.org/grpc/internal/grpcrand"
+	"google.golang.org/grpc/internal/grpcutil"
+	iresolver "google.golang.org/grpc/internal/resolver"
+	"google.golang.org/grpc/internal/serviceconfig"
 	"google.golang.org/grpc/internal/transport"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
@@ -169,7 +172,18 @@ func newClientStream(ctx context.Context, desc *StreamDesc, cc *ClientConn, meth
 	if err := cc.waitForResolvedAddrs(ctx); err != nil {
 		return nil, err
 	}
-	mc := cc.GetMethodConfig(method)
+
+	var mc serviceconfig.MethodConfig
+	var onCommit func()
+	rpcConfig := cc.safeConfigSelector.SelectConfig(iresolver.RPCInfo{Context: ctx, Method: method})
+	if rpcConfig != nil {
+		if rpcConfig.Context != nil {
+			ctx = rpcConfig.Context
+		}
+		mc = rpcConfig.MethodConfig
+		onCommit = rpcConfig.OnCommitted
+	}
+
 	if mc.WaitForReady != nil {
 		c.failFast = !*mc.WaitForReady
 	}
@@ -271,6 +285,7 @@ func newClientStream(ctx context.Context, desc *StreamDesc, cc *ClientConn, meth
 		cancel:       cancel,
 		beginTime:    beginTime,
 		firstAttempt: true,
+		onCommit:     onCommit,
 	}
 	if !cc.dopts.disableRetry {
 		cs.retryThrottler = cc.retryThrottler.Load().(*retryThrottler)
@@ -346,7 +361,16 @@ func (cs *clientStream) newAttemptLocked(sh stats.Handler, trInfo *traceInfo) (r
 	if err := cs.ctx.Err(); err != nil {
 		return toRPCErr(err)
 	}
-	t, done, err := cs.cc.getTransport(cs.ctx, cs.callInfo.failFast, cs.callHdr.Method)
+
+	ctx := cs.ctx
+	if cs.cc.parsedTarget.Scheme == "xds" {
+		// Add extra metadata (metadata that will be added by transport) to context
+		// so the balancer can see them.
+		ctx = grpcutil.WithExtraMetadata(cs.ctx, metadata.Pairs(
+			"content-type", grpcutil.ContentType(cs.callHdr.ContentSubtype),
+		))
+	}
+	t, done, err := cs.cc.getTransport(ctx, cs.callInfo.failFast, cs.callHdr.Method)
 	if err != nil {
 		return err
 	}
@@ -422,7 +446,8 @@ type clientStream struct {
 	// place where we need to check if the attempt is nil.
 	attempt *csAttempt
 	// TODO(hedging): hedging will have multiple attempts simultaneously.
-	committed  bool                       // active attempt committed for retry?
+	committed  bool // active attempt committed for retry?
+	onCommit   func()
 	buffer     []func(a *csAttempt) error // operations to replay on retry
 	bufferSize int                        // current size of buffer
 }
@@ -451,6 +476,9 @@ type csAttempt struct {
 }
 
 func (cs *clientStream) commitAttemptLocked() {
+	if !cs.committed && cs.onCommit != nil {
+		cs.onCommit()
+	}
 	cs.committed = true
 	cs.buffer = nil
 }
@@ -510,13 +538,13 @@ func (cs *clientStream) shouldRetry(err error) error {
 		if len(sps) == 1 {
 			var e error
 			if pushback, e = strconv.Atoi(sps[0]); e != nil || pushback < 0 {
-				channelz.Infof(cs.cc.channelzID, "Server retry pushback specified to abort (%q).", sps[0])
+				channelz.Infof(logger, cs.cc.channelzID, "Server retry pushback specified to abort (%q).", sps[0])
 				cs.retryThrottler.throttle() // This counts as a failure for throttling.
 				return err
 			}
 			hasPushback = true
 		} else if len(sps) > 1 {
-			channelz.Warningf(cs.cc.channelzID, "Server retry pushback specified multiple values (%q); not retrying.", sps)
+			channelz.Warningf(logger, cs.cc.channelzID, "Server retry pushback specified multiple values (%q); not retrying.", sps)
 			cs.retryThrottler.throttle() // This counts as a failure for throttling.
 			return err
 		}
@@ -529,8 +557,8 @@ func (cs *clientStream) shouldRetry(err error) error {
 		code = status.Convert(err).Code()
 	}
 
-	rp := cs.methodConfig.retryPolicy
-	if rp == nil || !rp.retryableStatusCodes[code] {
+	rp := cs.methodConfig.RetryPolicy
+	if rp == nil || !rp.RetryableStatusCodes[code] {
 		return err
 	}
 
@@ -539,7 +567,7 @@ func (cs *clientStream) shouldRetry(err error) error {
 	if cs.retryThrottler.throttle() {
 		return err
 	}
-	if cs.numRetries+1 >= rp.maxAttempts {
+	if cs.numRetries+1 >= rp.MaxAttempts {
 		return err
 	}
 
@@ -548,9 +576,9 @@ func (cs *clientStream) shouldRetry(err error) error {
 		dur = time.Millisecond * time.Duration(pushback)
 		cs.numRetriesSincePushback = 0
 	} else {
-		fact := math.Pow(rp.backoffMultiplier, float64(cs.numRetriesSincePushback))
-		cur := float64(rp.initialBackoff) * fact
-		if max := float64(rp.maxBackoff); cur > max {
+		fact := math.Pow(rp.BackoffMultiplier, float64(cs.numRetriesSincePushback))
+		cur := float64(rp.InitialBackoff) * fact
+		if max := float64(rp.MaxBackoff); cur > max {
 			cur = max
 		}
 		dur = time.Duration(grpcrand.Int63n(int64(cur)))
@@ -919,7 +947,7 @@ func (a *csAttempt) recvMsg(m interface{}, payInfo *payloadInfo) (err error) {
 			Payload:  m,
 			// TODO truncate large payload.
 			Data:       payInfo.uncompressedBytes,
-			WireLength: payInfo.wireLength,
+			WireLength: payInfo.wireLength + headerLen,
 			Length:     len(payInfo.uncompressedBytes),
 		})
 	}
@@ -1501,7 +1529,7 @@ func (ss *serverStream) RecvMsg(m interface{}) (err error) {
 			Payload:  m,
 			// TODO truncate large payload.
 			Data:       payInfo.uncompressedBytes,
-			WireLength: payInfo.wireLength,
+			WireLength: payInfo.wireLength + headerLen,
 			Length:     len(payInfo.uncompressedBytes),
 		})
 	}

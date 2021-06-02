@@ -9,15 +9,16 @@ import (
 	lcache "github.com/rancher/lasso/pkg/cache"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/lasso/pkg/log"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog"
 )
 
 type Handler func(obj runtime.Object) (runtime.Object, error)
@@ -45,6 +46,7 @@ type Controller struct {
 	cacheFactory  lcache.SharedCacheFactory
 	clientFactory client.SharedClientFactory
 	watchers      map[schema.GroupVersionKind]*watcher
+	indexers      []indexerEntry
 
 	handlers lcache.CancelCollection
 	handler  controller.SharedHandler
@@ -79,6 +81,26 @@ func (c *Controller) validGVK(gvk schema.GroupVersionKind) bool {
 		}
 	}
 	return false
+}
+
+func (c *Controller) AddIndexer(name string, matcher GVKMatcher, indexer func(obj runtime.Object) ([]string, error)) {
+	c.Lock()
+	defer c.Unlock()
+	c.indexers = append(c.indexers, indexerEntry{
+		matcher: matcher,
+		name:    name,
+		indexer: indexer,
+	})
+
+	for gvk, watcher := range c.watchers {
+		if matcher(gvk) {
+			watcher.informer.AddIndexers(cache.Indexers{
+				name: func(obj interface{}) ([]string, error) {
+					return indexer(obj.(runtime.Object))
+				},
+			})
+		}
+	}
 }
 
 func (c *Controller) OnChange(ctx context.Context, name string, matcher GVKMatcher, handler Handler) {
@@ -118,10 +140,12 @@ func (c *Controller) setGVKs(gvkList []schema.GroupVersionKind, additionalValidG
 	var (
 		gvks               = map[schema.GroupVersionKind]bool{}
 		toWait             []*watcher
+		errs               []error
 		timeoutCtx, cancel = context.WithTimeout(c.ctx, 15*time.Minute)
 	)
 	defer cancel()
 
+outer:
 	for _, gvk := range gvkList {
 		if !c.validGVK(gvk) && gvk != additionalValidGVK {
 			continue
@@ -133,14 +157,31 @@ func (c *Controller) setGVKs(gvkList []schema.GroupVersionKind, additionalValidG
 			continue
 		}
 
-		cache, shared, err := c.GetCache(timeoutCtx, gvk)
+		informer, shared, err := c.GetCache(timeoutCtx, gvk)
 		if err != nil {
-			klog.Errorf("Failed to get shared cache for %v: %v", gvk, err)
+			errs = append(errs, err)
+			log.Errorf("Failed to get shared cache for %v: %v", gvk, err)
 			delete(gvks, gvk)
 			continue
 		}
 
-		controller := controller.New(gvk.String(), cache, func(ctx context.Context) error {
+		for _, indexer := range c.indexers {
+			if indexer.matcher(gvk) {
+				err := informer.AddIndexers(cache.Indexers{
+					indexer.name: func(obj interface{}) ([]string, error) {
+						return indexer.indexer(obj.(runtime.Object))
+					},
+				})
+				if err != nil {
+					errs = append(errs, err)
+					log.Errorf("failed to add indexer %s to gvk %s: %v", indexer.name, gvk, err)
+					delete(gvks, gvk)
+					continue outer
+				}
+			}
+		}
+
+		controller := controller.New(gvk.String(), informer, func(ctx context.Context) error {
 			return nil
 		}, &c.handler, nil)
 
@@ -149,21 +190,21 @@ func (c *Controller) setGVKs(gvkList []schema.GroupVersionKind, additionalValidG
 			ctx:        ctx,
 			cancel:     cancel,
 			gvk:        gvk,
-			informer:   cache,
+			informer:   informer,
 			controller: controller,
 		}
 		c.watchers[gvk] = w
 		toWait = append(toWait, w)
 
 		if !shared {
-			klog.V(0).Infof("Watching metadata for %s", w.gvk)
+			log.Infof("Watching metadata for %s", w.gvk)
 			go w.informer.Run(w.ctx.Done())
 		}
 	}
 
 	for gvk, w := range c.watchers {
 		if !gvks[gvk] {
-			klog.V(0).Infof("Stopping metadata watch on %s", gvk)
+			log.Infof("Stopping metadata watch on %s", gvk)
 			w.cancel()
 			delete(c.watchers, gvk)
 		}
@@ -171,7 +212,8 @@ func (c *Controller) setGVKs(gvkList []schema.GroupVersionKind, additionalValidG
 
 	for _, w := range toWait {
 		if !cache.WaitForCacheSync(timeoutCtx.Done(), w.informer.HasSynced) {
-			klog.Errorf("failed to sync cache for %v", w.gvk)
+			errs = append(errs, fmt.Errorf("failed to sync cache for %v", w.gvk))
+			log.Errorf("failed to sync cache for %v", w.gvk)
 			cancel()
 			w.cancel()
 			delete(c.watchers, w.gvk)
@@ -181,10 +223,15 @@ func (c *Controller) setGVKs(gvkList []schema.GroupVersionKind, additionalValidG
 
 	for _, w := range toWait {
 		if err := w.controller.Start(w.ctx, 5); err != nil {
-			klog.Errorf("failed to start controller for %v: %v", w.gvk, err)
+			errs = append(errs, err)
+			log.Errorf("failed to start controller for %v: %v", w.gvk, err)
 			w.cancel()
 			delete(c.watchers, w.gvk)
 		}
+	}
+
+	if len(errs) > 0 {
+		return errs[0]
 	}
 
 	return nil
@@ -303,21 +350,36 @@ func (c *Controller) EnqueueAfter(gvk schema.GroupVersionKind, namespace, name s
 	return nil
 }
 
-func (c *Controller) List(gvk schema.GroupVersionKind) ([]runtime.Object, error) {
+func (c *Controller) GetByIndex(gvk schema.GroupVersionKind, indexName, key string) ([]runtime.Object, error) {
 	w, err := c.getWatcherForGVK(gvk)
 	if err != nil {
 		return nil, err
 	}
 
-	objs := w.informer.GetStore().List()
-	result := make([]runtime.Object, 0, len(objs))
-	for _, obj := range objs {
-		if rObj, ok := obj.(runtime.Object); ok {
-			result = append(result, rObj)
-		}
+	objs, err := w.informer.GetIndexer().ByIndex(indexName, key)
+	if err != nil {
+		return nil, err
 	}
 
+	result := make([]runtime.Object, 0, len(objs))
+	for _, obj := range objs {
+		result = append(result, obj.(runtime.Object))
+	}
 	return result, nil
+}
+
+func (c *Controller) List(gvk schema.GroupVersionKind, namespace string, selector labels.Selector) ([]runtime.Object, error) {
+	w, err := c.getWatcherForGVK(gvk)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []runtime.Object
+	err = cache.ListAllByNamespace(w.informer.GetIndexer(), namespace, selector, func(obj interface{}) {
+		result = append(result, obj.(runtime.Object))
+	})
+
+	return result, err
 }
 
 func wrap(matcher GVKMatcher, handler Handler) controller.SharedControllerHandler {
@@ -344,4 +406,10 @@ func FromKeyHandler(handler func(string, runtime.Object) (runtime.Object, error)
 		}
 		return handler(meta.GetNamespace()+"/"+meta.GetName(), obj)
 	}
+}
+
+type indexerEntry struct {
+	matcher GVKMatcher
+	name    string
+	indexer func(runtime.Object) ([]string, error)
 }

@@ -92,6 +92,7 @@ type AccessControl interface {
 	CanUpdate(apiOp *APIRequest, obj APIObject, schema *APISchema) error
 	CanDelete(apiOp *APIRequest, obj APIObject, schema *APISchema) error
 	CanWatch(apiOp *APIRequest, schema *APISchema) error
+	CanDo(apiOp *APIRequest, resource, verb, namespace, name string) error
 }
 
 type APIRequest struct {

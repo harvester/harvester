@@ -247,7 +247,7 @@ func (o *desiredSet) process(debugID string, set labels.Selector, gvk schema.Gro
 
 	reconciler := o.reconcilers[gvk]
 
-	existing, err := o.list(controller, client, set)
+	existing, err := o.list(nsed, controller, client, set)
 	if err != nil {
 		o.err(errors.Wrapf(err, "failed to list %s for %s", gvk, debugID))
 		return
@@ -334,7 +334,7 @@ func (o *desiredSet) process(debugID string, set labels.Selector, gvk schema.Gro
 	}
 }
 
-func (o *desiredSet) list(informer cache.SharedIndexInformer, client dynamic.NamespaceableResourceInterface, selector labels.Selector) (map[objectset.ObjectKey]runtime.Object, error) {
+func (o *desiredSet) list(namespaced bool, informer cache.SharedIndexInformer, client dynamic.NamespaceableResourceInterface, selector labels.Selector) (map[objectset.ObjectKey]runtime.Object, error) {
 	var (
 		errs []error
 		objs = map[objectset.ObjectKey]runtime.Object{}
@@ -365,7 +365,12 @@ func (o *desiredSet) list(informer cache.SharedIndexInformer, client dynamic.Nam
 		return objs, merr.NewErrors(errs...)
 	}
 
-	err := cache.ListAllByNamespace(informer.GetIndexer(), o.listerNamespace, selector, func(obj interface{}) {
+	var namespace string
+	if namespaced {
+		namespace = o.listerNamespace
+	}
+
+	err := cache.ListAllByNamespace(informer.GetIndexer(), namespace, selector, func(obj interface{}) {
 		if err := addObjectToMap(objs, obj); err != nil {
 			errs = append(errs, err)
 		}

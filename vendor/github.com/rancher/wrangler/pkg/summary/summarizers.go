@@ -13,6 +13,7 @@ import (
 
 const (
 	kindSep = ", Kind="
+	reason  = "%REASON%"
 )
 
 var (
@@ -77,18 +78,18 @@ var (
 	// False == error
 	// Unknown ==
 	ErrorFalse = map[string]bool{
-		"Failed":      true,
-		"Progressing": true,
+		"Failed": true,
 	}
 
 	// True ==
 	// False == transitioning
 	// Unknown == error
 	TransitioningFalse = map[string]string{
-		"Completed":   "activating",
-		"Ready":       "unavailable",
-		"Available":   "updating",
-		"Progressing": "inactive",
+		"Completed":           "activating",
+		"Available":           "updating",
+		"BootstrapReady":      reason,
+		"InfrastructureReady": reason,
+		"NodeHealthy":         reason,
 	}
 
 	// True == transitioning
@@ -262,9 +263,35 @@ func checkTransitioning(_ data.Object, conditions []Condition, summary Summary) 
 		if summary.State != "" {
 			break
 		}
+		newState, ok := TransitioningTrue[c.Type()]
+		if !ok {
+			continue
+		}
+		if c.Status() == "True" {
+			summary.Transitioning = true
+			summary.State = newState
+			summary.Message = append(summary.Message, c.Message())
+		}
+	}
+
+	ready := true
+	readyMessage := ""
+	for _, c := range conditions {
+		if summary.State != "" {
+			break
+		}
+
+		if c.Type() == "Ready" && c.Status() == "False" {
+			ready = false
+			readyMessage = c.Message()
+			continue
+		}
 		newState, ok := TransitioningFalse[c.Type()]
 		if !ok {
 			continue
+		}
+		if newState == reason {
+			newState = c.Reason()
 		}
 		if c.Status() == "False" {
 			summary.Transitioning = true
@@ -277,19 +304,10 @@ func checkTransitioning(_ data.Object, conditions []Condition, summary Summary) 
 		}
 	}
 
-	for _, c := range conditions {
-		if summary.State != "" {
-			break
-		}
-		newState, ok := TransitioningTrue[c.Type()]
-		if !ok {
-			continue
-		}
-		if c.Status() == "True" {
-			summary.Transitioning = true
-			summary.State = newState
-			summary.Message = append(summary.Message, c.Message())
-		}
+	if summary.State == "" && !ready {
+		summary.Transitioning = true
+		summary.State = "unavailable"
+		summary.Message = append(summary.Message, readyMessage)
 	}
 
 	return summary
@@ -314,6 +332,9 @@ func checkPhase(obj data.Object, _ []Condition, summary Summary) Summary {
 	phase := obj.String("status", "phase")
 	if phase == "Succeeded" {
 		summary.State = "succeeded"
+		summary.Transitioning = false
+	} else if phase == "Bound" {
+		summary.State = "bound"
 		summary.Transitioning = false
 	} else if phase != "" && summary.State == "" {
 		summary.State = phase

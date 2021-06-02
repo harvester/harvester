@@ -11,6 +11,7 @@ type APISchemas struct {
 	InternalSchemas *schemas.Schemas
 	Schemas         map[string]*APISchema
 	index           map[string]*APISchema
+	Attributes      map[string]interface{}
 }
 
 func EmptyAPISchemas() *APISchemas {

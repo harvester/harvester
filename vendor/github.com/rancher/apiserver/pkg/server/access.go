@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/rancher/apiserver/pkg/apierror"
@@ -50,6 +51,25 @@ func (*SchemaBasedAccess) CanDelete(apiOp *types.APIRequest, obj types.APIObject
 
 func (a *SchemaBasedAccess) CanWatch(apiOp *types.APIRequest, schema *types.APISchema) error {
 	return a.CanList(apiOp, schema)
+}
+
+func (a *SchemaBasedAccess) CanDo(apiOp *types.APIRequest, resource, verb, namespace, name string) error {
+	schema := apiOp.Schemas.LookupSchema(resource)
+	if schema == nil {
+		return apierror.NewAPIError(validation.PermissionDenied, fmt.Sprintf("can not %s %s %s/%s"+verb, resource, namespace, name))
+	}
+	switch verb {
+	case http.MethodGet:
+		return a.CanList(apiOp, schema)
+	case http.MethodDelete:
+		return a.CanDelete(apiOp, types.APIObject{}, schema)
+	case http.MethodPut:
+		return a.CanUpdate(apiOp, types.APIObject{}, schema)
+	case http.MethodPost:
+		return a.CanCreate(apiOp, schema)
+	default:
+		return apierror.NewAPIError(validation.PermissionDenied, fmt.Sprintf("can not %s %s %s/%s"+verb, schema.ID, namespace, name))
+	}
 }
 
 func (*SchemaBasedAccess) CanAction(apiOp *types.APIRequest, schema *types.APISchema, name string) error {

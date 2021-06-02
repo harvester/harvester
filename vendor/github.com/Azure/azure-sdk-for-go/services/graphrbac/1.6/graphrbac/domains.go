@@ -71,6 +71,7 @@ func (client DomainsClient) Get(ctx context.Context, domainName string) (result 
 	result, err = client.GetResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.DomainsClient", "Get", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -107,7 +108,6 @@ func (client DomainsClient) GetSender(req *http.Request) (*http.Response, error)
 func (client DomainsClient) GetResponder(resp *http.Response) (result Domain, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -145,6 +145,7 @@ func (client DomainsClient) List(ctx context.Context, filter string) (result Dom
 	result, err = client.ListResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.DomainsClient", "List", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -183,7 +184,6 @@ func (client DomainsClient) ListSender(req *http.Request) (*http.Response, error
 func (client DomainsClient) ListResponder(resp *http.Response) (result DomainListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())

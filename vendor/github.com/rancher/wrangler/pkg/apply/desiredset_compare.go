@@ -30,8 +30,23 @@ const (
 	LabelApplied = "objectset.rio.cattle.io/applied"
 )
 
+var (
+	knownListKeys = map[string]bool{
+		"apiVersion":    true,
+		"containerPort": true,
+		"devicePath":    true,
+		"ip":            true,
+		"kind":          true,
+		"mountPath":     true,
+		"name":          true,
+		"port":          true,
+		"topologyKey":   true,
+		"type":          true,
+	}
+)
+
 func prepareObjectForCreate(gvk schema.GroupVersionKind, obj runtime.Object) (runtime.Object, error) {
-	serialized, err := json.Marshal(obj)
+	serialized, err := serializeApplied(obj)
 	if err != nil {
 		return nil, err
 	}
@@ -318,10 +333,61 @@ func appliedFromAnnotation(str string) []byte {
 	return b
 }
 
-func appliedToAnnotation(b []byte) string {
-	if len(b) < 1024 {
-		return string(b)
+func pruneList(data []interface{}) []interface{} {
+	result := make([]interface{}, 0, len(data))
+	for _, v := range data {
+		switch typed := v.(type) {
+		case map[string]interface{}:
+			result = append(result, pruneValues(typed, true))
+		case []interface{}:
+			result = append(result, pruneList(typed))
+		default:
+			result = append(result, v)
+		}
 	}
+	return result
+}
+
+func pruneValues(data map[string]interface{}, isList bool) map[string]interface{} {
+	result := map[string]interface{}{}
+	for k, v := range data {
+		switch typed := v.(type) {
+		case map[string]interface{}:
+			result[k] = pruneValues(typed, false)
+		case []interface{}:
+			result[k] = pruneList(typed)
+		default:
+			if isList && knownListKeys[k] {
+				result[k] = v
+			} else {
+				switch x := v.(type) {
+				case string:
+					if len(x) > 64 {
+						result[k] = x[:64]
+					} else {
+						result[k] = v
+					}
+				case []byte:
+					result[k] = nil
+				default:
+					result[k] = v
+				}
+			}
+		}
+	}
+	return result
+}
+
+func serializeApplied(obj runtime.Object) ([]byte, error) {
+	data, err := convert.EncodeToMap(obj)
+	if err != nil {
+		return nil, err
+	}
+	data = pruneValues(data, false)
+	return json.Marshal(data)
+}
+
+func appliedToAnnotation(b []byte) string {
 	buf := &bytes.Buffer{}
 	w := gzip.NewWriter(buf)
 	if _, err := w.Write(b); err != nil {

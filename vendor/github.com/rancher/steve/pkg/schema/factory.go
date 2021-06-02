@@ -125,7 +125,18 @@ func (c *Collection) schemasForSubject(access *accesscontrol.AccessSet) (*types.
 		}
 	}
 
+	result.Attributes = map[string]interface{}{
+		"accessSet": access,
+	}
 	return result, nil
+}
+
+func (c *Collection) defaultStore() types.Store {
+	templates := c.templates[""]
+	if len(templates) > 0 {
+		return templates[0].Store
+	}
+	return nil
 }
 
 func (c *Collection) applyTemplates(schema *types.APISchema) {
@@ -152,7 +163,7 @@ func (c *Collection) applyTemplates(schema *types.APISchema) {
 				if t.StoreFactory == nil {
 					schema.Store = t.Store
 				} else {
-					schema.Store = t.StoreFactory(templates[2].Store)
+					schema.Store = t.StoreFactory(c.defaultStore())
 				}
 			}
 			if t.Customize != nil {

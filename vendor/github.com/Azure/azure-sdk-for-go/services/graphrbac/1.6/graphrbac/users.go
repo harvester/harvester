@@ -84,6 +84,7 @@ func (client UsersClient) Create(ctx context.Context, parameters UserCreateParam
 	result, err = client.CreateResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.UsersClient", "Create", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -121,7 +122,6 @@ func (client UsersClient) CreateSender(req *http.Request) (*http.Response, error
 func (client UsersClient) CreateResponder(resp *http.Response) (result User, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusCreated),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -159,6 +159,7 @@ func (client UsersClient) Delete(ctx context.Context, upnOrObjectID string) (res
 	result, err = client.DeleteResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.UsersClient", "Delete", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -195,7 +196,6 @@ func (client UsersClient) DeleteSender(req *http.Request) (*http.Response, error
 func (client UsersClient) DeleteResponder(resp *http.Response) (result autorest.Response, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusNoContent),
 		autorest.ByClosing())
 	result.Response = resp
@@ -232,6 +232,7 @@ func (client UsersClient) Get(ctx context.Context, upnOrObjectID string) (result
 	result, err = client.GetResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.UsersClient", "Get", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -268,7 +269,6 @@ func (client UsersClient) GetSender(req *http.Request) (*http.Response, error) {
 func (client UsersClient) GetResponder(resp *http.Response) (result User, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -313,6 +313,7 @@ func (client UsersClient) GetMemberGroups(ctx context.Context, objectID string, 
 	result, err = client.GetMemberGroupsResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.UsersClient", "GetMemberGroups", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -351,7 +352,6 @@ func (client UsersClient) GetMemberGroupsSender(req *http.Request) (*http.Respon
 func (client UsersClient) GetMemberGroupsResponder(resp *http.Response) (result UserGetMemberGroupsResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -396,6 +396,11 @@ func (client UsersClient) List(ctx context.Context, filter string, expand string
 	result.ulr, err = client.ListResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.UsersClient", "List", resp, "Failure responding to request")
+		return
+	}
+	if result.ulr.hasNextLink() && result.ulr.IsEmpty() {
+		err = result.NextWithContext(ctx)
+		return
 	}
 
 	return
@@ -437,7 +442,6 @@ func (client UsersClient) ListSender(req *http.Request) (*http.Response, error) 
 func (client UsersClient) ListResponder(resp *http.Response) (result UserListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -491,6 +495,7 @@ func (client UsersClient) ListNext(ctx context.Context, nextLink string) (result
 	result, err = client.ListNextResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.UsersClient", "ListNext", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -527,7 +532,6 @@ func (client UsersClient) ListNextSender(req *http.Request) (*http.Response, err
 func (client UsersClient) ListNextResponder(resp *http.Response) (result UserListResult, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
@@ -566,6 +570,7 @@ func (client UsersClient) Update(ctx context.Context, upnOrObjectID string, para
 	result, err = client.UpdateResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "graphrbac.UsersClient", "Update", resp, "Failure responding to request")
+		return
 	}
 
 	return
@@ -604,7 +609,6 @@ func (client UsersClient) UpdateSender(req *http.Request) (*http.Response, error
 func (client UsersClient) UpdateResponder(resp *http.Response) (result autorest.Response, err error) {
 	err = autorest.Respond(
 		resp,
-		client.ByInspecting(),
 		azure.WithErrorUnlessStatusCode(http.StatusOK, http.StatusNoContent),
 		autorest.ByClosing())
 	result.Response = resp

@@ -93,7 +93,6 @@ func (g *gvkWatcher) refreshAll() error {
 		return nil
 	}
 
-	klog.V(0).Info("Refreshing all types")
 	gvks, err := g.getGVKs()
 	if err != nil {
 		return err

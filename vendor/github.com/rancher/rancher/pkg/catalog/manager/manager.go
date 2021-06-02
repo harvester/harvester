@@ -12,7 +12,7 @@ import (
 	v32 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	helmlib "github.com/rancher/rancher/pkg/catalog/helm"
 	"github.com/rancher/rancher/pkg/catalog/utils"
-	"github.com/rancher/rancher/pkg/controllers/managementuser/helm/common"
+	"github.com/rancher/rancher/pkg/controllers/managementuserlegacy/helm/common"
 	managementv3 "github.com/rancher/rancher/pkg/generated/norman/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/generated/norman/management.cattle.io/v3"
 	projectv3 "github.com/rancher/rancher/pkg/generated/norman/project.cattle.io/v3"
@@ -205,10 +205,7 @@ func (m *Manager) ValidateChartCompatibility(template *v3.CatalogTemplateVersion
 	if err := m.ValidateRancherVersion(template); err != nil {
 		return err
 	}
-	if err := m.ValidateKubeVersion(template, clusterName); err != nil {
-		return err
-	}
-	return nil
+	return m.ValidateKubeVersion(template, clusterName)
 }
 
 func (m *Manager) ValidateKubeVersion(template *v3.CatalogTemplateVersion, clusterName string) error {

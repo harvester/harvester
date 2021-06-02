@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 )
 
@@ -29,10 +31,12 @@ type SharedClientFactory interface {
 	GVKForResource(gvr schema.GroupVersionResource) (schema.GroupVersionKind, error)
 	IsNamespaced(gvk schema.GroupVersionKind) (bool, error)
 	ResourceForGVK(gvk schema.GroupVersionKind) (schema.GroupVersionResource, bool, error)
+	IsHealthy(ctx context.Context) bool
 }
 
 type sharedClientFactory struct {
 	createLock sync.RWMutex
+	discovery  discovery.DiscoveryInterface
 	clients    map[schema.GroupVersionResource]*Client
 	timeout    time.Duration
 	rest       rest.Interface
@@ -57,12 +61,18 @@ func NewSharedClientFactory(config *rest.Config, opts *SharedClientFactoryOption
 		return nil, err
 	}
 
+	discovery, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
 	return &sharedClientFactory{
-		timeout: timeout,
-		clients: map[schema.GroupVersionResource]*Client{},
-		Scheme:  opts.Scheme,
-		Mapper:  opts.Mapper,
-		rest:    rest,
+		timeout:   timeout,
+		clients:   map[schema.GroupVersionResource]*Client{},
+		Scheme:    opts.Scheme,
+		Mapper:    opts.Mapper,
+		rest:      rest,
+		discovery: discovery,
 	}, nil
 }
 
@@ -89,6 +99,11 @@ func applyDefaults(config *rest.Config, opts *SharedClientFactoryOptions) (*Shar
 
 func (s *sharedClientFactory) GVKForResource(gvr schema.GroupVersionResource) (schema.GroupVersionKind, error) {
 	return s.Mapper.KindFor(gvr)
+}
+
+func (s *sharedClientFactory) IsHealthy(ctx context.Context) bool {
+	_, err := s.rest.Get().AbsPath("/version").Do(ctx).Raw()
+	return err == nil
 }
 
 func (s *sharedClientFactory) IsNamespaced(gvk schema.GroupVersionKind) (bool, error) {

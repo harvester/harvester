@@ -20,11 +20,11 @@ package apiextensions
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
-	v1beta1 "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1beta1"
+	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1"
 )
 
 type Interface interface {
-	V1beta1() v1beta1.Interface
+	V1() v1.Interface
 }
 
 type group struct {
@@ -38,6 +38,6 @@ func New(controllerFactory controller.SharedControllerFactory) Interface {
 	}
 }
 
-func (g *group) V1beta1() v1beta1.Interface {
-	return v1beta1.New(g.controllerFactory)
+func (g *group) V1() v1.Interface {
+	return v1.New(g.controllerFactory)
 }
