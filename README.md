@@ -2,6 +2,8 @@ Harvester
 ========
 [![Build Status](https://drone-publish.rancher.io/api/badges/harvester/harvester/status.svg)](https://drone-publish.rancher.io/harvester/harvester)
 [![Go Report Card](https://goreportcard.com/badge/github.com/harvester/harvester)](https://goreportcard.com/report/github.com/harvester/harvester)
+[![Releases](https://img.shields.io/github/release/harvester/harvester/all.svg)](https://github.com/harvester/harvester/releases)
+[![Slack](https://img.shields.io/badge/slack-join-brightgreen)](https://slack.rancher.io/)
 
 Harvester is an open source [hyper-converged infrastructure](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) (HCI) software built on Kubernetes. It is an open source alternative to vSphere and Nutanix.
 

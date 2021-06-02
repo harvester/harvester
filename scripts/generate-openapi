@@ -11,7 +11,7 @@ for file in vendor/github.com/rancher/rancher/pkg/apis/management.cattle.io/v3/*
   awk '/type User/ { print "// +k8s:openapi-gen=true"; print;  next }1' $file > tmp && mv tmp $file;
 done
 
-GO111MODULE=off openapi-gen --input-dirs k8s.io/apimachinery/pkg/util/intstr,k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,k8s.io/apimachinery/pkg/api/errors,github.com/openshift/api/operator/v1,kubevirt.io/client-go/api/v1,kubevirt.io/client-go/apis/snapshot/v1alpha1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,github.com/rancher/rancher/pkg/apis/management.cattle.io/v3,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1 \
+GO111MODULE=auto openapi-gen --input-dirs k8s.io/apimachinery/pkg/util/intstr,k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,k8s.io/apimachinery/pkg/api/errors,github.com/openshift/api/operator/v1,kubevirt.io/client-go/api/v1,kubevirt.io/client-go/apis/snapshot/v1alpha1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,github.com/rancher/rancher/pkg/apis/management.cattle.io/v3,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1 \
     --output-package github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1 \
     --go-header-file scripts/boilerplate.go.txt > scripts/known-api-rule-violations.txt
 
