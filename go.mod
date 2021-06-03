@@ -48,6 +48,9 @@ replace (
 )
 
 require (
+	github.com/aws/aws-sdk-go-v2 v1.6.0
+	github.com/aws/aws-sdk-go-v2/config v1.3.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.9.0
 	github.com/containernetworking/cni v0.8.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
@@ -65,7 +68,6 @@ require (
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
-	github.com/minio/minio-go/v6 v6.0.57
 	github.com/nxadm/tail v1.4.5 // indirect
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.2
