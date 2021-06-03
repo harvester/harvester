@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -12,8 +13,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/longhorn/backupstore/fsops"
-	"github.com/minio/minio-go/v6"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -44,6 +48,7 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, op
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 
 	backupTargetController := &TargetHandler{
+		ctx:                  ctx,
 		longhornSettings:     longhornSettings,
 		longhornSettingCache: longhornSettings.Cache(),
 		secrets:              secrets,
@@ -57,6 +62,7 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, op
 }
 
 type TargetHandler struct {
+	ctx                  context.Context
 	longhornSettings     ctllonghornv1.SettingClient
 	longhornSettingCache ctllonghornv1.SettingCache
 	secrets              ctlcorev1.SecretClient
@@ -78,17 +84,14 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Se
 	}
 
 	settingCpy := setting.DeepCopy()
-	if harvesterv1.SettingConfigured.IsTrue(settingCpy) && target.Type == settings.S3BackupType &&
-		(target.SecretAccessKey == "" || target.AccessKeyID == "") {
+	if target.Type == settings.S3BackupType && (target.SecretAccessKey == "" || target.AccessKeyID == "") {
 		return nil, nil
 	}
 
-	target, err = validateTargetEndpoint(target)
+	target, err = h.validateTargetEndpoint(target)
 	if err != nil {
-		harvesterv1.SettingConfigured.False(settingCpy)
-		harvesterv1.SettingConfigured.Reason(settingCpy, err.Error())
-		_, err := h.settings.Update(settingCpy)
-		return nil, err
+		logrus.Errorf("invalid backup target, error: %s", err.Error())
+		return h.updateBackupTargetSetting(settingCpy, target, err)
 	}
 
 	if err = h.updateLonghornTarget(target); err != nil {
@@ -101,17 +104,21 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Se
 		}
 	}
 
-	harvesterv1.SettingConfigured.True(settingCpy)
-	harvesterv1.SettingConfigured.Reason(settingCpy, "")
+	return h.updateBackupTargetSetting(settingCpy, target, err)
+}
 
+func (h *TargetHandler) updateBackupTargetSetting(setting *harvesterv1.Setting, target *settings.BackupTarget, err error) (*harvesterv1.Setting, error) {
+	harvesterv1.SettingConfigured.SetError(setting, "", err)
+
+	// reset the s3 credentials to prevent controller reconcile and not to expose secret key
 	target.SecretAccessKey = ""
 	target.AccessKeyID = ""
-	settingCpy.Value, err = encodeTarget(target)
+	setting.Value, err = encodeTarget(target)
 	if err != nil {
 		return nil, err
 	}
 
-	return h.settings.Update(settingCpy)
+	return h.settings.Update(setting)
 }
 
 func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget) error {
@@ -194,7 +201,7 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 	return nil
 }
 
-func validateTargetEndpoint(target *settings.BackupTarget) (*settings.BackupTarget, error) {
+func (h *TargetHandler) validateTargetEndpoint(target *settings.BackupTarget) (*settings.BackupTarget, error) {
 	// check whether have $ or , have been set in the BackupTarget
 	regStr := `[\$\,]`
 	reg := regexp.MustCompile(regStr)
@@ -208,7 +215,7 @@ func validateTargetEndpoint(target *settings.BackupTarget) (*settings.BackupTarg
 		target.Endpoint = fmt.Sprintf("nfs://%s", strings.TrimPrefix(target.Endpoint, "nfs://"))
 		return target, validateNFSBackupTarget(target.Endpoint)
 	case settings.S3BackupType:
-		err := validateS3BackupTarget(target)
+		err := h.validateS3BackupTarget(target)
 		return target, err
 	default:
 		return nil, fmt.Errorf("unknown type of the backup target, currently only support NFS and S3")
@@ -249,40 +256,50 @@ func validateNFSBackupTarget(destURL string) error {
 	return b.unmount()
 }
 
-func validateS3BackupTarget(target *settings.BackupTarget) error {
-	if target.AccessKeyID == "" || target.SecretAccessKey == "" {
-		return fmt.Errorf("invalid s3 credentials, either accessKeyID or secretAccessKey is empty")
+func (h *TargetHandler) validateS3BackupTarget(target *settings.BackupTarget) error {
+	credentials := credentials.StaticCredentialsProvider{
+		Value: aws.Credentials{
+			AccessKeyID:     target.AccessKeyID,
+			SecretAccessKey: target.SecretAccessKey,
+		},
 	}
 
-	var secure bool
-	var endpoint = target.Endpoint
-	if endpoint == "" {
-		endpoint = "s3.amazonaws.com"
-	}
-	if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
-		u, err := url.Parse(endpoint)
-		if err != nil {
-			return err
+	endpointResolver := aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
+		if target.Endpoint != "" {
+			return aws.Endpoint{
+				URL: target.Endpoint,
+			}, nil
 		}
-		endpoint = u.Host
-		secure = u.Scheme == "https"
-	}
 
-	client, err := minio.NewWithRegion(endpoint, target.AccessKeyID, target.SecretAccessKey, secure, target.BucketRegion)
+		// returning EndpointNotFoundError will allow the service to fallback to it's default resolution
+		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+	})
+
+	var ca io.Reader
+	if target.Cert != "" {
+		ca = strings.NewReader(target.Cert)
+	}
+	cfg, err := awsconfig.LoadDefaultConfig(h.ctx, awsconfig.WithCredentialsProvider(credentials),
+		awsconfig.WithEndpointResolver(endpointResolver),
+		awsconfig.WithCustomCABundle(ca),
+		awsconfig.WithDefaultRegion(target.BucketRegion))
 	if err != nil {
 		return err
 	}
 
-	exist, err := client.BucketExists(target.BucketName)
+	// create a s3 service client
+	client := s3.NewFromConfig(cfg)
+	output, err := client.ListBuckets(h.ctx, &s3.ListBucketsInput{})
 	if err != nil {
 		return err
 	}
 
-	if !exist {
-		return fmt.Errorf("bucket %s does not exist", target.BucketName)
+	for _, b := range output.Buckets {
+		if *b.Name == target.BucketName {
+			return nil
+		}
 	}
-
-	return nil
+	return fmt.Errorf("bucket %s does not exist", target.BucketName)
 }
 
 func decodeTarget(value string) (*settings.BackupTarget, error) {
