@@ -3,7 +3,6 @@ package gjson
 
 import (
 	"encoding/json"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -498,6 +497,9 @@ func squash(json string) string {
 					}
 				}
 				if depth == 0 {
+					if i >= len(json) {
+						return json
+					}
 					return json[:i+1]
 				}
 			case '{', '[', '(':
@@ -712,10 +714,10 @@ type arrayPathResult struct {
 	alogkey string
 	query   struct {
 		on    bool
+		all   bool
 		path  string
 		op    string
 		value string
-		all   bool
 	}
 }
 
@@ -729,8 +731,13 @@ func parseArrayPath(path string) (r arrayPathResult) {
 		}
 		if path[i] == '.' {
 			r.part = path[:i]
-			r.path = path[i+1:]
-			r.more = true
+			if !r.arrch && i < len(path)-1 && isDotPiperChar(path[i+1]) {
+				r.pipe = path[i+1:]
+				r.piped = true
+			} else {
+				r.path = path[i+1:]
+				r.more = true
+			}
 			return
 		}
 		if path[i] == '#' {
@@ -743,119 +750,26 @@ func parseArrayPath(path string) (r arrayPathResult) {
 				} else if path[1] == '[' || path[1] == '(' {
 					// query
 					r.query.on = true
-					if true {
-						qpath, op, value, _, fi, ok := parseQuery(path[i:])
-						if !ok {
-							// bad query, end now
-							break
+					qpath, op, value, _, fi, vesc, ok :=
+						parseQuery(path[i:])
+					if !ok {
+						// bad query, end now
+						break
+					}
+					if len(value) > 2 && value[0] == '"' &&
+						value[len(value)-1] == '"' {
+						value = value[1 : len(value)-1]
+						if vesc {
+							value = unescape(value)
 						}
-						r.query.path = qpath
-						r.query.op = op
-						r.query.value = value
-						i = fi - 1
-						if i+1 < len(path) && path[i+1] == '#' {
-							r.query.all = true
-						}
-					} else {
-						var end byte
-						if path[1] == '[' {
-							end = ']'
-						} else {
-							end = ')'
-						}
-						i += 2
-						// whitespace
-						for ; i < len(path); i++ {
-							if path[i] > ' ' {
-								break
-							}
-						}
-						s := i
-						for ; i < len(path); i++ {
-							if path[i] <= ' ' ||
-								path[i] == '!' ||
-								path[i] == '=' ||
-								path[i] == '<' ||
-								path[i] == '>' ||
-								path[i] == '%' ||
-								path[i] == end {
-								break
-							}
-						}
-						r.query.path = path[s:i]
-						// whitespace
-						for ; i < len(path); i++ {
-							if path[i] > ' ' {
-								break
-							}
-						}
-						if i < len(path) {
-							s = i
-							if path[i] == '!' {
-								if i < len(path)-1 && (path[i+1] == '=' ||
-									path[i+1] == '%') {
-									i++
-								}
-							} else if path[i] == '<' || path[i] == '>' {
-								if i < len(path)-1 && path[i+1] == '=' {
-									i++
-								}
-							} else if path[i] == '=' {
-								if i < len(path)-1 && path[i+1] == '=' {
-									s++
-									i++
-								}
-							}
-							i++
-							r.query.op = path[s:i]
-							// whitespace
-							for ; i < len(path); i++ {
-								if path[i] > ' ' {
-									break
-								}
-							}
-							s = i
-							for ; i < len(path); i++ {
-								if path[i] == '"' {
-									i++
-									s2 := i
-									for ; i < len(path); i++ {
-										if path[i] > '\\' {
-											continue
-										}
-										if path[i] == '"' {
-											// look for an escaped slash
-											if path[i-1] == '\\' {
-												n := 0
-												for j := i - 2; j > s2-1; j-- {
-													if path[j] != '\\' {
-														break
-													}
-													n++
-												}
-												if n%2 == 0 {
-													continue
-												}
-											}
-											break
-										}
-									}
-								} else if path[i] == end {
-									if i+1 < len(path) && path[i+1] == '#' {
-										r.query.all = true
-									}
-									break
-								}
-							}
-							if i > len(path) {
-								i = len(path)
-							}
-							v := path[s:i]
-							for len(v) > 0 && v[len(v)-1] <= ' ' {
-								v = v[:len(v)-1]
-							}
-							r.query.value = v
-						}
+					}
+					r.query.path = qpath
+					r.query.op = op
+					r.query.value = value
+
+					i = fi - 1
+					if i+1 < len(path) && path[i+1] == '#' {
+						r.query.all = true
 					}
 				}
 			}
@@ -882,11 +796,11 @@ func parseArrayPath(path string) (r arrayPathResult) {
 //                              # middle
 //   .cap                       # right
 func parseQuery(query string) (
-	path, op, value, remain string, i int, ok bool,
+	path, op, value, remain string, i int, vesc, ok bool,
 ) {
 	if len(query) < 2 || query[0] != '#' ||
 		(query[1] != '(' && query[1] != '[') {
-		return "", "", "", "", i, false
+		return "", "", "", "", i, false, false
 	}
 	i = 2
 	j := 0 // start of value part
@@ -914,6 +828,7 @@ func parseQuery(query string) (
 			i++
 			for ; i < len(query); i++ {
 				if query[i] == '\\' {
+					vesc = true
 					i++
 				} else if query[i] == '"' {
 					break
@@ -922,7 +837,7 @@ func parseQuery(query string) (
 		}
 	}
 	if depth > 0 {
-		return "", "", "", "", i, false
+		return "", "", "", "", i, false, false
 	}
 	if j > 0 {
 		path = trim(query[2:j])
@@ -959,7 +874,7 @@ func parseQuery(query string) (
 		path = trim(query[2:i])
 		remain = query[i+1:]
 	}
-	return path, op, value, remain, i + 1, true
+	return path, op, value, remain, i + 1, vesc, true
 }
 
 func trim(s string) string {
@@ -974,6 +889,11 @@ right:
 		goto right
 	}
 	return s
+}
+
+// peek at the next byte and see if it's a '@', '[', or '{'.
+func isDotPiperChar(c byte) bool {
+	return !DisableModifiers && (c == '@' || c == '[' || c == '{')
 }
 
 type objectPathResult struct {
@@ -994,12 +914,8 @@ func parseObjectPath(path string) (r objectPathResult) {
 			return
 		}
 		if path[i] == '.' {
-			// peek at the next byte and see if it's a '@', '[', or '{'.
 			r.part = path[:i]
-			if !DisableModifiers &&
-				i < len(path)-1 &&
-				(path[i+1] == '@' ||
-					path[i+1] == '[' || path[i+1] == '{') {
+			if i < len(path)-1 && isDotPiperChar(path[i+1]) {
 				r.pipe = path[i+1:]
 				r.piped = true
 			} else {
@@ -1029,14 +945,11 @@ func parseObjectPath(path string) (r objectPathResult) {
 						continue
 					} else if path[i] == '.' {
 						r.part = string(epart)
-						// peek at the next byte and see if it's a '@' modifier
-						if !DisableModifiers &&
-							i < len(path)-1 && path[i+1] == '@' {
+						if i < len(path)-1 && isDotPiperChar(path[i+1]) {
 							r.pipe = path[i+1:]
 							r.piped = true
 						} else {
 							r.path = path[i+1:]
-							r.more = true
 						}
 						r.more = true
 						return
@@ -1261,8 +1174,14 @@ func parseObject(c *parseContext, i int, path string) (int, bool) {
 }
 func queryMatches(rp *arrayPathResult, value Result) bool {
 	rpv := rp.query.value
-	if len(rpv) > 2 && rpv[0] == '"' && rpv[len(rpv)-1] == '"' {
-		rpv = rpv[1 : len(rpv)-1]
+	if len(rpv) > 0 && rpv[0] == '~' {
+		// convert to bool
+		rpv = rpv[1:]
+		if value.Bool() {
+			value = Result{Type: True}
+		} else {
+			value = Result{Type: False}
+		}
 	}
 	if !value.Exists() {
 		return false
@@ -1401,7 +1320,6 @@ func parseArray(c *parseContext, i int, path string) (int, bool) {
 		}
 		return false
 	}
-
 	for i < len(c.json)+1 {
 		if !rp.arrch {
 			pmatch = partidx == h
@@ -1603,10 +1521,17 @@ func parseArray(c *parseContext, i int, path string) (int, bool) {
 					c.calcd = true
 					return i + 1, true
 				}
-				if len(multires) > 0 && !c.value.Exists() {
-					c.value = Result{
-						Raw:  string(append(multires, ']')),
-						Type: JSON,
+				if !c.value.Exists() {
+					if len(multires) > 0 {
+						c.value = Result{
+							Raw:  string(append(multires, ']')),
+							Type: JSON,
+						}
+					} else if rp.query.all {
+						c.value = Result{
+							Raw:  "[]",
+							Type: JSON,
+						}
 					}
 				}
 				return i + 1, false
@@ -1947,7 +1872,6 @@ func Get(json, path string) Result {
 			}
 		}
 	}
-
 	var i int
 	var c = &parseContext{json: json}
 	if len(path) >= 2 && path[0] == '.' && path[1] == '.' {
@@ -2172,11 +2096,6 @@ func parseAny(json string, i int, hit bool) (int, Result, bool) {
 	return i, res, false
 }
 
-var ( // used for testing
-	testWatchForFallback bool
-	testLastWasFallback  bool
-)
-
 // GetMany searches json for the multiple paths.
 // The return value is a Result array where the number of items
 // will be equal to the number of input paths.
@@ -2377,6 +2296,12 @@ func validnumber(data []byte, i int) (outi int, ok bool) {
 	// sign
 	if data[i] == '-' {
 		i++
+		if i == len(data) {
+			return i, false
+		}
+		if data[i] < '0' || data[i] > '9' {
+			return i, false
+		}
 	}
 	// int
 	if i == len(data) {
@@ -2527,7 +2452,10 @@ func parseInt(s string) (n int64, ok bool) {
 	return n, true
 }
 
+// safeInt validates a given JSON number
+// ensures it lies within the minimum and maximum representable JSON numbers
 func safeInt(f float64) (n int64, ok bool) {
+	//  https://tc39.es/ecma262/#sec-number.min_safe_integer || https://tc39.es/ecma262/#sec-number.max_safe_integer
 	if f < -9007199254740991 || f > 9007199254740991 {
 		return 0, false
 	}
@@ -2589,7 +2517,7 @@ func execModifier(json, path string) (pathOut, res string, ok bool) {
 // unwrap removes the '[]' or '{}' characters around json
 func unwrap(json string) string {
 	json = trim(json)
-	if len(json) >= 2 && json[0] == '[' || json[0] == '{' {
+	if len(json) >= 2 && (json[0] == '[' || json[0] == '{') {
 		json = json[1 : len(json)-1]
 	}
 	return json
@@ -2621,6 +2549,26 @@ func ModifierExists(name string, fn func(json, arg string) string) bool {
 	return ok
 }
 
+// cleanWS remove any non-whitespace from string
+func cleanWS(s string) string {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case ' ', '\t', '\n', '\r':
+			continue
+		default:
+			var s2 []byte
+			for i := 0; i < len(s); i++ {
+				switch s[i] {
+				case ' ', '\t', '\n', '\r':
+					s2 = append(s2, s[i])
+				}
+			}
+			return string(s2)
+		}
+	}
+	return s
+}
+
 // @pretty modifier makes the json look nice.
 func modPretty(json, arg string) string {
 	if len(arg) > 0 {
@@ -2630,9 +2578,9 @@ func modPretty(json, arg string) string {
 			case "sortKeys":
 				opts.SortKeys = value.Bool()
 			case "indent":
-				opts.Indent = value.String()
+				opts.Indent = cleanWS(value.String())
 			case "prefix":
-				opts.Prefix = value.String()
+				opts.Prefix = cleanWS(value.String())
 			case "width":
 				opts.Width = int(value.Int())
 			}
@@ -2718,19 +2666,24 @@ func modFlatten(json, arg string) string {
 	out = append(out, '[')
 	var idx int
 	res.ForEach(func(_, value Result) bool {
-		if idx > 0 {
-			out = append(out, ',')
-		}
+		var raw string
 		if value.IsArray() {
 			if deep {
-				out = append(out, unwrap(modFlatten(value.Raw, arg))...)
+				raw = unwrap(modFlatten(value.Raw, arg))
 			} else {
-				out = append(out, unwrap(value.Raw)...)
+				raw = unwrap(value.Raw)
 			}
 		} else {
-			out = append(out, value.Raw...)
+			raw = value.Raw
 		}
-		idx++
+		raw = strings.TrimSpace(raw)
+		if len(raw) > 0 {
+			if idx > 0 {
+				out = append(out, ',')
+			}
+			out = append(out, raw...)
+			idx++
+		}
 		return true
 	})
 	out = append(out, ']')
@@ -2814,6 +2767,19 @@ func modValid(json, arg string) string {
 	return json
 }
 
+// stringHeader instead of reflect.StringHeader
+type stringHeader struct {
+	data unsafe.Pointer
+	len  int
+}
+
+// sliceHeader instead of reflect.SliceHeader
+type sliceHeader struct {
+	data unsafe.Pointer
+	len  int
+	cap  int
+}
+
 // getBytes casts the input json bytes to a string and safely returns the
 // results as uniquely allocated data. This operation is intended to minimize
 // copies and allocations for the large json string->[]byte.
@@ -2823,14 +2789,14 @@ func getBytes(json []byte, path string) Result {
 		// unsafe cast to string
 		result = Get(*(*string)(unsafe.Pointer(&json)), path)
 		// safely get the string headers
-		rawhi := *(*reflect.StringHeader)(unsafe.Pointer(&result.Raw))
-		strhi := *(*reflect.StringHeader)(unsafe.Pointer(&result.Str))
+		rawhi := *(*stringHeader)(unsafe.Pointer(&result.Raw))
+		strhi := *(*stringHeader)(unsafe.Pointer(&result.Str))
 		// create byte slice headers
-		rawh := reflect.SliceHeader{Data: rawhi.Data, Len: rawhi.Len}
-		strh := reflect.SliceHeader{Data: strhi.Data, Len: strhi.Len}
-		if strh.Data == 0 {
+		rawh := sliceHeader{data: rawhi.data, len: rawhi.len, cap: rawhi.len}
+		strh := sliceHeader{data: strhi.data, len: strhi.len, cap: rawhi.len}
+		if strh.data == nil {
 			// str is nil
-			if rawh.Data == 0 {
+			if rawh.data == nil {
 				// raw is nil
 				result.Raw = ""
 			} else {
@@ -2838,19 +2804,20 @@ func getBytes(json []byte, path string) Result {
 				result.Raw = string(*(*[]byte)(unsafe.Pointer(&rawh)))
 			}
 			result.Str = ""
-		} else if rawh.Data == 0 {
+		} else if rawh.data == nil {
 			// raw is nil
 			result.Raw = ""
 			// str has data, safely copy the slice header to a string
 			result.Str = string(*(*[]byte)(unsafe.Pointer(&strh)))
-		} else if strh.Data >= rawh.Data &&
-			int(strh.Data)+strh.Len <= int(rawh.Data)+rawh.Len {
+		} else if uintptr(strh.data) >= uintptr(rawh.data) &&
+			uintptr(strh.data)+uintptr(strh.len) <=
+				uintptr(rawh.data)+uintptr(rawh.len) {
 			// Str is a substring of Raw.
-			start := int(strh.Data - rawh.Data)
+			start := uintptr(strh.data) - uintptr(rawh.data)
 			// safely copy the raw slice header
 			result.Raw = string(*(*[]byte)(unsafe.Pointer(&rawh)))
 			// substring the raw
-			result.Str = result.Raw[start : start+strh.Len]
+			result.Str = result.Raw[start : start+uintptr(strh.len)]
 		} else {
 			// safely copy both the raw and str slice headers to strings
 			result.Raw = string(*(*[]byte)(unsafe.Pointer(&rawh)))
@@ -2865,9 +2832,9 @@ func getBytes(json []byte, path string) Result {
 // used instead.
 func fillIndex(json string, c *parseContext) {
 	if len(c.value.Raw) > 0 && !c.calcd {
-		jhdr := *(*reflect.StringHeader)(unsafe.Pointer(&json))
-		rhdr := *(*reflect.StringHeader)(unsafe.Pointer(&(c.value.Raw)))
-		c.value.Index = int(rhdr.Data - jhdr.Data)
+		jhdr := *(*stringHeader)(unsafe.Pointer(&json))
+		rhdr := *(*stringHeader)(unsafe.Pointer(&(c.value.Raw)))
+		c.value.Index = int(uintptr(rhdr.data) - uintptr(jhdr.data))
 		if c.value.Index < 0 || c.value.Index >= len(json) {
 			c.value.Index = 0
 		}
@@ -2875,10 +2842,10 @@ func fillIndex(json string, c *parseContext) {
 }
 
 func stringBytes(s string) []byte {
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: (*reflect.StringHeader)(unsafe.Pointer(&s)).Data,
-		Len:  len(s),
-		Cap:  len(s),
+	return *(*[]byte)(unsafe.Pointer(&sliceHeader{
+		data: (*stringHeader)(unsafe.Pointer(&s)).data,
+		len:  len(s),
+		cap:  len(s),
 	}))
 }
 
