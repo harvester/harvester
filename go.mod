@@ -81,7 +81,7 @@ require (
 	github.com/rancher/wrangler v0.7.3-0.20210219161540-ef7fe9ce2443
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.6.3
+	github.com/tidwall/gjson v1.8.0
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
