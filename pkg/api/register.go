@@ -7,7 +7,6 @@ import (
 
 	"github.com/harvester/harvester/pkg/api/keypair"
 	"github.com/harvester/harvester/pkg/api/node"
-	"github.com/harvester/harvester/pkg/api/setting"
 	"github.com/harvester/harvester/pkg/api/user"
 	"github.com/harvester/harvester/pkg/api/vm"
 	"github.com/harvester/harvester/pkg/api/vmtemplate"
@@ -31,7 +30,6 @@ func Setup(ctx context.Context, server *server.Server, controllers *server.Contr
 		keypair.RegisterSchema,
 		vmtemplate.RegisterSchema,
 		vm.RegisterSchema,
-		setting.RegisterSchema,
 		user.RegisterSchema,
 		node.RegisterSchema)
 }
