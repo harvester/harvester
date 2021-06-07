@@ -754,12 +754,12 @@ github.com/spf13/pflag
 # github.com/stretchr/testify v1.7.0
 ## explicit
 github.com/stretchr/testify/assert
-# github.com/tidwall/gjson v1.6.3
+# github.com/tidwall/gjson v1.8.0
 ## explicit
 github.com/tidwall/gjson
-# github.com/tidwall/match v1.0.1
+# github.com/tidwall/match v1.0.3
 github.com/tidwall/match
-# github.com/tidwall/pretty v1.0.2
+# github.com/tidwall/pretty v1.1.0
 github.com/tidwall/pretty
 # github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80
 github.com/tomnomnom/linkheader

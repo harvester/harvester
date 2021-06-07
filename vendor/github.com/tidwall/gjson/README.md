@@ -150,10 +150,6 @@ result.Less(token Result, caseSensitive bool) bool
 
 The `result.Value()` function returns an `interface{}` which requires type assertion and is one of the following Go types:
 
-The `result.Array()` function returns back an array of values.
-If the result represents a non-existent value, then an empty array will be returned.
-If the result is not a JSON array, the return value will be an array containing one result.
-
 ```go
 boolean >> bool
 number  >> float64
@@ -162,6 +158,10 @@ null    >> nil
 array   >> []interface{}
 object  >> map[string]interface{}
 ```
+
+The `result.Array()` function returns back an array of values.
+If the result represents a non-existent value, then an empty array will be returned.
+If the result is not a JSON array, the return value will be an array containing one result.
 
 ### 64-bit integers
 
@@ -482,11 +482,3 @@ widget.text.onMouseUp
 ```
 
 *These benchmarks were run on a MacBook Pro 15" 2.8 GHz Intel Core i7 using Go 1.8 and can be found [here](https://github.com/tidwall/gjson-benchmarks).*
-
-
-## Contact
-Josh Baker [@tidwall](http://twitter.com/tidwall)
-
-## License
-
-GJSON source code is available under the MIT [License](/LICENSE).
