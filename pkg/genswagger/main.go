@@ -11,6 +11,7 @@ import (
 	"github.com/go-openapi/spec"
 	"k8s.io/kube-openapi/pkg/builder"
 	"k8s.io/kube-openapi/pkg/common"
+	_ "kubevirt.io/client-go/apis/snapshot/v1alpha1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/genswagger/rest"

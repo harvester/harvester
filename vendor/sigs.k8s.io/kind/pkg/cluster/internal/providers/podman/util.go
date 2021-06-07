@@ -38,7 +38,7 @@ func IsAvailable() bool {
 
 func getPodmanVersion() (*version.Version, error) {
 	cmd := exec.Command("podman", "--version")
-	lines, err := exec.CombinedOutputLines(cmd)
+	lines, err := exec.OutputLines(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -114,4 +114,20 @@ func deleteVolumes(names []string) error {
 	args = append(args, names...)
 	cmd := exec.Command("podman", args...)
 	return cmd.Run()
+}
+
+// mountDevMapper checks if the podman storage driver is Btrfs or ZFS
+func mountDevMapper() bool {
+	storage := ""
+	cmd := exec.Command("podman", "info", "-f",
+		`{{ index .Store.GraphStatus "Backing Filesystem"}}`)
+	lines, err := exec.OutputLines(cmd)
+	if err != nil {
+		return false
+	}
+
+	if len(lines) > 0 {
+		storage = strings.ToLower(strings.TrimSpace(lines[0]))
+	}
+	return storage == "btrfs" || storage == "zfs"
 }

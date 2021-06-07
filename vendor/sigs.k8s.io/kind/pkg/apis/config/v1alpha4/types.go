@@ -54,7 +54,7 @@ type Cluster struct {
 	//
 	// https://tools.ietf.org/html/rfc7386
 	//
-	// The cluster-level patches are appied before the node-level patches.
+	// The cluster-level patches are applied before the node-level patches.
 	KubeadmConfigPatches []string `yaml:"kubeadmConfigPatches,omitempty"`
 
 	// KubeadmConfigPatchesJSON6902 are applied to the generated kubeadm config
@@ -69,7 +69,7 @@ type Cluster struct {
 	//
 	// https://tools.ietf.org/html/rfc6902
 	//
-	// The cluster-level patches are appied before the node-level patches.
+	// The cluster-level patches are applied before the node-level patches.
 	KubeadmConfigPatchesJSON6902 []PatchJSON6902 `yaml:"kubeadmConfigPatchesJSON6902,omitempty"`
 
 	// ContainerdConfigPatches are applied to every node's containerd config
@@ -103,6 +103,9 @@ type Node struct {
 	// Image is the node image to use when creating this node
 	// If unset a default image will be used, see defaults.Image
 	Image string `yaml:"image,omitempty"`
+
+	// Labels are the labels with which the respective node will be labeled
+	Labels map[string]string `yaml:"labels,omitempty"`
 
 	/* Advanced fields */
 
@@ -196,16 +199,18 @@ const (
 	IPv4Family ClusterIPFamily = "ipv4"
 	// IPv6Family sets ClusterIPFamily to ipv6
 	IPv6Family ClusterIPFamily = "ipv6"
+	// DualStackFamily sets ClusterIPFamily to dual
+	DualStackFamily ClusterIPFamily = "dual"
 )
 
 // ProxyMode defines a proxy mode for kube-proxy
 type ProxyMode string
 
 const (
-	// IPTablesMode sets ProxyMode to iptables
-	IPTablesMode ProxyMode = "iptables"
-	// IPVSMode sets ProxyMode to iptables
-	IPVSMode ProxyMode = "ipvs"
+	// IPTablesProxyMode sets ProxyMode to iptables
+	IPTablesProxyMode ProxyMode = "iptables"
+	// IPVSProxyMode sets ProxyMode to ipvs
+	IPVSProxyMode ProxyMode = "ipvs"
 )
 
 // PatchJSON6902 represents an inline kustomize json 6902 patch
@@ -228,7 +233,7 @@ https://github.com/kubernetes/kubernetes/blob/063e7ff358fdc8b0916e6f39beedc0d025
 // This is a close copy of the upstream cri Mount type
 // see: k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2
 // It additionally serializes the "propagation" field with the string enum
-// names on disk as opposed to the int32 values, and the serlialzed field names
+// names on disk as opposed to the int32 values, and the serialized field names
 // have been made closer to core/v1 VolumeMount field names
 // In yaml this looks like:
 //  containerPath: /foo

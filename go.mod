@@ -100,6 +100,6 @@ require (
 	kubevirt.io/client-go v0.40.0
 	kubevirt.io/containerized-data-importer v1.31.0
 	kubevirt.io/kubevirt v0.40.0
-	sigs.k8s.io/kind v0.9.0
+	sigs.k8s.io/kind v0.11.1
 	sigs.k8s.io/yaml v1.2.0
 )
