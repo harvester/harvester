@@ -8,7 +8,7 @@ mkdir -p "${ROOT_DIR}/dist"
 
 echo  "Running unit tests"
 
-unit_test_targets=($(find "${ROOT_DIR}/pkg" -type d -maxdepth 1 -mindepth 1 ! -path '*generated*' ! -path '*apis*' -exec echo {}/... \;))
+unit_test_targets=($(find "${ROOT_DIR}/pkg" -maxdepth 1 -mindepth 1 -type d ! -path '*generated*' ! -path '*apis*' -exec echo {}/... \;))
 
 CGO_ENABLED=1 go test \
 	-tags=test \
