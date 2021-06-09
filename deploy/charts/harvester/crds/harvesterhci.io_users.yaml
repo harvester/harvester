@@ -55,6 +55,10 @@ spec:
             type: string
           username:
             type: string
+        required:
+        - displayName
+        - password
+        - username
         type: object
     served: true
     storage: true

@@ -182,13 +182,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/openshift/api/operator/v1.StaticPodOperatorSpec":                                          schema_openshift_api_operator_v1_StaticPodOperatorSpec(ref),
 		"github.com/openshift/api/operator/v1.StaticPodOperatorStatus":                                        schema_openshift_api_operator_v1_StaticPodOperatorStatus(ref),
 		"github.com/openshift/api/operator/v1.StatuspageProvider":                                             schema_openshift_api_operator_v1_StatuspageProvider(ref),
-		"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.User":                                    schema_pkg_apis_managementcattleio_v3_User(ref),
-		"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserAttribute":                           schema_pkg_apis_managementcattleio_v3_UserAttribute(ref),
-		"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserAttributeList":                       schema_pkg_apis_managementcattleio_v3_UserAttributeList(ref),
-		"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserCondition":                           schema_pkg_apis_managementcattleio_v3_UserCondition(ref),
-		"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserList":                                schema_pkg_apis_managementcattleio_v3_UserList(ref),
-		"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserSpec":                                schema_pkg_apis_managementcattleio_v3_UserSpec(ref),
-		"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserStatus":                              schema_pkg_apis_managementcattleio_v3_UserStatus(ref),
 		"k8s.io/api/core/v1.AWSElasticBlockStoreVolumeSource":                                                 schema_k8sio_api_core_v1_AWSElasticBlockStoreVolumeSource(ref),
 		"k8s.io/api/core/v1.Affinity":                                                                         schema_k8sio_api_core_v1_Affinity(ref),
 		"k8s.io/api/core/v1.AttachedVolume":                                                                   schema_k8sio_api_core_v1_AttachedVolume(ref),
@@ -882,6 +875,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_KeyPair(ref common.ReferenceCallback
 						},
 					},
 				},
+				Required: []string{"spec"},
 			},
 		},
 		Dependencies: []string{
@@ -1150,6 +1144,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_Preference(ref common.ReferenceCallb
 						},
 					},
 				},
+				Required: []string{"value"},
 			},
 		},
 		Dependencies: []string{
@@ -1408,6 +1403,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_SupportBundle(ref common.ReferenceCa
 						},
 					},
 				},
+				Required: []string{"spec"},
 			},
 		},
 		Dependencies: []string{
@@ -1592,6 +1588,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_Upgrade(ref common.ReferenceCallback
 						},
 					},
 				},
+				Required: []string{"spec"},
 			},
 		},
 		Dependencies: []string{
@@ -1659,6 +1656,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_UpgradeSpec(ref common.ReferenceCall
 						},
 					},
 				},
+				Required: []string{"version"},
 			},
 		},
 	}
@@ -1765,6 +1763,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_User(ref common.ReferenceCallback) c
 						},
 					},
 				},
+				Required: []string{"displayName", "username", "password"},
 			},
 		},
 		Dependencies: []string{
@@ -2189,6 +2188,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImage(ref common.Refer
 						},
 					},
 				},
+				Required: []string{"spec"},
 			},
 		},
 		Dependencies: []string{
@@ -2274,6 +2274,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSpec(ref common.R
 						},
 					},
 				},
+				Required: []string{"url", "displayName"},
 			},
 		},
 	}
@@ -2691,6 +2692,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineTemplateVersion(ref co
 						},
 					},
 				},
+				Required: []string{"spec"},
 			},
 		},
 		Dependencies: []string{
@@ -7602,358 +7604,6 @@ func schema_openshift_api_operator_v1_StatuspageProvider(ref common.ReferenceCal
 				Required: []string{"pageID"},
 			},
 		},
-	}
-}
-
-func schema_pkg_apis_managementcattleio_v3_User(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"displayName": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"description": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"username": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"password": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"mustChangePassword": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"boolean"},
-							Format: "",
-						},
-					},
-					"principalIds": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Type:   []string{"string"},
-										Format: "",
-									},
-								},
-							},
-						},
-					},
-					"me": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"boolean"},
-							Format: "",
-						},
-					},
-					"enabled": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"boolean"},
-							Format: "",
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserSpec"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserStatus"),
-						},
-					},
-				},
-				Required: []string{"description", "status"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserSpec", "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_managementcattleio_v3_UserAttribute(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "UserAttribute will have a CRD (and controller) generated for it, but will not be exposed in the API.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"UserName": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"GroupPrincipals": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"object"},
-							AdditionalProperties: &spec.SchemaOrBool{
-								Allows: true,
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.Principals"),
-									},
-								},
-							},
-						},
-					},
-					"LastRefresh": {
-						SchemaProps: spec.SchemaProps{
-							Description: "the value is a []Principal, but code generator cannot handle slice as a value",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"NeedsRefresh": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"boolean"},
-							Format: "",
-						},
-					},
-				},
-				Required: []string{"UserName", "GroupPrincipals", "LastRefresh", "NeedsRefresh"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.Principals", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_managementcattleio_v3_UserAttributeList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "UserAttributeList is a list of UserAttribute resources",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserAttribute"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"metadata", "items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserAttribute", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_managementcattleio_v3_UserCondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"type": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Type of user condition.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Status of the condition, one of True, False, Unknown.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"lastUpdateTime": {
-						SchemaProps: spec.SchemaProps{
-							Description: "The last time this condition was updated.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"lastTransitionTime": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Last time the condition transitioned from one status to another.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"reason": {
-						SchemaProps: spec.SchemaProps{
-							Description: "The reason for the condition's last transition.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"message": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Human-readable message indicating details about last transition",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"type", "status"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_managementcattleio_v3_UserList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "UserList is a list of User resources",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.User"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"metadata", "items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.User", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_managementcattleio_v3_UserSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_managementcattleio_v3_UserStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"conditions": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserCondition"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"conditions"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/rancher/rancher/pkg/apis/management.cattle.io/v3.UserCondition"},
 	}
 }
 

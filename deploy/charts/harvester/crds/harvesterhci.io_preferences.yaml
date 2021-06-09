@@ -37,6 +37,8 @@ spec:
             type: object
           value:
             type: string
+        required:
+        - value
         type: object
     served: true
     storage: true
