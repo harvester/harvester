@@ -42,13 +42,13 @@ func newHandler(
 		pathSetting:    pathSetting,
 		middleware: responsewriter.Chain{
 			responsewriter.Gzip,
-			responsewriter.DenyFrameOptions,
+			responsewriter.FrameOptions,
 			responsewriter.CacheMiddleware("json", "js", "css"),
 		}.Handler,
 		indexMiddleware: responsewriter.Chain{
 			responsewriter.Gzip,
 			responsewriter.NoCache,
-			responsewriter.DenyFrameOptions,
+			responsewriter.FrameOptions,
 			responsewriter.ContentType,
 		}.Handler,
 	}
