@@ -19,7 +19,7 @@ type KeyPair struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   KeyPairSpec   `json:"spec,omitempty"`
+	Spec   KeyPairSpec   `json:"spec"`
 	Status KeyPairStatus `json:"status,omitempty"`
 }
 

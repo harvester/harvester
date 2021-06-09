@@ -23,16 +23,16 @@ type VirtualMachineImage struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   VirtualMachineImageSpec   `json:"spec,omitempty"`
+	Spec   VirtualMachineImageSpec   `json:"spec"`
 	Status VirtualMachineImageStatus `json:"status,omitempty"`
 }
 
 type VirtualMachineImageSpec struct {
-	// +optional
+	// +kubebuilder:validation:Required
 	URL string `json:"url"`
 
 	// +kubebuilder:validation:Required
-	DisplayName string `json:"displayName,omitempty"`
+	DisplayName string `json:"displayName"`
 
 	// +optional
 	Description string `json:"description,omitempty"`

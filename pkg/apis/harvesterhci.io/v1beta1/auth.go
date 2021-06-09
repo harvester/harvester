@@ -17,16 +17,16 @@ type User struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +kubebuilder:validation:Required
-	DisplayName string `json:"displayName,omitempty"`
+	DisplayName string `json:"displayName"`
 
 	// +optional
 	Description string `json:"description,omitempty"`
 
 	// +kubebuilder:validation:Required
-	Username string `json:"username,omitempty"`
+	Username string `json:"username"`
 
 	// +kubebuilder:validation:Required
-	Password string `json:"password,omitempty"`
+	Password string `json:"password"`
 
 	// +optional
 	IsAdmin bool `json:"isAdmin,omitempty"`
