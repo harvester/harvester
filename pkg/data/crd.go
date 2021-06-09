@@ -20,34 +20,37 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 	}
 	return factory.
 		BatchCreateCRDsIfNotExisted(
-			crd.NonNamespacedFromGV(harvesterv1.SchemeGroupVersion, "Setting"),
-			crd.NonNamespacedFromGV(harvesterv1.SchemeGroupVersion, "User"),
-			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "Setting"),
-			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "User"),
-			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "UserAttribute"),
-			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "Token"),
-			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "NodeDriver"),
+			crd.NonNamespacedFromGV(harvesterv1.SchemeGroupVersion, "Setting", harvesterv1.Setting{}),
+			crd.NonNamespacedFromGV(harvesterv1.SchemeGroupVersion, "User", harvesterv1.User{}),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "APIService", rancherv3.APIService{}),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "Setting", rancherv3.Setting{}),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "User", rancherv3.User{}),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "UserAttribute", rancherv3.UserAttribute{}),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "Group", rancherv3.Group{}),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "GroupMember", rancherv3.GroupMember{}),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "Token", rancherv3.Token{}),
+			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "NodeDriver", rancherv3.NodeDriver{}),
 		).
 		BatchCreateCRDsIfNotExisted(
-			crd.FromGV(harvesterv1.SchemeGroupVersion, "KeyPair"),
-			crd.FromGV(harvesterv1.SchemeGroupVersion, "Upgrade"),
-			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineImage"),
-			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineTemplate"),
-			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineTemplateVersion"),
-			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineBackup"),
-			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineBackupContent"),
-			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineRestore"),
-			crd.FromGV(harvesterv1.SchemeGroupVersion, "Preference"),
-			crd.FromGV(harvesterv1.SchemeGroupVersion, "SupportBundle"),
-			crd.FromGV(longhornv1.SchemeGroupVersion, "Volume"),
-			crd.FromGV(longhornv1.SchemeGroupVersion, "Setting"),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "KeyPair", harvesterv1.KeyPair{}),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "Upgrade", harvesterv1.Upgrade{}),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineImage", harvesterv1.VirtualMachineImage{}),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineTemplate", harvesterv1.VirtualMachineTemplate{}),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineTemplateVersion", harvesterv1.VirtualMachineTemplateVersion{}),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineBackup", harvesterv1.VirtualMachineBackup{}),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineBackupContent", harvesterv1.VirtualMachineBackupContent{}),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "VirtualMachineRestore", harvesterv1.VirtualMachineRestore{}),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "Preference", harvesterv1.Preference{}),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "SupportBundle", harvesterv1.SupportBundle{}),
+			crd.FromGV(longhornv1.SchemeGroupVersion, "Volume", longhornv1.Volume{}),
+			crd.FromGV(longhornv1.SchemeGroupVersion, "Setting", longhornv1.Setting{}),
 			createNetworkAttachmentDefinitionCRD(),
 		).
 		BatchWait()
 }
 
 func createNetworkAttachmentDefinitionCRD() wcrd.CRD {
-	nad := crd.FromGV(cniv1.SchemeGroupVersion, "NetworkAttachmentDefinition")
+	nad := crd.FromGV(cniv1.SchemeGroupVersion, "NetworkAttachmentDefinition", cniv1.NetworkAttachmentDefinition{})
 	nad.PluralName = "network-attachment-definitions"
 	nad.SingularName = "network-attachment-definition"
 	return nad

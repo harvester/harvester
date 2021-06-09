@@ -4,12 +4,18 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/rancher/apiserver/pkg/parse"
+	"github.com/rancher/apiserver/pkg/store/apiroot"
+	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/apiserver/pkg/urlbuilder"
 	"github.com/rancher/dynamiclistener"
 	"github.com/rancher/dynamiclistener/server"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/steve/pkg/accesscontrol"
+	"github.com/rancher/steve/pkg/aggregation"
 	steveauth "github.com/rancher/steve/pkg/auth"
 	steveserver "github.com/rancher/steve/pkg/server"
 	"github.com/rancher/wrangler/pkg/generic"
@@ -156,7 +162,15 @@ func (s *HarvesterServer) ListenAndServe(listenerCfg *dynamiclistener.Config, op
 		listenOpts.TLSListenerConfig = *listenerCfg
 	}
 
-	return s.steve.ListenAndServe(s.Context, opts.HTTPSListenPort, opts.HTTPListenPort, listenOpts)
+	s.steve.StartAggregation(s.Context)
+	s.startAggregation(opts)
+
+	if err := server.ListenAndServe(s.Context, opts.HTTPSListenPort, opts.HTTPListenPort, s.Handler, listenOpts); err != nil {
+		return err
+	}
+
+	<-s.Context.Done()
+	return s.Context.Err()
 }
 
 // Scaled returns the *config.Scaled,
@@ -189,7 +203,7 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 
 	s.ASL = accesscontrol.NewAccessStore(s.Context, true, s.controllers.RBAC)
 
-	if err := data.Init(s.Context, scaled.Management); err != nil {
+	if err := data.Init(s.Context, scaled.Management, options); err != nil {
 		return err
 	}
 
@@ -199,29 +213,39 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 		return err
 	}
 
-	var authMiddleware steveauth.Middleware
-	if !options.SkipAuthentication {
-		md, err := auth.NewMiddleware(s.Context, scaled, s.RancherRESTConfig, options.RancherEmbedded || options.RancherURL != "")
-		if err != nil {
-			return err
-		}
-		authMiddleware = md.ToAuthMiddleware()
-	}
-
-	router, err := NewRouter(scaled, s.RESTConfig, options, authMiddleware)
+	router, err := NewRouter(scaled, s.RESTConfig, options)
 	if err != nil {
 		return err
 	}
 
 	s.steve, err = steveserver.New(s.Context, s.RESTConfig, &steveserver.Options{
 		Controllers:     s.controllers,
-		AuthMiddleware:  authMiddleware,
+		AuthMiddleware:  steveauth.ExistingContext,
 		Router:          router.Routes,
 		AccessSetLookup: s.ASL,
 	})
 	if err != nil {
 		return err
 	}
+
+	// Serve APIs under /v1/harvester as the Rancher aggregation services, in addition to the default /v1
+	s.steve.APIServer.Parser = dynamicURLBuilderParse
+	apiroot.Register(s.steve.BaseSchemas, []string{"v1", "v1/harvester"}, "proxy:/apis")
+
+	var authMiddleware steveauth.Middleware
+	if !options.SkipAuthentication {
+		md, err := auth.NewMiddleware(s.Context, scaled,
+			s.RancherRESTConfig, options.RancherEmbedded || options.RancherURL != "",
+			[]string{"/v1", "/apis"},
+			[]string{"/v1-public"})
+		if err != nil {
+			return err
+		}
+		authMiddleware = md.ToAuthMiddleware()
+	} else {
+		authMiddleware = steveauth.ToMiddleware(steveauth.AuthenticatorFunc(steveauth.AlwaysAdmin))
+	}
+	s.Handler = authMiddleware(s.steve)
 
 	s.startHooks = []StartHook{
 		master.Setup,
@@ -256,5 +280,26 @@ func (s *HarvesterServer) start(options config.Options) error {
 	return nil
 }
 
+func (s *HarvesterServer) startAggregation(options config.Options) {
+	aggregation.Watch(s.Context,
+		s.Scaled().Management.CoreFactory.Core().V1().Secret(),
+		options.Namespace,
+		data.AggregationSecretName,
+		s.steve)
+}
+
 type StartHook func(context.Context, *steveserver.Server, *steveserver.Controllers, config.Options) error
 type PostStartHook func(int) error
+
+// dynamicURLBuilderParse sets the urlBuilder according to the request path instead of the fixed default in
+// https://github.com/rancher/steve/blob/52f86dce9bd4b2c28eb190711cfc594b0f5a7dbb/pkg/server/handler/apiserver.go#L74
+func dynamicURLBuilderParse(apiOp *types.APIRequest, urlParser parse.URLParser) error {
+	var err error
+	if strings.HasPrefix(apiOp.Request.URL.Path, "/v1/harvester/") {
+		apiOp.URLBuilder, err = urlbuilder.NewPrefixed(apiOp.Request, apiOp.Schemas, "v1/harvester")
+		if err != nil {
+			return err
+		}
+	}
+	return parse.Parse(apiOp, urlParser)
+}

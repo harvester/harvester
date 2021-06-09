@@ -8,7 +8,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
-	steveauth "github.com/rancher/steve/pkg/auth"
 	"github.com/rancher/steve/pkg/server/router"
 	"k8s.io/client-go/rest"
 
@@ -20,18 +19,16 @@ import (
 )
 
 type Router struct {
-	scaled         *config.Scaled
-	restConfig     *rest.Config
-	options        config.Options
-	authMiddleware steveauth.Middleware
+	scaled     *config.Scaled
+	restConfig *rest.Config
+	options    config.Options
 }
 
-func NewRouter(scaled *config.Scaled, restConfig *rest.Config, options config.Options, authMiddleware steveauth.Middleware) (*Router, error) {
+func NewRouter(scaled *config.Scaled, restConfig *rest.Config, options config.Options) (*Router, error) {
 	return &Router{
-		scaled:         scaled,
-		restConfig:     restConfig,
-		options:        options,
-		authMiddleware: authMiddleware,
+		scaled:     scaled,
+		restConfig: restConfig,
+		options:    options,
 	}, nil
 }
 
@@ -46,7 +43,28 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 		http.Redirect(rw, req, "/dashboard/", http.StatusFound)
 	})
 
-	m.Path("/v1/{type}").Queries("action", "{action}").Handler(h.K8sResource) //adds collection action support
+	// adds collection action support
+	m.Path("/v1/{type}").Queries("action", "{action}").Handler(h.K8sResource)
+
+	// aggregation at /v1/harvester/
+	// By default vars are split by slashes. Use a custom matcher to generate the name var.
+	matchV1Harvester := func(r *http.Request, match *mux.RouteMatch) bool {
+		if r.URL.Path == "/v1/harvester" {
+			match.Vars = map[string]string{"name": "v1/harvester"}
+			return true
+		}
+		return false
+	}
+	m.Path("/v1/harvester").MatcherFunc(matchV1Harvester).Handler(h.APIRoot)
+	m.Path("/v1/harvester/{type}").Handler(h.K8sResource)
+	m.Path("/v1/harvester/{type}").Queries("action", "{action}").Handler(h.K8sResource)
+	m.Path("/v1/harvester/{type}/{nameorns}").Queries("link", "{link}").Handler(h.K8sResource)
+	m.Path("/v1/harvester/{type}/{nameorns}").Queries("action", "{action}").Handler(h.K8sResource)
+	m.Path("/v1/harvester/{type}/{nameorns}").Handler(h.K8sResource)
+	m.Path("/v1/harvester/{type}/{namespace}/{name}").Queries("action", "{action}").Handler(h.K8sResource)
+	m.Path("/v1/harvester/{type}/{namespace}/{name}").Queries("link", "{link}").Handler(h.K8sResource)
+	m.Path("/v1/harvester/{type}/{namespace}/{name}").Handler(h.K8sResource)
+	m.Path("/v1/harvester/{type}/{namespace}/{name}/{link}").Handler(h.K8sResource)
 
 	loginHandler := auth.NewLoginHandler(r.scaled, r.restConfig)
 	m.Path("/v1-public/auth").Handler(loginHandler)
@@ -58,12 +76,7 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	m.PathPrefix("/api-ui").Handler(vueUI.ServeAsset())
 
 	sbDownloadHandler := supportbundle.NewDownloadHandler(r.scaled, r.options.Namespace)
-	downloadRoute := m.Path("/v1/supportbundles/{bundleName}/download").Methods("GET")
-	if r.authMiddleware != nil {
-		downloadRoute.Handler(r.authMiddleware(sbDownloadHandler))
-	} else {
-		downloadRoute.Handler(sbDownloadHandler)
-	}
+	m.Path("/v1/supportbundles/{bundleName}/download").Methods("GET").Handler(sbDownloadHandler)
 
 	if r.options.RancherEmbedded || r.options.RancherURL != "" {
 		host, scheme, err := parseRancherServerURL(r.options.RancherURL)

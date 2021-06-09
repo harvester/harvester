@@ -22,13 +22,13 @@ import (
 )
 
 // FromGV returns an abstract namespace-scope CRD handler via group version and kind.
-func FromGV(gv schema.GroupVersion, kind string) crd.CRD {
-	return crd.FromGV(gv, kind)
+func FromGV(gv schema.GroupVersion, kind string, obj interface{}) crd.CRD {
+	return crd.FromGV(gv, kind).WithSchemaFromStruct(obj)
 }
 
 // NonNamespacedFromGV returns a cluster-scope CRD abstract handler via group version and kind.
-func NonNamespacedFromGV(gv schema.GroupVersion, kind string) crd.CRD {
-	var c = crd.FromGV(gv, kind)
+func NonNamespacedFromGV(gv schema.GroupVersion, kind string, obj interface{}) crd.CRD {
+	var c = crd.FromGV(gv, kind).WithSchemaFromStruct(obj)
 	c.NonNamespace = true
 	return c
 }

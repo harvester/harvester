@@ -7,7 +7,7 @@ import (
 )
 
 // Init adds built-in resources
-func Init(ctx context.Context, mgmtCtx *config.Management) error {
+func Init(ctx context.Context, mgmtCtx *config.Management, options config.Options) error {
 	if err := createCRDs(ctx, mgmtCtx.RestConfig); err != nil {
 		return err
 	}
@@ -15,6 +15,9 @@ func Init(ctx context.Context, mgmtCtx *config.Management) error {
 		return err
 	}
 	if err := createTemplates(mgmtCtx, publicNamespace); err != nil {
+		return err
+	}
+	if err := createAPIService(mgmtCtx, options.Namespace); err != nil {
 		return err
 	}
 
