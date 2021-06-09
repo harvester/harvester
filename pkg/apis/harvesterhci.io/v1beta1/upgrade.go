@@ -21,13 +21,13 @@ type Upgrade struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   UpgradeSpec   `json:"spec,omitempty"`
+	Spec   UpgradeSpec   `json:"spec"`
 	Status UpgradeStatus `json:"status,omitempty"`
 }
 
 type UpgradeSpec struct {
 	// +kubebuilder:validation:Required
-	Version string `json:"version,omitempty"`
+	Version string `json:"version"`
 }
 
 type UpgradeStatus struct {

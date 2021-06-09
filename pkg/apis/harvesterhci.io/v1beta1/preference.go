@@ -13,5 +13,5 @@ type Preference struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +kubebuilder:validation:Required
-	Value string `json:"value,omitempty"`
+	Value string `json:"value"`
 }

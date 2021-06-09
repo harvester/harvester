@@ -20,7 +20,7 @@ type SupportBundle struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SupportBundleSpec   `json:"spec,omitempty"`
+	Spec   SupportBundleSpec   `json:"spec"`
 	Status SupportBundleStatus `json:"status,omitempty"`
 }
 
