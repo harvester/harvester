@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"strings"
@@ -18,6 +19,22 @@ import (
 )
 
 var outputFile = flag.String("output", "api/openapi-spec/swagger.json", "Output file.")
+
+var kindToTagMappings = map[string]string{
+	"VirtualMachine":                  "Virtual Machines",
+	"VirtualMachineInstance":          "Virtual Machines",
+	"VirtualMachineTemplate":          "Virtual Machine Templates",
+	"VirtualMachineTemplateVersion":   "Virtual Machine Templates",
+	"DataVolume":                      "Volumes",
+	"VirtualMachineImage":             "Images",
+	"VirtualMachineBackup":            "Backups",
+	"VirtualMachineRestore":           "Restores",
+	"VirtualMachineInstanceMigration": "Migrations",
+	"KeyPair":                         "SSH Keys",
+	"Setting":                         "Settings",
+	"SupportBundle":                   "Support Bundles",
+	"Upgrade":                         "Upgrades",
+}
 
 // Generate OpenAPI spec definitions for Harvester Resource
 func main() {
@@ -68,16 +85,12 @@ func createConfig() *common.Config {
 			return name, nil
 		},
 		GetOperationIDAndTags: func(r *restful.Route) (string, []string, error) {
-			var apiGroup string
-			if strings.HasPrefix(r.Path, "/apis/") {
-				splits := strings.Split(r.Path, "/")
-				if len(splits) >= 3 {
-					apiGroup = splits[2]
-				}
-			} else if strings.HasPrefix(r.Path, "/v3-public") {
-				apiGroup = "v3-public"
+			var tag string
+			if _, ok := r.Metadata["kind"]; ok {
+				kind := fmt.Sprint(r.Metadata["kind"])
+				tag = kindToTagMappings[kind]
 			}
-			return r.Operation, []string{apiGroup}, nil
+			return r.Operation, []string{tag}, nil
 		},
 	}
 }
