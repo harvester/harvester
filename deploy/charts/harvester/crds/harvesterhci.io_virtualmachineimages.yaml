@@ -63,6 +63,9 @@ spec:
                 type: string
               url:
                 type: string
+            required:
+            - displayName
+            - url
             type: object
           status:
             properties:
@@ -100,6 +103,8 @@ spec:
                 format: int64
                 type: integer
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

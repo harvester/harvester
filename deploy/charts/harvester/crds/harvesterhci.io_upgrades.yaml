@@ -36,6 +36,8 @@ spec:
             properties:
               version:
                 type: string
+            required:
+            - version
             type: object
           status:
             properties:
@@ -81,6 +83,8 @@ spec:
               previousVersion:
                 type: string
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true
