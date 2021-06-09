@@ -53,9 +53,7 @@ func createConfig() *common.Config {
 			},
 		},
 		GetDefinitions: func(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
-			m := v1beta1.GetOpenAPIDefinitions(ref)
-			rest.AddV3OpenAPIDefinitions(m, ref)
-			return m
+			return v1beta1.GetOpenAPIDefinitions(ref)
 		},
 
 		GetDefinitionName: func(name string) (string, spec.Extensions) {
@@ -65,7 +63,6 @@ func createConfig() *common.Config {
 			name = strings.ReplaceAll(name, "k8s.io/apimachinery/pkg/apis/meta", "k8s.io")
 			name = strings.ReplaceAll(name, "kubevirt.io/client-go/api", "kubevirt.io")
 			name = strings.ReplaceAll(name, "kubevirt.io/containerized-data-importer/pkg/apis/core", "cdi.kubevirt.io")
-			name = strings.ReplaceAll(name, "github.com/rancher/rancher/pkg/apis/management.cattle.io", "management.cattle.io")
 			name = strings.ReplaceAll(name, "/", ".")
 
 			return name, nil
