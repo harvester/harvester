@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	restful "github.com/emicklei/go-restful"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -59,15 +58,7 @@ func AggregatedAPIs() []*restful.WebService {
 	AddGenericNamespacedResourceRoutes(virtv1API, vmGVR, &virtv1.VirtualMachine{}, "VirtualMachine", &virtv1.VirtualMachineList{})
 	AddGenericNamespacedResourceRoutes(virtv1API, migrationGVR, &virtv1.VirtualMachineInstanceMigration{}, "VirtualMachineInstanceMigration", &virtv1.VirtualMachineInstanceMigrationList{})
 
-	// rancher
-
-	rancherAPI := NewGroupWebService(v3.SchemeGroupVersion)
-	rancherV3API := NewGroupVersionWebService(v3.SchemeGroupVersion)
-	userGVR := schema.GroupVersionResource{Group: v3.SchemeGroupVersion.Group, Version: v3.SchemeGroupVersion.Version, Resource: "users"}
-
-	AddGenericNonNamespacedResourceRoutes(rancherV3API, userGVR, &v3.User{}, "User", &v3.UserList{})
-
-	return []*restful.WebService{harvesterAPI, harvesterv1beta1API, cdiAPI, cdiv1beta1API, virtAPI, virtv1API, rancherAPI, rancherV3API, customV3API()}
+	return []*restful.WebService{harvesterAPI, harvesterv1beta1API, cdiAPI, cdiv1beta1API, virtAPI, virtv1API}
 }
 
 func NewGroupVersionWebService(gv schema.GroupVersion) *restful.WebService {
@@ -85,6 +76,7 @@ func NewGroupVersionWebService(gv schema.GroupVersion) *restful.WebService {
 	)
 	return ws
 }
+
 func AddGenericNonNamespacedResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionResource, objPointer runtime.Object, objKind string, objListPointer runtime.Object) {
 	AddGenericResourceRoutes(ws, gvr, objPointer, objKind, objListPointer, false)
 }
@@ -209,21 +201,6 @@ func NewGroupWebService(gv schema.GroupVersion) *restful.WebService {
 		Operation("getAPIGroup-"+gv.Group).
 		Returns(http.StatusOK, "OK", metav1.APIGroup{}).
 		Returns(http.StatusNotFound, "Not Found", ""))
-	return ws
-}
-
-func customV3API() *restful.WebService {
-	ws := new(restful.WebService).Path("/")
-
-	ws.Route(
-		ws.POST("/v3-public/localProviders/local?action=login").
-			Produces(mime.MIME_JSON).
-			Operation("localAuthLogin").
-			To(Noop).Reads(&v3.BasicLogin{}).Writes(metav1.Status{}).
-			Doc("local auth login.").
-			Returns(http.StatusOK, "OK", metav1.Status{}).
-			Returns(http.StatusUnauthorized, "Unauthorized", ""),
-	)
 	return ws
 }
 
