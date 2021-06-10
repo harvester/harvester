@@ -71,6 +71,53 @@ steps:
     event:
     - tag
 
+- name: docker-publish-webhook-master
+  image: plugins/docker
+  settings:
+    build_args:
+    - ARCH=amd64
+    - VERSION=${DRONE_BRANCH}-${DRONE_COMMIT_SHA:0:8}-head
+    context: package/
+    custom_dns: 1.1.1.1
+    dockerfile: package/Dockerfile.webhook
+    password:
+      from_secret: docker_password
+    repo: "rancher/harvester-webhook"
+    tag: ${DRONE_BRANCH}-head-amd64
+    username:
+      from_secret: docker_username
+  when:
+    ref:
+      include:
+      - "refs/heads/master"
+      - "refs/heads/release/v*"
+    event:
+    - push
+
+- name: docker-publish-webhook
+  image: plugins/docker
+  settings:
+    build_args:
+    - ARCH=amd64
+    - "VERSION=${DRONE_TAG}"
+    context: package/
+    custom_dns: 1.1.1.1
+    dockerfile: package/Dockerfile.webhook
+    password:
+      from_secret: docker_password
+    repo: "rancher/harvester-webhook"
+    tag: "${DRONE_TAG}-amd64"
+    username:
+      from_secret: docker_username
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+
 volumes:
 - name: docker
   host:
@@ -115,6 +162,45 @@ steps:
       - linux/amd64
     target: "rancher/harvester:${DRONE_TAG}"
     template: "rancher/harvester:${DRONE_TAG}-ARCH"
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+
+- name: manifest-webhook-master
+  image: plugins/manifest
+  settings:
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+    platforms:
+    - linux/amd64
+    target: "rancher/harvester-webhook:${DRONE_BRANCH}-head"
+    template: "rancher/harvester-webhook:${DRONE_BRANCH}-head-ARCH"
+  when:
+    ref:
+      include:
+      - "refs/heads/master"
+      - "refs/heads/release/v*"
+    event:
+    - push
+
+- name: manifest-webhook
+  image: plugins/manifest
+  settings:
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+    platforms:
+      - linux/amd64
+    target: "rancher/harvester-webhook:${DRONE_TAG}"
+    template: "rancher/harvester-webhook:${DRONE_TAG}-ARCH"
   when:
     instance:
     - drone-publish.rancher.io
