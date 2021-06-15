@@ -35,7 +35,6 @@ type Interface interface {
 	Setting() SettingController
 	SupportBundle() SupportBundleController
 	Upgrade() UpgradeController
-	User() UserController
 	VirtualMachineBackup() VirtualMachineBackupController
 	VirtualMachineBackupContent() VirtualMachineBackupContentController
 	VirtualMachineImage() VirtualMachineImageController
@@ -68,9 +67,6 @@ func (c *version) SupportBundle() SupportBundleController {
 }
 func (c *version) Upgrade() UpgradeController {
 	return NewUpgradeController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Upgrade"}, "upgrades", true, c.controllerFactory)
-}
-func (c *version) User() UserController {
-	return NewUserController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "User"}, "users", false, c.controllerFactory)
 }
 func (c *version) VirtualMachineBackup() VirtualMachineBackupController {
 	return NewVirtualMachineBackupController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineBackup"}, "virtualmachinebackups", true, c.controllerFactory)
