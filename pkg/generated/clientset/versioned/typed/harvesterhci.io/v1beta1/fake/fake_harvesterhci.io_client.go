@@ -48,10 +48,6 @@ func (c *FakeHarvesterhciV1beta1) Upgrades(namespace string) v1beta1.UpgradeInte
 	return &FakeUpgrades{c, namespace}
 }
 
-func (c *FakeHarvesterhciV1beta1) Users() v1beta1.UserInterface {
-	return &FakeUsers{c}
-}
-
 func (c *FakeHarvesterhciV1beta1) VirtualMachineBackups(namespace string) v1beta1.VirtualMachineBackupInterface {
 	return &FakeVirtualMachineBackups{c, namespace}
 }
