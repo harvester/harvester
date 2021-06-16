@@ -70,11 +70,12 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 		if err != nil {
 			logrus.Fatal(err)
 		}
-		v3Handler := &proxy.Handler{
+		rancherHandler := &proxy.Handler{
 			Host: host,
 		}
-		m.PathPrefix("/v3-public/").Handler(v3Handler)
-		m.PathPrefix("/v3/").Handler(v3Handler)
+		m.PathPrefix("/v3-public/").Handler(rancherHandler)
+		m.PathPrefix("/v3/").Handler(rancherHandler)
+		m.PathPrefix("/v1/userpreferences").Handler(rancherHandler)
 	}
 
 	m.NotFoundHandler = router.Routes(h)
