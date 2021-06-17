@@ -19,7 +19,6 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 	return factory.
 		BatchCreateCRDsIfNotExisted(
 			crd.NonNamespacedFromGV(harvesterv1.SchemeGroupVersion, "Setting", harvesterv1.Setting{}),
-			crd.NonNamespacedFromGV(harvesterv1.SchemeGroupVersion, "User", harvesterv1.User{}),
 			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "APIService", rancherv3.APIService{}),
 			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "Setting", rancherv3.Setting{}),
 			crd.NonNamespacedFromGV(rancherv3.SchemeGroupVersion, "User", rancherv3.User{}),

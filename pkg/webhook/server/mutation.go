@@ -10,14 +10,12 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
-	"github.com/harvester/harvester/pkg/webhook/resources/user"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
 func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, []types.Resource, error) {
 	resources := []types.Resource{}
 	mutators := []types.Mutator{
-		user.NewMutator(),
 		templateversion.NewMutator(),
 	}
 
