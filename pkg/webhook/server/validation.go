@@ -13,7 +13,6 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/restore"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
 	"github.com/harvester/harvester/pkg/webhook/resources/upgrade"
-	"github.com/harvester/harvester/pkg/webhook/resources/user"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -33,7 +32,6 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
-		user.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().User().Cache()),
 	}
 
 	router := webhook.NewRouter()

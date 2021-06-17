@@ -7,7 +7,6 @@ import (
 	"github.com/rancher/wrangler/pkg/leader"
 
 	"github.com/harvester/harvester/pkg/config"
-	"github.com/harvester/harvester/pkg/controller/master/auth"
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	"github.com/harvester/harvester/pkg/controller/master/image"
 	"github.com/harvester/harvester/pkg/controller/master/keypair"
@@ -17,7 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle"
 	"github.com/harvester/harvester/pkg/controller/master/template"
-	"github.com/harvester/harvester/pkg/controller/master/user"
+	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/userpreferences"
@@ -34,7 +33,7 @@ var registerFuncs = []registerFunc{
 	setting.Register,
 	template.Register,
 	virtualmachine.Register,
-	user.Register,
+	upgrade.Register,
 	backup.RegisterBackup,
 	backup.RegisterContent,
 	backup.RegisterRestore,
@@ -51,7 +50,7 @@ func register(ctx context.Context, management *config.Management, options config
 		}
 	}
 
-	return auth.BootstrapAdmin(management, options.Namespace)
+	return nil
 }
 
 func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {

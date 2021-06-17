@@ -2,7 +2,6 @@ package settings
 
 import (
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,7 +18,7 @@ var (
 	InjectDefaults string
 
 	APIUIVersion                 = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
-	AuthenticationMode           = NewSetting("authentication-mode", fmt.Sprintf("%s,%s", harvesterv1.KubernetesCredentials, harvesterv1.LocalUser))
+	AuthenticationMode           = NewSetting("authentication-mode", string(harvesterv1.KubernetesCredentials))
 	AuthSecretName               = NewSetting("auth-secret-name", "harvester-key-holder")
 	AuthTokenMaxTTLMinutes       = NewSetting("auth-token-max-ttl-minutes", "720")
 	FirstLogin                   = NewSetting("first-login", "true")

@@ -38,7 +38,3 @@ func authModes() []harvesterv1.AuthenticationMode {
 func enableKubernetesCredentials() bool {
 	return strings.Contains(settings.AuthenticationMode.Get(), string(harvesterv1.KubernetesCredentials))
 }
-
-func enableLocalUser() bool {
-	return strings.Contains(settings.AuthenticationMode.Get(), string(harvesterv1.LocalUser))
-}

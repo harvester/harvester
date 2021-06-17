@@ -7,7 +7,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 
-	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/ref"
 )
@@ -20,8 +19,6 @@ const (
 )
 
 func RegisterScaledIndexers(scaled *config.Scaled) {
-	userInformer := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().User().Cache()
-	userInformer.AddIndexer(UserNameIndex, IndexUserByUsername)
 	vmInformer := scaled.Management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(VMByNetworkIndex, VMByNetwork)
 }
@@ -31,10 +28,6 @@ func RegisterManagementIndexers(management *config.Management) {
 	crbInformer.AddIndexer(RbByRoleAndSubjectIndex, rbByRoleAndSubject)
 	pvcInformer := management.CoreFactory.Core().V1().PersistentVolumeClaim().Cache()
 	pvcInformer.AddIndexer(PVCByVMIndex, pvcByVM)
-}
-
-func IndexUserByUsername(obj *harvesterv1.User) ([]string, error) {
-	return []string{obj.Username}, nil
 }
 
 func rbByRoleAndSubject(obj *rbacv1.ClusterRoleBinding) ([]string, error) {
