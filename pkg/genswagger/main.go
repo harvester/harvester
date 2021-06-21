@@ -14,6 +14,7 @@ import (
 	"k8s.io/kube-openapi/pkg/common"
 	_ "kubevirt.io/client-go/apis/snapshot/v1alpha1"
 
+	_ "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/genswagger/rest"
 )
@@ -34,6 +35,9 @@ var kindToTagMappings = map[string]string{
 	"Setting":                         "Settings",
 	"SupportBundle":                   "Support Bundles",
 	"Upgrade":                         "Upgrades",
+	"ClusterNetwork":                  "Networks",
+	"NodeNetwork":                     "Networks",
+	"NetworkAttachmentDefinition":     "Networks",
 }
 
 // Generate OpenAPI spec definitions for Harvester Resource
@@ -76,6 +80,8 @@ func createConfig() *common.Config {
 		GetDefinitionName: func(name string) (string, spec.Extensions) {
 			//adapting k8s style
 			name = strings.ReplaceAll(name, "github.com/harvester/harvester/pkg/apis/harvesterhci.io", "harvesterhci.io")
+			name = strings.ReplaceAll(name, "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io", "network.harvesterhci.io")
+			name = strings.ReplaceAll(name, "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io", "k8s.cni.cncf.io")
 			name = strings.ReplaceAll(name, "k8s.io/api/core", "k8s.io")
 			name = strings.ReplaceAll(name, "k8s.io/apimachinery/pkg/apis/meta", "k8s.io")
 			name = strings.ReplaceAll(name, "kubevirt.io/client-go/api", "kubevirt.io")

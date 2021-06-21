@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	restful "github.com/emicklei/go-restful"
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/rancher/wrangler/pkg/slice"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -14,6 +15,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	mime "kubevirt.io/kubevirt/pkg/rest"
 
+	networkv1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
@@ -40,6 +42,14 @@ func AggregatedWebServices() []*restful.WebService {
 	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, upgradeGVR, &v1beta1.Upgrade{}, "Upgrade", &v1beta1.UpgradeList{})
 	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, supportBundleGVR, &v1beta1.SupportBundle{}, "SupportBundle", &v1beta1.SupportBundleList{})
 
+	harvesterNetworkv1beta1API := NewGroupVersionWebService(networkv1beta1.SchemeGroupVersion)
+
+	clusterNetworkGVR := schema.GroupVersionResource{Group: networkv1beta1.SchemeGroupVersion.Group, Version: networkv1beta1.SchemeGroupVersion.Version, Resource: "clusternetworks"}
+	nodeNetworkGVR := schema.GroupVersionResource{Group: networkv1beta1.SchemeGroupVersion.Group, Version: networkv1beta1.SchemeGroupVersion.Version, Resource: "nodenetworks"}
+
+	AddGenericNamespacedResourceRoutes(harvesterNetworkv1beta1API, clusterNetworkGVR, &networkv1beta1.ClusterNetwork{}, "ClusterNetwork", &networkv1beta1.ClusterNetworkList{})
+	AddGenericNamespacedResourceRoutes(harvesterNetworkv1beta1API, nodeNetworkGVR, &networkv1beta1.NodeNetwork{}, "NodeNetwork", &networkv1beta1.NodeNetworkList{})
+
 	// CDI
 	cdiAPI := NewGroupWebService(cdiv1.SchemeGroupVersion)
 	cdiv1beta1API := NewGroupVersionWebService(cdiv1.SchemeGroupVersion)
@@ -58,7 +68,14 @@ func AggregatedWebServices() []*restful.WebService {
 	AddGenericNamespacedResourceRoutes(virtv1API, vmGVR, &virtv1.VirtualMachine{}, "VirtualMachine", &virtv1.VirtualMachineList{})
 	AddGenericNamespacedResourceRoutes(virtv1API, migrationGVR, &virtv1.VirtualMachineInstanceMigration{}, "VirtualMachineInstanceMigration", &virtv1.VirtualMachineInstanceMigrationList{})
 
-	return []*restful.WebService{harvesterAPI, harvesterv1beta1API, cdiAPI, cdiv1beta1API, virtAPI, virtv1API}
+	// multus
+	cniv1API := NewGroupVersionWebService(cniv1.SchemeGroupVersion)
+	nadGVR := schema.GroupVersionResource{Group: cniv1.SchemeGroupVersion.Group, Version: cniv1.SchemeGroupVersion.Version, Resource: "network-attachment-definitions"}
+
+	//network-attachment-definitions
+	AddGenericNamespacedResourceRoutes(cniv1API, nadGVR, &cniv1.NetworkAttachmentDefinition{}, "NetworkAttachmentDefinition", &cniv1.NetworkAttachmentDefinitionList{})
+
+	return []*restful.WebService{harvesterAPI, harvesterv1beta1API, harvesterNetworkv1beta1API, cdiAPI, cdiv1beta1API, virtAPI, virtv1API, cniv1API}
 }
 
 func NewGroupVersionWebService(gv schema.GroupVersion) *restful.WebService {
