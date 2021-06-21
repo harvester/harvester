@@ -14,6 +14,7 @@ import (
 
 	apivm "github.com/harvester/harvester/pkg/api/vm"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/builder"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -130,9 +131,16 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 
 				By("when create a VM using data volume")
 				vmName := testVMGenerateName + fuzz.String(5)
-				vm := NewDefaultTestVMBuilder(testVMBackupLabels).Name(vmName).
-					DataVolume("root-disk", "2Gi", sourceImage).
-					Run()
+				dataVolumeOption := &builder.DataVolumeOption{
+					VolumeMode:  builder.PersistentVolumeModeBlock,
+					AccessMode:  builder.PersistentVolumeAccessModeReadWriteMany,
+					DownloadURL: sourceImage,
+				}
+				vm, err := NewDefaultTestVMBuilder(testVMBackupLabels).Name(vmName).
+					NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
+					DataVolumeDisk("root-disk", testVMDefaultDiskBus, false, 1, "2Gi", "", dataVolumeOption).
+					Run(true).VM()
+				MustNotError(err)
 				respCode, respBody, err := helper.PostObject(vmsAPI, vm)
 				MustRespCodeIs(http.StatusCreated, "create vm", err, respCode, respBody)
 

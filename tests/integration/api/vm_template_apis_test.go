@@ -140,7 +140,9 @@ var _ = Describe("verify vm template APIs", func() {
 			By("create a vm template version", func() {
 
 				templateVersion.Spec.TemplateID = templateID
-				templateVersion.Spec.VM = NewDefaultTestVMBuilder(testResourceLabels).vm.Spec
+				vm, err := NewDefaultTestVMBuilder(testResourceLabels).VM()
+				MustNotError(err)
+				templateVersion.Spec.VM = vm.Spec
 
 				respCode, respBody, err := helper.PostObjectByYAML(templateVersionAPI, templateVersion)
 				MustRespCodeIs(http.StatusCreated, "create template version", err, respCode, respBody)
