@@ -22,60 +22,35 @@ import (
 var defaultActions = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
 
 func AggregatedWebServices() []*restful.WebService {
-	harvesterAPI := NewGroupWebService(v1beta1.SchemeGroupVersion)
 	harvesterv1beta1API := NewGroupVersionWebService(v1beta1.SchemeGroupVersion)
-	backupGVR := schema.GroupVersionResource{Group: v1beta1.SchemeGroupVersion.Group, Version: v1beta1.SchemeGroupVersion.Group, Resource: "virtualmachinebackups"}
-	imageGVR := schema.GroupVersionResource{Group: v1beta1.SchemeGroupVersion.Group, Version: v1beta1.SchemeGroupVersion.Group, Resource: "virtualmachineimages"}
-	keypairGVR := schema.GroupVersionResource{Group: v1beta1.SchemeGroupVersion.Group, Version: v1beta1.SchemeGroupVersion.Group, Resource: "keypairs"}
-	restoreGVR := schema.GroupVersionResource{Group: v1beta1.SchemeGroupVersion.Group, Version: v1beta1.SchemeGroupVersion.Group, Resource: "virtualmachinerestores"}
-	supportBundleGVR := schema.GroupVersionResource{Group: v1beta1.SchemeGroupVersion.Group, Version: v1beta1.SchemeGroupVersion.Group, Resource: "supportbundles"}
-	templateGVR := schema.GroupVersionResource{Group: v1beta1.SchemeGroupVersion.Group, Version: v1beta1.SchemeGroupVersion.Group, Resource: "virtualmachinetemplates"}
-	templateVersionGVR := schema.GroupVersionResource{Group: v1beta1.SchemeGroupVersion.Group, Version: v1beta1.SchemeGroupVersion.Group, Resource: "virtualmachinetemplateversions"}
-	upgradeGVR := schema.GroupVersionResource{Group: v1beta1.SchemeGroupVersion.Group, Version: v1beta1.SchemeGroupVersion.Group, Resource: "upgrades"}
-
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, backupGVR, &v1beta1.VirtualMachineBackup{}, "VirtualMachineBackup", &v1beta1.VirtualMachineBackupList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, restoreGVR, &v1beta1.VirtualMachineRestore{}, "VirtualMachineRestore", &v1beta1.VirtualMachineRestoreList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, imageGVR, &v1beta1.VirtualMachineImage{}, "VirtualMachineImage", &v1beta1.VirtualMachineImageList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, templateGVR, &v1beta1.VirtualMachineTemplate{}, "VirtualMachineTemplate", &v1beta1.VirtualMachineTemplateList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, templateVersionGVR, &v1beta1.VirtualMachineTemplateVersion{}, "VirtualMachineTemplateVersion", &v1beta1.VirtualMachineTemplateVersionList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, keypairGVR, &v1beta1.KeyPair{}, "KeyPair", &v1beta1.KeyPairList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, upgradeGVR, &v1beta1.Upgrade{}, "Upgrade", &v1beta1.UpgradeList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, supportBundleGVR, &v1beta1.SupportBundle{}, "SupportBundle", &v1beta1.SupportBundleList{})
+	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachinebackups", &v1beta1.VirtualMachineBackup{}, "VirtualMachineBackup", &v1beta1.VirtualMachineBackupList{})
+	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachinerestores", &v1beta1.VirtualMachineRestore{}, "VirtualMachineRestore", &v1beta1.VirtualMachineRestoreList{})
+	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachineimages", &v1beta1.VirtualMachineImage{}, "VirtualMachineImage", &v1beta1.VirtualMachineImageList{})
+	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachinetemplates", &v1beta1.VirtualMachineTemplate{}, "VirtualMachineTemplate", &v1beta1.VirtualMachineTemplateList{})
+	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachinetemplateversions", &v1beta1.VirtualMachineTemplateVersion{}, "VirtualMachineTemplateVersion", &v1beta1.VirtualMachineTemplateVersionList{})
+	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "keypairs", &v1beta1.KeyPair{}, "KeyPair", &v1beta1.KeyPairList{})
+	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "upgrades", &v1beta1.Upgrade{}, "Upgrade", &v1beta1.UpgradeList{})
+	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "supportbundles", &v1beta1.SupportBundle{}, "SupportBundle", &v1beta1.SupportBundleList{})
 
 	harvesterNetworkv1beta1API := NewGroupVersionWebService(networkv1beta1.SchemeGroupVersion)
-
-	clusterNetworkGVR := schema.GroupVersionResource{Group: networkv1beta1.SchemeGroupVersion.Group, Version: networkv1beta1.SchemeGroupVersion.Version, Resource: "clusternetworks"}
-	nodeNetworkGVR := schema.GroupVersionResource{Group: networkv1beta1.SchemeGroupVersion.Group, Version: networkv1beta1.SchemeGroupVersion.Version, Resource: "nodenetworks"}
-
-	AddGenericNamespacedResourceRoutes(harvesterNetworkv1beta1API, clusterNetworkGVR, &networkv1beta1.ClusterNetwork{}, "ClusterNetwork", &networkv1beta1.ClusterNetworkList{})
-	AddGenericNamespacedResourceRoutes(harvesterNetworkv1beta1API, nodeNetworkGVR, &networkv1beta1.NodeNetwork{}, "NodeNetwork", &networkv1beta1.NodeNetworkList{})
+	AddGenericNamespacedResourceRoutes(harvesterNetworkv1beta1API, "clusternetworks", &networkv1beta1.ClusterNetwork{}, "ClusterNetwork", &networkv1beta1.ClusterNetworkList{})
+	AddGenericNamespacedResourceRoutes(harvesterNetworkv1beta1API, "nodenetworks", &networkv1beta1.NodeNetwork{}, "NodeNetwork", &networkv1beta1.NodeNetworkList{})
 
 	// CDI
-	cdiAPI := NewGroupWebService(cdiv1.SchemeGroupVersion)
 	cdiv1beta1API := NewGroupVersionWebService(cdiv1.SchemeGroupVersion)
-	dvGVR := schema.GroupVersionResource{Group: cdiv1.SchemeGroupVersion.Group, Version: cdiv1.SchemeGroupVersion.Version, Resource: "datavolumes"}
-
-	AddGenericNamespacedResourceRoutes(cdiv1beta1API, dvGVR, &cdiv1.DataVolume{}, "DataVolume", &cdiv1.DataVolumeList{})
+	AddGenericNamespacedResourceRoutes(cdiv1beta1API, "datavolumes", &cdiv1.DataVolume{}, "DataVolume", &cdiv1.DataVolumeList{})
 
 	// kubevirt
-	virtAPI := NewGroupWebService(virtv1.SchemeGroupVersion)
 	virtv1API := NewGroupVersionWebService(virtv1.SchemeGroupVersion)
-	vmGVR := schema.GroupVersionResource{Group: virtv1.GroupVersion.Group, Version: virtv1.GroupVersion.Version, Resource: "virtualmachines"}
-	vmiGVR := schema.GroupVersionResource{Group: virtv1.GroupVersion.Group, Version: virtv1.GroupVersion.Version, Resource: "virtualmachineinstances"}
-	migrationGVR := schema.GroupVersionResource{Group: virtv1.GroupVersion.Group, Version: virtv1.GroupVersion.Version, Resource: "virtualmachineinstancemigrations"}
-
-	AddGenericNamespacedResourceRoutes(virtv1API, vmiGVR, &virtv1.VirtualMachineInstance{}, "VirtualMachineInstance", &virtv1.VirtualMachineInstanceList{}, http.MethodGet)
-	AddGenericNamespacedResourceRoutes(virtv1API, vmGVR, &virtv1.VirtualMachine{}, "VirtualMachine", &virtv1.VirtualMachineList{})
-	AddGenericNamespacedResourceRoutes(virtv1API, migrationGVR, &virtv1.VirtualMachineInstanceMigration{}, "VirtualMachineInstanceMigration", &virtv1.VirtualMachineInstanceMigrationList{})
+	AddGenericNamespacedResourceRoutes(virtv1API, "virtualmachineinstances", &virtv1.VirtualMachineInstance{}, "VirtualMachineInstance", &virtv1.VirtualMachineInstanceList{}, http.MethodGet)
+	AddGenericNamespacedResourceRoutes(virtv1API, "virtualmachines", &virtv1.VirtualMachine{}, "VirtualMachine", &virtv1.VirtualMachineList{})
+	AddGenericNamespacedResourceRoutes(virtv1API, "virtualmachineinstancemigrations", &virtv1.VirtualMachineInstanceMigration{}, "VirtualMachineInstanceMigration", &virtv1.VirtualMachineInstanceMigrationList{})
 
 	// multus
 	cniv1API := NewGroupVersionWebService(cniv1.SchemeGroupVersion)
-	nadGVR := schema.GroupVersionResource{Group: cniv1.SchemeGroupVersion.Group, Version: cniv1.SchemeGroupVersion.Version, Resource: "network-attachment-definitions"}
+	AddGenericNamespacedResourceRoutes(cniv1API, "network-attachment-definitions", &cniv1.NetworkAttachmentDefinition{}, "NetworkAttachmentDefinition", &cniv1.NetworkAttachmentDefinitionList{})
 
-	//network-attachment-definitions
-	AddGenericNamespacedResourceRoutes(cniv1API, nadGVR, &cniv1.NetworkAttachmentDefinition{}, "NetworkAttachmentDefinition", &cniv1.NetworkAttachmentDefinitionList{})
-
-	return []*restful.WebService{harvesterAPI, harvesterv1beta1API, harvesterNetworkv1beta1API, cdiAPI, cdiv1beta1API, virtAPI, virtv1API, cniv1API}
+	return []*restful.WebService{harvesterv1beta1API, harvesterNetworkv1beta1API, cdiv1beta1API, virtv1API, cniv1API}
 }
 
 func NewGroupVersionWebService(gv schema.GroupVersion) *restful.WebService {
@@ -86,15 +61,15 @@ func NewGroupVersionWebService(gv schema.GroupVersion) *restful.WebService {
 	return ws
 }
 
-func AddGenericNonNamespacedResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionResource, objPointer runtime.Object, objKind string, objListPointer runtime.Object, actions ...string) {
-	AddGenericResourceRoutes(ws, gvr, objPointer, objKind, objListPointer, false, actions...)
+func AddGenericNonNamespacedResourceRoutes(ws *restful.WebService, resource string, objPointer runtime.Object, objKind string, objListPointer runtime.Object, actions ...string) {
+	AddGenericResourceRoutes(ws, resource, objPointer, objKind, objListPointer, false, actions...)
 }
 
-func AddGenericNamespacedResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionResource, objPointer runtime.Object, objKind string, objListPointer runtime.Object, actions ...string) {
-	AddGenericResourceRoutes(ws, gvr, objPointer, objKind, objListPointer, true, actions...)
+func AddGenericNamespacedResourceRoutes(ws *restful.WebService, resource string, objPointer runtime.Object, objKind string, objListPointer runtime.Object, actions ...string) {
+	AddGenericResourceRoutes(ws, resource, objPointer, objKind, objListPointer, true, actions...)
 }
 
-func AddGenericResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionResource, objPointer runtime.Object, objKind string, objListPointer runtime.Object, namespaced bool, actions ...string) {
+func AddGenericResourceRoutes(ws *restful.WebService, resource string, objPointer runtime.Object, objKind string, objListPointer runtime.Object, namespaced bool, actions ...string) {
 	if actions == nil {
 		actions = defaultActions
 	}
@@ -104,7 +79,7 @@ func AddGenericResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionRes
 
 	if slice.ContainsString(actions, http.MethodGet) {
 		ws.Route(addGetParams(
-			ws.GET(ResourcePath(gvr, namespaced)).
+			ws.GET(ResourcePath(resource, namespaced)).
 				Produces(mime.MIME_JSON, mime.MIME_YAML, mime.MIME_JSON_STREAM).
 				Operation("readNamespaced"+objKind).
 				To(Noop).Writes(objExample).
@@ -115,7 +90,7 @@ func AddGenericResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionRes
 		))
 
 		ws.Route(addGetAllNamespacesListParams(
-			ws.GET(gvr.Resource).
+			ws.GET(resource).
 				Produces(mime.MIME_JSON, mime.MIME_YAML, mime.MIME_JSON_STREAM).
 				Operation("list"+objKind+"ForAllNamespaces").
 				To(Noop).Writes(listExample).
@@ -126,7 +101,7 @@ func AddGenericResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionRes
 		))
 
 		ws.Route(addGetNamespacedListParams(
-			ws.GET(ResourceBasePath(gvr, namespaced)).
+			ws.GET(ResourceBasePath(resource, namespaced)).
 				Produces(mime.MIME_JSON, mime.MIME_YAML, mime.MIME_JSON_STREAM).
 				Operation("listNamespaced"+objKind).
 				Writes(listExample).
@@ -140,7 +115,7 @@ func AddGenericResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionRes
 
 	if slice.ContainsString(actions, http.MethodPost) {
 		ws.Route(addPostParams(
-			ws.POST(ResourceBasePath(gvr, namespaced)).
+			ws.POST(ResourceBasePath(resource, namespaced)).
 				Produces(mime.MIME_JSON, mime.MIME_YAML).
 				Consumes(mime.MIME_JSON, mime.MIME_YAML).
 				Operation("createNamespaced"+objKind).
@@ -156,7 +131,7 @@ func AddGenericResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionRes
 
 	if slice.ContainsString(actions, http.MethodPut) {
 		ws.Route(addPutParams(
-			ws.PUT(ResourcePath(gvr, namespaced)).
+			ws.PUT(ResourcePath(resource, namespaced)).
 				Produces(mime.MIME_JSON, mime.MIME_YAML).
 				Consumes(mime.MIME_JSON, mime.MIME_YAML).
 				Operation("replaceNamespaced"+objKind).
@@ -171,7 +146,7 @@ func AddGenericResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionRes
 
 	if slice.ContainsString(actions, http.MethodPatch) {
 		ws.Route(addPatchParams(
-			ws.PATCH(ResourcePath(gvr, namespaced)).
+			ws.PATCH(ResourcePath(resource, namespaced)).
 				Consumes(mime.MIME_JSON_PATCH, mime.MIME_MERGE_PATCH).
 				Produces(mime.MIME_JSON).
 				Operation("patchNamespaced"+objKind).
@@ -186,7 +161,7 @@ func AddGenericResourceRoutes(ws *restful.WebService, gvr schema.GroupVersionRes
 
 	if slice.ContainsString(actions, http.MethodDelete) {
 		ws.Route(addDeleteParams(
-			ws.DELETE(ResourcePath(gvr, namespaced)).
+			ws.DELETE(ResourcePath(resource, namespaced)).
 				Produces(mime.MIME_JSON, mime.MIME_YAML).
 				Consumes(mime.MIME_JSON, mime.MIME_YAML).
 				Operation("deleteNamespaced"+objKind).
@@ -320,18 +295,18 @@ func GroupVersionBasePath(gvr schema.GroupVersion) string {
 	return fmt.Sprintf("/apis/%s/%s", gvr.Group, gvr.Version)
 }
 
-func ResourceBasePath(gvr schema.GroupVersionResource, namespaced bool) string {
+func ResourceBasePath(resource string, namespaced bool) string {
 	if namespaced {
-		return fmt.Sprintf("/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/%s", gvr.Resource)
+		return fmt.Sprintf("/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/%s", resource)
 	}
-	return fmt.Sprintf("/%s", gvr.Resource)
+	return fmt.Sprintf("/%s", resource)
 }
 
-func ResourcePath(gvr schema.GroupVersionResource, namespaced bool) string {
+func ResourcePath(resource string, namespaced bool) string {
 	if namespaced {
-		return fmt.Sprintf("/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/%s/{name:[a-z0-9][a-z0-9\\-]*}", gvr.Resource)
+		return fmt.Sprintf("/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/%s/{name:[a-z0-9][a-z0-9\\-]*}", resource)
 	}
-	return fmt.Sprintf("/%s/{name:[a-z0-9][a-z0-9\\-]*}", gvr.Resource)
+	return fmt.Sprintf("/%s/{name:[a-z0-9][a-z0-9\\-]*}", resource)
 }
 
 func Noop(request *restful.Request, response *restful.Response) {}
