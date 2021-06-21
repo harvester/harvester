@@ -50,6 +50,7 @@ replace (
 require (
 	github.com/aws/aws-sdk-go-v2 v1.6.0
 	github.com/aws/aws-sdk-go-v2/config v1.3.0
+	github.com/aws/aws-sdk-go-v2/credentials v1.2.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.9.0
 	github.com/containernetworking/cni v0.8.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
@@ -57,18 +58,16 @@ require (
 	github.com/emicklei/go-restful v2.10.0+incompatible
 	github.com/go-openapi/spec v0.19.5
 	github.com/gorilla/mux v1.8.0
-	github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc // indirect
 	github.com/guonaihong/gout v0.1.3
+	github.com/harvester/harvester-network-controller v0.1.6
 	github.com/iancoleman/strcase v0.1.2
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20201203004625-fdbdd88b09d6
 	github.com/longhorn/longhorn-manager v1.1.0
-	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
-	github.com/nxadm/tail v1.4.5 // indirect
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.2
 	github.com/pkg/errors v0.9.1
@@ -88,7 +87,6 @@ require (
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 	gopkg.in/square/go-jose.v2 v2.3.1
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	helm.sh/helm/v3 v3.5.2
 	k8s.io/api v0.20.4
 	k8s.io/apiextensions-apiserver v0.20.4
