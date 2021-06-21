@@ -3947,6 +3947,444 @@
         }
       ]
     },
+    "/apis/k8s.cni.cncf.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/network-attachment-definitions": {
+      "get": {
+        "description": "Get a list of NetworkAttachmentDefinition objects in a namespace.",
+        "produces": [
+          "application/json",
+          "application/yaml",
+          "application/json;stream=watch"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "listNamespacedNetworkAttachmentDefinition",
+        "parameters": [
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "The continue option should be set when retrieving more results from the server. Since this value is server defined, clients may only use the continue value from a previous query result with identical query parameters (except for the value of continue) and the server may reject a continue value it does not recognize. If the specified continue value is no longer valid whether due to expiration (generally five to fifteen minutes) or a configuration change on the server the server will respond with a 410 ResourceExpired error indicating the client must restart their list without the continue field. This field is not supported when watch is true. Clients may start a watch from the last resourceVersion value returned by the server and not miss any modifications.",
+            "name": "continue",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "A selector to restrict the list of returned objects by their fields. Defaults to everything.",
+            "name": "fieldSelector",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "If true, partially initialized resources are included in the response.",
+            "name": "includeUninitialized",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "A selector to restrict the list of returned objects by their labels. Defaults to everything",
+            "name": "labelSelector",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "integer",
+            "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "When specified with a watch call, shows changes that occur after that particular version of a resource. Defaults to changes from the beginning of history.",
+            "name": "resourceVersion",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "integer",
+            "description": "TimeoutSeconds for the list/watch call.",
+            "name": "timeoutSeconds",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Watch for changes to the described resources and return them as a stream of add, update, and remove notifications. Specify resourceVersion.",
+            "name": "watch",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinitionList"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "post": {
+        "description": "Create a NetworkAttachmentDefinition object.",
+        "consumes": [
+          "application/json",
+          "application/yaml"
+        ],
+        "produces": [
+          "application/json",
+          "application/yaml"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "createNamespacedNetworkAttachmentDefinition",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
+            }
+          },
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "Object name and auth scope, such as for teams and projects",
+          "name": "namespace",
+          "in": "path",
+          "required": true
+        }
+      ]
+    },
+    "/apis/k8s.cni.cncf.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/network-attachment-definitions/{name:[a-z0-9][a-z0-9\\-]*}": {
+      "get": {
+        "description": "Get a NetworkAttachmentDefinition object.",
+        "produces": [
+          "application/json",
+          "application/yaml",
+          "application/json;stream=watch"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "readNamespacedNetworkAttachmentDefinition",
+        "parameters": [
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "name": "exact",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "name": "export",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "put": {
+        "description": "Update a NetworkAttachmentDefinition object.",
+        "consumes": [
+          "application/json",
+          "application/yaml"
+        ],
+        "produces": [
+          "application/json",
+          "application/yaml"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "replaceNamespacedNetworkAttachmentDefinition",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
+            }
+          },
+          "201": {
+            "description": "Create",
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "delete": {
+        "description": "Delete a NetworkAttachmentDefinition object.",
+        "consumes": [
+          "application/json",
+          "application/yaml"
+        ],
+        "produces": [
+          "application/json",
+          "application/yaml"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "deleteNamespacedNetworkAttachmentDefinition",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/k8s.io.v1.DeleteOptions"
+            }
+          },
+          {
+            "uniqueItems": true,
+            "type": "integer",
+            "description": "The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.",
+            "name": "gracePeriodSeconds",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Deprecated: please use the PropagationPolicy, this field will be deprecated in 1.7. Should the dependent objects be orphaned. If true/false, the \"orphan\" finalizer will be added to/removed from the object's finalizers list. Either this field or PropagationPolicy may be set, but not both.",
+            "name": "orphanDependents",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "Whether and how garbage collection will be performed. Either this field or OrphanDependents may be set, but not both. The default policy is decided by the existing finalizer set in the metadata.finalizers and the resource-specific default policy. Acceptable values are: 'Orphan' - orphan the dependents; 'Background' - allow the garbage collector to delete the dependents in the background; 'Foreground' - a cascading policy that deletes all dependents in the foreground.",
+            "name": "propagationPolicy",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/k8s.io.v1.Status"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "patch": {
+        "description": "Patch a NetworkAttachmentDefinition object.",
+        "consumes": [
+          "application/json-patch+json",
+          "application/merge-patch+json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "patchNamespacedNetworkAttachmentDefinition",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/k8s.io.v1.Patch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "Name of the resource",
+          "name": "name",
+          "in": "path",
+          "required": true
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "Object name and auth scope, such as for teams and projects",
+          "name": "namespace",
+          "in": "path",
+          "required": true
+        }
+      ]
+    },
+    "/apis/k8s.cni.cncf.io/v1/network-attachment-definitions": {
+      "get": {
+        "description": "Get a list of all NetworkAttachmentDefinition objects.",
+        "produces": [
+          "application/json",
+          "application/yaml",
+          "application/json;stream=watch"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "listNetworkAttachmentDefinitionForAllNamespaces",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinitionList"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "The continue option should be set when retrieving more results from the server. Since this value is server defined, clients may only use the continue value from a previous query result with identical query parameters (except for the value of continue) and the server may reject a continue value it does not recognize. If the specified continue value is no longer valid whether due to expiration (generally five to fifteen minutes) or a configuration change on the server the server will respond with a 410 ResourceExpired error indicating the client must restart their list without the continue field. This field is not supported when watch is true. Clients may start a watch from the last resourceVersion value returned by the server and not miss any modifications.",
+          "name": "continue",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "A selector to restrict the list of returned objects by their fields. Defaults to everything.",
+          "name": "fieldSelector",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "boolean",
+          "description": "If true, partially initialized resources are included in the response.",
+          "name": "includeUninitialized",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "A selector to restrict the list of returned objects by their labels. Defaults to everything",
+          "name": "labelSelector",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "integer",
+          "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
+          "name": "limit",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "When specified with a watch call, shows changes that occur after that particular version of a resource. Defaults to changes from the beginning of history.",
+          "name": "resourceVersion",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "integer",
+          "description": "TimeoutSeconds for the list/watch call.",
+          "name": "timeoutSeconds",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "boolean",
+          "description": "Watch for changes to the described resources and return them as a stream of add, update, and remove notifications. Specify resourceVersion.",
+          "name": "watch",
+          "in": "query"
+        }
+      ]
+    },
     "/apis/kubevirt.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachineinstancemigrations": {
       "get": {
         "description": "Get a list of VirtualMachineInstanceMigration objects in a namespace.",
@@ -5062,6 +5500,882 @@
           "in": "query"
         }
       ]
+    },
+    "/apis/network.harvesterhci.io/v1beta1/clusternetworks": {
+      "get": {
+        "description": "Get a list of all ClusterNetwork objects.",
+        "produces": [
+          "application/json",
+          "application/yaml",
+          "application/json;stream=watch"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "listClusterNetworkForAllNamespaces",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetworkList"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "The continue option should be set when retrieving more results from the server. Since this value is server defined, clients may only use the continue value from a previous query result with identical query parameters (except for the value of continue) and the server may reject a continue value it does not recognize. If the specified continue value is no longer valid whether due to expiration (generally five to fifteen minutes) or a configuration change on the server the server will respond with a 410 ResourceExpired error indicating the client must restart their list without the continue field. This field is not supported when watch is true. Clients may start a watch from the last resourceVersion value returned by the server and not miss any modifications.",
+          "name": "continue",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "A selector to restrict the list of returned objects by their fields. Defaults to everything.",
+          "name": "fieldSelector",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "boolean",
+          "description": "If true, partially initialized resources are included in the response.",
+          "name": "includeUninitialized",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "A selector to restrict the list of returned objects by their labels. Defaults to everything",
+          "name": "labelSelector",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "integer",
+          "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
+          "name": "limit",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "When specified with a watch call, shows changes that occur after that particular version of a resource. Defaults to changes from the beginning of history.",
+          "name": "resourceVersion",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "integer",
+          "description": "TimeoutSeconds for the list/watch call.",
+          "name": "timeoutSeconds",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "boolean",
+          "description": "Watch for changes to the described resources and return them as a stream of add, update, and remove notifications. Specify resourceVersion.",
+          "name": "watch",
+          "in": "query"
+        }
+      ]
+    },
+    "/apis/network.harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/clusternetworks": {
+      "get": {
+        "description": "Get a list of ClusterNetwork objects in a namespace.",
+        "produces": [
+          "application/json",
+          "application/yaml",
+          "application/json;stream=watch"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "listNamespacedClusterNetwork",
+        "parameters": [
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "The continue option should be set when retrieving more results from the server. Since this value is server defined, clients may only use the continue value from a previous query result with identical query parameters (except for the value of continue) and the server may reject a continue value it does not recognize. If the specified continue value is no longer valid whether due to expiration (generally five to fifteen minutes) or a configuration change on the server the server will respond with a 410 ResourceExpired error indicating the client must restart their list without the continue field. This field is not supported when watch is true. Clients may start a watch from the last resourceVersion value returned by the server and not miss any modifications.",
+            "name": "continue",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "A selector to restrict the list of returned objects by their fields. Defaults to everything.",
+            "name": "fieldSelector",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "If true, partially initialized resources are included in the response.",
+            "name": "includeUninitialized",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "A selector to restrict the list of returned objects by their labels. Defaults to everything",
+            "name": "labelSelector",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "integer",
+            "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "When specified with a watch call, shows changes that occur after that particular version of a resource. Defaults to changes from the beginning of history.",
+            "name": "resourceVersion",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "integer",
+            "description": "TimeoutSeconds for the list/watch call.",
+            "name": "timeoutSeconds",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Watch for changes to the described resources and return them as a stream of add, update, and remove notifications. Specify resourceVersion.",
+            "name": "watch",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetworkList"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "post": {
+        "description": "Create a ClusterNetwork object.",
+        "consumes": [
+          "application/json",
+          "application/yaml"
+        ],
+        "produces": [
+          "application/json",
+          "application/yaml"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "createNamespacedClusterNetwork",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
+            }
+          },
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "Object name and auth scope, such as for teams and projects",
+          "name": "namespace",
+          "in": "path",
+          "required": true
+        }
+      ]
+    },
+    "/apis/network.harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/clusternetworks/{name:[a-z0-9][a-z0-9\\-]*}": {
+      "get": {
+        "description": "Get a ClusterNetwork object.",
+        "produces": [
+          "application/json",
+          "application/yaml",
+          "application/json;stream=watch"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "readNamespacedClusterNetwork",
+        "parameters": [
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "name": "exact",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "name": "export",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "put": {
+        "description": "Update a ClusterNetwork object.",
+        "consumes": [
+          "application/json",
+          "application/yaml"
+        ],
+        "produces": [
+          "application/json",
+          "application/yaml"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "replaceNamespacedClusterNetwork",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
+            }
+          },
+          "201": {
+            "description": "Create",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "delete": {
+        "description": "Delete a ClusterNetwork object.",
+        "consumes": [
+          "application/json",
+          "application/yaml"
+        ],
+        "produces": [
+          "application/json",
+          "application/yaml"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "deleteNamespacedClusterNetwork",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/k8s.io.v1.DeleteOptions"
+            }
+          },
+          {
+            "uniqueItems": true,
+            "type": "integer",
+            "description": "The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.",
+            "name": "gracePeriodSeconds",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Deprecated: please use the PropagationPolicy, this field will be deprecated in 1.7. Should the dependent objects be orphaned. If true/false, the \"orphan\" finalizer will be added to/removed from the object's finalizers list. Either this field or PropagationPolicy may be set, but not both.",
+            "name": "orphanDependents",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "Whether and how garbage collection will be performed. Either this field or OrphanDependents may be set, but not both. The default policy is decided by the existing finalizer set in the metadata.finalizers and the resource-specific default policy. Acceptable values are: 'Orphan' - orphan the dependents; 'Background' - allow the garbage collector to delete the dependents in the background; 'Foreground' - a cascading policy that deletes all dependents in the foreground.",
+            "name": "propagationPolicy",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/k8s.io.v1.Status"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "patch": {
+        "description": "Patch a ClusterNetwork object.",
+        "consumes": [
+          "application/json-patch+json",
+          "application/merge-patch+json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "patchNamespacedClusterNetwork",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/k8s.io.v1.Patch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "Name of the resource",
+          "name": "name",
+          "in": "path",
+          "required": true
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "Object name and auth scope, such as for teams and projects",
+          "name": "namespace",
+          "in": "path",
+          "required": true
+        }
+      ]
+    },
+    "/apis/network.harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/nodenetworks": {
+      "get": {
+        "description": "Get a list of NodeNetwork objects in a namespace.",
+        "produces": [
+          "application/json",
+          "application/yaml",
+          "application/json;stream=watch"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "listNamespacedNodeNetwork",
+        "parameters": [
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "The continue option should be set when retrieving more results from the server. Since this value is server defined, clients may only use the continue value from a previous query result with identical query parameters (except for the value of continue) and the server may reject a continue value it does not recognize. If the specified continue value is no longer valid whether due to expiration (generally five to fifteen minutes) or a configuration change on the server the server will respond with a 410 ResourceExpired error indicating the client must restart their list without the continue field. This field is not supported when watch is true. Clients may start a watch from the last resourceVersion value returned by the server and not miss any modifications.",
+            "name": "continue",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "A selector to restrict the list of returned objects by their fields. Defaults to everything.",
+            "name": "fieldSelector",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "If true, partially initialized resources are included in the response.",
+            "name": "includeUninitialized",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "A selector to restrict the list of returned objects by their labels. Defaults to everything",
+            "name": "labelSelector",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "integer",
+            "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "When specified with a watch call, shows changes that occur after that particular version of a resource. Defaults to changes from the beginning of history.",
+            "name": "resourceVersion",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "integer",
+            "description": "TimeoutSeconds for the list/watch call.",
+            "name": "timeoutSeconds",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Watch for changes to the described resources and return them as a stream of add, update, and remove notifications. Specify resourceVersion.",
+            "name": "watch",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetworkList"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "post": {
+        "description": "Create a NodeNetwork object.",
+        "consumes": [
+          "application/json",
+          "application/yaml"
+        ],
+        "produces": [
+          "application/json",
+          "application/yaml"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "createNamespacedNodeNetwork",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
+            }
+          },
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "Object name and auth scope, such as for teams and projects",
+          "name": "namespace",
+          "in": "path",
+          "required": true
+        }
+      ]
+    },
+    "/apis/network.harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/nodenetworks/{name:[a-z0-9][a-z0-9\\-]*}": {
+      "get": {
+        "description": "Get a NodeNetwork object.",
+        "produces": [
+          "application/json",
+          "application/yaml",
+          "application/json;stream=watch"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "readNamespacedNodeNetwork",
+        "parameters": [
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "name": "exact",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "name": "export",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "put": {
+        "description": "Update a NodeNetwork object.",
+        "consumes": [
+          "application/json",
+          "application/yaml"
+        ],
+        "produces": [
+          "application/json",
+          "application/yaml"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "replaceNamespacedNodeNetwork",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
+            }
+          },
+          "201": {
+            "description": "Create",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "delete": {
+        "description": "Delete a NodeNetwork object.",
+        "consumes": [
+          "application/json",
+          "application/yaml"
+        ],
+        "produces": [
+          "application/json",
+          "application/yaml"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "deleteNamespacedNodeNetwork",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/k8s.io.v1.DeleteOptions"
+            }
+          },
+          {
+            "uniqueItems": true,
+            "type": "integer",
+            "description": "The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.",
+            "name": "gracePeriodSeconds",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "boolean",
+            "description": "Deprecated: please use the PropagationPolicy, this field will be deprecated in 1.7. Should the dependent objects be orphaned. If true/false, the \"orphan\" finalizer will be added to/removed from the object's finalizers list. Either this field or PropagationPolicy may be set, but not both.",
+            "name": "orphanDependents",
+            "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "Whether and how garbage collection will be performed. Either this field or OrphanDependents may be set, but not both. The default policy is decided by the existing finalizer set in the metadata.finalizers and the resource-specific default policy. Acceptable values are: 'Orphan' - orphan the dependents; 'Background' - allow the garbage collector to delete the dependents in the background; 'Foreground' - a cascading policy that deletes all dependents in the foreground.",
+            "name": "propagationPolicy",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/k8s.io.v1.Status"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "patch": {
+        "description": "Patch a NodeNetwork object.",
+        "consumes": [
+          "application/json-patch+json",
+          "application/merge-patch+json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "patchNamespacedNodeNetwork",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/k8s.io.v1.Patch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "Name of the resource",
+          "name": "name",
+          "in": "path",
+          "required": true
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "Object name and auth scope, such as for teams and projects",
+          "name": "namespace",
+          "in": "path",
+          "required": true
+        }
+      ]
+    },
+    "/apis/network.harvesterhci.io/v1beta1/nodenetworks": {
+      "get": {
+        "description": "Get a list of all NodeNetwork objects.",
+        "produces": [
+          "application/json",
+          "application/yaml",
+          "application/json;stream=watch"
+        ],
+        "tags": [
+          "Networks"
+        ],
+        "operationId": "listNodeNetworkForAllNamespaces",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetworkList"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "The continue option should be set when retrieving more results from the server. Since this value is server defined, clients may only use the continue value from a previous query result with identical query parameters (except for the value of continue) and the server may reject a continue value it does not recognize. If the specified continue value is no longer valid whether due to expiration (generally five to fifteen minutes) or a configuration change on the server the server will respond with a 410 ResourceExpired error indicating the client must restart their list without the continue field. This field is not supported when watch is true. Clients may start a watch from the last resourceVersion value returned by the server and not miss any modifications.",
+          "name": "continue",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "A selector to restrict the list of returned objects by their fields. Defaults to everything.",
+          "name": "fieldSelector",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "boolean",
+          "description": "If true, partially initialized resources are included in the response.",
+          "name": "includeUninitialized",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "A selector to restrict the list of returned objects by their labels. Defaults to everything",
+          "name": "labelSelector",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "integer",
+          "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
+          "name": "limit",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "string",
+          "description": "When specified with a watch call, shows changes that occur after that particular version of a resource. Defaults to changes from the beginning of history.",
+          "name": "resourceVersion",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "integer",
+          "description": "TimeoutSeconds for the list/watch call.",
+          "name": "timeoutSeconds",
+          "in": "query"
+        },
+        {
+          "uniqueItems": true,
+          "type": "boolean",
+          "description": "Watch for changes to the described resources and return them as a stream of add, update, and remove notifications. Specify resourceVersion.",
+          "name": "watch",
+          "in": "query"
+        }
+      ]
     }
   },
   "definitions": {
@@ -5295,7 +6609,9 @@
       "description": "DataVolume is an abstraction on top of PersistentVolumeClaims to allow easy population of those PersistentVolumeClaims with relation to VirtualMachines",
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -5372,7 +6688,9 @@
       "type": "object",
       "required": [
         "metadata",
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -5671,7 +6989,9 @@
     "harvesterhci.io.v1beta1.KeyPair": {
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -5698,7 +7018,9 @@
       "type": "object",
       "required": [
         "metadata",
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -5792,7 +7114,9 @@
     "harvesterhci.io.v1beta1.SupportBundle": {
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -5819,7 +7143,9 @@
       "type": "object",
       "required": [
         "metadata",
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -5883,7 +7209,9 @@
     "harvesterhci.io.v1beta1.Upgrade": {
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -5910,7 +7238,9 @@
       "type": "object",
       "required": [
         "metadata",
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -5966,7 +7296,9 @@
     "harvesterhci.io.v1beta1.VirtualMachineBackup": {
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -5993,7 +7325,9 @@
       "type": "object",
       "required": [
         "metadata",
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -6053,7 +7387,9 @@
     "harvesterhci.io.v1beta1.VirtualMachineImage": {
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -6080,7 +7416,9 @@
       "type": "object",
       "required": [
         "metadata",
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -6144,7 +7482,9 @@
     "harvesterhci.io.v1beta1.VirtualMachineRestore": {
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -6171,7 +7511,9 @@
       "type": "object",
       "required": [
         "metadata",
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -6251,6 +7593,10 @@
     },
     "harvesterhci.io.v1beta1.VirtualMachineTemplate": {
       "type": "object",
+      "required": [
+        "kind",
+        "apiVersion"
+      ],
       "properties": {
         "apiVersion": {
           "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -6276,7 +7622,9 @@
       "type": "object",
       "required": [
         "metadata",
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -6325,7 +7673,9 @@
     "harvesterhci.io.v1beta1.VirtualMachineTemplateVersion": {
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -6352,7 +7702,9 @@
       "type": "object",
       "required": [
         "metadata",
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -6435,6 +7787,69 @@
         }
       }
     },
+    "k8s.cni.cncf.io.v1.NetworkAttachmentDefinition": {
+      "type": "object",
+      "required": [
+        "spec",
+        "kind",
+        "apiVersion"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinitionSpec"
+        }
+      }
+    },
+    "k8s.cni.cncf.io.v1.NetworkAttachmentDefinitionList": {
+      "type": "object",
+      "required": [
+        "metadata",
+        "items",
+        "kind",
+        "apiVersion"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
+          }
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/definitions/k8s.io.v1.ListMeta"
+        }
+      }
+    },
+    "k8s.cni.cncf.io.v1.NetworkAttachmentDefinitionSpec": {
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "string"
+        }
+      }
+    },
     "k8s.io.apimachinery.pkg.api.resource.Quantity": {
       "description": "Quantity is a fixed-point representation of a number. It provides convenient marshaling/unmarshaling in JSON and YAML, in addition to String() and AsInt64() accessors.\n\nThe serialization format is:\n\n\u003cquantity\u003e        ::= \u003csignedNumber\u003e\u003csuffix\u003e\n  (Note that \u003csuffix\u003e may be empty, from the \"\" case in \u003cdecimalSI\u003e.)\n\u003cdigit\u003e           ::= 0 | 1 | ... | 9 \u003cdigits\u003e          ::= \u003cdigit\u003e | \u003cdigit\u003e\u003cdigits\u003e \u003cnumber\u003e          ::= \u003cdigits\u003e | \u003cdigits\u003e.\u003cdigits\u003e | \u003cdigits\u003e. | .\u003cdigits\u003e \u003csign\u003e            ::= \"+\" | \"-\" \u003csignedNumber\u003e    ::= \u003cnumber\u003e | \u003csign\u003e\u003cnumber\u003e \u003csuffix\u003e          ::= \u003cbinarySI\u003e | \u003cdecimalExponent\u003e | \u003cdecimalSI\u003e \u003cbinarySI\u003e        ::= Ki | Mi | Gi | Ti | Pi | Ei\n  (International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)\n\u003cdecimalSI\u003e       ::= m | \"\" | k | M | G | T | P | E\n  (Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)\n\u003cdecimalExponent\u003e ::= \"e\" \u003csignedNumber\u003e | \"E\" \u003csignedNumber\u003e\n\nNo matter which of the three exponent forms is used, no quantity may represent a number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal places. Numbers larger or more precise will be capped or rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the future if we require larger or smaller quantities.\n\nWhen a Quantity is parsed from a string, it will remember the type of suffix it had, and will use the same type again when it is serialized.\n\nBefore serializing, Quantity will be put in \"canonical form\". This means that Exponent/suffix will be adjusted up or down (with a corresponding increase or decrease in Mantissa) such that:\n  a. No precision is lost\n  b. No fractional digits will be emitted\n  c. The exponent (or suffix) is as large as possible.\nThe sign will be omitted unless the number is negative.\n\nExamples:\n  1.5 will be serialized as \"1500m\"\n  1.5Gi will be serialized as \"1536Mi\"\n\nNote that the quantity will NEVER be internally represented by a floating point number. That is the whole point of this exercise.\n\nNon-canonical values will still parse as long as they are well formed, but will be re-emitted in their canonical form. (So always use canonical form, or don't diff.)\n\nThis format is intended to make it difficult to use these numbers without writing some sort of special handling code in the hopes that that will cause implementors to also use a fixed point implementation.",
       "type": "string"
@@ -6465,6 +7880,10 @@
     "k8s.io.v1.DeleteOptions": {
       "description": "DeleteOptions may be provided when deleting an API object.",
       "type": "object",
+      "required": [
+        "kind",
+        "apiVersion"
+      ],
       "properties": {
         "apiVersion": {
           "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -6788,6 +8207,9 @@
     "k8s.io.v1.ObjectMeta": {
       "description": "ObjectMeta is metadata that all persisted resources must have, which includes all objects users must create.",
       "type": "object",
+      "required": [
+        "name"
+      ],
       "properties": {
         "annotations": {
           "description": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. They are not queryable and should be preserved when modifying objects. More info: http://kubernetes.io/docs/user-guide/annotations",
@@ -6882,7 +8304,9 @@
         "apiVersion",
         "kind",
         "name",
-        "uid"
+        "uid",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -7150,6 +8574,10 @@
     "k8s.io.v1.Status": {
       "description": "Status is a return value for calls that don't return other objects.",
       "type": "object",
+      "required": [
+        "kind",
+        "apiVersion"
+      ],
       "properties": {
         "apiVersion": {
           "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -7696,7 +9124,9 @@
     "kubevirt.io.v1.DataVolumeTemplateSpec": {
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -8807,7 +10237,9 @@
       "description": "VirtualMachine handles the VirtualMachines that are not running or are in a stopped state The VirtualMachine contains the template to create the VirtualMachineInstance. It also mirrors the running state of the created VirtualMachineInstance in its status.",
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -8863,7 +10295,9 @@
       "description": "VirtualMachineInstance is *the* VirtualMachineInstance Definition. It represents a virtual machine in the runtime environment of kubernetes.",
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -8955,7 +10389,9 @@
       "description": "VirtualMachineInstanceList is a list of VirtualMachines",
       "type": "object",
       "required": [
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -8981,7 +10417,9 @@
       "description": "VirtualMachineInstanceMigration represents the object tracking a VMI's migration to another host in the cluster",
       "type": "object",
       "required": [
-        "spec"
+        "spec",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -9034,7 +10472,9 @@
       "description": "VirtualMachineInstanceMigrationList is a list of VirtualMachineMigrations",
       "type": "object",
       "required": [
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -9354,7 +10794,9 @@
       "description": "VirtualMachineList is a list of virtualmachines",
       "type": "object",
       "required": [
-        "items"
+        "items",
+        "kind",
+        "apiVersion"
       ],
       "properties": {
         "apiVersion": {
@@ -9621,6 +11063,263 @@
         "name": {
           "description": "Name of the watchdog.",
           "type": "string"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.ClusterNetwork": {
+      "type": "object",
+      "required": [
+        "enable",
+        "kind",
+        "apiVersion"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "enable": {
+          "type": "boolean"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.ClusterNetworkList": {
+      "description": "ClusterNetworkList is a list of ClusterNetwork resources",
+      "type": "object",
+      "required": [
+        "metadata",
+        "items",
+        "kind",
+        "apiVersion"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
+          }
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/definitions/k8s.io.v1.ListMeta"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.Condition": {
+      "type": "object",
+      "required": [
+        "type",
+        "status"
+      ],
+      "properties": {
+        "lastTransitionTime": {
+          "description": "Last time the condition transitioned from one status to another.",
+          "type": "string"
+        },
+        "lastUpdateTime": {
+          "description": "The last time this condition was updated.",
+          "type": "string"
+        },
+        "message": {
+          "description": "Human-readable message indicating details about last transition",
+          "type": "string"
+        },
+        "reason": {
+          "description": "The reason for the condition's last transition.",
+          "type": "string"
+        },
+        "status": {
+          "description": "Status of the condition, one of True, False, Unknown.",
+          "type": "string"
+        },
+        "type": {
+          "description": "Type of the condition.",
+          "type": "string"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.LinkStatus": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.Condition"
+          }
+        },
+        "index": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "ipv4Address": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mac": {
+          "type": "string"
+        },
+        "master": {
+          "type": "string"
+        },
+        "promiscuous": {
+          "type": "boolean"
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "state": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.NodeNetwork": {
+      "type": "object",
+      "required": [
+        "kind",
+        "apiVersion"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetworkSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetworkStatus"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.NodeNetworkList": {
+      "description": "NodeNetworkList is a list of NodeNetwork resources",
+      "type": "object",
+      "required": [
+        "metadata",
+        "items",
+        "kind",
+        "apiVersion"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
+          }
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/definitions/k8s.io.v1.ListMeta"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.NodeNetworkSpec": {
+      "type": "object",
+      "required": [
+        "nodeName"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "nic": {
+          "type": "string"
+        },
+        "nodeName": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.NodeNetworkStatus": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.Condition"
+          }
+        },
+        "networkIDs": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "networkLinkStatus": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.LinkStatus"
+          }
+        },
+        "physicalNICs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.PhysicalNic"
+          }
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.PhysicalNic": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "name": {
+          "type": "string"
+        },
+        "usedByManagementNetwork": {
+          "type": "boolean"
         }
       }
     }
