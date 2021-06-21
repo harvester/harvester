@@ -40,7 +40,7 @@ var kindToTagMappings = map[string]string{
 func main() {
 	flag.Parse()
 	config := createConfig()
-	webServices := rest.AggregatedAPIs()
+	webServices := rest.AggregatedWebServices()
 	swagger, err := builder.BuildOpenAPISpec(webServices, config)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -70,7 +70,7 @@ func createConfig() *common.Config {
 			},
 		},
 		GetDefinitions: func(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
-			return v1beta1.GetOpenAPIDefinitions(ref)
+			return rest.SetDefinitions(v1beta1.GetOpenAPIDefinitions(ref))
 		},
 
 		GetDefinitionName: func(name string) (string, spec.Extensions) {
