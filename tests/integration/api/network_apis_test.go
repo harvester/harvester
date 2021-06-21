@@ -9,6 +9,7 @@ import (
 	"github.com/tidwall/gjson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/harvester/harvester/pkg/builder"
 	"github.com/harvester/harvester/pkg/config"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	. "github.com/harvester/harvester/tests/framework/dsl"
@@ -17,12 +18,8 @@ import (
 )
 
 const (
-	testNetworkNamespace      = "default"
-	testNetworkTypeVlan       = "L2VlanNetwork"
-	testBridgeVID             = 100
-	testNetworkBridgeTemplate = `
-{"cniVersion":"0.3.1","name":"%s","type":"bridge","bridge":"harvester-br0","promiscMode":true,"vlan":%d,"ipam":{}}
-`
+	testNetworkNamespace = "default"
+	testBridgeVID        = 100
 )
 
 type BridgeNetwork struct {
@@ -31,19 +28,19 @@ type BridgeNetwork struct {
 
 func NewBridgeNetwork(name string, vid int) *BridgeNetwork {
 	bridgeNetwork := BridgeNetwork{
-		NAD: NewNAD(name, testNetworkTypeVlan, NewBridgeNetworkConfig(name, vid)),
+		NAD: NewNAD(name, builder.NetworkTypeVLAN, NewBridgeNetworkConfig(name, vid)),
 	}
 	return &bridgeNetwork
 }
 
 func NewBridgeNetworkConfig(name string, vid int) string {
-	return fmt.Sprintf(testNetworkBridgeTemplate, name, vid)
+	return fmt.Sprintf(builder.NetworkVLANConfigTemplate, name, vid)
 }
 
 func NewNAD(name, networkType, config string) *cniv1.NetworkAttachmentDefinition {
 	networkLabels := map[string]string{
-		"test.harvesterhci.io":          "harvester-test",
-		"networks.harvesterhci.io/type": networkType,
+		"test.harvesterhci.io":      "harvester-test",
+		builder.LabelKeyNetworkType: networkType,
 	}
 	return &cniv1.NetworkAttachmentDefinition{
 		ObjectMeta: metav1.ObjectMeta{
@@ -61,7 +58,7 @@ var _ = Describe("verify network APIs", func() {
 
 	var (
 		scaled       *config.Scaled
-		vmBuilder    *VMBuilder
+		vmBuilder    *builder.VMBuilder
 		vmNamespace  string
 		vmController ctlkubevirtv1.VirtualMachineController
 		networkName  string
@@ -151,7 +148,11 @@ var _ = Describe("verify network APIs", func() {
 		Specify("verify the delete action", func() {
 
 			By("create a vm use this network")
-			vm, err := vmController.Create(vmBuilder.Container().Network(networkName).VM())
+			toCreate, err := vmBuilder.ContainerDisk(testVMContainerDiskName, testVMDefaultDiskBus, false, 1, testVMContainerDiskImageName, testVMContainerDiskImagePullPolicy).
+				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeBridge, networkName).
+				VM()
+			MustNotError(err)
+			vm, err := vmController.Create(toCreate)
 			MustNotError(err)
 			vmName := vm.Name
 			MustVMExist(vmController, vmNamespace, vmName)

@@ -8,36 +8,34 @@ import (
 	"strings"
 
 	"github.com/onsi/ginkgo"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
-	kubevirtv1 "kubevirt.io/client-go/api/v1"
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 
-	"github.com/harvester/harvester/tests/framework/env"
-	"github.com/harvester/harvester/tests/framework/fuzz"
+	"github.com/harvester/harvester/pkg/builder"
 )
 
 const (
+	testCreator        = "harvester-integration-test"
 	testVMGenerateName = "test-"
 	testVMNamespace    = "default"
 
-	testVMCPUCores = 1
-	testVMMemory   = "256Mi"
+	testVMCPUCores       = 1
+	testVMMemory         = "256Mi"
+	testVMUpdatedCPUCore = 2
+	testVMUpdatedMemory  = "200Mi"
 
-	testVMManagementNetworkName   = "default"
-	testVMManagementInterfaceName = "default"
-	testVMInterfaceModel          = "virtio"
+	testVMDiskSize = "10Mi"
 
+	testVMInterfaceName  = "default"
+	testVMInterfaceModel = "virtio"
+
+	testVMBlankDiskName                = "blankdisk"
 	testVMCDRomDiskName                = "cdromdisk"
-	testVMCloudInitDiskName            = "cloudinitdisk"
 	testVMContainerDiskName            = "containerdisk"
 	testVMContainerDiskImageName       = "kubevirt/fedora-cloud-container-disk-demo:v0.35.0"
-	testVMContainerDiskImagePullPolicy = corev1.PullIfNotPresent
+	testVMContainerDiskImagePullPolicy = builder.DefaultImagePullPolicy
+	testVMCloudInitDiskName            = builder.CloudInitDiskName
 
-	testVMDefaultDiskBus = "virtio"
-	testVMCDRomBus       = "sata"
+	testVMDefaultDiskBus = builder.DiskBusVirtio
+	testVMCDRomBus       = builder.DiskBusSata
 
 	testVMCloudInitUserDataTemplate = `
 #cloud-config
@@ -142,324 +140,7 @@ func CreateTmpFile(dir, pattern, content string, mode os.FileMode) (string, erro
 	return fileName, err
 }
 
-type VMBuilder struct {
-	vm *kubevirtv1.VirtualMachine
-}
-
-func NewVMBuilder(vm *kubevirtv1.VirtualMachine) *VMBuilder {
-	return &VMBuilder{
-		vm: vm,
-	}
-}
-
-func NewDefaultTestVMBuilder(labels map[string]string) *VMBuilder {
-	objectMeta := metav1.ObjectMeta{
-		Namespace:    testVMNamespace,
-		GenerateName: testVMGenerateName,
-		Labels:       labels,
-	}
-	running := pointer.BoolPtr(false)
-	cpu := &kubevirtv1.CPU{
-		Cores: testVMCPUCores,
-	}
-	resources := kubevirtv1.ResourceRequirements{
-		Requests: corev1.ResourceList{
-			corev1.ResourceMemory: resource.MustParse(testVMMemory),
-		},
-	}
-	interfaces := []kubevirtv1.Interface{
-		{
-			Name:  testVMManagementInterfaceName,
-			Model: testVMInterfaceModel,
-			InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
-				Masquerade: &kubevirtv1.InterfaceMasquerade{},
-			},
-		},
-	}
-	networks := []kubevirtv1.Network{
-		{
-			Name: testVMManagementNetworkName,
-			NetworkSource: kubevirtv1.NetworkSource{
-				Pod: &kubevirtv1.PodNetwork{},
-			},
-		},
-	}
-	template := &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-		Spec: kubevirtv1.VirtualMachineInstanceSpec{
-			Domain: kubevirtv1.DomainSpec{
-				CPU: cpu,
-				Devices: kubevirtv1.Devices{
-					Disks:      []kubevirtv1.Disk{},
-					Interfaces: interfaces,
-				},
-				Resources: resources,
-			},
-			Networks: networks,
-			Volumes:  []kubevirtv1.Volume{},
-		},
-	}
-	vm := &kubevirtv1.VirtualMachine{
-		ObjectMeta: objectMeta,
-		Spec: kubevirtv1.VirtualMachineSpec{
-			Running:             running,
-			Template:            template,
-			DataVolumeTemplates: []kubevirtv1.DataVolumeTemplateSpec{},
-		},
-	}
-	return &VMBuilder{
-		vm: vm,
-	}
-}
-
-func (v *VMBuilder) Name(name string) *VMBuilder {
-	v.vm.ObjectMeta.Name = name
-	v.vm.ObjectMeta.GenerateName = ""
-	return v
-}
-
-func (v *VMBuilder) Namespace(namespace string) *VMBuilder {
-	v.vm.ObjectMeta.Namespace = namespace
-	return v
-}
-
-func (v *VMBuilder) Memory(memory string) *VMBuilder {
-	v.vm.Spec.Template.Spec.Domain.Resources.Requests = corev1.ResourceList{
-		corev1.ResourceMemory: resource.MustParse(memory),
-	}
-	return v
-}
-
-func (v *VMBuilder) CPU(cores uint32) *VMBuilder {
-	v.vm.Spec.Template.Spec.Domain.CPU.Cores = cores
-	return v
-}
-
-func (v *VMBuilder) Blank() *VMBuilder {
-	v.DataVolume("disk-blank", "10Mi", "")
-	return v
-}
-
-func (v *VMBuilder) Image(imageName string) *VMBuilder {
-	return v.DataVolume("disk-image", "10Gi", fmt.Sprintf("longhorn-%s", imageName))
-}
-
-func (v *VMBuilder) DataVolume(diskName, storageSize string, storageClass string) *VMBuilder {
-	volumeMode := corev1.PersistentVolumeFilesystem
-	if env.IsE2ETestsEnabled() {
-		volumeMode = corev1.PersistentVolumeBlock
-	}
-	dataVolumeName := fmt.Sprintf("%s-%s-%s", v.vm.Name, diskName, fuzz.String(5))
-	// DataVolumeTemplates
-	dataVolumeTemplates := v.vm.Spec.DataVolumeTemplates
-	dataVolumeSpecSource := cdiv1alpha1.DataVolumeSource{
-		Blank: &cdiv1alpha1.DataVolumeBlankImage{},
-	}
-
-	dataVolumeTemplate := kubevirtv1.DataVolumeTemplateSpec{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        dataVolumeName,
-			Labels:      nil,
-			Annotations: nil,
-		},
-		Spec: cdiv1alpha1.DataVolumeSpec{
-			Source: dataVolumeSpecSource,
-			PVC: &corev1.PersistentVolumeClaimSpec{
-				AccessModes: []corev1.PersistentVolumeAccessMode{
-					corev1.ReadWriteOnce,
-				},
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: resource.MustParse(storageSize),
-					},
-				},
-				VolumeMode: &volumeMode,
-			},
-		},
-	}
-
-	if storageClass != "" {
-		dataVolumeTemplate.Spec.PVC.StorageClassName = &storageClass
-	} else if env.IsE2ETestsEnabled() {
-		dataVolumeTemplate.Spec.PVC.StorageClassName = pointer.StringPtr("longhorn")
-	}
-
-	dataVolumeTemplates = append(dataVolumeTemplates, dataVolumeTemplate)
-	v.vm.Spec.DataVolumeTemplates = dataVolumeTemplates
-	// Disks
-	disks := v.vm.Spec.Template.Spec.Domain.Devices.Disks
-	disks = append(disks, kubevirtv1.Disk{
-		Name: diskName,
-		DiskDevice: kubevirtv1.DiskDevice{
-			Disk: &kubevirtv1.DiskTarget{
-				Bus: testVMDefaultDiskBus,
-			},
-		},
-	})
-	v.vm.Spec.Template.Spec.Domain.Devices.Disks = disks
-	// Volumes
-	volumes := v.vm.Spec.Template.Spec.Volumes
-	volumes = append(volumes, kubevirtv1.Volume{
-		Name: diskName,
-		VolumeSource: kubevirtv1.VolumeSource{
-			DataVolume: &kubevirtv1.DataVolumeSource{
-				Name: dataVolumeName,
-			},
-		},
-	})
-	v.vm.Spec.Template.Spec.Volumes = volumes
-	return v
-}
-
-func (v *VMBuilder) ExistingDataVolume(diskName, dataVolumeName string) *VMBuilder {
-	// Disks
-	disks := v.vm.Spec.Template.Spec.Domain.Devices.Disks
-	disks = append(disks, kubevirtv1.Disk{
-		Name: diskName,
-		DiskDevice: kubevirtv1.DiskDevice{
-			Disk: &kubevirtv1.DiskTarget{
-				Bus: testVMDefaultDiskBus,
-			},
-		},
-	})
-	v.vm.Spec.Template.Spec.Domain.Devices.Disks = disks
-	// Volumes
-	volumes := v.vm.Spec.Template.Spec.Volumes
-	volumes = append(volumes, kubevirtv1.Volume{
-		Name: diskName,
-		VolumeSource: kubevirtv1.VolumeSource{
-			DataVolume: &kubevirtv1.DataVolumeSource{
-				Name: dataVolumeName,
-			},
-		},
-	})
-	v.vm.Spec.Template.Spec.Volumes = volumes
-	return v
-}
-
-func (v *VMBuilder) ContainerDisk(diskName, imageName string, isCDRom bool) *VMBuilder {
-	// Disks
-	disks := v.vm.Spec.Template.Spec.Domain.Devices.Disks
-	diskDevice := kubevirtv1.DiskDevice{
-		Disk: &kubevirtv1.DiskTarget{
-			Bus: testVMDefaultDiskBus,
-		},
-	}
-	if isCDRom {
-		diskDevice = kubevirtv1.DiskDevice{
-			CDRom: &kubevirtv1.CDRomTarget{
-				Bus: testVMCDRomBus,
-			},
-		}
-	}
-	disks = append(disks, kubevirtv1.Disk{
-		Name:       diskName,
-		DiskDevice: diskDevice,
-	})
-	v.vm.Spec.Template.Spec.Domain.Devices.Disks = disks
-	// Volumes
-	volumes := v.vm.Spec.Template.Spec.Volumes
-	volumes = append(volumes, kubevirtv1.Volume{
-		Name: diskName,
-		VolumeSource: kubevirtv1.VolumeSource{
-			ContainerDisk: &kubevirtv1.ContainerDiskSource{
-				Image:           imageName,
-				ImagePullPolicy: testVMContainerDiskImagePullPolicy,
-			},
-		},
-	})
-	v.vm.Spec.Template.Spec.Volumes = volumes
-	return v
-}
-
-func (v *VMBuilder) Container(containerImageName ...string) *VMBuilder {
-	imageName := testVMContainerDiskImageName
-	if len(containerImageName) > 0 {
-		imageName = containerImageName[0]
-	}
-	return v.ContainerDisk(testVMContainerDiskName, imageName, false)
-}
-
-func (v *VMBuilder) CDRom(containerImageName ...string) *VMBuilder {
-	imageName := testVMContainerDiskImageName
-	if len(containerImageName) > 0 {
-		imageName = containerImageName[0]
-	}
-	return v.ContainerDisk(testVMCDRomDiskName, imageName, true)
-}
-
-func (v *VMBuilder) CloudInit(vmCloudInit *VMCloudInit) *VMBuilder {
-	// Disks
-	disks := v.vm.Spec.Template.Spec.Domain.Devices.Disks
-	for _, disk := range disks {
-		if disk.Name == testVMCloudInitDiskName {
-			return v
-		}
-	}
-
-	disks = append(disks, kubevirtv1.Disk{
-		Name: testVMCloudInitDiskName,
-		DiskDevice: kubevirtv1.DiskDevice{
-			Disk: &kubevirtv1.DiskTarget{
-				Bus: testVMDefaultDiskBus,
-			},
-		},
-	})
-	v.vm.Spec.Template.Spec.Domain.Devices.Disks = disks
-	// Volumes
-	var userData, networkData string
-	if vmCloudInit != nil {
-		if vmCloudInit.Password != "" {
-			userData = fmt.Sprintf(testVMCloudInitUserDataTemplate, vmCloudInit.UserName, vmCloudInit.Password)
-		}
-		if vmCloudInit.Address != "" && vmCloudInit.Gateway != "" {
-			networkData = fmt.Sprintf(testVMCloudInitNetworkDataTemplate, vmCloudInit.Address, vmCloudInit.Gateway)
-		}
-	}
-	volumes := v.vm.Spec.Template.Spec.Volumes
-	volumes = append(volumes, kubevirtv1.Volume{
-		Name: testVMCloudInitDiskName,
-		VolumeSource: kubevirtv1.VolumeSource{
-			CloudInitNoCloud: &kubevirtv1.CloudInitNoCloudSource{
-				UserData:    userData,
-				NetworkData: networkData,
-			},
-		},
-	})
-	v.vm.Spec.Template.Spec.Volumes = volumes
-	return v
-}
-
-func (v *VMBuilder) Network(networkName string) *VMBuilder {
-	// Networks
-	networks := v.vm.Spec.Template.Spec.Networks
-	networks = append(networks, kubevirtv1.Network{
-		Name: networkName,
-		NetworkSource: kubevirtv1.NetworkSource{
-			Multus: &kubevirtv1.MultusNetwork{
-				NetworkName: networkName,
-				Default:     false,
-			},
-		},
-	})
-	v.vm.Spec.Template.Spec.Networks = networks
-	// Interfaces
-	interfaces := v.vm.Spec.Template.Spec.Domain.Devices.Interfaces
-	interfaces = append(interfaces, kubevirtv1.Interface{
-		Name:  networkName,
-		Model: testVMInterfaceModel,
-		InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
-			Bridge: &kubevirtv1.InterfaceBridge{},
-		},
-	})
-	v.vm.Spec.Template.Spec.Domain.Devices.Interfaces = interfaces
-	return v
-}
-
-func (v *VMBuilder) Run() *kubevirtv1.VirtualMachine {
-	v.vm.Spec.Running = pointer.BoolPtr(true)
-	return v.VM()
-}
-
-func (v *VMBuilder) VM() *kubevirtv1.VirtualMachine {
-	return v.vm
+func NewDefaultTestVMBuilder(labels map[string]string) *builder.VMBuilder {
+	return builder.NewVMBuilder(testCreator).Namespace(testVMNamespace).Labels(labels).
+		CPU(testVMCPUCores).Memory(testVMMemory).Run(false)
 }

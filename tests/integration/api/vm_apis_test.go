@@ -12,6 +12,7 @@ import (
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 
 	apivm "github.com/harvester/harvester/pkg/api/vm"
+	"github.com/harvester/harvester/pkg/builder"
 	"github.com/harvester/harvester/pkg/config"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	. "github.com/harvester/harvester/tests/framework/dsl"
@@ -63,7 +64,11 @@ var _ = Describe("verify vm APIs", func() {
 
 			// create
 			By("create a virtual machine should fail if name missing")
-			vm := NewDefaultTestVMBuilder(testResourceLabels).Name("").Blank().VM()
+			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name("").
+				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
+				DataVolumeDisk(testVMBlankDiskName, testVMDefaultDiskBus, false, 1, testVMDiskSize, "", nil).
+				VM()
+			MustNotError(err)
 			respCode, respBody, err := helper.PostObject(vmsAPI, vm)
 			MustRespCodeIs(http.StatusUnprocessableEntity, "create vm", err, respCode, respBody)
 
@@ -76,11 +81,17 @@ var _ = Describe("verify vm APIs", func() {
 				Address:  "10.5.2.100/24",
 				Gateway:  "10.5.2.1",
 			}
-			vm = NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
-				Container().
-				Blank().
-				CloudInit(vmCloudInit).
-				Run()
+			userData := fmt.Sprintf(testVMCloudInitUserDataTemplate, vmCloudInit.UserName, vmCloudInit.Password)
+			networkData := fmt.Sprintf(testVMCloudInitNetworkDataTemplate, vmCloudInit.Address, vmCloudInit.Gateway)
+			vm, err = NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
+				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
+				ContainerDisk(testVMContainerDiskName, testVMDefaultDiskBus, false, 1, testVMContainerDiskImageName, testVMContainerDiskImagePullPolicy).
+				CloudInitDisk(testVMCloudInitDiskName, testVMDefaultDiskBus, false, 0, builder.CloudInitSource{
+					CloudInitType: builder.CloudInitTypeNoCloud,
+					UserData:      userData,
+					NetworkData:   networkData,
+				}).Run(true).VM()
+			MustNotError(err)
 			respCode, respBody, err = helper.PostObject(vmsAPI, vm)
 			MustRespCodeIs(http.StatusCreated, "create vm", err, respCode, respBody)
 
@@ -97,22 +108,21 @@ var _ = Describe("verify vm APIs", func() {
 
 			// edit
 			By("when edit virtual machine")
-			updatedCPUCore := uint32(2)
-			updatedMemory := "200Mi"
-			vm = NewVMBuilder(vm).
-				CPU(updatedCPUCore).
-				Memory(updatedMemory).
-				CDRom().
-				VM()
+			vm, err = builder.NewVMBuilder(testCreator).Update(vm).CPU(testVMUpdatedCPUCore).Memory(testVMUpdatedMemory).
+				DataVolumeDisk(testVMCDRomDiskName, testVMCDRomBus, true, 2, testVMDiskSize, "", &builder.DataVolumeOption{
+					VolumeMode: builder.PersistentVolumeModeFilesystem,
+					AccessMode: builder.PersistentVolumeAccessModeReadWriteOnce,
+				}).VM()
+			MustNotError(err)
 			respCode, respBody, err = helper.PutObject(vmURL, vm)
 			MustRespCodeIs(http.StatusOK, "put edit action", err, respCode, respBody)
 
 			By("then the virtual machine is changed")
 			AfterVMRunning(vmController, vmNamespace, vmName, func(vm *kubevirtv1.VirtualMachine) bool {
 				spec := vm.Spec.Template.Spec
-				MustEqual(len(spec.Domain.Devices.Disks), 4)
-				MustEqual(spec.Domain.CPU.Cores, updatedCPUCore)
-				MustEqual(spec.Domain.Resources.Requests[corev1.ResourceMemory], resource.MustParse(updatedMemory))
+				MustEqual(len(spec.Domain.Devices.Disks), 3)
+				MustEqual(spec.Domain.CPU.Cores, uint32(testVMUpdatedCPUCore))
+				MustEqual(spec.Domain.Resources.Requests[corev1.ResourceMemory], resource.MustParse(testVMUpdatedMemory))
 				return true
 			})
 
@@ -131,10 +141,10 @@ var _ = Describe("verify vm APIs", func() {
 			By("then the virtual machine instance is changed")
 			AfterVMIRestarted(vmController, vmNamespace, vmName, vmiController, vmiUID,
 				func(vmi *kubevirtv1.VirtualMachineInstance) bool {
-					spec := vm.Spec.Template.Spec
-					MustEqual(len(spec.Domain.Devices.Disks), 4)
-					MustEqual(spec.Domain.CPU.Cores, updatedCPUCore)
-					MustEqual(spec.Domain.Resources.Requests[corev1.ResourceMemory], resource.MustParse(updatedMemory))
+					spec := vmi.Spec
+					MustEqual(len(spec.Domain.Devices.Disks), 3)
+					MustEqual(spec.Domain.CPU.Cores, uint32(testVMUpdatedCPUCore))
+					MustEqual(spec.Domain.Resources.Requests[corev1.ResourceMemory], resource.MustParse(testVMUpdatedMemory))
 					return true
 				})
 
