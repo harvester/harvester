@@ -16,6 +16,8 @@ fullnameOverride: ""
 ##
 spec:
 
+  monitorAccount: monitoring-operator
+  monitorNamespace: harvester-monitoring
   ## Specify the image tag of KubeVirt bundle components,
   ## defaults to the same tag as the operator image.
   ##
