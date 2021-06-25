@@ -19,7 +19,7 @@ type BackupStoreDriver interface {
 	FileExists(filePath string) bool
 	FileSize(filePath string) int64
 	FileTime(filePath string) time.Time     // Needs to be returned in UTC
-	Remove(path string) error               // Bahavior like "rm -rf"
+	Remove(path string) error               // Behavior like "rm -rf"
 	Read(src string) (io.ReadCloser, error) // Caller needs to close
 	Write(dst string, rs io.ReadSeeker) error
 	List(path string) ([]string, error) // Behavior like "ls", not like "find"

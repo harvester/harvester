@@ -1,0 +1,10 @@
+vendor
+
+# unit test cover profile
+*.coverprofile
+
+*.swp
+*.json
+*.toml
+*.yaml
+&.yml

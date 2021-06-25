@@ -114,7 +114,9 @@ func (f *FileSystemOperator) Write(dst string, rs io.ReadSeeker) error {
 
 func (f *FileSystemOperator) List(path string) ([]string, error) {
 	out, err := util.Execute("ls", []string{"-1", f.LocalPath(path)})
-	if err != nil {
+	if err != nil &&
+		!strings.Contains(err.Error(), "No such file or directory") &&
+		!strings.Contains(err.Error(), "cannot open directory") {
 		return nil, err
 	}
 	var result []string

@@ -23,10 +23,10 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -42,18 +42,6 @@ const (
 	VolumeStackPrefix     = "volume-"
 	ControllerServiceName = "controller"
 	ReplicaServiceName    = "replica"
-
-	BackupStoreTypeS3 = "s3"
-	AWSAccessKey      = "AWS_ACCESS_KEY_ID"
-	AWSSecretKey      = "AWS_SECRET_ACCESS_KEY"
-	AWSEndPoint       = "AWS_ENDPOINTS"
-	AWSCert           = "AWS_CERT"
-
-	HTTPSProxy = "HTTPS_PROXY"
-	HTTPProxy  = "HTTP_PROXY"
-	NOProxy    = "NO_PROXY"
-
-	VirtualHostedStyle = "VIRTUAL_HOSTED_STYLE"
 
 	HostProcPath                 = "/host/proc"
 	ReplicaDirectory             = "/replicas/"
@@ -209,13 +197,14 @@ func ParseTime(t string) (time.Time, error) {
 
 }
 
-func Execute(binary string, args ...string) (string, error) {
-	return ExecuteWithTimeout(cmdTimeout, binary, args...)
+func Execute(envs []string, binary string, args ...string) (string, error) {
+	return ExecuteWithTimeout(cmdTimeout, envs, binary, args...)
 }
 
-func ExecuteWithTimeout(timeout time.Duration, binary string, args ...string) (string, error) {
+func ExecuteWithTimeout(timeout time.Duration, envs []string, binary string, args ...string) (string, error) {
 	var err error
 	cmd := exec.Command(binary, args...)
+	cmd.Env = append(os.Environ(), envs...)
 	done := make(chan struct{})
 
 	var output, stderr bytes.Buffer
@@ -247,8 +236,9 @@ func ExecuteWithTimeout(timeout time.Duration, binary string, args ...string) (s
 	return output.String(), nil
 }
 
-func ExecuteWithoutTimeout(binary string, args ...string) (string, error) {
+func ExecuteWithoutTimeout(envs []string, binary string, args ...string) (string, error) {
 	cmd := exec.Command(binary, args...)
+	cmd.Env = append(os.Environ(), envs...)
 
 	var output, stderr bytes.Buffer
 	cmd.Stdout = &output
@@ -357,6 +347,23 @@ func SplitStringToMap(str, separator string) map[string]struct{} {
 	return ret
 }
 
+// AutoCorrectName converts name to lowercase, and correct overlength name by
+// replaces the name suffix with 8 char from its checksum to ensure uniquenedoss.
+func AutoCorrectName(name string, maxLength int) string {
+	newName := strings.ToLower(name)
+	if len(name) > maxLength {
+		logrus.Warnf("Name %v is too long, auto-correct to fit %v characters", name, maxLength)
+		checksum := GetStringChecksum(name)
+		newNameSuffix := "-" + checksum[:8]
+		newNamePrefix := strings.TrimRight(newName[:maxLength-len(newNameSuffix)], "-")
+		newName = newNamePrefix + newNameSuffix
+	}
+	if newName != name {
+		logrus.Warnf("Name auto-corrected from %v to %v", name, newName)
+	}
+	return newName
+}
+
 func GetStringChecksum(data string) string {
 	return GetChecksumSHA512([]byte(data))
 }
@@ -375,99 +382,13 @@ func CheckBackupType(backupTarget string) (string, error) {
 	return u.Scheme, nil
 }
 
-func ConfigBackupCredential(backupTarget string, credential map[string]string) error {
-	backupType, err := CheckBackupType(backupTarget)
-	if err != nil {
-		return err
-	}
-	if backupType == BackupStoreTypeS3 {
-		// environment variable has been set in cronjob
-		if credential != nil && credential[AWSAccessKey] != "" && credential[AWSSecretKey] != "" {
-			os.Setenv(AWSAccessKey, credential[AWSAccessKey])
-			os.Setenv(AWSSecretKey, credential[AWSSecretKey])
-			os.Setenv(AWSEndPoint, credential[AWSEndPoint])
-			os.Setenv(AWSCert, credential[AWSCert])
-			os.Setenv(HTTPSProxy, credential[HTTPSProxy])
-			os.Setenv(HTTPProxy, credential[HTTPProxy])
-			os.Setenv(NOProxy, credential[NOProxy])
-			os.Setenv(VirtualHostedStyle, credential[VirtualHostedStyle])
-		} else if os.Getenv(AWSAccessKey) == "" || os.Getenv(AWSSecretKey) == "" {
-			return fmt.Errorf("Could not backup for %s without credential secret", backupType)
-		}
-	}
-	return nil
-}
-
-func ConfigEnvWithCredential(backupTarget string, credentialSecret string, hasEndpoint bool, hasCert bool,
-	container *v1.Container) error {
-	backupType, err := CheckBackupType(backupTarget)
-	if err != nil {
-		return err
-	}
-	if backupType == BackupStoreTypeS3 && credentialSecret != "" {
-		accessKeyEnv := v1.EnvVar{
-			Name: AWSAccessKey,
-			ValueFrom: &v1.EnvVarSource{
-				SecretKeyRef: &v1.SecretKeySelector{
-					LocalObjectReference: v1.LocalObjectReference{
-						Name: credentialSecret,
-					},
-					Key: AWSAccessKey,
-				},
-			},
-		}
-		container.Env = append(container.Env, accessKeyEnv)
-		secretKeyEnv := v1.EnvVar{
-			Name: AWSSecretKey,
-			ValueFrom: &v1.EnvVarSource{
-				SecretKeyRef: &v1.SecretKeySelector{
-					LocalObjectReference: v1.LocalObjectReference{
-						Name: credentialSecret,
-					},
-					Key: AWSSecretKey,
-				},
-			},
-		}
-		container.Env = append(container.Env, secretKeyEnv)
-		if hasEndpoint {
-			endpointEnv := v1.EnvVar{
-				Name: AWSEndPoint,
-				ValueFrom: &v1.EnvVarSource{
-					SecretKeyRef: &v1.SecretKeySelector{
-						LocalObjectReference: v1.LocalObjectReference{
-							Name: credentialSecret,
-						},
-						Key: AWSEndPoint,
-					},
-				},
-			}
-			container.Env = append(container.Env, endpointEnv)
-		}
-		if hasCert {
-			certEnv := v1.EnvVar{
-				Name: AWSCert,
-				ValueFrom: &v1.EnvVarSource{
-					SecretKeyRef: &v1.SecretKeySelector{
-						LocalObjectReference: v1.LocalObjectReference{
-							Name: credentialSecret,
-						},
-						Key: AWSCert,
-					},
-				},
-			}
-			container.Env = append(container.Env, certEnv)
-		}
-	}
-	return nil
-}
-
 func GetDiskInfo(directory string) (info *DiskInfo, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "cannot get disk info of directory %v", directory)
 	}()
 	initiatorNSPath := iscsi_util.GetHostNamespacePath(HostProcPath)
 	mountPath := fmt.Sprintf("--mount=%s/mnt", initiatorNSPath)
-	output, err := Execute("nsenter", mountPath, "stat", "-fc", "{\"path\":\"%n\",\"fsid\":\"%i\",\"type\":\"%T\",\"freeBlock\":%f,\"totalBlock\":%b,\"blockSize\":%S}", directory)
+	output, err := Execute([]string{}, "nsenter", mountPath, "stat", "-fc", "{\"path\":\"%n\",\"fsid\":\"%i\",\"type\":\"%T\",\"freeBlock\":%f,\"totalBlock\":%b,\"blockSize\":%S}", directory)
 	if err != nil {
 		return nil, err
 	}
@@ -921,4 +842,11 @@ func GenerateDiskConfig(path string) (*DiskConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+func MinInt(a, b int) int {
+	if a <= b {
+		return a
+	}
+	return b
 }

@@ -2,14 +2,19 @@ package backupstore
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
+	"time"
 
-	"github.com/longhorn/backupstore/util"
+	"github.com/honestbee/jobq"
 	"github.com/sirupsen/logrus"
 
 	. "github.com/longhorn/backupstore/logging"
+	"github.com/longhorn/backupstore/util"
 )
 
 const (
@@ -98,28 +103,73 @@ func getVolumeFilePath(volumeName string) string {
 }
 
 // getVolumeNames returns all volume names based on the folders on the backupstore
-func getVolumeNames(driver BackupStoreDriver) []string {
+func getVolumeNames(jobQueues *jobq.WorkerDispatcher, jobQueueTimeout time.Duration, driver BackupStoreDriver) ([]string, error) {
 	names := []string{}
 	volumePathBase := filepath.Join(backupstoreBase, VOLUME_DIRECTORY)
-	lv1Dirs, _ := driver.List(volumePathBase)
-	for _, lv1 := range lv1Dirs {
-		lv1Path := filepath.Join(volumePathBase, lv1)
-		lv2Dirs, err := driver.List(lv1Path)
+	lv1Dirs, err := driver.List(volumePathBase)
+	if err != nil {
+		log.Warnf("failed to list first level dirs for path: %v reason: %v", volumePathBase, err)
+		return names, err
+	}
+
+	var (
+		lv1Trackers []jobq.JobTracker
+		lv2Trackers []jobq.JobTracker
+		errs        []string
+	)
+	for _, lv1Dir := range lv1Dirs {
+		path := filepath.Join(volumePathBase, lv1Dir)
+		lv1Tracker := jobQueues.QueueTimedFunc(context.Background(), func(ctx context.Context) (interface{}, error) {
+			lv2Dirs, err := driver.List(path)
+			if err != nil {
+				log.Warnf("failed to list second level dirs for path: %v reason: %v", path, err)
+				return nil, err
+			}
+
+			lv2Paths := make([]string, len(lv2Dirs))
+			for i := range lv2Dirs {
+				lv2Paths[i] = filepath.Join(path, lv2Dirs[i])
+			}
+			return lv2Paths, nil
+		}, jobQueueTimeout)
+		lv1Trackers = append(lv1Trackers, lv1Tracker)
+	}
+
+	for _, lv1Tracker := range lv1Trackers {
+		payload, err := lv1Tracker.Result()
 		if err != nil {
-			log.Warnf("failed to list second level dirs for path: %v reason: %v", lv1Path, err)
+			errs = append(errs, err.Error())
 			continue
 		}
-		for _, lv2 := range lv2Dirs {
-			lv2Path := filepath.Join(lv1Path, lv2)
-			volumeNames, err := driver.List(lv2Path)
-			if err != nil {
-				log.Warnf("failed to list volume names for path: %v reason: %v", lv2Path, err)
-				continue
-			}
-			names = append(names, volumeNames...)
+
+		lv2Paths := payload.([]string)
+		for _, lv2Path := range lv2Paths {
+			path := lv2Path
+			lv2Tracker := jobQueues.QueueTimedFunc(context.Background(), func(ctx context.Context) (interface{}, error) {
+				volumeNames, err := driver.List(path)
+				if err != nil {
+					log.Warnf("failed to list volume names for path: %v reason: %v", path, err)
+					return nil, err
+				}
+				return volumeNames, nil
+			}, jobQueueTimeout)
+			lv2Trackers = append(lv2Trackers, lv2Tracker)
 		}
 	}
-	return names
+	for _, lv2Tracker := range lv2Trackers {
+		payload, err := lv2Tracker.Result()
+		if err != nil {
+			errs = append(errs, err.Error())
+			continue
+		}
+		volumeNames := payload.([]string)
+		names = append(names, volumeNames...)
+	}
+
+	if len(errs) > 0 {
+		return names, errors.New(strings.Join(errs, "\n"))
+	}
+	return names, nil
 }
 
 func loadVolume(volumeName string, driver BackupStoreDriver) (*Volume, error) {

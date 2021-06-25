@@ -16,11 +16,13 @@ import (
 )
 
 const (
-	LonghornKindNode            = "Node"
-	LonghornKindVolume          = "Volume"
-	LonghornKindEngineImage     = "EngineImage"
-	LonghornKindInstanceManager = "InstanceManager"
-	LonghornKindShareManager    = "ShareManager"
+	LonghornKindNode                = "Node"
+	LonghornKindVolume              = "Volume"
+	LonghornKindEngineImage         = "EngineImage"
+	LonghornKindInstanceManager     = "InstanceManager"
+	LonghornKindShareManager        = "ShareManager"
+	LonghornKindBackingImage        = "BackingImage"
+	LonghornKindBackingImageManager = "BackingImageManager"
 
 	CRDAPIVersionV1alpha1 = "longhorn.rancher.io/v1alpha1"
 	CRDAPIVersionV1beta1  = "longhorn.io/v1beta1"
@@ -35,6 +37,9 @@ const (
 	ReplicaHostPrefix                = "/host"
 	EngineBinaryName                 = "longhorn"
 
+	BackingImagesManagerDirectory = "/backing-images/"
+	BackingImageFileName          = "backing"
+
 	LonghornNodeKey     = "longhornnode"
 	LonghornDiskUUIDKey = "longhorndiskuuid"
 
@@ -46,7 +51,6 @@ const (
 
 	LastAppliedTolerationAnnotationKeySuffix = "last-applied-tolerations"
 
-	BaseImageLabel        = "ranchervm-base-image"
 	KubernetesStatusLabel = "KubernetesStatus"
 	KubernetesReplicaSet  = "ReplicaSet"
 	KubernetesStatefulSet = "StatefulSet"
@@ -57,11 +61,16 @@ const (
 	LonghornLabelEngineImage          = "engine-image"
 	LonghornLabelInstanceManager      = "instance-manager"
 	LonghornLabelNode                 = "node"
+	LonghornLabelDiskUUID             = "disk-uuid"
 	LonghornLabelInstanceManagerType  = "instance-manager-type"
 	LonghornLabelInstanceManagerImage = "instance-manager-image"
 	LonghornLabelVolume               = "longhornvolume"
 	LonghornLabelShareManager         = "share-manager"
 	LonghornLabelShareManagerImage    = "share-manager-image"
+	LonghornLabelBackingImage         = "backing-image"
+	LonghornLabelBackingImageManager  = "backing-image-manager"
+
+	LonghornLabelManagedBy = "managed-by"
 
 	KubernetesFailureDomainRegionLabelKey = "failure-domain.beta.kubernetes.io/region"
 	KubernetesFailureDomainZoneLabelKey   = "failure-domain.beta.kubernetes.io/zone"
@@ -76,6 +85,7 @@ const (
 	DepracatedDriverName             = "io.rancher.longhorn"
 	DefaultStorageClassConfigMapName = "longhorn-storageclass"
 	DefaultStorageClassName          = "longhorn"
+	ControlPlaneName                 = "longhorn-manager"
 )
 
 const (
@@ -98,10 +108,14 @@ const (
 	EnvPodIP          = "POD_IP"
 	EnvServiceAccount = "SERVICE_ACCOUNT"
 
-	AWSAccessKey = "AWS_ACCESS_KEY_ID"
-	AWSSecretKey = "AWS_SECRET_ACCESS_KEY"
-	AWSEndPoint  = "AWS_ENDPOINTS"
-	AWSCert      = "AWS_CERT"
+	BackupStoreTypeS3 = "s3"
+
+	AWSIAMRoleAnnotation = "iam.amazonaws.com/role"
+	AWSIAMRoleArn        = "AWS_IAM_ROLE_ARN"
+	AWSAccessKey         = "AWS_ACCESS_KEY_ID"
+	AWSSecretKey         = "AWS_SECRET_ACCESS_KEY"
+	AWSEndPoint          = "AWS_ENDPOINTS"
+	AWSCert              = "AWS_CERT"
 
 	HTTPSProxy = "HTTPS_PROXY"
 	HTTPProxy  = "HTTP_PROXY"
@@ -198,6 +212,26 @@ func EngineBinaryExistOnHostForImage(image string) bool {
 	return err == nil && !st.IsDir()
 }
 
+func GetBackingImageManagerName(image, diskUUID string) string {
+	return fmt.Sprintf("backing-image-manager-%s-%s", util.GetStringChecksum(image)[:4], diskUUID[:4])
+}
+
+func GetBackingImageDirectoryName(backingImageName, backingImageUUID string) string {
+	return fmt.Sprintf("%s-%s", backingImageName, backingImageUUID)
+}
+
+func GetBackingImageManagerDirectoryOnHost(diskPath string) string {
+	return filepath.Join(diskPath, BackingImagesManagerDirectory)
+}
+
+func GetBackingImageDirectoryOnHost(diskPath, backingImageName, backingImageUUID string) string {
+	return filepath.Join(GetBackingImageManagerDirectoryOnHost(diskPath), GetBackingImageDirectoryName(backingImageName, backingImageUUID))
+}
+
+func GetBackingImagePathForReplicaManagerContainer(diskPath, backingImageName, backingImageUUID string) string {
+	return filepath.Join(ReplicaHostPrefix, GetBackingImageDirectoryOnHost(diskPath, backingImageName, backingImageUUID), BackingImageFileName)
+}
+
 var (
 	LonghornSystemKey = "longhorn"
 )
@@ -206,22 +240,39 @@ func GetLonghornLabelKey(name string) string {
 	return fmt.Sprintf("%s/%s", LonghornLabelKeyPrefix, name)
 }
 
+func GetBaseLabelsForSystemManagedComponent() map[string]string {
+	return map[string]string{GetLonghornLabelKey(LonghornLabelManagedBy): ControlPlaneName}
+}
+
 func GetLonghornLabelComponentKey() string {
 	return GetLonghornLabelKey("component")
 }
 
 func GetEngineImageLabels(engineImageName string) map[string]string {
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelEngineImage
+	labels[GetLonghornLabelKey(LonghornLabelEngineImage)] = engineImageName
+	return labels
+}
+
+// GetEIDaemonSetLabelSelector returns labels for engine image daemonset's Spec.Selector.MatchLabels
+func GetEIDaemonSetLabelSelector(engineImageName string) map[string]string {
+	labels := make(map[string]string)
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelEngineImage
+	labels[GetLonghornLabelKey(LonghornLabelEngineImage)] = engineImageName
+	return labels
+}
+
+func GetEngineImageComponentLabel() map[string]string {
 	return map[string]string{
-		GetLonghornLabelComponentKey():                LonghornLabelEngineImage,
-		GetLonghornLabelKey(LonghornLabelEngineImage): engineImageName,
+		GetLonghornLabelComponentKey(): LonghornLabelEngineImage,
 	}
 }
 
 func GetInstanceManagerLabels(node, instanceManagerImage string, managerType InstanceManagerType) map[string]string {
-	labels := map[string]string{
-		GetLonghornLabelComponentKey():                        LonghornLabelInstanceManager,
-		GetLonghornLabelKey(LonghornLabelInstanceManagerType): string(managerType),
-	}
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelInstanceManager
+	labels[GetLonghornLabelKey(LonghornLabelInstanceManagerType)] = string(managerType)
 	if node != "" {
 		labels[GetLonghornLabelKey(LonghornLabelNode)] = node
 	}
@@ -245,13 +296,14 @@ func GetShareManagerComponentLabel() map[string]string {
 }
 
 func GetShareManagerInstanceLabel(name string) map[string]string {
-	return map[string]string{
-		GetLonghornLabelKey(LonghornLabelShareManager): name,
-	}
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelKey(LonghornLabelShareManager)] = name
+	return labels
 }
 
 func GetShareManagerLabels(name, image string) map[string]string {
-	labels := GetShareManagerComponentLabel()
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelShareManager
 
 	if name != "" {
 		labels[GetLonghornLabelKey(LonghornLabelShareManager)] = name
@@ -261,6 +313,24 @@ func GetShareManagerLabels(name, image string) map[string]string {
 		labels[GetLonghornLabelKey(LonghornLabelShareManagerImage)] = GetShareManagerImageChecksumName(GetImageCanonicalName(image))
 	}
 
+	return labels
+}
+
+func GetBackingImageLabels() map[string]string {
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelBackingImage
+	return labels
+}
+
+func GetBackingImageManagerLabels(nodeID, diskUUID string) map[string]string {
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelBackingImageManager
+	if diskUUID != "" {
+		labels[GetLonghornLabelKey(LonghornLabelDiskUUID)] = diskUUID
+	}
+	if nodeID != "" {
+		labels[GetLonghornLabelKey(LonghornLabelNode)] = nodeID
+	}
 	return labels
 }
 
@@ -301,6 +371,14 @@ func GetInstanceManagerImageChecksumName(image string) string {
 
 func GetShareManagerImageChecksumName(image string) string {
 	return shareManagerImagePrefix + util.GetStringChecksum(strings.TrimSpace(image))[:ImageChecksumNameLength]
+}
+
+func GetShareManagerPodNameFromShareManagerName(smName string) string {
+	return LonghornLabelShareManager + "-" + smName
+}
+
+func GetShareManagerNameFromShareManagerPodName(podName string) string {
+	return strings.TrimPrefix(podName, LonghornLabelShareManager+"-")
 }
 
 func ValidateEngineImageChecksumName(name string) bool {
@@ -494,4 +572,19 @@ func CreateDefaultDisk(dataPath string) (map[string]DiskSpec, error) {
 			StorageReserved:   diskInfo.StorageMaximum * 30 / 100,
 		},
 	}, nil
+}
+
+func ValidateCPUReservationValues(engineManagerCPUStr, replicaManagerCPUStr string) error {
+	engineManagerCPU, err := strconv.Atoi(engineManagerCPUStr)
+	if err != nil {
+		return fmt.Errorf("guaranteed/requested engine manager CPU value %v is not int: %v", engineManagerCPUStr, err)
+	}
+	replicaManagerCPU, err := strconv.Atoi(replicaManagerCPUStr)
+	if err != nil {
+		return fmt.Errorf("guaranteed/requested replica manager CPU value %v is not int: %v", replicaManagerCPUStr, err)
+	}
+	if engineManagerCPU+replicaManagerCPU < 0 || engineManagerCPU+replicaManagerCPU > 40 {
+		return fmt.Errorf("the requested engine manager CPU and replica manager CPU are %v%% and %v%% of a node total CPU, respectively. The sum should not be smaller than 0%% or greater than 40%%", engineManagerCPU, replicaManagerCPU)
+	}
+	return nil
 }

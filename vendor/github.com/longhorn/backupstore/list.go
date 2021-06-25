@@ -1,7 +1,14 @@
 package backupstore
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"runtime"
+	"strings"
+	"time"
+
+	"github.com/honestbee/jobq"
 	"github.com/sirupsen/logrus"
 
 	. "github.com/longhorn/backupstore/logging"
@@ -11,6 +18,7 @@ import (
 type VolumeInfo struct {
 	Name           string
 	Size           int64 `json:",string"`
+	Labels         map[string]string
 	Created        string
 	LastBackupName string
 	LastBackupAt   string
@@ -19,6 +27,9 @@ type VolumeInfo struct {
 	Messages map[MessageType]string
 
 	Backups map[string]*BackupInfo `json:",omitempty"`
+
+	BackingImageName string
+	BackingImageURL  string
 }
 
 type BackupInfo struct {
@@ -31,9 +42,11 @@ type BackupInfo struct {
 	Labels          map[string]string
 	IsIncremental   bool
 
-	VolumeName    string `json:",omitempty"`
-	VolumeSize    int64  `json:",string,omitempty"`
-	VolumeCreated string `json:",omitempty"`
+	VolumeName             string `json:",omitempty"`
+	VolumeSize             int64  `json:",string,omitempty"`
+	VolumeCreated          string `json:",omitempty"`
+	VolumeBackingImageName string `json:",omitempty"`
+	VolumeBackingImageURL  string `json:",omitempty"`
 
 	Messages map[MessageType]string
 }
@@ -96,32 +109,66 @@ func List(volumeName, destURL string, volumeOnly bool) (map[string]*VolumeInfo, 
 	if err != nil {
 		return nil, err
 	}
-	resp := make(map[string]*VolumeInfo)
+
+	jobQueues := jobq.NewWorkerDispatcher(
+		// init #cpu*16 workers
+		jobq.WorkerN(runtime.NumCPU()*16),
+		// init worker pool size to 256
+		jobq.WorkerPoolSize(256),
+	)
+	defer jobQueues.Stop()
+	jobQueueTimeout := 30 * time.Second
+
 	volumeNames := []string{volumeName}
 	if volumeName == "" {
-		volumeNames = getVolumeNames(driver)
-	}
-
-	for _, volumeName := range volumeNames {
-		volumeInfo, err := addListVolume(volumeName, driver, volumeOnly)
+		volumeNames, err = getVolumeNames(jobQueues, jobQueueTimeout, driver)
 		if err != nil {
 			return nil, err
 		}
-		resp[volumeName] = volumeInfo
+	}
+
+	var trackers []jobq.JobTracker
+	for _, volumeName := range volumeNames {
+		volumeName := volumeName
+		tracker := jobQueues.QueueTimedFunc(context.Background(), func(ctx context.Context) (interface{}, error) {
+			return addListVolume(volumeName, driver, volumeOnly)
+		}, jobQueueTimeout)
+		trackers = append(trackers, tracker)
+	}
+
+	var (
+		resp = make(map[string]*VolumeInfo)
+		errs []string
+	)
+	for _, tracker := range trackers {
+		payload, err := tracker.Result()
+		if err != nil {
+			errs = append(errs, err.Error())
+			continue
+		}
+		volumeInfo := payload.(*VolumeInfo)
+		resp[volumeInfo.Name] = volumeInfo
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.New(strings.Join(errs, "\n"))
 	}
 	return resp, nil
 }
 
 func fillVolumeInfo(volume *Volume) *VolumeInfo {
 	return &VolumeInfo{
-		Name:           volume.Name,
-		Size:           volume.Size,
-		Created:        volume.CreatedTime,
-		LastBackupName: volume.LastBackupName,
-		LastBackupAt:   volume.LastBackupAt,
-		DataStored:     int64(volume.BlockCount * DEFAULT_BLOCK_SIZE),
-		Messages:       make(map[MessageType]string),
-		Backups:        make(map[string]*BackupInfo),
+		Name:             volume.Name,
+		Size:             volume.Size,
+		Labels:           volume.Labels,
+		Created:          volume.CreatedTime,
+		LastBackupName:   volume.LastBackupName,
+		LastBackupAt:     volume.LastBackupAt,
+		DataStored:       int64(volume.BlockCount * DEFAULT_BLOCK_SIZE),
+		Messages:         make(map[MessageType]string),
+		Backups:          make(map[string]*BackupInfo),
+		BackingImageName: volume.BackingImageName,
+		BackingImageURL:  volume.BackingImageURL,
 	}
 }
 
@@ -153,6 +200,8 @@ func fillFullBackupInfo(backup *Backup, volume *Volume, destURL string) *BackupI
 	info.VolumeName = volume.Name
 	info.VolumeSize = volume.Size
 	info.VolumeCreated = volume.CreatedTime
+	info.VolumeBackingImageName = volume.BackingImageName
+	info.VolumeBackingImageURL = volume.BackingImageURL
 	return info
 }
 

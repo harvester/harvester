@@ -1,0 +1,28 @@
+run:
+  deadline: 5m
+
+linters-settings:
+  dupl:
+    threshold: 100
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  govet:
+    check-shadowing: true
+  golint:
+    min-confidence: 0
+  gocyclo:
+    min-complecity: 10
+  gofmt:
+    simplify: true
+  maligned:
+    suggest-new: true
+
+linters:
+  enable-all: true
+  disable:
+    - prealloc
+    - dupl
+    - lll
+    - gochecknoinits
+    - gochecknoglobals
