@@ -64,8 +64,8 @@ require (
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 	github.com/kubernetes/dashboard v1.10.1
-	github.com/longhorn/backupstore v0.0.0-20201203004625-fdbdd88b09d6
-	github.com/longhorn/longhorn-manager v1.1.0
+	github.com/longhorn/backupstore v0.0.0-20210413103305-10466b9f5adf
+	github.com/longhorn/longhorn-manager v1.1.1
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/onsi/ginkgo v1.14.1
