@@ -31,6 +31,7 @@ const (
 	testVMCDRomDiskName                = "cdromdisk"
 	testVMContainerDiskName            = "containerdisk"
 	testVMContainerDiskImageName       = "kubevirt/fedora-cloud-container-disk-demo:v0.35.0"
+	testVMRemoveDiskName               = "sparedisk"
 	testVMContainerDiskImagePullPolicy = builder.DefaultImagePullPolicy
 	testVMCloudInitDiskName            = builder.CloudInitDiskName
 

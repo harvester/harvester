@@ -14,6 +14,7 @@ import (
 	apivm "github.com/harvester/harvester/pkg/api/vm"
 	"github.com/harvester/harvester/pkg/builder"
 	"github.com/harvester/harvester/pkg/config"
+	ctldatavolumev1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	. "github.com/harvester/harvester/tests/framework/dsl"
 	"github.com/harvester/harvester/tests/framework/fuzz"
@@ -26,6 +27,7 @@ var _ = Describe("verify vm APIs", func() {
 		scaled        *config.Scaled
 		vmController  ctlkubevirtv1.VirtualMachineController
 		vmiController ctlkubevirtv1.VirtualMachineInstanceController
+		dvController  ctldatavolumev1.DataVolumeController
 		vmNamespace   string
 	)
 
@@ -33,6 +35,7 @@ var _ = Describe("verify vm APIs", func() {
 		scaled = harvester.Scaled()
 		vmController = scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 		vmiController = scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
+		dvController = scaled.CDIFactory.Cdi().V1beta1().DataVolume()
 		vmNamespace = testVMNamespace
 	})
 
@@ -218,6 +221,36 @@ var _ = Describe("verify vm APIs", func() {
 
 			By("then the virtual machine is deleted")
 			MustVMDeleted(vmController, vmNamespace, vmName)
+		})
+
+		Specify("deleting a vm and its volume", func() {
+			By("create a virtual machine with one spare disk")
+			vmName := testVMGenerateName + fuzz.String(5)
+			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
+				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
+				DataVolumeDisk(testVMRemoveDiskName, testVMDefaultDiskBus, false, 1, testVMDiskSize, testVMRemoveDiskName, &builder.DataVolumeOption{
+					VolumeMode: builder.PersistentVolumeModeFilesystem,
+					AccessMode: builder.PersistentVolumeAccessModeReadWriteOnce,
+				}).Run(true).VM()
+			MustNotError(err)
+			respCode, respBody, err := helper.PostObject(vmsAPI, vm)
+			MustRespCodeIs(http.StatusCreated, "create vm", err, respCode, respBody)
+
+			By("then the virtual machine is created and running")
+			MustVMIRunning(vmController, vmNamespace, vmName, vmiController)
+			_, err = vmController.Get(vmNamespace, vmName, metav1.GetOptions{})
+			MustNotError(err)
+
+			By("when deleting the virtual machine with removeDisks query parameter")
+			vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
+			respCode, respBody, err = helper.DeleteObject(vmURL + "?removedDisks=" + testVMRemoveDiskName)
+			MustRespCodeIs(http.StatusOK, "delete action", err, respCode, respBody)
+
+			By("then the virtual machine is deleted")
+			MustVMDeleted(vmController, vmNamespace, vmName)
+
+			By("and the spare disk is also deleted")
+			MustDataVolumeDeleted(dvController, vmNamespace, testVMRemoveDiskName)
 		})
 	})
 

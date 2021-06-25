@@ -15,6 +15,8 @@ const (
 
 	vmTimeoutInterval = 300
 	vmPollingInterval = 2
+	dvTimeoutInterval = 300
+	dvPollingInterval = 2
 )
 
 // Cleanup executes the target cleanup execution if "KEEP_TESTING_RESOURCE" isn't "true".
