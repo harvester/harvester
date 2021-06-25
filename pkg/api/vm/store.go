@@ -54,6 +54,8 @@ func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id 
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to set removedDataVolumes to virtualMachine %s/%s, %v", request.Namespace, request.Name, err))
 	}
 
+	// Remove owner references on preserved DataVolumes to prevent being garbage-collected.
+	// On the other hand, the owner references on removeDataVolumes will make them garbage-collected.
 	if err = s.removeVMDataVolumeOwnerRef(vm.Namespace, vm.Name, savedDataVolumes); err != nil {
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to remove virtualMachine %s/%s from dataVolume's OwnerReferences, %v", request.Namespace, request.Name, err))
 	}
@@ -61,10 +63,6 @@ func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id 
 	apiObj, err := s.Store.Delete(request, request.Schema, id)
 	if err != nil {
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to remove vm %s/%s, %v", request.Namespace, request.Name, err))
-	}
-
-	if err = s.deleteDataVolumes(vm.Namespace, removedDataVolumes); err != nil {
-		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to remove dataVolume, %v", err))
 	}
 
 	return apiObj, nil

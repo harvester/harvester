@@ -40,6 +40,10 @@ func (v *dataVolumeValidator) Resource() types.Resource {
 }
 
 func (v *dataVolumeValidator) Delete(request *types.Request, oldObj runtime.Object) error {
+	if request.IsGarbageCollection() {
+		return nil
+	}
+
 	dataVolume := oldObj.(*v1beta1.DataVolume)
 
 	dv, err := v.dataVolumes.Get(dataVolume.Namespace, dataVolume.Name)
