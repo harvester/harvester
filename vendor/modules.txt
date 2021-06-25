@@ -357,6 +357,8 @@ github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.
 # github.com/hashicorp/golang-lru v0.5.4
 github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
+# github.com/honestbee/jobq v1.0.2
+github.com/honestbee/jobq
 # github.com/huandu/xstrings v1.3.1
 github.com/huandu/xstrings
 # github.com/iancoleman/strcase v0.1.2
@@ -400,7 +402,7 @@ github.com/lib/pq/oid
 github.com/lib/pq/scram
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 github.com/liggitt/tabwriter
-# github.com/longhorn/backupstore v0.0.0-20201203004625-fdbdd88b09d6
+# github.com/longhorn/backupstore v0.0.0-20210413103305-10466b9f5adf
 ## explicit
 github.com/longhorn/backupstore
 github.com/longhorn/backupstore/fsops
@@ -408,7 +410,7 @@ github.com/longhorn/backupstore/logging
 github.com/longhorn/backupstore/util
 # github.com/longhorn/go-iscsi-helper v0.0.0-20201111045018-ee87992ec536
 github.com/longhorn/go-iscsi-helper/util
-# github.com/longhorn/longhorn-manager v1.1.0
+# github.com/longhorn/longhorn-manager v1.1.1
 ## explicit
 github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn
 github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1

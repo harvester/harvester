@@ -325,6 +325,9 @@ func performBackup(config *DeltaBackupConfig, delta *Mappings, deltaBackup *Back
 	volume.BlockCount = volume.BlockCount + newBlocks
 	// The volume may be expanded
 	volume.Size = config.Volume.Size
+	volume.Labels = config.Labels
+	volume.BackingImageName = config.Volume.BackingImageName
+	volume.BackingImageURL = config.Volume.BackingImageURL
 
 	if err := saveVolume(volume, bsDriver); err != nil {
 		return progress, "", err
@@ -707,67 +710,40 @@ func DeleteBackupVolume(volumeName string, destURL string) error {
 	return nil
 }
 
-func getBlockInfoMap(backups []*Backup, volume string, driver BackupStoreDriver) (map[string]*BlockInfo, error) {
-	blockInfos := make(map[string]*BlockInfo)
-	blockNames, err := getBlockNamesForVolume(volume, driver)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, name := range blockNames {
-		blockInfos[name] = &BlockInfo{
-			checksum: name,
-			path:     getBlockFilePath(volume, name),
-			refcount: 0,
+func checkBlockReferenceCount(blockInfos map[string]*BlockInfo, backup *Backup, volumeName string, driver BackupStoreDriver) {
+	for _, block := range backup.Blocks {
+		info, known := blockInfos[block.BlockChecksum]
+		if !known {
+			log.Errorf("backup %v refers to unknown block %v",
+				backup.Name, block.BlockChecksum)
+			info = &BlockInfo{checksum: block.BlockChecksum}
+			blockInfos[block.BlockChecksum] = info
 		}
+		info.refcount += 1
 	}
-
-	for _, backup := range backups {
-		for _, block := range backup.Blocks {
-			info, known := blockInfos[block.BlockChecksum]
-			if !known {
-				log.Errorf("backup %v of volume %v refers to unknown block %v",
-					backup.Name, volume, block.BlockChecksum)
-				info = &BlockInfo{checksum: block.BlockChecksum}
-				blockInfos[block.BlockChecksum] = info
-			}
-
-			info.refcount += 1
-		}
-	}
-
-	return blockInfos, nil
 }
 
-// This function will get the last backup from the remaining backups
-func GetLatestBackup(backupsToBeRetained []*Backup, vol *Volume) error {
-	var lastBackupName string
-	var lastBackupAt string
-
-	for _, backup := range backupsToBeRetained {
-		if lastBackupName == "" || lastBackupAt == "" {
-			lastBackupName = backup.Name
-			lastBackupAt = backup.SnapshotCreatedAt
-		}
-
-		backupTime, err := time.Parse(time.RFC3339, backup.SnapshotCreatedAt)
-		if err != nil {
-			return fmt.Errorf("Cannot parse backup %v time %v due to %v", backup.Name, backup.SnapshotCreatedAt, err)
-		}
-
-		lastBackupTime, err := time.Parse(time.RFC3339, lastBackupAt)
-		if err != nil {
-			return fmt.Errorf("Cannot parse  last backup %v time %v due to %v", lastBackupName, lastBackupAt, err)
-		}
-
-		if backupTime.After(lastBackupTime) {
-			lastBackupName = backup.Name
-			lastBackupAt = backup.SnapshotCreatedAt
-		}
+// getLatestBackup replace lastBackup object if the found
+// backup.SnapshotCreatedAt time is greater than the lastBackup
+func getLatestBackup(backup *Backup, lastBackup *Backup) error {
+	if lastBackup.SnapshotCreatedAt == "" {
+		*lastBackup = *backup
+		return nil
 	}
 
-	vol.LastBackupName = lastBackupName
-	vol.LastBackupAt = lastBackupAt
+	backupTime, err := time.Parse(time.RFC3339, backup.SnapshotCreatedAt)
+	if err != nil {
+		return fmt.Errorf("Cannot parse backup %v time %v due to %v", backup.Name, backup.SnapshotCreatedAt, err)
+	}
+
+	lastBackupTime, err := time.Parse(time.RFC3339, lastBackup.SnapshotCreatedAt)
+	if err != nil {
+		return fmt.Errorf("Cannot parse last backup %v time %v due to %v", lastBackup.Name, lastBackup.SnapshotCreatedAt, err)
+	}
+
+	if backupTime.After(lastBackupTime) {
+		*lastBackup = *backup
+	}
 
 	return nil
 }
@@ -782,12 +758,15 @@ func DeleteDeltaBlockBackup(backupURL string) error {
 	if err != nil {
 		return err
 	}
+	log := log.WithFields(logrus.Fields{
+		"backup": backupName,
+		"volume": volumeName,
+	})
 
 	lock, err := New(bsDriver, volumeName, DELETION_LOCK)
 	if err != nil {
 		return err
 	}
-
 	if err := lock.Lock(); err != nil {
 		return err
 	}
@@ -796,7 +775,7 @@ func DeleteDeltaBlockBackup(backupURL string) error {
 	// If we fail to load the backup we still want to proceed with the deletion of the backup file
 	backupToBeDeleted, err := loadBackup(backupName, volumeName, bsDriver)
 	if err != nil {
-		log.Warnf("failed to load to be deleted backup %v for volume %v", backupName, volumeName)
+		log.WithError(err).Warn("failed to load to be deleted backup")
 		backupToBeDeleted = &Backup{
 			Name:       backupName,
 			VolumeName: volumeName,
@@ -807,72 +786,91 @@ func DeleteDeltaBlockBackup(backupURL string) error {
 	if err := removeBackup(backupToBeDeleted, bsDriver); err != nil {
 		return err
 	}
-	log.Infof("Removed backup %v for volume %v", backupName, volumeName)
+	log.Info("Removed backup for volume")
+
+	v, err := loadVolume(volumeName, bsDriver)
+	if err != nil {
+		return fmt.Errorf("Cannot find volume in backupstore due to: %v", err)
+	}
+	updateLastBackup := false
+	if backupToBeDeleted.Name == v.LastBackupName {
+		updateLastBackup = true
+		v.LastBackupName = ""
+		v.LastBackupAt = ""
+	}
 
 	log.Debug("GC started")
-	var backupsToBeRetained []*Backup
 	deleteBlocks := true
 	backupNames, err := getBackupNamesForVolume(volumeName, bsDriver)
 	if err != nil {
-		log.Warnf("skipping block deletion failed to load backup names for volume %v", volumeName)
+		log.WithError(err).Warn("failed to load backup names, skip block deletion")
 		deleteBlocks = false
 	}
 
+	blockInfos := make(map[string]*BlockInfo)
+	blockNames, err := getBlockNamesForVolume(volumeName, bsDriver)
+	if err != nil {
+		return err
+	}
+	for _, name := range blockNames {
+		blockInfos[name] = &BlockInfo{
+			checksum: name,
+			path:     getBlockFilePath(volumeName, name),
+			refcount: 0,
+		}
+	}
+
+	lastBackup := &Backup{}
 	for _, name := range backupNames {
+		log := log.WithField("backup", name)
 		backup, err := loadBackup(name, volumeName, bsDriver)
 		if err != nil {
-			log.Warnf("skipping block deletion because we failed to load backup %v for volume %v error %v",
-				name, volumeName, err)
+			log.WithError(err).Warn("failed to load backup, skip block deletion")
 			deleteBlocks = false
 			break
 		}
 
 		if isBackupInProgress(backup) {
-			log.Infof("skipping block deletion because of in progress backup %v for volume %v",
-				backup.Name, volumeName)
+			log.Info("Found in progress backup, skip block deletion")
 			deleteBlocks = false
 			break
 		}
 
-		backupsToBeRetained = append(backupsToBeRetained, backup)
-	}
+		// Each volume backup is most likely to reference the same block in the
+		// storage target. Reference check single backup metas at a time.
+		// https://github.com/longhorn/longhorn/issues/2339
+		checkBlockReferenceCount(blockInfos, backup, volumeName, bsDriver)
 
-	// update the volume
-	v, err := loadVolume(volumeName, bsDriver)
-	if err != nil {
-		return fmt.Errorf("Cannot find volume %v in backupstore due to: %v", volumeName, err)
+		if updateLastBackup {
+			err := getLatestBackup(backup, lastBackup)
+			if err != nil {
+				log.WithError(err).Warn("failed to find last backup, skip block deletion")
+				deleteBlocks = false
+				break
+			}
+		}
 	}
-
-	if backupToBeDeleted.Name == v.LastBackupName {
-		v.LastBackupName = ""
-		v.LastBackupAt = ""
-		err := GetLatestBackup(backupsToBeRetained, v)
-		if err != nil {
-			return fmt.Errorf("Failed to get last backup creation time due to %v", err)
+	if updateLastBackup {
+		if deleteBlocks {
+			v.LastBackupName = lastBackup.Name
+			v.LastBackupAt = lastBackup.SnapshotCreatedAt
 		}
 		if err := saveVolume(v, bsDriver); err != nil {
 			return err
 		}
 	}
 
-	blockMap, err := getBlockInfoMap(backupsToBeRetained, volumeName, bsDriver)
-	if err != nil {
-		log.Warnf("skipping block deletion because we failed to get block infos for volume %v error %v",
-			volumeName, err)
-		deleteBlocks = false
-	}
-
 	// check if there have been new backups created while we where processing
 	prevBackupNames := backupNames
 	backupNames, err = getBackupNamesForVolume(volumeName, bsDriver)
 	if err != nil || !util.UnorderedEqual(prevBackupNames, backupNames) {
-		log.Infof("Skipping block deletion because we found new backups for volume %v", volumeName)
+		log.Info("Found new backups for volume, skip block deletion")
 		deleteBlocks = false
 	}
 
 	// only delete the blocks if it is safe to do so
 	if deleteBlocks {
-		if err := cleanupBlocks(blockMap, volumeName, bsDriver); err != nil {
+		if err := cleanupBlocks(blockInfos, volumeName, bsDriver); err != nil {
 			return err
 		}
 	}

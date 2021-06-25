@@ -8,12 +8,15 @@ import (
 )
 
 type Volume struct {
-	Name           string
-	Size           int64 `json:",string"`
-	CreatedTime    string
-	LastBackupName string
-	LastBackupAt   string
-	BlockCount     int64 `json:",string"`
+	Name             string
+	Size             int64 `json:",string"`
+	Labels           map[string]string
+	CreatedTime      string
+	LastBackupName   string
+	LastBackupAt     string
+	BlockCount       int64  `json:",string"`
+	BackingImageName string `json:",string"`
+	BackingImageURL  string `json:",string"`
 }
 
 type Snapshot struct {

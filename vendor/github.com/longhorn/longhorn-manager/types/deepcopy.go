@@ -175,4 +175,62 @@ func (ei *EngineImageStatus) DeepCopyInto(to *EngineImageStatus) {
 			to.Conditions[key] = value
 		}
 	}
+	if ei.NodeDeploymentMap != nil {
+		to.NodeDeploymentMap = make(map[string]bool)
+		for key, value := range ei.NodeDeploymentMap {
+			to.NodeDeploymentMap[key] = value
+		}
+	}
+}
+
+func (bi *BackingImageSpec) DeepCopyInto(to *BackingImageSpec) {
+	*to = *bi
+	if bi.Disks != nil {
+		to.Disks = map[string]struct{}{}
+		for key, value := range bi.Disks {
+			to.Disks[key] = value
+		}
+	}
+}
+
+func (bi *BackingImageStatus) DeepCopyInto(to *BackingImageStatus) {
+	*to = *bi
+	if bi.DiskDownloadStateMap != nil {
+		to.DiskDownloadStateMap = make(map[string]BackingImageDownloadState)
+		for key, value := range bi.DiskDownloadStateMap {
+			to.DiskDownloadStateMap[key] = value
+		}
+	}
+	if bi.DiskDownloadProgressMap != nil {
+		to.DiskDownloadProgressMap = make(map[string]int)
+		for key, value := range bi.DiskDownloadProgressMap {
+			to.DiskDownloadProgressMap[key] = value
+		}
+	}
+	if bi.DiskLastRefAtMap != nil {
+		to.DiskLastRefAtMap = make(map[string]string)
+		for key, value := range bi.DiskLastRefAtMap {
+			to.DiskLastRefAtMap[key] = value
+		}
+	}
+}
+
+func (bim *BackingImageManagerSpec) DeepCopyInto(to *BackingImageManagerSpec) {
+	*to = *bim
+	if bim.BackingImages != nil {
+		to.BackingImages = make(map[string]string)
+		for key, value := range bim.BackingImages {
+			to.BackingImages[key] = value
+		}
+	}
+}
+
+func (bim *BackingImageManagerStatus) DeepCopyInto(to *BackingImageManagerStatus) {
+	*to = *bim
+	if bim.BackingImageFileMap != nil {
+		to.BackingImageFileMap = make(map[string]BackingImageFileInfo)
+		for key, value := range bim.BackingImageFileMap {
+			to.BackingImageFileMap[key] = value
+		}
+	}
 }
