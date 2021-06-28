@@ -69,9 +69,7 @@ func (h *LoginHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	if action == logoutActionName {
 		resetCookie(rw, JWETokenHeader, isSecure)
-		if auth.IsRancherAuthMode() {
-			resetCookie(rw, tokens.CookieName, isSecure)
-		}
+		resetCookie(rw, tokens.CookieName, isSecure)
 		util.ResponseOK(rw)
 		return
 	}

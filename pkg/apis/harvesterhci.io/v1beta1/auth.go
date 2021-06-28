@@ -26,10 +26,7 @@ type ErrorResponse struct {
 // AuthenticationMode
 type AuthenticationMode string
 
-const (
-	KubernetesCredentials AuthenticationMode = "kubernetesCredentials"
-	Rancher               AuthenticationMode = "rancher"
-)
+const Rancher AuthenticationMode = "rancher"
 
 type AuthenticationModesResponse struct {
 	Modes []AuthenticationMode `json:"modes,omitempty"`
