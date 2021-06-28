@@ -11,21 +11,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
-
-	"github.com/harvester/harvester/pkg/auth"
 )
 
 const (
-	rancherSchema   = "management.cattle.io.preference"
-	harvesterSchema = "harvesterhci.io.preference"
+	rancherSchema = "management.cattle.io.preference"
 )
 
 func getPreferenceSchema() string {
-	schema := harvesterSchema
-	if auth.IsRancherAuthMode() {
-		schema = rancherSchema
-	}
-	return schema
+	return rancherSchema
 }
 
 type rancherPrefStore struct {

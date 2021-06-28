@@ -16,7 +16,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/harvester/harvester/pkg/auth"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -67,11 +66,7 @@ type Middleware struct {
 func (h *Middleware) ToAuthMiddleware() steveauth.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			if auth.IsRancherAuthMode() {
-				h.rancherAuth(rw, r, next)
-			} else {
-				h.auth(rw, r, next)
-			}
+			h.rancherAuth(rw, r, next)
 		})
 	}
 }
