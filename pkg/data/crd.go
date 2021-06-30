@@ -3,10 +3,8 @@ package data
 import (
 	"context"
 
-	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	wcrd "github.com/rancher/wrangler/pkg/crd"
 	"k8s.io/client-go/rest"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -44,14 +42,6 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(harvesterv1.SchemeGroupVersion, "SupportBundle", harvesterv1.SupportBundle{}),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Volume", longhornv1.Volume{}),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Setting", longhornv1.Setting{}),
-			createNetworkAttachmentDefinitionCRD(),
 		).
 		BatchWait()
-}
-
-func createNetworkAttachmentDefinitionCRD() wcrd.CRD {
-	nad := crd.FromGV(cniv1.SchemeGroupVersion, "NetworkAttachmentDefinition", cniv1.NetworkAttachmentDefinition{})
-	nad.PluralName = "network-attachment-definitions"
-	nad.SingularName = "network-attachment-definition"
-	return nad
 }
