@@ -116,14 +116,21 @@ func (h *VMController) UnsetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine)
 		return vm, nil
 	}
 	var (
-		dataVolumeNamespace = vm.Namespace
-		dataVolumeNames     = getDataVolumeNames(&vm.Spec.Template.Spec)
-		removedDataVolumes  = getRemovedDataVolumes(vm)
+		dataVolumeNamespace          = vm.Namespace
+		dataVolumeNames              = getDataVolumeNames(&vm.Spec.Template.Spec)
+		removedDataVolumes           = getRemovedDataVolumes(vm)
+		dataVolumeNamesFromTemplates = getDataVolumeNamesFromDataVolumeTemplates(vm)
 	)
 	for _, dataVolumeName := range dataVolumeNames.List() {
+		isExistingVolumeToDelete := false
 		if slice.ContainsString(removedDataVolumes, dataVolumeName) {
-			// skip removedDataVolumes
-			continue
+			if dataVolumeNamesFromTemplates.Has(dataVolumeName) {
+				// skip removedDataVolumes
+				continue
+			} else {
+				// if data volume is an existing volume, try to delete it afterwards
+				isExistingVolumeToDelete = true
+			}
 		}
 		var dataVolume, err = h.dataVolumeCache.Get(dataVolumeNamespace, dataVolumeName)
 		if err != nil {
@@ -140,6 +147,19 @@ func (h *VMController) UnsetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine)
 			return vm, fmt.Errorf("failed to revoke VitrualMachine(%s/%s) as DataVolume(%s/%s)'s owner: %w",
 				vm.Namespace, vm.Name, dataVolumeNamespace, dataVolumeName, err)
 		}
+
+		if isExistingVolumeToDelete {
+			numberOfOwner, err := numberOfBoundedDataVolumeReference(h.dataVolumeClient, dataVolume, vm)
+			if err != nil {
+				return vm, fmt.Errorf("failed to count number of owners for DataVolume(%s/%s): %w", dataVolumeNamespace, dataVolumeName, err)
+			}
+			// We are the solely owner here, so try to delete the data volume as requested.
+			if numberOfOwner == 1 {
+				if err := h.dataVolumeClient.Delete(dataVolumeNamespace, dataVolumeName, &metav1.DeleteOptions{}); err != nil {
+					return vm, err
+				}
+			}
+		}
 	}
 
 	return vm, nil
@@ -148,6 +168,16 @@ func (h *VMController) UnsetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine)
 // getRemovedDataVolumes returns removed DataVolumes.
 func getRemovedDataVolumes(vm *kv1.VirtualMachine) []string {
 	return strings.Split(vm.Annotations[util.RemovedDataVolumesAnnotationKey], ",")
+}
+
+// getDataVolumeNamesFromDataVolumeTemplates returns names of DataVolumes in
+// dataVolumeTemplates. These DataVolumes are exclusively owned by the VirtualMachine.
+func getDataVolumeNamesFromDataVolumeTemplates(vm *kv1.VirtualMachine) sets.String {
+	dataVolumeNames := sets.String{}
+	for _, template := range vm.Spec.DataVolumeTemplates {
+		dataVolumeNames.Insert(template.Name)
+	}
+	return dataVolumeNames
 }
 
 // getDataVolumeNames returns a name set of the DataVolumes.

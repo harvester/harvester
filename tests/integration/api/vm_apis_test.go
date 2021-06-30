@@ -51,6 +51,18 @@ var _ = Describe("verify vm APIs", func() {
 				GinkgoT().Logf("failed to delete tested vm %s/%s, %v", item.Namespace, item.Name, err)
 			}
 		}
+
+		dvList, err := dvController.List(vmNamespace, metav1.ListOptions{
+			LabelSelector: labels.FormatLabels(testResourceLabels)})
+		if err != nil {
+			GinkgoT().Logf("failed to list tested dvs, %v", err)
+			return
+		}
+		for _, item := range dvList.Items {
+			if err = dvController.Delete(item.Namespace, item.Name, &metav1.DeleteOptions{}); err != nil {
+				GinkgoT().Logf("failed to delete tested dv %s/%s, %v", item.Namespace, item.Name, err)
+			}
+		}
 	})
 
 	Context("operate via steve API", func() {
@@ -231,7 +243,8 @@ var _ = Describe("verify vm APIs", func() {
 				DataVolumeDisk(testVMRemoveDiskName, testVMDefaultDiskBus, false, 1, testVMDiskSize, testVMRemoveDiskName, &builder.DataVolumeOption{
 					VolumeMode: builder.PersistentVolumeModeFilesystem,
 					AccessMode: builder.PersistentVolumeAccessModeReadWriteOnce,
-				}).Run(true).VM()
+				}).
+				Run(true).VM()
 			MustNotError(err)
 			respCode, respBody, err := helper.PostObject(vmsAPI, vm)
 			MustRespCodeIs(http.StatusCreated, "create vm", err, respCode, respBody)
@@ -243,7 +256,8 @@ var _ = Describe("verify vm APIs", func() {
 
 			By("when deleting the virtual machine with removeDisks query parameter")
 			vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
-			respCode, respBody, err = helper.DeleteObject(vmURL + "?removedDisks=" + testVMRemoveDiskName)
+			queryParams := fmt.Sprintf("?removedDisks=%s", testVMRemoveDiskName)
+			respCode, respBody, err = helper.DeleteObject(vmURL + queryParams)
 			MustRespCodeIs(http.StatusOK, "delete action", err, respCode, respBody)
 
 			By("then the virtual machine is deleted")
@@ -253,5 +267,4 @@ var _ = Describe("verify vm APIs", func() {
 			MustDataVolumeDeleted(dvController, vmNamespace, testVMRemoveDiskName)
 		})
 	})
-
 })

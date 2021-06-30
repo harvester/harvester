@@ -105,12 +105,3 @@ func (s *vmStore) removeVMDataVolumeOwnerRef(vmNamespace, vmName string, savedDa
 
 	return nil
 }
-
-func (s *vmStore) deleteDataVolumes(namespace string, names []string) error {
-	for _, v := range names {
-		if err := s.dataVolumes.Delete(namespace, v, &metav1.DeleteOptions{}); err != nil && !k8sapierrors.IsNotFound(err) {
-			return err
-		}
-	}
-	return nil
-}
