@@ -34,6 +34,17 @@ func setOwnerlessDataVolumeReference(dataVolumeClient cdictrl.DataVolumeClient, 
 	return err
 }
 
+// numberOfBoundedDataVolumeReference tries to get the number of bounded references on a DataVolume
+func numberOfBoundedDataVolumeReference(dataVolumeClient cdictrl.DataVolumeClient, dv *cdiapis.DataVolume, vm *kubevirtapis.VirtualMachine) (int, error) {
+	annotationSchemaOwners, err := ref.GetSchemaOwnersFromAnnotation(dv)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get schema owners from object: %w", err)
+	}
+	ownerGroupKind := kubevirtapis.VirtualMachineGroupVersionKind.GroupKind()
+	length := len(annotationSchemaOwners.List(ownerGroupKind))
+	return length, nil
+}
+
 // unsetBoundedDataVolumeReference tries to unset the DataVolume's annotation schema owner of the target VirtualMachine.
 func unsetBoundedDataVolumeReference(dataVolumeClient cdictrl.DataVolumeClient, dv *cdiapis.DataVolume, vm *kubevirtapis.VirtualMachine) error {
 	if vm == nil || dv == nil || dv.DeletionTimestamp != nil {
