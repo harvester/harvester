@@ -1,4 +1,4 @@
-package template
+package data
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
@@ -17,13 +18,14 @@ var (
 	templateVersionTmpl = template.Must(template.New("templateVersion").Parse(initBaseTemplateVersions))
 )
 
-func initData(vmTemplates ctlharvesterv1.VirtualMachineTemplateClient,
-	vmTemplateVersions ctlharvesterv1.VirtualMachineTemplateVersionClient, namespace string) error {
-	if err := initBaseTemplate(vmTemplates, namespace); err != nil {
+func createTemplates(mgmt *config.Management, namespace string) error {
+	templates := mgmt.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
+	templateVersions := mgmt.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
+	if err := initBaseTemplate(templates, namespace); err != nil {
 		return err
 	}
 
-	return initBaseTemplateVersion(vmTemplateVersions, namespace)
+	return initBaseTemplateVersion(templateVersions, namespace)
 }
 
 func generateYmls(tmpl *template.Template, namespace string) ([][]byte, error) {
