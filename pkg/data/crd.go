@@ -1,4 +1,4 @@
-package crds
+package data
 
 import (
 	"context"
@@ -12,10 +12,6 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util/crd"
 )
-
-func Setup(ctx context.Context, restConfig *rest.Config) error {
-	return createCRDs(ctx, restConfig)
-}
 
 func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 	factory, err := crd.NewFactoryFromClient(ctx, restConfig)

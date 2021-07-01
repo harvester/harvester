@@ -9,7 +9,6 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/global/auth"
 	"github.com/harvester/harvester/pkg/controller/global/settings"
-	"github.com/harvester/harvester/pkg/controller/global/template"
 	"github.com/harvester/harvester/pkg/indexeres"
 )
 
@@ -17,7 +16,6 @@ type registerFunc func(context.Context, *config.Scaled, *server.Server, config.O
 
 var registerFuncs = []registerFunc{
 	settings.Register,
-	template.Register,
 	auth.Register,
 }
 
