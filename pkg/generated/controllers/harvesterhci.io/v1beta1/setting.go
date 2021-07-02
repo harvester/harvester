@@ -360,6 +360,10 @@ func (a *settingGeneratingHandler) Remove(key string, obj *v1beta1.Setting) (*v1
 }
 
 func (a *settingGeneratingHandler) Handle(obj *v1beta1.Setting, status v1beta1.SettingStatus) (v1beta1.SettingStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.SettingGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

@@ -360,6 +360,10 @@ func (a *virtualMachineTemplateGeneratingHandler) Remove(key string, obj *v1beta
 }
 
 func (a *virtualMachineTemplateGeneratingHandler) Handle(obj *v1beta1.VirtualMachineTemplate, status v1beta1.VirtualMachineTemplateStatus) (v1beta1.VirtualMachineTemplateStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.VirtualMachineTemplateGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

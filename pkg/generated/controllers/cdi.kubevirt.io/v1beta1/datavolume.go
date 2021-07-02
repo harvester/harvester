@@ -360,6 +360,10 @@ func (a *dataVolumeGeneratingHandler) Remove(key string, obj *v1beta1.DataVolume
 }
 
 func (a *dataVolumeGeneratingHandler) Handle(obj *v1beta1.DataVolume, status v1beta1.DataVolumeStatus) (v1beta1.DataVolumeStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.DataVolumeGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
