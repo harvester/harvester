@@ -360,6 +360,10 @@ func (a *upgradeGeneratingHandler) Remove(key string, obj *v1beta1.Upgrade) (*v1
 }
 
 func (a *upgradeGeneratingHandler) Handle(obj *v1beta1.Upgrade, status v1beta1.UpgradeStatus) (v1beta1.UpgradeStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.UpgradeGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

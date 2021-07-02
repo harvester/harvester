@@ -360,6 +360,10 @@ func (a *keyPairGeneratingHandler) Remove(key string, obj *v1beta1.KeyPair) (*v1
 }
 
 func (a *keyPairGeneratingHandler) Handle(obj *v1beta1.KeyPair, status v1beta1.KeyPairStatus) (v1beta1.KeyPairStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.KeyPairGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

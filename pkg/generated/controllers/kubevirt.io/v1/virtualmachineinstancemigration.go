@@ -360,6 +360,10 @@ func (a *virtualMachineInstanceMigrationGeneratingHandler) Remove(key string, ob
 }
 
 func (a *virtualMachineInstanceMigrationGeneratingHandler) Handle(obj *v1.VirtualMachineInstanceMigration, status v1.VirtualMachineInstanceMigrationStatus) (v1.VirtualMachineInstanceMigrationStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.VirtualMachineInstanceMigrationGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

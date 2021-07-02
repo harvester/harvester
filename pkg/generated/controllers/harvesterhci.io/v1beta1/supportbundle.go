@@ -360,6 +360,10 @@ func (a *supportBundleGeneratingHandler) Remove(key string, obj *v1beta1.Support
 }
 
 func (a *supportBundleGeneratingHandler) Handle(obj *v1beta1.SupportBundle, status v1beta1.SupportBundleStatus) (v1beta1.SupportBundleStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.SupportBundleGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
