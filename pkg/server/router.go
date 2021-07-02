@@ -66,12 +66,13 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	}
 
 	if r.options.RancherEmbedded || r.options.RancherURL != "" {
-		host, err := parseRancherServerURL(r.options.RancherURL)
+		host, scheme, err := parseRancherServerURL(r.options.RancherURL)
 		if err != nil {
 			logrus.Fatal(err)
 		}
 		rancherHandler := &proxy.Handler{
-			Host: host,
+			Host:   host,
+			Scheme: scheme,
 		}
 		m.PathPrefix("/v3-public/").Handler(rancherHandler)
 		m.PathPrefix("/v3/").Handler(rancherHandler)
@@ -83,15 +84,15 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	return m
 }
 
-func parseRancherServerURL(endpoint string) (string, error) {
+func parseRancherServerURL(endpoint string) (string, string, error) {
 	if endpoint == "" {
-		return "", nil
+		return "", "", nil
 	}
 
 	u, err := url.Parse(endpoint)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return u.Host, nil
+	return u.Host, u.Scheme, nil
 }
