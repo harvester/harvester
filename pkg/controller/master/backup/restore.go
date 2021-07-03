@@ -532,17 +532,8 @@ func (h *RestoreHandler) ReconcileVMTemplate(vm *kv1.VirtualMachineSpec,
 								Blank: &cdiv1.DataVolumeBlankImage{},
 							}
 
-							updatePVC := pvc.DeepCopy()
-							if updatePVC.Annotations[populatedForPVCAnnotation] != dvtCopy.Name {
-								if updatePVC.Annotations == nil {
-									updatePVC.Annotations = make(map[string]string)
-								}
-								updatePVC.Annotations[populatedForPVCAnnotation] = dvtCopy.Name
-								// dataVolume will take ownership
-								updatePVC.OwnerReferences = nil
-								if _, err = h.pvcClient.Update(updatePVC); err != nil {
-									return newTemplates, newVolumes, updatedStatus, err
-								}
+							if _, err = h.takeOwnershipOfPVCIfNeeded(pvc, dvtCopy.Name); err != nil {
+								return newTemplates, newVolumes, updatedStatus, err
 							}
 
 							if dvtCopy.Annotations == nil {
@@ -808,6 +799,22 @@ func (h *RestoreHandler) createRestorePVC(vmRestore *harvesterv1.VirtualMachineR
 
 	_, err := h.pvcClient.Create(pvc)
 	return err
+}
+
+// takeOwnershipOfPVCIfNeeded let dataVolume takes the ownership of given pvc
+// by addition `cdi.kubevirt.io/storage.populatedFor` annotation on it.
+func (h *RestoreHandler) takeOwnershipOfPVCIfNeeded(pvc *corev1.PersistentVolumeClaim, dataVolumeName string) (*corev1.PersistentVolumeClaim, error) {
+	updatePVC := pvc.DeepCopy()
+	if updatePVC.Annotations[populatedForPVCAnnotation] != dataVolumeName {
+		if updatePVC.Annotations == nil {
+			updatePVC.Annotations = make(map[string]string)
+		}
+		updatePVC.Annotations[populatedForPVCAnnotation] = dataVolumeName
+		// dataVolume will take ownership
+		updatePVC.OwnerReferences = nil
+		return h.pvcClient.Update(updatePVC)
+	}
+	return pvc, nil
 }
 
 func createSetOfVolumesNameInDataVolumeTemplates(content *harvesterv1.VirtualMachineBackupContent) sets.String {
