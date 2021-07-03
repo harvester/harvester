@@ -18,11 +18,13 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 	kv1 "kubevirt.io/client-go/api/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -348,13 +350,24 @@ func (h *RestoreHandler) reconcileVolumeRestores(vmRestore *harvesterv1.VirtualM
 		return true, nil
 	}
 
+	volumeNamesInDVT := createSetOfVolumesNameInDataVolumeTemplates(content)
+
+	// 2. Restore PVCs. Create a new one if not exists.
 	createdPVC := false
 	waitingPVC := false
 	for i, restore := range restores {
 		pvc, err := h.pvcCache.Get(restore.PersistentVolumeClaim.Namespace, restore.PersistentVolumeClaim.Name)
 		if apierrors.IsNotFound(err) {
 			backup := content.Spec.VolumeBackups[i]
-			if err = h.createRestorePVC(vmRestore, backup, restore); err != nil {
+			var err error
+			if volumeNamesInDVT.Has(restore.VolumeName) {
+				logrus.Infof("restore pvc from embedded dataVolume `%s/%s`", vmRestore.Namespace, restore.VolumeBackupName)
+				err = h.createRestorePVC(vmRestore, backup, restore)
+			} else {
+				logrus.Infof("restore pvc from manually attached dataVolume `%s/%s`", vmRestore.Namespace, restore.VolumeBackupName)
+				err = h.createRestoreDataVolume(vmRestore, backup, restore)
+			}
+			if err != nil {
 				return false, err
 			}
 			createdPVC = true
@@ -493,13 +506,13 @@ func (h *RestoreHandler) ReconcileVMTemplate(vm *kv1.VirtualMachineSpec,
 					continue
 				}
 
-				pvc, err := h.pvcCache.Get(vr.PersistentVolumeClaim.Namespace, vr.PersistentVolumeClaim.Name)
-				if err != nil {
-					return nil, nil, false, err
-				}
-
 				// 1. vm volume type is dataVolume
 				if vol.DataVolume != nil {
+					pvc, err := h.pvcCache.Get(vr.PersistentVolumeClaim.Namespace, vr.PersistentVolumeClaim.Name)
+					if err != nil {
+						return nil, nil, false, err
+					}
+
 					templateIndex := -1
 					for i, dvt := range vm.DataVolumeTemplates {
 						if vol.DataVolume.Name == dvt.Name {
@@ -544,12 +557,15 @@ func (h *RestoreHandler) ReconcileVMTemplate(vm *kv1.VirtualMachineSpec,
 							updatedStatus = true
 						}
 					} else {
-						// convert dv to PersistentVolumeClaim volume
+						dv, err := h.dataVolumeCache.Get(vr.PersistentVolumeClaim.Namespace, vr.PersistentVolumeClaim.Name)
+						if err != nil {
+							return newTemplates, newVolumes, updatedStatus, err
+						}
 						nv := kv1.Volume{
 							Name: vol.Name,
 							VolumeSource: kv1.VolumeSource{
-								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: vr.PersistentVolumeClaim.Name,
+								DataVolume: &kv1.DataVolumeSource{
+									Name: dv.Name,
 								},
 							},
 						}
@@ -718,6 +734,32 @@ func getRestoreID(vmRestore *harvesterv1.VirtualMachineRestore) string {
 	return fmt.Sprintf("%s-%s", vmRestore.Name, vmRestore.UID)
 }
 
+func (h *RestoreHandler) createRestoreDataVolume(vmRestore *harvesterv1.VirtualMachineRestore,
+	volumeBackup harvesterv1.VolumeBackup, volumeRestore harvesterv1.VolumeRestore) error {
+	_, err := h.dataVolumeCache.Get(vmRestore.Namespace, volumeRestore.PersistentVolumeClaim.Name)
+	if apierrors.IsNotFound(err) {
+		annotations := make(map[string]string, 1)
+		annotations[restoreNameAnnotation] = vmRestore.Name
+		sourcePvcSpecCopy := volumeBackup.PersistentVolumeClaim.Spec.DeepCopy()
+		// Cleanup the original volume name to prevent binding to old pv
+		sourcePvcSpecCopy.VolumeName = ""
+		_, err = h.dataVolumes.Create(&cdiv1beta1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        volumeRestore.PersistentVolumeClaim.Name,
+				Namespace:   vmRestore.Namespace,
+				Annotations: annotations,
+			},
+			Spec: cdiv1beta1.DataVolumeSpec{
+				Source: cdiv1beta1.DataVolumeSource{
+					Blank: &cdiv1beta1.DataVolumeBlankImage{},
+				},
+				PVC: sourcePvcSpecCopy,
+			},
+		})
+	}
+	return err
+}
+
 func (h *RestoreHandler) createRestorePVC(vmRestore *harvesterv1.VirtualMachineRestore,
 	volumeBackup harvesterv1.VolumeBackup, volumeRestore harvesterv1.VolumeRestore) error {
 	sourcePVC := volumeBackup.PersistentVolumeClaim
@@ -766,4 +808,24 @@ func (h *RestoreHandler) createRestorePVC(vmRestore *harvesterv1.VirtualMachineR
 
 	_, err := h.pvcClient.Create(pvc)
 	return err
+}
+
+func createSetOfVolumesNameInDataVolumeTemplates(content *harvesterv1.VirtualMachineBackupContent) sets.String {
+	volumes := content.Spec.Source.VirtualMachineSpec.Template.Spec.Volumes
+	dvts := content.Spec.Source.VirtualMachineSpec.DataVolumeTemplates
+
+	volNameMap := make(map[string]string, len(volumes))
+	for _, vol := range volumes {
+		if vol.DataVolume != nil {
+			volNameMap[vol.DataVolume.Name] = vol.Name
+		}
+	}
+	volumeNamesInDVT := sets.String{}
+	for _, dvt := range dvts {
+		volName, ok := volNameMap[dvt.Name]
+		if ok {
+			volumeNamesInDVT.Insert(volName)
+		}
+	}
+	return volumeNamesInDVT
 }
