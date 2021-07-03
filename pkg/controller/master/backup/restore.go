@@ -123,6 +123,13 @@ func vmRestoreProgressing(vmRestore *harvesterv1.VirtualMachineRestore) bool {
 }
 
 // RestoreOnChanged handles vmresotre CRD object on change state
+//
+// This method does follwings step by step:
+//
+// 1. First, update status of vmrestore to record which volume need to restore.
+// 2. Next, restore PVCs for those listed in vmrestore.Status.VolumeRestores.
+// 3. Then create a new VM or replace the old one.
+// 4. Reconcile the spec and status of the restored VM, specifically for volume related fields.
 func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
 	if restore == nil || restore.DeletionTimestamp != nil {
 		return nil, nil
@@ -230,7 +237,7 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.Virtu
 			return nil, nil
 		}
 	} else {
-
+		// The PVCs and VirtualMachineRestore are still under update/bound process.
 		vmCpy := target.vm
 		if vmCpy.Annotations == nil {
 			vmCpy.Annotations = make(map[string]string)
@@ -310,9 +317,19 @@ func (h *RestoreHandler) enqueueAfter(original, updated *harvesterv1.VirtualMach
 	}
 }
 
+// reconcileVolumeRestores returns a flag indicating whether the VirtualMachineRestore
+// and its related PersistentVolumeClaims are still under the update process.
+//
+// This method does two things and may be called multiple times for a single VM restore process.
+//
+// - Reconciling the status of VirtualMachineRestore, and
+// - Creating PersistentVolumeClaim for each VolumeRestore if not exists.
+// - Creating DataVolume for each VolumeRestore if it is not an embedded one inside the VM.
 func (h *RestoreHandler) reconcileVolumeRestores(vmRestore *harvesterv1.VirtualMachineRestore,
 	content *harvesterv1.VirtualMachineBackupContent) (bool, error) {
 	restores := make([]harvesterv1.VolumeRestore, 0, len(content.Spec.VolumeBackups))
+
+	// 1. collect all VolumeRestores that contain PVCs to restore
 	for _, vb := range content.Spec.VolumeBackups {
 		found := false
 		for _, vr := range vmRestore.Status.VolumeRestores {
@@ -342,6 +359,8 @@ func (h *RestoreHandler) reconcileVolumeRestores(vmRestore *harvesterv1.VirtualM
 	}
 
 	if !reflect.DeepEqual(vmRestore.Status.VolumeRestores, restores) {
+		// We update the volume restore in status at the very first call of this method.
+		// Just return it now and wait for the next call to restore missing PVCs.
 		if len(vmRestore.Status.VolumeRestores) > 0 {
 			logrus.Warningf("VMRestore in strange state, obj:%v", vmRestore)
 		}
@@ -488,6 +507,13 @@ func (t *vmRestoreTarget) RestartVM() error {
 	return nil
 }
 
+// ReconcileVMTemplate reconciles DataVolumeTemplates and Template.Spec.Volumes of the restored VM.
+//
+// This method does many tasks:
+//
+// - Links newly created PVCs to DataVolumeTemplates , as well as sets some ownership annotations back to PVC.
+// - Links to newly updated DataVolumes to Template.Spec.Volumes for those volumes with DataVolume kind.
+// - Links to newly created pvc to Template.Spec.Volumes for those volumes not DataVolume kind.
 func (h *RestoreHandler) ReconcileVMTemplate(vm *kv1.VirtualMachineSpec,
 	vmRestore *harvesterv1.VirtualMachineRestore) ([]kv1.DataVolumeTemplateSpec, []kv1.Volume, bool, error) {
 	var newTemplates = make([]kv1.DataVolumeTemplateSpec, len(vm.DataVolumeTemplates))
@@ -522,6 +548,8 @@ func (h *RestoreHandler) ReconcileVMTemplate(vm *kv1.VirtualMachineSpec,
 					}
 
 					if templateIndex >= 0 {
+						// Found datavolume inside VM's DataVolumeTemplates, this
+						// datavolume is embedded in the VM exclusively.
 						dvtCopy := vm.DataVolumeTemplates[templateIndex].DeepCopy()
 
 						// only need to update the dataVolumeTemplate if the restore name is different
@@ -548,10 +576,16 @@ func (h *RestoreHandler) ReconcileVMTemplate(vm *kv1.VirtualMachineSpec,
 							updatedStatus = true
 						}
 					} else {
+						// This data volume is not in the VM's DataVolumeTemplates,
+						// indicating that it was created outside the VM, then
+						// manually attached to the VM.  The dadtavolume should
+						// have already got prepared in `reconcileVolumeRestores`
+						// so here we only need to retrieve it from cache.
 						dv, err := h.dataVolumeCache.Get(vr.PersistentVolumeClaim.Namespace, vr.PersistentVolumeClaim.Name)
 						if err != nil {
 							return newTemplates, newVolumes, updatedStatus, err
 						}
+
 						nv := kv1.Volume{
 							Name: vol.Name,
 							VolumeSource: kv1.VolumeSource{
@@ -574,6 +608,8 @@ func (h *RestoreHandler) ReconcileVMTemplate(vm *kv1.VirtualMachineSpec,
 	return newTemplates, newVolumes, updatedStatus, nil
 }
 
+// Reconcile reconiles the restore target (a.k.a. the restored VM).
+// Returns a flag indicating whether the VM is still under the update process.
 func (t *vmRestoreTarget) Reconcile() (bool, error) {
 	logrus.Debugf("VM ready, reconciling target VM %s", t.vmRestore.Name)
 
