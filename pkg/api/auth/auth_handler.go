@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -14,14 +13,9 @@ import (
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/util"
-)
-
-const (
-	jwtServiceAccountClaimSubject = "sub" // https://github.com/kubernetes/kubernetes/blob/3783e03dc9df61604c470aa21f198a888e3ec692/pkg/serviceaccount/claims.go#L64
 )
 
 func NewMiddleware(ctx context.Context, scaled *config.Scaled, rancherRestConfig *rest.Config, AddRancherAuthenticator bool, authedPrefix []string, skipAuthPrefix []string) (*Middleware, error) {
@@ -99,41 +93,6 @@ func (h *Middleware) rancherAuth(rw http.ResponseWriter, r *http.Request, next h
 	ctx := request.WithUser(r.Context(), info)
 	r = r.WithContext(ctx)
 	next.ServeHTTP(rw, r)
-}
-
-func (h *Middleware) auth(rw http.ResponseWriter, r *http.Request, next http.Handler) {
-	jweToken, err := extractJWETokenFromRequest(r)
-	if err != nil {
-		util.ResponseError(rw, http.StatusUnauthorized, err)
-		return
-	}
-
-	userInfo, err := h.getUserInfoFromToken(jweToken)
-	if err != nil {
-		util.ResponseError(rw, http.StatusUnauthorized, err)
-		return
-	}
-
-	ctx := request.WithUser(r.Context(), userInfo)
-	r = r.WithContext(ctx)
-	next.ServeHTTP(rw, r)
-}
-
-func (h *Middleware) getUserInfoFromToken(jweToken string) (userInfo user.Info, err error) {
-	//handle panic from calling kubernetes dashboard tokenManager.Decrypt
-	defer func() {
-		if recoveryMessage := recover(); recoveryMessage != nil {
-			err = fmt.Errorf("%v", recoveryMessage)
-		}
-	}()
-
-	var authInfo *api.AuthInfo
-	authInfo, err = h.tokenManager.Decrypt(jweToken)
-	if err != nil {
-		return
-	}
-
-	return impersonateAuthInfoToUserInfo(authInfo), nil
 }
 
 func (h Middleware) requireAuth(path string) bool {
