@@ -8,6 +8,10 @@ import (
 	"strings"
 
 	"github.com/onsi/ginkgo"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	"github.com/harvester/harvester/pkg/builder"
 )
@@ -144,4 +148,29 @@ func CreateTmpFile(dir, pattern, content string, mode os.FileMode) (string, erro
 func NewDefaultTestVMBuilder(labels map[string]string) *builder.VMBuilder {
 	return builder.NewVMBuilder(testCreator).Namespace(testVMNamespace).Labels(labels).
 		CPU(testVMCPUCores).Memory(testVMMemory).Run(false)
+}
+
+func NewDataVolume(labels map[string]string, namespace, volumeName string) *cdiv1beta1.DataVolume {
+	volumeMode := corev1.PersistentVolumeBlock
+	return &cdiv1beta1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      volumeName,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Spec: cdiv1beta1.DataVolumeSpec{
+			Source: cdiv1beta1.DataVolumeSource{
+				Blank: &cdiv1beta1.DataVolumeBlankImage{},
+			},
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("2Gi"),
+					},
+				},
+				VolumeMode: &volumeMode,
+			},
+		},
+	}
 }

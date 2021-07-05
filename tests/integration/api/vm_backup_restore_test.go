@@ -16,6 +16,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/builder"
 	"github.com/harvester/harvester/pkg/config"
+	ctldatavolumev1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
@@ -33,6 +34,7 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 			restoreController ctlharvesterv1.VirtualMachineRestoreController
 			vmController      ctlkubevirtv1.VirtualMachineController
 			vmiController     ctlkubevirtv1.VirtualMachineInstanceController
+			dvController      ctldatavolumev1.DataVolumeController
 			settingController ctllonghornv1.SettingController
 			podController     ctlcorev1.PodController
 			svcController     ctlcorev1.ServiceController
@@ -47,6 +49,7 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 			restoreController = scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore()
 			vmController = scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 			vmiController = scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
+			dvController = scaled.CDIFactory.Cdi().V1beta1().DataVolume()
 			settingController = scaled.LonghornFactory.Longhorn().V1beta1().Setting()
 			podController = scaled.CoreFactory.Core().V1().Pod()
 			svcController = scaled.CoreFactory.Core().V1().Service()
@@ -91,14 +94,26 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 					GinkgoT().Logf("failed to delete backup %s/%s, %v", restore.Namespace, restore.Name, err)
 				}
 			}
+			dvList, err := dvController.List(backupNamespace, metav1.ListOptions{
+				LabelSelector: labels.FormatLabels(testVMBackupLabels)})
+			if err != nil {
+				GinkgoT().Logf("failed to list tested dvs, %v", err)
+				return
+			}
+			for _, item := range dvList.Items {
+				if err = dvController.Delete(item.Namespace, item.Name, &metav1.DeleteOptions{}); err != nil {
+					GinkgoT().Logf("failed to delete tested dv %s/%s, %v", item.Namespace, item.Name, err)
+				}
+			}
 		})
 
 		Context("operate via steve API", func() {
 
-			var vmsAPI, restoresAPI string
+			var vmsAPI, volumeAPI, restoresAPI string
 
 			BeforeEach(func() {
 				vmsAPI = helper.BuildAPIURL("v1", "kubevirt.io.virtualmachines", options.HTTPSListenPort)
+				volumeAPI = helper.BuildAPIURL("v1", "cdi.kubevirt.io.datavolumes", options.HTTPSListenPort)
 				restoresAPI = helper.BuildAPIURL("v1", "harvesterhci.io.virtualmachinerestores", options.HTTPSListenPort)
 			})
 
@@ -128,9 +143,17 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 			})
 
 			Specify("verify vm backup api", func() {
-
-				By("when create a VM using data volume")
+				By("when create a VM using a embedded and a manually attached data volumes")
 				vmName := testVMGenerateName + fuzz.String(5)
+
+				By("first manually create a data volume")
+				dvName := vmName + fuzz.String(5)
+				diskName2 := dvName
+				respCode, respBody, err := helper.PostObject(volumeAPI, NewDataVolume(testVMBackupLabels, backupNamespace, dvName))
+				MustRespCodeIs(http.StatusCreated, "create dv", err, respCode, respBody)
+				MustDataVolumeSucceeded(dvController, backupNamespace, dvName)
+
+				By("then create a VM with an embedded data volume and attach the data volume created during previous step")
 				dataVolumeOption := &builder.DataVolumeOption{
 					VolumeMode:  builder.PersistentVolumeModeBlock,
 					AccessMode:  builder.PersistentVolumeAccessModeReadWriteMany,
@@ -139,9 +162,10 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 				vm, err := NewDefaultTestVMBuilder(testVMBackupLabels).Name(vmName).
 					NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
 					DataVolumeDisk("root-disk", testVMDefaultDiskBus, false, 1, "2Gi", "", dataVolumeOption).
+					ExistingVolumeDisk(diskName2, testVMDefaultDiskBus, false, 0, dvName).
 					Run(true).VM()
 				MustNotError(err)
-				respCode, respBody, err := helper.PostObject(vmsAPI, vm)
+				respCode, respBody, err = helper.PostObject(vmsAPI, vm)
 				MustRespCodeIs(http.StatusCreated, "create vm", err, respCode, respBody)
 
 				By("then the vm is up and running")
@@ -189,6 +213,18 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 						return restore.Status != nil && *restore.Status.Complete
 					}, 120, 5)
 					MustVMIRunning(vmController, backupNamespace, vm.Name, vmiController)
+
+					MustFinallyBeTrue(func() bool {
+						vm, err := vmController.Get(backupNamespace, vm.Name, metav1.GetOptions{})
+						MustNotError(err)
+						for _, vol := range vm.Spec.Template.Spec.Volumes {
+							// ensure all volumes are stored as data volume
+							if vol.DataVolume == nil {
+								return false
+							}
+						}
+						return true
+					}, 30, 5)
 				})
 
 				By("then validate restore an new vm", func() {
@@ -220,6 +256,18 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 					}, 120, 5)
 
 					MustVMIRunning(vmController, backupNamespace, vmName, vmiController)
+
+					MustFinallyBeTrue(func() bool {
+						vm, err := vmController.Get(backupNamespace, vmName, metav1.GetOptions{})
+						MustNotError(err)
+						for _, vol := range vm.Spec.Template.Spec.Volumes {
+							// ensure all volumes are stored as data volume
+							if vol.DataVolume == nil {
+								return false
+							}
+						}
+						return true
+					}, 30, 5)
 				})
 			})
 		})
