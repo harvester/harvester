@@ -54,7 +54,7 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 			podController = scaled.CoreFactory.Core().V1().Pod()
 			svcController = scaled.CoreFactory.Core().V1().Service()
 			backupNamespace = testVMNamespace
-			sourceImage = "https://download.cirros-cloud.net/0.5.1/cirros-0.5.1-x86_64-disk.img"
+			sourceImage = "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/alpine-virt-3.14.0-x86_64.iso"
 			vmBackupTarget = fmt.Sprintf("nfs://harvester-nfs-svc.%s:/opt/backupstore", backupNamespace)
 		})
 
