@@ -3,10 +3,8 @@ package auth
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -16,7 +14,7 @@ func ModeHandler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := json.Marshal(harvesterv1.AuthenticationModesResponse{Modes: authModes()})
+	body, err := json.Marshal(harvesterv1.AuthenticationModesResponse{Modes: []harvesterv1.AuthenticationMode{harvesterv1.Rancher}})
 	if err != nil {
 		util.ResponseErrorMsg(rw, http.StatusInternalServerError, "Failed to encode authenticationModes, "+err.Error())
 		return
@@ -24,17 +22,4 @@ func ModeHandler(rw http.ResponseWriter, r *http.Request) {
 
 	rw.Header().Set("Content-type", "application/json")
 	_, _ = rw.Write(body)
-}
-
-func authModes() []harvesterv1.AuthenticationMode {
-	ms := strings.Split(settings.AuthenticationMode.Get(), ",")
-	modes := make([]harvesterv1.AuthenticationMode, 0, len(ms))
-	for _, v := range ms {
-		modes = append(modes, harvesterv1.AuthenticationMode(strings.TrimSpace(v)))
-	}
-	return modes
-}
-
-func enableKubernetesCredentials() bool {
-	return strings.Contains(settings.AuthenticationMode.Get(), string(harvesterv1.KubernetesCredentials))
 }

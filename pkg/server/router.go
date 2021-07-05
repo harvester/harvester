@@ -71,7 +71,7 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	m.Path("/v1/harvester/{type}/{namespace}/{name}").Handler(h.K8sResource)
 	m.Path("/v1/harvester/{type}/{namespace}/{name}/{link}").Handler(h.K8sResource)
 
-	loginHandler := auth.NewLoginHandler(r.scaled, r.restConfig)
+	loginHandler := auth.NewLoginHandler()
 	m.Path("/v1-public/auth").Handler(loginHandler)
 	m.Path("/v1-public/auth-modes").HandlerFunc(auth.ModeHandler)
 
