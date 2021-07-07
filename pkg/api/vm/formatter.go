@@ -22,6 +22,8 @@ const (
 	backupVM       = "backup"
 	restoreVM      = "restore"
 	createTemplate = "createTemplate"
+	addVolume      = "addVolume"
+	removeVolume   = "removeVolume"
 )
 
 type vmformatter struct {
@@ -38,6 +40,9 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	if err != nil {
 		return
 	}
+
+	resource.AddAction(request, addVolume)
+	resource.AddAction(request, removeVolume)
 
 	if canEjectCdRom(vm) {
 		resource.AddAction(request, ejectCdRom)

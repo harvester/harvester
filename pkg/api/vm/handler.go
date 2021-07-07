@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
@@ -47,6 +48,7 @@ type vmActionHandler struct {
 	restores                  ctlharvesterv1.VirtualMachineRestoreClient
 	settingCache              ctlharvesterv1.SettingCache
 	nodeCache                 ctlcorev1.NodeCache
+	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
 	virtSubresourceRestClient rest.Interface
 	virtRestClient            rest.Interface
 }
@@ -144,6 +146,24 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			return apierror.NewAPIError(validation.InvalidBodyContent, "Template name is required")
 		}
 		return h.createTemplate(namespace, name, input)
+	case addVolume:
+		var input AddVolumeInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		if input.DiskName == "" || input.VolumeSourceName == "" {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `diskName` and `volumeName` are required")
+		}
+		return h.addVolume(r.Context(), namespace, name, input)
+	case removeVolume:
+		var input RemoveVolumeInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		if input.DiskName == "" {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `volumeName` are required")
+		}
+		return h.removeVolume(r.Context(), namespace, name, input)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -411,6 +431,85 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 			},
 		})
 	return err
+}
+
+// addVolume add a hotplug volume with given volume source and disk name.
+func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string, input AddVolumeInput) error {
+	// We only permit volume source from existing PersistentVolumeClaim at this moment.
+	// KubeVirt won't check PVC existence so we validate it on our own.
+	if _, err := h.pvcCache.Get(namespace, input.VolumeSourceName); err != nil {
+		return err
+	}
+
+	// Restrict the flexibility of disk options here but future extension may be possible.
+	body, err := json.Marshal(kv1.AddVolumeOptions{
+		Name: input.DiskName,
+		Disk: &kv1.Disk{
+			DiskDevice: kv1.DiskDevice{
+				Disk: &kv1.DiskTarget{
+					// KubeVirt only support SCSI for hotplug volume.
+					Bus: "scsi",
+				},
+			},
+		},
+		VolumeSource: &kv1.HotplugVolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: input.VolumeSourceName,
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to serialize payload,: %v", err)
+	}
+
+	// Ref: https://kubevirt.io/api-reference/v0.44.0/operations.html#_v1vm-addvolume
+	return h.virtSubresourceRestClient.
+		Put().
+		Namespace(namespace).
+		Resource(vmResource).
+		Name(name).
+		SubResource(strings.ToLower(addVolume)).
+		Body(body).
+		Do(ctx).
+		Error()
+}
+
+// removeVolume remove a hotplug volume by its disk name
+func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name string, input RemoveVolumeInput) error {
+	vmi, err := h.vmiCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	// Ensure the existence of the disk. KubeVirt will take care of other cases
+	// such as trying to remove a non-hotplug volume.
+	found := false
+	for _, vol := range vmi.Spec.Volumes {
+		if vol.Name == input.DiskName {
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("Disk `%s` not found in virtual machine `%s/%s`", input.DiskName, namespace, name)
+	}
+
+	body, err := json.Marshal(kv1.RemoveVolumeOptions{
+		Name: input.DiskName,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to serialize payload,: %v", err)
+	}
+	// Ref: https://kubevirt.io/api-reference/v0.44.0/operations.html#_v1vm-removevolume
+	return h.virtSubresourceRestClient.
+		Put().
+		Namespace(namespace).
+		Resource(vmResource).
+		Name(name).
+		SubResource(strings.ToLower(removeVolume)).
+		Body(body).
+		Do(ctx).
+		Error()
 }
 
 // removeMacAddresses replaces the mac address of each device interface with an empty string.

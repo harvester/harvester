@@ -28,3 +28,12 @@ type CreateTemplateInput struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 }
+
+type AddVolumeInput struct {
+	DiskName         string `json:"diskName"`
+	VolumeSourceName string `json:"volumeSourceName"`
+}
+
+type RemoveVolumeInput struct {
+	DiskName string `json:"diskName"`
+}
