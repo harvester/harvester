@@ -6,11 +6,13 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	corefake "k8s.io/client-go/kubernetes/fake"
 	kubevirtapis "kubevirt.io/client-go/api/v1"
 
 	"github.com/harvester/harvester/pkg/controller/master/migration"
@@ -18,6 +20,7 @@ import (
 	kubevirttype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
 func TestMigrateAction(t *testing.T) {
@@ -293,6 +296,138 @@ func TestAbortMigrateAction(t *testing.T) {
 		}
 	}
 
+}
+
+func TestAddVolume(t *testing.T) {
+	type input struct {
+		namespace string
+		name      string
+		input     AddVolumeInput
+		pvc       *corev1.PersistentVolumeClaim
+	}
+	type output struct {
+		err error
+	}
+	var testCases = []struct {
+		name     string
+		given    input
+		expected output
+	}{
+		{
+			name: "Volume source not found",
+			given: input{
+				namespace: "default",
+				name:      "test",
+				input: AddVolumeInput{
+					DiskName:         "disk",
+					VolumeSourceName: "not-exist",
+				},
+			},
+			expected: output{
+				err: errors.New("persistentvolumeclaims \"not-exist\" not found"),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		var coreclientset = corefake.NewSimpleClientset()
+		if tc.given.pvc != nil {
+			err := coreclientset.Tracker().Add(tc.given.pvc)
+			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+		}
+
+		var handler = &vmActionHandler{
+			pvcCache: fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
+		}
+
+		var actual output
+		actual.err = handler.addVolume(context.Background(), tc.given.namespace, tc.given.namespace, tc.given.input)
+
+		if tc.expected.err != nil && actual.err != nil {
+			//errors from pkg/errors track stacks so we only compare the error string here
+			assert.Equal(t, tc.expected.err.Error(), actual.err.Error(), "case %q", tc.name)
+		} else {
+			assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
+		}
+	}
+}
+
+func TestRemoveVolume(t *testing.T) {
+	type input struct {
+		namespace  string
+		name       string
+		input      RemoveVolumeInput
+		vmInstance *kubevirtapis.VirtualMachineInstance
+	}
+	type output struct {
+		err error
+	}
+	var testCases = []struct {
+		name     string
+		given    input
+		expected output
+	}{
+		{
+			name: "VM instance not found",
+			given: input{
+				namespace: "default",
+				name:      "test",
+				input: RemoveVolumeInput{
+					DiskName: "test",
+				},
+			},
+			expected: output{
+				err: errors.New("virtualmachineinstances.kubevirt.io \"test\" not found"),
+			},
+		},
+		{
+			name: "Hotplug disk not found",
+			given: input{
+				namespace: "default",
+				name:      "test",
+				input: RemoveVolumeInput{
+					DiskName: "not-exist",
+				},
+				vmInstance: &kubevirtapis.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+					},
+					Spec: kubevirtapis.VirtualMachineInstanceSpec{
+						Volumes: nil,
+					},
+					Status: kubevirtapis.VirtualMachineInstanceStatus{Phase: kubevirtapis.Running, MigrationState: nil},
+				},
+			},
+			expected: output{
+				err: errors.New("Disk `not-exist` not found in virtual machine `default/test`"),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		var clientset = fake.NewSimpleClientset()
+		var coreclientset = corefake.NewSimpleClientset()
+		if tc.given.vmInstance != nil {
+			err := clientset.Tracker().Add(tc.given.vmInstance)
+			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+		}
+
+		var handler = &vmActionHandler{
+			vmiCache: fakeVirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+			pvcCache: fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
+		}
+
+		var actual output
+		actual.err = handler.removeVolume(context.Background(), tc.given.namespace, tc.given.name, tc.given.input)
+
+		if tc.expected.err != nil && actual.err != nil {
+			//errors from pkg/errors track stacks so we only compare the error string here
+			assert.Equal(t, tc.expected.err.Error(), actual.err.Error(), "case %q", tc.name)
+		} else {
+			assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
+		}
+	}
 }
 
 type fakeVirtualMachineInstanceCache func(string) kubevirttype.VirtualMachineInstanceInterface
