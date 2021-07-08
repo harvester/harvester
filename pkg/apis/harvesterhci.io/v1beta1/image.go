@@ -49,6 +49,9 @@ type VirtualMachineImageStatus struct {
 	Size int64 `json:"size,omitempty"`
 
 	// +optional
+	StorageClassName string `json:"storageClassName,omitempty"`
+
+	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
 }
 
