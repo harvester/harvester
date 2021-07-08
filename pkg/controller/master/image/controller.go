@@ -65,6 +65,7 @@ func (h *handler) createStorageClassAndUpdateStatus(image *harvesterv1.VirtualMa
 
 	toUpdate := image.DeepCopy()
 	toUpdate.Status.AppliedURL = toUpdate.Spec.URL
+	toUpdate.Status.StorageClassName = sc.Name
 	harvesterv1.ImageInitialized.True(toUpdate)
 	harvesterv1.ImageInitialized.Message(toUpdate, "")
 
