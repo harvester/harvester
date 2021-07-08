@@ -102,6 +102,8 @@ spec:
               size:
                 format: int64
                 type: integer
+              storageClassName:
+                type: string
             type: object
         required:
         - spec

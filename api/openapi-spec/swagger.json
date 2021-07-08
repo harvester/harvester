@@ -7476,6 +7476,9 @@
         "size": {
           "type": "integer",
           "format": "int64"
+        },
+        "storageClassName": {
+          "type": "string"
         }
       }
     },
