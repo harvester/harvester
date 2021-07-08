@@ -258,6 +258,11 @@ service:
     ##
     profile: 6060
 
+    ## Specify the nodePort of HTTP endpoint.
+    ## defaults to "30080".
+    ##
+    # httpNodePort: 30080
+
     ## Specify the port of HTTP endpoint,
     ## this port will be closed if set to 0.
     ## defaults to "0".
