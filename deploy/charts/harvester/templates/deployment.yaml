@@ -75,9 +75,11 @@ spec:
 {{ toYaml .Values.containers.apiserver.env | indent 12 }}
 {{- end }}
           ports:
+{{- if gt (.Values.service.harvester.httpsPort | int) 0 }}
             - containerPort: {{ .Values.service.harvester.httpsPort }}
               name: https
               protocol: TCP
+{{- end }}
 {{- if gt (.Values.service.harvester.httpPort | int) 0 }}
             - containerPort: {{ .Values.service.harvester.httpPort }}
               name: http

@@ -21,15 +21,20 @@ spec:
     app.kubernetes.io/name: harvester
     app.kubernetes.io/component: apiserver
   ports:
+{{- if gt (.Values.service.harvester.httpsPort | int) 0 }}
     - name: https
       port: {{ .Values.service.harvester.httpsPort }}
 {{- if and (eq .Values.service.harvester.type "NodePort") (gt (.Values.service.harvester.httpsNodePort | int) 0) }}
       nodePort: {{ .Values.service.harvester.httpsNodePort }}
 {{- end }}
       targetPort: https
+{{- end }}
 {{- if gt (.Values.service.harvester.httpPort | int) 0 }}
     - name: http
       port: {{ .Values.service.harvester.httpPort }}
+{{- if and (eq .Values.service.harvester.type "NodePort") (gt (.Values.service.harvester.httpNodePort | int) 0) }}
+      nodePort: {{ .Values.service.harvester.httpNodePort }}
+{{- end }}
       targetPort: http
 {{- end }}
 ---
