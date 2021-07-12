@@ -41,7 +41,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkList":                       schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkList(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkSpec":                       schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkSpec(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkStatus":                     schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkStatus(ref),
-		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AuthenticationModesResponse":                                      schema_pkg_apis_harvesterhciio_v1beta1_AuthenticationModesResponse(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition":                                                        schema_pkg_apis_harvesterhciio_v1beta1_Condition(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error":                                                            schema_pkg_apis_harvesterhciio_v1beta1_Error(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ErrorResponse":                                                    schema_pkg_apis_harvesterhciio_v1beta1_ErrorResponse(ref),
@@ -50,7 +49,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.KeyPairList":                                                      schema_pkg_apis_harvesterhciio_v1beta1_KeyPairList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.KeyPairSpec":                                                      schema_pkg_apis_harvesterhciio_v1beta1_KeyPairSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.KeyPairStatus":                                                    schema_pkg_apis_harvesterhciio_v1beta1_KeyPairStatus(ref),
-		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Login":                                                            schema_pkg_apis_harvesterhciio_v1beta1_Login(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.NodeUpgradeStatus":                                                schema_pkg_apis_harvesterhciio_v1beta1_NodeUpgradeStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.PersistentVolumeClaimSpec":                                        schema_pkg_apis_harvesterhciio_v1beta1_PersistentVolumeClaimSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Preference":                                                       schema_pkg_apis_harvesterhciio_v1beta1_Preference(ref),
@@ -62,7 +60,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SupportBundleList":                                                schema_pkg_apis_harvesterhciio_v1beta1_SupportBundleList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SupportBundleSpec":                                                schema_pkg_apis_harvesterhciio_v1beta1_SupportBundleSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SupportBundleStatus":                                              schema_pkg_apis_harvesterhciio_v1beta1_SupportBundleStatus(ref),
-		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.TokenResponse":                                                    schema_pkg_apis_harvesterhciio_v1beta1_TokenResponse(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Upgrade":                                                          schema_pkg_apis_harvesterhciio_v1beta1_Upgrade(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.UpgradeList":                                                      schema_pkg_apis_harvesterhciio_v1beta1_UpgradeList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.UpgradeSpec":                                                      schema_pkg_apis_harvesterhciio_v1beta1_UpgradeSpec(ref),
@@ -1223,32 +1220,6 @@ func schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkStatus(ref common.
 	}
 }
 
-func schema_pkg_apis_harvesterhciio_v1beta1_AuthenticationModesResponse(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"modes": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
 func schema_pkg_apis_harvesterhciio_v1beta1_Condition(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1532,49 +1503,6 @@ func schema_pkg_apis_harvesterhciio_v1beta1_KeyPairStatus(ref common.ReferenceCa
 		},
 		Dependencies: []string{
 			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition"},
-	}
-}
-
-func schema_pkg_apis_harvesterhciio_v1beta1_Login(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "Login",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"token": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Token is the bearer token for authentication to the kubernetes cluster, from serviceAccount's secret.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"kubeconfig": {
-						SchemaProps: spec.SchemaProps{
-							Description: "KubeConfig is the content of users' kubeconfig file. Currently support Kubeconfig with 1. token, 2. clientCertificateData and clientKeyData Can't contain any paths. All data has to be provided within the file.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"username": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Username and password is for local auth.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"password": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-				},
-				Required: []string{"username", "password"},
-			},
-		},
 	}
 }
 
@@ -2075,25 +2003,6 @@ func schema_pkg_apis_harvesterhciio_v1beta1_SupportBundleStatus(ref common.Refer
 		},
 		Dependencies: []string{
 			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition"},
-	}
-}
-
-func schema_pkg_apis_harvesterhciio_v1beta1_TokenResponse(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"jweToken": {
-						SchemaProps: spec.SchemaProps{
-							Description: "JWE format token generated during login, it AuthInfo data in the payload, need to use private key to decrypt.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-			},
-		},
 	}
 }
 
