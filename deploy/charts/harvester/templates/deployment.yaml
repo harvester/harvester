@@ -53,8 +53,6 @@ spec:
               value: {{ .Values.containers.apiserver.debug | quote }}
             - name: HARVESTER_SERVER_HTTP_PORT
               value: {{ .Values.service.harvester.httpPort | quote }}
-            - name: HARVESTER_AUTHENTICATION_MODE
-              value: {{ .Values.containers.apiserver.authMode | quote }}
 {{- if .Values.containers.apiserver.hciMode }}
             - name: HCI_MODE
               value: "true"
