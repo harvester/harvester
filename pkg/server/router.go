@@ -73,7 +73,6 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 
 	loginHandler := auth.NewLoginHandler()
 	m.Path("/v1-public/auth").Handler(loginHandler)
-	m.Path("/v1-public/auth-modes").HandlerFunc(auth.ModeHandler)
 
 	vueUI := ui.Vue
 	m.Handle("/dashboard/", vueUI.IndexFile())

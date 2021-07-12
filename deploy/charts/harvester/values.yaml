@@ -153,10 +153,6 @@ containers:
       ##
       tag: master-head
 
-    ## Define the authentication mode, currently only kubernetesCredentials and localUser are supported,
-    ## could config more than one mode, separated by comma
-    authMode: "localUser"
-
     ## Specify whether to run in HCI mode. This option enables additional controllers.
     ## defaults to "false", this will be enabled in ISO mode installation.
     hciMode: false
