@@ -267,7 +267,8 @@ func (h *TargetHandler) validateS3BackupTarget(target *settings.BackupTarget) er
 	endpointResolver := aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
 		if target.Endpoint != "" {
 			return aws.Endpoint{
-				URL: target.Endpoint,
+				URL:           target.Endpoint,
+				SigningRegion: target.BucketRegion,
 			}, nil
 		}
 
