@@ -405,7 +405,7 @@ github.com/lib/pq/oid
 github.com/lib/pq/scram
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 github.com/liggitt/tabwriter
-# github.com/longhorn/backupstore v0.0.0-20210413103305-10466b9f5adf
+# github.com/longhorn/backupstore v0.0.0-20210706194400-bcd975c9b878
 ## explicit
 github.com/longhorn/backupstore
 github.com/longhorn/backupstore/fsops
@@ -413,7 +413,7 @@ github.com/longhorn/backupstore/logging
 github.com/longhorn/backupstore/util
 # github.com/longhorn/go-iscsi-helper v0.0.0-20201111045018-ee87992ec536
 github.com/longhorn/go-iscsi-helper/util
-# github.com/longhorn/longhorn-manager v1.1.1
+# github.com/longhorn/longhorn-manager v1.1.2
 ## explicit
 github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn
 github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1

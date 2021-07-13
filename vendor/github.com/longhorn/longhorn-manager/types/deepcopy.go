@@ -37,6 +37,11 @@ func (v *VolumeStatus) DeepCopyInto(to *VolumeStatus) {
 			to.Conditions[key] = value
 		}
 	}
+
+	if v.KubernetesStatus.WorkloadsStatus != nil {
+		to.KubernetesStatus.WorkloadsStatus = make([]WorkloadStatus, len(v.KubernetesStatus.WorkloadsStatus))
+		copy(to.KubernetesStatus.WorkloadsStatus, v.KubernetesStatus.WorkloadsStatus)
+	}
 }
 
 func (e *EngineSpec) DeepCopyInto(to *EngineSpec) {
@@ -93,9 +98,24 @@ func (e *EngineStatus) DeepCopyInto(to *EngineStatus) {
 	}
 	if e.Snapshots != nil {
 		to.Snapshots = make(map[string]*Snapshot)
-		for key, value := range e.Snapshots {
+		for key, source := range e.Snapshots {
 			to.Snapshots[key] = &Snapshot{}
-			*to.Snapshots[key] = *value
+			*to.Snapshots[key] = *source
+			out := to.Snapshots[key]
+
+			if source.Children != nil {
+				out.Children = make(map[string]bool)
+				for key, value := range source.Children {
+					out.Children[key] = value
+				}
+			}
+
+			if source.Labels != nil {
+				out.Labels = make(map[string]string)
+				for key, value := range source.Labels {
+					out.Labels[key] = value
+				}
+			}
 		}
 	}
 }

@@ -69,8 +69,8 @@ const (
 	LonghornLabelShareManagerImage    = "share-manager-image"
 	LonghornLabelBackingImage         = "backing-image"
 	LonghornLabelBackingImageManager  = "backing-image-manager"
-
-	LonghornLabelManagedBy = "managed-by"
+	LonghornLabelManagedBy            = "managed-by"
+	LonghornLabelCronJobTask          = "job-task"
 
 	KubernetesFailureDomainRegionLabelKey = "failure-domain.beta.kubernetes.io/region"
 	KubernetesFailureDomainZoneLabelKey   = "failure-domain.beta.kubernetes.io/zone"
@@ -313,6 +313,20 @@ func GetShareManagerLabels(name, image string) map[string]string {
 		labels[GetLonghornLabelKey(LonghornLabelShareManagerImage)] = GetShareManagerImageChecksumName(GetImageCanonicalName(image))
 	}
 
+	return labels
+}
+
+func GetCronJobLabels(volumeName string, job *RecurringJob) map[string]string {
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[LonghornLabelVolume] = volumeName
+	labels[GetLonghornLabelKey(LonghornLabelCronJobTask)] = string(job.Task)
+	return labels
+}
+
+func GetCronJobPodLabels(volumeName string, job *RecurringJob) map[string]string {
+	labels := make(map[string]string)
+	labels[LonghornLabelVolume] = volumeName
+	labels[GetLonghornLabelKey(LonghornLabelCronJobTask)] = string(job.Task)
 	return labels
 }
 

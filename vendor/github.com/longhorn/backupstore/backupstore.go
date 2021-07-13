@@ -8,15 +8,15 @@ import (
 )
 
 type Volume struct {
-	Name             string
-	Size             int64 `json:",string"`
-	Labels           map[string]string
-	CreatedTime      string
-	LastBackupName   string
-	LastBackupAt     string
-	BlockCount       int64  `json:",string"`
-	BackingImageName string `json:",string"`
-	BackingImageURL  string `json:",string"`
+	Name                 string
+	Size                 int64 `json:",string"`
+	Labels               map[string]string
+	CreatedTime          string
+	LastBackupName       string
+	LastBackupAt         string
+	BlockCount           int64  `json:",string"`
+	BackingImageName     string `json:",string"`
+	BackingImageChecksum string `json:",string"`
 }
 
 type Snapshot struct {
@@ -96,29 +96,36 @@ func removeVolume(volumeName string, driver BackupStoreDriver) error {
 	return nil
 }
 
-func encodeBackupURL(backupName, volumeName, destURL string) string {
+func EncodeMetadataURL(backupName, volumeName, destURL string) string {
 	v := url.Values{}
 	v.Add("volume", volumeName)
-	v.Add("backup", backupName)
+	if backupName != "" {
+		v.Add("backup", backupName)
+	}
 	return destURL + "?" + v.Encode()
 }
 
-func decodeBackupURL(backupURL string) (string, string, error) {
+func DecodeMetadataURL(backupURL string) (string, string, string, error) {
 	u, err := url.Parse(backupURL)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	v := u.Query()
 	volumeName := v.Get("volume")
 	backupName := v.Get("backup")
-	if !util.ValidateName(volumeName) || !util.ValidateName(backupName) {
-		return "", "", fmt.Errorf("Invalid name parsed, got %v and %v", backupName, volumeName)
+	if !util.ValidateName(volumeName) {
+		return "", "", "", fmt.Errorf("Invalid volume name parsed, got %v", volumeName)
 	}
-	return backupName, volumeName, nil
+	if backupName != "" && !util.ValidateName(backupName) {
+		return "", "", "", fmt.Errorf("Invalid backup name parsed, got %v", backupName)
+	}
+	u.RawQuery = ""
+	destURL := u.String()
+	return backupName, volumeName, destURL, nil
 }
 
 func LoadVolume(backupURL string) (*Volume, error) {
-	_, volumeName, err := decodeBackupURL(backupURL)
+	_, volumeName, _, err := DecodeMetadataURL(backupURL)
 	if err != nil {
 		return nil, err
 	}
@@ -127,14 +134,4 @@ func LoadVolume(backupURL string) (*Volume, error) {
 		return nil, err
 	}
 	return loadVolume(volumeName, driver)
-}
-
-func GetBackupFromBackupURL(backupURL string) (string, error) {
-	backup, _, err := decodeBackupURL(backupURL)
-	return backup, err
-}
-
-func GetVolumeFromBackupURL(backupURL string) (string, error) {
-	_, volume, err := decodeBackupURL(backupURL)
-	return volume, err
 }

@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -345,6 +346,20 @@ func SplitStringToMap(str, separator string) map[string]struct{} {
 		ret[str] = struct{}{}
 	}
 	return ret
+}
+
+func GetSortedKeysFromMap(maps interface{}) []string {
+	v := reflect.ValueOf(maps)
+	if v.Kind() != reflect.Map {
+		return nil
+	}
+	mapKeys := v.MapKeys()
+	keys := make([]string, 0, len(mapKeys))
+	for _, k := range mapKeys {
+		keys = append(keys, k.String())
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // AutoCorrectName converts name to lowercase, and correct overlength name by
