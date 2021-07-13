@@ -3,7 +3,6 @@ package vm
 import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/data/convert"
-	"k8s.io/utils/pointer"
 	kv1 "kubevirt.io/client-go/api/v1"
 
 	"github.com/harvester/harvester/pkg/controller/master/migration"
@@ -151,7 +150,7 @@ func (vf *vmformatter) canRestart(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachin
 }
 
 func (vf *vmformatter) canStop(vm *kv1.VirtualMachine) bool {
-	if vm.Spec.Running != nil && vm.Spec.Running == pointer.BoolPtr(false) {
+	if vm.Spec.Running != nil && !*vm.Spec.Running {
 		return false
 	}
 
