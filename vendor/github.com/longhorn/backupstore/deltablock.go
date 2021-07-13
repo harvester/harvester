@@ -14,11 +14,12 @@ import (
 )
 
 type DeltaBackupConfig struct {
-	Volume   *Volume
-	Snapshot *Snapshot
-	DestURL  string
-	DeltaOps DeltaBlockBackupOperations
-	Labels   map[string]string
+	BackupName string
+	Volume     *Volume
+	Snapshot   *Snapshot
+	DestURL    string
+	DeltaOps   DeltaBlockBackupOperations
+	Labels     map[string]string
 }
 
 type DeltaRestoreConfig struct {
@@ -206,8 +207,13 @@ func CreateDeltaBlockBackup(config *DeltaBackupConfig) (string, bool, error) {
 		LogFieldSnapshot:   snapshot.Name,
 	}).Debug("Creating backup")
 
+	backupName := config.BackupName
+	if backupName == "" {
+		backupName = util.GenerateName("backup")
+	}
+
 	deltaBackup := &Backup{
-		Name:         util.GenerateName("backup"),
+		Name:         backupName,
 		VolumeName:   volume.Name,
 		SnapshotName: snapshot.Name,
 		Blocks:       []BlockMapping{},
@@ -327,13 +333,13 @@ func performBackup(config *DeltaBackupConfig, delta *Mappings, deltaBackup *Back
 	volume.Size = config.Volume.Size
 	volume.Labels = config.Labels
 	volume.BackingImageName = config.Volume.BackingImageName
-	volume.BackingImageURL = config.Volume.BackingImageURL
+	volume.BackingImageChecksum = config.Volume.BackingImageChecksum
 
 	if err := saveVolume(volume, bsDriver); err != nil {
 		return progress, "", err
 	}
 
-	return PROGRESS_PERCENTAGE_BACKUP_TOTAL, encodeBackupURL(backup.Name, volume.Name, destURL), nil
+	return PROGRESS_PERCENTAGE_BACKUP_TOTAL, EncodeMetadataURL(backup.Name, volume.Name, destURL), nil
 }
 
 func mergeSnapshotMap(deltaBackup, lastBackup *Backup) *Backup {
@@ -396,7 +402,7 @@ func RestoreDeltaBlockBackup(config *DeltaRestoreConfig) error {
 		return err
 	}
 
-	srcBackupName, srcVolumeName, err := decodeBackupURL(backupURL)
+	srcBackupName, srcVolumeName, _, err := DecodeMetadataURL(backupURL)
 	if err != nil {
 		return err
 	}
@@ -469,8 +475,21 @@ func RestoreDeltaBlockBackup(config *DeltaRestoreConfig) error {
 		defer volDev.Close()
 		defer lock.Unlock()
 
-		blkCounts := len(backup.Blocks)
 		var progress int
+		// This pre-truncate is to ensure the XFS speculatively
+		// preallocates post-EOF blocks get reclaimed when volDev is
+		// closed.
+		// https://github.com/longhorn/longhorn/issues/2503
+		// We want to truncate regular files, but not device
+		if stat.Mode()&os.ModeType == 0 {
+			log.Debugf("Truncate %v to size %v", volDevName, vol.Size)
+			if err := volDev.Truncate(vol.Size); err != nil {
+				deltaOps.UpdateRestoreStatus(volDevName, progress, err)
+				return
+			}
+		}
+
+		blkCounts := len(backup.Blocks)
 		for i, block := range backup.Blocks {
 			log.Debugf("Restore for %v: block %v, %v/%v", volDevName, block.BlockChecksum, i+1, blkCounts)
 			if err := restoreBlockToFile(srcVolumeName, volDev, bsDriver, block); err != nil {
@@ -481,14 +500,6 @@ func RestoreDeltaBlockBackup(config *DeltaRestoreConfig) error {
 			deltaOps.UpdateRestoreStatus(volDevName, progress, err)
 		}
 
-		// We want to truncate regular files, but not device
-		if stat.Mode()&os.ModeType == 0 {
-			log.Debugf("Truncate %v to size %v", volDevName, vol.Size)
-			if err := volDev.Truncate(vol.Size); err != nil {
-				deltaOps.UpdateRestoreStatus(volDevName, progress, err)
-				return
-			}
-		}
 		deltaOps.UpdateRestoreStatus(volDevName, PROGRESS_PERCENTAGE_BACKUP_TOTAL, nil)
 	}()
 
@@ -532,7 +543,7 @@ func RestoreDeltaBlockBackupIncrementally(config *DeltaRestoreConfig) error {
 		return err
 	}
 
-	srcBackupName, srcVolumeName, err := decodeBackupURL(backupURL)
+	srcBackupName, srcVolumeName, _, err := DecodeMetadataURL(backupURL)
 	if err != nil {
 		return err
 	}
@@ -614,10 +625,10 @@ func RestoreDeltaBlockBackupIncrementally(config *DeltaRestoreConfig) error {
 		defer volDev.Close()
 		defer lock.Unlock()
 
-		if err := performIncrementalRestore(srcVolumeName, volDev, lastBackup, backup, bsDriver, config); err != nil {
-			deltaOps.UpdateRestoreStatus(volDevName, 0, err)
-			return
-		}
+		// This pre-truncate is to ensure the XFS speculatively
+		// preallocates post-EOF blocks get reclaimed when volDev is
+		// closed.
+		// https://github.com/longhorn/longhorn/issues/2503
 		// We want to truncate regular files, but not device
 		if stat.Mode()&os.ModeType == 0 {
 			log.Debugf("Truncate %v to size %v", volDevName, vol.Size)
@@ -626,6 +637,12 @@ func RestoreDeltaBlockBackupIncrementally(config *DeltaRestoreConfig) error {
 				return
 			}
 		}
+
+		if err := performIncrementalRestore(srcVolumeName, volDev, lastBackup, backup, bsDriver, config); err != nil {
+			deltaOps.UpdateRestoreStatus(volDevName, 0, err)
+			return
+		}
+
 		deltaOps.UpdateRestoreStatus(volDevName, PROGRESS_PERCENTAGE_BACKUP_TOTAL, nil)
 	}()
 	return nil
@@ -754,7 +771,7 @@ func DeleteDeltaBlockBackup(backupURL string) error {
 		return err
 	}
 
-	backupName, volumeName, err := decodeBackupURL(backupURL)
+	backupName, volumeName, _, err := DecodeMetadataURL(backupURL)
 	if err != nil {
 		return err
 	}

@@ -848,6 +848,7 @@ github.com/konsorten/go-windows-terminal-sequences v0.0.0-20180402223658-b729f26
 github.com/konsorten/go-windows-terminal-sequences v1.0.1/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
 github.com/konsorten/go-windows-terminal-sequences v1.0.2/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
 github.com/konsorten/go-windows-terminal-sequences v1.0.3/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
+github.com/kr/fs v0.1.0/go.mod h1:FFnZGqtBN9Gxj7eW1uZ42v5BccTP0vu6NEaFoC2HwRg=
 github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515/go.mod h1:+0opPa2QZZtGFBFZlji/RkVcI2GknAs/DXo4wKdlNEc=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pretty v0.2.0/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
@@ -887,14 +888,15 @@ github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de/go.mod h1:zAbeS9
 github.com/lithammer/dedent v1.1.0/go.mod h1:jrXYCQtgg0nJiN+StA2KgR7w6CiQNv9Fd/Z9BP0jIOc=
 github.com/longhorn/backing-image-manager v0.0.0-20210420131143-904cd772a7a9/go.mod h1:4E4M6wO7zXgb5Jgxs0+zkG70yMFP1ySJzht6txwonoI=
 github.com/longhorn/backupstore v0.0.0-20201203004625-fdbdd88b09d6/go.mod h1:9O5tXHnI0KfLXHl+YVey17h9DNq6EIJmBCnNfZH1e18=
-github.com/longhorn/backupstore v0.0.0-20210413103305-10466b9f5adf h1:eGhWHzU4wtQxO0sagKzHyn6a2pjIF+C+dx0g/acObHw=
-github.com/longhorn/backupstore v0.0.0-20210413103305-10466b9f5adf/go.mod h1:UOpvZ/qRS2G8BBSybHuS/c4h1P21XTEnL2hoJz2JUuo=
+github.com/longhorn/backupstore v0.0.0-20210504063753-dfee2468733e/go.mod h1:UOpvZ/qRS2G8BBSybHuS/c4h1P21XTEnL2hoJz2JUuo=
+github.com/longhorn/backupstore v0.0.0-20210706194400-bcd975c9b878 h1:Vf4RAhonV90SPeTX8qIGQIBYj8TTYYY4R80z3kpGcG0=
+github.com/longhorn/backupstore v0.0.0-20210706194400-bcd975c9b878/go.mod h1:wmpbRq/nuQ5kBecxGtQ1q4vEKnXwWvuOTdOvvyqEa84=
 github.com/longhorn/go-iscsi-helper v0.0.0-20201111045018-ee87992ec536 h1:+Z/mGnoCdY+YCX+y4X19E2YT4FsVA3aVm7uLj1tg/wM=
 github.com/longhorn/go-iscsi-helper v0.0.0-20201111045018-ee87992ec536/go.mod h1:9z/y9glKmWEdV50tjlUPxFwi1goQfIrrsoZbnMyIZbY=
 github.com/longhorn/longhorn-instance-manager v0.0.0-20201016215346-d8437b4e156e/go.mod h1:SfnIsnFj+HdmRiyF2buQ6+CB1WTD1pDQ4zEE6lBLs4s=
 github.com/longhorn/longhorn-manager v1.1.0/go.mod h1:h2q+OgktnaFU3nFILh3umfR8vWywg9D2iTtdUry/JiY=
-github.com/longhorn/longhorn-manager v1.1.1 h1:6Puo+WOBtY3izdDwetwMpCbQ4mEmhRMwdmEErpMgAK8=
-github.com/longhorn/longhorn-manager v1.1.1/go.mod h1:zHLmolcOdkaMPt3t6AENAUNtVGtB/n8Q3NWraob1kNo=
+github.com/longhorn/longhorn-manager v1.1.2 h1:7H8pStU68J8/XlY3NbjNbbInZosGoKbgq7SAV01zlq8=
+github.com/longhorn/longhorn-manager v1.1.2/go.mod h1:/5iB5+3q/p1HOj7GXF8PT/YrPersNLAH3VjFfmN90Y4=
 github.com/longhorn/nsfilelock v0.0.0-20200723175406-fa7c83ad0003/go.mod h1:0CLeXlf59Lg6C0kjLSDf47ft73Dh37CwymYRKWwAn04=
 github.com/longhorn/sparse-tools v0.0.0-20210420073041-5c51de69e0eb/go.mod h1:1WSSJRDNret4VKADAzvD49oaVt1/idYVWBL8TiyevRk=
 github.com/lpabon/godbc v0.1.1/go.mod h1:Jo9QV0cf3U6jZABgiJ2skINAXb9j8m51r07g4KI92ZA=
@@ -1137,6 +1139,7 @@ github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINE
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/profile v1.3.0/go.mod h1:hJw3o1OdXxsrSjjVksARp5W95eeEaEfptyVZyv6JUPA=
+github.com/pkg/sftp v1.10.1/go.mod h1:lYOWFsE0bwd1+KfKJaKeuokY15vzFx25BLbzYYoAxZI=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/posener/complete v1.1.1/go.mod h1:em0nMJCgc9GFtwrmVmEMR/ZL6WyhyjMBndrE9hABlRI=
@@ -1354,8 +1357,9 @@ github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9
 github.com/soheilhy/cmux v0.1.4/go.mod h1:IM3LyeVVIOuxMH7sFAkER9+bJ4dT7Ms6E4xg4kGIyLM=
 github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
 github.com/spf13/afero v1.1.2/go.mod h1:j4pytiNVoe2o6bmDsKpLACNPDBIoEAkihy7loJ1B0CQ=
-github.com/spf13/afero v1.2.2 h1:5jhuqJyZCZf2JRofRvN/nIFgIWNzPa3/Vz8mYylgbWc=
 github.com/spf13/afero v1.2.2/go.mod h1:9ZxEEn6pIJ8Rxe320qSDBk6AsU0r9pR7Q4OcevTdifk=
+github.com/spf13/afero v1.6.0 h1:xoax2sJ2DT8S8xA2paPFjDCScCNeWsg75VG0DLRreiY=
+github.com/spf13/afero v1.6.0/go.mod h1:Ai8FlHk4v/PARR026UzYexafAt9roJ7LcLMAmO6Z93I=
 github.com/spf13/cast v1.3.0/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
 github.com/spf13/cast v1.3.1 h1:nFm6S0SMdyzrzcmThSipiEubIDy8WEXKNZ0UOgiRpng=
 github.com/spf13/cast v1.3.1/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
@@ -1550,6 +1554,7 @@ golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8/go.mod h1:yigFU9vqHzYiE8U
 golang.org/x/crypto v0.0.0-20190617133340-57b3e21c3d56/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
 golang.org/x/crypto v0.0.0-20190621222207-cc06ce4a13d4/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
 golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
+golang.org/x/crypto v0.0.0-20190820162420-60c769a6c586/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
 golang.org/x/crypto v0.0.0-20190911031432-227b76d455e7/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
 golang.org/x/crypto v0.0.0-20190923035154-9ee001bba392/go.mod h1:/lpIB1dKB+9EgE3H3cr1v9wB50oz8l4C4h62xy7jSTY=
 golang.org/x/crypto v0.0.0-20190927123631-a832865fa7ad/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=

@@ -51,6 +51,14 @@ func RegisterDriver(kind string, initFunc InitFunc) error {
 	return nil
 }
 
+func unregisterDriver(kind string) error {
+	if _, exists := initializers[kind]; !exists {
+		return fmt.Errorf("%s has not been registered", kind)
+	}
+	delete(initializers, kind)
+	return nil
+}
+
 func GetBackupStoreDriver(destURL string) (BackupStoreDriver, error) {
 	if destURL == "" {
 		return nil, fmt.Errorf("Destination URL hasn't been specified")
