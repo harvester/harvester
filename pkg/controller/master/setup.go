@@ -19,7 +19,6 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
 	"github.com/harvester/harvester/pkg/indexeres"
-	"github.com/harvester/harvester/pkg/userpreferences"
 )
 
 type registerFunc func(context.Context, *config.Management, config.Options) error
@@ -54,8 +53,6 @@ func register(ctx context.Context, management *config.Management, options config
 }
 
 func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
-	userpreferences.Register(server.BaseSchemas, server.ClientFactory)
-
 	scaled := config.ScaledWithContext(ctx)
 
 	indexeres.RegisterManagementIndexers(scaled.Management)
