@@ -7,7 +7,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/config"
-	"github.com/harvester/harvester/pkg/controller/global/auth"
 	"github.com/harvester/harvester/pkg/controller/global/settings"
 	"github.com/harvester/harvester/pkg/indexeres"
 )
@@ -16,7 +15,6 @@ type registerFunc func(context.Context, *config.Scaled, *server.Server, config.O
 
 var registerFuncs = []registerFunc{
 	settings.Register,
-	auth.Register,
 }
 
 func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
