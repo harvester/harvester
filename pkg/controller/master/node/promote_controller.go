@@ -43,20 +43,17 @@ const (
 	promoteImage         = "busybox:1.32.0"
 	promoteRootMountPath = "/host"
 
-	// restart after modify the k3s service profile
 	promoteCommand = `echo start promote && \
-if [ ! -f /var/lib/rancher/k3os/config.yaml ]; then \
-	sudo cp /k3os/system/config.yaml /var/lib/rancher/k3os/config.yaml && \
-	echo done clone config; \
-fi && \
-echo update config && \
-sudo yq -i eval '.k3os.k3sArgs[0] = \"server\"' /var/lib/rancher/k3os/config.yaml && \
-sudo yq -i eval '.k3os.k3sArgs |= . + [\"--disable\",\"local-storage\",\"--disable\",\"servicelb\",\"--disable\",\"traefik\"]' /var/lib/rancher/k3os/config.yaml && \
-sudo yq -i eval '.k3os.k3sArgs |= . + [\"--cluster-cidr\",\"10.52.0.0/16\",\"--service-cidr\",\"10.53.0.0/16\",\"--cluster-dns\",\"10.53.0.10\"]' /var/lib/rancher/k3os/config.yaml && \
-echo restart and promote k3s node && \
-cat /var/run/k3s-restarter-trap.pid | xargs -r kill -HUP && \
-echo finish promote
-`
+cat > /etc/rancher/rke2/config.yaml.d/90-harvester-server.yaml <<EOF
+cni: multus,canal
+disable: rke2-ingress-nginx
+cluster-cidr: 10.52.0.0/16
+service-cidr: 10.53.0.0/16
+cluster-dns: 10.53.0.10
+EOF
+systemctl disable --now rke2-agent && \
+systemctl enable --now rke2-server && \
+echo finish promote`
 )
 
 var (
@@ -455,7 +452,7 @@ func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
 			Name:      "promote",
 			Image:     promoteImage,
 			Command:   []string{"sh"},
-			Args:      []string{"-c", fmt.Sprintf(`chroot %s bash -c "%s"`, promoteRootMountPath, promoteCommand)},
+			Args:      []string{"-c", fmt.Sprintf(`chroot %s bash -c '%s'`, promoteRootMountPath, promoteCommand)},
 			Resources: corev1.ResourceRequirements{},
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "host-root", MountPath: promoteRootMountPath},
