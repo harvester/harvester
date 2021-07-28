@@ -237,7 +237,7 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 		md, err := auth.NewMiddleware(s.Context, scaled,
 			s.RancherRESTConfig, options.RancherEmbedded || options.RancherURL != "",
 			[]string{"/v1", "/apis"},
-			[]string{"/v1-public"})
+			[]string{"/v1-public", "/v1/management.cattle.io.setting"})
 		if err != nil {
 			return err
 		}

@@ -90,6 +90,7 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 		m.PathPrefix("/v3-public/").Handler(rancherHandler)
 		m.PathPrefix("/v3/").Handler(rancherHandler)
 		m.PathPrefix("/v1/userpreferences").Handler(rancherHandler)
+		m.PathPrefix("/v1/management.cattle.io.setting").Handler(rancherHandler)
 	}
 
 	m.NotFoundHandler = router.Routes(h)
