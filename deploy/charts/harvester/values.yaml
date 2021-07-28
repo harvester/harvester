@@ -354,6 +354,8 @@ longhorn:
     concurrentAutomaticEngineUpgradePerNodeLimit: 3
 
 rancherEmbedded: false
+auth:
+  enabled: false
 
 webhook:
   replicas: 3

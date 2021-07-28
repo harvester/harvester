@@ -61,6 +61,10 @@ spec:
             - name: RANCHER_EMBEDDED
               value: "true"
 {{- end }}
+{{- if not .Values.auth.enabled }}
+            - name: SKIP_AUTHENTICATION
+              value: "true"
+{{- end }}
 {{- if .Values.rancherURL }}
             - name: RANCHER_SERVER_URL
               value: {{  .Values.rancherURL }}
