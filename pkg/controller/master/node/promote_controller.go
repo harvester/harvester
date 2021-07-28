@@ -355,7 +355,7 @@ func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
 }
 
 func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, error) {
-	job := buildPromoteJob(h.namespace, node.Name)
+	job := buildPromoteJob(h.namespace, node)
 	return h.jobs.Create(job)
 }
 
@@ -363,7 +363,8 @@ func (h *PromoteHandler) deleteJob(job *batchv1.Job, deletionPropagation metav1.
 	return h.jobs.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{PropagationPolicy: &deletionPropagation})
 }
 
-func buildPromoteJob(namespace, nodeName string) *batchv1.Job {
+func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
+	nodeName := node.Name
 	hostPathDirectory := corev1.HostPathDirectory
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -371,6 +372,14 @@ func buildPromoteJob(namespace, nodeName string) *batchv1.Job {
 			Namespace: namespace,
 			Labels: labels.Set{
 				HarvesterPromoteNodeLabelKey: nodeName,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: node.APIVersion,
+					Kind:       node.Kind,
+					Name:       nodeName,
+					UID:        node.UID,
+				},
 			},
 		},
 		Spec: batchv1.JobSpec{
