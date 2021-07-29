@@ -42,3 +42,12 @@ dependencies:
     version: 1.2.0
     repository: https://charts.longhorn.io
     condition: longhorn.enabled
+  - name: kube-vip
+    version: 0.3.7
+    repository: https://kube-vip.io/helm-charts
+  - name: kube-vip-cloud-provider
+    version: 0.1.0
+    repository: https://kube-vip.io/helm-charts
+  - name: harvester-load-balancer
+    version: 0.1.1
+    repository: https://charts.harvesterhci.io
