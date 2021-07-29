@@ -17,5 +17,14 @@ dependencies:
 - name: longhorn
   repository: https://charts.longhorn.io
   version: 1.2.0
-digest: sha256:572641d314112e8c902ff7dd3f5f9f36a54e0faee444a352278c9dbdd6f3e579
-generated: "2021-09-08T21:27:02.315516688+08:00"
+- name: kube-vip
+  repository: https://kube-vip.io/helm-charts
+  version: 0.3.7
+- name: kube-vip-cloud-provider
+  repository: https://kube-vip.io/helm-charts
+  version: 0.1.0
+- name: harvester-load-balancer
+  repository: https://charts.harvesterhci.io
+  version: 0.1.1
+digest: sha256:1e6b0c8e231bc16a10501bd1a279d5d9fd9d3d0985f5bf9e03d09a7e7651133b
+generated: "2021-09-08T22:40:40.04253+08:00"
