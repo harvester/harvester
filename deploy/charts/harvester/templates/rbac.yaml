@@ -83,3 +83,48 @@ rules:
       - get
       - list
       - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+{{ include "harvester.labels" . | indent 4 }}
+    app.kubernetes.io/name: harvester
+    app.kubernetes.io/component: apiserver
+  name: harvesterhci.io:cloudprovider
+rules:
+  - apiGroups:
+      - loadbalancer.harvesterhci.io
+    resources:
+      - loadbalancers
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - create
+      - delete
+  - apiGroups:
+      - subresources.kubevirt.io
+    resources:
+      - virtualmachineinstances/addvolume
+      - virtualmachineinstances/removevolume
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - kubevirt.io
+    resources:
+      - virtualmachines
+      - virtualmachineinstances
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - persistentvolumeclaims
+      - persistentvolumeclaims/status
+    verbs:
+      - "*"
