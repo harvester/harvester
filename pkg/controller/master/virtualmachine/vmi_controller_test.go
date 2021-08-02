@@ -1027,7 +1027,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
+						Source: &cdiapis.DataVolumeSource{
 							Blank: &cdiapis.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -1115,7 +1115,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						UID:       "fake-dv-uid",
 					},
 					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
+						Source: &cdiapis.DataVolumeSource{
 							Blank: &cdiapis.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -1257,7 +1257,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
+						Source: &cdiapis.DataVolumeSource{
 							Blank: &cdiapis.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -1355,7 +1355,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
+						Source: &cdiapis.DataVolumeSource{
 							Blank: &cdiapis.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{

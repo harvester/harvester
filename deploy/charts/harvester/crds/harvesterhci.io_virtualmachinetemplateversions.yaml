@@ -127,6 +127,10 @@ spec:
                               description: Preallocation controls whether storage
                                 for DataVolumes should be allocated in advance.
                               type: boolean
+                            priorityClassName:
+                              description: PriorityClassName for Importer, Cloner
+                                and Uploader pod
+                              type: string
                             pvc:
                               description: PVC is the PVC specification
                               properties:
@@ -402,8 +406,141 @@ spec:
                                       type: string
                                   type: object
                               type: object
+                            storage:
+                              description: Storage is the requested storage specification
+                              properties:
+                                accessModes:
+                                  description: 'AccessModes contains the desired access
+                                    modes the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
+                                  items:
+                                    type: string
+                                  type: array
+                                dataSource:
+                                  description: 'This field can be used to specify
+                                    either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
+                                    * An existing PVC (PersistentVolumeClaim) * An
+                                    existing custom resource that implements data
+                                    population (Alpha) In order to use custom resource
+                                    types that implement data population, the AnyVolumeDataSource
+                                    feature gate must be enabled. If the provisioner
+                                    or an external controller can support the specified
+                                    data source, it will create a new volume based
+                                    on the contents of the specified data source.'
+                                  properties:
+                                    apiGroup:
+                                      description: APIGroup is the group for the resource
+                                        being referenced. If APIGroup is not specified,
+                                        the specified Kind must be in the core API
+                                        group. For any other third-party types, APIGroup
+                                        is required.
+                                      type: string
+                                    kind:
+                                      description: Kind is the type of resource being
+                                        referenced
+                                      type: string
+                                    name:
+                                      description: Name is the name of resource being
+                                        referenced
+                                      type: string
+                                  required:
+                                  - kind
+                                  - name
+                                  type: object
+                                resources:
+                                  description: 'Resources represents the minimum resources
+                                    the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
+                                  properties:
+                                    limits:
+                                      additionalProperties:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      description: 'Limits describes the maximum amount
+                                        of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                      type: object
+                                    requests:
+                                      additionalProperties:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      description: 'Requests describes the minimum
+                                        amount of compute resources required. If Requests
+                                        is omitted for a container, it defaults to
+                                        Limits if that is explicitly specified, otherwise
+                                        to an implementation-defined value. More info:
+                                        https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                      type: object
+                                  type: object
+                                selector:
+                                  description: A label query over volumes to consider
+                                    for binding.
+                                  properties:
+                                    matchExpressions:
+                                      description: matchExpressions is a list of label
+                                        selector requirements. The requirements are
+                                        ANDed.
+                                      items:
+                                        description: A label selector requirement
+                                          is a selector that contains values, a key,
+                                          and an operator that relates the key and
+                                          values.
+                                        properties:
+                                          key:
+                                            description: key is the label key that
+                                              the selector applies to.
+                                            type: string
+                                          operator:
+                                            description: operator represents a key's
+                                              relationship to a set of values. Valid
+                                              operators are In, NotIn, Exists and
+                                              DoesNotExist.
+                                            type: string
+                                          values:
+                                            description: values is an array of string
+                                              values. If the operator is In or NotIn,
+                                              the values array must be non-empty.
+                                              If the operator is Exists or DoesNotExist,
+                                              the values array must be empty. This
+                                              array is replaced during a strategic
+                                              merge patch.
+                                            items:
+                                              type: string
+                                            type: array
+                                        required:
+                                        - key
+                                        - operator
+                                        type: object
+                                      type: array
+                                    matchLabels:
+                                      additionalProperties:
+                                        type: string
+                                      description: matchLabels is a map of {key,value}
+                                        pairs. A single {key,value} in the matchLabels
+                                        map is equivalent to an element of matchExpressions,
+                                        whose key field is "key", the operator is
+                                        "In", and the values array contains only "value".
+                                        The requirements are ANDed.
+                                      type: object
+                                  type: object
+                                storageClassName:
+                                  description: 'Name of the StorageClass required
+                                    by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
+                                  type: string
+                                volumeMode:
+                                  description: volumeMode defines what type of volume
+                                    is required by the claim. Value of Filesystem
+                                    is implied when not included in claim spec.
+                                  type: string
+                                volumeName:
+                                  description: VolumeName is the binding reference
+                                    to the PersistentVolume backing this claim.
+                                  type: string
+                              type: object
                           required:
-                          - pvc
                           - source
                           type: object
                         status:
@@ -1780,6 +1917,36 @@ spec:
                                       and luns which are connected to the vmi.
                                     items:
                                       properties:
+                                        blockSize:
+                                          description: If specified, the virtual disk
+                                            will be presented with the given block
+                                            sizes.
+                                          properties:
+                                            custom:
+                                              description: CustomBlockSize represents
+                                                the desired logical and physical block
+                                                size for a VM disk.
+                                              properties:
+                                                logical:
+                                                  type: integer
+                                                physical:
+                                                  type: integer
+                                              required:
+                                              - logical
+                                              - physical
+                                              type: object
+                                            matchVolume:
+                                              description: Represents if a feature
+                                                is enabled or disabled.
+                                              properties:
+                                                enabled:
+                                                  description: Enabled determines
+                                                    if the feature should be enabled
+                                                    or disabled on the guest. Defaults
+                                                    to true.
+                                                  type: boolean
+                                              type: object
+                                          type: object
                                         bootOrder:
                                           description: BootOrder is an integer value
                                             > 0, used to determine ordering of boot
@@ -2392,6 +2559,46 @@ spec:
                                             type: boolean
                                         type: object
                                     type: object
+                                  kernelBoot:
+                                    description: Settings to set the kernel for booting.
+                                    properties:
+                                      container:
+                                        description: Container defines the container
+                                          that containes kernel artifacts
+                                        properties:
+                                          image:
+                                            description: Image that container initrd
+                                              / kernel files.
+                                            type: string
+                                          imagePullPolicy:
+                                            description: 'Image pull policy. One of
+                                              Always, Never, IfNotPresent. Defaults
+                                              to Always if :latest tag is specified,
+                                              or IfNotPresent otherwise. Cannot be
+                                              updated. More info: https://kubernetes.io/docs/concepts/containers/images#updating-images'
+                                            type: string
+                                          imagePullSecret:
+                                            description: ImagePullSecret is the name
+                                              of the Docker registry secret required
+                                              to pull the image. The secret must already
+                                              exist.
+                                            type: string
+                                          initrdPath:
+                                            description: the fully-qualified path
+                                              to the ramdisk image in the host OS
+                                            type: string
+                                          kernelPath:
+                                            description: The fully-qualified path
+                                              to the kernel image in the host OS
+                                            type: string
+                                        required:
+                                        - image
+                                        type: object
+                                      kernelArgs:
+                                        description: Arguments to be passed to the
+                                          kernel at boot time
+                                        type: string
+                                    type: object
                                   serial:
                                     description: The system-serial-number in SMBIOS
                                     type: string
@@ -2412,8 +2619,6 @@ spec:
                                     description: QEMU machine type is the actual chipset
                                       of the VirtualMachineInstance.
                                     type: string
-                                required:
-                                - type
                                 type: object
                               memory:
                                 description: Memory allow specifying the VMI memory
@@ -2495,6 +2700,27 @@ spec:
                               liveness. VirtualmachineInstances will be stopped if
                               the probe fails. Cannot be updated. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes'
                             properties:
+                              exec:
+                                description: One and only one of the following should
+                                  be specified. Exec specifies the action to take,
+                                  it will be executed on the guest through the qemu-guest-agent.
+                                  If the guest agent is not available, this probe
+                                  will fail.
+                                properties:
+                                  command:
+                                    description: Command is the command line to execute
+                                      inside the container, the working directory
+                                      for the command  is root ('/') in the container's
+                                      filesystem. The command is simply exec'd, it
+                                      is not run inside a shell, so traditional shell
+                                      instructions ('|', etc) won't work. To use a
+                                      shell, you need to explicitly call out to that
+                                      shell. Exit status of 0 is treated as live/healthy
+                                      and non-zero is unhealthy.
+                                    items:
+                                      type: string
+                                    type: array
+                                type: object
                               failureThreshold:
                                 description: Minimum consecutive failures for the
                                   probe to be considered failed after having succeeded.
@@ -2586,8 +2812,14 @@ spec:
                                 type: object
                               timeoutSeconds:
                                 description: 'Number of seconds after which the probe
-                                  times out. Defaults to 1 second. Minimum value is
-                                  1. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes'
+                                  times out. For exec probes the timeout fails the
+                                  probe but does not terminate the command running
+                                  on the guest. This means a blocking command can
+                                  result in an increasing load on the guest. A small
+                                  buffer will be added to the resulting workload exec
+                                  probe to compensate for delays caused by the qemu
+                                  guest exec mechanism. Defaults to 1 second. Minimum
+                                  value is 1. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes'
                                 format: int32
                                 type: integer
                             type: object
@@ -2622,6 +2854,10 @@ spec:
                                 pod:
                                   description: Represents the stock pod network interface.
                                   properties:
+                                    vmIPv6NetworkCIDR:
+                                      description: IPv6 CIDR for the vm network. Defaults
+                                        to fd10:0:2::/120 if not specified.
+                                      type: string
                                     vmNetworkCIDR:
                                       description: CIDR for vm network. Default 10.0.2.0/24
                                         if not specified.
@@ -2650,6 +2886,27 @@ spec:
                               from service endpoints if the probe fails. Cannot be
                               updated. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes'
                             properties:
+                              exec:
+                                description: One and only one of the following should
+                                  be specified. Exec specifies the action to take,
+                                  it will be executed on the guest through the qemu-guest-agent.
+                                  If the guest agent is not available, this probe
+                                  will fail.
+                                properties:
+                                  command:
+                                    description: Command is the command line to execute
+                                      inside the container, the working directory
+                                      for the command  is root ('/') in the container's
+                                      filesystem. The command is simply exec'd, it
+                                      is not run inside a shell, so traditional shell
+                                      instructions ('|', etc) won't work. To use a
+                                      shell, you need to explicitly call out to that
+                                      shell. Exit status of 0 is treated as live/healthy
+                                      and non-zero is unhealthy.
+                                    items:
+                                      type: string
+                                    type: array
+                                type: object
                               failureThreshold:
                                 description: Minimum consecutive failures for the
                                   probe to be considered failed after having succeeded.
@@ -2741,8 +2998,14 @@ spec:
                                 type: object
                               timeoutSeconds:
                                 description: 'Number of seconds after which the probe
-                                  times out. Defaults to 1 second. Minimum value is
-                                  1. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes'
+                                  times out. For exec probes the timeout fails the
+                                  probe but does not terminate the command running
+                                  on the guest. This means a blocking command can
+                                  result in an increasing load on the guest. A small
+                                  buffer will be added to the resulting workload exec
+                                  probe to compensate for delays caused by the qemu
+                                  guest exec mechanism. Defaults to 1 second. Minimum
+                                  value is 1. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes'
                                 format: int32
                                 type: integer
                             type: object
@@ -2750,6 +3013,10 @@ spec:
                             description: If specified, the VMI will be dispatched
                               by specified scheduler. If not specified, the VMI will
                               be dispatched by default scheduler.
+                            type: string
+                          startStrategy:
+                            description: StartStrategy can be set to "Paused" if Virtual
+                              Machine should be started in paused state.
                             type: string
                           subdomain:
                             description: If specified, the fully qualified vmi hostname
@@ -3062,6 +3329,13 @@ spec:
                                         values are "cidata" (cloud-init), "config-2"
                                         (cloud-init) or "OEMDRV" (kickstart).
                                       type: string
+                                  type: object
+                                downwardMetrics:
+                                  description: DownwardMetrics adds a very small disk
+                                    to VMIs which contains a limited view of host
+                                    and guest metrics. The disk content is compatible
+                                    with vhostmd (https://github.com/vhostmd/vhostmd)
+                                    and vm-dump-metrics.
                                   type: object
                                 emptyDisk:
                                   description: 'EmptyDisk represents a temporary disk

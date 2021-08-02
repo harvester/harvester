@@ -50,7 +50,7 @@ var _ = Describe("verify volume APIs", func() {
 						Namespace: namespace,
 					},
 					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: cdiv1beta1.DataVolumeSource{
+						Source: &cdiv1beta1.DataVolumeSource{
 							Blank: &cdiv1beta1.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -75,7 +75,7 @@ var _ = Describe("verify volume APIs", func() {
 						Namespace: namespace,
 					},
 					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: cdiv1beta1.DataVolumeSource{
+						Source: &cdiv1beta1.DataVolumeSource{
 							Blank: &cdiv1beta1.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -106,7 +106,7 @@ var _ = Describe("verify volume APIs", func() {
 						},
 					},
 					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: cdiv1beta1.DataVolumeSource{
+						Source: &cdiv1beta1.DataVolumeSource{
 							Blank: &cdiv1beta1.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -153,7 +153,7 @@ var _ = Describe("verify volume APIs", func() {
 						},
 					},
 					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: cdiv1beta1.DataVolumeSource{
+						Source: &cdiv1beta1.DataVolumeSource{
 							Blank: &cdiv1beta1.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -199,7 +199,7 @@ var _ = Describe("verify volume APIs", func() {
 						},
 					},
 					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: cdiv1beta1.DataVolumeSource{
+						Source: &cdiv1beta1.DataVolumeSource{
 							Blank: &cdiv1beta1.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -280,7 +280,7 @@ var _ = Describe("verify volume APIs", func() {
 						Namespace: namespace,
 					},
 					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: cdiv1beta1.DataVolumeSource{
+						Source: &cdiv1beta1.DataVolumeSource{
 							Blank: &cdiv1beta1.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
