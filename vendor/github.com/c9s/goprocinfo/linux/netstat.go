@@ -94,7 +94,7 @@ type NetStat struct {
 	TCPReqQFullDrop           uint64 `json:"tcp_req_q_full_drop"`
 	TCPRetransFail            uint64 `json:"tcp_retrans_fail"`
 	TCPRcvCoalesce            uint64 `json:"tcp_rcv_coalesce"`
-	TCPOFOQueue               uint64 `json:"tcp_ofo_drop"`
+	TCPOFOQueue               uint64 `json:"tcp_ofo_queue"`
 	TCPOFODrop                uint64 `json:"tcp_ofo_drop"`
 	TCPOFOMerge               uint64 `json:"tcp_ofo_merge"`
 	TCPChallengeACK           uint64 `json:"tcp_challenge_ack"`

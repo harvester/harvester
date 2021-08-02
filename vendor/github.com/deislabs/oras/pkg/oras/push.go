@@ -57,7 +57,7 @@ func Push(ctx context.Context, resolver remotes.Resolver, ref string, provider c
 
 //func pack(store *hybridStore, descriptors []ocispec.Descriptor, opts *pushOpts) (ocispec.Descriptor, error) {
 func pack(provider content.Provider, descriptors []ocispec.Descriptor, opts *pushOpts) (ocispec.Descriptor, content.Store, error) {
-	store := newHybridStoreFromProvider(provider)
+	store := newHybridStoreFromProvider(provider, nil)
 
 	// Config
 	var config ocispec.Descriptor

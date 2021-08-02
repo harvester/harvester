@@ -38,8 +38,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
-	operatorsv1 "github.com/openshift/api/operator/v1"
-
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
@@ -80,6 +78,13 @@ type VirtualMachineInstanceList struct {
 // +k8s:openapi-gen=true
 type EvictionStrategy string
 
+// +k8s:openapi-gen=true
+type StartStrategy string
+
+const (
+	StartStrategyPaused StartStrategy = "Paused"
+)
+
 // VirtualMachineInstanceSpec is a description of a VirtualMachineInstance.
 //
 // +k8s:openapi-gen=true
@@ -112,7 +117,10 @@ type VirtualMachineInstanceSpec struct {
 	//
 	// +optional
 	EvictionStrategy *EvictionStrategy `json:"evictionStrategy,omitempty"`
-
+	// StartStrategy can be set to "Paused" if Virtual Machine should be started in paused state.
+	//
+	// +optional
+	StartStrategy *StartStrategy `json:"startStrategy,omitempty"`
 	// Grace period observed after signalling a VirtualMachineInstance to stop after which the VirtualMachineInstance is force terminated.
 	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
 	// List of volumes that can be mounted by disks belonging to the vmi.
@@ -203,6 +211,11 @@ type VirtualMachineInstanceStatus struct {
 	// +optional
 	// +listType=atomic
 	VolumeStatus []VolumeStatus `json:"volumeStatus,omitempty"`
+
+	// FSFreezeStatus is the state of the fs of the guest
+	// it can be either frozen or thawed
+	// +optional
+	FSFreezeStatus string `json:"fsFreezeStatus,omitempty"`
 }
 
 // VolumeStatus represents information about the status of volumes attached to the VirtualMachineInstance.
@@ -285,6 +298,10 @@ func (v *VirtualMachineInstance) IsFinal() bool {
 	return v.Status.Phase == Failed || v.Status.Phase == Succeeded
 }
 
+func (v *VirtualMachineInstance) IsMarkedForDeletion() bool {
+	return v.ObjectMeta.DeletionTimestamp != nil
+}
+
 func (v *VirtualMachineInstance) IsUnknown() bool {
 	return v.Status.Phase == Unknown
 }
@@ -304,6 +321,11 @@ func (v *VirtualMachineInstance) WantsToHaveQOSGuaranteed() bool {
 	resources := v.Spec.Domain.Resources
 	return !resources.Requests.Memory().IsZero() && resources.Requests.Memory().Cmp(*resources.Limits.Memory()) == 0 &&
 		!resources.Requests.Cpu().IsZero() && resources.Requests.Cpu().Cmp(*resources.Limits.Cpu()) == 0
+}
+
+// ShouldStartPaused returns true if VMI should be started in paused state
+func (v *VirtualMachineInstance) ShouldStartPaused() bool {
+	return v.Spec.StartStrategy != nil && *v.Spec.StartStrategy == StartStrategyPaused
 }
 
 //
@@ -344,6 +366,8 @@ const (
 	VirtualMachineInstanceReasonInterfaceNotMigratable = "InterfaceNotLiveMigratable"
 	// Reason means that VMI is not live migratioable because of it's network interfaces collection
 	VirtualMachineInstanceReasonHotplugNotMigratable = "HotplugNotLiveMigratable"
+	// Reason means that VMI is not live migratioable because of it's CPU mode
+	VirtualMachineInstanceReasonCPUModeNotMigratable = "CPUModeLiveMigratable"
 )
 
 const (
@@ -559,12 +583,18 @@ const (
 	MigrationJobNameAnnotation                    string = "kubevirt.io/migrationJobName"
 	ControllerAPILatestVersionObservedAnnotation  string = "kubevirt.io/latest-observed-api-version"
 	ControllerAPIStorageVersionObservedAnnotation string = "kubevirt.io/storage-observed-api-version"
+	// Used by functional tests to force a VMI to fail the migration internally within launcher
+	FuncTestForceLauncherMigrationFailureAnnotation string = "kubevirt.io/func-test-force-launcher-migration-failure"
+	// Used by functional tests to prevent virt launcher from finishing the target pod preparation.
+	FuncTestBlockLauncherPrepareMigrationTargetAnnotation string = "kubevirt.io/func-test-block-migration-target-preparation"
 	// This label is used to match virtual machine instance IDs with pods.
 	// Similar to kubevirt.io/domain. Used on Pod.
 	// Internal use only.
 	CreatedByLabel string = "kubevirt.io/created-by"
 	// This label is used to indicate that this pod is the target of a migration job.
 	MigrationJobLabel string = "kubevirt.io/migrationJobUID"
+	// This label indicates the migration name that a PDB is protecting.
+	MigrationNameLabel string = "kubevirt.io/migrationName"
 	// This label describes which cluster node runs the virtual machine
 	// instance. Needed because with CRDs we can't use field selectors. Used on
 	// VirtualMachineInstance.
@@ -637,13 +667,22 @@ const (
 
 	// This label represents supported cpu features on the node
 	CPUFeatureLabel = "cpu-feature.node.kubevirt.io/"
-	// This laberepresents supported cpu models on the node
+	// This label represents supported cpu models on the node
 	CPUModelLabel = "cpu-model.node.kubevirt.io/"
+	CPUTimerLabel = "cpu-timer.node.kubevirt.io/"
 	// This label represents supported HyperV features on the node
 	HypervLabel = "hyperv.node.kubevirt.io/"
+	// This label represents vendor of cpu model on the node
+	CPUModelVendorLabel = "cpu-vendor.node.kubevirt.io/"
 
-	VirtualMachineLabel        = AppLabel + "/vm"
-	MemfdMemoryBackend  string = "kubevirt.io/memfd"
+	// This label represents the host model CPU name
+	HostModelCPULabel = "host-model-cpu.node.kubevirt.io/"
+	// This label represents the host model required features
+	HostModelRequiredFeaturesLabel = "host-model-required-features.node.kubevirt.io/"
+
+	LabellerSkipNodeAnnotation        = "node-labeller.kubevirt.io/skip-node"
+	VirtualMachineLabel               = AppLabel + "/vm"
+	MemfdMemoryBackend         string = "kubevirt.io/memfd"
 
 	MigrationSelectorLabel = "kubevirt.io/vmi-name"
 )
@@ -1097,9 +1136,39 @@ type StateChangeRequestAction string
 
 // These are the currently defined state change requests
 const (
-	StartRequest  StateChangeRequestAction = "Start"
-	StopRequest   StateChangeRequestAction = "Stop"
-	RenameRequest                          = "Rename"
+	StartRequest StateChangeRequestAction = "Start"
+	StopRequest  StateChangeRequestAction = "Stop"
+)
+
+// VirtualMachinePrintableStatus is a human readable, high-level representation of the status of the virtual machine.
+//
+// +k8s:openapi-gen=true
+type VirtualMachinePrintableStatus string
+
+// A list of statuses defined for virtual machines
+const (
+	// VirtualMachineStatusStopped indicates that the virtual machine is currently stopped and isn't expected to start.
+	VirtualMachineStatusStopped VirtualMachinePrintableStatus = "Stopped"
+	// VirtualMachineStatusProvisioning indicates that cluster resources associated with the virtual machine
+	// (e.g., DataVolumes) are being provisioned and prepared.
+	VirtualMachineStatusProvisioning VirtualMachinePrintableStatus = "Provisioning"
+	// VirtualMachineStatusStarting indicates that the virtual machine is being prepared for running.
+	VirtualMachineStatusStarting VirtualMachinePrintableStatus = "Starting"
+	// VirtualMachineStatusRunning indicates that the virtual machine is running.
+	VirtualMachineStatusRunning VirtualMachinePrintableStatus = "Running"
+	// VirtualMachineStatusPaused indicates that the virtual machine is paused.
+	VirtualMachineStatusPaused VirtualMachinePrintableStatus = "Paused"
+	// VirtualMachineStatusStopping indicates that the virtual machine is in the process of being stopped.
+	VirtualMachineStatusStopping VirtualMachinePrintableStatus = "Stopping"
+	// VirtualMachineStatusTerminating indicates that the virtual machine is in the process of deletion,
+	// as well as its associated resources (VirtualMachineInstance, DataVolumes, …).
+	VirtualMachineStatusTerminating VirtualMachinePrintableStatus = "Terminating"
+	// VirtualMachineStatusMigrating indicates that the virtual machine is in the process of being migrated
+	// to another host.
+	VirtualMachineStatusMigrating VirtualMachinePrintableStatus = "Migrating"
+	// VirtualMachineStatusUnknown indicates that the state of the virtual machine could not be obtained,
+	// typically due to an error in communicating with the host on which it's running.
+	VirtualMachineStatusUnknown VirtualMachinePrintableStatus = "Unknown"
 )
 
 // VirtualMachineStatus represents the status returned by the
@@ -1113,6 +1182,8 @@ type VirtualMachineStatus struct {
 	Created bool `json:"created,omitempty"`
 	// Ready indicates if the virtual machine is running and ready
 	Ready bool `json:"ready,omitempty"`
+	// PrintableStatus is a human readable, high-level representation of the status of the virtual machine
+	PrintableStatus VirtualMachinePrintableStatus `json:"printableStatus,omitempty"`
 	// Hold the state information of the VirtualMachine and its VirtualMachineInstance
 	Conditions []VirtualMachineCondition `json:"conditions,omitempty" optional:"true"`
 	// StateChangeRequests indicates a list of actions that should be taken on a VMI
@@ -1188,9 +1259,6 @@ const (
 	// VirtualMachinePaused is added in a virtual machine when its vmi
 	// signals with its own condition that it is paused.
 	VirtualMachinePaused VirtualMachineConditionType = "Paused"
-
-	// This condition indicates that the VM was renamed
-	RenameConditionType VirtualMachineConditionType = "RenameOperation"
 )
 
 //
@@ -1246,6 +1314,11 @@ const (
 // Handler defines a specific action that should be taken
 // TODO: pass structured data to these actions, and document that data here.
 type Handler struct {
+	// One and only one of the following should be specified.
+	// Exec specifies the action to take, it will be executed on the guest through the qemu-guest-agent.
+	// If the guest agent is not available, this probe will fail.
+	// +optional
+	Exec *k8sv1.ExecAction `json:"exec,omitempty" protobuf:"bytes,1,opt,name=exec"`
 	// HTTPGet specifies the http request to perform.
 	// +optional
 	HTTPGet *k8sv1.HTTPGetAction `json:"httpGet,omitempty"`
@@ -1267,6 +1340,10 @@ type Probe struct {
 	// +optional
 	InitialDelaySeconds int32 `json:"initialDelaySeconds,omitempty"`
 	// Number of seconds after which the probe times out.
+	// For exec probes the timeout fails the probe but does not terminate the command running on the guest.
+	// This means a blocking command can result in an increasing load on the guest.
+	// A small buffer will be added to the resulting workload exec probe to compensate for delays
+	// caused by the qemu guest exec mechanism.
 	// Defaults to 1 second. Minimum value is 1.
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
 	// +optional
@@ -1310,9 +1387,31 @@ type KubeVirtList struct {
 //
 // +k8s:openapi-gen=true
 type KubeVirtSelfSignConfiguration struct {
-	CARotateInterval   *metav1.Duration `json:"caRotateInterval,omitempty"`
+	// Deprecated. Use CA.Duration instead
+	CARotateInterval *metav1.Duration `json:"caRotateInterval,omitempty"`
+	// Deprecated. Use Server.Duration instead
 	CertRotateInterval *metav1.Duration `json:"certRotateInterval,omitempty"`
-	CAOverlapInterval  *metav1.Duration `json:"caOverlapInterval,omitempty"`
+	// Deprecated. Use CA.Duration and CA.RenewBefore instead
+	CAOverlapInterval *metav1.Duration `json:"caOverlapInterval,omitempty"`
+
+	// CA configuration
+	// CA certs are kept in the CA bundle as long as they are valid
+	CA *CertConfig `json:"ca,omitempty"`
+
+	// Server configuration
+	// Certs are rotated and discarded
+	Server *CertConfig `json:"server,omitempty"`
+}
+
+// CertConfig contains the tunables for TLS certificates
+// +k8s:openapi-gen=true
+type CertConfig struct {
+	// The requested 'duration' (i.e. lifetime) of the Certificate.
+	Duration *metav1.Duration `json:"duration,omitempty"`
+
+	// The amount of time before the currently issued certificate's "notAfter"
+	// time that we will begin to attempt to renew the certificate.
+	RenewBefore *metav1.Duration `json:"renewBefore,omitempty"`
 }
 
 //
@@ -1432,6 +1531,21 @@ type KubeVirtSpec struct {
 type CustomizeComponents struct {
 	// +listType=atomic
 	Patches []CustomizeComponentsPatch `json:"patches,omitempty"`
+
+	// Configure the value used for deployment and daemonset resources
+	Flags *Flags `json:"flags,omitempty"`
+}
+
+// Flags will create a patch that will replace all flags for the container's
+// command field. The only flags that will be used are those define. There are no
+// guarantees around forward/backward compatibility.  If set incorrectly this will
+// cause the resource when rolled out to error until flags are updated.
+//
+// +k8s:openapi-gen=true
+type Flags struct {
+	API        map[string]string `json:"api,omitempty"`
+	Controller map[string]string `json:"controller,omitempty"`
+	Handler    map[string]string `json:"handler,omitempty"`
 }
 
 // +k8s:openapi-gen=true
@@ -1459,6 +1573,26 @@ const (
 	KubeVirtUninstallStrategyBlockUninstallIfWorkloadsExist KubeVirtUninstallStrategy = "BlockUninstallIfWorkloadsExist"
 )
 
+// GenerationStatus keeps track of the generation for a given resource so that decisions about forced updates can be made.
+//
+// +k8s:openapi-gen=true
+type GenerationStatus struct {
+	// group is the group of the thing you're tracking
+	Group string `json:"group"`
+	// resource is the resource type of the thing you're tracking
+	Resource string `json:"resource"`
+	// namespace is where the thing you're tracking is
+	// +optional
+	Namespace string `json:"namespace,omitempty" optional:"true"`
+	// name is the name of the thing you're tracking
+	Name string `json:"name"`
+	// lastGeneration is the last generation of the workload controller involved
+	LastGeneration int64 `json:"lastGeneration"`
+	// hash is an optional field set for resources without generation that are content sensitive like secrets and configmaps
+	// +optional
+	Hash string `json:"hash,omitempty" optional:"true"`
+}
+
 // KubeVirtStatus represents information pertaining to a KubeVirt deployment.
 //
 // +k8s:openapi-gen=true
@@ -1476,7 +1610,7 @@ type KubeVirtStatus struct {
 	ObservedDeploymentID                    string              `json:"observedDeploymentID,omitempty" optional:"true"`
 	OutdatedVirtualMachineInstanceWorkloads *int                `json:"outdatedVirtualMachineInstanceWorkloads,omitempty" optional:"true"`
 	// +listType=atomic
-	Generations []operatorsv1.GenerationStatus `json:"generations,omitempty" optional:"true"`
+	Generations []GenerationStatus `json:"generations,omitempty" optional:"true"`
 }
 
 // KubeVirtPhase is a label for the phase of a KubeVirt deployment at the current time.
@@ -1551,6 +1685,33 @@ type RestartOptions struct {
 	GracePeriodSeconds *int64 `json:"gracePeriodSeconds,omitempty" protobuf:"varint,1,opt,name=gracePeriodSeconds"`
 }
 
+// StartOptions may be provided on start request.
+//
+// +k8s:openapi-gen=true
+type StartOptions struct {
+	metav1.TypeMeta `json:",inline"`
+
+	// Indicates that VM will be started in paused state.
+	// +optional
+	Paused bool `json:"paused,omitempty" protobuf:"varint,7,opt,name=paused"`
+}
+
+const (
+	StartRequestDataPausedKey  string = "paused"
+	StartRequestDataPausedTrue string = "true"
+)
+
+// StopOptions may be provided when deleting an API object.
+//
+// +k8s:openapi-gen=true
+type StopOptions struct {
+	metav1.TypeMeta `json:",inline"`
+
+	// this updates the VMIs terminationGracePeriodSeconds during shutdown
+	// +optional
+	GracePeriod *int64 `json:"gracePeriod,omitempty" protobuf:"varint,1,opt,name=gracePeriod"`
+}
+
 // VirtualMachineInstanceGuestAgentInfo represents information from the installed guest agent
 //
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -1559,6 +1720,9 @@ type VirtualMachineInstanceGuestAgentInfo struct {
 	metav1.TypeMeta `json:",inline"`
 	// GAVersion is a version of currently installed guest agent
 	GAVersion string `json:"guestAgentVersion,omitempty"`
+	// Return command list the guest agent supports
+	// +listType=atomic
+	SupportedCommands []GuestAgentCommandInfo `json:"supportedCommands,omitempty"`
 	// Hostname represents FQDN of a guest
 	Hostname string `json:"hostname,omitempty"`
 	// OS contains the guest operating system information
@@ -1569,6 +1733,17 @@ type VirtualMachineInstanceGuestAgentInfo struct {
 	UserList []VirtualMachineInstanceGuestOSUser `json:"userList,omitempty"`
 	// FSInfo is a guest os filesystem information containing the disk mapping and disk mounts with usage
 	FSInfo VirtualMachineInstanceFileSystemInfo `json:"fsInfo,omitempty"`
+	// FSFreezeStatus is the state of the fs of the guest
+	// it can be either frozen or thawed
+	FSFreezeStatus string `json:"fsFreezeStatus,omitempty"`
+}
+
+// List of commands that QEMU guest agent supports
+//
+// +k8s:openapi-gen=true
+type GuestAgentCommandInfo struct {
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled,omitempty"`
 }
 
 // VirtualMachineInstanceGuestOSUserList comprises the list of all active users on guest machine
@@ -1615,13 +1790,6 @@ type VirtualMachineInstanceFileSystem struct {
 	TotalBytes     int    `json:"totalBytes"`
 }
 
-// Options for a rename operation
-type RenameOptions struct {
-	metav1.TypeMeta `json:",inline"`
-	NewName         string  `json:"newName"`
-	OldName         *string `json:"oldName,omitempty"`
-}
-
 // AddVolumeOptions is provided when dynamically hot plugging a volume and disk
 // +k8s:openapi-gen=true
 type AddVolumeOptions struct {
@@ -1646,22 +1814,23 @@ type RemoveVolumeOptions struct {
 // KubeVirtConfiguration holds all kubevirt configurations
 // +k8s:openapi-gen=true
 type KubeVirtConfiguration struct {
-	CPUModel                    string                  `json:"cpuModel,omitempty"`
-	CPURequest                  *resource.Quantity      `json:"cpuRequest,omitempty"`
-	DeveloperConfiguration      *DeveloperConfiguration `json:"developerConfiguration,omitempty"`
-	EmulatedMachines            []string                `json:"emulatedMachines,omitempty"`
-	ImagePullPolicy             k8sv1.PullPolicy        `json:"imagePullPolicy,omitempty"`
-	MigrationConfiguration      *MigrationConfiguration `json:"migrations,omitempty"`
-	MachineType                 string                  `json:"machineType,omitempty"`
-	NetworkConfiguration        *NetworkConfiguration   `json:"network,omitempty"`
-	OVMFPath                    string                  `json:"ovmfPath,omitempty"`
-	SELinuxLauncherType         string                  `json:"selinuxLauncherType,omitempty"`
-	SMBIOSConfig                *SMBiosConfiguration    `json:"smbios,omitempty"`
-	SupportedGuestAgentVersions []string                `json:"supportedGuestAgentVersions,omitempty"`
-	MemBalloonStatsPeriod       *uint32                 `json:"memBalloonStatsPeriod,omitempty"`
-	PermittedHostDevices        *PermittedHostDevices   `json:"permittedHostDevices,omitempty"`
-	MinCPUModel                 string                  `json:"minCPUModel,omitempty"`
-	ObsoleteCPUModels           map[string]bool         `json:"obsoleteCPUModels,omitempty"`
+	CPUModel               string                  `json:"cpuModel,omitempty"`
+	CPURequest             *resource.Quantity      `json:"cpuRequest,omitempty"`
+	DeveloperConfiguration *DeveloperConfiguration `json:"developerConfiguration,omitempty"`
+	EmulatedMachines       []string                `json:"emulatedMachines,omitempty"`
+	ImagePullPolicy        k8sv1.PullPolicy        `json:"imagePullPolicy,omitempty"`
+	MigrationConfiguration *MigrationConfiguration `json:"migrations,omitempty"`
+	MachineType            string                  `json:"machineType,omitempty"`
+	NetworkConfiguration   *NetworkConfiguration   `json:"network,omitempty"`
+	OVMFPath               string                  `json:"ovmfPath,omitempty"`
+	SELinuxLauncherType    string                  `json:"selinuxLauncherType,omitempty"`
+	SMBIOSConfig           *SMBiosConfiguration    `json:"smbios,omitempty"`
+	// deprecated
+	SupportedGuestAgentVersions []string              `json:"supportedGuestAgentVersions,omitempty"`
+	MemBalloonStatsPeriod       *uint32               `json:"memBalloonStatsPeriod,omitempty"`
+	PermittedHostDevices        *PermittedHostDevices `json:"permittedHostDevices,omitempty"`
+	MinCPUModel                 string                `json:"minCPUModel,omitempty"`
+	ObsoleteCPUModels           map[string]bool       `json:"obsoleteCPUModels,omitempty"`
 }
 
 //
@@ -1693,6 +1862,7 @@ type MigrationConfiguration struct {
 type DeveloperConfiguration struct {
 	FeatureGates           []string          `json:"featureGates,omitempty"`
 	LessPVCSpaceToleration int               `json:"pvcTolerateLessSpaceUpToPercent,omitempty"`
+	MinimumReservePVCBytes uint64            `json:"minimumReservePVCBytes,omitempty"`
 	MemoryOvercommit       int               `json:"memoryOvercommit,omitempty"`
 	NodeSelectors          map[string]string `json:"nodeSelectors,omitempty"`
 	UseEmulation           bool              `json:"useEmulation,omitempty"`

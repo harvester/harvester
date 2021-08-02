@@ -21,6 +21,7 @@ type pullOpts struct {
 	callbackHandlers       []images.Handler
 	contentProvideIngester orascontent.ProvideIngester
 	filterName             func(ocispec.Descriptor) bool
+	cachedMediaTypes       []string
 }
 
 // PullOpt allows callers to set options on the oras pull
@@ -28,8 +29,26 @@ type PullOpt func(o *pullOpts) error
 
 func pullOptsDefaults() *pullOpts {
 	return &pullOpts{
-		dispatch:   images.Dispatch,
-		filterName: filterName,
+		dispatch:         images.Dispatch,
+		filterName:       filterName,
+		cachedMediaTypes: []string{ocispec.MediaTypeImageManifest, ocispec.MediaTypeImageIndex},
+	}
+}
+
+// WithCachedMediaTypes sets the media types normally cached in memory when pulling.
+func WithCachedMediaTypes(cachedMediaTypes ...string) PullOpt {
+	return func(o *pullOpts) error {
+		o.cachedMediaTypes = cachedMediaTypes
+		return nil
+	}
+}
+
+// WithAdditionalCachedMediaTypes adds media types normally cached in memory when pulling.
+// This does not replace the default media types, but appends to them
+func WithAdditionalCachedMediaTypes(cachedMediaTypes ...string) PullOpt {
+	return func(o *pullOpts) error {
+		o.cachedMediaTypes = append(o.cachedMediaTypes, cachedMediaTypes...)
+		return nil
 	}
 }
 

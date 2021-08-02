@@ -176,7 +176,7 @@ func (m *Manager) Update() error {
 	// TODO(mattfarina): Repositories should be explicitly added by end users
 	// rather than automattic. In Helm v4 require users to add repositories. They
 	// should have to add them in order to make sure they are aware of the
-	// respoitories and opt-in to any locations, for security.
+	// repositories and opt-in to any locations, for security.
 	repoNames, err = m.ensureMissingRepos(repoNames, req)
 	if err != nil {
 		return err
@@ -310,7 +310,7 @@ func (m *Manager) downloadAll(deps []*chart.Dependency) error {
 
 		// Any failure to resolve/download a chart should fail:
 		// https://github.com/helm/helm/issues/1439
-		churl, username, password, err := m.findChartURL(dep.Name, dep.Version, dep.Repository, repos)
+		churl, username, password, insecureskiptlsverify, passcredentialsall, caFile, certFile, keyFile, err := m.findChartURL(dep.Name, dep.Version, dep.Repository, repos)
 		if err != nil {
 			saveError = errors.Wrapf(err, "could not find %s", churl)
 			break
@@ -332,6 +332,9 @@ func (m *Manager) downloadAll(deps []*chart.Dependency) error {
 			Getters:          m.Getters,
 			Options: []getter.Option{
 				getter.WithBasicAuth(username, password),
+				getter.WithPassCredentialsAll(passcredentialsall),
+				getter.WithInsecureSkipVerifyTLS(insecureskiptlsverify),
+				getter.WithTLSClientConfig(certFile, keyFile, caFile),
 			},
 		}
 
@@ -685,9 +688,9 @@ func (m *Manager) parallelRepoUpdate(repos []*repo.Entry) error {
 // repoURL is the repository to search
 //
 // If it finds a URL that is "relative", it will prepend the repoURL.
-func (m *Manager) findChartURL(name, version, repoURL string, repos map[string]*repo.ChartRepository) (url, username, password string, err error) {
+func (m *Manager) findChartURL(name, version, repoURL string, repos map[string]*repo.ChartRepository) (url, username, password string, insecureskiptlsverify, passcredentialsall bool, caFile, certFile, keyFile string, err error) {
 	if strings.HasPrefix(repoURL, "oci://") {
-		return fmt.Sprintf("%s/%s:%s", repoURL, name, version), "", "", nil
+		return fmt.Sprintf("%s/%s:%s", repoURL, name, version), "", "", false, false, "", "", "", nil
 	}
 
 	for _, cr := range repos {
@@ -709,15 +712,20 @@ func (m *Manager) findChartURL(name, version, repoURL string, repos map[string]*
 			}
 			username = cr.Config.Username
 			password = cr.Config.Password
+			passcredentialsall = cr.Config.PassCredentialsAll
+			insecureskiptlsverify = cr.Config.InsecureSkipTLSverify
+			caFile = cr.Config.CAFile
+			certFile = cr.Config.CertFile
+			keyFile = cr.Config.KeyFile
 			return
 		}
 	}
-	url, err = repo.FindChartInRepoURL(repoURL, name, version, "", "", "", m.Getters)
+	url, err = repo.FindChartInRepoURL(repoURL, name, version, certFile, keyFile, caFile, m.Getters)
 	if err == nil {
-		return url, username, password, err
+		return url, username, password, false, false, "", "", "", err
 	}
 	err = errors.Errorf("chart %s not found in %s: %s", name, repoURL, err)
-	return url, username, password, err
+	return url, username, password, false, false, "", "", "", err
 }
 
 // findEntryByName finds an entry in the chart repository whose name matches the given name.

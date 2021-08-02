@@ -452,12 +452,11 @@ func expandPathItem(pathItem *PathItem, resolver *schemaLoader, basePath string)
 		return err
 	}
 	if pathItem.Ref.String() != "" {
-		transitiveResolver, err := resolver.transitiveResolver(basePath, pathItem.Ref)
-		if transitiveResolver.shouldStopOnError(err) {
+		var err error
+		resolver, err = resolver.transitiveResolver(basePath, pathItem.Ref)
+		if resolver.shouldStopOnError(err) {
 			return err
 		}
-		basePath = transitiveResolver.updateBasePath(resolver, basePath)
-		resolver = transitiveResolver
 	}
 	pathItem.Ref = Ref{}
 

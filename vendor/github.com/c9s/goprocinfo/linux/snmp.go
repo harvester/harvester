@@ -124,7 +124,14 @@ func ReadSnmp(path string) (*Snmp, error) {
 		protocol := strings.Replace(strings.Fields(lines[i-1])[0], ":", "", -1)
 
 		for j, header := range headers {
-			statMap[protocol+header] = values[j]
+			var val string
+			if len(values) > j {
+				val = values[j]
+			} else {
+				val = "UNKNOWN"
+			}
+
+			statMap[protocol+header] = val
 		}
 	}
 

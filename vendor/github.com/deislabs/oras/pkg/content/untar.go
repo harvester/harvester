@@ -72,10 +72,9 @@ func NewUntarWriter(writer content.Writer, opts ...WriterOpt) content.Writer {
 }
 
 // NewUntarWriterByName wrap multiple writers with an untar, so that the stream is untarred and passed
-// to the appropriate writer, based on the filename. If a filename is not found, it will not pass it
-// to any writer. The filename "" will handle any stream that does not have a specific filename; use
-// it for the default of a single file in a tar stream.
-func NewUntarWriterByName(writers map[string]content.Writer, opts ...WriterOpt) content.Writer {
+// to the appropriate writer, based on the filename. If a filename is not found, it is up to the called func
+// to determine how to process it.
+func NewUntarWriterByName(writers func(string) (content.Writer, error), opts ...WriterOpt) content.Writer {
 	// process opts for default
 	wOpts := DefaultWriterOpts()
 	for _, opt := range opts {
@@ -84,15 +83,8 @@ func NewUntarWriterByName(writers map[string]content.Writer, opts ...WriterOpt) 
 		}
 	}
 
-	// construct an array of content.Writer
-	nameToIndex := map[string]int{}
-	var writerSlice []content.Writer
-	for name, writer := range writers {
-		writerSlice = append(writerSlice, writer)
-		nameToIndex[name] = len(writerSlice) - 1
-	}
 	// need a PassthroughMultiWriter here
-	return NewPassthroughMultiWriter(writerSlice, func(r io.Reader, ws []io.Writer, done chan<- error) {
+	return NewPassthroughMultiWriter(writers, func(r io.Reader, getwriter func(name string) io.Writer, done chan<- error) {
 		tr := tar.NewReader(r)
 		var err error
 		for {
@@ -109,13 +101,11 @@ func NewUntarWriterByName(writers map[string]content.Writer, opts ...WriterOpt) 
 			}
 			// get the filename
 			filename := header.Name
-			index, ok := nameToIndex[filename]
-			if !ok {
-				index, ok = nameToIndex[""]
-				if !ok {
-					// we did not find this file or the wildcard, so do not process this file
-					continue
-				}
+
+			// get the writer for this filename
+			w := getwriter(filename)
+			if w == nil {
+				continue
 			}
 
 			// write out the untarred data
@@ -133,8 +123,8 @@ func NewUntarWriterByName(writers map[string]content.Writer, opts ...WriterOpt) 
 				if n > len(b) {
 					l = len(b)
 				}
-				if _, err2 := ws[index].Write(b[:l]); err2 != nil {
-					err = fmt.Errorf("UntarWriter error writing to underlying writer at index %d for name '%s': %v", index, filename, err2)
+				if _, err2 := w.Write(b[:l]); err2 != nil {
+					err = fmt.Errorf("UntarWriter error writing to underlying writer at for name '%s': %v", filename, err2)
 					break
 				}
 				if err == io.EOF {
