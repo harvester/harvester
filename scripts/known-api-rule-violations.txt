@@ -15,7 +15,7 @@ API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/ha
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,Conditions
-API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,DeletedDataVolumes
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,DeletedVolumes
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,VolumeRestores
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineTemplateVersionSpec,KeyPairIDs
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineTemplateVersionStatus,Conditions

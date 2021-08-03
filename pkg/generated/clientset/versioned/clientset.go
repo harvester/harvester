@@ -21,7 +21,6 @@ package versioned
 import (
 	"fmt"
 
-	cdiv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
@@ -34,7 +33,6 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	CdiV1beta1() cdiv1beta1.CdiV1beta1Interface
 	HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
 	KubevirtV1() kubevirtv1.KubevirtV1Interface
@@ -46,17 +44,11 @@ type Interface interface {
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	cdiV1beta1          *cdiv1beta1.CdiV1beta1Client
 	harvesterhciV1beta1 *harvesterhciv1beta1.HarvesterhciV1beta1Client
 	k8sCniCncfIoV1      *k8scnicncfiov1.K8sCniCncfIoV1Client
 	kubevirtV1          *kubevirtv1.KubevirtV1Client
 	snapshotV1beta1     *snapshotv1beta1.SnapshotV1beta1Client
 	upgradeV1           *upgradev1.UpgradeV1Client
-}
-
-// CdiV1beta1 retrieves the CdiV1beta1Client
-func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
-	return c.cdiV1beta1
 }
 
 // HarvesterhciV1beta1 retrieves the HarvesterhciV1beta1Client
@@ -105,10 +97,6 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.cdiV1beta1, err = cdiv1beta1.NewForConfig(&configShallowCopy)
-	if err != nil {
-		return nil, err
-	}
 	cs.harvesterhciV1beta1, err = harvesterhciv1beta1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -141,7 +129,6 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.cdiV1beta1 = cdiv1beta1.NewForConfigOrDie(c)
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.NewForConfigOrDie(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.NewForConfigOrDie(c)
 	cs.kubevirtV1 = kubevirtv1.NewForConfigOrDie(c)
@@ -155,7 +142,6 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.cdiV1beta1 = cdiv1beta1.New(c)
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.New(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
 	cs.kubevirtV1 = kubevirtv1.New(c)

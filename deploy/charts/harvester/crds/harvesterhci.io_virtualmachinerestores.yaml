@@ -120,7 +120,7 @@ spec:
                   - type
                   type: object
                 type: array
-              deletedDataVolumes:
+              deletedVolumes:
                 items:
                   type: string
                 type: array
