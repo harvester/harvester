@@ -50,14 +50,11 @@ spec:
               resource
             properties:
               source:
-                description: SourceSpec contains the appropriate spec for the resource
-                  being snapshotted
                 properties:
-                  name:
-                    type: string
-                  namespace:
-                    type: string
-                  virtualMachineSpec:
+                  metadata:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  spec:
                     description: VirtualMachineSpec describes how the proper VirtualMachine
                       should look like
                     properties:
@@ -3745,9 +3742,6 @@ spec:
                     required:
                     - template
                     type: object
-                required:
-                - name
-                - namespace
                 type: object
               virtualMachineBackupName:
                 type: string
