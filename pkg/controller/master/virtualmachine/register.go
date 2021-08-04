@@ -7,34 +7,36 @@ import (
 )
 
 const (
-	vmControllerSetOwnerOfDataVolumesAgentName    = "VMController.SetOwnerOfDataVolumes"
-	vmControllerUnsetOwnerOfDataVolumesAgentName  = "VMController.UnsetOwnerOfDataVolumes"
-	vmiControllerUnsetOwnerOfDataVolumesAgentName = "VMIController.UnsetOwnerOfDataVolumes"
-	vmControllerSetDefaultManagementNetworkMac    = "VMController.SetDefaultManagementNetworkMacAddress"
+	vmControllerCreatePVCsFromAnnotationControllerName = "VMController.CreatePVCsFromAnnotation"
+	vmControllerSetOwnerOfPVCsControllerName           = "VMController.SetOwnerOfPVCs"
+	vmControllerUnsetOwnerOfPVCsControllerName         = "VMController.UnsetOwnerOfPVCs"
+	vmiControllerUnsetOwnerOfPVCsControllerName        = "VMIController.UnsetOwnerOfPVCs"
+	vmControllerSetDefaultManagementNetworkMac         = "VMController.SetDefaultManagementNetworkMacAddress"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
-	var dataVolumeClient = management.CDIFactory.Cdi().V1beta1().DataVolume()
-	var dataVolumeCache = dataVolumeClient.Cache()
+	var pvcClient = management.CoreFactory.Core().V1().PersistentVolumeClaim()
+	var pvcCache = pvcClient.Cache()
 
 	// registers the vm controller
 	var vmCtrl = &VMController{
-		dataVolumeClient: dataVolumeClient,
-		dataVolumeCache:  dataVolumeCache,
+		pvcClient: pvcClient,
+		pvcCache:  pvcCache,
 	}
 	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
-	virtualMachineClient.OnChange(ctx, vmControllerSetOwnerOfDataVolumesAgentName, vmCtrl.SetOwnerOfDataVolumes)
-	virtualMachineClient.OnRemove(ctx, vmControllerUnsetOwnerOfDataVolumesAgentName, vmCtrl.UnsetOwnerOfDataVolumes)
+	virtualMachineClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
+	virtualMachineClient.OnChange(ctx, vmControllerSetOwnerOfPVCsControllerName, vmCtrl.SetOwnerOfPVCs)
+	virtualMachineClient.OnRemove(ctx, vmControllerUnsetOwnerOfPVCsControllerName, vmCtrl.UnsetOwnerOfPVCs)
 
 	// registers the vmi controller
 	var virtualMachineCache = virtualMachineClient.Cache()
 	var vmiCtrl = &VMIController{
 		virtualMachineCache: virtualMachineCache,
-		dataVolumeClient:    dataVolumeClient,
-		dataVolumeCache:     dataVolumeCache,
+		pvcClient:           pvcClient,
+		pvcCache:            pvcCache,
 	}
 	var virtualMachineInstanceClient = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
-	virtualMachineInstanceClient.OnRemove(ctx, vmiControllerUnsetOwnerOfDataVolumesAgentName, vmiCtrl.UnsetOwnerOfDataVolumes)
+	virtualMachineInstanceClient.OnRemove(ctx, vmiControllerUnsetOwnerOfPVCsControllerName, vmiCtrl.UnsetOwnerOfPVCs)
 
 	// register the vm network controller upon the VMI changes
 	var (

@@ -37,7 +37,6 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 			podController     ctlcorev1.PodController
 			svcController     ctlcorev1.ServiceController
 			backupNamespace   string
-			sourceImage       string
 			vmBackupTarget    string
 		)
 
@@ -51,7 +50,6 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 			podController = scaled.CoreFactory.Core().V1().Pod()
 			svcController = scaled.CoreFactory.Core().V1().Service()
 			backupNamespace = testVMNamespace
-			sourceImage = "https://download.cirros-cloud.net/0.5.1/cirros-0.5.1-x86_64-disk.img"
 			vmBackupTarget = fmt.Sprintf("nfs://harvester-nfs-svc.%s:/opt/backupstore", backupNamespace)
 		})
 
@@ -129,16 +127,11 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 
 			Specify("verify vm backup api", func() {
 
-				By("when create a VM using data volume")
+				By("when create a VM using a PVC")
 				vmName := testVMGenerateName + fuzz.String(5)
-				dataVolumeOption := &builder.DataVolumeOption{
-					VolumeMode:  builder.PersistentVolumeModeBlock,
-					AccessMode:  builder.PersistentVolumeAccessModeReadWriteMany,
-					DownloadURL: sourceImage,
-				}
 				vm, err := NewDefaultTestVMBuilder(testVMBackupLabels).Name(vmName).
 					NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
-					DataVolumeDisk("root-disk", testVMDefaultDiskBus, false, 1, "2Gi", "", dataVolumeOption).
+					PVCDisk("root-disk", testVMDefaultDiskBus, false, 1, "2Gi", "", nil).
 					Run(true).VM()
 				MustNotError(err)
 				respCode, respBody, err := helper.PostObject(vmsAPI, vm)

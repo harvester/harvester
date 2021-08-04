@@ -14,7 +14,6 @@ import (
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 	"github.com/sirupsen/logrus"
 	kv1 "kubevirt.io/client-go/api/v1"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
@@ -48,13 +47,6 @@ func main() {
 					kv1.VirtualMachine{},
 					kv1.VirtualMachineInstance{},
 					kv1.VirtualMachineInstanceMigration{},
-				},
-				GenerateTypes:   false,
-				GenerateClients: true,
-			},
-			cdiv1.SchemeGroupVersion.Group: {
-				Types: []interface{}{
-					cdiv1.DataVolume{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

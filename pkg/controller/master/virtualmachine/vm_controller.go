@@ -1,56 +1,85 @@
 package virtualmachine
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/slice"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kv1 "kubevirt.io/client-go/api/v1"
 
-	ctlcdiv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 type VMController struct {
-	dataVolumeClient ctlcdiv1beta1.DataVolumeClient
-	dataVolumeCache  ctlcdiv1beta1.DataVolumeCache
+	pvcClient v1.PersistentVolumeClaimClient
+	pvcCache  v1.PersistentVolumeClaimCache
 }
 
-// SetOwnerOfDataVolumes records the target VirtualMachine as the owner of the DataVolumes in annotation.
-func (h *VMController) SetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
+// createPVCsFromAnnotation creates PVCs defined in the volumeClaimTemplates annotation if they don't exist.
+func (h *VMController) createPVCsFromAnnotation(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
+	if vm == nil || vm.DeletionTimestamp != nil {
+		return nil, nil
+	}
+	volumeClaimTemplates, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplates == "" {
+		return nil, nil
+	}
+	var pvcs []*corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs); err != nil {
+		return nil, err
+	}
+	for _, pvc := range pvcs {
+		pvc.Namespace = vm.Namespace
+		if _, err := h.pvcCache.Get(vm.Namespace, pvc.Name); apierrors.IsNotFound(err) {
+			if _, err := h.pvcClient.Create(pvc); err != nil {
+				return nil, err
+			}
+		} else if err != nil {
+			return nil, err
+		}
+	}
+
+	return nil, nil
+}
+
+// SetOwnerOfPVCs records the target VirtualMachine as the owner of the PVCs in annotation.
+func (h *VMController) SetOwnerOfPVCs(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
 		return vm, nil
 	}
 
-	dataVolumeNames := getDataVolumeNames(&vm.Spec.Template.Spec)
+	pvcNames := getPVCNames(&vm.Spec.Template.Spec)
 
 	vmReferenceKey := ref.Construct(vm.Namespace, vm.Name)
 	// get all the volumes attached to this virtual machine
-	attachedDataVolumes, err := h.dataVolumeCache.GetByIndex(indexeres.DataVolumeByVMIndex, vmReferenceKey)
+	attachedPVCs, err := h.pvcCache.GetByIndex(indexeres.PVCByVMIndex, vmReferenceKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get attached datavolumes by vm index: %w", err)
+		return nil, fmt.Errorf("failed to get attached PVCs by VM index: %w", err)
 	}
 
 	vmGVK := kv1.VirtualMachineGroupVersionKind
 	vmAPIVersion, vmKind := vmGVK.ToAPIVersionAndKind()
 	vmGK := vmGVK.GroupKind()
 
-	for _, attachedDataVolume := range attachedDataVolumes {
+	for _, attachedPVC := range attachedPVCs {
 		// check if it's still attached
-		if dataVolumeNames.Has(attachedDataVolume.Name) {
+		if pvcNames.Has(attachedPVC.Name) {
 			continue
 		}
 
-		toUpdate := attachedDataVolume.DeepCopy()
+		toUpdate := attachedPVC.DeepCopy()
 
 		// if this volume is no longer attached
 		// remove volume's annotation
-		owners, err := ref.GetSchemaOwnersFromAnnotation(attachedDataVolume)
+		owners, err := ref.GetSchemaOwnersFromAnnotation(attachedPVC)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get schema owners from annotation: %w", err)
 		}
@@ -64,8 +93,8 @@ func (h *VMController) SetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine) (
 
 		// remove volume's ownerReferences
 		isOwned := false
-		ownerReferences := make([]metav1.OwnerReference, 0, len(attachedDataVolume.OwnerReferences))
-		for _, reference := range attachedDataVolume.OwnerReferences {
+		ownerReferences := make([]metav1.OwnerReference, 0, len(attachedPVC.OwnerReferences))
+		for _, reference := range attachedPVC.OwnerReferences {
 			if reference.APIVersion == vmAPIVersion && reference.Kind == vmKind && reference.Name == vm.Name {
 				isOwned = true
 				continue
@@ -81,81 +110,69 @@ func (h *VMController) SetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine) (
 
 		// update volume
 		if isAttached || isOwned {
-			if _, err = h.dataVolumeClient.Update(toUpdate); err != nil {
-				return nil, fmt.Errorf("failed to clean schema owners for DataVolume(%s/%s): %w",
-					attachedDataVolume.Namespace, attachedDataVolume.Name, err)
+			if _, err = h.pvcClient.Update(toUpdate); err != nil {
+				return nil, fmt.Errorf("failed to clean schema owners for PVC(%s/%s): %w",
+					attachedPVC.Namespace, attachedPVC.Name, err)
 			}
 		}
 	}
 
-	var dataVolumeNamespace = vm.Namespace
-	for _, dataVolumeName := range dataVolumeNames.List() {
-		var dataVolume, err = h.dataVolumeCache.Get(dataVolumeNamespace, dataVolumeName)
+	var pvcNamespace = vm.Namespace
+	for _, pvcName := range pvcNames.List() {
+		var pvc, err = h.pvcCache.Get(pvcNamespace, pvcName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				// NB(thxCode): ignores error, since this can't be fixed by an immediate requeue,
-				// when the DataVolume is ready, the VirtualMachine resource will requeue.
+				// ignores not-found error, A VM can reference a non-existent PVC.
 				continue
 			}
-			return vm, fmt.Errorf("failed to get DataVolume(%s/%s): %w", dataVolumeNamespace, dataVolumeName, err)
+			return vm, fmt.Errorf("failed to get PVC(%s/%s): %w", pvcNamespace, pvcName, err)
 		}
 
-		err = setOwnerlessDataVolumeReference(h.dataVolumeClient, dataVolume, vm)
+		err = setOwnerlessPVCReference(h.pvcClient, pvc, vm)
 		if err != nil {
-			return vm, fmt.Errorf("failed to grant VitrualMachine(%s/%s) as DataVolume(%s/%s)'s owner: %w",
-				vm.Namespace, vm.Name, dataVolumeNamespace, dataVolumeName, err)
+			return vm, fmt.Errorf("failed to grant VitrualMachine(%s/%s) as PVC(%s/%s)'s owner: %w",
+				vm.Namespace, vm.Name, pvcNamespace, pvcName, err)
 		}
 	}
 
 	return vm, nil
 }
 
-// UnsetOwnerOfDataVolumes erases the target VirtualMachine from the owner of the DataVolumes in annotation.
-func (h *VMController) UnsetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
+// UnsetOwnerOfPVCs erases the target VirtualMachine from the owner of the PVCs in annotation.
+func (h *VMController) UnsetOwnerOfPVCs(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp == nil || vm.Spec.Template == nil {
 		return vm, nil
 	}
+
 	var (
-		dataVolumeNamespace          = vm.Namespace
-		dataVolumeNames              = getDataVolumeNames(&vm.Spec.Template.Spec)
-		removedDataVolumes           = getRemovedDataVolumes(vm)
-		dataVolumeNamesFromTemplates = getDataVolumeNamesFromDataVolumeTemplates(vm)
+		pvcNamespace = vm.Namespace
+		pvcNames     = getPVCNames(&vm.Spec.Template.Spec)
+		removedPVCs  = getRemovedPVCs(vm)
 	)
-	for _, dataVolumeName := range dataVolumeNames.List() {
-		isExistingVolumeToDelete := false
-		if slice.ContainsString(removedDataVolumes, dataVolumeName) {
-			if dataVolumeNamesFromTemplates.Has(dataVolumeName) {
-				// skip removedDataVolumes
-				continue
-			} else {
-				// if data volume is an existing volume, try to delete it afterwards
-				isExistingVolumeToDelete = true
-			}
-		}
-		var dataVolume, err = h.dataVolumeCache.Get(dataVolumeNamespace, dataVolumeName)
+	for _, pvcName := range pvcNames.List() {
+		var pvc, err = h.pvcCache.Get(pvcNamespace, pvcName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				// NB(thxCode): ignores error, since this can't be fixed by an immediate requeue,
-				// and also doesn't block the whole logic if the DataVolume has already been deleted.
+				// and also doesn't block the whole logic if the PVC has already been deleted.
 				continue
 			}
-			return vm, fmt.Errorf("failed to get DataVolume(%s/%s): %w", dataVolumeNamespace, dataVolumeName, err)
+			return vm, fmt.Errorf("failed to get PVC(%s/%s): %w", pvcNamespace, pvcName, err)
 		}
 
-		err = unsetBoundedDataVolumeReference(h.dataVolumeClient, dataVolume, vm)
-		if err != nil {
-			return vm, fmt.Errorf("failed to revoke VitrualMachine(%s/%s) as DataVolume(%s/%s)'s owner: %w",
-				vm.Namespace, vm.Name, dataVolumeNamespace, dataVolumeName, err)
+		if err := unsetBoundedPVCReference(h.pvcClient, pvc, vm); err != nil {
+			return vm, fmt.Errorf("failed to revoke VitrualMachine(%s/%s) as PVC(%s/%s)'s owner: %w",
+				vm.Namespace, vm.Name, pvcNamespace, pvcName, err)
 		}
 
-		if isExistingVolumeToDelete {
-			numberOfOwner, err := numberOfBoundedDataVolumeReference(h.dataVolumeClient, dataVolume, vm)
+		if slice.ContainsString(removedPVCs, pvcName) {
+			numberOfOwner, err := numberOfBoundedPVCReference(pvc)
 			if err != nil {
-				return vm, fmt.Errorf("failed to count number of owners for DataVolume(%s/%s): %w", dataVolumeNamespace, dataVolumeName, err)
+				return vm, fmt.Errorf("failed to count number of owners for PVC(%s/%s): %w", pvcNamespace, pvcName, err)
 			}
-			// We are the solely owner here, so try to delete the data volume as requested.
+			// We are the solely owner here, so try to delete the PVC as requested.
 			if numberOfOwner == 1 {
-				if err := h.dataVolumeClient.Delete(dataVolumeNamespace, dataVolumeName, &metav1.DeleteOptions{}); err != nil {
+				if err := h.pvcClient.Delete(pvcNamespace, pvcName, &metav1.DeleteOptions{}); err != nil {
 					return vm, err
 				}
 			}
@@ -165,31 +182,20 @@ func (h *VMController) UnsetOwnerOfDataVolumes(_ string, vm *kv1.VirtualMachine)
 	return vm, nil
 }
 
-// getRemovedDataVolumes returns removed DataVolumes.
-func getRemovedDataVolumes(vm *kv1.VirtualMachine) []string {
-	return strings.Split(vm.Annotations[util.RemovedDataVolumesAnnotationKey], ",")
+// getRemovedPVCs returns removed PVCs.
+func getRemovedPVCs(vm *kv1.VirtualMachine) []string {
+	return strings.Split(vm.Annotations[util.RemovedPVCsAnnotationKey], ",")
 }
 
-// getDataVolumeNamesFromDataVolumeTemplates returns names of DataVolumes in
-// dataVolumeTemplates. These DataVolumes are exclusively owned by the VirtualMachine.
-func getDataVolumeNamesFromDataVolumeTemplates(vm *kv1.VirtualMachine) sets.String {
-	dataVolumeNames := sets.String{}
-	for _, template := range vm.Spec.DataVolumeTemplates {
-		dataVolumeNames.Insert(template.Name)
-	}
-	return dataVolumeNames
-}
+// getPVCNames returns a name set of the PVCs used by the VMI.
+func getPVCNames(vmiSpecPtr *kv1.VirtualMachineInstanceSpec) sets.String {
+	var pvcNames = sets.String{}
 
-// getDataVolumeNames returns a name set of the DataVolumes.
-func getDataVolumeNames(vmiSpecPtr *kv1.VirtualMachineInstanceSpec) sets.String {
-	var dataVolumeNames = sets.String{}
-
-	// collects all DataVolumes
 	for _, volume := range vmiSpecPtr.Volumes {
-		if volume.DataVolume != nil && volume.DataVolume.Name != "" {
-			dataVolumeNames.Insert(volume.DataVolume.Name)
+		if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {
+			pvcNames.Insert(volume.PersistentVolumeClaim.ClaimName)
 		}
 	}
 
-	return dataVolumeNames
+	return pvcNames
 }

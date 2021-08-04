@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"reflect"
 
+	corev1 "k8s.io/api/core/v1"
+
 	restful "github.com/emicklei/go-restful"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/rancher/wrangler/pkg/slice"
@@ -12,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	virtv1 "kubevirt.io/client-go/api/v1"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	mime "kubevirt.io/kubevirt/pkg/rest"
 
 	networkv1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
@@ -36,9 +37,9 @@ func AggregatedWebServices() []*restful.WebService {
 	AddGenericNamespacedResourceRoutes(harvesterNetworkv1beta1API, "clusternetworks", &networkv1beta1.ClusterNetwork{}, "ClusterNetwork", &networkv1beta1.ClusterNetworkList{})
 	AddGenericNamespacedResourceRoutes(harvesterNetworkv1beta1API, "nodenetworks", &networkv1beta1.NodeNetwork{}, "NodeNetwork", &networkv1beta1.NodeNetworkList{})
 
-	// CDI
-	cdiv1beta1API := NewGroupVersionWebService(cdiv1.SchemeGroupVersion)
-	AddGenericNamespacedResourceRoutes(cdiv1beta1API, "datavolumes", &cdiv1.DataVolume{}, "DataVolume", &cdiv1.DataVolumeList{})
+	// core
+	corev1API := NewGroupVersionWebService(corev1.SchemeGroupVersion)
+	AddGenericNamespacedResourceRoutes(corev1API, "persistentvolumeclaims", &corev1.PersistentVolumeClaim{}, "PersistentVolumeClaim", &corev1.PersistentVolumeClaimList{})
 
 	// kubevirt
 	virtv1API := NewGroupVersionWebService(virtv1.SchemeGroupVersion)
@@ -50,7 +51,7 @@ func AggregatedWebServices() []*restful.WebService {
 	cniv1API := NewGroupVersionWebService(cniv1.SchemeGroupVersion)
 	AddGenericNamespacedResourceRoutes(cniv1API, "network-attachment-definitions", &cniv1.NetworkAttachmentDefinition{}, "NetworkAttachmentDefinition", &cniv1.NetworkAttachmentDefinitionList{})
 
-	return []*restful.WebService{harvesterv1beta1API, harvesterNetworkv1beta1API, cdiv1beta1API, virtv1API, cniv1API}
+	return []*restful.WebService{harvesterv1beta1API, harvesterNetworkv1beta1API, corev1API, virtv1API, cniv1API}
 }
 
 func NewGroupVersionWebService(gv schema.GroupVersion) *restful.WebService {

@@ -10,29 +10,31 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
+	corefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/pointer"
 	kubevirtapis "kubevirt.io/client-go/api/v1"
-	cdiapis "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	kubevirttype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
-func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
+func TestVMIController_UnsetOwnerOfPVCs(t *testing.T) {
 	type input struct {
 		key string
 		vmi *kubevirtapis.VirtualMachineInstance
 		vm  *kubevirtapis.VirtualMachine
-		dv  *cdiapis.DataVolume
+		pvc *corev1.PersistentVolumeClaim
 	}
 	type output struct {
 		vmi *kubevirtapis.VirtualMachineInstance
 		err error
-		dv  *cdiapis.DataVolume
+		pvc *corev1.PersistentVolumeClaim
 	}
-	var testFinalizers = []string{"wrangler.cattle.io/VMIController.UnsetOwnerOfDataVolumes"}
+	var testFinalizers = []string{"wrangler.cattle.io/VMIController.UnsetOwnerOfPVCs"}
 
 	var testCases = []struct {
 		name     string
@@ -45,12 +47,12 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 				key: "",
 				vmi: nil,
 				vm:  nil,
-				dv:  nil,
+				pvc: nil,
 			},
 			expected: output{
 				vmi: nil,
 				err: nil,
-				dv:  nil,
+				pvc: nil,
 			},
 		},
 		{
@@ -65,8 +67,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						Finalizers: testFinalizers,
 					},
 				},
-				vm: nil,
-				dv: nil,
+				vm:  nil,
+				pvc: nil,
 			},
 			expected: output{
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -78,11 +80,11 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				pvc: nil,
 			},
 		},
 		{
-			name: "ignore if didn't own by any resources",
+			name: "ignore if isn't owned by any resources",
 			given: input{
 				key: "default/test",
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -94,8 +96,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						DeletionTimestamp: &metav1.Time{},
 					},
 				},
-				vm: nil,
-				dv: nil,
+				vm:  nil,
+				pvc: nil,
 			},
 			expected: output{
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -108,7 +110,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				pvc: nil,
 			},
 		},
 		{
@@ -134,8 +136,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				vm: nil,
-				dv: nil,
+				vm:  nil,
+				pvc: nil,
 			},
 			expected: output{
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -158,11 +160,11 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				pvc: nil,
 			},
 		},
 		{
-			name: "ignore if parent virtualmachine has not been found",
+			name: "ignore if parent virtualmachine is not found",
 			given: input{
 				key: "default/test",
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -184,8 +186,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				vm: nil,
-				dv: nil,
+				vm:  nil,
+				pvc: nil,
 			},
 			expected: output{
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -208,7 +210,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				pvc: nil,
 			},
 		},
 		{
@@ -245,7 +247,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						Template: &kubevirtapis.VirtualMachineInstanceTemplateSpec{},
 					},
 				},
-				dv: nil,
+				pvc: nil,
 			},
 			expected: output{
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -268,7 +270,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				pvc: nil,
 			},
 		},
 		{
@@ -304,7 +306,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						Template: nil,
 					},
 				},
-				dv: nil,
+				pvc: nil,
 			},
 			expected: output{
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -327,11 +329,11 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				pvc: nil,
 			},
 		},
 		{
-			name: "ignore if both virtualmachine instance and parent virtualmachine have not any datavolumes",
+			name: "ignore if both virtualmachine instance and parent virtualmachine do not have any PVCs",
 			given: input{
 				key: "default/test",
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -450,7 +452,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				dv: nil,
+				pvc: nil,
 			},
 			expected: output{
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -516,11 +518,11 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				pvc: nil,
 			},
 		},
 		{
-			name: "ignore if only increased datavolumes in parent virtualmachine",
+			name: "ignore if only add PVCs in parent virtualmachine",
 			given: input{
 				key: "default/test",
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -590,18 +592,13 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						Namespace: "default",
 						Name:      "test",
 						UID:       "fake-vm-uid",
-					},
-					Spec: kubevirtapis.VirtualMachineSpec{
-						DataVolumeTemplates: []kubevirtapis.DataVolumeTemplateSpec{
-							{
-								ObjectMeta: metav1.ObjectMeta{
-									Name: "dv-disk",
-								},
-								Spec: cdiapis.DataVolumeSpec{
-									Source: &cdiapis.DataVolumeSource{
-										Blank: &cdiapis.DataVolumeBlankImage{},
+						Annotations: map[string]string{
+							util.AnnotationVolumeClaimTemplates: MustPVCTemplatesToString([]corev1.PersistentVolumeClaim{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: "pvc-disk",
 									},
-									PVC: &corev1.PersistentVolumeClaimSpec{
+									Spec: corev1.PersistentVolumeClaimSpec{
 										StorageClassName: pointer.StringPtr("default"),
 										AccessModes: []corev1.PersistentVolumeAccessMode{
 											corev1.ReadWriteOnce,
@@ -613,8 +610,10 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 										},
 									},
 								},
-							},
+							}),
 						},
+					},
+					Spec: kubevirtapis.VirtualMachineSpec{
 						Template: &kubevirtapis.VirtualMachineInstanceTemplateSpec{
 							Spec: kubevirtapis.VirtualMachineInstanceSpec{
 								Domain: kubevirtapis.DomainSpec{
@@ -660,8 +659,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 									{
 										Name: "disk3",
 										VolumeSource: kubevirtapis.VolumeSource{
-											DataVolume: &kubevirtapis.DataVolumeSource{
-												Name: "dv-disk",
+											PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+												ClaimName: "pvc-disk",
 											},
 										},
 									},
@@ -670,7 +669,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				dv: nil,
+				pvc: nil,
 			},
 			expected: output{
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -736,11 +735,11 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				pvc: nil,
 			},
 		},
 		{
-			name: "ignore if the decreased datavolumes in parent virtualmachine have not been found",
+			name: "ignore if the removed PVCs in parent virtualmachine is not found",
 			given: input{
 				key: "default/test",
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -797,8 +796,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									DataVolume: &kubevirtapis.DataVolumeSource{
-										Name: "dv-disk",
+									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+										ClaimName: "pvc-disk",
 									},
 								},
 							},
@@ -843,7 +842,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				dv: nil,
+				pvc: nil,
 			},
 			expected: output{
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -900,8 +899,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									DataVolume: &kubevirtapis.DataVolumeSource{
-										Name: "dv-disk",
+									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+										ClaimName: "pvc-disk",
 									},
 								},
 							},
@@ -909,11 +908,11 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv:  nil,
+				pvc: nil,
 			},
 		},
 		{
-			name: "unref ownless out-tree datavolumes",
+			name: "unref ownless out-tree PVCs",
 			given: input{
 				key: "default/test",
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -970,8 +969,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									DataVolume: &kubevirtapis.DataVolumeSource{
-										Name: "dv-disk",
+									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+										ClaimName: "pvc-disk",
 									},
 								},
 							},
@@ -1016,28 +1015,23 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				dv: &cdiapis.DataVolume{
+				pvc: &corev1.PersistentVolumeClaim{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
-						Name:      "dv-disk",
-						UID:       "fake-dv-uid",
+						Name:      "pvc-disk",
+						UID:       "fake-pvc-uid",
 						Annotations: map[string]string{
 							ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]}]`,
 						},
 					},
-					Spec: cdiapis.DataVolumeSpec{
-						Source: &cdiapis.DataVolumeSource{
-							Blank: &cdiapis.DataVolumeBlankImage{},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: pointer.StringPtr("default"),
+						AccessModes: []corev1.PersistentVolumeAccessMode{
+							corev1.ReadWriteOnce,
 						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								corev1.ReadWriteOnce,
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("2Gi"),
-								},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("2Gi"),
 							},
 						},
 					},
@@ -1098,8 +1092,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									DataVolume: &kubevirtapis.DataVolumeSource{
-										Name: "dv-disk",
+									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+										ClaimName: "pvc-disk",
 									},
 								},
 							},
@@ -1107,25 +1101,20 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv: &cdiapis.DataVolume{
+				pvc: &corev1.PersistentVolumeClaim{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
-						Name:      "dv-disk",
-						UID:       "fake-dv-uid",
+						Name:      "pvc-disk",
+						UID:       "fake-pvc-uid",
 					},
-					Spec: cdiapis.DataVolumeSpec{
-						Source: &cdiapis.DataVolumeSource{
-							Blank: &cdiapis.DataVolumeBlankImage{},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: pointer.StringPtr("default"),
+						AccessModes: []corev1.PersistentVolumeAccessMode{
+							corev1.ReadWriteOnce,
 						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								corev1.ReadWriteOnce,
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("2Gi"),
-								},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("2Gi"),
 							},
 						},
 					},
@@ -1133,7 +1122,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 			},
 		},
 		{
-			name: "unref ownless generated datavolumes",
+			name: "unref ownless generated PVCs",
 			given: input{
 				key: "default/test",
 				vmi: &kubevirtapis.VirtualMachineInstance{
@@ -1190,8 +1179,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									DataVolume: &kubevirtapis.DataVolumeSource{
-										Name: "dv-disk",
+									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+										ClaimName: "pvc-disk",
 									},
 								},
 							},
@@ -1236,11 +1225,11 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 				},
-				dv: &cdiapis.DataVolume{
+				pvc: &corev1.PersistentVolumeClaim{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
-						Name:      "dv-disk",
-						UID:       "fake-dv-uid",
+						Name:      "pvc-disk",
+						UID:       "fake-pvc-uid",
 						Annotations: map[string]string{
 							ref.AnnotationSchemaOwnerKeyName: `[{"schema":"kubevirt.io.virtualmachine","refs":["default/test"]}]`,
 						},
@@ -1255,19 +1244,14 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 							},
 						},
 					},
-					Spec: cdiapis.DataVolumeSpec{
-						Source: &cdiapis.DataVolumeSource{
-							Blank: &cdiapis.DataVolumeBlankImage{},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: pointer.StringPtr("default"),
+						AccessModes: []corev1.PersistentVolumeAccessMode{
+							corev1.ReadWriteOnce,
 						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								corev1.ReadWriteOnce,
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("2Gi"),
-								},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("2Gi"),
 							},
 						},
 					},
@@ -1328,8 +1312,8 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									DataVolume: &kubevirtapis.DataVolumeSource{
-										Name: "dv-disk",
+									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+										ClaimName: "pvc-disk",
 									},
 								},
 							},
@@ -1337,11 +1321,11 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 					},
 				},
 				err: nil,
-				dv: &cdiapis.DataVolume{
+				pvc: &corev1.PersistentVolumeClaim{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
-						Name:      "dv-disk",
-						UID:       "fake-dv-uid",
+						Name:      "pvc-disk",
+						UID:       "fake-pvc-uid",
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								APIVersion:         "kubevirt.io/v1",
@@ -1353,19 +1337,14 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 							},
 						},
 					},
-					Spec: cdiapis.DataVolumeSpec{
-						Source: &cdiapis.DataVolumeSource{
-							Blank: &cdiapis.DataVolumeBlankImage{},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: pointer.StringPtr("default"),
+						AccessModes: []corev1.PersistentVolumeAccessMode{
+							corev1.ReadWriteOnce,
 						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								corev1.ReadWriteOnce,
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("2Gi"),
-								},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("2Gi"),
 							},
 						},
 					},
@@ -1376,34 +1355,35 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset()
+		var coreclientset = corefake.NewSimpleClientset()
 		if tc.given.vmi != nil {
 			var err = clientset.Tracker().Add(tc.given.vmi)
-			assert.Nil(t, err, "mock resource should add into fake controller tracker")
-		}
-		if tc.given.dv != nil {
-			var err = clientset.Tracker().Add(tc.given.dv)
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
 		}
 		if tc.given.vm != nil {
 			var err = clientset.Tracker().Add(tc.given.vm)
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
 		}
+		if tc.given.pvc != nil {
+			var err = coreclientset.Tracker().Add(tc.given.pvc)
+			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+		}
 
 		var ctrl = &VMIController{
 			virtualMachineCache: fakeVirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-			dataVolumeClient:    fakeDataVolumeClient(clientset.CdiV1beta1().DataVolumes),
-			dataVolumeCache:     fakeDataVolumeCache(clientset.CdiV1beta1().DataVolumes),
+			pvcClient:           fakeclients.PersistentVolumeClaimClient(coreclientset.CoreV1().PersistentVolumeClaims),
+			pvcCache:            fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
 		}
 		if tc.given.vmi != nil {
-			var hasFinalizer = sets.NewString(tc.given.vmi.Finalizers...).Has("wrangler.cattle.io/VMIController.UnsetOwnerOfDataVolumes")
+			var hasFinalizer = sets.NewString(tc.given.vmi.Finalizers...).Has("wrangler.cattle.io/VMIController.UnsetOwnerOfPVCs")
 			assert.True(t, hasFinalizer, "case %q's input is not a process target", tc.name)
 		}
 		var actual output
-		actual.vmi, actual.err = ctrl.UnsetOwnerOfDataVolumes(tc.given.key, tc.given.vmi)
-		if tc.expected.dv != nil {
-			var dvStored, err = clientset.Tracker().Get(cdiapis.SchemeGroupVersion.WithResource("datavolumes"), tc.expected.dv.Namespace, tc.expected.dv.Name)
+		actual.vmi, actual.err = ctrl.UnsetOwnerOfPVCs(tc.given.key, tc.given.vmi)
+		if tc.expected.pvc != nil {
+			var pvcStored, err = coreclientset.Tracker().Get(corev1.SchemeGroupVersion.WithResource("persistentvolumeclaims"), tc.expected.pvc.Namespace, tc.expected.pvc.Name)
 			assert.Nil(t, err, "mock resource should get from fake controller tracker")
-			actual.dv = dvStored.(*cdiapis.DataVolume)
+			actual.pvc = pvcStored.(*corev1.PersistentVolumeClaim)
 		}
 
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)

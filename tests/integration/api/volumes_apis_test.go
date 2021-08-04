@@ -10,7 +10,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	. "github.com/harvester/harvester/tests/framework/dsl"
 	"github.com/harvester/harvester/tests/framework/fuzz"
@@ -33,7 +32,7 @@ var _ = Describe("verify volume APIs", func() {
 
 		BeforeEach(func() {
 
-			volumeAPI = helper.BuildAPIURL("v1", "cdi.kubevirt.io.datavolumes", options.HTTPSListenPort)
+			volumeAPI = helper.BuildAPIURL("v1", "persistentvolumeclaims", options.HTTPSListenPort)
 
 		})
 
@@ -45,21 +44,16 @@ var _ = Describe("verify volume APIs", func() {
 			)
 
 			By("create a volume with name missing", func() {
-				var volume = cdiv1beta1.DataVolume{
+				var volume = corev1.PersistentVolumeClaim{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: namespace,
 					},
-					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: &cdiv1beta1.DataVolumeSource{
-							Blank: &cdiv1beta1.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-							VolumeMode:  &volumeMode,
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("1Gi"),
-								},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+						VolumeMode:  &volumeMode,
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("1Gi"),
 							},
 						},
 					},
@@ -69,19 +63,14 @@ var _ = Describe("verify volume APIs", func() {
 			})
 
 			By("create a volume with size missing", func() {
-				var volume = cdiv1beta1.DataVolume{
+				var volume = corev1.PersistentVolumeClaim{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      volumeName,
 						Namespace: namespace,
 					},
-					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: &cdiv1beta1.DataVolumeSource{
-							Blank: &cdiv1beta1.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-							VolumeMode:  &volumeMode,
-						},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+						VolumeMode:  &volumeMode,
 					},
 				}
 				respCode, respBody, err := helper.PostObject(volumeAPI, volume)
@@ -94,7 +83,7 @@ var _ = Describe("verify volume APIs", func() {
 			var (
 				volumeName = fuzz.String(5)
 				volumeMode = corev1.PersistentVolumeFilesystem
-				volume     = cdiv1beta1.DataVolume{
+				volume     = corev1.PersistentVolumeClaim{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      volumeName,
 						Namespace: namespace,
@@ -105,26 +94,21 @@ var _ = Describe("verify volume APIs", func() {
 							"test.harvesterhci.io": "for-test",
 						},
 					},
-					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: &cdiv1beta1.DataVolumeSource{
-							Blank: &cdiv1beta1.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-							VolumeMode:  &volumeMode,
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("1Gi"),
-								},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+						VolumeMode:  &volumeMode,
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("1Gi"),
 							},
 						},
 					},
 				}
 				getVolumeURL = fmt.Sprintf("%s/%s/%s", volumeAPI, namespace, volumeName)
-				retVolume    cdiv1beta1.DataVolume
+				retVolume    corev1.PersistentVolumeClaim
 			)
 
-			By("create an empty source volume")
+			By("create an empty volume")
 			respCode, respBody, err := helper.PostObject(volumeAPI, volume)
 			MustRespCodeIs(http.StatusCreated, "post volume", err, respCode, respBody)
 
@@ -141,7 +125,7 @@ var _ = Describe("verify volume APIs", func() {
 			var (
 				volumeName = fuzz.String(5)
 				volumeMode = corev1.PersistentVolumeFilesystem
-				volume     = cdiv1beta1.DataVolume{
+				volume     = corev1.PersistentVolumeClaim{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      volumeName,
 						Namespace: namespace,
@@ -152,23 +136,18 @@ var _ = Describe("verify volume APIs", func() {
 							"test.harvesterhci.io": "for-test",
 						},
 					},
-					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: &cdiv1beta1.DataVolumeSource{
-							Blank: &cdiv1beta1.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-							VolumeMode:  &volumeMode,
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("1Gi"),
-								},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+						VolumeMode:  &volumeMode,
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("1Gi"),
 							},
 						},
 					},
 				}
 				getVolumeURL = fmt.Sprintf("%s/%s/%s", volumeAPI, namespace, volumeName)
-				retVolume    cdiv1beta1.DataVolume
+				retVolume    corev1.PersistentVolumeClaim
 			)
 
 			By("create an empty source volume")
@@ -187,7 +166,7 @@ var _ = Describe("verify volume APIs", func() {
 			var (
 				volumeName = fuzz.String(5)
 				volumeMode = corev1.PersistentVolumeFilesystem
-				volume     = cdiv1beta1.DataVolume{
+				volume     = corev1.PersistentVolumeClaim{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      volumeName,
 						Namespace: namespace,
@@ -198,23 +177,18 @@ var _ = Describe("verify volume APIs", func() {
 							"test.harvesterhci.io": "for-test",
 						},
 					},
-					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: &cdiv1beta1.DataVolumeSource{
-							Blank: &cdiv1beta1.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-							VolumeMode:  &volumeMode,
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("1Gi"),
-								},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+						VolumeMode:  &volumeMode,
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("1Gi"),
 							},
 						},
 					},
 				}
 
-				toUpdateVolume = cdiv1beta1.DataVolume{
+				toUpdateVolume = corev1.PersistentVolumeClaim{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      volumeName,
 						Namespace: namespace,
@@ -225,11 +199,9 @@ var _ = Describe("verify volume APIs", func() {
 							"test.harvesterhci.io": "for-test-update",
 						},
 					},
-					// data volume spec is not updatable
-					Spec: volume.Spec,
 				}
 				volumeURL = fmt.Sprintf("%s/%s/%s", volumeAPI, namespace, volumeName)
-				retVolume cdiv1beta1.DataVolume
+				retVolume corev1.PersistentVolumeClaim
 			)
 			By("create volume")
 			respCode, respBody, err := helper.PostObject(volumeAPI, volume)
@@ -240,11 +212,10 @@ var _ = Describe("verify volume APIs", func() {
 			MustFinallyBeTrue(func() bool {
 				respCode, respBody, err = helper.GetObject(volumeURL, &retVolume)
 				MustRespCodeIs(http.StatusOK, "get volume", err, respCode, respBody)
-				toUpdateVolume.ResourceVersion = retVolume.ResourceVersion
-				toUpdateVolume.Kind = retVolume.Kind
-				toUpdateVolume.APIVersion = retVolume.APIVersion
+				retVolume.Labels = toUpdateVolume.Labels
+				retVolume.Annotations = toUpdateVolume.Annotations
 
-				respCode, respBody, err = helper.PutObject(volumeURL, toUpdateVolume)
+				respCode, respBody, err = helper.PutObject(volumeURL, retVolume)
 				MustNotError(err)
 				Expect(respCode).To(BeElementOf([]int{http.StatusOK, http.StatusConflict}), string(respBody))
 				return respCode == http.StatusOK
@@ -255,7 +226,6 @@ var _ = Describe("verify volume APIs", func() {
 			MustRespCodeIs(http.StatusOK, "get volume", err, respCode, respBody)
 			Expect(retVolume.Labels).To(BeEquivalentTo(toUpdateVolume.Labels))
 			Expect(retVolume.Annotations).To(BeEquivalentTo(toUpdateVolume.Annotations))
-			Expect(retVolume.Spec).To(BeEquivalentTo(toUpdateVolume.Spec))
 
 			By("delete the volume")
 			respCode, respBody, err = helper.DeleteObject(volumeURL)
@@ -267,47 +237,6 @@ var _ = Describe("verify volume APIs", func() {
 				MustNotError(err)
 				return respCode == http.StatusNotFound
 			})
-		})
-
-		Specify("verify blank volumes", func() {
-
-			var (
-				volumeName = fuzz.String(5)
-				volumeMode = corev1.PersistentVolumeFilesystem
-				volume     = cdiv1beta1.DataVolume{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      volumeName,
-						Namespace: namespace,
-					},
-					Spec: cdiv1beta1.DataVolumeSpec{
-						Source: &cdiv1beta1.DataVolumeSource{
-							Blank: &cdiv1beta1.DataVolumeBlankImage{},
-						},
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-							VolumeMode:  &volumeMode,
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("1Gi"),
-								},
-							},
-						},
-					},
-				}
-				getVolumeURL = fmt.Sprintf("%s/%s/%s", volumeAPI, namespace, volumeName)
-				retVolume    cdiv1beta1.DataVolume
-			)
-
-			By("create an empty source volume")
-			respCode, respBody, err := helper.PostObject(volumeAPI, volume)
-			MustRespCodeIs(http.StatusCreated, "post volume", err, respCode, respBody)
-
-			MustFinallyBeTrue(func() bool {
-				respCode, respBody, err = helper.GetObject(getVolumeURL, &retVolume)
-				MustRespCodeIs(http.StatusOK, "get volume", err, respCode, respBody)
-
-				return retVolume.Status.Phase == cdiv1beta1.Succeeded
-			}, 2*time.Minute, 2*time.Second)
 		})
 	})
 })
