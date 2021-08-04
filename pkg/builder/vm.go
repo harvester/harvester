@@ -31,10 +31,9 @@ const (
 )
 
 type VMBuilder struct {
-	VirtualMachine  *kubevirtv1.VirtualMachine
-	SSHNames        []string
-	DataVolumeNames []string
-	InterfaceNames  []string
+	VirtualMachine *kubevirtv1.VirtualMachine
+	SSHNames       []string
+	InterfaceNames []string
 }
 
 func NewVMBuilder(creator string) *VMBuilder {
@@ -78,9 +77,8 @@ func NewVMBuilder(creator string) *VMBuilder {
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: objectMeta,
 		Spec: kubevirtv1.VirtualMachineSpec{
-			Running:             running,
-			Template:            template,
-			DataVolumeTemplates: []kubevirtv1.DataVolumeTemplateSpec{},
+			Running:  running,
+			Template: template,
 		},
 	}
 	return &VMBuilder{
@@ -205,18 +203,6 @@ func (v *VMBuilder) VM() (*kubevirtv1.VirtualMachine, error) {
 		return nil, err
 	}
 	v.VirtualMachine.Spec.Template.ObjectMeta.Annotations[AnnotationKeyVirtualMachineSSHNames] = string(sshNames)
-
-	volumes := v.VirtualMachine.Spec.Template.Spec.Volumes
-	for _, volume := range volumes {
-		if volume.DataVolume != nil {
-			v.DataVolumeNames = append(v.DataVolumeNames, volume.DataVolume.Name)
-		}
-	}
-	dataVolumeNames, err := json.Marshal(v.DataVolumeNames)
-	if err != nil {
-		return nil, err
-	}
-	v.VirtualMachine.Spec.Template.ObjectMeta.Annotations[AnnotationKeyVirtualMachineDiskNames] = string(dataVolumeNames)
 
 	return v.VirtualMachine, nil
 }
