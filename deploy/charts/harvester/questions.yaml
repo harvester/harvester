@@ -109,14 +109,14 @@ questions:
     description: "specify the repository of harvester cleanup job image"
     type: "string"
     group: "Harvester Cleanup Job Settings"
-    show_if: "tags.kubevirt=true || tags.cdi=true"
+    show_if: "tags.kubevirt=true"
   - variable: jobs.preDelete.containers.kubectl.image.tag
     default: "1.18.6"
     label: "Image Tag"
     description: "specify the tag of harvester cleanup job image"
     type: "string"
     group: "Harvester Cleanup Job Settings"
-    show_if: "tags.kubevirt=true || tags.cdi=true"
+    show_if: "tags.kubevirt=true"
 ###
 #################### KubeVirt Advanced Options ####################
 ###
@@ -178,144 +178,6 @@ questions:
         type: "string"
         group: "KubeVirt Settings"
         show_if: "tags.kubevirt=true"
-###
-#################### CDI Advanced Options ####################
-###
-#################### CDI Advanced Control Settings ####################
-  - variable: tags.cdi
-    default: "true"
-    label: "Install CDI operator and CRD resources"
-    type: "boolean"
-    group: "CDI Settings"
-  - variable: show_cdi_advance_options
-    default: "false"
-    label: "Show Advanced Options"
-    type: "boolean"
-    show_subquestion_if: true
-    show_if: "tags.cdi=true"
-    group: "CDI Settings"
-    subquestions:
-      #################### CDI Operator Image Settings ####################
-      - variable: cdi-operator.containers.operator.image.repository
-        default: "registry.suse.com/harvester-beta/cdi-operator"
-        label: "Operator Image"
-        description: "specify the repository of operator image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true"
-      - variable: cdi-operator.containers.operator.image.tag
-        default: "1.30.0"
-        label: "Operator Image Tag"
-        description: "specify the tag of operator image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true"
-      #################### CDI Operator Resource Settings ####################
-      - variable: cdi-operator.containers.operator.resources.requests.cpu
-        default: "250m"
-        label: "Operator CPU Request"
-        description: "specify the request of CPU resource"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true"
-      - variable: cdi-operator.containers.operator.resources.requests.memory
-        default: "256Mi"
-        label: "Operator Memory Request"
-        description: "specify the request of memory resource"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true"
-      - variable: cdi-operator.containers.operator.resources.limits.cpu
-        default: "500m"
-        label: "Operator CPU Limit"
-        description: "specify the limit of CPU resource"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true"
-      - variable: cdi-operator.containers.operator.resources.limits.memory
-        default: "512Mi"
-        label: "Operator Memory Limit"
-        description: "specify the limit of memory resource"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true"
-      #################### CDI CRD Settings ####################
-      - variable: cdi.spec.uninstallStrategy
-        default: "RemoveWorkloads"
-        label: "Uninstall Strategy"
-        description: "specify the uninstall strategy of CDI"
-        type: "enum"
-        options:
-          - "RemoveWorkloads"
-          - "BlockUninstallIfWorkloadsExist"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true"
-      - variable: show_cdi_components_advance_options
-        default: "false"
-        label: "Show CDI Components Advanced Options"
-        type: "boolean"
-        show_if: "tags.cdi=true"
-        group: "CDI Settings"
-      #################### CDI Controller Image Settings ####################
-      - variable: cdi-operator.containers.controller.image.repository
-        default: "registry.suse.com/harvester-beta/cdi-controller"
-        label: "Controller Image"
-        description: "specify the repository of controller image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      - variable: cdi-operator.containers.controller.image.tag
-        default: ""
-        label: "Controller Image Tag"
-        description: "specify the tag of controller image, defaults to the tag of operator image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      #################### CDI Importer Image Settings ####################
-      - variable: cdi-operator.containers.importer.image.repository
-        default: "registry.suse.com/harvester-beta/cdi-importer"
-        label: "Importer Image"
-        description: "specify the repository of importer image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      - variable: cdi-operator.containers.importer.image.tag
-        default: ""
-        label: "Importer Image Tag"
-        description: "specify the tag of importer image, defaults to the tag of operator image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      #################### CDI APIServer Image Settings ####################
-      - variable: cdi-operator.containers.apiserver.image.repository
-        default: "registry.suse.com/harvester-beta/cdi-apiserver"
-        label: "APIServer Image"
-        description: "specify the repository of apiserver image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      - variable: cdi-operator.containers.apiserver.image.tag
-        default: ""
-        label: "APIServer Image Tag"
-        description: "specify the tag of apiserver image, defaults to the tag of operator image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      #################### CDI UploadProxy Image Settings ####################
-      - variable: cdi-operator.containers.uploadproxy.image.repository
-        default: "registry.suse.com/harvester-beta/cdi-uploadproxy"
-        label: "UploadProxy Image"
-        description: "specify the repository of uploadproxy image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
-      - variable: cdi-operator.containers.uploadproxy.image.tag
-        default: ""
-        label: "UploadProxy Image Tag"
-        description: "specify the tag of uploadproxy image, defaults to the tag of operator image"
-        type: "string"
-        group: "CDI Settings"
-        show_if: "tags.cdi=true && show_cdi_components_advance_options=true"
 
   #################### Harvester Storage Settings ####################
   - variable: longhorn.enabled
