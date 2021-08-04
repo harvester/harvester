@@ -26,20 +26,6 @@ dependencies:
     tags:
       - kubevirt
       - crd
-  - name: cdi-operator
-    version: 0.1.0
-    repository: file://dependency_charts/cdi-operator
-    condition: cdi-operator.enabled
-    tags:
-      - cdi
-      - operator
-  - name: cdi
-    version: 0.1.0
-    repository: file://dependency_charts/cdi
-    condition: cdi.enabled
-    tags:
-      - cdi
-      - crd
   - name: harvester-network-controller
     version: 0.1.0
     repository: file://dependency_charts/harvester-network-controller

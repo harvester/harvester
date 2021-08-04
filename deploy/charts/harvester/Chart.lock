@@ -5,12 +5,6 @@ dependencies:
 - name: kubevirt
   repository: file://dependency_charts/kubevirt
   version: 0.1.0
-- name: cdi-operator
-  repository: file://dependency_charts/cdi-operator
-  version: 0.1.0
-- name: cdi
-  repository: file://dependency_charts/cdi
-  version: 0.1.0
 - name: harvester-network-controller
   repository: file://dependency_charts/harvester-network-controller
   version: 0.1.0
@@ -23,5 +17,5 @@ dependencies:
 - name: longhorn
   repository: https://charts.longhorn.io
   version: 1.1.2
-digest: sha256:4bfca7ac2e99d230860399f24f94077db310b8b3473a82c79cd8dc6da015d608
-generated: "2021-07-13T11:54:55.687117+08:00"
+digest: sha256:b5caa45c61eb8cc47307d236c45042e113c06feae7b44ec2cd07a10853d24437
+generated: "2021-08-04T14:45:43.485096+08:00"

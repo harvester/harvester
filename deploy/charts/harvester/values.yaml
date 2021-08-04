@@ -9,11 +9,6 @@
 ##
 tags:
 
-  ## Specify to enable both CDI operator and CDI sub-charts,
-  ## defaults to "true".
-  ##
-  cdi: true
-
   ## Specify to enable both KubeVirt operator and KubeVirt sub-charts,
   ## defaults to "true".
   ##
@@ -93,35 +88,6 @@ kubevirt:
       ## defaults to discover automatically, "pseries*" if arch is ppc64le, otherwise "q35, pc-g35*, pc, pc-i440fx*".
       ##
       emulatedMachines: ["q35","pc-q35*","pc","pc-i440fx*"]
-
-## Specify the parameters to override the sub-chart.
-##
-cdi-operator:
-  containers:
-    operator:
-      image:
-        repository: quay.io/kubevirt/cdi-operator
-        tag: &cdiVersion v1.36.0
-    controller:
-      image:
-        repository: quay.io/kubevirt/cdi-controller
-        tag: *cdiVersion
-    importer:
-      image:
-        repository: quay.io/kubevirt/cdi-importer
-        tag: *cdiVersion
-    apiserver:
-      image:
-        repository: quay.io/kubevirt/cdi-apiserver
-        tag: *cdiVersion
-    uploadproxy:
-      image:
-        repository: quay.io/kubevirt/cdi-uploadproxy
-        tag: *cdiVersion
-
-## Specify the parameters to override the sub-chart.
-##
-cdi: {}
 
 ###########################################################################
 ###########################################################################

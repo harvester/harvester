@@ -10,8 +10,6 @@ This chart will do the following:
 
 - Deploy a KubeVirt Operator if needed, defaults to deploy.
 - Deploy a KubeVirt CRD resource to enable KubeVirt if needed, defaults to deploy.
-- Deploy a KubeVirt Containerized Data Importer(CDI) Operator if needed, defaults to deploy.
-- Deploy a CDI CRD resource to enable KubeVirt Containerized Data Importer(CDI) if needed, default to deploy.
 - Deploy the Harvester resources.
 - Deploy [Longhorn](https://longhorn.io) as the built-in storage management.
 - [Multus-CNI](https://github.com/intel/multus-cni) as default multi networks management solution(enable by set `multus.enabled=true` in the helm install).
@@ -44,14 +42,13 @@ $ helm uninstall harvester --namespace harvester-system
 
 #### Notes
 
-- Use the existing KubeVirt/CDI/Longhorn Service.
+- Use the existing KubeVirt/Longhorn Service.
 
-    If you have already prepared the KubeVirt, CDI or Longhorn, you can disable these installations in this chart.
+    If you have already prepared the KubeVirt or Longhorn, you can disable these installations in this chart.
     
     ```bash
     $ helm install harvester harvester --namespace harvester-system \
         --set kubevirt.enabled=false --set kubevirt-operator.enabled=false \
-        --set cdi.enabled=false --set cdi-operator.enabled=false \
         --set longhorn.enabled=false
     ```
 
@@ -101,42 +98,6 @@ If you don't want to install KubeVirt CRD resource, you can do the following.
 ```bash
 $ helm install harvester harvester --namespace harvester-system \
     --set kubevirt.enabled=false
-```
-
-#### Configure KubeVirt Containerized Data Importer Operator
-
-To configure the KubeVirt Containerized Data Importer Operator, you need to know its [parameters](dependency_charts/cdi-operator/values.yaml) and put all items under `cdi-operator` domain.
-
-For example, if you want to change the image name of CDI cloner, you can do as below.
-
-```bash
-$ helm install harvester harvester --namespace harvester-system \
-    --set-string cdi-operator.containers.cloner.image.repository=myrepo/my-cloner-image
-```
-
-If you don't want to install KubeVirt Containerized Data Importer Operator, you can do the following.
-
-```bash
-$ helm install harvester harvester --namespace harvester-system \
-    --set cdi-operator.enabled=false
-```
-
-#### Configure KubeVirt Containerized Data Importer (CRD resource)
-
-To configure the KubeVirt Containerized Data Importer CRD resource, you need to know its [parameters](dependency_charts/cdi/values.yaml) and put all items under `cdi` domain.
-
-For example, if you want to override the pull policy of CDI operator, you can do as below.
-
-```bash
-$ helm install harvester harvester --namespace harvester-system \
-    --set-string cdi.spec.imagePullPolicy=Always
-```
-
-If you don't want to install KubeVirt Containerized Data Importer CRD resource, you can do the following.
-
-```bash
-$ helm install harvester harvester --namespace harvester-system \
-    --set cdi.enabled=false
 ```
 
 ## License

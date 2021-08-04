@@ -110,27 +110,3 @@ NB(thxCode): Use this value to unify the control tag and condition of KubeVirt.
 {{- .Values.tags.kubevirt | toString -}}
 {{- end -}}
 {{- end }}
-
-{{/*
-NB(thxCode): Use this value to unify the control tag and condition of CDI Operator.
-*/}}
-{{- define "conditions.is_cdi_operator_enabled" }}
-{{- $cdiOperatorEnabled := (index .Values "cdi-operator" "enabled") | toString }}
-{{- if ne $cdiOperatorEnabled "<nil>" }}
-{{- $cdiOperatorEnabled -}}
-{{- else -}}
-{{- .Values.tags.cdi | toString -}}
-{{- end -}}
-{{- end }}
-
-{{/*
-NB(thxCode): Use this value to unify the control tag and condition of CDI.
-*/}}
-{{- define "conditions.is_cdi_enabled" }}
-{{- $cdiEnabled := (index .Values "cdi" "enabled") | toString -}}
-{{- if ne $cdiEnabled "<nil>" }}
-{{- $cdiEnabled -}}
-{{- else -}}
-{{- .Values.tags.cdi | toString -}}
-{{- end -}}
-{{- end }}

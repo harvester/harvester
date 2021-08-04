@@ -1,7 +1,6 @@
 {{- if .Values.jobs.preDelete.enabled }}
-{{- $isCDIOperatorEnabled := eq ( include "conditions.is_cdi_operator_enabled" . ) "true" -}}
 {{- $isKubeVirtOperatorEnabled := eq ( include "conditions.is_kubevirt_operator_enabled" . ) "true" -}}
-{{- if or $isCDIOperatorEnabled $isKubeVirtOperatorEnabled }}
+{{- if $isKubeVirtOperatorEnabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -71,10 +70,6 @@ spec:
               {{ if $isKubeVirtOperatorEnabled }}
               echo '[INFO] deleting kubevirt ...';
               kubectl delete kubevirt --wait --all;
-              {{ end }}
-              {{ if $isCDIOperatorEnabled }}
-              echo '[INFO] deleting cdi ...';
-              kubectl delete cdi --wait --all;
               {{ end }}
               exit
 {{- if .Values.jobs.preDelete.containers.kubectl.resources }}
