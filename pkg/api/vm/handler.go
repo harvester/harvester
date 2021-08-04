@@ -188,26 +188,42 @@ func ejectCdRomFromVM(vm *kv1.VirtualMachine, diskNames []string) error {
 	}
 
 	volumes := make([]kv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
-	ejectedVolumeNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
+	toRemoveClaimNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
 	for _, vol := range vm.Spec.Template.Spec.Volumes {
-		if vol.VolumeSource.DataVolume != nil && slice.ContainsString(diskNames, vol.Name) {
-			ejectedVolumeNames = append(ejectedVolumeNames, vol.VolumeSource.DataVolume.Name)
+		if vol.VolumeSource.PersistentVolumeClaim != nil && slice.ContainsString(diskNames, vol.Name) {
+			toRemoveClaimNames = append(toRemoveClaimNames, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
 			continue
 		}
 		volumes = append(volumes, vol)
 	}
 
-	dvs := make([]kv1.DataVolumeTemplateSpec, 0, len(vm.Spec.DataVolumeTemplates))
-	for _, v := range vm.Spec.DataVolumeTemplates {
-		if slice.ContainsString(ejectedVolumeNames, v.Name) {
-			continue
-		}
-		dvs = append(dvs, v)
+	if err := removeVolumeClaimTemplatesFromVmAnnotation(vm, toRemoveClaimNames); err != nil {
+		return err
 	}
-
-	vm.Spec.DataVolumeTemplates = dvs
 	vm.Spec.Template.Spec.Volumes = volumes
 	vm.Spec.Template.Spec.Domain.Devices.Disks = disks
+	return nil
+}
+
+func removeVolumeClaimTemplatesFromVmAnnotation(vm *kv1.VirtualMachine, toRemoveDiskNames []string) error {
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok {
+		return nil
+	}
+	var volumeClaimTemplates, toUpdateVolumeClaimTemplates []corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(volumeClaimTemplatesStr), &volumeClaimTemplates); err != nil {
+		return err
+	}
+	for _, volumeClaimTemplate := range volumeClaimTemplates {
+		if !slice.ContainsString(toRemoveDiskNames, volumeClaimTemplate.Name) {
+			toUpdateVolumeClaimTemplates = append(toUpdateVolumeClaimTemplates, volumeClaimTemplate)
+		}
+	}
+	toUpdateVolumeClaimTemplateBytes, err := json.Marshal(toUpdateVolumeClaimTemplates)
+	if err != nil {
+		return err
+	}
+	vm.Annotations[util.AnnotationVolumeClaimTemplates] = string(toUpdateVolumeClaimTemplateBytes)
 	return nil
 }
 

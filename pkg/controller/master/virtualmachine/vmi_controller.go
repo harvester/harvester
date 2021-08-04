@@ -3,64 +3,30 @@ package virtualmachine
 import (
 	"fmt"
 
+	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kubevirtapis "kubevirt.io/client-go/api/v1"
 
-	cdictrl "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 type VMIController struct {
 	virtualMachineCache kubevirtctrl.VirtualMachineCache
-	dataVolumeClient    cdictrl.DataVolumeClient
-	dataVolumeCache     cdictrl.DataVolumeCache
+	pvcClient           v1.PersistentVolumeClaimClient
+	pvcCache            v1.PersistentVolumeClaimCache
 }
 
-// UnsetOwnerOfDataVolumes erases the target VirtualMachine from the owner of the ownless DataVolumes in annotation.
+// UnsetOwnerOfPVCs erases the target VirtualMachine from the owner of the PVCs in annotation.
 //
-// When modifying the VirtualMachine's spec to remove the previously defined DataVolumes and recreating the VirtualMachineInstance,
-// those previously defined DataVolumes still hold an OwnerReference of the VirtualMachine,
+// When modifying the VirtualMachine's spec to remove the previously defined PVCs and recreating the VirtualMachineInstance,
+// those previously defined PVCs still hold an OwnerReference of the VirtualMachine,
 // but they are no longer used by the newly created VirtualMachineInstance.
 //
-// Since the handler of VMController has recorded the relationship in the DataVolume's annotation,
-// this handler will erase the target owner from the DataVolume's annotation to avoid logic leak.
-//
-//   ```diff
-//     apiVersion: kubevirt.io/v1alpha3
-//     kind: VirtualMachine
-//     spec:
-//   +   # the data-disk-2 DataVolume still be referred to this VirtualMachine until delete the whole VirtualMachine.
-//   -   dataVolumeTemplates:
-//   -   - metadata:
-//   -     name: data-disk-2
-//   -     spec:
-//   -       pvc:
-//   -         resource:
-//   -           requests:
-//   -             storage: 10Gi
-//   -       source:
-//   -         blank: {}
-//       template:
-//         spec:
-//           domain:
-//             devices:
-//             - disk:
-//               name: root-disk
-//             - disk:
-//               name: data-disk-1
-//   -         - disk:
-//   -           name: data-disk-2
-//           volumes:
-//           - dataVolume:
-//             name: root-disk
-//           - dataVolume:
-//             name: data-disk-1
-//   -       - dataVolume:
-//   -         name: data-disk-2
-//   ```
-func (h *VMIController) UnsetOwnerOfDataVolumes(_ string, vmi *kubevirtapis.VirtualMachineInstance) (*kubevirtapis.VirtualMachineInstance, error) {
+// Since the handler of VMController has recorded the relationship in the PVC's annotation,
+// this handler will erase the target owner from the PVC's annotation to avoid logic leak.
+func (h *VMIController) UnsetOwnerOfPVCs(_ string, vmi *kubevirtapis.VirtualMachineInstance) (*kubevirtapis.VirtualMachineInstance, error) {
 	if vmi == nil || vmi.DeletionTimestamp == nil {
 		return vmi, nil
 	}
@@ -96,30 +62,30 @@ func (h *VMIController) UnsetOwnerOfDataVolumes(_ string, vmi *kubevirtapis.Virt
 		return vmi, nil
 	}
 
-	var dataVolumeNames = sets.String{}
+	var pvcNames = sets.String{}
 	if vmiDesired := vm.Spec.Template; vmiDesired != nil { // just a defend, the validating webhook of virt-api will make this never happen
-		dataVolumeNames = getDataVolumeNames(&vmiDesired.Spec)
+		pvcNames = getPVCNames(&vmiDesired.Spec)
 	}
-	var dataVolumeNameObserved = getDataVolumeNames(&vmi.Spec)
+	var pvcNameObserved = getPVCNames(&vmi.Spec)
 
-	// unsets ownerless DataVolumes
-	var dataVolumeNamespace = vmi.Namespace
-	var ownerlessDataVolumeNames = dataVolumeNameObserved.Difference(dataVolumeNames).List()
-	for _, dataVolumeName := range ownerlessDataVolumeNames {
-		var dataVolume, err = h.dataVolumeCache.Get(dataVolumeNamespace, dataVolumeName)
+	// unsets ownerless PVCs
+	var pvcNamespace = vmi.Namespace
+	var ownerlessPVCNames = pvcNameObserved.Difference(pvcNames).List()
+	for _, pvcName := range ownerlessPVCNames {
+		var pvc, err = h.pvcCache.Get(pvcNamespace, pvcName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				// NB(thxCode): ignores error, since this can't be fixed by an immediate requeue,
-				// and also doesn't block the whole logic if the DataVolume has already been deleted.
+				// and also doesn't block the whole logic if the PVC has already been deleted.
 				continue
 			}
-			return vmi, fmt.Errorf("failed to get DataVolume(%s/%s): %w", dataVolumeNamespace, dataVolumeName, err)
+			return vmi, fmt.Errorf("failed to get PVC(%s/%s): %w", pvcNamespace, pvcName, err)
 		}
 
-		err = unsetBoundedDataVolumeReference(h.dataVolumeClient, dataVolume, vm)
+		err = unsetBoundedPVCReference(h.pvcClient, pvc, vm)
 		if err != nil {
-			return vmi, fmt.Errorf("failed to revoke VitrualMachine(%s/%s) as DataVolume(%s/%s)'s owner: %w",
-				vm.Namespace, vm.Name, dataVolumeNamespace, dataVolumeName, err)
+			return vmi, fmt.Errorf("failed to revoke VitrualMachine(%s/%s) as PVC(%s/%s)'s owner: %w",
+				vm.Namespace, vm.Name, pvcNamespace, pvcName, err)
 		}
 	}
 

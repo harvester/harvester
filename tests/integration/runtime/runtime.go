@@ -21,10 +21,6 @@ const (
 
 var (
 	testDeploymentManifest = []string{
-		"cdi-operator",
-		"cdi-apiserver",
-		"cdi-deployment",
-		"cdi-uploadproxy",
 		"virt-operator",
 		"virt-api",
 		"virt-controller",

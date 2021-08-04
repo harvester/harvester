@@ -14,7 +14,7 @@ import (
 	"k8s.io/kube-openapi/pkg/builder"
 	"k8s.io/kube-openapi/pkg/common"
 	_ "kubevirt.io/client-go/apis/snapshot/v1alpha1"
-	_ "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	_ "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	_ "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -28,7 +28,7 @@ var kindToTagMappings = map[string]string{
 	"VirtualMachineInstance":          "Virtual Machines",
 	"VirtualMachineTemplate":          "Virtual Machine Templates",
 	"VirtualMachineTemplateVersion":   "Virtual Machine Templates",
-	"DataVolume":                      "Volumes",
+	"PersistentVolumeClaim":           "Volumes",
 	"VirtualMachineImage":             "Images",
 	"VirtualMachineBackup":            "Backups",
 	"VirtualMachineRestore":           "Restores",

@@ -3,9 +3,9 @@ package indexeres
 import (
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
-	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -15,7 +15,7 @@ import (
 const (
 	UserNameIndex           = "auth.harvesterhci.io/user-username-index"
 	RbByRoleAndSubjectIndex = "auth.harvesterhci.io/crb-by-role-and-subject"
-	DataVolumeByVMIndex     = "cdi.harvesterhci.io/datavolume-by-vm"
+	PVCByVMIndex            = "harvesterhci.io/pvc-by-vm-index"
 	VMByNetworkIndex        = "vm.harvesterhci.io/vm-by-network"
 )
 
@@ -29,8 +29,8 @@ func RegisterScaledIndexers(scaled *config.Scaled) {
 func RegisterManagementIndexers(management *config.Management) {
 	crbInformer := management.RbacFactory.Rbac().V1().ClusterRoleBinding().Cache()
 	crbInformer.AddIndexer(RbByRoleAndSubjectIndex, rbByRoleAndSubject)
-	dataVolumeInformer := management.CDIFactory.Cdi().V1beta1().DataVolume().Cache()
-	dataVolumeInformer.AddIndexer(DataVolumeByVMIndex, dataVolumeByVM)
+	pvcInformer := management.CoreFactory.Core().V1().PersistentVolumeClaim().Cache()
+	pvcInformer.AddIndexer(PVCByVMIndex, pvcByVM)
 }
 
 func IndexUserByUsername(obj *harvesterv1.User) ([]string, error) {
@@ -49,10 +49,10 @@ func RbRoleSubjectKey(roleName string, subject rbacv1.Subject) string {
 	return roleName + "." + subject.Kind + "." + subject.Name
 }
 
-func dataVolumeByVM(obj *cdiv1beta1.DataVolume) ([]string, error) {
+func pvcByVM(obj *corev1.PersistentVolumeClaim) ([]string, error) {
 	annotationSchemaOwners, err := ref.GetSchemaOwnersFromAnnotation(obj)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get schema owners from datavolume %s's annotation: %w", obj.Name, err)
+		return nil, fmt.Errorf("failed to get schema owners from PVC %s's annotation: %w", obj.Name, err)
 	}
 	return annotationSchemaOwners.List(kubevirtv1.VirtualMachineGroupVersionKind.GroupKind()), nil
 }

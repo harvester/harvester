@@ -26,7 +26,6 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
-	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
@@ -70,7 +69,6 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 	contents := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackupContent()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
-	dataVolumes := management.CDIFactory.Cdi().V1beta1().DataVolume()
 
 	handler := &RestoreHandler{
 		context:           ctx,
@@ -82,8 +80,6 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 		vmCache:           vms.Cache(),
 		pvcClient:         pvcs,
 		pvcCache:          pvcs.Cache(),
-		dataVolumes:       dataVolumes,
-		dataVolumeCache:   dataVolumes.Cache(),
 		recorder:          management.NewRecorder(restoreControllerName, "", ""),
 	}
 
@@ -104,8 +100,6 @@ type RestoreHandler struct {
 	vmCache           ctlkubevirtv1.VirtualMachineCache
 	pvcClient         ctlcorev1.PersistentVolumeClaimClient
 	pvcCache          ctlcorev1.PersistentVolumeClaimCache
-	dataVolumeCache   ctlcdiv1.DataVolumeCache
-	dataVolumes       ctlcdiv1.DataVolumeClient
 
 	recorder   record.EventRecorder
 	restClient *rest.RESTClient
@@ -427,19 +421,7 @@ func (t *vmRestoreTarget) Cleanup() error {
 		return nil
 	}
 
-	for _, dvName := range t.vmRestore.Status.DeletedDataVolumes {
-		dv, err := t.handler.dataVolumeCache.Get(t.vmRestore.Namespace, dvName)
-		if err != nil && !apierrors.IsNotFound(err) {
-			return err
-		}
-
-		if dv != nil {
-			err = t.handler.dataVolumes.Delete(dv.Namespace, dv.Name, &metav1.DeleteOptions{})
-			if err != nil {
-				return err
-			}
-		}
-	}
+	//FIXME data volume refactoring
 
 	return nil
 }

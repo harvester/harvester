@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	. "github.com/onsi/ginkgo"
+	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,7 +15,6 @@ import (
 	apivm "github.com/harvester/harvester/pkg/api/vm"
 	"github.com/harvester/harvester/pkg/builder"
 	"github.com/harvester/harvester/pkg/config"
-	ctldatavolumev1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	. "github.com/harvester/harvester/tests/framework/dsl"
 	"github.com/harvester/harvester/tests/framework/fuzz"
@@ -27,7 +27,7 @@ var _ = Describe("verify vm APIs", func() {
 		scaled        *config.Scaled
 		vmController  ctlkubevirtv1.VirtualMachineController
 		vmiController ctlkubevirtv1.VirtualMachineInstanceController
-		dvController  ctldatavolumev1.DataVolumeController
+		pvcController v1.PersistentVolumeClaimController
 		vmNamespace   string
 	)
 
@@ -35,7 +35,7 @@ var _ = Describe("verify vm APIs", func() {
 		scaled = harvester.Scaled()
 		vmController = scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 		vmiController = scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
-		dvController = scaled.CDIFactory.Cdi().V1beta1().DataVolume()
+		pvcController = scaled.CoreFactory.Core().V1().PersistentVolumeClaim()
 		vmNamespace = testVMNamespace
 	})
 
@@ -52,15 +52,15 @@ var _ = Describe("verify vm APIs", func() {
 			}
 		}
 
-		dvList, err := dvController.List(vmNamespace, metav1.ListOptions{
+		pvcList, err := pvcController.List(vmNamespace, metav1.ListOptions{
 			LabelSelector: labels.FormatLabels(testResourceLabels)})
 		if err != nil {
-			GinkgoT().Logf("failed to list tested dvs, %v", err)
+			GinkgoT().Logf("failed to list tested pvcs, %v", err)
 			return
 		}
-		for _, item := range dvList.Items {
-			if err = dvController.Delete(item.Namespace, item.Name, &metav1.DeleteOptions{}); err != nil {
-				GinkgoT().Logf("failed to delete tested dv %s/%s, %v", item.Namespace, item.Name, err)
+		for _, item := range pvcList.Items {
+			if err = pvcController.Delete(item.Namespace, item.Name, &metav1.DeleteOptions{}); err != nil {
+				GinkgoT().Logf("failed to delete tested pvc %s/%s, %v", item.Namespace, item.Name, err)
 			}
 		}
 	})
@@ -81,7 +81,7 @@ var _ = Describe("verify vm APIs", func() {
 			By("create a virtual machine should fail if name missing")
 			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name("").
 				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
-				DataVolumeDisk(testVMBlankDiskName, testVMDefaultDiskBus, false, 1, testVMDiskSize, "", nil).
+				PVCDisk(testVMBlankDiskName, testVMDefaultDiskBus, false, 1, testVMDiskSize, "", nil).
 				VM()
 			MustNotError(err)
 			respCode, respBody, err := helper.PostObject(vmsAPI, vm)
@@ -124,7 +124,7 @@ var _ = Describe("verify vm APIs", func() {
 			// edit
 			By("when edit virtual machine")
 			vm, err = builder.NewVMBuilder(testCreator).Update(vm).CPU(testVMUpdatedCPUCore).Memory(testVMUpdatedMemory).
-				DataVolumeDisk(testVMCDRomDiskName, testVMCDRomBus, true, 2, testVMDiskSize, "", &builder.DataVolumeOption{
+				PVCDisk(testVMCDRomDiskName, testVMCDRomBus, true, 2, testVMDiskSize, "", &builder.PersistentVolumeClaimOption{
 					VolumeMode: builder.PersistentVolumeModeFilesystem,
 					AccessMode: builder.PersistentVolumeAccessModeReadWriteOnce,
 				}).VM()
@@ -240,7 +240,7 @@ var _ = Describe("verify vm APIs", func() {
 			vmName := testVMGenerateName + fuzz.String(5)
 			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
 				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
-				DataVolumeDisk(testVMRemoveDiskName, testVMDefaultDiskBus, false, 1, testVMDiskSize, testVMRemoveDiskName, &builder.DataVolumeOption{
+				PVCDisk(testVMRemoveDiskName, testVMDefaultDiskBus, false, 1, testVMDiskSize, testVMRemoveDiskName, &builder.PersistentVolumeClaimOption{
 					VolumeMode: builder.PersistentVolumeModeFilesystem,
 					AccessMode: builder.PersistentVolumeAccessModeReadWriteOnce,
 				}).
@@ -264,7 +264,7 @@ var _ = Describe("verify vm APIs", func() {
 			MustVMDeleted(vmController, vmNamespace, vmName)
 
 			By("and the spare disk is also deleted")
-			MustDataVolumeDeleted(dvController, vmNamespace, testVMRemoveDiskName)
+			MustPVCDeleted(pvcController, vmNamespace, testVMRemoveDiskName)
 		})
 	})
 })
