@@ -8,7 +8,6 @@ import (
 	v1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/client-go/rest"
 
-	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
@@ -20,8 +19,6 @@ type Clients struct {
 	HarvesterFactory *ctlharvesterv1.Factory
 	KubevirtFactory  *ctlkubevirtv1.Factory
 	CNIFactory       *ctlcniv1.Factory
-
-	CDIFactory *ctlcdiv1.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
@@ -52,15 +49,6 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
-	cdiFactory, err := ctlcdiv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = cdiFactory.Start(ctx, threadiness); err != nil {
-		return nil, err
-	}
-
 	cniFactory, err := ctlcniv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
 	if err != nil {
 		return nil, err
@@ -75,6 +63,5 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		HarvesterFactory: harvesterFactory,
 		KubevirtFactory:  kubevirtFactory,
 		CNIFactory:       cniFactory,
-		CDIFactory:       cdiFactory,
 	}, nil
 }

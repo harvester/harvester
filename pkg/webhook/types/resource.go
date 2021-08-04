@@ -23,9 +23,6 @@ func (r Resource) Validate() error {
 	if r.Scope == "" {
 		return errUndefined("Scope")
 	}
-	if r.APIGroup == "" {
-		return errUndefined("APIGroup")
-	}
 	if r.APIVersion == "" {
 		return errUndefined("APIVersion")
 	}
