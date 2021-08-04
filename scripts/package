@@ -16,6 +16,7 @@ if [ -e ${DOCKERFILE}.${ARCH} ]; then
     DOCKERFILE=${DOCKERFILE}.${ARCH}
 fi
 
+rm -rf ./harvester
 cp ../bin/harvester .
 
 docker build --build-arg VERSION=${VERSION} -f ${DOCKERFILE} -t ${IMAGE} .
