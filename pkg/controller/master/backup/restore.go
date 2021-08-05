@@ -22,19 +22,19 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 	kv1 "kubevirt.io/client-go/api/v1"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/ref"
 )
 
 var (
 	restoreAnnotationsToDelete = []string{
 		"pv.kubernetes.io",
 		"volume.beta.kubernetes.io",
-		"cdi.kubevirt.io",
+		ref.AnnotationSchemaOwnerKeyName,
 	}
 )
 
@@ -53,8 +53,6 @@ const (
 
 	restoreNameAnnotation = "restore.harvesterhci.io/name"
 	lastRestoreAnnotation = "restore.harvesterhci.io/lastRestoreUID"
-
-	populatedForPVCAnnotation = "cdi.kubevirt.io/storage.populatedFor"
 
 	vmCreatorLabel = "harvesterhci.io/creator"
 	vmNameLabel    = "harvesterhci.io/vmName"
@@ -421,7 +419,20 @@ func (t *vmRestoreTarget) Cleanup() error {
 		return nil
 	}
 
-	//FIXME data volume refactoring
+	// clean up existing pvc
+	for _, volName := range t.vmRestore.Status.DeletedVolumes {
+		vol, err := t.handler.pvcCache.Get(t.vmRestore.Namespace, volName)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+
+		if vol != nil {
+			err = t.handler.pvcClient.Delete(vol.Namespace, vol.Name, &metav1.DeleteOptions{})
+			if err != nil {
+				return err
+			}
+		}
+	}
 
 	return nil
 }
@@ -458,95 +469,29 @@ func (t *vmRestoreTarget) RestartVM() error {
 }
 
 func (h *RestoreHandler) ReconcileVMTemplate(vm *kv1.VirtualMachineSpec,
-	vmRestore *harvesterv1.VirtualMachineRestore) ([]kv1.DataVolumeTemplateSpec, []kv1.Volume, bool, error) {
-	var newTemplates = make([]kv1.DataVolumeTemplateSpec, len(vm.DataVolumeTemplates))
+	vmRestore *harvesterv1.VirtualMachineRestore) ([]kv1.Volume, bool, error) {
+
 	var newVolumes = make([]kv1.Volume, len(vm.Template.Spec.Volumes))
 	updatedStatus := false
 
-	copy(newTemplates, vm.DataVolumeTemplates)
 	copy(newVolumes, vm.Template.Spec.Volumes)
 
 	for j, vol := range vm.Template.Spec.Volumes {
 
-		if vol.DataVolume != nil || vol.PersistentVolumeClaim != nil {
+		if vol.PersistentVolumeClaim != nil {
 
 			for _, vr := range vmRestore.Status.VolumeRestores {
 				if vr.VolumeName != vol.Name {
 					continue
 				}
 
-				pvc, err := h.pvcCache.Get(vr.PersistentVolumeClaim.Namespace, vr.PersistentVolumeClaim.Name)
-				if err != nil {
-					return nil, nil, false, err
-				}
-
-				// 1. vm volume type is dataVolume
-				if vol.DataVolume != nil {
-					templateIndex := -1
-					for i, dvt := range vm.DataVolumeTemplates {
-						if vol.DataVolume.Name == dvt.Name {
-							templateIndex = i
-							break
-						}
-					}
-
-					if templateIndex >= 0 {
-						dvtCopy := vm.DataVolumeTemplates[templateIndex].DeepCopy()
-
-						// only need to update the dataVolumeTemplate if the restore name is different
-						if dvtCopy.Name != vr.PersistentVolumeClaim.Name {
-
-							dvtCopy.Name = vr.PersistentVolumeClaim.Name
-							dvtCopy.Spec.Source = &cdiv1.DataVolumeSource{
-								Blank: &cdiv1.DataVolumeBlankImage{},
-							}
-
-							updatePVC := pvc.DeepCopy()
-							if updatePVC.Annotations[populatedForPVCAnnotation] != dvtCopy.Name {
-								if updatePVC.Annotations == nil {
-									updatePVC.Annotations = make(map[string]string)
-								}
-								updatePVC.Annotations[populatedForPVCAnnotation] = dvtCopy.Name
-								// dataVolume will take ownership
-								updatePVC.OwnerReferences = nil
-								if _, err = h.pvcClient.Update(updatePVC); err != nil {
-									return newTemplates, newVolumes, updatedStatus, err
-								}
-							}
-
-							if dvtCopy.Annotations == nil {
-								dvtCopy.Annotations = make(map[string]string, 1)
-							}
-							dvtCopy.Annotations[restoreNameAnnotation] = vmRestore.Name
-							newTemplates[templateIndex] = *dvtCopy
-
-							nv := vol.DeepCopy()
-							nv.DataVolume.Name = vr.PersistentVolumeClaim.Name
-							newVolumes[j] = *nv
-							updatedStatus = true
-						}
-					} else {
-						// convert dv to PersistentVolumeClaim volume
-						nv := kv1.Volume{
-							Name: vol.Name,
-							VolumeSource: kv1.VolumeSource{
-								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: vr.PersistentVolumeClaim.Name,
-								},
-							},
-						}
-						newVolumes[j] = nv
-					}
-				} else {
-					// 2. vm volume is pvc or others
-					nv := vol.DeepCopy()
-					nv.PersistentVolumeClaim.ClaimName = vr.PersistentVolumeClaim.Name
-					newVolumes[j] = *nv
-				}
+				nv := vol.DeepCopy()
+				nv.PersistentVolumeClaim.ClaimName = vr.PersistentVolumeClaim.Name
+				newVolumes[j] = *nv
 			}
 		}
 	}
-	return newTemplates, newVolumes, updatedStatus, nil
+	return newVolumes, updatedStatus, nil
 }
 
 func (t *vmRestoreTarget) Reconcile() (bool, error) {
@@ -563,36 +508,35 @@ func (t *vmRestoreTarget) Reconcile() (bool, error) {
 	}
 
 	source := content.Spec.Source
-	if reflect.DeepEqual(source.VirtualMachineSpec, kv1.VirtualMachineSpec{}) {
+	if reflect.DeepEqual(source.Spec, kv1.VirtualMachineSpec{}) {
 		return false, fmt.Errorf("unexpected snapshot source")
 	}
 
-	newTemplates, newVolumes, updatedStatus, err := t.handler.ReconcileVMTemplate(source.VirtualMachineSpec, t.vmRestore)
+	newVolumes, updatedStatus, err := t.handler.ReconcileVMTemplate(&source.Spec, t.vmRestore)
 	if err != nil {
 		return false, err
 	}
 
-	var deletedDataVolumes []string
+	var deletedVolumes []string
 	if updatedStatus {
-		// find DataVolumes that will no longer exist
-		for _, cdv := range t.vm.Spec.DataVolumeTemplates {
+		// find pvc that will no longer exist
+		for _, vol := range t.vm.Spec.Template.Spec.Volumes {
 			found := false
-			for _, ndv := range newTemplates {
-				if cdv.Name == ndv.Name {
+			for _, newVol := range newVolumes {
+				if vol.Name == newVol.Name {
 					found = true
 					break
 				}
 			}
 			if !found {
-				deletedDataVolumes = append(deletedDataVolumes, cdv.Name)
+				deletedVolumes = append(deletedVolumes, vol.Name)
 			}
 		}
-		t.vmRestore.Status.DeletedDataVolumes = deletedDataVolumes
+		t.vmRestore.Status.DeletedVolumes = deletedVolumes
 	}
 
 	vmCpy := t.vm.DeepCopy()
-	vmCpy.Spec = *source.VirtualMachineSpec
-	vmCpy.Spec.DataVolumeTemplates = newTemplates
+	vmCpy.Spec = source.Spec
 	vmCpy.Spec.Template.Spec.Volumes = newVolumes
 	if vmCpy.Annotations == nil {
 		vmCpy.Annotations = make(map[string]string)
@@ -626,23 +570,21 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 			Running: pointer.BoolPtr(true),
 			Template: &kv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Annotations: vmCpy.VirtualMachineSpec.Template.ObjectMeta.Annotations,
+					Annotations: vmCpy.Spec.Template.ObjectMeta.Annotations,
 					Labels: map[string]string{
 						vmCreatorLabel: "harvester",
 						vmNameLabel:    vmName,
 					},
 				},
-				Spec: vmCpy.VirtualMachineSpec.Template.Spec,
+				Spec: vmCpy.Spec.Template.Spec,
 			},
-			DataVolumeTemplates: vmCpy.VirtualMachineSpec.DataVolumeTemplates,
 		},
 	}
 
-	newTemplates, newVolumes, _, err := h.ReconcileVMTemplate(&vm.Spec, restore)
+	newVolumes, _, err := h.ReconcileVMTemplate(&vm.Spec, restore)
 	if err != nil {
 		return nil, err
 	}
-	vm.Spec.DataVolumeTemplates = newTemplates
 	vm.Spec.Template.Spec.Volumes = newVolumes
 
 	for i := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {

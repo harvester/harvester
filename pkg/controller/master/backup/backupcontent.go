@@ -98,10 +98,10 @@ func (h *ContentHandler) ContentOnChanged(key string, content *harvesterv1.Virtu
 
 	// check if the VM is off and volumes are detached, if yes mount it before creating the volume snapshot
 	vmCpy := content.Spec.Source.DeepCopy()
-	vm, err := h.vmsCache.Get(vmCpy.Namespace, vmCpy.Name)
+	vm, err := h.vmsCache.Get(vmCpy.ObjectMeta.Namespace, vmCpy.ObjectMeta.Name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logrus.Errorf("failed to find backup vm %s", vmCpy.Name)
+			logrus.Errorf("failed to find backup vm %s", vmCpy.ObjectMeta.Name)
 			return nil, nil
 		}
 		return nil, err
@@ -222,10 +222,9 @@ func (h *ContentHandler) ContentOnChanged(key string, content *harvesterv1.Virtu
 
 func (h *ContentHandler) getVolumeSnapshot(namespace, name string) (*snapshotv1.VolumeSnapshot, error) {
 	snapshot, err := h.snapshotCache.Get(namespace, name)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
+	if apierrors.IsNotFound(err) {
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
 
@@ -322,9 +321,7 @@ func (h *ContentHandler) resolveVolSnapshotRef(namespace string, controllerRef *
 func (h *ContentHandler) reconcileLonghornVolumes(vm *kubevirtv1.VirtualMachine) error {
 	for _, vol := range vm.Spec.Template.Spec.Volumes {
 		name := ""
-		if vol.DataVolume != nil {
-			name = vol.DataVolume.Name
-		} else if vol.PersistentVolumeClaim != nil {
+		if vol.PersistentVolumeClaim != nil {
 			name = vol.PersistentVolumeClaim.ClaimName
 		} else {
 			continue
