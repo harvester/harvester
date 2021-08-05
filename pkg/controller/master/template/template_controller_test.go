@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
-	kv1 "kubevirt.io/client-go/api/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -119,7 +118,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 						Description: "fake_description",
 						TemplateID:  "default/test",
 						ImageID:     "fake_image_id",
-						VM:          kv1.VirtualMachineSpec{},
+						VM:          harvesterv1.VirtualMachineSourceSpec{},
 					},
 					Status: harvesterv1.VirtualMachineTemplateVersionStatus{
 						Version: 1,
@@ -162,7 +161,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 						Description: "fake_description",
 						TemplateID:  "fake_template_id",
 						ImageID:     "fake_image_id",
-						VM:          kv1.VirtualMachineSpec{},
+						VM:          harvesterv1.VirtualMachineSourceSpec{},
 					},
 					Status: harvesterv1.VirtualMachineTemplateVersionStatus{
 						Version: 1,
@@ -217,7 +216,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 						Description: "fake_description",
 						TemplateID:  "default/test",
 						ImageID:     "fake_image_id",
-						VM:          kv1.VirtualMachineSpec{},
+						VM:          harvesterv1.VirtualMachineSourceSpec{},
 					},
 					Status: harvesterv1.VirtualMachineTemplateVersionStatus{
 						Version: 2,
