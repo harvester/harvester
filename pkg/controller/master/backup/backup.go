@@ -149,7 +149,7 @@ func (h *Handler) createContent(vmBackup *harvesterv1.VirtualMachineBackup, vm *
 	sourceVolumes := vm.Spec.Template.Spec.Volumes
 	var volumeBackups = make([]harvesterv1.VolumeBackup, 0, len(sourceVolumes))
 
-	for volumeName, pvcName := range volumeToPvcMappings(sourceVolumes) {
+	for volumeName, pvcName := range volumeToPVCMappings(sourceVolumes) {
 		pvc, err := h.getBackupPVC(vmBackup.Namespace, pvcName)
 		if err != nil {
 			return err
@@ -189,10 +189,9 @@ func (h *Handler) createContent(vmBackup *harvesterv1.VirtualMachineBackup, vm *
 		},
 		Spec: harvesterv1.VirtualMachineBackupContentSpec{
 			VirtualMachineBackupName: &vmBackup.Name,
-			Source: harvesterv1.SourceSpec{
-				Name:               vm.ObjectMeta.Name,
-				Namespace:          vm.ObjectMeta.Namespace,
-				VirtualMachineSpec: &vm.Spec,
+			Source: harvesterv1.VirtualMachineSourceSpec{
+				ObjectMeta: vm.ObjectMeta,
+				Spec:       vm.Spec,
 			},
 			VolumeBackups: volumeBackups,
 		},
@@ -294,7 +293,7 @@ func (h *Handler) updateStatus(vmBackup *harvesterv1.VirtualMachineBackup, sourc
 	return nil
 }
 
-func volumeToPvcMappings(volumes []kv1.Volume) map[string]string {
+func volumeToPVCMappings(volumes []kv1.Volume) map[string]string {
 	pvcs := map[string]string{}
 
 	for _, volume := range volumes {
@@ -302,8 +301,6 @@ func volumeToPvcMappings(volumes []kv1.Volume) map[string]string {
 
 		if volume.PersistentVolumeClaim != nil {
 			pvcName = volume.PersistentVolumeClaim.ClaimName
-		} else if volume.DataVolume != nil {
-			pvcName = volume.DataVolume.Name
 		} else {
 			continue
 		}

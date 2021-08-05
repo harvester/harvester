@@ -9,7 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	kv1 "kubevirt.io/client-go/api/v1"
 )
 
 const (
@@ -25,10 +24,10 @@ type DeletionPolicy string
 
 const (
 	// VirtualMachineRestoreDelete is the default and causes the
-	// VirtualMachineRestore deleted resources like dataVolume or PVC to be deleted
+	// VirtualMachineRestore deleted resources like PVC to be deleted
 	VirtualMachineRestoreDelete DeletionPolicy = "delete"
 
-	// VirtualMachineRestoreRetain causes the VirtualMachineRestore deleted resources like dataVolume or PVC to be retained
+	// VirtualMachineRestoreRetain causes the VirtualMachineRestore deleted resources like PVC to be retained
 	VirtualMachineRestoreRetain DeletionPolicy = "retain"
 )
 
@@ -104,22 +103,10 @@ type VirtualMachineBackupContent struct {
 type VirtualMachineBackupContentSpec struct {
 	VirtualMachineBackupName *string `json:"virtualMachineBackupName,omitempty"`
 
-	Source SourceSpec `json:"source"`
+	Source VirtualMachineSourceSpec `json:"source"`
 
 	// +optional
 	VolumeBackups []VolumeBackup `json:"volumeBackups,omitempty"`
-}
-
-// SourceSpec contains the appropriate spec for the resource being snapshotted
-type SourceSpec struct {
-	// +kubebuilder:validation:Required
-	Name string `json:"name"`
-
-	// +kubebuilder:validation:Required
-	Namespace string `json:"namespace"`
-
-	// +optional
-	VirtualMachineSpec *kv1.VirtualMachineSpec `json:"virtualMachineSpec,omitempty"`
 }
 
 // VolumeBackup contains the volume data need to restore a PVC
@@ -221,7 +208,7 @@ type VirtualMachineRestoreStatus struct {
 	RestoreTime *metav1.Time `json:"restoreTime,omitempty"`
 
 	// +optional
-	DeletedDataVolumes []string `json:"deletedDataVolumes,omitempty"`
+	DeletedVolumes []string `json:"deletedVolumes,omitempty"`
 
 	// +optional
 	Complete *bool `json:"complete,omitempty"`
