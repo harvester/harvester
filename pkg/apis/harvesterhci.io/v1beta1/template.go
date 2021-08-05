@@ -74,7 +74,15 @@ type VirtualMachineTemplateVersionSpec struct {
 	KeyPairIDs []string `json:"keyPairIds,omitempty"`
 
 	// +optional
-	VM kv1.VirtualMachineSpec `json:"vm,omitempty"`
+	VM VirtualMachineSourceSpec `json:"vm,omitempty"`
+}
+
+type VirtualMachineSourceSpec struct {
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +optional
+	ObjectMeta metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec kv1.VirtualMachineSpec `json:"spec,omitempty"`
 }
 
 type VirtualMachineTemplateVersionStatus struct {

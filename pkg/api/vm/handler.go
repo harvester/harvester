@@ -406,7 +406,7 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 			Spec: harvesterv1.VirtualMachineTemplateVersionSpec{
 				TemplateID:  vmID,
 				Description: fmt.Sprintf("Template drived from virtual machine [%s]", vmID),
-				VM:          removeMacAddresses(vm.Spec),
+				VM:          removeMacAddresses(vm),
 				KeyPairIDs:  keyPairIDs,
 			},
 		})
@@ -415,12 +415,15 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 
 // removeMacAddresses replaces the mac address of each device interface with an empty string.
 // This is because macAddresses are unique, and should not reuse the original's.
-func removeMacAddresses(vmSpec kv1.VirtualMachineSpec) kv1.VirtualMachineSpec {
-	censoredSpec := vmSpec
-	for index := range censoredSpec.Template.Spec.Domain.Devices.Interfaces {
-		censoredSpec.Template.Spec.Domain.Devices.Interfaces[index].MacAddress = ""
+func removeMacAddresses(vm *kv1.VirtualMachine) harvesterv1.VirtualMachineSourceSpec {
+	sanitizedVm := vm.DeepCopy()
+	for index := range sanitizedVm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		sanitizedVm.Spec.Template.Spec.Domain.Devices.Interfaces[index].MacAddress = ""
 	}
-	return censoredSpec
+	return harvesterv1.VirtualMachineSourceSpec{
+		ObjectMeta: sanitizedVm.ObjectMeta,
+		Spec:       sanitizedVm.Spec,
+	}
 }
 
 // getSSHKeysFromVMITemplateSpec first checks the given VirtualMachineInstanceTemplateSpec

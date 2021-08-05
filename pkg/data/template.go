@@ -116,67 +116,75 @@ metadata:
 spec:
   templateId: {{ .Namespace }}/iso-image-base-template
   vm:
-    running: true
-    template:
-      spec:
-        evictionStrategy: LiveMigrate
-        domain:
-          cpu:
-            cores: 1
-          devices:
-            disks:
-            - cdrom:
-                bus: sata
-                readonly: true
-              name: cdrom-disk
-              bootOrder: 2
-            - disk:
-                bus: virtio
-              name: rootdisk
-              bootOrder: 1
-            interfaces:
-            - name: default
-              masquerade: {}
-          resources:
-            requests:
-              memory: 2048Mi
-        networks:
-        - name: default
-          pod: {}
-        volumes:
-        - dataVolume:
-            name: datavolume-cdrom-disk
-          name: cdrom-disk
-        - dataVolume:
-            name: datavolume-rootdisk
-          name: rootdisk
-    dataVolumeTemplates:
-    - metadata:
-        annotations:
-          harvesterhci.io/imageId: $occupancy_url
-        name: datavolume-cdrom-disk
-      spec:
-        pvc:
-          accessModes:
-          - ReadWriteMany
-          volumeMode: Block
-          resources:
-            requests:
-              storage: 10Gi
-        source:
-          blank: {}
-    - metadata:
-        name: datavolume-rootdisk
-      spec:
-        pvc:
-          accessModes:
-          - ReadWriteMany
-          volumeMode: Block
-          resources:
-            requests:
-              storage: 10Gi
-        source:
-          blank: {}
+    metadata:
+      annotations:
+        harvesterhci.io/volumeClaimTemplates: |-
+          [{
+            "metadata": {
+              "name": "pvc-cdrom-disk",
+              "annotations": {
+                "harvesterhci.io/imageId": ""
+              }
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "10Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          },
+          {
+            "metadata": {
+              "name": "pvc-rootdisk"
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "10Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          }]
+    spec:
+      running: true
+      template:
+        spec:
+          evictionStrategy: LiveMigrate
+          domain:
+            cpu:
+              cores: 1
+            devices:
+              disks:
+              - cdrom:
+                  bus: sata
+                  readonly: true
+                name: cdrom-disk
+                bootOrder: 2
+              - disk:
+                  bus: virtio
+                name: rootdisk
+                bootOrder: 1
+              interfaces:
+              - name: default
+                masquerade: {}
+            resources:
+              requests:
+                memory: 2048Mi
+          networks:
+          - name: default
+            pod: {}
+          volumes:
+          - persistentVolumeClaim:
+              claimName: pvc-cdrom-disk
+            name: cdrom-disk
+          - persistentVolumeClaim:
+              claimName: pvc-rootdisk
+            name: rootdisk
 ---
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
@@ -186,47 +194,53 @@ metadata:
 spec:
   templateId: {{ .Namespace }}/raw-image-base-template
   vm:
-    running: true
-    template:
-      spec:
-        evictionStrategy: LiveMigrate
-        domain:
-          cpu:
-            cores: 1
-          devices:
-            disks:
-            - disk:
-                bus: virtio
-              name: rootdisk
-              bootOrder: 1
-            interfaces:
-            - name: default
-              masquerade: {}
-          resources:
-            requests:
-              memory: 2048Mi
-        networks:
-        - name: default
-          pod: {}
-        volumes:
-        - dataVolume:
-            name: datavolume-rootdisk
-          name: rootdisk
-    dataVolumeTemplates:
-    - metadata:
-        annotations:
-          harvesterhci.io/imageId: $occupancy_url
-        name: datavolume-rootdisk
-      spec:
-        pvc:
-          accessModes:
-          - ReadWriteMany
-          volumeMode: Block
-          resources:
-            requests:
-              storage: 10Gi
-        source:
-          blank: {}
+    metadata:
+      annotations:
+        harvesterhci.io/volumeClaimTemplates: |-
+          [{
+            "metadata": {
+              "name": "pvc-rootdisk",
+              "annotations": {
+                "harvesterhci.io/imageId": ""
+              }
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "10Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          }]
+    spec:
+      running: true
+      template:
+        spec:
+          evictionStrategy: LiveMigrate
+          domain:
+            cpu:
+              cores: 1
+            devices:
+              disks:
+              - disk:
+                  bus: virtio
+                name: rootdisk
+                bootOrder: 1
+              interfaces:
+              - name: default
+                masquerade: {}
+            resources:
+              requests:
+                memory: 2048Mi
+          networks:
+          - name: default
+            pod: {}
+          volumes:
+          - persistentVolumeClaim:
+              claimName: pvc-rootdisk
+            name: rootdisk
 ---
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
@@ -236,77 +250,85 @@ metadata:
 spec:
   templateId: {{ .Namespace }}/windows-iso-image-base-template
   vm:
-    running: true
-    template:
-      spec:
-        evictionStrategy: LiveMigrate
-        domain:
-          cpu:
-            cores: 1
-          devices:
-            disks:
-            - cdrom:
-                bus: sata
-              name: cdrom-disk
-              bootOrder: 1
-            - disk:
-                bus: virtio
-              name: rootdisk
-              bootOrder: 2
-            - cdrom:
-                bus: sata
-              name: virtio-container-disk
-            interfaces:
-            - name: default
-              model: e1000
-              masquerade: {}
-            inputs:
-            - bus: usb
-              name: tablet
-              type: tablet
-          resources:
-            requests:
-              memory: 2048Mi
-        networks:
-        - name: default
-          pod: {}
-        volumes:
-        - dataVolume:
-            name: datavolume-cdrom-disk
-          name: cdrom-disk
-        - dataVolume:
-            name: datavolume-rootdisk
-          name: rootdisk
-        - containerDisk:
-            image: kubevirt/virtio-container-disk
-            imagePullPolicy: IfNotPresent
-          name: virtio-container-disk
-    dataVolumeTemplates:
-    - metadata:
-        annotations:
-          harvesterhci.io/imageId: $occupancy_url
-        name: datavolume-cdrom-disk
-      spec:
-        pvc:
-          accessModes:
-          - ReadWriteMany
-          volumeMode: Block
-          resources:
-            requests:
-              storage: 20Gi
-        source:
-          blank: {}
-    - metadata:
-        name: datavolume-rootdisk
-      spec:
-        pvc:
-          accessModes:
-          - ReadWriteMany
-          volumeMode: Block
-          resources:
-            requests:
-              storage: 32Gi
-        source:
-          blank: {}
+    metadata:
+      annotations:
+        harvesterhci.io/volumeClaimTemplates: |-
+          [{
+            "metadata": {
+              "name": "pvc-cdrom-disk",
+              "annotations": {
+                "harvesterhci.io/imageId": ""
+              }
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "20Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          },
+          {
+            "metadata": {
+              "name": "pvc-rootdisk"
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "32Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          }]
+    spec:
+      running: true
+      template:
+        spec:
+          evictionStrategy: LiveMigrate
+          domain:
+            cpu:
+              cores: 1
+            devices:
+              disks:
+              - cdrom:
+                  bus: sata
+                name: cdrom-disk
+                bootOrder: 1
+              - disk:
+                  bus: virtio
+                name: rootdisk
+                bootOrder: 2
+              - cdrom:
+                  bus: sata
+                name: virtio-container-disk
+              interfaces:
+              - name: default
+                model: e1000
+                masquerade: {}
+              inputs:
+              - bus: usb
+                name: tablet
+                type: tablet
+            resources:
+              requests:
+                memory: 2048Mi
+          networks:
+          - name: default
+            pod: {}
+          volumes:
+          - persistentVolumeClaim:
+              claimName: pvc-cdrom-disk
+            name: cdrom-disk
+          - persistentVolumeClaim:
+              claimName: pvc-rootdisk
+            name: rootdisk
+          - containerDisk:
+              image: kubevirt/virtio-container-disk
+              imagePullPolicy: IfNotPresent
+            name: virtio-container-disk
 `
 )
