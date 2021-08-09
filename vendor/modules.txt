@@ -546,7 +546,7 @@ github.com/prometheus/procfs/internal/util
 # github.com/rancher/aks-operator v1.0.1-rc14
 github.com/rancher/aks-operator/pkg/apis/aks.cattle.io
 github.com/rancher/aks-operator/pkg/apis/aks.cattle.io/v1
-# github.com/rancher/apiserver v0.0.0-20210519053359-f943376c4b42
+# github.com/rancher/apiserver v0.0.0-20210727155917-6a723678dd3d
 ## explicit
 github.com/rancher/apiserver/pkg/apierror
 github.com/rancher/apiserver/pkg/builtin
@@ -736,7 +736,7 @@ github.com/rancher/remotedialer/metrics
 # github.com/rancher/rke v1.3.0-rc8
 github.com/rancher/rke/types
 github.com/rancher/rke/types/kdm
-# github.com/rancher/steve v0.0.0-20210520191028-52f86dce9bd4
+# github.com/rancher/steve v0.0.0-20210804220357-bb76e4db5669
 ## explicit
 github.com/rancher/steve/pkg/accesscontrol
 github.com/rancher/steve/pkg/aggregation

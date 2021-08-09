@@ -101,7 +101,7 @@ func (s *Store) List(apiOp *types.APIRequest, schema *types.APISchema) (types.AP
 
 	result.Revision = lister.Revision()
 	result.Continue = lister.Continue()
-	return result, nil
+	return result, lister.Err()
 }
 
 func (s *Store) Create(apiOp *types.APIRequest, schema *types.APISchema, data types.APIObject) (types.APIObject, error) {

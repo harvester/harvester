@@ -47,7 +47,7 @@ func FilterSchemas(apiOp *types.APIRequest, schemaMap map[string]*types.APISchem
 			continue
 		}
 
-		if apiOp.AccessControl.CanList(apiOp, schema) == nil || apiOp.AccessControl.CanGet(apiOp, schema) == nil {
+		if len(schema.CollectionMethods) > 0 || len(schema.ResourceMethods) > 0 {
 			schemas = addSchema(apiOp, schema, schemaMap, schemas, included)
 		}
 	}

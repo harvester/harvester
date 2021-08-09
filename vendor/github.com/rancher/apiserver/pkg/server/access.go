@@ -29,7 +29,7 @@ func (*SchemaBasedAccess) CanGet(apiOp *types.APIRequest, schema *types.APISchem
 }
 
 func (*SchemaBasedAccess) CanList(apiOp *types.APIRequest, schema *types.APISchema) error {
-	if slice.ContainsString(schema.CollectionMethods, http.MethodGet) {
+	if slice.ContainsString(schema.CollectionMethods, http.MethodGet) || slice.ContainsString(schema.CollectionMethods, http.MethodPost) {
 		return nil
 	}
 	return apierror.NewAPIError(validation.PermissionDenied, "can not list "+schema.ID)
