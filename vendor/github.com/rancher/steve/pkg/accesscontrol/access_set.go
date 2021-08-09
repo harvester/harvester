@@ -138,26 +138,35 @@ type Resources struct {
 func (a AccessListByVerb) Granted(verb string) (result map[string]Resources) {
 	result = map[string]Resources{}
 
-	// if list, we need to check get also
-	verbs := []string{verb}
-	if verb == "list" {
-		verbs = append(verbs, "get")
+	for _, access := range a[verb] {
+		resources := result[access.Namespace]
+		if access.ResourceName == All {
+			resources.All = true
+		} else {
+			if resources.Names == nil {
+				resources.Names = sets.String{}
+			}
+			resources.Names.Insert(access.ResourceName)
+		}
+		result[access.Namespace] = resources
 	}
 
-	for _, verb := range verbs {
-		for _, access := range a[verb] {
+	if verb == "list" {
+		// look for objects referenced by get
+		for _, access := range a["get"] {
 			resources := result[access.Namespace]
 			if access.ResourceName == All {
-				resources.All = true
-			} else {
+				continue
+			} else if len(access.ResourceName) > 0 {
 				if resources.Names == nil {
 					resources.Names = sets.String{}
 				}
 				resources.Names.Insert(access.ResourceName)
+				result[access.Namespace] = resources
 			}
-			result[access.Namespace] = resources
 		}
 	}
+
 	return result
 }
 

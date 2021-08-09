@@ -38,7 +38,7 @@ func ValidateMethod(request *types.APIRequest) error {
 	}
 
 	for _, method := range allowed {
-		if method == request.Method {
+		if method == request.Method || (request.Name == "" && request.Method == http.MethodGet && method == http.MethodPost) {
 			return nil
 		}
 	}

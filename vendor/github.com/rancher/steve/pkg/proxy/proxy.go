@@ -79,6 +79,12 @@ func impersonate(rw http.ResponseWriter, req *http.Request, prefix string, cfg *
 		return
 	}
 
+	req = req.Clone(req.Context())
+	for k := range req.Header {
+		if strings.HasPrefix(k, "Impersonate-") {
+			delete(req.Header, k)
+		}
+	}
 	handler.ServeHTTP(rw, req)
 }
 

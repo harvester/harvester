@@ -71,13 +71,13 @@ require (
 	github.com/onsi/ginkgo v1.16.1
 	github.com/onsi/gomega v1.11.0
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/apiserver v0.0.0-20210519053359-f943376c4b42
+	github.com/rancher/apiserver v0.0.0-20210727155917-6a723678dd3d
 	github.com/rancher/dynamiclistener v0.3.1-0.20210803172359-94e22490cfa8
 	github.com/rancher/lasso v0.0.0-20210616224652-fc3ebd901c08
 	github.com/rancher/norman v0.0.0-20210608202517-59b3523c3133
 	github.com/rancher/rancher v0.0.0-20210702001641-82b212ddba18
 	github.com/rancher/rancher/pkg/apis v0.0.0
-	github.com/rancher/steve v0.0.0-20210520191028-52f86dce9bd4
+	github.com/rancher/steve v0.0.0-20210804220357-bb76e4db5669
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210424054953-634d28b7def3
 	github.com/rancher/wrangler v0.8.1-0.20210618171953-ab479ee75244
 	github.com/sirupsen/logrus v1.8.1

@@ -81,7 +81,7 @@ func SchemaFormatter(apiOp *types.APIRequest, resource *types.RawResource) {
 }
 
 func getSchemaCollectionLink(apiOp *types.APIRequest, schema *types.APISchema) string {
-	if schema != nil && slice.ContainsString(schema.CollectionMethods, http.MethodGet) {
+	if schema != nil && (slice.ContainsString(schema.CollectionMethods, http.MethodGet) || slice.ContainsString(schema.CollectionMethods, http.MethodPost)) {
 		return apiOp.URLBuilder.Collection(schema)
 	}
 	return ""
