@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 const (
@@ -161,13 +161,13 @@ func (v *VMBuilder) DataVolume(diskName, diskSize, dataVolumeName string, opt *D
 	}
 	// DataVolumeTemplates
 	dataVolumeTemplates := v.VirtualMachine.Spec.DataVolumeTemplates
-	dataVolumeSpecSource := cdiv1alpha1.DataVolumeSource{
-		Blank: &cdiv1alpha1.DataVolumeBlankImage{},
+	dataVolumeSpecSource := cdiv1.DataVolumeSource{
+		Blank: &cdiv1.DataVolumeBlankImage{},
 	}
 
 	if opt.DownloadURL != "" {
-		dataVolumeSpecSource = cdiv1alpha1.DataVolumeSource{
-			HTTP: &cdiv1alpha1.DataVolumeSourceHTTP{
+		dataVolumeSpecSource = cdiv1.DataVolumeSource{
+			HTTP: &cdiv1.DataVolumeSourceHTTP{
 				URL: opt.DownloadURL,
 			},
 		}
@@ -176,8 +176,8 @@ func (v *VMBuilder) DataVolume(diskName, diskSize, dataVolumeName string, opt *D
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
 		},
-		Spec: cdiv1alpha1.DataVolumeSpec{
-			Source: dataVolumeSpecSource,
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &dataVolumeSpecSource,
 			PVC: &corev1.PersistentVolumeClaimSpec{
 				AccessModes: []corev1.PersistentVolumeAccessMode{
 					opt.AccessMode,

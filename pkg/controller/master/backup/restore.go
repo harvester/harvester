@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 	kv1 "kubevirt.io/client-go/api/v1"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -515,7 +515,7 @@ func (h *RestoreHandler) ReconcileVMTemplate(vm *kv1.VirtualMachineSpec,
 						if dvtCopy.Name != vr.PersistentVolumeClaim.Name {
 
 							dvtCopy.Name = vr.PersistentVolumeClaim.Name
-							dvtCopy.Spec.Source = cdiv1.DataVolumeSource{
+							dvtCopy.Spec.Source = &cdiv1.DataVolumeSource{
 								Blank: &cdiv1.DataVolumeBlankImage{},
 							}
 

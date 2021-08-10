@@ -127,7 +127,7 @@ func (vf *vmformatter) canUnPause(vmi *kv1.VirtualMachineInstance) bool {
 }
 
 func (vf *vmformatter) canStart(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineInstance) bool {
-	if vf.isVMRenaming(vm) {
+	if vf.isVMStarting(vm) {
 		return false
 	}
 
@@ -138,7 +138,7 @@ func (vf *vmformatter) canStart(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineI
 }
 
 func (vf *vmformatter) canRestart(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineInstance) bool {
-	if vf.isVMRenaming(vm) {
+	if vf.isVMStarting(vm) {
 		return false
 	}
 
@@ -191,9 +191,9 @@ func (vf *vmformatter) canDoRestore(vm *kv1.VirtualMachine, vmi *kv1.VirtualMach
 	return true
 }
 
-func (vf *vmformatter) isVMRenaming(vm *kv1.VirtualMachine) bool {
+func (vf *vmformatter) isVMStarting(vm *kv1.VirtualMachine) bool {
 	for _, req := range vm.Status.StateChangeRequests {
-		if req.Action == kv1.RenameRequest {
+		if req.Action == kv1.StartRequest {
 			return true
 		}
 	}
