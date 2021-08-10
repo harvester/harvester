@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/pointer"
 	kubevirtapis "kubevirt.io/client-go/api/v1"
-	cdiapisalpha "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiapis "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -598,9 +597,9 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 								ObjectMeta: metav1.ObjectMeta{
 									Name: "dv-disk",
 								},
-								Spec: cdiapisalpha.DataVolumeSpec{
-									Source: cdiapisalpha.DataVolumeSource{
-										Blank: &cdiapisalpha.DataVolumeBlankImage{},
+								Spec: cdiapis.DataVolumeSpec{
+									Source: &cdiapis.DataVolumeSource{
+										Blank: &cdiapis.DataVolumeBlankImage{},
 									},
 									PVC: &corev1.PersistentVolumeClaimSpec{
 										StorageClassName: pointer.StringPtr("default"),
@@ -1027,7 +1026,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
+						Source: &cdiapis.DataVolumeSource{
 							Blank: &cdiapis.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -1115,7 +1114,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						UID:       "fake-dv-uid",
 					},
 					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
+						Source: &cdiapis.DataVolumeSource{
 							Blank: &cdiapis.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -1257,7 +1256,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
+						Source: &cdiapis.DataVolumeSource{
 							Blank: &cdiapis.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{
@@ -1355,7 +1354,7 @@ func TestVMIController_UnsetOwnerOfDataVolumes(t *testing.T) {
 						},
 					},
 					Spec: cdiapis.DataVolumeSpec{
-						Source: cdiapis.DataVolumeSource{
+						Source: &cdiapis.DataVolumeSource{
 							Blank: &cdiapis.DataVolumeBlankImage{},
 						},
 						PVC: &corev1.PersistentVolumeClaimSpec{

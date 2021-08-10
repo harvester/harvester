@@ -32,8 +32,8 @@ kubevirt-operator:
     operator:
       image:
         repository: registry.suse.com/harvester-beta/virt-operator
-        tag: &kubevirtVersion 0.40.0-2
-    ## The following four images are placeholder for images in use.
+        tag: &kubevirtVersion 0.44.0-1
+    ## The following images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
       image:
@@ -50,6 +50,10 @@ kubevirt-operator:
     launcher:
       image:
         repository: registry.suse.com/harvester-beta/virt-launcher
+        tag: *kubevirtVersion
+    libguestfs: # introduced from kubevirt v0.44.0
+      image:
+        repository: registry.suse.com/harvester-beta/libguestfs-tools
         tag: *kubevirtVersion
 
 ## Specify the parameters to override the sub-chart.
@@ -96,23 +100,23 @@ cdi-operator:
   containers:
     operator:
       image:
-        repository: registry.suse.com/harvester-beta/cdi-operator
-        tag: &cdiVersion 1.30.0
+        repository: quay.io/kubevirt/cdi-operator
+        tag: &cdiVersion v1.36.0
     controller:
       image:
-        repository: registry.suse.com/harvester-beta/cdi-controller
+        repository: quay.io/kubevirt/cdi-controller
         tag: *cdiVersion
     importer:
       image:
-        repository: registry.suse.com/harvester-beta/cdi-importer
+        repository: quay.io/kubevirt/cdi-importer
         tag: *cdiVersion
     apiserver:
       image:
-        repository: registry.suse.com/harvester-beta/cdi-apiserver
+        repository: quay.io/kubevirt/cdi-apiserver
         tag: *cdiVersion
     uploadproxy:
       image:
-        repository: registry.suse.com/harvester-beta/cdi-uploadproxy
+        repository: quay.io/kubevirt/cdi-uploadproxy
         tag: *cdiVersion
 
 ## Specify the parameters to override the sub-chart.
