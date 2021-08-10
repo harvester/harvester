@@ -22,14 +22,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	virtv1 "kubevirt.io/client-go/api/v1"
 )
 
 const ControllerServiceAccountName = "kubevirt-controller"
 
-func GetAllController(namespace string) []interface{} {
-	return []interface{}{
+func GetAllController(namespace string) []runtime.Object {
+	return []runtime.Object{
 		newControllerServiceAccount(namespace),
 		newControllerClusterRole(),
 		newControllerClusterRoleBinding(namespace),
@@ -182,6 +183,8 @@ func newControllerClusterRole() *rbacv1.ClusterRole {
 				Resources: []string{
 					"virtualmachineinstances/addvolume",
 					"virtualmachineinstances/removevolume",
+					"virtualmachineinstances/freeze",
+					"virtualmachineinstances/unfreeze",
 				},
 				Verbs: []string{
 					"get",

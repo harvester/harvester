@@ -10,13 +10,28 @@ func (DataVolume) SwaggerDoc() map[string]string {
 
 func (DataVolumeSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                "DataVolumeSpec defines the DataVolume type specification",
-		"source":          "Source is the src of the data for the requested DataVolume",
-		"pvc":             "PVC is the PVC specification",
-		"contentType":     "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
-		"checkpoints":     "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
-		"finalCheckpoint": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
-		"preallocation":   "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+		"":                  "DataVolumeSpec defines the DataVolume type specification",
+		"source":            "Source is the src of the data for the requested DataVolume",
+		"pvc":               "PVC is the PVC specification",
+		"storage":           "Storage is the requested storage specification",
+		"priorityClassName": "PriorityClassName for Importer, Cloner and Uploader pod",
+		"contentType":       "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
+		"checkpoints":       "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+		"finalCheckpoint":   "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+		"preallocation":     "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+	}
+}
+
+func (StorageSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                 "StorageSpec defines the Storage type specification",
+		"accessModes":      "AccessModes contains the desired access modes the volume should have.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1\n+optional",
+		"selector":         "A label query over volumes to consider for binding.\n+optional",
+		"resources":        "Resources represents the minimum resources the volume should have.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources\n+optional",
+		"volumeName":       "VolumeName is the binding reference to the PersistentVolume backing this claim.\n+optional",
+		"storageClassName": "Name of the StorageClass required by the claim.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1\n+optional",
+		"volumeMode":       "volumeMode defines what type of volume is required by the claim.\nValue of Filesystem is implied when not included in claim spec.\n+optional",
+		"dataSource":       "This field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot) * An existing PVC (PersistentVolumeClaim) * An existing custom resource that implements data population (Alpha) In order to use custom resource types that implement data population, the AnyVolumeDataSource feature gate must be enabled. If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source.\n+optional",
 	}
 }
 
@@ -196,6 +211,7 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"featureGates":             "FeatureGates are a list of specific enabled feature gates",
 		"filesystemOverhead":       "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
 		"preallocation":            "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+		"insecureRegistries":       "InsecureRegistries is a list of TLS disabled registries",
 	}
 }
 

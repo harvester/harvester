@@ -43,9 +43,17 @@ type DataVolume struct {
 // DataVolumeSpec defines the DataVolume type specification
 type DataVolumeSpec struct {
 	//Source is the src of the data for the requested DataVolume
-	Source DataVolumeSource `json:"source"`
+	// +optional
+	Source *DataVolumeSource `json:"source,omitempty"`
+	//SourceRef is an indirect reference to the source of data for the requested DataVolume
+	// +optional
+	SourceRef *DataVolumeSourceRef `json:"sourceRef,omitempty"`
 	//PVC is the PVC specification
-	PVC *corev1.PersistentVolumeClaimSpec `json:"pvc"`
+	PVC *corev1.PersistentVolumeClaimSpec `json:"pvc,omitempty"`
+	// Storage is the requested storage specification
+	Storage *StorageSpec `json:"storage,omitempty"`
+	//PriorityClassName for Importer, Cloner and Uploader pod
+	PriorityClassName string `json:"priorityClassName,omitempty"`
 	//DataVolumeContentType options: "kubevirt", "archive"
 	// +kubebuilder:validation:Enum="kubevirt";"archive"
 	ContentType DataVolumeContentType `json:"contentType,omitempty"`
@@ -55,6 +63,35 @@ type DataVolumeSpec struct {
 	FinalCheckpoint bool `json:"finalCheckpoint,omitempty"`
 	// Preallocation controls whether storage for DataVolumes should be allocated in advance.
 	Preallocation *bool `json:"preallocation,omitempty"`
+}
+
+// StorageSpec defines the Storage type specification
+type StorageSpec struct {
+	// AccessModes contains the desired access modes the volume should have.
+	// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1
+	// +optional
+	AccessModes []corev1.PersistentVolumeAccessMode `json:"accessModes,omitempty"`
+	// A label query over volumes to consider for binding.
+	// +optional
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+	// Resources represents the minimum resources the volume should have.
+	// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	// VolumeName is the binding reference to the PersistentVolume backing this claim.
+	// +optional
+	VolumeName string `json:"volumeName,omitempty"`
+	// Name of the StorageClass required by the claim.
+	// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1
+	// +optional
+	StorageClassName *string `json:"storageClassName,omitempty"`
+	// volumeMode defines what type of volume is required by the claim.
+	// Value of Filesystem is implied when not included in claim spec.
+	// +optional
+	VolumeMode *corev1.PersistentVolumeMode `json:"volumeMode,omitempty"`
+	// This field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot) * An existing PVC (PersistentVolumeClaim) * An existing custom resource that implements data population (Alpha) In order to use custom resource types that implement data population, the AnyVolumeDataSource feature gate must be enabled. If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source.
+	// +optional
+	DataSource *corev1.TypedLocalObjectReference `json:"dataSource,omitempty"`
 }
 
 // DataVolumeCheckpoint defines a stage in a warm migration.
@@ -161,6 +198,22 @@ type DataVolumeSourceVDDK struct {
 	SecretRef string `json:"secretRef,omitempty"`
 }
 
+// DataVolumeSourceRef defines an indirect reference to the source of data for the DataVolume
+type DataVolumeSourceRef struct {
+	// The kind of the source reference, currently only "DataSource" is supported
+	Kind string `json:"kind"`
+	// The namespace of the source reference, defaults to the DataVolume namespace
+	// +optional
+	Namespace *string `json:"namespace,omitempty"`
+	// The name of the source reference
+	Name string `json:"name"`
+}
+
+const (
+	// DataVolumeDataSource is DataSource source reference for DataVolume
+	DataVolumeDataSource = "DataSource"
+)
+
 // DataVolumeStatus contains the current status of the DataVolume
 type DataVolumeStatus struct {
 	//Phase is the current phase of the data volume
@@ -227,6 +280,12 @@ const (
 	// SmartClonePVCInProgress represents a data volume with a current phase of SmartClonePVCInProgress
 	SmartClonePVCInProgress DataVolumePhase = "SmartClonePVCInProgress"
 
+	// ExpansionInProgress is the state when a PVC is expanded
+	ExpansionInProgress DataVolumePhase = "ExpansionInProgress"
+
+	// NamespaceTransferInProgress is the state when a PVC is transferred
+	NamespaceTransferInProgress DataVolumePhase = "NamespaceTransferInProgress"
+
 	// UploadScheduled represents a data volume with a current phase of UploadScheduled
 	UploadScheduled DataVolumePhase = "UploadScheduled"
 
@@ -255,6 +314,10 @@ const (
 
 // DataVolumeCloneSourceSubresource is the subresource checked for permission to clone
 const DataVolumeCloneSourceSubresource = "source"
+
+// this has to be here otherwise informer-gen doesn't recognize it
+// see https://github.com/kubernetes/code-generator/issues/59
+// +genclient:nonNamespaced
 
 //StorageProfile provides a CDI specific recommendation for storage parameters
 // +genclient
@@ -308,6 +371,136 @@ type StorageProfileList struct {
 	Items []StorageProfile `json:"items"`
 }
 
+// DataSource references an import/clone source for a DataVolume
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:storageversion
+type DataSource struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   DataSourceSpec   `json:"spec"`
+	Status DataSourceStatus `json:"status,omitempty"`
+}
+
+// DataSourceSpec defines specification for DataSource
+type DataSourceSpec struct {
+	// Source is the source of the data referenced by the DataSource
+	Source DataSourceSource `json:"source"`
+}
+
+// DataSourceSource represents the source for our DataSource
+type DataSourceSource struct {
+	// +optional
+	PVC *DataVolumeSourcePVC `json:"pvc,omitempty"`
+}
+
+// DataSourceStatus provides the most recently observed status of the DataSource
+type DataSourceStatus struct {
+	Conditions []DataSourceCondition `json:"conditions,omitempty" optional:"true"`
+}
+
+// DataSourceCondition represents the state of a data source condition
+type DataSourceCondition struct {
+	Type               DataSourceConditionType `json:"type" description:"type of condition ie. Ready"`
+	Status             corev1.ConditionStatus  `json:"status" description:"status of the condition, one of True, False, Unknown"`
+	LastTransitionTime metav1.Time             `json:"lastTransitionTime,omitempty"`
+	LastHeartbeatTime  metav1.Time             `json:"lastHeartbeatTime,omitempty"`
+	Reason             string                  `json:"reason,omitempty" description:"reason for the condition's last transition"`
+	Message            string                  `json:"message,omitempty" description:"human-readable message indicating details about last transition"`
+}
+
+// DataSourceConditionType is the string representation of known condition types
+type DataSourceConditionType string
+
+// DataSourceList provides the needed parameters to do request a list of Data Sources from the system
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type DataSourceList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	// Items provides a list of DataSources
+	Items []DataSource `json:"items"`
+}
+
+// DataImportCron defines a cron job for recurring polling/importing disk images as PVCs into a golden image namespace
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:storageversion
+type DataImportCron struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   DataImportCronSpec   `json:"spec"`
+	Status DataImportCronStatus `json:"status,omitempty"`
+}
+
+// DataImportCronSpec defines specification for DataImportCron
+type DataImportCronSpec struct {
+	// Source specifies where to poll disk images from
+	Source DataImportCronSource `json:"source"`
+	// Schedule specifies in cron format when and how often to look for new imports
+	Schedule string `json:"schedule"`
+	// GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.
+	// Options are currently "Never" and "Outdated", defaults to "Never".
+	// +optional
+	GarbageCollect *DataImportCronGarbageCollect `json:"garbageCollect,omitempty"`
+	// ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.
+	// DataSource has to be in the same namespace.
+	ManagedDataSource string `json:"managedDataSource"`
+}
+
+// DataImportCronGarbageCollect represents the DataImportCron garbage collection mode
+type DataImportCronGarbageCollect string
+
+const (
+	// DataImportCronGarbageCollectNever specifies that garbage collection is disabled
+	DataImportCronGarbageCollectNever DataImportCronGarbageCollect = "Never"
+	// DataImportCronGarbageCollectOutdated specifies that old PVCs should be cleaned up after a new PVC is imported
+	DataImportCronGarbageCollectOutdated DataImportCronGarbageCollect = "Outdated"
+)
+
+// DataImportCronSource defines where to poll and import disk images from
+type DataImportCronSource struct {
+	Registry *DataVolumeSourceRegistry `json:"registry"`
+}
+
+// DataImportCronStatus provides the most recently observed status of the DataImportCron
+type DataImportCronStatus struct {
+	// LastImportedPVC is the last imported PVC
+	LastImportedPVC *DataVolumeSourcePVC `json:"lastImportedPVC,omitempty"`
+	// LastExecutionTimestamp is the time of the last polling
+	LastExecutionTimestamp *metav1.Time `json:"lastExecutionTimestamp,omitempty"`
+	// LastImportTimestamp is the time of the last import
+	LastImportTimestamp *metav1.Time              `json:"lastImportTimestamp,omitempty"`
+	Conditions          []DataImportCronCondition `json:"conditions,omitempty" optional:"true"`
+}
+
+// DataImportCronCondition represents the state of a data import cron condition
+type DataImportCronCondition struct {
+	Type               DataImportCronConditionType `json:"type" description:"type of condition ie. Progressing, UpToDate"`
+	Status             corev1.ConditionStatus      `json:"status" description:"status of the condition, one of True, False, Unknown"`
+	LastTransitionTime metav1.Time                 `json:"lastTransitionTime,omitempty"`
+	LastHeartbeatTime  metav1.Time                 `json:"lastHeartbeatTime,omitempty"`
+	Reason             string                      `json:"reason,omitempty" description:"reason for the condition's last transition"`
+	Message            string                      `json:"message,omitempty" description:"human-readable message indicating details about last transition"`
+}
+
+// DataImportCronConditionType is the string representation of known condition types
+type DataImportCronConditionType string
+
+// DataImportCronList provides the needed parameters to do request a list of DataImportCrons from the system
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type DataImportCronList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	// Items provides a list of DataImportCrons
+	Items []DataImportCron `json:"items"`
+}
+
 // this has to be here otherwise informer-gen doesn't recognize it
 // see https://github.com/kubernetes/code-generator/issues/59
 // +genclient:nonNamespaced
@@ -317,7 +510,7 @@ type StorageProfileList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:storageversion
-// +kubebuilder:resource:shortName=cdi;cdis,scope=Cluster,scope=Namespaced
+// +kubebuilder:resource:shortName=cdi;cdis,scope=Cluster
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase"
 type CDI struct {
@@ -459,6 +652,8 @@ type CDIConfigSpec struct {
 	FilesystemOverhead *FilesystemOverhead `json:"filesystemOverhead,omitempty"`
 	// Preallocation controls whether storage for DataVolumes should be allocated in advance.
 	Preallocation *bool `json:"preallocation,omitempty"`
+	// InsecureRegistries is a list of TLS disabled registries
+	InsecureRegistries []string `json:"insecureRegistries,omitempty"`
 }
 
 //CDIConfigStatus provides the most recently observed status of the CDI Config resource
