@@ -44,6 +44,10 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 		http.Redirect(rw, req, "/dashboard/", http.StatusFound)
 	})
 
+	// This route should be above /v1/harvester/{type}, otherwise, the response status code would be 404
+	kcGenerateHandler := kubeconfig.NewGenerateHandler(r.scaled)
+	m.Path("/v1/harvester/kubeconfig").Methods("POST").Handler(kcGenerateHandler)
+
 	// adds collection action support
 	m.Path("/v1/{type}").Queries("action", "{action}").Handler(h.K8sResource)
 
@@ -78,9 +82,6 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 
 	sbDownloadHandler := supportbundle.NewDownloadHandler(r.scaled, r.options.Namespace)
 	m.Path("/v1/supportbundles/{bundleName}/download").Methods("GET").Handler(sbDownloadHandler)
-
-	kcGenerateHandler := kubeconfig.NewGenerateHandler(r.scaled)
-	m.Path("/v1/kubeconfig").Methods("POST").Handler(kcGenerateHandler)
 
 	if r.options.RancherEmbedded || r.options.RancherURL != "" {
 		host, scheme, err := parseRancherServerURL(r.options.RancherURL)
