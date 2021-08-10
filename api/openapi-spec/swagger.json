@@ -6379,232 +6379,6 @@
     }
   },
   "definitions": {
-    "cdi.kubevirt.io.v1alpha1.DataVolumeBlankImage": {
-      "description": "DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC",
-      "type": "object"
-    },
-    "cdi.kubevirt.io.v1alpha1.DataVolumeCheckpoint": {
-      "description": "DataVolumeCheckpoint defines a stage in a warm migration.",
-      "type": "object",
-      "required": [
-        "previous",
-        "current"
-      ],
-      "properties": {
-        "current": {
-          "description": "Current is the identifier of the snapshot created for this checkpoint.",
-          "type": "string"
-        },
-        "previous": {
-          "description": "Previous is the identifier of the snapshot from the previous checkpoint.",
-          "type": "string"
-        }
-      }
-    },
-    "cdi.kubevirt.io.v1alpha1.DataVolumeSource": {
-      "description": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, Registry or an existing PVC",
-      "type": "object",
-      "properties": {
-        "blank": {
-          "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeBlankImage"
-        },
-        "http": {
-          "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeSourceHTTP"
-        },
-        "imageio": {
-          "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeSourceImageIO"
-        },
-        "pvc": {
-          "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeSourcePVC"
-        },
-        "registry": {
-          "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeSourceRegistry"
-        },
-        "s3": {
-          "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeSourceS3"
-        },
-        "upload": {
-          "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeSourceUpload"
-        },
-        "vddk": {
-          "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeSourceVDDK"
-        }
-      }
-    },
-    "cdi.kubevirt.io.v1alpha1.DataVolumeSourceHTTP": {
-      "description": "DataVolumeSourceHTTP can be either an http or https endpoint, with an optional basic auth user name and password, and an optional configmap containing additional CAs",
-      "type": "object",
-      "required": [
-        "url"
-      ],
-      "properties": {
-        "certConfigMap": {
-          "description": "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate",
-          "type": "string"
-        },
-        "secretRef": {
-          "description": "SecretRef A Secret reference, the secret should contain accessKeyId (user name) base64 encoded, and secretKey (password) also base64 encoded",
-          "type": "string"
-        },
-        "url": {
-          "description": "URL is the URL of the http(s) endpoint",
-          "type": "string"
-        }
-      }
-    },
-    "cdi.kubevirt.io.v1alpha1.DataVolumeSourceImageIO": {
-      "description": "DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source",
-      "type": "object",
-      "required": [
-        "url",
-        "diskId"
-      ],
-      "properties": {
-        "certConfigMap": {
-          "description": "CertConfigMap provides a reference to the CA cert",
-          "type": "string"
-        },
-        "diskId": {
-          "description": "DiskID provides id of a disk to be imported",
-          "type": "string"
-        },
-        "secretRef": {
-          "description": "SecretRef provides the secret reference needed to access the ovirt-engine",
-          "type": "string"
-        },
-        "url": {
-          "description": "URL is the URL of the ovirt-engine",
-          "type": "string"
-        }
-      }
-    },
-    "cdi.kubevirt.io.v1alpha1.DataVolumeSourcePVC": {
-      "description": "DataVolumeSourcePVC provides the parameters to create a Data Volume from an existing PVC",
-      "type": "object",
-      "required": [
-        "namespace",
-        "name"
-      ],
-      "properties": {
-        "name": {
-          "description": "The name of the source PVC",
-          "type": "string"
-        },
-        "namespace": {
-          "description": "The namespace of the source PVC",
-          "type": "string"
-        }
-      }
-    },
-    "cdi.kubevirt.io.v1alpha1.DataVolumeSourceRegistry": {
-      "description": "DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source",
-      "type": "object",
-      "required": [
-        "url"
-      ],
-      "properties": {
-        "certConfigMap": {
-          "description": "CertConfigMap provides a reference to the Registry certs",
-          "type": "string"
-        },
-        "secretRef": {
-          "description": "SecretRef provides the secret reference needed to access the Registry source",
-          "type": "string"
-        },
-        "url": {
-          "description": "URL is the url of the Docker registry source",
-          "type": "string"
-        }
-      }
-    },
-    "cdi.kubevirt.io.v1alpha1.DataVolumeSourceS3": {
-      "description": "DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source",
-      "type": "object",
-      "required": [
-        "url"
-      ],
-      "properties": {
-        "certConfigMap": {
-          "description": "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate",
-          "type": "string"
-        },
-        "secretRef": {
-          "description": "SecretRef provides the secret reference needed to access the S3 source",
-          "type": "string"
-        },
-        "url": {
-          "description": "URL is the url of the S3 source",
-          "type": "string"
-        }
-      }
-    },
-    "cdi.kubevirt.io.v1alpha1.DataVolumeSourceUpload": {
-      "description": "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
-      "type": "object"
-    },
-    "cdi.kubevirt.io.v1alpha1.DataVolumeSourceVDDK": {
-      "description": "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source",
-      "type": "object",
-      "properties": {
-        "backingFile": {
-          "description": "BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi",
-          "type": "string"
-        },
-        "secretRef": {
-          "description": "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
-          "type": "string"
-        },
-        "thumbprint": {
-          "description": "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
-          "type": "string"
-        },
-        "url": {
-          "description": "URL is the URL of the vCenter or ESXi host with the VM to migrate",
-          "type": "string"
-        },
-        "uuid": {
-          "description": "UUID is the UUID of the virtual machine that the backing file is attached to in vCenter/ESXi",
-          "type": "string"
-        }
-      }
-    },
-    "cdi.kubevirt.io.v1alpha1.DataVolumeSpec": {
-      "description": "DataVolumeSpec defines the DataVolume type specification",
-      "type": "object",
-      "required": [
-        "source",
-        "pvc"
-      ],
-      "properties": {
-        "checkpoints": {
-          "description": "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeCheckpoint"
-          }
-        },
-        "contentType": {
-          "description": "DataVolumeContentType options: \"kubevirt\", \"archive\"",
-          "type": "string"
-        },
-        "finalCheckpoint": {
-          "description": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
-          "type": "boolean"
-        },
-        "preallocation": {
-          "description": "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
-          "type": "boolean"
-        },
-        "pvc": {
-          "description": "PVC is the PVC specification",
-          "$ref": "#/definitions/k8s.io.v1.PersistentVolumeClaimSpec"
-        },
-        "source": {
-          "description": "Source is the src of the data for the requested DataVolume",
-          "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeSource"
-        }
-      }
-    },
     "cdi.kubevirt.io.v1beta1.DataVolume": {
       "description": "DataVolume is an abstraction on top of PersistentVolumeClaims to allow easy population of those PersistentVolumeClaims with relation to VirtualMachines",
       "type": "object",
@@ -6623,12 +6397,15 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/cdi.kubevirt.io.v1beta1.DataVolumeSpec"
         },
         "status": {
+          "default": {},
           "$ref": "#/definitions/cdi.kubevirt.io.v1beta1.DataVolumeStatus"
         }
       }
@@ -6647,11 +6424,13 @@
       "properties": {
         "current": {
           "description": "Current is the identifier of the snapshot created for this checkpoint.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "previous": {
           "description": "Previous is the identifier of the snapshot from the previous checkpoint.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -6664,9 +6443,11 @@
       ],
       "properties": {
         "lastHeartbeatTime": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
         "lastTransitionTime": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
         "message": {
@@ -6676,10 +6457,12 @@
           "type": "string"
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "type": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -6701,6 +6484,7 @@
           "description": "Items provides a list of DataVolumes",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/cdi.kubevirt.io.v1beta1.DataVolume"
           }
         },
@@ -6709,6 +6493,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -6760,7 +6545,8 @@
         },
         "url": {
           "description": "URL is the URL of the http(s) endpoint",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -6778,7 +6564,8 @@
         },
         "diskId": {
           "description": "DiskID provides id of a disk to be imported",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "secretRef": {
           "description": "SecretRef provides the secret reference needed to access the ovirt-engine",
@@ -6786,7 +6573,8 @@
         },
         "url": {
           "description": "URL is the URL of the ovirt-engine",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -6800,10 +6588,36 @@
       "properties": {
         "name": {
           "description": "The name of the source PVC",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "namespace": {
           "description": "The namespace of the source PVC",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "cdi.kubevirt.io.v1beta1.DataVolumeSourceRef": {
+      "description": "DataVolumeSourceRef defines an indirect reference to the source of data for the DataVolume",
+      "type": "object",
+      "required": [
+        "kind",
+        "name"
+      ],
+      "properties": {
+        "kind": {
+          "description": "The kind of the source reference, currently only \"DataSource\" is supported",
+          "type": "string",
+          "default": ""
+        },
+        "name": {
+          "description": "The name of the source reference",
+          "type": "string",
+          "default": ""
+        },
+        "namespace": {
+          "description": "The namespace of the source reference, defaults to the DataVolume namespace",
           "type": "string"
         }
       }
@@ -6825,7 +6639,8 @@
         },
         "url": {
           "description": "URL is the url of the Docker registry source",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -6846,7 +6661,8 @@
         },
         "url": {
           "description": "URL is the url of the S3 source",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -6883,15 +6699,12 @@
     "cdi.kubevirt.io.v1beta1.DataVolumeSpec": {
       "description": "DataVolumeSpec defines the DataVolume type specification",
       "type": "object",
-      "required": [
-        "source",
-        "pvc"
-      ],
       "properties": {
         "checkpoints": {
           "description": "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/cdi.kubevirt.io.v1beta1.DataVolumeCheckpoint"
           }
         },
@@ -6907,6 +6720,10 @@
           "description": "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
           "type": "boolean"
         },
+        "priorityClassName": {
+          "description": "PriorityClassName for Importer, Cloner and Uploader pod",
+          "type": "string"
+        },
         "pvc": {
           "description": "PVC is the PVC specification",
           "$ref": "#/definitions/k8s.io.v1.PersistentVolumeClaimSpec"
@@ -6914,6 +6731,14 @@
         "source": {
           "description": "Source is the src of the data for the requested DataVolume",
           "$ref": "#/definitions/cdi.kubevirt.io.v1beta1.DataVolumeSource"
+        },
+        "sourceRef": {
+          "description": "SourceRef is an indirect reference to the source of data for the requested DataVolume",
+          "$ref": "#/definitions/cdi.kubevirt.io.v1beta1.DataVolumeSourceRef"
+        },
+        "storage": {
+          "description": "Storage is the requested storage specification",
+          "$ref": "#/definitions/cdi.kubevirt.io.v1beta1.StorageSpec"
         }
       }
     },
@@ -6924,6 +6749,7 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/cdi.kubevirt.io.v1beta1.DataVolumeCondition"
           }
         },
@@ -6938,6 +6764,45 @@
           "description": "RestartCount is the number of times the pod populating the DataVolume has restarted",
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "cdi.kubevirt.io.v1beta1.StorageSpec": {
+      "description": "StorageSpec defines the Storage type specification",
+      "type": "object",
+      "properties": {
+        "accessModes": {
+          "description": "AccessModes contains the desired access modes the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "dataSource": {
+          "description": "This field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot) * An existing PVC (PersistentVolumeClaim) * An existing custom resource that implements data population (Alpha) In order to use custom resource types that implement data population, the AnyVolumeDataSource feature gate must be enabled. If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source.",
+          "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
+        },
+        "resources": {
+          "description": "Resources represents the minimum resources the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources",
+          "default": {},
+          "$ref": "#/definitions/k8s.io.v1.ResourceRequirements"
+        },
+        "selector": {
+          "description": "A label query over volumes to consider for binding.",
+          "$ref": "#/definitions/k8s.io.v1.LabelSelector"
+        },
+        "storageClassName": {
+          "description": "Name of the StorageClass required by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1",
+          "type": "string"
+        },
+        "volumeMode": {
+          "description": "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
+          "type": "string"
+        },
+        "volumeName": {
+          "description": "VolumeName is the binding reference to the PersistentVolume backing this claim.",
+          "type": "string"
         }
       }
     },
@@ -6966,11 +6831,13 @@
         },
         "status": {
           "description": "Status of the condition, one of True, False, Unknown.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "type": {
           "description": "Type of the condition.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -7003,12 +6870,15 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.KeyPairSpec"
         },
         "status": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.KeyPairStatus"
         }
       }
@@ -7030,6 +6900,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.KeyPair"
           }
         },
@@ -7038,6 +6909,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -7049,7 +6921,8 @@
       ],
       "properties": {
         "publicKey": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -7059,6 +6932,7 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Condition"
           }
         },
@@ -7091,22 +6965,27 @@
         "annotations": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "labels": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "namespace": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.PersistentVolumeClaimSpec"
         }
       }
@@ -7128,12 +7007,15 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.SupportBundleSpec"
         },
         "status": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.SupportBundleStatus"
         }
       }
@@ -7155,6 +7037,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.SupportBundle"
           }
         },
@@ -7163,6 +7046,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -7174,10 +7058,12 @@
       ],
       "properties": {
         "description": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "issueURL": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -7187,6 +7073,7 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Condition"
           }
         },
@@ -7223,12 +7110,15 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.UpgradeSpec"
         },
         "status": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.UpgradeStatus"
         }
       }
@@ -7250,6 +7140,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Upgrade"
           }
         },
@@ -7258,6 +7149,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -7269,7 +7161,8 @@
       ],
       "properties": {
         "version": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -7279,12 +7172,14 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Condition"
           }
         },
         "nodeStatuses": {
           "type": "object",
           "additionalProperties": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.NodeUpgradeStatus"
           }
         },
@@ -7310,9 +7205,11 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineBackupSpec"
         },
         "status": {
@@ -7337,6 +7234,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineBackup"
           }
         },
@@ -7345,6 +7243,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -7356,6 +7255,7 @@
       ],
       "properties": {
         "source": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
         }
       }
@@ -7367,6 +7267,7 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Condition"
           }
         },
@@ -7401,12 +7302,15 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineImageSpec"
         },
         "status": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineImageStatus"
         }
       }
@@ -7428,6 +7332,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineImage"
           }
         },
@@ -7436,6 +7341,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -7451,13 +7357,15 @@
           "type": "string"
         },
         "displayName": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "secretRef": {
           "type": "string"
         },
         "url": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -7470,6 +7378,7 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Condition"
           }
         },
@@ -7499,9 +7408,11 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineRestoreSpec"
         },
         "status": {
@@ -7526,6 +7437,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineRestore"
           }
         },
@@ -7534,6 +7446,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -7554,10 +7467,12 @@
         },
         "target": {
           "description": "initially only VirtualMachine type supported",
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
         },
         "virtualMachineBackupName": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -7571,13 +7486,15 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Condition"
           }
         },
         "deletedDataVolumes": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "restoreTime": {
@@ -7586,6 +7503,7 @@
         "restores": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.VolumeRestore"
           }
         },
@@ -7610,12 +7528,15 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineTemplateSpec"
         },
         "status": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineTemplateStatus"
         }
       }
@@ -7637,6 +7558,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineTemplate"
           }
         },
@@ -7645,6 +7567,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -7653,7 +7576,8 @@
       "type": "object",
       "properties": {
         "defaultVersionId": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "description": {
           "type": "string"
@@ -7690,12 +7614,15 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineTemplateVersionSpec"
         },
         "status": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineTemplateVersionStatus"
         }
       }
@@ -7717,6 +7644,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineTemplateVersion"
           }
         },
@@ -7725,6 +7653,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -7744,13 +7673,16 @@
         "keyPairIds": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "templateId": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "vm": {
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineSpec"
         }
       }
@@ -7761,6 +7693,7 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Condition"
           }
         },
@@ -7780,13 +7713,16 @@
       ],
       "properties": {
         "persistentVolumeClaimSpec": {
+          "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.PersistentVolumeClaimSpec"
         },
         "volumeBackupName": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "volumeName": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -7807,9 +7743,11 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinitionSpec"
         }
       }
@@ -7830,6 +7768,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
           }
         },
@@ -7838,6 +7777,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -7849,7 +7789,8 @@
       ],
       "properties": {
         "config": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -7896,7 +7837,8 @@
           "description": "When present, indicates that modifications should not be persisted. An invalid or unrecognized dryRun directive will result in an error response and no further processing of the request. Valid values are: - All: all dry run stages will be processed",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "gracePeriodSeconds": {
@@ -7940,11 +7882,26 @@
         },
         "path": {
           "description": "Required: Path is  the relative path name of the file to be created. Must not be absolute or contain the '..' path. Must be utf-8 encoded. The first item of the relative path must not start with '..'",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "resourceFieldRef": {
           "description": "Selects a resource of the container: only resources limits and requests (limits.cpu, limits.memory, requests.cpu and requests.memory) are currently supported.",
           "$ref": "#/definitions/k8s.io.v1.ResourceFieldSelector"
+        }
+      }
+    },
+    "k8s.io.v1.ExecAction": {
+      "description": "ExecAction describes a \"run in container\" action.",
+      "type": "object",
+      "properties": {
+        "command": {
+          "description": "Command is the command line to execute inside the container, the working directory for the command  is root ('/') in the container's filesystem. The command is simply exec'd, it is not run inside a shell, so traditional shell instructions ('|', etc) won't work. To use a shell, you need to explicitly call out to that shell. Exit status of 0 is treated as live/healthy and non-zero is unhealthy.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          }
         }
       }
     },
@@ -7967,6 +7924,7 @@
           "description": "Custom headers to set in the request. HTTP allows repeated headers.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.HTTPHeader"
           }
         },
@@ -7976,6 +7934,7 @@
         },
         "port": {
           "description": "Name or number of the port to access on the container. Number must be in the range 1 to 65535. Name must be an IANA_SVC_NAME.",
+          "default": {},
           "$ref": "#/definitions/k8s.io.apimachinery.pkg.util.intstr.IntOrString"
         },
         "scheme": {
@@ -7994,11 +7953,13 @@
       "properties": {
         "name": {
           "description": "The header field name",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "value": {
           "description": "The header field value",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -8010,6 +7971,7 @@
           "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.LabelSelectorRequirement"
           }
         },
@@ -8017,10 +7979,12 @@
           "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         }
-      }
+      },
+      "x-kubernetes-map-type": "atomic"
     },
     "k8s.io.v1.LabelSelectorRequirement": {
       "description": "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
@@ -8033,18 +7997,21 @@
         "key": {
           "description": "key is the label key that the selector applies to.",
           "type": "string",
+          "default": "",
           "x-kubernetes-patch-merge-key": "key",
           "x-kubernetes-patch-strategy": "merge"
         },
         "operator": {
           "description": "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "values": {
           "description": "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         }
       }
@@ -8120,6 +8087,7 @@
           "description": "The scheduler will prefer to schedule pods to nodes that satisfy the affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node matches the corresponding matchExpressions; the node(s) with the highest sum are the most preferred.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.PreferredSchedulingTerm"
           }
         },
@@ -8140,6 +8108,7 @@
           "description": "Required. A list of node selector terms. The terms are ORed.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.NodeSelectorTerm"
           }
         }
@@ -8155,17 +8124,20 @@
       "properties": {
         "key": {
           "description": "The label key that the selector applies to.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "operator": {
           "description": "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "values": {
           "description": "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         }
       }
@@ -8178,6 +8150,7 @@
           "description": "A list of node selector requirements by node's labels.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.NodeSelectorRequirement"
           }
         },
@@ -8185,6 +8158,7 @@
           "description": "A list of node selector requirements by node's fields.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.NodeSelectorRequirement"
           }
         }
@@ -8203,7 +8177,8 @@
         },
         "fieldPath": {
           "description": "Path of the field to select in the specified API version.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -8218,7 +8193,8 @@
           "description": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. They are not queryable and should be preserved when modifying objects. More info: http://kubernetes.io/docs/user-guide/annotations",
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "clusterName": {
@@ -8227,6 +8203,7 @@
         },
         "creationTimestamp": {
           "description": "CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC.\n\nPopulated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
         "deletionGracePeriodSeconds": {
@@ -8242,7 +8219,8 @@
           "description": "Must be empty before the object is deleted from the registry. Each entry is an identifier for the responsible component that will remove the entry from the list. If the deletionTimestamp of the object is non-nil, entries in this list can only be removed. Finalizers may be processed and removed in any order.  Order is NOT enforced because it introduces significant risk of stuck finalizers. finalizers is a shared field, any actor with permission can reorder it. If the finalizer list is processed in order, then this can lead to a situation in which the component responsible for the first finalizer in the list is waiting for a signal (field value, external system, or other) produced by a component responsible for a finalizer later in the list, resulting in a deadlock. Without enforced ordering finalizers are free to order amongst themselves and are not vulnerable to ordering changes in the list.",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           },
           "x-kubernetes-patch-strategy": "merge"
         },
@@ -8259,13 +8237,15 @@
           "description": "Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. More info: http://kubernetes.io/docs/user-guide/labels",
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "managedFields": {
           "description": "ManagedFields maps workflow-id and version to the set of fields that are managed by that workflow. This is mostly for internal housekeeping, and users typically shouldn't need to set or understand this field. A workflow can be the user's name, a controller's name, or the name of a specific apply path like \"ci-cd\". The set of fields is always in the version that the workflow used when modifying the object.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.ManagedFieldsEntry"
           }
         },
@@ -8281,6 +8261,7 @@
           "description": "List of objects depended by this object. If ALL objects in the list have been deleted, this object will be garbage collected. If this object is managed by a controller, then an entry in this list will point to this controller, with the controller field set to true. There cannot be more than one managing controller.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.OwnerReference"
           },
           "x-kubernetes-patch-merge-key": "uid",
@@ -8314,7 +8295,8 @@
       "properties": {
         "apiVersion": {
           "description": "API version of the referent.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "blockOwnerDeletion": {
           "description": "If true, AND if the owner has the \"foregroundDeletion\" finalizer, then the owner cannot be deleted from the key-value store until this reference is removed. Defaults to false. To set this field, a user needs \"delete\" permission of the owner, otherwise 422 (Unprocessable Entity) will be returned.",
@@ -8326,15 +8308,18 @@
         },
         "kind": {
           "description": "Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "name": {
           "description": "Name of the referent. More info: http://kubernetes.io/docs/user-guide/identifiers#names",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "uid": {
           "description": "UID of the referent. More info: http://kubernetes.io/docs/user-guide/identifiers#uids",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -8350,7 +8335,8 @@
           "description": "AccessModes contains the desired access modes the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "dataSource": {
@@ -8359,6 +8345,7 @@
         },
         "resources": {
           "description": "Resources represents the minimum resources the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources",
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ResourceRequirements"
         },
         "selector": {
@@ -8388,7 +8375,8 @@
       "properties": {
         "claimName": {
           "description": "ClaimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "readOnly": {
           "description": "Will force the ReadOnly setting in VolumeMounts. Default false.",
@@ -8404,6 +8392,7 @@
           "description": "The scheduler will prefer to schedule pods to nodes that satisfy the affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.WeightedPodAffinityTerm"
           }
         },
@@ -8411,6 +8400,7 @@
           "description": "If the affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to a pod label update), the system may or may not try to eventually evict the pod from its node. When there are multiple elements, the lists of nodes corresponding to each podAffinityTerm are intersected, i.e. all terms must be satisfied.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.PodAffinityTerm"
           }
         }
@@ -8435,12 +8425,14 @@
           "description": "namespaces specifies a static list of namespace names that the term applies to. The term is applied to the union of the namespaces listed in this field and the ones selected by namespaceSelector. null or empty namespaces list and null namespaceSelector means \"this pod's namespace\"",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "topologyKey": {
           "description": "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -8452,6 +8444,7 @@
           "description": "The scheduler will prefer to schedule pods to nodes that satisfy the anti-affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling anti-affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.WeightedPodAffinityTerm"
           }
         },
@@ -8459,6 +8452,7 @@
           "description": "If the anti-affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the anti-affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to a pod label update), the system may or may not try to eventually evict the pod from its node. When there are multiple elements, the lists of nodes corresponding to each podAffinityTerm are intersected, i.e. all terms must be satisfied.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.PodAffinityTerm"
           }
         }
@@ -8472,13 +8466,15 @@
           "description": "A list of DNS name server IP addresses. This will be appended to the base nameservers generated from DNSPolicy. Duplicated nameservers will be removed.",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "options": {
           "description": "A list of DNS resolver options. This will be merged with the base options generated from DNSPolicy. Duplicated entries will be removed. Resolution options given in Options will override those that appear in the base DNSPolicy.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.PodDNSConfigOption"
           }
         },
@@ -8486,7 +8482,8 @@
           "description": "A list of DNS search domains for host-name lookup. This will be appended to the base search paths generated from DNSPolicy. Duplicated search paths will be removed.",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         }
       }
@@ -8528,12 +8525,14 @@
       "properties": {
         "preference": {
           "description": "A node selector term, associated with the corresponding weight.",
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.NodeSelectorTerm"
         },
         "weight": {
           "description": "Weight associated with matching the corresponding nodeSelectorTerm, in the range 1-100.",
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "default": 0
         }
       }
     },
@@ -8550,11 +8549,13 @@
         },
         "divisor": {
           "description": "Specifies the output format of the exposed resources, defaults to \"1\"",
+          "default": {},
           "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
         },
         "resource": {
           "description": "Required: resource to select",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -8566,6 +8567,7 @@
           "description": "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
           "type": "object",
           "additionalProperties": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
           }
         },
@@ -8573,6 +8575,7 @@
           "description": "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
           "type": "object",
           "additionalProperties": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
           }
         }
@@ -8609,6 +8612,7 @@
         },
         "metadata": {
           "description": "Standard list metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         },
         "reason": {
@@ -8647,6 +8651,7 @@
           "description": "The Causes array includes more details associated with the StatusReason failure. Not all StatusReasons may provide detailed causes.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.StatusCause"
           }
         },
@@ -8686,6 +8691,7 @@
         },
         "port": {
           "description": "Number or name of the port to access on the container. Number must be in the range 1 to 65535. Name must be an IANA_SVC_NAME.",
+          "default": {},
           "$ref": "#/definitions/k8s.io.apimachinery.pkg.util.intstr.IntOrString"
         }
       }
@@ -8736,11 +8742,13 @@
         },
         "kind": {
           "description": "Kind is the type of resource being referenced",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "name": {
           "description": "Name is the name of resource being referenced",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -8754,12 +8762,14 @@
       "properties": {
         "podAffinityTerm": {
           "description": "Required. A pod affinity term, associated with the corresponding weight.",
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.PodAffinityTerm"
         },
         "weight": {
           "description": "weight associated with matching the corresponding podAffinityTerm, in the range 1-100.",
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "default": 0
         }
       }
     },
@@ -8785,7 +8795,8 @@
       "properties": {
         "secretName": {
           "description": "SecretName represents the name of the secret in the VMI's namespace",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -8804,7 +8815,8 @@
         },
         "name": {
           "description": "Name represents the name that will be used to map the disk to the corresponding volume. This overrides any name set inside the Disk struct itself.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "volumeSource": {
           "description": "VolumeSource represents the source of the volume to map to the disk.",
@@ -8819,6 +8831,18 @@
         "useSerial": {
           "description": "If set, the BIOS output will be transmitted over serial",
           "type": "boolean"
+        }
+      }
+    },
+    "kubevirt.io.v1.BlockSize": {
+      "description": "BlockSize provides the option to change the block size presented to the VM for a disk. Only one of its members may be specified.",
+      "type": "object",
+      "properties": {
+        "custom": {
+          "$ref": "#/definitions/kubevirt.io.v1.CustomBlockSize"
+        },
+        "matchVolume": {
+          "$ref": "#/definitions/kubevirt.io.v1.FeatureState"
         }
       }
     },
@@ -8870,6 +8894,7 @@
           "description": "Features specifies the CPU features list inside the VMI.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.CPUFeature"
           }
         },
@@ -8880,6 +8905,10 @@
         "model": {
           "description": "Model specifies the CPU model inside the VMI. List of available models https://github.com/libvirt/libvirt/tree/master/src/cpu_map. It is possible to specify special cases like \"host-passthrough\" to get the same CPU as the node and \"host-model\" to get CPU closest to the node one. Defaults to host-model.",
           "type": "string"
+        },
+        "numa": {
+          "description": "NUMA allows specifying settings for the guest NUMA topology",
+          "$ref": "#/definitions/kubevirt.io.v1.NUMA"
         },
         "sockets": {
           "description": "Sockets specifies the number of sockets inside the vmi. Must be a value greater or equal 1.",
@@ -8902,7 +8931,8 @@
       "properties": {
         "name": {
           "description": "Name of the CPU feature",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "policy": {
           "description": "Policy is the CPU feature attribute which can have the following attributes: force    - The virtual CPU will claim the feature is supported regardless of it being supported by host CPU. require  - Guest creation will fail unless the feature is supported by the host CPU or the hypervisor is able to emulate it. optional - The feature will be supported by virtual CPU if and only if it is supported by host CPU. disable  - The feature will not be supported by virtual CPU. forbid   - Guest creation will fail if the feature is supported by host CPU. Defaults to require",
@@ -8930,6 +8960,10 @@
           "type": "string"
         }
       }
+    },
+    "kubevirt.io.v1.ClientPassthroughDevices": {
+      "description": "Represent a subset of client devices that can be accessed by VMI. At the moment only, USB devices using Usbredir's library and tooling. Another fit would be a smartcard with libcacard.\n\nThe struct is currently empty as there is no imediate request for user-facing APIs. This structure simply turns on USB redirection of UsbClientPassthroughMaxNumberOf devices.",
+      "type": "object"
     },
     "kubevirt.io.v1.Clock": {
       "description": "Represents the clock and timers of a vmi.",
@@ -9050,7 +9084,8 @@
       "properties": {
         "image": {
           "description": "Image is the name of the image with the embedded disk.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "imagePullPolicy": {
           "description": "Image pull policy. One of Always, Never, IfNotPresent. Defaults to Always if :latest tag is specified, or IfNotPresent otherwise. Cannot be updated. More info: https://kubernetes.io/docs/concepts/containers/images#updating-images",
@@ -9066,6 +9101,26 @@
         }
       }
     },
+    "kubevirt.io.v1.CustomBlockSize": {
+      "description": "CustomBlockSize represents the desired logical and physical block size for a VM disk.",
+      "type": "object",
+      "required": [
+        "logical",
+        "physical"
+      ],
+      "properties": {
+        "logical": {
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        },
+        "physical": {
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        }
+      }
+    },
     "kubevirt.io.v1.DHCPOptions": {
       "description": "Extra DHCP options to use in the interface.",
       "type": "object",
@@ -9078,13 +9133,15 @@
           "description": "If specified will pass the configured NTP server to the VM via DHCP option 042.",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "privateOptions": {
           "description": "If specified will pass extra DHCP options for private use, range: 224-254",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.DHCPPrivateOptions"
           }
         },
@@ -9105,11 +9162,13 @@
         "option": {
           "description": "Option is an Integer value from 224-254 Required.",
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "default": 0
         },
         "value": {
           "description": "Value is a String value for the Option provided Required.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -9121,7 +9180,8 @@
       "properties": {
         "name": {
           "description": "Name represents the name of the DataVolume in the same namespace",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -9145,11 +9205,13 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
           "description": "DataVolumeSpec contains the DataVolume specification.",
-          "$ref": "#/definitions/cdi.kubevirt.io.v1alpha1.DataVolumeSpec"
+          "default": {},
+          "$ref": "#/definitions/cdi.kubevirt.io.v1beta1.DataVolumeSpec"
         },
         "status": {
           "description": "DataVolumeTemplateDummyStatus is here simply for backwards compatibility with a previous API.",
@@ -9180,6 +9242,10 @@
           "description": "Whether or not to enable virtio multi-queue for block devices. Defaults to false.",
           "type": "boolean"
         },
+        "clientPassthrough": {
+          "description": "To configure and access client devices such as redirecting USB",
+          "$ref": "#/definitions/kubevirt.io.v1.ClientPassthroughDevices"
+        },
         "disableHotplug": {
           "description": "DisableHotplug disabled the ability to hotplug disks.",
           "type": "boolean"
@@ -9188,6 +9254,7 @@
           "description": "Disks describes disks, cdroms, floppy and luns which are connected to the vmi.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.Disk"
           }
         },
@@ -9195,6 +9262,7 @@
           "description": "Filesystems describes filesystem which is connected to the vmi.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.Filesystem"
           },
           "x-kubernetes-list-type": "atomic"
@@ -9203,6 +9271,7 @@
           "description": "Whether to attach a GPU device to the vmi.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.GPU"
           },
           "x-kubernetes-list-type": "atomic"
@@ -9211,6 +9280,7 @@
           "description": "Whether to attach a host device to the vmi.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.HostDevice"
           },
           "x-kubernetes-list-type": "atomic"
@@ -9219,6 +9289,7 @@
           "description": "Inputs describe input devices",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.Input"
           }
         },
@@ -9226,6 +9297,7 @@
           "description": "Interfaces describe network interfaces which are added to the vmi.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.Interface"
           }
         },
@@ -9253,6 +9325,10 @@
         "name"
       ],
       "properties": {
+        "blockSize": {
+          "description": "If specified, the virtual disk will be presented with the given block sizes.",
+          "$ref": "#/definitions/kubevirt.io.v1.BlockSize"
+        },
         "bootOrder": {
           "description": "BootOrder is an integer value \u003e 0, used to determine ordering of boot devices. Lower values take precedence. Each disk or interface that has a boot order must have a unique value. Disks without a boot order are not tried if a disk with a boot order exists.",
           "type": "integer",
@@ -9288,7 +9364,8 @@
         },
         "name": {
           "description": "Name is the device name",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "serial": {
           "description": "Serial provides the ability to specify a serial number for the disk device.",
@@ -9337,6 +9414,7 @@
         },
         "devices": {
           "description": "Devices allows adding disks, network interfaces, and others",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.Devices"
         },
         "features": {
@@ -9361,6 +9439,7 @@
         },
         "resources": {
           "description": "Resources describes the Compute Resources required by this vmi.",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.ResourceRequirements"
         }
       }
@@ -9373,6 +9452,7 @@
           "description": "Fields is a list of downward API volume file",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.DownwardAPIVolumeFile"
           }
         },
@@ -9381,6 +9461,10 @@
           "type": "string"
         }
       }
+    },
+    "kubevirt.io.v1.DownwardMetricsVolumeSource": {
+      "description": "DownwardMetricsVolumeSource adds a very small disk to VMIs which contains a limited view of host and guest metrics. The disk content is compatible with vhostmd (https://github.com/vhostmd/vhostmd) and vm-dump-metrics.",
+      "type": "object"
     },
     "kubevirt.io.v1.EFI": {
       "description": "If set, EFI will be used instead of BIOS.",
@@ -9401,6 +9485,7 @@
       "properties": {
         "capacity": {
           "description": "Capacity of the sparse disk.",
+          "default": {},
           "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
         }
       }
@@ -9540,6 +9625,7 @@
       "properties": {
         "acpi": {
           "description": "ACPI enables/disables ACPI inside the guest. Defaults to enabled.",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.FeatureState"
         },
         "apic": {
@@ -9573,7 +9659,8 @@
       "properties": {
         "name": {
           "description": "Name is the device name",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "virtiofs": {
           "description": "Virtiofs is supported",
@@ -9590,6 +9677,10 @@
         "bootloader": {
           "description": "Settings to control the bootloader that is used.",
           "$ref": "#/definitions/kubevirt.io.v1.Bootloader"
+        },
+        "kernelBoot": {
+          "description": "Settings to set the kernel for booting.",
+          "$ref": "#/definitions/kubevirt.io.v1.KernelBoot"
         },
         "serial": {
           "description": "The system-serial-number in SMBIOS",
@@ -9622,13 +9713,19 @@
       ],
       "properties": {
         "deviceName": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "name": {
           "description": "Name of the GPU device as exposed by a device plugin",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
+    },
+    "kubevirt.io.v1.GuestAgentPing": {
+      "description": "GuestAgentPing configures the guest-agent based ping probe",
+      "type": "object"
     },
     "kubevirt.io.v1.HPETTimer": {
       "type": "object",
@@ -9652,10 +9749,12 @@
       "properties": {
         "deviceName": {
           "description": "DeviceName is the resource name of the host device exposed by a device plugin",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -9669,11 +9768,13 @@
       "properties": {
         "capacity": {
           "description": "Capacity of the sparse disk",
+          "default": {},
           "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
         },
         "path": {
           "description": "The path to HostDisk image located on the cluster",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "shared": {
           "description": "Shared indicate whether the path is shared between nodes",
@@ -9681,7 +9782,8 @@
         },
         "type": {
           "description": "Contains information if disk.img exists or should be created allowed options are 'Disk' and 'DiskOrCreate'",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -9755,11 +9857,13 @@
         },
         "name": {
           "description": "Name is the device name",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "type": {
           "description": "Type indicated the type of input device. Supported values: tablet.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -9797,7 +9901,8 @@
         },
         "name": {
           "description": "Logical name of the interface as well as a reference to the associated networks. Must match the Name of a Network.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "pciAddress": {
           "description": "If specified, the virtual network interface will be placed on the guests pci address with the specified PCI address. For example: 0000:81:01.10",
@@ -9807,6 +9912,7 @@
           "description": "List of ports to be forwarded to the virtual machine.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.Port"
           }
         },
@@ -9846,6 +9952,50 @@
         }
       }
     },
+    "kubevirt.io.v1.KernelBoot": {
+      "description": "Represents the firmware blob used to assist in the kernel boot process. Used for setting the kernel, initrd and command line arguments",
+      "type": "object",
+      "properties": {
+        "container": {
+          "description": "Container defines the container that containes kernel artifacts",
+          "$ref": "#/definitions/kubevirt.io.v1.KernelBootContainer"
+        },
+        "kernelArgs": {
+          "description": "Arguments to be passed to the kernel at boot time",
+          "type": "string"
+        }
+      }
+    },
+    "kubevirt.io.v1.KernelBootContainer": {
+      "description": "If set, the VM will be booted from the defined kernel / initrd.",
+      "type": "object",
+      "required": [
+        "image"
+      ],
+      "properties": {
+        "image": {
+          "description": "Image that container initrd / kernel files.",
+          "type": "string",
+          "default": ""
+        },
+        "imagePullPolicy": {
+          "description": "Image pull policy. One of Always, Never, IfNotPresent. Defaults to Always if :latest tag is specified, or IfNotPresent otherwise. Cannot be updated. More info: https://kubernetes.io/docs/concepts/containers/images#updating-images",
+          "type": "string"
+        },
+        "imagePullSecret": {
+          "description": "ImagePullSecret is the name of the Docker registry secret required to pull the image. The secret must already exist.",
+          "type": "string"
+        },
+        "initrdPath": {
+          "description": "the fully-qualified path to the ramdisk image in the host OS",
+          "type": "string"
+        },
+        "kernelPath": {
+          "description": "The fully-qualified path to the kernel image in the host OS",
+          "type": "string"
+        }
+      }
+    },
     "kubevirt.io.v1.LunTarget": {
       "type": "object",
       "properties": {
@@ -9861,13 +10011,11 @@
     },
     "kubevirt.io.v1.Machine": {
       "type": "object",
-      "required": [
-        "type"
-      ],
       "properties": {
         "type": {
           "description": "QEMU machine type is the actual chipset of the VirtualMachineInstance.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -9898,9 +10046,23 @@
         },
         "networkName": {
           "description": "References to a NetworkAttachmentDefinition CRD object. Format: \u003cnetworkName\u003e, \u003cnamespace\u003e/\u003cnetworkName\u003e. If namespace is not specified, VMI namespace is assumed.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
+    },
+    "kubevirt.io.v1.NUMA": {
+      "type": "object",
+      "properties": {
+        "guestMappingPassthrough": {
+          "description": "GuestMappingPassthrough will create an efficient guest topology based on host CPUs exclusively assigned to a pod. The created topology ensures that memory and CPUs on the virtual numa nodes never cross boundaries of host numa nodes.",
+          "$ref": "#/definitions/kubevirt.io.v1.NUMAGuestMappingPassthrough"
+        }
+      }
+    },
+    "kubevirt.io.v1.NUMAGuestMappingPassthrough": {
+      "description": "NUMAGuestMappingPassthrough instructs kubevirt to model numa topology which is compatible with the CPU pinning on the guest. This will result in a subset of the node numa topology being passed through, ensuring that virtual numa nodes and their memory never cross boundaries coming from the node numa mapping.",
+      "type": "object"
     },
     "kubevirt.io.v1.Network": {
       "description": "Network represents a network type and a resource that should be connected to the vm.",
@@ -9914,7 +10076,8 @@
         },
         "name": {
           "description": "Network name. Must be a DNS_LABEL and unique within the vm. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "pod": {
           "$ref": "#/definitions/kubevirt.io.v1.PodNetwork"
@@ -9938,6 +10101,10 @@
       "description": "Represents the stock pod network interface.",
       "type": "object",
       "properties": {
+        "vmIPv6NetworkCIDR": {
+          "description": "IPv6 CIDR for the vm network. Defaults to fd10:0:2::/120 if not specified.",
+          "type": "string"
+        },
         "vmNetworkCIDR": {
           "description": "CIDR for vm network. Default 10.0.2.0/24 if not specified.",
           "type": "string"
@@ -9958,7 +10125,8 @@
         "port": {
           "description": "Number of port to expose for the virtual machine. This must be a valid port number, 0 \u003c x \u003c 65536.",
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "default": 0
         },
         "protocol": {
           "description": "Protocol for port. Must be UDP or TCP. Defaults to \"TCP\".",
@@ -9970,10 +10138,18 @@
       "description": "Probe describes a health check to be performed against a VirtualMachineInstance to determine whether it is alive or ready to receive traffic.",
       "type": "object",
       "properties": {
+        "exec": {
+          "description": "One and only one of the following should be specified. Exec specifies the action to take, it will be executed on the guest through the qemu-guest-agent. If the guest agent is not available, this probe will fail.",
+          "$ref": "#/definitions/k8s.io.v1.ExecAction"
+        },
         "failureThreshold": {
           "description": "Minimum consecutive failures for the probe to be considered failed after having succeeded. Defaults to 3. Minimum value is 1.",
           "type": "integer",
           "format": "int32"
+        },
+        "guestAgentPing": {
+          "description": "GuestAgentPing contacts the qemu-guest-agent for availability checks.",
+          "$ref": "#/definitions/kubevirt.io.v1.GuestAgentPing"
         },
         "httpGet": {
           "description": "HTTPGet specifies the http request to perform.",
@@ -9999,7 +10175,7 @@
           "$ref": "#/definitions/k8s.io.v1.TCPSocketAction"
         },
         "timeoutSeconds": {
-          "description": "Number of seconds after which the probe times out. Defaults to 1 second. Minimum value is 1. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes",
+          "description": "Number of seconds after which the probe times out. For exec probes the timeout fails the probe but does not terminate the command running on the guest. This means a blocking command can result in an increasing load on the guest. A small buffer will be added to the resulting workload exec probe to compensate for delays caused by the qemu guest exec mechanism. Defaults to 1 second. Minimum value is 1. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes",
           "type": "integer",
           "format": "int32"
         }
@@ -10015,7 +10191,8 @@
           "description": "Users represents a list of guest users that should have the ssh public keys added to their authorized_keys file.",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           },
           "x-kubernetes-list-type": "set"
         }
@@ -10050,7 +10227,8 @@
       "properties": {
         "name": {
           "description": "Name represents the name that maps to both the disk and volume that should be removed",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -10061,6 +10239,7 @@
           "description": "Limits describes the maximum amount of compute resources allowed. Valid resource keys are \"memory\" and \"cpu\".",
           "type": "object",
           "additionalProperties": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
           }
         },
@@ -10072,6 +10251,7 @@
           "description": "Requests is a description of the initial vmi resources. Valid resource keys are \"memory\" and \"cpu\".",
           "type": "object",
           "additionalProperties": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
           }
         }
@@ -10091,10 +10271,12 @@
       "properties": {
         "propagationMethod": {
           "description": "PropagationMethod represents how the public key is injected into the vm guest.",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.SSHPublicKeyAccessCredentialPropagationMethod"
         },
         "source": {
           "description": "Source represents where the public keys are pulled from",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.SSHPublicKeyAccessCredentialSource"
         }
       }
@@ -10202,6 +10384,15 @@
         }
       }
     },
+    "kubevirt.io.v1.TopologyHints": {
+      "type": "object",
+      "properties": {
+        "tscFrequency": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
     "kubevirt.io.v1.UserPasswordAccessCredential": {
       "description": "UserPasswordAccessCredential represents a source and propagation method for injecting user passwords into a vm guest Only one of its members may be specified.",
       "type": "object",
@@ -10212,10 +10403,12 @@
       "properties": {
         "propagationMethod": {
           "description": "propagationMethod represents how the user passwords are injected into the vm guest.",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.UserPasswordAccessCredentialPropagationMethod"
         },
         "source": {
           "description": "Source represents where the user passwords are pulled from",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.UserPasswordAccessCredentialSource"
         }
       }
@@ -10258,14 +10451,17 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
           "description": "Spec contains the specification of VirtualMachineInstance created",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineSpec"
         },
         "status": {
           "description": "Status holds the current state of the controller and brief information about its associated VirtualMachineInstance",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineStatus"
         }
       }
@@ -10279,9 +10475,11 @@
       ],
       "properties": {
         "lastProbeTime": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
         "lastTransitionTime": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
         "message": {
@@ -10291,10 +10489,12 @@
           "type": "string"
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "type": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -10316,14 +10516,17 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
           "description": "VirtualMachineInstance Spec contains the VirtualMachineInstance specification.",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstanceSpec"
         },
         "status": {
           "description": "Status is the high level overview of how the VirtualMachineInstance is doing. It contains information available to controllers and users.",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstanceStatus"
         }
       }
@@ -10336,9 +10539,11 @@
       ],
       "properties": {
         "lastProbeTime": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
         "lastTransitionTime": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
         "message": {
@@ -10348,10 +10553,12 @@
           "type": "string"
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "type": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -10408,6 +10615,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstance"
           }
         },
@@ -10416,6 +10624,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -10438,12 +10647,15 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstanceMigrationSpec"
         },
         "status": {
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstanceMigrationStatus"
         }
       }
@@ -10456,9 +10668,11 @@
       ],
       "properties": {
         "lastProbeTime": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
         "lastTransitionTime": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
         "message": {
@@ -10468,10 +10682,12 @@
           "type": "string"
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "type": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -10491,6 +10707,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstanceMigration"
           }
         },
@@ -10499,6 +10716,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -10551,12 +10769,17 @@
           "description": "The time the migration action began",
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
+        "targetAttachmentPodUID": {
+          "description": "The UID of the target attachment pod for hotplug volumes",
+          "type": "string"
+        },
         "targetDirectMigrationNodePorts": {
           "description": "The list of ports opened for live migration on the destination node",
           "type": "object",
           "additionalProperties": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "default": 0
           }
         },
         "targetNode": {
@@ -10584,6 +10807,7 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstanceMigrationCondition"
           }
         },
@@ -10607,7 +10831,8 @@
           "description": "List of all IP addresses of a Virtual Machine interface",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "mac": {
@@ -10617,6 +10842,21 @@
         "name": {
           "description": "Name of the interface, corresponds to name of the network assigned to the interface",
           "type": "string"
+        }
+      }
+    },
+    "kubevirt.io.v1.VirtualMachineInstancePhaseTransitionTimestamp": {
+      "description": "VirtualMachineInstancePhaseTransitionTimestamp gives a timestamp in relation to when a phase is set on a vmi",
+      "type": "object",
+      "properties": {
+        "phase": {
+          "description": "Phase is the status of the VirtualMachineInstance in kubernetes world. It is not the VirtualMachineInstance status, but partially correlates to it.",
+          "type": "string"
+        },
+        "phaseTransitionTimestamp": {
+          "description": "PhaseTransitionTimestamp is the timestamp of when the phase change occurred",
+          "default": {},
+          "$ref": "#/definitions/k8s.io.v1.Time"
         }
       }
     },
@@ -10631,6 +10871,7 @@
           "description": "Specifies a set of public keys to inject into the vm guest",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.AccessCredential"
           },
           "x-kubernetes-list-type": "atomic"
@@ -10649,6 +10890,7 @@
         },
         "domain": {
           "description": "Specification of the desired behavior of the VirtualMachineInstance on the host.",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.DomainSpec"
         },
         "evictionStrategy": {
@@ -10667,6 +10909,7 @@
           "description": "List of networks that can be attached to a vm's virtual interface.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.Network"
           }
         },
@@ -10674,7 +10917,8 @@
           "description": "NodeSelector is a selector which must be true for the vmi to fit on a node. Selector which must match a node's labels for the vmi to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/",
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "priorityClassName": {
@@ -10687,6 +10931,10 @@
         },
         "schedulerName": {
           "description": "If specified, the VMI will be dispatched by specified scheduler. If not specified, the VMI will be dispatched by default scheduler.",
+          "type": "string"
+        },
+        "startStrategy": {
+          "description": "StartStrategy can be set to \"Paused\" if Virtual Machine should be started in paused state.",
           "type": "string"
         },
         "subdomain": {
@@ -10702,6 +10950,7 @@
           "description": "If toleration is specified, obey all the toleration rules.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/k8s.io.v1.Toleration"
           }
         },
@@ -10709,6 +10958,7 @@
           "description": "List of volumes that can be mounted by disks belonging to the vmi.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.Volume"
           }
         }
@@ -10722,13 +10972,15 @@
           "description": "ActivePods is a mapping of pod UID to node name. It is possible for multiple pods to be running for a single VMI during migration.",
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "conditions": {
           "description": "Conditions are specific points in VirtualMachineInstance's pod runtime.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstanceCondition"
           }
         },
@@ -10736,14 +10988,20 @@
           "description": "EvacuationNodeName is used to track the eviction process of a VMI. It stores the name of the node that we want to evacuate. It is meant to be used by KubeVirt core components only and can't be set or modified by users.",
           "type": "string"
         },
+        "fsFreezeStatus": {
+          "description": "FSFreezeStatus is the state of the fs of the guest it can be either frozen or thawed",
+          "type": "string"
+        },
         "guestOSInfo": {
           "description": "Guest OS Information",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstanceGuestOSInfo"
         },
         "interfaces": {
           "description": "Interfaces represent the details of available network interfaces.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstanceNetworkInterface"
           }
         },
@@ -10767,6 +11025,15 @@
           "description": "Phase is the status of the VirtualMachineInstance in kubernetes world. It is not the VirtualMachineInstance status, but partially correlates to it.",
           "type": "string"
         },
+        "phaseTransitionTimestamps": {
+          "description": "PhaseTransitionTimestamp is the timestamp of when the last phase change occurred",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstancePhaseTransitionTimestamp"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
         "qosClass": {
           "description": "The Quality of Service (QOS) classification assigned to the virtual machine instance based on resource requirements See PodQOSClass type for available QOS classes More info: https://git.k8s.io/community/contributors/design-proposals/node/resource-qos.md",
           "type": "string"
@@ -10775,10 +11042,14 @@
           "description": "A brief CamelCase message indicating details about why the VMI is in this state. e.g. 'NodeUnresponsive'",
           "type": "string"
         },
+        "topologyHints": {
+          "$ref": "#/definitions/kubevirt.io.v1.TopologyHints"
+        },
         "volumeStatus": {
           "description": "VolumeStatus contains the statuses of all the volumes",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VolumeStatus"
           },
           "x-kubernetes-list-type": "atomic"
@@ -10789,10 +11060,12 @@
       "type": "object",
       "properties": {
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
           "description": "VirtualMachineInstance Spec contains the VirtualMachineInstance specification.",
+          "default": {},
           "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineInstanceSpec"
         }
       }
@@ -10813,6 +11086,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VirtualMachine"
           }
         },
@@ -10821,6 +11095,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -10836,6 +11111,7 @@
           "description": "dataVolumeTemplates is a list of dataVolumes that the VirtualMachineInstance template can reference. DataVolumes in this list are dynamically created for the VirtualMachine and are tied to the VirtualMachine's life-cycle.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.DataVolumeTemplateSpec"
           }
         },
@@ -10853,6 +11129,22 @@
         }
       }
     },
+    "kubevirt.io.v1.VirtualMachineStartFailure": {
+      "description": "VirtualMachineStartFailure tracks VMIs which failed to transition successfully to running using the VM status",
+      "type": "object",
+      "properties": {
+        "consecutiveFailCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "lastFailedVMIUID": {
+          "type": "string"
+        },
+        "retryAfterTimestamp": {
+          "$ref": "#/definitions/k8s.io.v1.Time"
+        }
+      }
+    },
     "kubevirt.io.v1.VirtualMachineStateChangeRequest": {
       "type": "object",
       "required": [
@@ -10861,13 +11153,15 @@
       "properties": {
         "action": {
           "description": "Indicates the type of action that is requested. e.g. Start or Stop",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "data": {
           "description": "Provides additional data in order to perform the Action",
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "uid": {
@@ -10884,12 +11178,17 @@
           "description": "Hold the state information of the VirtualMachine and its VirtualMachineInstance",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineCondition"
           }
         },
         "created": {
           "description": "Created indicates if the virtual machine is created in the cluster",
           "type": "boolean"
+        },
+        "printableStatus": {
+          "description": "PrintableStatus is a human readable, high-level representation of the status of the virtual machine",
+          "type": "string"
         },
         "ready": {
           "description": "Ready indicates if the virtual machine is running and ready",
@@ -10899,10 +11198,15 @@
           "description": "SnapshotInProgress is the name of the VirtualMachineSnapshot currently executing",
           "type": "string"
         },
+        "startFailure": {
+          "description": "StartFailure tracks consecutive VMI startup failures for the purposes of crash loop backoffs",
+          "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineStartFailure"
+        },
         "stateChangeRequests": {
           "description": "StateChangeRequests indicates a list of actions that should be taken on a VMI e.g. stop a specific VMI then start a new one.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineStateChangeRequest"
           }
         },
@@ -10910,6 +11214,7 @@
           "description": "VolumeRequests indicates a list of volumes add or remove from the VMI template and hotplug on an active running VMI.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VirtualMachineVolumeRequest"
           },
           "x-kubernetes-list-type": "atomic"
@@ -10918,6 +11223,7 @@
           "description": "VolumeSnapshotStatuses indicates a list of statuses whether snapshotting is supported by each volume.",
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/kubevirt.io.v1.VolumeSnapshotStatus"
           }
         }
@@ -10967,6 +11273,10 @@
           "description": "DownwardAPI represents downward API about the pod that should populate this volume",
           "$ref": "#/definitions/kubevirt.io.v1.DownwardAPIVolumeSource"
         },
+        "downwardMetrics": {
+          "description": "DownwardMetrics adds a very small disk to VMIs which contains a limited view of host and guest metrics. The disk content is compatible with vhostmd (https://github.com/vhostmd/vhostmd) and vm-dump-metrics.",
+          "$ref": "#/definitions/kubevirt.io.v1.DownwardMetricsVolumeSource"
+        },
         "emptyDisk": {
           "description": "EmptyDisk represents a temporary disk which shares the vmis lifecycle. More info: https://kubevirt.gitbooks.io/user-guide/disks-and-volumes.html",
           "$ref": "#/definitions/kubevirt.io.v1.EmptyDiskSource"
@@ -10981,7 +11291,8 @@
         },
         "name": {
           "description": "Volume's name. Must be a DNS_LABEL and unique within the vmi. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "persistentVolumeClaim": {
           "description": "PersistentVolumeClaimVolumeSource represents a reference to a PersistentVolumeClaim in the same namespace. Directly attached to the vmi via qemu. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims",
@@ -11010,11 +11321,13 @@
       "properties": {
         "enabled": {
           "description": "True if the volume supports snapshotting",
-          "type": "boolean"
+          "type": "boolean",
+          "default": false
         },
         "name": {
           "description": "Volume name",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "reason": {
           "description": "Empty if snapshotting is enabled, contains reason otherwise",
@@ -11040,7 +11353,8 @@
         },
         "name": {
           "description": "Name is the name of the volume",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "phase": {
           "description": "Phase is the phase",
@@ -11052,7 +11366,8 @@
         },
         "target": {
           "description": "Target is the target name used when adding the volume to the VM, eg: vda",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -11069,7 +11384,8 @@
         },
         "name": {
           "description": "Name of the watchdog.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -11088,20 +11404,23 @@
         "config": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "description": {
           "type": "string"
         },
         "enable": {
-          "type": "boolean"
+          "type": "boolean",
+          "default": false
         },
         "kind": {
           "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         }
       }
@@ -11123,6 +11442,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
           }
         },
@@ -11131,6 +11451,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -11160,11 +11481,13 @@
         },
         "status": {
           "description": "Status of the condition, one of True, False, Unknown.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "type": {
           "description": "Type of the condition.",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -11174,6 +11497,7 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/network.harvesterhci.io.v1beta1.Condition"
           }
         },
@@ -11184,7 +11508,8 @@
         "ipv4Address": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "mac": {
@@ -11199,7 +11524,8 @@
         "routes": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "state": {
@@ -11226,12 +11552,15 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
+          "default": {},
           "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetworkSpec"
         },
         "status": {
+          "default": {},
           "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetworkStatus"
         }
       }
@@ -11253,6 +11582,7 @@
         "items": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
           }
         },
@@ -11261,6 +11591,7 @@
           "type": "string"
         },
         "metadata": {
+          "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
         }
       }
@@ -11278,7 +11609,8 @@
           "type": "string"
         },
         "nodeName": {
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "type": {
           "type": "string"
@@ -11291,6 +11623,7 @@
         "conditions": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/network.harvesterhci.io.v1beta1.Condition"
           }
         },
@@ -11298,7 +11631,8 @@
           "type": "array",
           "items": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "default": 0
           }
         },
         "networkLinkStatus": {
@@ -11310,6 +11644,7 @@
         "physicalNICs": {
           "type": "array",
           "items": {
+            "default": {},
             "$ref": "#/definitions/network.harvesterhci.io.v1beta1.PhysicalNic"
           }
         }
