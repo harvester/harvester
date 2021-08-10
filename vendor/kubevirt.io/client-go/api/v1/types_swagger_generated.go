@@ -26,6 +26,7 @@ func (VirtualMachineInstanceSpec) SwaggerDoc() map[string]string {
 		"schedulerName":                 "If specified, the VMI will be dispatched by specified scheduler.\nIf not specified, the VMI will be dispatched by default scheduler.\n+optional",
 		"tolerations":                   "If toleration is specified, obey all the toleration rules.",
 		"evictionStrategy":              "EvictionStrategy can be set to \"LiveMigrate\" if the VirtualMachineInstance should be\nmigrated instead of shut-off in case of a node drain.\n\n+optional",
+		"startStrategy":                 "StartStrategy can be set to \"Paused\" if Virtual Machine should be started in paused state.\n\n+optional",
 		"terminationGracePeriodSeconds": "Grace period observed after signalling a VirtualMachineInstance to stop after which the VirtualMachineInstance is force terminated.",
 		"volumes":                       "List of volumes that can be mounted by disks belonging to the vmi.",
 		"livenessProbe":                 "Periodic probe of VirtualMachineInstance liveness.\nVirtualmachineInstances will be stopped if the probe fails.\nCannot be updated.\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes\n+optional",
@@ -39,6 +40,20 @@ func (VirtualMachineInstanceSpec) SwaggerDoc() map[string]string {
 	}
 }
 
+func (VirtualMachineInstancePhaseTransitionTimestamp) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                         "VirtualMachineInstancePhaseTransitionTimestamp gives a timestamp in relation to when a phase is set on a vmi\n\n+k8s:openapi-gen=true",
+		"phase":                    "Phase is the status of the VirtualMachineInstance in kubernetes world. It is not the VirtualMachineInstance status, but partially correlates to it.",
+		"phaseTransitionTimestamp": "PhaseTransitionTimestamp is the timestamp of when the phase change occurred",
+	}
+}
+
+func (TopologyHints) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "+k8s:openapi-gen=true",
+	}
+}
+
 func (VirtualMachineInstanceStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                              "VirtualMachineInstanceStatus represents information about the status of a VirtualMachineInstance. Status may trail the actual\nstate of a system.\n\n+k8s:openapi-gen=true",
@@ -46,6 +61,7 @@ func (VirtualMachineInstanceStatus) SwaggerDoc() map[string]string {
 		"reason":                        "A brief CamelCase message indicating details about why the VMI is in this state. e.g. 'NodeUnresponsive'\n+optional",
 		"conditions":                    "Conditions are specific points in VirtualMachineInstance's pod runtime.",
 		"phase":                         "Phase is the status of the VirtualMachineInstance in kubernetes world. It is not the VirtualMachineInstance status, but partially correlates to it.",
+		"phaseTransitionTimestamps":     "PhaseTransitionTimestamp is the timestamp of when the last phase change occurred\n+listType=atomic\n+optional",
 		"interfaces":                    "Interfaces represent the details of available network interfaces.",
 		"guestOSInfo":                   "Guest OS Information",
 		"migrationState":                "Represents the status of a live migration",
@@ -55,6 +71,8 @@ func (VirtualMachineInstanceStatus) SwaggerDoc() map[string]string {
 		"evacuationNodeName":            "EvacuationNodeName is used to track the eviction process of a VMI. It stores the name of the node that we want\nto evacuate. It is meant to be used by KubeVirt core components only and can't be set or modified by users.\n+optional",
 		"activePods":                    "ActivePods is a mapping of pod UID to node name.\nIt is possible for multiple pods to be running for a single VMI during migration.",
 		"volumeStatus":                  "VolumeStatus contains the statuses of all the volumes\n+optional\n+listType=atomic",
+		"fsFreezeStatus":                "FSFreezeStatus is the state of the fs of the guest\nit can be either frozen or thawed\n+optional",
+		"topologyHints":                 "+optional",
 	}
 }
 
@@ -129,6 +147,7 @@ func (VirtualMachineInstanceMigrationState) SwaggerDoc() map[string]string {
 		"targetDirectMigrationNodePorts": "The list of ports opened for live migration on the destination node",
 		"targetNode":                     "The target node that the VMI is moving to",
 		"targetPod":                      "The target pod that the VMI is moving to",
+		"targetAttachmentPodUID":         "The UID of the target attachment pod for hotplug volumes",
 		"sourceNode":                     "The source node that the VMI originated on",
 		"completed":                      "Indicates the migration completed",
 		"failed":                         "Indicates that the migration failed",
@@ -278,16 +297,24 @@ func (VirtualMachineSpec) SwaggerDoc() map[string]string {
 	}
 }
 
+func (VirtualMachineStartFailure) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "VirtualMachineStartFailure tracks VMIs which failed to transition successfully\nto running using the VM status\n\n+k8s:openapi-gen=true",
+	}
+}
+
 func (VirtualMachineStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                       "VirtualMachineStatus represents the status returned by the\ncontroller to describe how the VirtualMachine is doing\n\n+k8s:openapi-gen=true",
 		"snapshotInProgress":     "SnapshotInProgress is the name of the VirtualMachineSnapshot currently executing",
 		"created":                "Created indicates if the virtual machine is created in the cluster",
 		"ready":                  "Ready indicates if the virtual machine is running and ready",
+		"printableStatus":        "PrintableStatus is a human readable, high-level representation of the status of the virtual machine",
 		"conditions":             "Hold the state information of the VirtualMachine and its VirtualMachineInstance",
 		"stateChangeRequests":    "StateChangeRequests indicates a list of actions that should be taken on a VMI\ne.g. stop a specific VMI then start a new one.",
 		"volumeRequests":         "VolumeRequests indicates a list of volumes add or remove from the VMI template and\nhotplug on an active running VMI.\n+listType=atomic",
 		"volumeSnapshotStatuses": "VolumeSnapshotStatuses indicates a list of statuses whether snapshotting is\nsupported by each volume.",
+		"startFailure":           "StartFailure tracks consecutive VMI startup failures for the purposes of\ncrash loop backoffs\n+nullable\n+optional",
 	}
 }
 
@@ -327,9 +354,11 @@ func (VirtualMachineCondition) SwaggerDoc() map[string]string {
 
 func (Handler) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":          "Handler defines a specific action that should be taken",
-		"httpGet":   "HTTPGet specifies the http request to perform.\n+optional",
-		"tcpSocket": "TCPSocket specifies an action involving a TCP port.\nTCP hooks not yet supported\n+optional",
+		"":               "Handler defines a specific action that should be taken",
+		"exec":           "One and only one of the following should be specified.\nExec specifies the action to take, it will be executed on the guest through the qemu-guest-agent.\nIf the guest agent is not available, this probe will fail.\n+optional",
+		"guestAgentPing": "GuestAgentPing contacts the qemu-guest-agent for availability checks.\n+optional",
+		"httpGet":        "HTTPGet specifies the http request to perform.\n+optional",
+		"tcpSocket":      "TCPSocket specifies an action involving a TCP port.\nTCP hooks not yet supported\n+optional",
 	}
 }
 
@@ -337,7 +366,7 @@ func (Probe) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                    "Probe describes a health check to be performed against a VirtualMachineInstance to determine whether it is\nalive or ready to receive traffic.\n+k8s:openapi-gen=true",
 		"initialDelaySeconds": "Number of seconds after the VirtualMachineInstance has started before liveness probes are initiated.\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes\n+optional",
-		"timeoutSeconds":      "Number of seconds after which the probe times out.\nDefaults to 1 second. Minimum value is 1.\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes\n+optional",
+		"timeoutSeconds":      "Number of seconds after which the probe times out.\nFor exec probes the timeout fails the probe but does not terminate the command running on the guest.\nThis means a blocking command can result in an increasing load on the guest.\nA small buffer will be added to the resulting workload exec probe to compensate for delays\ncaused by the qemu guest exec mechanism.\nDefaults to 1 second. Minimum value is 1.\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes\n+optional",
 		"periodSeconds":       "How often (in seconds) to perform the probe.\nDefault to 10 seconds. Minimum value is 1.\n+optional",
 		"successThreshold":    "Minimum consecutive successes for the probe to be considered successful after having failed.\nDefaults to 1. Must be 1 for liveness. Minimum value is 1.\n+optional",
 		"failureThreshold":    "Minimum consecutive failures for the probe to be considered failed after having succeeded.\nDefaults to 3. Minimum value is 1.\n+optional",
@@ -358,7 +387,20 @@ func (KubeVirtList) SwaggerDoc() map[string]string {
 
 func (KubeVirtSelfSignConfiguration) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "+k8s:openapi-gen=true",
+		"":                   "+k8s:openapi-gen=true",
+		"caRotateInterval":   "Deprecated. Use CA.Duration instead",
+		"certRotateInterval": "Deprecated. Use Server.Duration instead",
+		"caOverlapInterval":  "Deprecated. Use CA.Duration and CA.RenewBefore instead",
+		"ca":                 "CA configuration\nCA certs are kept in the CA bundle as long as they are valid",
+		"server":             "Server configuration\nCerts are rotated and discarded",
+	}
+}
+
+func (CertConfig) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":            "CertConfig contains the tunables for TLS certificates\n+k8s:openapi-gen=true",
+		"duration":    "The requested 'duration' (i.e. lifetime) of the Certificate.",
+		"renewBefore": "The amount of time before the currently issued certificate's \"notAfter\"\ntime that we will begin to attempt to renew the certificate.",
 	}
 }
 
@@ -399,6 +441,13 @@ func (CustomizeComponents) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":        "+k8s:openapi-gen=true",
 		"patches": "+listType=atomic",
+		"flags":   "Configure the value used for deployment and daemonset resources",
+	}
+}
+
+func (Flags) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "Flags will create a patch that will replace all flags for the container's\ncommand field. The only flags that will be used are those define. There are no\nguarantees around forward/backward compatibility.  If set incorrectly this will\ncause the resource when rolled out to error until flags are updated.\n\n+k8s:openapi-gen=true",
 	}
 }
 
@@ -407,6 +456,18 @@ func (CustomizeComponentsPatch) SwaggerDoc() map[string]string {
 		"":             "+k8s:openapi-gen=true",
 		"resourceName": "+kubebuilder:validation:MinLength=1",
 		"resourceType": "+kubebuilder:validation:MinLength=1",
+	}
+}
+
+func (GenerationStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":               "GenerationStatus keeps track of the generation for a given resource so that decisions about forced updates can be made.\n\n+k8s:openapi-gen=true",
+		"group":          "group is the group of the thing you're tracking",
+		"resource":       "resource is the resource type of the thing you're tracking",
+		"namespace":      "namespace is where the thing you're tracking is\n+optional",
+		"name":           "name is the name of the thing you're tracking",
+		"lastGeneration": "lastGeneration is the last generation of the workload controller involved",
+		"hash":           "hash is an optional field set for resources without generation that are content sensitive like secrets and configmaps\n+optional",
 	}
 }
 
@@ -432,15 +493,37 @@ func (RestartOptions) SwaggerDoc() map[string]string {
 	}
 }
 
+func (StartOptions) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":       "StartOptions may be provided on start request.\n\n+k8s:openapi-gen=true",
+		"paused": "Indicates that VM will be started in paused state.\n+optional",
+	}
+}
+
+func (StopOptions) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":            "StopOptions may be provided when deleting an API object.\n\n+k8s:openapi-gen=true",
+		"gracePeriod": "this updates the VMIs terminationGracePeriodSeconds during shutdown\n+optional",
+	}
+}
+
 func (VirtualMachineInstanceGuestAgentInfo) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                  "VirtualMachineInstanceGuestAgentInfo represents information from the installed guest agent\n\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+k8s:openapi-gen=true",
 		"guestAgentVersion": "GAVersion is a version of currently installed guest agent",
+		"supportedCommands": "Return command list the guest agent supports\n+listType=atomic",
 		"hostname":          "Hostname represents FQDN of a guest",
 		"os":                "OS contains the guest operating system information",
 		"timezone":          "Timezone is guest os current timezone",
 		"userList":          "UserList is a list of active guest OS users",
 		"fsInfo":            "FSInfo is a guest os filesystem information containing the disk mapping and disk mounts with usage",
+		"fsFreezeStatus":    "FSFreezeStatus is the state of the fs of the guest\nit can be either frozen or thawed",
+	}
+}
+
+func (GuestAgentCommandInfo) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "List of commands that QEMU guest agent supports\n\n+k8s:openapi-gen=true",
 	}
 }
 
@@ -474,12 +557,6 @@ func (VirtualMachineInstanceFileSystem) SwaggerDoc() map[string]string {
 	}
 }
 
-func (RenameOptions) SwaggerDoc() map[string]string {
-	return map[string]string{
-		"": "Options for a rename operation",
-	}
-}
-
 func (AddVolumeOptions) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":             "AddVolumeOptions is provided when dynamically hot plugging a volume and disk\n+k8s:openapi-gen=true",
@@ -498,7 +575,8 @@ func (RemoveVolumeOptions) SwaggerDoc() map[string]string {
 
 func (KubeVirtConfiguration) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "KubeVirtConfiguration holds all kubevirt configurations\n+k8s:openapi-gen=true",
+		"":                            "KubeVirtConfiguration holds all kubevirt configurations\n+k8s:openapi-gen=true",
+		"supportedGuestAgentVersions": "deprecated",
 	}
 }
 
@@ -514,9 +592,16 @@ func (MigrationConfiguration) SwaggerDoc() map[string]string {
 	}
 }
 
+func (DiskVerification) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DiskVerification holds container disks verification limits\n+k8s:openapi-gen=true",
+	}
+}
+
 func (DeveloperConfiguration) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "DeveloperConfiguration holds developer options\n+k8s:openapi-gen=true",
+		"":                           "DeveloperConfiguration holds developer options\n+k8s:openapi-gen=true",
+		"minimumClusterTSCFrequency": "Allow overriding the automatically determined minimum TSC frequency of the cluster\nand fixate the minimum to this frequency.",
 	}
 }
 
@@ -537,7 +622,10 @@ func (PermittedHostDevices) SwaggerDoc() map[string]string {
 
 func (PciHostDevice) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "PciHostDevice represents a host PCI device allowed for passthrough\n+k8s:openapi-gen=true",
+		"":                         "PciHostDevice represents a host PCI device allowed for passthrough\n+k8s:openapi-gen=true",
+		"pciVendorSelector":        "The vendor_id:product_id tupple of the PCI device",
+		"resourceName":             "The name of the resource that is representing the device. Exposed by\na device plugin and requested by VMs. Typically of the form\nvendor.com/product_nameThe name of the resource that is representing\nthe device. Exposed by a device plugin and requested by VMs.\nTypically of the form vendor.com/product_name",
+		"externalResourceProvider": "If true, KubeVirt will leave the allocation and monitoring to an\nexternal device plugin",
 	}
 }
 
@@ -550,5 +638,11 @@ func (MediatedHostDevice) SwaggerDoc() map[string]string {
 func (NetworkConfiguration) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "NetworkConfiguration holds network options\n+k8s:openapi-gen=true",
+	}
+}
+
+func (GuestAgentPing) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "GuestAgentPing configures the guest-agent based ping probe\n+k8s:openapi-gen=true",
 	}
 }

@@ -44,6 +44,12 @@ func (ServiceAccountVolumeSource) SwaggerDoc() map[string]string {
 	}
 }
 
+func (DownwardMetricsVolumeSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DownwardMetricsVolumeSource adds a very small disk to VMIs which contains a limited view of host and guest\nmetrics. The disk content is compatible with vhostmd (https://github.com/vhostmd/vhostmd) and vm-dump-metrics.\n\n+k8s:openapi-gen=true",
+	}
+}
+
 func (SysprepSource) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":          "Represents a Sysprep volume source.\n\n+k8s:openapi-gen=true",
@@ -120,6 +126,25 @@ func (EFI) SwaggerDoc() map[string]string {
 	}
 }
 
+func (KernelBootContainer) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                "If set, the VM will be booted from the defined kernel / initrd.\n\n+k8s:openapi-gen=true",
+		"image":           "Image that container initrd / kernel files.",
+		"imagePullSecret": "ImagePullSecret is the name of the Docker registry secret required to pull the image. The secret must already exist.\n+optional",
+		"imagePullPolicy": "Image pull policy.\nOne of Always, Never, IfNotPresent.\nDefaults to Always if :latest tag is specified, or IfNotPresent otherwise.\nCannot be updated.\nMore info: https://kubernetes.io/docs/concepts/containers/images#updating-images\n+optional",
+		"kernelPath":      "The fully-qualified path to the kernel image in the host OS\n+optional",
+		"initrdPath":      "the fully-qualified path to the ramdisk image in the host OS\n+optional",
+	}
+}
+
+func (KernelBoot) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":           "Represents the firmware blob used to assist in the kernel boot process.\nUsed for setting the kernel, initrd and command line arguments\n\n+k8s:openapi-gen=true",
+		"kernelArgs": "Arguments to be passed to the kernel at boot time",
+		"container":  "Container defines the container that containes kernel artifacts",
+	}
+}
+
 func (ResourceRequirements) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                        "+k8s:openapi-gen=true",
@@ -138,7 +163,21 @@ func (CPU) SwaggerDoc() map[string]string {
 		"model":                 "Model specifies the CPU model inside the VMI.\nList of available models https://github.com/libvirt/libvirt/tree/master/src/cpu_map.\nIt is possible to specify special cases like \"host-passthrough\" to get the same CPU as the node\nand \"host-model\" to get CPU closest to the node one.\nDefaults to host-model.\n+optional",
 		"features":              "Features specifies the CPU features list inside the VMI.\n+optional",
 		"dedicatedCpuPlacement": "DedicatedCPUPlacement requests the scheduler to place the VirtualMachineInstance on a node\nwith enough dedicated pCPUs and pin the vCPUs to it.\n+optional",
+		"numa":                  "NUMA allows specifying settings for the guest NUMA topology\n+optional",
 		"isolateEmulatorThread": "IsolateEmulatorThread requests one more dedicated pCPU to be allocated for the VMI to place\nthe emulator thread on it.\n+optional",
+	}
+}
+
+func (NUMAGuestMappingPassthrough) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "NUMAGuestMappingPassthrough instructs kubevirt to model numa topology which is compatible with the CPU pinning on the guest.\nThis will result in a subset of the node numa topology being passed through, ensuring that virtual numa nodes and their memory\nnever cross boundaries coming from the node numa mapping.\n+k8s:openapi-gen=true",
+	}
+}
+
+func (NUMA) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                        "+k8s:openapi-gen=true",
+		"guestMappingPassthrough": "GuestMappingPassthrough will create an efficient guest topology based on host CPUs exclusively assigned to a pod.\nThe created topology ensures that memory and CPUs on the virtual numa nodes never cross boundaries of host numa nodes.\n+opitonal",
 	}
 }
 
@@ -168,7 +207,7 @@ func (Hugepages) SwaggerDoc() map[string]string {
 func (Machine) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":     "+k8s:openapi-gen=true",
-		"type": "QEMU machine type is the actual chipset of the VirtualMachineInstance.",
+		"type": "QEMU machine type is the actual chipset of the VirtualMachineInstance.\n+optional",
 	}
 }
 
@@ -178,6 +217,7 @@ func (Firmware) SwaggerDoc() map[string]string {
 		"uuid":       "UUID reported by the vmi bios.\nDefaults to a random generated uid.",
 		"bootloader": "Settings to control the bootloader that is used.\n+optional",
 		"serial":     "The system-serial-number in SMBIOS",
+		"kernelBoot": "Settings to set the kernel for booting.\n+optional",
 	}
 }
 
@@ -200,6 +240,13 @@ func (Devices) SwaggerDoc() map[string]string {
 		"gpus":                       "Whether to attach a GPU device to the vmi.\n+optional\n+listType=atomic",
 		"filesystems":                "Filesystems describes filesystem which is connected to the vmi.\n+optional\n+listType=atomic",
 		"hostDevices":                "Whether to attach a host device to the vmi.\n+optional\n+listType=atomic",
+		"clientPassthrough":          "To configure and access client devices such as redirecting USB\n+optional",
+	}
+}
+
+func (ClientPassthroughDevices) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "Represent a subset of client devices that can be accessed by VMI. At the\nmoment only, USB devices using Usbredir's library and tooling. Another fit\nwould be a smartcard with libcacard.\n\nThe struct is currently empty as there is no imediate request for\nuser-facing APIs. This structure simply turns on USB redirection of\nUsbClientPassthroughMaxNumberOf devices.\n\n+k8s:openapi-gen=true",
 	}
 }
 
@@ -250,6 +297,19 @@ func (Disk) SwaggerDoc() map[string]string {
 		"cache":             "Cache specifies which kvm disk cache mode should be used.\nSupported values are: CacheNone, CacheWriteThrough.\n+optional",
 		"io":                "IO specifies which QEMU disk IO mode should be used.\nSupported values are: native, default, threads.\n+optional",
 		"tag":               "If specified, disk address and its tag will be provided to the guest via config drive metadata\n+optional",
+		"blockSize":         "If specified, the virtual disk will be presented with the given block sizes.\n+optional",
+	}
+}
+
+func (CustomBlockSize) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "CustomBlockSize represents the desired logical and physical block size for a VM disk.\n\n+k8s:openapi-gen=true",
+	}
+}
+
+func (BlockSize) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "BlockSize provides the option to change the block size presented to the VM for a disk.\nOnly one of its members may be specified.\n\n+k8s:openapi-gen=true",
 	}
 }
 
@@ -320,6 +380,7 @@ func (VolumeSource) SwaggerDoc() map[string]string {
 		"secret":                "SecretVolumeSource represents a reference to a secret data in the same namespace.\nMore info: https://kubernetes.io/docs/concepts/configuration/secret/\n+optional",
 		"downwardAPI":           "DownwardAPI represents downward API about the pod that should populate this volume\n+optional",
 		"serviceAccount":        "ServiceAccountVolumeSource represents a reference to a service account.\nThere can only be one volume of this type!\nMore info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/\n+optional",
+		"downwardMetrics":       "DownwardMetrics adds a very small disk to VMIs which contains a limited view of host and guest\nmetrics. The disk content is compatible with vhostmd (https://github.com/vhostmd/vhostmd) and vm-dump-metrics.",
 	}
 }
 
@@ -709,8 +770,9 @@ func (NetworkSource) SwaggerDoc() map[string]string {
 
 func (PodNetwork) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":              "Represents the stock pod network interface.\n\n+k8s:openapi-gen=true",
-		"vmNetworkCIDR": "CIDR for vm network.\nDefault 10.0.2.0/24 if not specified.",
+		"":                  "Represents the stock pod network interface.\n\n+k8s:openapi-gen=true",
+		"vmNetworkCIDR":     "CIDR for vm network.\nDefault 10.0.2.0/24 if not specified.",
+		"vmIPv6NetworkCIDR": "IPv6 CIDR for the vm network.\nDefaults to fd10:0:2::/120 if not specified.",
 	}
 }
 

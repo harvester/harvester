@@ -28,7 +28,7 @@ func ReadNetTCPSockets(path string, ip NetIPDecoder) (*NetTCPSockets, error) {
 		return nil, err
 	}
 
-	lines := strings.Split(string(b), "\n")
+	lines := strings.Split(strings.TrimRight(string(b), "\n "), "\n")
 
 	tcp := &NetTCPSockets{}
 
@@ -37,10 +37,6 @@ func ReadNetTCPSockets(path string, ip NetIPDecoder) (*NetTCPSockets, error) {
 		line := lines[i]
 
 		f := strings.Fields(line)
-
-		if len(f) < 17 {
-			continue
-		}
 
 		s, err := parseNetSocket(f, ip)
 
@@ -53,26 +49,30 @@ func ReadNetTCPSockets(path string, ip NetIPDecoder) (*NetTCPSockets, error) {
 			NetSocket: *s,
 		}
 
-		if e.RetransmitTimeout, err = strconv.ParseUint(f[12], 10, 64); err != nil {
-			return nil, err
-		}
+		// Depending on socket state, the number of fields presented is either
+		// 12 or 17.
+		if len(f) >= 17 {
+			if e.RetransmitTimeout, err = strconv.ParseUint(f[12], 10, 64); err != nil {
+				return nil, err
+			}
 
-		if e.PredictedTick, err = strconv.ParseUint(f[13], 10, 64); err != nil {
-			return nil, err
-		}
+			if e.PredictedTick, err = strconv.ParseUint(f[13], 10, 64); err != nil {
+				return nil, err
+			}
 
-		if n, err = strconv.ParseInt(f[14], 10, 8); err != nil {
-			return nil, err
-		}
-		e.AckQuick = uint8(n >> 1)
-		e.AckPingpong = ((n & 1) == 1)
+			if n, err = strconv.ParseInt(f[14], 10, 8); err != nil {
+				return nil, err
+			}
+			e.AckQuick = uint8(n >> 1)
+			e.AckPingpong = ((n & 1) == 1)
 
-		if e.SendingCongestionWindow, err = strconv.ParseUint(f[15], 10, 64); err != nil {
-			return nil, err
-		}
+			if e.SendingCongestionWindow, err = strconv.ParseUint(f[15], 10, 64); err != nil {
+				return nil, err
+			}
 
-		if e.SlowStartSizeThreshold, err = strconv.ParseInt(f[16], 10, 32); err != nil {
-			return nil, err
+			if e.SlowStartSizeThreshold, err = strconv.ParseInt(f[16], 10, 32); err != nil {
+				return nil, err
+			}
 		}
 
 		tcp.Sockets = append(tcp.Sockets, *e)

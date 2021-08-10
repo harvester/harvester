@@ -10,13 +10,29 @@ func (DataVolume) SwaggerDoc() map[string]string {
 
 func (DataVolumeSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                "DataVolumeSpec defines the DataVolume type specification",
-		"source":          "Source is the src of the data for the requested DataVolume",
-		"pvc":             "PVC is the PVC specification",
-		"contentType":     "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
-		"checkpoints":     "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
-		"finalCheckpoint": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
-		"preallocation":   "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+		"":                  "DataVolumeSpec defines the DataVolume type specification",
+		"source":            "Source is the src of the data for the requested DataVolume\n+optional",
+		"sourceRef":         "SourceRef is an indirect reference to the source of data for the requested DataVolume\n+optional",
+		"pvc":               "PVC is the PVC specification",
+		"storage":           "Storage is the requested storage specification",
+		"priorityClassName": "PriorityClassName for Importer, Cloner and Uploader pod",
+		"contentType":       "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
+		"checkpoints":       "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+		"finalCheckpoint":   "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+		"preallocation":     "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+	}
+}
+
+func (StorageSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                 "StorageSpec defines the Storage type specification",
+		"accessModes":      "AccessModes contains the desired access modes the volume should have.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1\n+optional",
+		"selector":         "A label query over volumes to consider for binding.\n+optional",
+		"resources":        "Resources represents the minimum resources the volume should have.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources\n+optional",
+		"volumeName":       "VolumeName is the binding reference to the PersistentVolume backing this claim.\n+optional",
+		"storageClassName": "Name of the StorageClass required by the claim.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1\n+optional",
+		"volumeMode":       "volumeMode defines what type of volume is required by the claim.\nValue of Filesystem is implied when not included in claim spec.\n+optional",
+		"dataSource":       "This field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot) * An existing PVC (PersistentVolumeClaim) * An existing custom resource that implements data population (Alpha) In order to use custom resource types that implement data population, the AnyVolumeDataSource feature gate must be enabled. If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source.\n+optional",
 	}
 }
 
@@ -102,6 +118,15 @@ func (DataVolumeSourceVDDK) SwaggerDoc() map[string]string {
 	}
 }
 
+func (DataVolumeSourceRef) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":          "DataVolumeSourceRef defines an indirect reference to the source of data for the DataVolume",
+		"kind":      "The kind of the source reference, currently only \"DataSource\" is supported",
+		"namespace": "The namespace of the source reference, defaults to the DataVolume namespace\n+optional",
+		"name":      "The name of the source reference",
+	}
+}
+
 func (DataVolumeStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":             "DataVolumeStatus contains the current status of the DataVolume",
@@ -157,6 +182,89 @@ func (StorageProfileList) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":      "StorageProfileList provides the needed parameters to request a list of StorageProfile from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
 		"items": "Items provides a list of StorageProfile",
+	}
+}
+
+func (DataSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataSource references an import/clone source for a DataVolume\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion",
+	}
+}
+
+func (DataSourceSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":       "DataSourceSpec defines specification for DataSource",
+		"source": "Source is the source of the data referenced by the DataSource",
+	}
+}
+
+func (DataSourceSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":    "DataSourceSource represents the source for our DataSource",
+		"pvc": "+optional",
+	}
+}
+
+func (DataSourceStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataSourceStatus provides the most recently observed status of the DataSource",
+	}
+}
+
+func (DataSourceCondition) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataSourceCondition represents the state of a data source condition",
+	}
+}
+
+func (DataSourceList) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":      "DataSourceList provides the needed parameters to do request a list of Data Sources from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+		"items": "Items provides a list of DataSources",
+	}
+}
+
+func (DataImportCron) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataImportCron defines a cron job for recurring polling/importing disk images as PVCs into a golden image namespace\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion",
+	}
+}
+
+func (DataImportCronSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                  "DataImportCronSpec defines specification for DataImportCron",
+		"source":            "Source specifies where to poll disk images from",
+		"schedule":          "Schedule specifies in cron format when and how often to look for new imports",
+		"garbageCollect":    "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.\nOptions are currently \"Never\" and \"Outdated\", defaults to \"Never\".\n+optional",
+		"managedDataSource": "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.\nDataSource has to be in the same namespace.",
+	}
+}
+
+func (DataImportCronSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataImportCronSource defines where to poll and import disk images from",
+	}
+}
+
+func (DataImportCronStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                       "DataImportCronStatus provides the most recently observed status of the DataImportCron",
+		"lastImportedPVC":        "LastImportedPVC is the last imported PVC",
+		"lastExecutionTimestamp": "LastExecutionTimestamp is the time of the last polling",
+		"lastImportTimestamp":    "LastImportTimestamp is the time of the last import",
+	}
+}
+
+func (DataImportCronCondition) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataImportCronCondition represents the state of a data import cron condition",
+	}
+}
+
+func (DataImportCronList) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":      "DataImportCronList provides the needed parameters to do request a list of DataImportCrons from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+		"items": "Items provides a list of DataImportCrons",
 	}
 }
 
@@ -233,6 +341,7 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"featureGates":             "FeatureGates are a list of specific enabled feature gates",
 		"filesystemOverhead":       "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
 		"preallocation":            "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+		"insecureRegistries":       "InsecureRegistries is a list of TLS disabled registries",
 	}
 }
 

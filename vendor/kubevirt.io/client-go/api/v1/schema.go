@@ -114,6 +114,13 @@ type ServiceAccountVolumeSource struct {
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 }
 
+// DownwardMetricsVolumeSource adds a very small disk to VMIs which contains a limited view of host and guest
+// metrics. The disk content is compatible with vhostmd (https://github.com/vhostmd/vhostmd) and vm-dump-metrics.
+//
+// +k8s:openapi-gen=true
+type DownwardMetricsVolumeSource struct {
+}
+
 // Represents a Sysprep volume source.
 //
 // +k8s:openapi-gen=true
@@ -189,7 +196,7 @@ type DomainSpec struct {
 	Memory *Memory `json:"memory,omitempty"`
 	// Machine type.
 	// +optional
-	Machine Machine `json:"machine,omitempty"`
+	Machine *Machine `json:"machine,omitempty"`
 	// Firmware.
 	// +optional
 	Firmware *Firmware `json:"firmware,omitempty"`
@@ -256,6 +263,41 @@ type EFI struct {
 	SecureBoot *bool `json:"secureBoot,omitempty"`
 }
 
+// If set, the VM will be booted from the defined kernel / initrd.
+//
+// +k8s:openapi-gen=true
+type KernelBootContainer struct {
+	// Image that container initrd / kernel files.
+	Image string `json:"image"`
+	// ImagePullSecret is the name of the Docker registry secret required to pull the image. The secret must already exist.
+	//+optional
+	ImagePullSecret string `json:"imagePullSecret,omitempty"`
+	// Image pull policy.
+	// One of Always, Never, IfNotPresent.
+	// Defaults to Always if :latest tag is specified, or IfNotPresent otherwise.
+	// Cannot be updated.
+	// More info: https://kubernetes.io/docs/concepts/containers/images#updating-images
+	// +optional
+	ImagePullPolicy v1.PullPolicy `json:"imagePullPolicy,omitempty"`
+	// The fully-qualified path to the kernel image in the host OS
+	//+optional
+	KernelPath string `json:"kernelPath,omitempty"`
+	// the fully-qualified path to the ramdisk image in the host OS
+	//+optional
+	InitrdPath string `json:"initrdPath,omitempty"`
+}
+
+// Represents the firmware blob used to assist in the kernel boot process.
+// Used for setting the kernel, initrd and command line arguments
+//
+// +k8s:openapi-gen=true
+type KernelBoot struct {
+	// Arguments to be passed to the kernel at boot time
+	KernelArgs string `json:"kernelArgs,omitempty"`
+	// Container defines the container that containes kernel artifacts
+	Container *KernelBootContainer `json:"container,omitempty"`
+}
+
 //
 // +k8s:openapi-gen=true
 type ResourceRequirements struct {
@@ -300,10 +342,30 @@ type CPU struct {
 	// with enough dedicated pCPUs and pin the vCPUs to it.
 	// +optional
 	DedicatedCPUPlacement bool `json:"dedicatedCpuPlacement,omitempty"`
+
+	// NUMA allows specifying settings for the guest NUMA topology
+	// +optional
+	NUMA *NUMA `json:"numa,omitempty"`
+
 	// IsolateEmulatorThread requests one more dedicated pCPU to be allocated for the VMI to place
 	// the emulator thread on it.
 	// +optional
 	IsolateEmulatorThread bool `json:"isolateEmulatorThread,omitempty"`
+}
+
+// NUMAGuestMappingPassthrough instructs kubevirt to model numa topology which is compatible with the CPU pinning on the guest.
+// This will result in a subset of the node numa topology being passed through, ensuring that virtual numa nodes and their memory
+// never cross boundaries coming from the node numa mapping.
+// +k8s:openapi-gen=true
+type NUMAGuestMappingPassthrough struct {
+}
+
+// +k8s:openapi-gen=true
+type NUMA struct {
+	// GuestMappingPassthrough will create an efficient guest topology based on host CPUs exclusively assigned to a pod.
+	// The created topology ensures that memory and CPUs on the virtual numa nodes never cross boundaries of host numa nodes.
+	// +opitonal
+	GuestMappingPassthrough *NUMAGuestMappingPassthrough `json:"guestMappingPassthrough,omitempty"`
 }
 
 // CPUFeature allows specifying a CPU feature.
@@ -349,6 +411,7 @@ type Hugepages struct {
 // +k8s:openapi-gen=true
 type Machine struct {
 	// QEMU machine type is the actual chipset of the VirtualMachineInstance.
+	// +optional
 	Type string `json:"type"`
 }
 
@@ -363,6 +426,9 @@ type Firmware struct {
 	Bootloader *Bootloader `json:"bootloader,omitempty"`
 	// The system-serial-number in SMBIOS
 	Serial string `json:"serial,omitempty"`
+	// Settings to set the kernel for booting.
+	// +optional
+	KernelBoot *KernelBoot `json:"kernelBoot,omitempty"`
 }
 
 //
@@ -417,7 +483,27 @@ type Devices struct {
 	// +optional
 	// +listType=atomic
 	HostDevices []HostDevice `json:"hostDevices,omitempty"`
+	// To configure and access client devices such as redirecting USB
+	// +optional
+	ClientPassthrough *ClientPassthroughDevices `json:"clientPassthrough,omitempty"`
 }
+
+// Represent a subset of client devices that can be accessed by VMI. At the
+// moment only, USB devices using Usbredir's library and tooling. Another fit
+// would be a smartcard with libcacard.
+//
+// The struct is currently empty as there is no imediate request for
+// user-facing APIs. This structure simply turns on USB redirection of
+// UsbClientPassthroughMaxNumberOf devices.
+//
+// +k8s:openapi-gen=true
+type ClientPassthroughDevices struct {
+}
+
+// Represents the upper limit allowed by QEMU + KubeVirt.
+const (
+	UsbClientPassthroughMaxNumberOf = 4
+)
 
 //
 // +k8s:openapi-gen=true
@@ -494,6 +580,26 @@ type Disk struct {
 	// If specified, disk address and its tag will be provided to the guest via config drive metadata
 	// +optional
 	Tag string `json:"tag,omitempty"`
+	// If specified, the virtual disk will be presented with the given block sizes.
+	// +optional
+	BlockSize *BlockSize `json:"blockSize,omitempty"`
+}
+
+// CustomBlockSize represents the desired logical and physical block size for a VM disk.
+//
+// +k8s:openapi-gen=true
+type CustomBlockSize struct {
+	Logical  uint `json:"logical"`
+	Physical uint `json:"physical"`
+}
+
+// BlockSize provides the option to change the block size presented to the VM for a disk.
+// Only one of its members may be specified.
+//
+// +k8s:openapi-gen=true
+type BlockSize struct {
+	Custom      *CustomBlockSize `json:"custom,omitempty"`
+	MatchVolume *FeatureState    `json:"matchVolume,omitempty"`
 }
 
 // Represents the target of a volume to mount.
@@ -647,6 +753,9 @@ type VolumeSource struct {
 	// More info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
 	// +optional
 	ServiceAccount *ServiceAccountVolumeSource `json:"serviceAccount,omitempty"`
+	// DownwardMetrics adds a very small disk to VMIs which contains a limited view of host and guest
+	// metrics. The disk content is compatible with vhostmd (https://github.com/vhostmd/vhostmd) and vm-dump-metrics.
+	DownwardMetrics *DownwardMetricsVolumeSource `json:"downwardMetrics,omitempty"`
 }
 
 // HotplugVolumeSource Represents the source of a volume to mount which are capable
@@ -1348,6 +1457,10 @@ type PodNetwork struct {
 	// CIDR for vm network.
 	// Default 10.0.2.0/24 if not specified.
 	VMNetworkCIDR string `json:"vmNetworkCIDR,omitempty"`
+
+	// IPv6 CIDR for the vm network.
+	// Defaults to fd10:0:2::/120 if not specified.
+	VMIPv6NetworkCIDR string `json:"vmIPv6NetworkCIDR,omitempty"`
 }
 
 // Rng represents the random device passed from host
