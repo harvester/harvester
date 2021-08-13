@@ -3,35 +3,25 @@ package rancher
 import (
 	"context"
 
+	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
+
 	"github.com/harvester/harvester/pkg/config"
 )
 
-const (
-	controllerRancherName = "harvester-rancher-controller"
-)
+const controllerRancherName = "harvester-rancher-controller"
+
+type Handler struct {
+	RancherSettings rancherv3.SettingClient
+}
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	if options.RancherEmbedded {
-		secrets := management.CoreFactory.Core().V1().Secret()
 		rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
-		settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
-		nodeDrivers := management.RancherManagementFactory.Management().V3().NodeDriver()
 		h := Handler{
-			Secrets:         secrets,
-			SecretCache:     secrets.Cache(),
 			RancherSettings: rancherSettings,
-			Settings:        settings,
-			NodeDrivers:     nodeDrivers,
 		}
 
-		// add Rancher private CA
-		go h.registerPrivateCA(ctx)
-
-		if _, err := h.AddHarvesterNodeDriver(); err != nil {
-			return err
-		}
-
-		rancherSettings.OnChange(ctx, controllerRancherName, h.SettingOnChange)
+		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
 	}
 	return nil
 }
