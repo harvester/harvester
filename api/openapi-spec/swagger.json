@@ -7058,8 +7058,8 @@
     "harvesterhci.io.v1beta1.VirtualMachineImageSpec": {
       "type": "object",
       "required": [
-        "url",
-        "displayName"
+        "displayName",
+        "sourceType"
       ],
       "properties": {
         "description": {
@@ -7069,8 +7069,9 @@
           "type": "string",
           "default": ""
         },
-        "secretRef": {
-          "type": "string"
+        "sourceType": {
+          "type": "string",
+          "default": ""
         },
         "url": {
           "type": "string",
@@ -7090,6 +7091,10 @@
             "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Condition"
           }
+        },
+        "progress": {
+          "type": "integer",
+          "format": "int32"
         },
         "size": {
           "type": "integer",

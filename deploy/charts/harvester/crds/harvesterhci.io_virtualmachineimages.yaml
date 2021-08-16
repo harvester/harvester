@@ -21,15 +21,7 @@ spec:
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.displayName
-      name: DISPLAY_NAME
-      priority: 8
-      type: string
-    - jsonPath: .spec.description
-      name: DESCRIPTION
-      priority: 10
-      type: string
-    - jsonPath: .spec.url
-      name: URL
+      name: DISPLAY-NAME
       type: string
     - jsonPath: .status.size
       name: SIZE
@@ -59,13 +51,16 @@ spec:
                 type: string
               displayName:
                 type: string
-              secretRef:
+              sourceType:
+                enum:
+                - download
+                - upload
                 type: string
               url:
                 type: string
             required:
             - displayName
-            - url
+            - sourceType
             type: object
           status:
             properties:
@@ -99,6 +94,8 @@ spec:
                   - type
                   type: object
                 type: array
+              progress:
+                type: integer
               size:
                 format: int64
                 type: integer

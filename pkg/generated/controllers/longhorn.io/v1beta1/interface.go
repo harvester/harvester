@@ -30,6 +30,8 @@ func init() {
 }
 
 type Interface interface {
+	BackingImage() BackingImageController
+	BackingImageDataSource() BackingImageDataSourceController
 	Setting() SettingController
 	Volume() VolumeController
 }
@@ -44,6 +46,12 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
+func (c *version) BackingImage() BackingImageController {
+	return NewBackingImageController(schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta1", Kind: "BackingImage"}, "backingimages", true, c.controllerFactory)
+}
+func (c *version) BackingImageDataSource() BackingImageDataSourceController {
+	return NewBackingImageDataSourceController(schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta1", Kind: "BackingImageDataSource"}, "backingimagedatasources", true, c.controllerFactory)
+}
 func (c *version) Setting() SettingController {
 	return NewSettingController(schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta1", Kind: "Setting"}, "settings", true, c.controllerFactory)
 }
