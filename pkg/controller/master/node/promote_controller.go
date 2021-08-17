@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rancher/wrangler/pkg/condition"
 	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
@@ -65,7 +66,7 @@ var (
 
 // PromoteHandler
 type PromoteHandler struct {
-	nodes     ctlcorev1.NodeClient
+	nodes     ctlcorev1.NodeController
 	nodeCache ctlcorev1.NodeCache
 	jobs      ctlbatchv1.JobClient
 	jobCache  ctlbatchv1.JobCache
@@ -109,6 +110,14 @@ func (h *PromoteHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.N
 
 	promoteNode := selectPromoteNode(nodeList)
 	if promoteNode == nil {
+		return node, nil
+	}
+
+	// wait until node metadata show up. Sometimes the metadata are empty
+	// during the starting of nodes. If the metadata are empty, promotion
+	// jobs creation call will fail.
+	if promoteNode.Kind == "" || promoteNode.APIVersion == "" {
+		h.nodes.EnqueueAfter(node.Name, time.Second*10)
 		return node, nil
 	}
 
