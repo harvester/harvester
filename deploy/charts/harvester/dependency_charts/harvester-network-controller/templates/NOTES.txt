@@ -1,1 +1,0 @@
-The harvester-network-controller has been installed into "{{ .Release.Namespace }}" namespace.
