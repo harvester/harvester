@@ -45,9 +45,28 @@ var _ = Describe("verify image APIs", func() {
 						Namespace:    imageNamespace,
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
-						URL: "http://harvesterhci.io/test.img",
+						SourceType: harvesterv1.VirtualMachineImageSourceTypeDownload,
+						URL:        "http://harvesterhci.io/test.img",
 					},
 				}
+				respCode, respBody, err := helper.PostObject(imageAPI, image)
+				MustRespCodeIs(http.StatusUnprocessableEntity, "post image", err, respCode, respBody)
+			})
+
+			By("create an image with empty source type", func() {
+				var (
+					imageDisplayName = fuzz.String(5)
+					image            = harvesterv1.VirtualMachineImage{
+						ObjectMeta: v1.ObjectMeta{
+							GenerateName: "image-",
+							Namespace:    imageNamespace,
+						},
+						Spec: harvesterv1.VirtualMachineImageSpec{
+							DisplayName: imageDisplayName,
+							URL:         "http://harvesterhci.io/test.img",
+						},
+					}
+				)
 				respCode, respBody, err := helper.PostObject(imageAPI, image)
 				MustRespCodeIs(http.StatusUnprocessableEntity, "post image", err, respCode, respBody)
 			})
@@ -72,6 +91,7 @@ var _ = Describe("verify image APIs", func() {
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						Description: "test description",
 						DisplayName: imageDisplayName,
+						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
@@ -113,6 +133,7 @@ var _ = Describe("verify image APIs", func() {
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						Description: "test description",
 						DisplayName: imageDisplayName,
+						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
@@ -154,6 +175,7 @@ var _ = Describe("verify image APIs", func() {
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						Description: "test description",
 						DisplayName: imageDisplayName,
+						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
@@ -172,6 +194,7 @@ var _ = Describe("verify image APIs", func() {
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						Description: "test description update",
 						DisplayName: imageDisplayName,
+						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:         "http://harvesterhci.io/test-update.img",
 					},
 				}
@@ -233,6 +256,7 @@ var _ = Describe("verify image APIs", func() {
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						DisplayName: imageDisplayName,
+						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
@@ -265,6 +289,7 @@ var _ = Describe("verify image APIs", func() {
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						DisplayName: imageDisplayName,
+						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
@@ -299,6 +324,7 @@ var _ = Describe("verify image APIs", func() {
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						DisplayName: imageDisplayName,
+						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:         cirrosURL,
 					},
 				}
@@ -320,7 +346,6 @@ var _ = Describe("verify image APIs", func() {
 				return harvesterv1.ImageInitialized.IsTrue(retImage)
 			}, 1*time.Minute, 1*time.Second)
 		})
-
 	})
 
 })
