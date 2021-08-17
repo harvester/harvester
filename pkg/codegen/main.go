@@ -67,6 +67,8 @@ func main() {
 			},
 			longhornv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
+					longhornv1.BackingImage{},
+					longhornv1.BackingImageDataSource{},
 					longhornv1.Volume{},
 					longhornv1.Setting{},
 				},
