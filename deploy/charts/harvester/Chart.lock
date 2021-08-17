@@ -6,7 +6,7 @@ dependencies:
   repository: file://dependency_charts/kubevirt
   version: 0.1.0
 - name: harvester-network-controller
-  repository: file://dependency_charts/harvester-network-controller
+  repository: https://charts.harvesterhci.io
   version: 0.1.0
 - name: multus
   repository: file://dependency_charts/multus
@@ -17,5 +17,5 @@ dependencies:
 - name: longhorn
   repository: https://charts.longhorn.io
   version: 1.1.2
-digest: sha256:b5caa45c61eb8cc47307d236c45042e113c06feae7b44ec2cd07a10853d24437
-generated: "2021-08-04T14:45:43.485096+08:00"
+digest: sha256:31d4a61410ae41898a58dabda1d6f3bf3924a7dc94a5f91daa52bc19e9b902bb
+generated: "2021-08-17T18:40:44.87553+08:00"

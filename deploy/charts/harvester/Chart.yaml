@@ -28,7 +28,7 @@ dependencies:
       - crd
   - name: harvester-network-controller
     version: 0.1.0
-    repository: file://dependency_charts/harvester-network-controller
+    repository: https://charts.harvesterhci.io
     condition: harvester-network-controller.enabled
   - name: multus
     version: 0.1.0
