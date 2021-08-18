@@ -99,7 +99,9 @@ func (v *VMBuilder) Namespace(namespace string) *VMBuilder {
 }
 
 func (v *VMBuilder) MachineType(machineType string) *VMBuilder {
-	v.VirtualMachine.Spec.Template.Spec.Domain.Machine.Type = machineType
+	v.VirtualMachine.Spec.Template.Spec.Domain.Machine = &kubevirtv1.Machine{
+		Type: machineType,
+	}
 	return v
 }
 
