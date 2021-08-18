@@ -5,7 +5,7 @@
     "version": "v1beta1"
   },
   "paths": {
-    "/apis//v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/persistentvolumeclaims": {
+    "/api/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/persistentvolumeclaims": {
       "get": {
         "description": "Get a list of PersistentVolumeClaim objects in a namespace.",
         "produces": [
@@ -152,7 +152,7 @@
         }
       ]
     },
-    "/apis//v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/persistentvolumeclaims/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/api/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/persistentvolumeclaims/{name:[a-z0-9][a-z0-9\\-]*}": {
       "get": {
         "description": "Get a PersistentVolumeClaim object.",
         "produces": [
@@ -357,7 +357,7 @@
         }
       ]
     },
-    "/apis//v1/persistentvolumeclaims": {
+    "/api/v1/persistentvolumeclaims": {
       "get": {
         "description": "Get a list of all PersistentVolumeClaim objects.",
         "produces": [
@@ -5503,92 +5503,6 @@
     },
     "/apis/network.harvesterhci.io/v1beta1/clusternetworks": {
       "get": {
-        "description": "Get a list of all ClusterNetwork objects.",
-        "produces": [
-          "application/json",
-          "application/yaml",
-          "application/json;stream=watch"
-        ],
-        "tags": [
-          "Networks"
-        ],
-        "operationId": "listClusterNetworkForAllNamespaces",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetworkList"
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "schema": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "parameters": [
-        {
-          "uniqueItems": true,
-          "type": "string",
-          "description": "The continue option should be set when retrieving more results from the server. Since this value is server defined, clients may only use the continue value from a previous query result with identical query parameters (except for the value of continue) and the server may reject a continue value it does not recognize. If the specified continue value is no longer valid whether due to expiration (generally five to fifteen minutes) or a configuration change on the server the server will respond with a 410 ResourceExpired error indicating the client must restart their list without the continue field. This field is not supported when watch is true. Clients may start a watch from the last resourceVersion value returned by the server and not miss any modifications.",
-          "name": "continue",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "string",
-          "description": "A selector to restrict the list of returned objects by their fields. Defaults to everything.",
-          "name": "fieldSelector",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "boolean",
-          "description": "If true, partially initialized resources are included in the response.",
-          "name": "includeUninitialized",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "string",
-          "description": "A selector to restrict the list of returned objects by their labels. Defaults to everything",
-          "name": "labelSelector",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "integer",
-          "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
-          "name": "limit",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "string",
-          "description": "When specified with a watch call, shows changes that occur after that particular version of a resource. Defaults to changes from the beginning of history.",
-          "name": "resourceVersion",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "integer",
-          "description": "TimeoutSeconds for the list/watch call.",
-          "name": "timeoutSeconds",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "boolean",
-          "description": "Watch for changes to the described resources and return them as a stream of add, update, and remove notifications. Specify resourceVersion.",
-          "name": "watch",
-          "in": "query"
-        }
-      ]
-    },
-    "/apis/network.harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/clusternetworks": {
-      "get": {
         "description": "Get a list of ClusterNetwork objects in a namespace.",
         "produces": [
           "application/json",
@@ -5634,6 +5548,14 @@
             "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
             "name": "limit",
             "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "Object name and auth scope, such as for teams and projects",
+            "name": "namespace",
+            "in": "path",
+            "required": true
           },
           {
             "uniqueItems": true,
@@ -5694,6 +5616,14 @@
             "schema": {
               "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetwork"
             }
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "Object name and auth scope, such as for teams and projects",
+            "name": "namespace",
+            "in": "path",
+            "required": true
           }
         ],
         "responses": {
@@ -5722,19 +5652,9 @@
             }
           }
         }
-      },
-      "parameters": [
-        {
-          "uniqueItems": true,
-          "type": "string",
-          "description": "Object name and auth scope, such as for teams and projects",
-          "name": "namespace",
-          "in": "path",
-          "required": true
-        }
-      ]
+      }
     },
-    "/apis/network.harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/clusternetworks/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/network.harvesterhci.io/v1beta1/clusternetworks/{name:[a-z0-9][a-z0-9\\-]*}": {
       "get": {
         "description": "Get a ClusterNetwork object.",
         "produces": [
@@ -5939,7 +5859,7 @@
         }
       ]
     },
-    "/apis/network.harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/nodenetworks": {
+    "/apis/network.harvesterhci.io/v1beta1/nodenetworks": {
       "get": {
         "description": "Get a list of NodeNetwork objects in a namespace.",
         "produces": [
@@ -5986,6 +5906,14 @@
             "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
             "name": "limit",
             "in": "query"
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "Object name and auth scope, such as for teams and projects",
+            "name": "namespace",
+            "in": "path",
+            "required": true
           },
           {
             "uniqueItems": true,
@@ -6046,6 +5974,14 @@
             "schema": {
               "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetwork"
             }
+          },
+          {
+            "uniqueItems": true,
+            "type": "string",
+            "description": "Object name and auth scope, such as for teams and projects",
+            "name": "namespace",
+            "in": "path",
+            "required": true
           }
         ],
         "responses": {
@@ -6074,19 +6010,9 @@
             }
           }
         }
-      },
-      "parameters": [
-        {
-          "uniqueItems": true,
-          "type": "string",
-          "description": "Object name and auth scope, such as for teams and projects",
-          "name": "namespace",
-          "in": "path",
-          "required": true
-        }
-      ]
+      }
     },
-    "/apis/network.harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/nodenetworks/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/network.harvesterhci.io/v1beta1/nodenetworks/{name:[a-z0-9][a-z0-9\\-]*}": {
       "get": {
         "description": "Get a NodeNetwork object.",
         "produces": [
@@ -6288,92 +6214,6 @@
           "name": "namespace",
           "in": "path",
           "required": true
-        }
-      ]
-    },
-    "/apis/network.harvesterhci.io/v1beta1/nodenetworks": {
-      "get": {
-        "description": "Get a list of all NodeNetwork objects.",
-        "produces": [
-          "application/json",
-          "application/yaml",
-          "application/json;stream=watch"
-        ],
-        "tags": [
-          "Networks"
-        ],
-        "operationId": "listNodeNetworkForAllNamespaces",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NodeNetworkList"
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "schema": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "parameters": [
-        {
-          "uniqueItems": true,
-          "type": "string",
-          "description": "The continue option should be set when retrieving more results from the server. Since this value is server defined, clients may only use the continue value from a previous query result with identical query parameters (except for the value of continue) and the server may reject a continue value it does not recognize. If the specified continue value is no longer valid whether due to expiration (generally five to fifteen minutes) or a configuration change on the server the server will respond with a 410 ResourceExpired error indicating the client must restart their list without the continue field. This field is not supported when watch is true. Clients may start a watch from the last resourceVersion value returned by the server and not miss any modifications.",
-          "name": "continue",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "string",
-          "description": "A selector to restrict the list of returned objects by their fields. Defaults to everything.",
-          "name": "fieldSelector",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "boolean",
-          "description": "If true, partially initialized resources are included in the response.",
-          "name": "includeUninitialized",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "string",
-          "description": "A selector to restrict the list of returned objects by their labels. Defaults to everything",
-          "name": "labelSelector",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "integer",
-          "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
-          "name": "limit",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "string",
-          "description": "When specified with a watch call, shows changes that occur after that particular version of a resource. Defaults to changes from the beginning of history.",
-          "name": "resourceVersion",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "integer",
-          "description": "TimeoutSeconds for the list/watch call.",
-          "name": "timeoutSeconds",
-          "in": "query"
-        },
-        {
-          "uniqueItems": true,
-          "type": "boolean",
-          "description": "Watch for changes to the described resources and return them as a stream of add, update, and remove notifications. Specify resourceVersion.",
-          "name": "watch",
-          "in": "query"
         }
       ]
     }
@@ -11545,8 +11385,9 @@
         "mac": {
           "type": "string"
         },
-        "master": {
-          "type": "string"
+        "masterIndex": {
+          "type": "integer",
+          "format": "int32"
         },
         "promiscuous": {
           "type": "boolean"
@@ -11563,6 +11404,47 @@
         },
         "type": {
           "type": "string"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.NIC": {
+      "type": "object",
+      "required": [
+        "index",
+        "name",
+        "type",
+        "state"
+      ],
+      "properties": {
+        "index": {
+          "description": "Index of the NIC",
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        },
+        "masterIndex": {
+          "description": "Index of the NIC's master",
+          "type": "integer",
+          "format": "int32"
+        },
+        "name": {
+          "description": "Name of the NIC",
+          "type": "string",
+          "default": ""
+        },
+        "state": {
+          "description": "State of the NIC, up/down/unknown",
+          "type": "string",
+          "default": ""
+        },
+        "type": {
+          "description": "Interface type of the NIC",
+          "type": "string",
+          "default": ""
+        },
+        "usedByManagementNetwork": {
+          "description": "Specify whether used by management network or not",
+          "type": "boolean"
         }
       }
     },
@@ -11671,27 +11553,12 @@
             "$ref": "#/definitions/network.harvesterhci.io.v1beta1.LinkStatus"
           }
         },
-        "physicalNICs": {
+        "nics": {
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.PhysicalNic"
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NIC"
           }
-        }
-      }
-    },
-    "network.harvesterhci.io.v1beta1.PhysicalNic": {
-      "type": "object",
-      "properties": {
-        "index": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "name": {
-          "type": "string"
-        },
-        "usedByManagementNetwork": {
-          "type": "boolean"
         }
       }
     }
