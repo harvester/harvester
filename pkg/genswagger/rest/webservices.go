@@ -34,8 +34,8 @@ func AggregatedWebServices() []*restful.WebService {
 	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "supportbundles", &v1beta1.SupportBundle{}, "SupportBundle", &v1beta1.SupportBundleList{})
 
 	harvesterNetworkv1beta1API := NewGroupVersionWebService(networkv1beta1.SchemeGroupVersion)
-	AddGenericNamespacedResourceRoutes(harvesterNetworkv1beta1API, "clusternetworks", &networkv1beta1.ClusterNetwork{}, "ClusterNetwork", &networkv1beta1.ClusterNetworkList{})
-	AddGenericNamespacedResourceRoutes(harvesterNetworkv1beta1API, "nodenetworks", &networkv1beta1.NodeNetwork{}, "NodeNetwork", &networkv1beta1.NodeNetworkList{})
+	AddGenericNonNamespacedResourceRoutes(harvesterNetworkv1beta1API, "clusternetworks", &networkv1beta1.ClusterNetwork{}, "ClusterNetwork", &networkv1beta1.ClusterNetworkList{})
+	AddGenericNonNamespacedResourceRoutes(harvesterNetworkv1beta1API, "nodenetworks", &networkv1beta1.NodeNetwork{}, "NodeNetwork", &networkv1beta1.NodeNetworkList{})
 
 	// core
 	corev1API := NewGroupVersionWebService(corev1.SchemeGroupVersion)
@@ -177,12 +177,6 @@ func AddGenericResourceRoutes(ws *restful.WebService, resource string, objPointe
 
 }
 
-func NewGroupWebService(gv schema.GroupVersion) *restful.WebService {
-	ws := new(restful.WebService)
-	ws.Path(GroupBasePath(gv))
-	return ws
-}
-
 func addCollectionParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
 	return builder.Param(continueParam(ws)).
 		Param(fieldSelectorParam(ws)).
@@ -288,11 +282,10 @@ func propagationPolicyParam(ws *restful.WebService) *restful.Parameter {
 	return ws.QueryParameter("propagationPolicy", "Whether and how garbage collection will be performed. Either this field or OrphanDependents may be set, but not both. The default policy is decided by the existing finalizer set in the metadata.finalizers and the resource-specific default policy. Acceptable values are: 'Orphan' - orphan the dependents; 'Background' - allow the garbage collector to delete the dependents in the background; 'Foreground' - a cascading policy that deletes all dependents in the foreground.")
 }
 
-func GroupBasePath(gvr schema.GroupVersion) string {
-	return fmt.Sprintf("/apis/%s", gvr.Group)
-}
-
 func GroupVersionBasePath(gvr schema.GroupVersion) string {
+	if gvr.Group == corev1.GroupName {
+		return "/api/v1"
+	}
 	return fmt.Sprintf("/apis/%s/%s", gvr.Group, gvr.Version)
 }
 
