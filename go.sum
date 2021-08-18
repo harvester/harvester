@@ -803,8 +803,8 @@ github.com/grpc-ecosystem/grpc-health-probe v0.2.0/go.mod h1:4GVx/bTCtZaSzhjbGue
 github.com/guonaihong/gout v0.1.3 h1:BIiV6nnsA+R6dIB1P33uhCM8+TVAG3zHrXGZad7hDc8=
 github.com/guonaihong/gout v0.1.3/go.mod h1:vXvv5Kxr70eM5wrp4F0+t9lnLWmq+YPW2GByll2f/EA=
 github.com/harvester/harvester v0.2.0-rc4/go.mod h1:hl4qFDVTpNkmJlZOdTzACz7cFD7a3hhsQl6F2i439EQ=
-github.com/harvester/harvester-network-controller v0.1.6 h1:+uhlKngrI7P1dOTYlxkQKSHG3L/kbPUXb8XrRJcBuuQ=
-github.com/harvester/harvester-network-controller v0.1.6/go.mod h1:Pm6+8UMelDhaSnpS+OPr8kayR0VOB+HLFd2Ry/1EvJI=
+github.com/harvester/harvester-network-controller v0.1.7 h1:iaOkZx4L0XfTZS29fgix331w3rPahV57sZ57ofwmxgg=
+github.com/harvester/harvester-network-controller v0.1.7/go.mod h1:Pm6+8UMelDhaSnpS+OPr8kayR0VOB+HLFd2Ry/1EvJI=
 github.com/hashicorp/consul/api v1.1.0/go.mod h1:VmuI/Lkw1nC05EYQWNKwWGbkg+FbDBtguAZLlVdkD9Q=
 github.com/hashicorp/consul/sdk v0.1.1/go.mod h1:VKf9jXwCTEY1QZP2MOLRhb5i/I/ssyNV1vwHyQBF0x8=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=

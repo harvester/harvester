@@ -7,8 +7,9 @@ import (
 )
 
 // +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:shortName=nn;nns,scope=Namespaced
+// +kubebuilder:resource:shortName=nn;nns,scope=Cluster
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=`.spec.description`
 // +kubebuilder:printcolumn:name="NODENAME",type=string,JSONPath=`.spec.nodeName`
 // +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.spec.type`
@@ -50,16 +51,25 @@ type NodeNetworkStatus struct {
 	NetworkLinkStatus map[string]*LinkStatus `json:"networkLinkStatus,omitempty"`
 
 	// +optional
-	PhysicalNICs []PhysicalNic `json:"physicalNICs,omitempty"`
+	NICs []NIC `json:"nics,omitempty"`
 
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
 }
 
-type PhysicalNic struct {
-	Index             int    `json:"index,omitempty"`
-	Name              string `json:"name,omitempty"`
-	UsedByMgmtNetwork bool   `json:"usedByManagementNetwork,omitempty"`
+type NIC struct {
+	// Index of the NIC
+	Index int `json:"index"`
+	// Index of the NIC's master
+	MasterIndex int `json:"masterIndex,omitempty"`
+	// Name of the NIC
+	Name string `json:"name"`
+	// Interface type of the NIC
+	Type string `json:"type"`
+	// State of the NIC, up/down/unknown
+	State string `json:"state"`
+	// Specify whether used by management network or not
+	UsedByMgmtNetwork bool `json:"usedByManagementNetwork,omitempty"`
 }
 
 type NetworkID int
@@ -84,7 +94,7 @@ type LinkStatus struct {
 	IPV4Address []string `json:"ipv4Address,omitempty"`
 
 	// +optional
-	Master string `json:"master,omitempty"`
+	MasterIndex int `json:"masterIndex,omitempty"`
 
 	// +optional
 	Routes []string `json:"routes,omitempty"`

@@ -353,7 +353,7 @@ github.com/guonaihong/gout/encode
 github.com/guonaihong/gout/export
 github.com/guonaihong/gout/filter
 github.com/guonaihong/gout/interface
-# github.com/harvester/harvester-network-controller v0.1.6
+# github.com/harvester/harvester-network-controller v0.1.7
 ## explicit
 github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io
 github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1
@@ -1691,7 +1691,6 @@ kubevirt.io/client-go/precond
 # kubevirt.io/containerized-data-importer v1.36.0 => github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210802100720-9bcf4e7ba0ce
 ## explicit
 kubevirt.io/containerized-data-importer/pkg/apis/core
-kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1
 kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1
 # kubevirt.io/controller-lifecycle-operator-sdk v0.2.0
 kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api
