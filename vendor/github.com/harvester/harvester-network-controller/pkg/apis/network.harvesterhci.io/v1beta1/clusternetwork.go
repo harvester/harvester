@@ -5,8 +5,9 @@ import (
 )
 
 // +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:shortName=cn;cns,scope=Namespaced
+// +kubebuilder:resource:shortName=cn;cns,scope=Cluster
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=`.spec.description`
 // +kubebuilder:printcolumn:name="ENABLE",type=boolean,JSONPath=`.enable`
 

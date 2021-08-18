@@ -59,7 +59,7 @@ require (
 	github.com/go-openapi/spec v0.20.3
 	github.com/gorilla/mux v1.8.0
 	github.com/guonaihong/gout v0.1.3
-	github.com/harvester/harvester-network-controller v0.1.6
+	github.com/harvester/harvester-network-controller v0.1.7
 	github.com/iancoleman/strcase v0.1.2
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
