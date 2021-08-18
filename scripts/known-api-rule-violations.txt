@@ -2,8 +2,8 @@ API rule violation: list_type_missing,github.com/harvester/harvester-network-con
 API rule violation: list_type_missing,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,LinkStatus,IPV4Address
 API rule violation: list_type_missing,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,LinkStatus,Routes
 API rule violation: list_type_missing,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NodeNetworkStatus,Conditions
+API rule violation: list_type_missing,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NodeNetworkStatus,NICs
 API rule violation: list_type_missing,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NodeNetworkStatus,NetworkIDs
-API rule violation: list_type_missing,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NodeNetworkStatus,PhysicalNICs
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,AuthenticationModesResponse,Modes
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ErrorResponse,Errors
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,KeyPairStatus,Conditions
@@ -202,11 +202,6 @@ API rule violation: list_type_missing,kubevirt.io/client-go/apis/snapshot/v1alph
 API rule violation: list_type_missing,kubevirt.io/client-go/apis/snapshot/v1alpha1,VirtualMachineSnapshotContentSpec,VolumeBackups
 API rule violation: list_type_missing,kubevirt.io/client-go/apis/snapshot/v1alpha1,VirtualMachineSnapshotContentStatus,VolumeSnapshotStatus
 API rule violation: list_type_missing,kubevirt.io/client-go/apis/snapshot/v1alpha1,VirtualMachineSnapshotStatus,Conditions
-API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,CDIConfigSpec,FeatureGates
-API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,CDIConfigSpec,InsecureRegistries
-API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,DataVolumeSpec,Checkpoints
-API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,DataVolumeStatus,Conditions
-API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,StorageSpec,AccessModes
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,CDIConfigSpec,FeatureGates
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,CDIConfigSpec,InsecureRegistries
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,ClaimPropertySet,AccessModes
@@ -219,7 +214,8 @@ API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pk
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,StorageProfileStatus,ClaimPropertySets
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,StorageSpec,AccessModes
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,LinkStatus,IPV4Address
-API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,PhysicalNic,UsedByMgmtNetwork
+API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NIC,UsedByMgmtNetwork
+API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NodeNetworkStatus,NICs
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,Login,KubeConfig
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageStatus,AppliedURL
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,VolumeRestores
@@ -320,10 +316,6 @@ API rule violation: names_match,kubevirt.io/client-go/api/v1,VirtualMachineInsta
 API rule violation: names_match,kubevirt.io/client-go/api/v1,VirtualMachineInstanceNetworkInterface,IPs
 API rule violation: names_match,kubevirt.io/client-go/api/v1,WatchdogDevice,I6300ESB
 API rule violation: names_match,kubevirt.io/client-go/apis/snapshot/v1alpha1,VolumeRestore,PersistentVolumeClaimName
-API rule violation: names_match,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,CDISpec,Workloads
-API rule violation: names_match,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,DataVolumeSourceImageIO,DiskID
-API rule violation: names_match,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,ImportProxy,HTTPProxy
-API rule violation: names_match,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,ImportProxy,HTTPSProxy
 API rule violation: names_match,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,CDISpec,Workloads
 API rule violation: names_match,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,DataVolumeSourceImageIO,DiskID
 API rule violation: names_match,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,ImportProxy,HTTPProxy
