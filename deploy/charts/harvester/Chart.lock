@@ -8,14 +8,11 @@ dependencies:
 - name: harvester-network-controller
   repository: https://charts.harvesterhci.io
   version: 0.1.0
-- name: multus
-  repository: file://dependency_charts/multus
-  version: 0.1.0
 - name: csi-snapshotter
   repository: file://dependency_charts/csi-snapshotter
   version: 0.1.0
 - name: longhorn
   repository: https://charts.longhorn.io
   version: 1.1.2
-digest: sha256:31d4a61410ae41898a58dabda1d6f3bf3924a7dc94a5f91daa52bc19e9b902bb
-generated: "2021-08-17T18:40:44.87553+08:00"
+digest: sha256:a8f1180d085f89f449d470aa4ddd5c07993c9b65cdb886ea423425367e19378a
+generated: "2021-08-19T14:17:35.984647055+08:00"

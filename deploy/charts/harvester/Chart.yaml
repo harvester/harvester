@@ -30,10 +30,6 @@ dependencies:
     version: 0.1.0
     repository: https://charts.harvesterhci.io
     condition: harvester-network-controller.enabled
-  - name: multus
-    version: 0.1.0
-    repository: file://dependency_charts/multus
-    condition: multus.enabled
   - name: csi-snapshotter
     version: 0.1.0
     repository: file://dependency_charts/csi-snapshotter

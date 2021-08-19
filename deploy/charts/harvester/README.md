@@ -12,12 +12,12 @@ This chart will do the following:
 - Deploy a KubeVirt CRD resource to enable KubeVirt if needed, defaults to deploy.
 - Deploy the Harvester resources.
 - Deploy [Longhorn](https://longhorn.io) as the built-in storage management.
-- [Multus-CNI](https://github.com/intel/multus-cni) as default multi networks management solution(enable by set `multus.enabled=true` in the helm install).
 
 ### Prerequisites
 
 - Kubernetes 1.16+.
 - Helm 3.2+.
+- [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni). An [example chart](https://github.com/rancher/rke2-charts/tree/main-source/packages/rke2-multus/charts).
 
 ### Installing the Chart
 

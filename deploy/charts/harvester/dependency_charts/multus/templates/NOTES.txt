@@ -1,1 +1,0 @@
-The multus-cni has been installed into the "{{ .Release.Namespace }}" namespace.
