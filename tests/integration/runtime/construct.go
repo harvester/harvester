@@ -24,6 +24,11 @@ func Construct(ctx context.Context, kubeConfig *restclient.Config) error {
 		return fmt.Errorf("failed to create target namespace, %v", err)
 	}
 
+	err = createCRDs(ctx, kubeConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create CRDs, %v", err)
+	}
+
 	// install harvester chart
 	err = installHarvesterChart(ctx, kubeConfig)
 	if err != nil {
