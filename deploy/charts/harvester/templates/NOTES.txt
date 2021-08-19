@@ -3,7 +3,7 @@ The Harvester has been installed into "{{ .Release.Namespace }}" namespace with 
 - {{ if eq ( include "conditions.is_kubevirt_operator_enabled" . ) "true" }}[x]{{ else }}[ ]{{ end }} KubeVirt Operator
 - {{ if eq ( include "conditions.is_kubevirt_enabled" . ) "true" }}[x]{{ else }}[ ]{{ end }} KubeVirt Resource named "kubevirt"
 - {{ if .Values.longhorn.enabled }}[x]{{ else }}[ ]{{ end }} Longhorn
-- {{ if .Values.multus.enabled }}[x]{{ else }}[ ]{{ end }} Multus-cni
+- {{ if index .Values "harvester-network-controller" "enabled" }}[x]{{ else }}[ ]{{ end }} Harvester Network Controller
 
 Please make sure there is a default StorageClass in the Kubernetes cluster.
 
