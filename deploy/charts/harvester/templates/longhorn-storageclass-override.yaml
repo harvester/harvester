@@ -26,7 +26,4 @@ data:
       fromBackup: ""
       baseImage: ""
       migratable: "true"
-      {{- if .Values.longhorn.persistence.recurringJobs.enable }}
-      recurringJobs: '{{ .Values.longhorn.persistence.recurringJobs.jobList }}'
-      {{- end }}
 {{- end -}}
