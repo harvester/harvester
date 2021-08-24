@@ -5,19 +5,21 @@ Harvester
 [![Releases](https://img.shields.io/github/release/harvester/harvester/all.svg)](https://github.com/harvester/harvester/releases)
 [![Slack](https://img.shields.io/badge/slack-join-brightgreen)](https://slack.rancher.io/)
 
-Harvester is an open source [hyper-converged infrastructure](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) (HCI) software built on Kubernetes. It is an open source alternative to vSphere and Nutanix.
+Harvester is an open source [hyper-converged infrastructure](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) (HCI) software built on Kubernetes. It is an open alternative to using a proprietary HCI stack that incorporates the design and ethos of [Cloud Native](https://en.wikipedia.org/wiki/Cloud_native_computing). 
 
 ![harvester-ui](./docs/assets/harvester-ui.png)
 
 ## Overview
-Harvester implements HCI on bare metal servers. Here are some notable features of the Harvester:
+Harvester implements HCI on bare metal servers. Harvester is designed to use local, direct attached storage instead of complex external SANs. It ships as an integrated bootable appliance image that can be deployed directly to servers through an ISO or PXE boot artifact.  
+
+Here are some notable features of the Harvester:
 1. VM lifecycle management including SSH-Key injection, Cloud-init and, graphic and serial port console
 1. VM live migration support
 1. Supporting VM backup and restore
 1. Distributed block storage
 1. Multiple NICs in the VM connecting to the management network or VLANs
 1. Virtual Machine and cloud-init templates
-1. Built-in [Rancher](https://github.com/rancher/rancher) integration and the Harvester node driver
+1. [Rancher](https://github.com/rancher/rancher) integration and the Harvester node driver
 1. [PXE/iPXE boot support](https://docs.harvesterhci.io/latest/install/pxe-boot-install)
 
 The following diagram gives a high-level architecture of Harvester:
@@ -40,6 +42,7 @@ To get the Harvester server up and running the following minimum hardware is req
 | Network Card | 1 Gbps Ethernet minimum, 10Gbps Ethernet recommended |
 | Network Switch | Trunking of ports required for VLAN support |
 
+We recommend server-class hardware for best results. Laptops and nested virtualizaion are not supported. 
 
 ## Quick start
 
