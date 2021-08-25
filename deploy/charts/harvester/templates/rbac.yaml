@@ -107,6 +107,8 @@ rules:
   - apiGroups:
       - subresources.kubevirt.io
     resources:
+      - virtualmachines/addvolume
+      - virtualmachines/removevolume
       - virtualmachineinstances/addvolume
       - virtualmachineinstances/removevolume
     verbs:
@@ -117,6 +119,14 @@ rules:
     resources:
       - virtualmachines
       - virtualmachineinstances
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - pods
     verbs:
       - get
       - list
