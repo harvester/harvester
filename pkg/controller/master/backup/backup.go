@@ -1,21 +1,20 @@
 package backup
 
-// NOTE: Harvester VM backup & restore is referenced to the Kubevirt's VM snapshot & restore,
-// currently, we have decided to use custom VM backup and restore controller because of the following issues:
-// 1. live VM snapshot/backup is supported using Harvester's build-in block storage with longhorn.
-// 2. restore a VM backup to a new VM should be supported.
+// Harvester VM backup & restore controllers helps to manage the VM backup & restore by leveraging
+// the VolumeSnapshot functionality of Kubernetes CSI drivers with built-in storage driver longhorn.
+// Currently, the following features are supported:
+// 1. support VM live & offline backup to the supported backupTarget(i.e, nfs_v4 or s3 storage server).
+// 2. restore a backup to a new VM or replacing it with the existing VM is supported.
 import (
 	"context"
 	"fmt"
 	"reflect"
 
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
-	kutil "k8s.io/utils/pointer"
 	kv1 "kubevirt.io/client-go/api/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -23,96 +22,112 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 )
 
 const (
 	backupControllerName = "harvester-vm-backup-controller"
+	vmBackupKindName     = "VirtualMachineBackup"
 
-	vmBackupKindName = "VirtualMachineBackup"
+	backupTargetAnnotation       = "backup.harvesterhci.io/backup-target"
+	backupBucketNameAnnotation   = "backup.harvesterhci.io/bucket-name"
+	backupBucketRegionAnnotation = "backup.harvesterhci.io/bucket-region"
 
-	backupTargetAnnotation       = "backup.harvesterhci.io/backupTarget"
-	backupBucketNameAnnotation   = "backup.harvesterhci.io/BucketName"
-	backupBucketRegionAnnotation = "backup.harvesterhci.io/BucketRegion"
+	volumeSnapshotMissingEvent = "VolumeSnapshotMissing"
+	volumeSnapshotCreateEvent  = "VolumeSnapshotCreated"
 )
 
 var vmBackupKind = harvesterv1.SchemeGroupVersion.WithKind(vmBackupKindName)
 
-// RegisterBackup register the vmbackup and vmbackupcontent controller
+// RegisterBackup register the vmBackup and volumeSnapshot controller
 func RegisterBackup(ctx context.Context, management *config.Management, opts config.Options) error {
 	vmBackups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
-	vmBackupContents := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackupContent()
 	pvc := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
-	longhornSettings := management.LonghornFactory.Longhorn().V1beta1().Setting()
+	volumes := management.LonghornFactory.Longhorn().V1beta1().Volume()
+	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
+	snapshotClass := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotClass()
 
 	vmBackupController := &Handler{
-		vmBackups:            vmBackups,
-		vmBackupController:   vmBackups,
-		vmBackupCache:        vmBackups.Cache(),
-		vmBackupContents:     vmBackupContents,
-		vmBackupContentCache: vmBackupContents.Cache(),
-		pvcCache:             pvc.Cache(),
-		longhornSettingCache: longhornSettings.Cache(),
-		vmCache:              vms.Cache(),
+		vmBackups:          vmBackups,
+		vmBackupController: vmBackups,
+		vmBackupCache:      vmBackups.Cache(),
+		pvcCache:           pvc.Cache(),
+		vms:                vms,
+		vmsCache:           vms.Cache(),
+		volumeCache:        volumes.Cache(),
+		volumes:            volumes,
+		snapshots:          snapshots,
+		snapshotCache:      snapshots.Cache(),
+		snapshotClassCache: snapshotClass.Cache(),
+		recorder:           management.NewRecorder(backupControllerName, "", ""),
 	}
 
 	vmBackups.OnChange(ctx, backupControllerName, vmBackupController.OnBackupChange)
-	vmBackupContents.OnChange(ctx, backupControllerName, vmBackupController.updateContentChanged)
+	snapshots.OnChange(ctx, backupControllerName, vmBackupController.updateVolumeSnapshotChanged)
 	return nil
 }
 
 type Handler struct {
-	vmBackups            ctlharvesterv1.VirtualMachineBackupClient
-	vmBackupCache        ctlharvesterv1.VirtualMachineBackupCache
-	vmBackupController   ctlharvesterv1.VirtualMachineBackupController
-	vmBackupContentCache ctlharvesterv1.VirtualMachineBackupContentCache
-	vmBackupContents     ctlharvesterv1.VirtualMachineBackupContentClient
-	pvcCache             ctlcorev1.PersistentVolumeClaimCache
-	longhornSettingCache ctllonghornv1.SettingCache
-	vmCache              ctlkubevirtv1.VirtualMachineCache
+	vmBackups          ctlharvesterv1.VirtualMachineBackupClient
+	vmBackupCache      ctlharvesterv1.VirtualMachineBackupCache
+	vmBackupController ctlharvesterv1.VirtualMachineBackupController
+	vms                ctlkubevirtv1.VirtualMachineClient
+	vmsCache           ctlkubevirtv1.VirtualMachineCache
+	pvcCache           ctlcorev1.PersistentVolumeClaimCache
+	volumeCache        ctllonghornv1.VolumeCache
+	volumes            ctllonghornv1.VolumeClient
+	snapshots          ctlsnapshotv1.VolumeSnapshotClient
+	snapshotCache      ctlsnapshotv1.VolumeSnapshotCache
+	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache
+	recorder           record.EventRecorder
 }
 
-// OnBackupChange handles vm backup object on change and create vmbackup content if not exist
+// OnBackupChange handles vm backup object on change and reconcile vm backup status
 func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
 	if vmBackup == nil || vmBackup.DeletionTimestamp != nil {
 		return nil, nil
 	}
 
-	if vmBackupReady(vmBackup) {
+	if isBackupReady(vmBackup) {
 		return nil, nil
 	}
 
+	// set vmBackup init status
 	if vmBackup.Status == nil {
 		return nil, h.updateStatus(vmBackup, nil)
 	}
 
 	// get vmBackup source
-	source, err := h.getBackupSource(vmBackup)
+	sourceVM, err := h.getBackupSource(vmBackup)
 	if err != nil {
 		return nil, err
 	}
 
-	// make sure status is initialized, and "Lock" the source VM by adding a finalizer and setting snapshotInProgress in status
-	if source != nil && vmBackupProgressing(vmBackup) {
-
-		// Create VirtualMachineSnapshotContent containing VM spec, specs of any PVCs that are snapshot-able, and VolumeSnapshot names.
-		content, err := h.getContent(vmBackup)
-		if err != nil {
-			return nil, err
+	// check if the VM is running, if not make sure the volumes are mounted to the host
+	if !sourceVM.Status.Ready || !sourceVM.Status.Created {
+		if err := h.reconcileLonghornVolumes(sourceVM); err != nil {
+			return vmBackup, err
 		}
+	}
 
-		// create content if does not exist
-		if content == nil {
-			if err = h.createContent(vmBackup, source.DeepCopy()); err != nil {
+	// TODO, make sure status is initialized, and "Lock" the source VM by adding a finalizer and setting snapshotInProgress in status
+	if sourceVM != nil && isBackupProgressing(vmBackup) {
+		// create source spec and volume backups if it is not exist
+		if vmBackup.Status.SourceSpec == nil || vmBackup.Status.VolumeBackups == nil {
+			vmBackup.Status, err = h.updateBackupStatusContent(vmBackup, sourceVM.DeepCopy())
+			if err != nil {
 				return nil, err
 			}
 		}
 
-		// update status
-		if err := h.updateStatus(vmBackup, source); err != nil {
-			return vmBackup, err
+		// reconcile backup status of volume backups, validate if those volumeSnapshots are ready to use
+		if err = h.reconcileBackupStatus(vmBackup); err != nil {
+			return nil, err
 		}
+
+		return vmBackup, h.updateStatus(vmBackup, sourceVM)
 	}
 	return nil, nil
 }
@@ -120,88 +135,71 @@ func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachin
 func (h *Handler) getBackupSource(vmBackup *harvesterv1.VirtualMachineBackup) (*kv1.VirtualMachine, error) {
 	switch vmBackup.Spec.Source.Kind {
 	case kv1.VirtualMachineGroupVersionKind.Kind:
-		vm, err := h.vmCache.Get(vmBackup.Namespace, vmBackup.Spec.Source.Name)
-		if err != nil {
-			return nil, err
-		}
-		return vm, nil
+		return h.vmsCache.Get(vmBackup.Namespace, vmBackup.Spec.Source.Name)
 	}
 
 	return nil, fmt.Errorf("unsupported source: %+v", vmBackup.Spec.Source)
 }
 
-func (h *Handler) getContent(vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackupContent, error) {
-	contentName := getVMBackupContentName(vmBackup)
-	obj, err := h.vmBackupContentCache.Get(vmBackup.Namespace, contentName)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return obj, nil
-}
-
-func (h *Handler) createContent(vmBackup *harvesterv1.VirtualMachineBackup, vm *kv1.VirtualMachine) error {
-	contentName := getVMBackupContentName(vmBackup)
-	logrus.Debugf("create vm backup content %s/%s", vmBackup.Namespace, contentName)
-
+// getVolumeBackups helps to build a list of VolumeBackup upon the volume list of backup VM
+func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm *kv1.VirtualMachine) ([]harvesterv1.VolumeBackup, error) {
 	sourceVolumes := vm.Spec.Template.Spec.Volumes
 	var volumeBackups = make([]harvesterv1.VolumeBackup, 0, len(sourceVolumes))
 
 	for volumeName, pvcName := range volumeToPVCMappings(sourceVolumes) {
-		pvc, err := h.getBackupPVC(vmBackup.Namespace, pvcName)
+		pvc, err := h.getBackupPVC(vm.Namespace, pvcName)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		volumeBackupName := fmt.Sprintf("%s-volume-%s", vmBackup.Name, pvcName)
+		volumeBackupName := fmt.Sprintf("%s-volume-%s", backup.Name, pvcName)
 
 		vb := harvesterv1.VolumeBackup{
 			Name:       &volumeBackupName,
 			VolumeName: volumeName,
-			PersistentVolumeClaim: harvesterv1.PersistentVolumeClaimSpec{
-				Name:        pvc.ObjectMeta.Name,
-				Namespace:   pvc.ObjectMeta.Namespace,
-				Labels:      pvc.Labels,
-				Annotations: pvc.Annotations,
-				Spec:        pvc.Spec,
+			PersistentVolumeClaim: harvesterv1.PersistentVolumeClaimSourceSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        pvc.ObjectMeta.Name,
+					Namespace:   pvc.ObjectMeta.Namespace,
+					Labels:      pvc.Labels,
+					Annotations: pvc.Annotations,
+				},
+				Spec: pvc.Spec,
 			},
+			ReadyToUse: pointer.BoolPtr(false),
 		}
 
 		volumeBackups = append(volumeBackups, vb)
 	}
 
-	content := &harvesterv1.VirtualMachineBackupContent{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      contentName,
-			Namespace: vmBackup.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					Name:               vmBackup.Name,
-					Kind:               vmBackup.Kind,
-					UID:                vmBackup.UID,
-					APIVersion:         vmBackup.APIVersion,
-					Controller:         kutil.BoolPtr(true),
-					BlockOwnerDeletion: kutil.BoolPtr(true),
-				},
-			},
-		},
-		Spec: harvesterv1.VirtualMachineBackupContentSpec{
-			VirtualMachineBackupName: &vmBackup.Name,
-			Source: harvesterv1.VirtualMachineSourceSpec{
-				ObjectMeta: vm.ObjectMeta,
-				Spec:       vm.Spec,
-			},
-			VolumeBackups: volumeBackups,
-		},
+	return volumeBackups, nil
+}
+
+// updateBackupStatusContent helps to store the backup source and volume contents within the VM backup status
+func (h *Handler) updateBackupStatusContent(backup *harvesterv1.VirtualMachineBackup, vm *kv1.VirtualMachine) (*harvesterv1.VirtualMachineBackupStatus, error) {
+	var err error
+	status := backup.Status.DeepCopy()
+
+	if status.VolumeBackups == nil {
+		status.VolumeBackups, err = h.getVolumeBackups(backup, vm)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if _, err := h.vmBackupContents.Create(content); err != nil {
-		return err
+	if status.SourceSpec == nil {
+		status.SourceSpec = &harvesterv1.VirtualMachineSourceSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        vm.ObjectMeta.Name,
+				Namespace:   vm.ObjectMeta.Namespace,
+				Annotations: vm.ObjectMeta.Annotations,
+				Labels:      vm.ObjectMeta.Labels,
+			},
+			Spec: vm.Spec,
+		}
 	}
 
-	return nil
+	return status, nil
 }
 
 func (h *Handler) getBackupPVC(namespace, name string) (*corev1.PersistentVolumeClaim, error) {
@@ -233,18 +231,7 @@ func (h *Handler) updateStatus(vmBackup *harvesterv1.VirtualMachineBackup, sourc
 		vmBackupCpy.Status.SourceUID = &source.UID
 	}
 
-	content, err := h.getContent(vmBackupCpy)
-	if err != nil {
-		return err
-	}
-	if content != nil && content.Status != nil {
-		// content exists and is initialized
-		vmBackupCpy.Status.VirtualMachineBackupContentName = &content.Name
-		vmBackupCpy.Status.ReadyToUse = content.Status.ReadyToUse
-		vmBackupCpy.Status.Error = content.Status.Error
-	}
-
-	if vmBackupProgressing(vmBackupCpy) {
+	if isBackupProgressing(vmBackupCpy) {
 		source, err := h.getBackupSource(vmBackupCpy)
 		if err != nil {
 			return err
@@ -259,7 +246,7 @@ func (h *Handler) updateStatus(vmBackup *harvesterv1.VirtualMachineBackup, sourc
 	} else if vmBackupError(vmBackupCpy) != nil {
 		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "In error state"))
 		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "Error"))
-	} else if vmBackupReady(vmBackupCpy) {
+	} else if isBackupReady(vmBackupCpy) {
 		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "Operation complete"))
 		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionTrue, "Operation complete"))
 	} else {
@@ -283,11 +270,9 @@ func (h *Handler) updateStatus(vmBackup *harvesterv1.VirtualMachineBackup, sourc
 		}
 	}
 
-	if !reflect.DeepEqual(vmBackup, vmBackupCpy) {
-		if vmBackupCpy.Status != nil {
-			if _, err := h.vmBackups.Update(vmBackupCpy); err != nil {
-				return err
-			}
+	if !reflect.DeepEqual(vmBackup.Status, vmBackupCpy.Status) && vmBackupCpy.Status != nil {
+		if _, err := h.vmBackups.Update(vmBackupCpy); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -309,44 +294,4 @@ func volumeToPVCMappings(volumes []kv1.Volume) map[string]string {
 	}
 
 	return pvcs
-}
-
-func (h *Handler) updateContentChanged(key string, content *harvesterv1.VirtualMachineBackupContent) (*harvesterv1.VirtualMachineBackupContent, error) {
-	if content == nil || content.DeletionTimestamp != nil {
-		return nil, nil
-	}
-	controllerRef := metav1.GetControllerOf(content)
-
-	// if it has a ControllerRef, that's all that matters.
-	if controllerRef != nil {
-		backup := h.resolveContentRef(content.Namespace, controllerRef)
-		if backup == nil {
-			return nil, nil
-		}
-		if isContentReady(content) {
-			h.vmBackupController.Enqueue(backup.Namespace, backup.Name)
-		}
-	}
-	return nil, nil
-}
-
-// resolveContentRef returns the controller referenced by a ControllerRef,
-// or nil if the ControllerRef could not be resolved to a matching controller
-// of the correct Kind.
-func (h *Handler) resolveContentRef(namespace string, controllerRef *metav1.OwnerReference) *harvesterv1.VirtualMachineBackup {
-	// We can't look up by UID, so look up by Name and then verify UID.
-	// Don't even try to look up by Name if it's the wrong Kind.
-	if controllerRef.Kind != vmBackupKind.Kind {
-		return nil
-	}
-	backup, err := h.vmBackupCache.Get(namespace, controllerRef.Name)
-	if err != nil {
-		return nil
-	}
-	if backup.UID != controllerRef.UID {
-		// The controller we found with this Name is not the same one that the
-		// ControllerRef points to.
-		return nil
-	}
-	return backup
 }

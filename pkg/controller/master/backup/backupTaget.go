@@ -30,6 +30,7 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -123,7 +124,7 @@ func (h *TargetHandler) updateBackupTargetSetting(setting *harvesterv1.Setting, 
 
 func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget) error {
 	endpoint := backupTarget.Endpoint
-	target, err := h.longhornSettingCache.Get(LonghornSystemNameSpace, longhornBackupTargetSettingName)
+	target, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, longhornBackupTargetSettingName)
 	if err != nil {
 		return err
 	}
@@ -153,7 +154,7 @@ func setBackupSecret(target *settings.BackupTarget) map[string]string {
 
 func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) error {
 	var found = true
-	secret, err := h.secretCache.Get(LonghornSystemNameSpace, backupTargetSecretName)
+	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, backupTargetSecretName)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
@@ -163,7 +164,7 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 		newSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      backupTargetSecretName,
-				Namespace: LonghornSystemNameSpace,
+				Namespace: util.LonghornSystemNamespaceName,
 			},
 		}
 
@@ -184,7 +185,7 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 		}
 	}
 
-	targetSecret, err := h.longhornSettingCache.Get(LonghornSystemNameSpace, longhornBackupTargetSecretSettingName)
+	targetSecret, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, longhornBackupTargetSecretSettingName)
 	if err != nil {
 		return err
 	}

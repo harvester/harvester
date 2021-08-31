@@ -34,7 +34,6 @@ var registerFuncs = []registerFunc{
 	virtualmachine.Register,
 	upgrade.Register,
 	backup.RegisterBackup,
-	backup.RegisterContent,
 	backup.RegisterRestore,
 	backup.RegisterBackupTarget,
 	rancher.Register,

@@ -38,7 +38,6 @@ rules:
       - virtualmachinetemplates
       - virtualmachinetemplateversions
       - virtualmachinebackups
-      - virtualmachinebackupcontents
       - virtualmachinerestores
     verbs:
       - '*'
@@ -69,7 +68,6 @@ rules:
       - virtualmachinetemplates
       - virtualmachinetemplateversions
       - virtualmachinebackups
-      - virtualmachinebackupcontents
       - virtualmachinerestores
     verbs:
       - get

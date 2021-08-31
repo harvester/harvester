@@ -94,7 +94,7 @@ func IsUsingEmulation() bool {
 	return !IsTrue(envDontUseEmulation)
 }
 
-// IsE2ETestsEnabled validates whether to enabled the e2e tests
+// IsE2ETestsEnabled validates whether to enable the e2e tests
 func IsE2ETestsEnabled() bool {
 	return IsTrue(envEnableE2ETests)
 }
