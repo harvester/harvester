@@ -9,9 +9,8 @@ API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/ha
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,SettingStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,SupportBundleStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,UpgradeStatus,Conditions
-API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupContentSpec,VolumeBackups
-API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupContentStatus,VolumeBackupStatus
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,Conditions
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,VolumeBackups
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,DeletedVolumes
@@ -215,6 +214,7 @@ API rule violation: list_type_missing,kubevirt.io/containerized-data-importer/pk
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,LinkStatus,IPV4Address
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NIC,UsedByMgmtNetwork
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NodeNetworkStatus,NICs
+API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,SourceSpec
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageStatus,AppliedURL
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,VolumeRestores
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineTemplateSpec,DefaultVersionID
