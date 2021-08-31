@@ -30,8 +30,6 @@ type UpgradeExpansion interface{}
 
 type VirtualMachineBackupExpansion interface{}
 
-type VirtualMachineBackupContentExpansion interface{}
-
 type VirtualMachineImageExpansion interface{}
 
 type VirtualMachineRestoreExpansion interface{}

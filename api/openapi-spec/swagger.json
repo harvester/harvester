@@ -6675,34 +6675,12 @@
         }
       }
     },
-    "harvesterhci.io.v1beta1.PersistentVolumeClaimSpec": {
+    "harvesterhci.io.v1beta1.PersistentVolumeClaimSourceSpec": {
       "type": "object",
-      "required": [
-        "name",
-        "namespace"
-      ],
       "properties": {
-        "annotations": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "default": ""
-          }
-        },
-        "labels": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "default": ""
-          }
-        },
-        "name": {
-          "type": "string",
-          "default": ""
-        },
-        "namespace": {
-          "type": "string",
-          "default": ""
+        "metadata": {
+          "default": {},
+          "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
         },
         "spec": {
           "default": {},
@@ -6991,17 +6969,28 @@
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Condition"
           }
         },
+        "creationTime": {
+          "$ref": "#/definitions/k8s.io.v1.Time"
+        },
         "error": {
           "$ref": "#/definitions/harvesterhci.io.v1beta1.Error"
         },
         "readyToUse": {
           "type": "boolean"
         },
+        "source": {
+          "description": "SourceSpec contains the vm spec source of the backup target",
+          "$ref": "#/definitions/harvesterhci.io.v1beta1.VirtualMachineSourceSpec"
+        },
         "sourceUID": {
           "type": "string"
         },
-        "virtualMachineBackupContentName": {
-          "type": "string"
+        "volumeBackups": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/harvesterhci.io.v1beta1.VolumeBackup"
+          }
         }
       }
     },
@@ -7176,7 +7165,8 @@
       "type": "object",
       "required": [
         "target",
-        "virtualMachineBackupName"
+        "virtualMachineBackupName",
+        "virtualMachineBackupNamespace"
       ],
       "properties": {
         "deletionPolicy": {
@@ -7191,6 +7181,10 @@
           "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
         },
         "virtualMachineBackupName": {
+          "type": "string",
+          "default": ""
+        },
+        "virtualMachineBackupNamespace": {
           "type": "string",
           "default": ""
         }
@@ -7436,26 +7430,49 @@
         }
       }
     },
-    "harvesterhci.io.v1beta1.VolumeRestore": {
-      "description": "VolumeRestore contains the volume data need to restore a PVC",
+    "harvesterhci.io.v1beta1.VolumeBackup": {
+      "description": "VolumeBackup contains the volume data need to restore a PVC",
       "type": "object",
       "required": [
         "volumeName",
-        "persistentVolumeClaimSpec",
-        "volumeBackupName"
+        "persistentVolumeClaim"
       ],
       "properties": {
-        "persistentVolumeClaimSpec": {
-          "default": {},
-          "$ref": "#/definitions/harvesterhci.io.v1beta1.PersistentVolumeClaimSpec"
+        "creationTime": {
+          "$ref": "#/definitions/k8s.io.v1.Time"
         },
-        "volumeBackupName": {
-          "type": "string",
-          "default": ""
+        "error": {
+          "$ref": "#/definitions/harvesterhci.io.v1beta1.Error"
+        },
+        "name": {
+          "type": "string"
+        },
+        "persistentVolumeClaim": {
+          "default": {},
+          "$ref": "#/definitions/harvesterhci.io.v1beta1.PersistentVolumeClaimSourceSpec"
+        },
+        "readyToUse": {
+          "type": "boolean"
         },
         "volumeName": {
           "type": "string",
           "default": ""
+        }
+      }
+    },
+    "harvesterhci.io.v1beta1.VolumeRestore": {
+      "description": "VolumeRestore contains the volume data need to restore a PVC",
+      "type": "object",
+      "properties": {
+        "persistentVolumeClaimSpec": {
+          "default": {},
+          "$ref": "#/definitions/harvesterhci.io.v1beta1.PersistentVolumeClaimSourceSpec"
+        },
+        "volumeBackupName": {
+          "type": "string"
+        },
+        "volumeName": {
+          "type": "string"
         }
       }
     },

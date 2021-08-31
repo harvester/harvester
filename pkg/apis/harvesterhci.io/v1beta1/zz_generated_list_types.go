@@ -111,23 +111,6 @@ func NewVirtualMachineBackup(namespace, name string, obj VirtualMachineBackup) *
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// VirtualMachineBackupContentList is a list of VirtualMachineBackupContent resources
-type VirtualMachineBackupContentList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-
-	Items []VirtualMachineBackupContent `json:"items"`
-}
-
-func NewVirtualMachineBackupContent(namespace, name string, obj VirtualMachineBackupContent) *VirtualMachineBackupContent {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VirtualMachineBackupContent").ToAPIVersionAndKind()
-	obj.Name = name
-	obj.Namespace = namespace
-	return &obj
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // VirtualMachineRestoreList is a list of VirtualMachineRestore resources
 type VirtualMachineRestoreList struct {
 	metav1.TypeMeta `json:",inline"`

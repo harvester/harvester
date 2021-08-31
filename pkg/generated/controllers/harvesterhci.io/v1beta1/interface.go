@@ -36,7 +36,6 @@ type Interface interface {
 	SupportBundle() SupportBundleController
 	Upgrade() UpgradeController
 	VirtualMachineBackup() VirtualMachineBackupController
-	VirtualMachineBackupContent() VirtualMachineBackupContentController
 	VirtualMachineImage() VirtualMachineImageController
 	VirtualMachineRestore() VirtualMachineRestoreController
 	VirtualMachineTemplate() VirtualMachineTemplateController
@@ -70,9 +69,6 @@ func (c *version) Upgrade() UpgradeController {
 }
 func (c *version) VirtualMachineBackup() VirtualMachineBackupController {
 	return NewVirtualMachineBackupController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineBackup"}, "virtualmachinebackups", true, c.controllerFactory)
-}
-func (c *version) VirtualMachineBackupContent() VirtualMachineBackupContentController {
-	return NewVirtualMachineBackupContentController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineBackupContent"}, "virtualmachinebackupcontents", true, c.controllerFactory)
 }
 func (c *version) VirtualMachineImage() VirtualMachineImageController {
 	return NewVirtualMachineImageController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineImage"}, "virtualmachineimages", true, c.controllerFactory)
