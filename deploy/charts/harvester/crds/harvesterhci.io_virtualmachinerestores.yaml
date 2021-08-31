@@ -82,9 +82,12 @@ spec:
                 type: object
               virtualMachineBackupName:
                 type: string
+              virtualMachineBackupNamespace:
+                type: string
             required:
             - target
             - virtualMachineBackupName
+            - virtualMachineBackupNamespace
             type: object
           status:
             description: VirtualMachineRestoreStatus is the spec for a VirtualMachineRestore
@@ -134,18 +137,9 @@ spec:
                   properties:
                     persistentVolumeClaimSpec:
                       properties:
-                        annotations:
-                          additionalProperties:
-                            type: string
+                        metadata:
                           type: object
-                        labels:
-                          additionalProperties:
-                            type: string
-                          type: object
-                        name:
-                          type: string
-                        namespace:
-                          type: string
+                          x-kubernetes-preserve-unknown-fields: true
                         spec:
                           description: PersistentVolumeClaimSpec describes the common
                             attributes of storage devices and allows a Source for
@@ -276,18 +270,11 @@ spec:
                                 the PersistentVolume backing this claim.
                               type: string
                           type: object
-                      required:
-                      - name
-                      - namespace
                       type: object
                     volumeBackupName:
                       type: string
                     volumeName:
                       type: string
-                  required:
-                  - persistentVolumeClaimSpec
-                  - volumeBackupName
-                  - volumeName
                   type: object
                 type: array
               targetUID:

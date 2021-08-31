@@ -199,8 +199,9 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 								Kind:     "VirtualMachine",
 								Name:     vmName,
 							},
-							VirtualMachineBackupName: backupName,
-							NewVM:                    true,
+							VirtualMachineBackupName:      backupName,
+							VirtualMachineBackupNamespace: backupName,
+							NewVM:                         true,
 						},
 					}
 					respCode, respBody, err := helper.PostObject(restoresAPI, newVM)

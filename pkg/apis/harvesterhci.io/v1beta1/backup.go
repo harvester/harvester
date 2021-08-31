@@ -60,7 +60,14 @@ type VirtualMachineBackupStatus struct {
 	SourceUID *types.UID `json:"sourceUID,omitempty"`
 
 	// +optional
-	VirtualMachineBackupContentName *string `json:"virtualMachineBackupContentName,omitempty"`
+	CreationTime *metav1.Time `json:"creationTime,omitempty"`
+
+	// +kubebuilder:validation:Required
+	// SourceSpec contains the vm spec source of the backup target
+	SourceSpec *VirtualMachineSourceSpec `json:"source,omitempty"`
+
+	// +optional
+	VolumeBackups []VolumeBackup `json:"volumeBackups,omitempty"`
 
 	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty"`
@@ -81,88 +88,34 @@ type Error struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// VirtualMachineBackupContent contains the snapshot data
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:shortName=vmbackupcontent;vmbackupcontents,scope=Namespaced
-// +kubebuilder:printcolumn:name="READY_TO_USE",type=boolean,JSONPath=`.status.readyToUse`
-// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=`.metadata.creationTimestamp`
-// +kubebuilder:printcolumn:name="ERROR",type=string,JSONPath=`.status.error.message`
-
-type VirtualMachineBackupContent struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec VirtualMachineBackupContentSpec `json:"spec"`
-
-	// +optional
-	Status *VirtualMachineBackupContentStatus `json:"status,omitempty"`
-}
-
-// VirtualMachineBackupContentSpec is the spec for a VirtualMachineBackupContent resource
-type VirtualMachineBackupContentSpec struct {
-	VirtualMachineBackupName *string `json:"virtualMachineBackupName,omitempty"`
-
-	Source VirtualMachineSourceSpec `json:"source"`
-
-	// +optional
-	VolumeBackups []VolumeBackup `json:"volumeBackups,omitempty"`
-}
-
 // VolumeBackup contains the volume data need to restore a PVC
 type VolumeBackup struct {
-	VolumeName string `json:"volumeName"`
-
-	PersistentVolumeClaim PersistentVolumeClaimSpec `json:"persistentVolumeClaim"`
-
 	// +optional
 	Name *string `json:"name,omitempty"`
+
+	// +kubebuilder:validation:Required
+	VolumeName string `json:"volumeName"`
+
+	// +optional
+	CreationTime *metav1.Time `json:"creationTime,omitempty"`
+
+	// +kubebuilder:validation:Required
+	PersistentVolumeClaim PersistentVolumeClaimSourceSpec `json:"persistentVolumeClaim"`
+
+	// +optional
+	ReadyToUse *bool `json:"readyToUse,omitempty"`
+
+	// +optional
+	Error *Error `json:"error,omitempty"`
 }
 
-type PersistentVolumeClaimSpec struct {
-	// +kubebuilder:validation:Required
-	Name string `json:"name"`
-
-	// +kubebuilder:validation:Required
-	Namespace string `json:"namespace"`
-
+type PersistentVolumeClaimSourceSpec struct {
+	// +kubebuilder:pruning:PreserveUnknownFields
 	// +optional
-	Labels map[string]string `json:"labels,omitempty"`
-
-	// +optional
-	Annotations map[string]string `json:"annotations,omitempty"`
+	ObjectMeta metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +optional
 	Spec corev1.PersistentVolumeClaimSpec `json:"spec,omitempty"`
-}
-
-// VirtualMachineBackupContentStatus is the status for a VirtualMachineBackupStatus resource
-type VirtualMachineBackupContentStatus struct {
-	// +optional
-	CreationTime *metav1.Time `json:"creationTime,omitempty"`
-
-	// +optional
-	ReadyToUse *bool `json:"readyToUse,omitempty"`
-
-	// +optional
-	Error *Error `json:"error,omitempty"`
-
-	// +optional
-	VolumeBackupStatus []VolumeBackupStatus `json:"volumeBackupStatus,omitempty"`
-}
-
-// VolumeBackupStatus is the status of a VolumeBackup
-type VolumeBackupStatus struct {
-	VolumeBackupName string `json:"volumeBackupName"`
-
-	// +optional
-	CreationTime *metav1.Time `json:"creationTime,omitempty"`
-
-	// +optional
-	ReadyToUse *bool `json:"readyToUse,omitempty"`
-
-	// +optional
-	Error *Error `json:"error,omitempty"`
 }
 
 // VirtualMachineRestore defines the operation of restoring a VM
@@ -190,7 +143,11 @@ type VirtualMachineRestoreSpec struct {
 	// initially only VirtualMachine type supported
 	Target corev1.TypedLocalObjectReference `json:"target"`
 
+	// +kubebuilder:validation:Required
 	VirtualMachineBackupName string `json:"virtualMachineBackupName"`
+
+	// +kubebuilder:validation:Required
+	VirtualMachineBackupNamespace string `json:"virtualMachineBackupNamespace"`
 
 	// +optional
 	NewVM bool `json:"newVM,omitempty"`
@@ -221,9 +178,9 @@ type VirtualMachineRestoreStatus struct {
 
 // VolumeRestore contains the volume data need to restore a PVC
 type VolumeRestore struct {
-	VolumeName string `json:"volumeName"`
+	VolumeName string `json:"volumeName,omitempty"`
 
-	PersistentVolumeClaim PersistentVolumeClaimSpec `json:"persistentVolumeClaimSpec"`
+	PersistentVolumeClaim PersistentVolumeClaimSourceSpec `json:"persistentVolumeClaimSpec,omitempty"`
 
-	VolumeBackupName string `json:"volumeBackupName"`
+	VolumeBackupName string `json:"volumeBackupName,omitempty"`
 }
