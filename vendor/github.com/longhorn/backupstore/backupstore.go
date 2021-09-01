@@ -96,7 +96,7 @@ func removeVolume(volumeName string, driver BackupStoreDriver) error {
 	return nil
 }
 
-func EncodeMetadataURL(backupName, volumeName, destURL string) string {
+func EncodeBackupURL(backupName, volumeName, destURL string) string {
 	v := url.Values{}
 	v.Add("volume", volumeName)
 	if backupName != "" {
@@ -105,7 +105,7 @@ func EncodeMetadataURL(backupName, volumeName, destURL string) string {
 	return destURL + "?" + v.Encode()
 }
 
-func DecodeMetadataURL(backupURL string) (string, string, string, error) {
+func DecodeBackupURL(backupURL string) (string, string, string, error) {
 	u, err := url.Parse(backupURL)
 	if err != nil {
 		return "", "", "", err
@@ -125,7 +125,7 @@ func DecodeMetadataURL(backupURL string) (string, string, string, error) {
 }
 
 func LoadVolume(backupURL string) (*Volume, error) {
-	_, volumeName, _, err := DecodeMetadataURL(backupURL)
+	_, volumeName, _, err := DecodeBackupURL(backupURL)
 	if err != nil {
 		return nil, err
 	}

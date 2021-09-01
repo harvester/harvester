@@ -70,7 +70,7 @@ func CreateSingleFileBackup(volume *Volume, snapshot *Snapshot, filePath, destUR
 		LogFieldSnapshot: snapshot.Name,
 	}).Debug("Created backup")
 
-	return EncodeMetadataURL(backup.Name, volume.Name, destURL), nil
+	return EncodeBackupURL(backup.Name, volume.Name, destURL), nil
 }
 
 func RestoreSingleFileBackup(backupURL, path string) (string, error) {
@@ -79,7 +79,7 @@ func RestoreSingleFileBackup(backupURL, path string) (string, error) {
 		return "", err
 	}
 
-	srcBackupName, srcVolumeName, _, err := DecodeMetadataURL(backupURL)
+	srcBackupName, srcVolumeName, _, err := DecodeBackupURL(backupURL)
 	if err != nil {
 		return "", err
 	}
@@ -110,7 +110,7 @@ func DeleteSingleFileBackup(backupURL string) error {
 		return err
 	}
 
-	backupName, volumeName, _, err := DecodeMetadataURL(backupURL)
+	backupName, volumeName, _, err := DecodeBackupURL(backupURL)
 	if err != nil {
 		return err
 	}
