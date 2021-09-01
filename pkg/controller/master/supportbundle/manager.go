@@ -43,6 +43,7 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 	logrus.Debugf("creating deployment %s with image %s", deployName, image)
 
 	pullPolicy := m.getImagePullPolicy()
+	namespaces := []string{sb.Namespace, "longhorn-system"}
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -77,23 +78,23 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 						{
 							Name:            "manager",
 							Image:           image,
-							Args:            []string{"/usr/bin/support-bundle-utils", "manager"},
+							Args:            []string{"/usr/bin/support-bundle-kit", "manager"},
 							ImagePullPolicy: pullPolicy,
 							Env: []corev1.EnvVar{
 								{
-									Name:  "HARVESTER_NAMESPACE",
-									Value: sb.Namespace,
+									Name:  "SUPPORT_BUNDLE_TARGET_NAMESPACES",
+									Value: strings.Join(namespaces, ","),
 								},
 								{
-									Name:  "HARVESTER_SUPPORT_BUNDLE_NAME",
+									Name:  "SUPPORT_BUNDLE_NAME",
 									Value: sb.Name,
 								},
 								{
-									Name:  "HARVESTER_SUPPORT_BUNDLE_DEBUG",
+									Name:  "SUPPORT_BUNDLE_DEBUG",
 									Value: "true",
 								},
 								{
-									Name: "HARVESTER_SUPPORT_BUNDLE_MANAGER_POD_IP",
+									Name: "SUPPORT_BUNDLE_MANAGER_POD_IP",
 									ValueFrom: &corev1.EnvVarSource{
 										FieldRef: &corev1.ObjectFieldSelector{
 											FieldPath: "status.podIP",
@@ -101,16 +102,16 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 									},
 								},
 								{
-									Name:  "HARVESTER_SUPPORT_BUNDLE_IMAGE",
+									Name:  "SUPPORT_BUNDLE_IMAGE",
 									Value: image,
 								},
 								{
-									Name:  "HARVESTER_SUPPORT_BUNDLE_IMAGE_PULL_POLICY",
+									Name:  "SUPPORT_BUNDLE_IMAGE_PULL_POLICY",
 									Value: string(pullPolicy),
 								},
 								{
-									Name:  "HARVESTER_SUPPORT_BUNDLE_WAIT_TIMEOUT",
-									Value: types.NodeBundleWaitTimeout,
+									Name:  "SUPPORT_BUNDLE_NODE_SELECTOR",
+									Value: "harvesterhci.io/managed=true",
 								},
 							},
 							Ports: []corev1.ContainerPort{

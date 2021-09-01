@@ -10,10 +10,8 @@ const (
 	StateReady      = "ready"
 
 	// labels
-	HarvesterNodeLabelKey   = "harvesterhci.io/managed"
-	HarvesterNodeLabelValue = "true"
-	SupportBundleLabelKey   = "harvesterhci.io/supportbundle"
-	DrainKey                = "kubevirt.io/drain"
+	SupportBundleLabelKey = "rancher/supportbundle"
+	DrainKey              = "kubevirt.io/drain"
 
 	AppManager = "support-bundle-manager"
 	AppAgent   = "support-bundle-agent"
