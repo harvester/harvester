@@ -23,6 +23,9 @@ const (
 	LonghornKindShareManager        = "ShareManager"
 	LonghornKindBackingImage        = "BackingImage"
 	LonghornKindBackingImageManager = "BackingImageManager"
+	LonghornKindRecurringJob        = "RecurringJob"
+
+	LonghornKindBackingImageDataSource = "BackingImageDataSource"
 
 	CRDAPIVersionV1alpha1 = "longhorn.rancher.io/v1alpha1"
 	CRDAPIVersionV1beta1  = "longhorn.io/v1beta1"
@@ -37,8 +40,10 @@ const (
 	ReplicaHostPrefix                = "/host"
 	EngineBinaryName                 = "longhorn"
 
-	BackingImagesManagerDirectory = "/backing-images/"
-	BackingImageFileName          = "backing"
+	BackingImageManagerDirectory = "/backing-images/"
+	BackingImageFileName         = "backing"
+
+	DefaultBackupTargetName = "default"
 
 	LonghornNodeKey     = "longhornnode"
 	LonghornDiskUUIDKey = "longhorndiskuuid"
@@ -58,19 +63,30 @@ const (
 
 	LonghornLabelKeyPrefix = "longhorn.io"
 
-	LonghornLabelEngineImage          = "engine-image"
-	LonghornLabelInstanceManager      = "instance-manager"
-	LonghornLabelNode                 = "node"
-	LonghornLabelDiskUUID             = "disk-uuid"
-	LonghornLabelInstanceManagerType  = "instance-manager-type"
-	LonghornLabelInstanceManagerImage = "instance-manager-image"
-	LonghornLabelVolume               = "longhornvolume"
-	LonghornLabelShareManager         = "share-manager"
-	LonghornLabelShareManagerImage    = "share-manager-image"
-	LonghornLabelBackingImage         = "backing-image"
-	LonghornLabelBackingImageManager  = "backing-image-manager"
-	LonghornLabelManagedBy            = "managed-by"
-	LonghornLabelCronJobTask          = "job-task"
+	LonghornLabelRecurringJobKeyPrefixFmt = "recurring-%s.longhorn.io"
+
+	LonghornLabelEngineImage              = "engine-image"
+	LonghornLabelInstanceManager          = "instance-manager"
+	LonghornLabelNode                     = "node"
+	LonghornLabelDiskUUID                 = "disk-uuid"
+	LonghornLabelInstanceManagerType      = "instance-manager-type"
+	LonghornLabelInstanceManagerImage     = "instance-manager-image"
+	LonghornLabelVolume                   = "longhornvolume"
+	LonghornLabelShareManager             = "share-manager"
+	LonghornLabelShareManagerImage        = "share-manager-image"
+	LonghornLabelBackingImage             = "backing-image"
+	LonghornLabelBackingImageManager      = "backing-image-manager"
+	LonghornLabelManagedBy                = "managed-by"
+	LonghornLabelSnapshotForCloningVolume = "for-cloning-volume"
+	LonghornLabelBackingImageDataSource   = "backing-image-data-source"
+	LonghornLabelBackupVolume             = "backup-volume"
+	LonghornLabelRecurringJob             = "job"
+	LonghornLabelRecurringJobGroup        = "job-group"
+
+	LonghornLabelValueEnabled = "enabled"
+
+	LonghornLabelExportFromVolume                 = "export-from-volume"
+	LonghornLabelSnapshotForExportingBackingImage = "for-exporting-backing-image"
 
 	KubernetesFailureDomainRegionLabelKey = "failure-domain.beta.kubernetes.io/region"
 	KubernetesFailureDomainZoneLabelKey   = "failure-domain.beta.kubernetes.io/zone"
@@ -86,14 +102,12 @@ const (
 	DefaultStorageClassConfigMapName = "longhorn-storageclass"
 	DefaultStorageClassName          = "longhorn"
 	ControlPlaneName                 = "longhorn-manager"
+
+	DefaultRecurringJobConcurrency = 10
 )
 
 const (
-	CSIMinVersion                = "v1.14.0"
-	CSIVolumeExpansionMinVersion = "v1.16.0"
-	CSISnapshotterMinVersion     = "v1.17.0"
-
-	KubernetesTopologyLabelsVersion = "v1.17.0"
+	KubernetesMinVersion = "v1.18.0"
 )
 
 type ReplicaMode string
@@ -150,17 +164,11 @@ const (
 	replicaSuffix   = "-r"
 	recurringSuffix = "-c"
 
-	// MaximumJobNameSize is calculated using
-	// 1. NameMaximumLength is 40
-	// 2. Recurring suffix is 2
-	// 3. Maximum kubernetes name length is 63
-	// 4. cronjob pod suffix is 11
-	// 5. Dash and buffer for 2
-	MaximumJobNameSize = 8
-
 	engineImagePrefix          = "ei-"
 	instanceManagerImagePrefix = "imi-"
 	shareManagerImagePrefix    = "smi-"
+
+	BackingImageDataSourcePodNamePrefix = "backing-image-ds-"
 
 	shareManagerPrefix    = "share-manager-"
 	instanceManagerPrefix = "instance-manager-"
@@ -174,6 +182,10 @@ func GenerateEngineNameForVolume(vName string) string {
 
 func GenerateReplicaNameForVolume(vName string) string {
 	return vName + replicaSuffix + "-" + util.RandomID()
+}
+
+func GetCronJobNameForRecurringJob(name string) string {
+	return name + recurringSuffix
 }
 
 func GetCronJobNameForVolumeAndJob(vName, job string) string {
@@ -221,7 +233,7 @@ func GetBackingImageDirectoryName(backingImageName, backingImageUUID string) str
 }
 
 func GetBackingImageManagerDirectoryOnHost(diskPath string) string {
-	return filepath.Join(diskPath, BackingImagesManagerDirectory)
+	return filepath.Join(diskPath, BackingImageManagerDirectory)
 }
 
 func GetBackingImageDirectoryOnHost(diskPath, backingImageName, backingImageUUID string) string {
@@ -316,17 +328,9 @@ func GetShareManagerLabels(name, image string) map[string]string {
 	return labels
 }
 
-func GetCronJobLabels(volumeName string, job *RecurringJob) map[string]string {
+func GetCronJobLabels(job *RecurringJobSpec) map[string]string {
 	labels := GetBaseLabelsForSystemManagedComponent()
-	labels[LonghornLabelVolume] = volumeName
-	labels[GetLonghornLabelKey(LonghornLabelCronJobTask)] = string(job.Task)
-	return labels
-}
-
-func GetCronJobPodLabels(volumeName string, job *RecurringJob) map[string]string {
-	labels := make(map[string]string)
-	labels[LonghornLabelVolume] = volumeName
-	labels[GetLonghornLabelKey(LonghornLabelCronJobTask)] = string(job.Task)
+	labels[fmt.Sprintf(LonghornLabelRecurringJobKeyPrefixFmt, LonghornLabelRecurringJob)] = job.Name
 	return labels
 }
 
@@ -348,29 +352,51 @@ func GetBackingImageManagerLabels(nodeID, diskUUID string) map[string]string {
 	return labels
 }
 
+func GetBackingImageDataSourceLabels(name, nodeID, diskUUID string) map[string]string {
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelBackingImageDataSource
+	if name != "" {
+		labels[GetLonghornLabelKey(LonghornLabelBackingImageDataSource)] = name
+	}
+	if diskUUID != "" {
+		labels[GetLonghornLabelKey(LonghornLabelDiskUUID)] = diskUUID
+	}
+	if nodeID != "" {
+		labels[GetLonghornLabelKey(LonghornLabelNode)] = nodeID
+	}
+	return labels
+}
+
+func GetBackupVolumeLabels(volumeName string) map[string]string {
+	return map[string]string{
+		LonghornLabelBackupVolume: volumeName,
+	}
+}
+
 func GetVolumeLabels(volumeName string) map[string]string {
 	return map[string]string{
 		LonghornLabelVolume: volumeName,
 	}
 }
 
-func GetRegionAndZone(labels map[string]string, isUsingTopologyLabels bool) (string, string) {
+func GetRecurringJobLabelKey(labelType, recurringJobName string) string {
+	prefix := fmt.Sprintf(LonghornLabelRecurringJobKeyPrefixFmt, labelType)
+	return fmt.Sprintf("%s/%s", prefix, recurringJobName)
+}
+
+func GetRecurringJobLabelValueMap(labelType, recurringJobName string) map[string]string {
+	return map[string]string{
+		GetRecurringJobLabelKey(labelType, recurringJobName): LonghornLabelValueEnabled,
+	}
+}
+func GetRegionAndZone(labels map[string]string) (string, string) {
 	region := ""
 	zone := ""
-	if isUsingTopologyLabels {
-		if v, ok := labels[KubernetesTopologyRegionLabelKey]; ok {
-			region = v
-		}
-		if v, ok := labels[KubernetesTopologyZoneLabelKey]; ok {
-			zone = v
-		}
-	} else {
-		if v, ok := labels[KubernetesFailureDomainRegionLabelKey]; ok {
-			region = v
-		}
-		if v, ok := labels[KubernetesFailureDomainZoneLabelKey]; ok {
-			zone = v
-		}
+	if v, ok := labels[KubernetesTopologyRegionLabelKey]; ok {
+		region = v
+	}
+	if v, ok := labels[KubernetesTopologyZoneLabelKey]; ok {
+		zone = v
 	}
 	return region, zone
 }
@@ -420,6 +446,10 @@ func GetInstanceManagerPrefix(imType InstanceManagerType) string {
 	return ""
 }
 
+func GetBackingImageDataSourcePodName(bidsName string) string {
+	return fmt.Sprintf("%s%s", BackingImageDataSourcePodNamePrefix, bidsName)
+}
+
 func GetReplicaDataPath(diskPath, dataDirectoryName string) string {
 	return filepath.Join(diskPath, "replicas", dataDirectoryName)
 }
@@ -444,6 +474,18 @@ func ValidateReplicaCount(count int) error {
 		return fmt.Errorf("replica count value must between 1 to 20")
 	}
 	return nil
+}
+
+func ValidateReplicaAutoBalance(option ReplicaAutoBalance) error {
+	switch option {
+	case ReplicaAutoBalanceIgnored,
+		ReplicaAutoBalanceDisabled,
+		ReplicaAutoBalanceLeastEffort,
+		ReplicaAutoBalanceBestEffort:
+		return nil
+	default:
+		return fmt.Errorf("invalid replica auto-balance option: %v", option)
+	}
 }
 
 func ValidateDataLocality(mode DataLocality) error {

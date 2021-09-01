@@ -14,7 +14,7 @@ func InspectVolume(volumeURL string) (*VolumeInfo, error) {
 		return nil, err
 	}
 
-	_, volumeName, _, err := DecodeMetadataURL(volumeURL)
+	_, volumeName, _, err := DecodeBackupURL(volumeURL)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func InspectBackup(backupURL string) (*BackupInfo, error) {
 		return nil, err
 	}
 
-	backupName, volumeName, _, err := DecodeMetadataURL(backupURL)
+	backupName, volumeName, _, err := DecodeBackupURL(backupURL)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func fillVolumeInfo(volume *Volume) *VolumeInfo {
 func fillBackupInfo(backup *Backup, destURL string) *BackupInfo {
 	return &BackupInfo{
 		Name:            backup.Name,
-		URL:             EncodeMetadataURL(backup.Name, backup.VolumeName, destURL),
+		URL:             EncodeBackupURL(backup.Name, backup.VolumeName, destURL),
 		SnapshotName:    backup.SnapshotName,
 		SnapshotCreated: backup.SnapshotCreatedAt,
 		Created:         backup.CreatedTime,

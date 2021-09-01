@@ -162,7 +162,7 @@ func CreateDeltaBlockBackup(config *DeltaBackupConfig) (string, bool, error) {
 				LogFieldObject:   LogObjectSnapshot,
 				LogFieldSnapshot: backup.SnapshotName,
 				LogFieldVolume:   volume.Name,
-			}).Debug("Create full snapshot metadata")
+			}).Debug("Create full snapshot config")
 		} else if backup.SnapshotName != "" && !deltaOps.HasSnapshot(backup.SnapshotName, volume.Name) {
 			log.WithFields(logrus.Fields{
 				LogFieldReason:   LogReasonFallback,
@@ -181,7 +181,7 @@ func CreateDeltaBlockBackup(config *DeltaBackupConfig) (string, bool, error) {
 		LogFieldEvent:        LogEventCompare,
 		LogFieldSnapshot:     snapshot.Name,
 		LogFieldLastSnapshot: backupRequest.getLastSnapshotName(),
-	}).Debug("Generating snapshot changed blocks metadata")
+	}).Debug("Generating snapshot changed blocks config")
 	delta, err := deltaOps.CompareSnapshot(snapshot.Name, backupRequest.getLastSnapshotName(), volume.Name)
 	if err != nil {
 		deltaOps.CloseSnapshot(snapshot.Name, volume.Name)
@@ -198,7 +198,7 @@ func CreateDeltaBlockBackup(config *DeltaBackupConfig) (string, bool, error) {
 		LogFieldEvent:        LogEventCompare,
 		LogFieldSnapshot:     snapshot.Name,
 		LogFieldLastSnapshot: backupRequest.getLastSnapshotName(),
-	}).Debug("Generated snapshot changed blocks metadata")
+	}).Debug("Generated snapshot changed blocks config")
 
 	log.WithFields(logrus.Fields{
 		LogFieldReason:     LogReasonStart,
@@ -241,7 +241,7 @@ func CreateDeltaBlockBackup(config *DeltaBackupConfig) (string, bool, error) {
 func performBackup(config *DeltaBackupConfig, delta *Mappings, deltaBackup *Backup, lastBackup *Backup,
 	bsDriver BackupStoreDriver) (int, string, error) {
 
-	// create an in progress backup metadata file
+	// create an in progress backup config file
 	if err := saveBackup(&Backup{Name: deltaBackup.Name, VolumeName: deltaBackup.VolumeName,
 		CreatedTime: ""}, bsDriver); err != nil {
 		return 0, "", err
@@ -339,7 +339,7 @@ func performBackup(config *DeltaBackupConfig, delta *Mappings, deltaBackup *Back
 		return progress, "", err
 	}
 
-	return PROGRESS_PERCENTAGE_BACKUP_TOTAL, EncodeMetadataURL(backup.Name, volume.Name, destURL), nil
+	return PROGRESS_PERCENTAGE_BACKUP_TOTAL, EncodeBackupURL(backup.Name, volume.Name, destURL), nil
 }
 
 func mergeSnapshotMap(deltaBackup, lastBackup *Backup) *Backup {
@@ -402,7 +402,7 @@ func RestoreDeltaBlockBackup(config *DeltaRestoreConfig) error {
 		return err
 	}
 
-	srcBackupName, srcVolumeName, _, err := DecodeMetadataURL(backupURL)
+	srcBackupName, srcVolumeName, _, err := DecodeBackupURL(backupURL)
 	if err != nil {
 		return err
 	}
@@ -543,7 +543,7 @@ func RestoreDeltaBlockBackupIncrementally(config *DeltaRestoreConfig) error {
 		return err
 	}
 
-	srcBackupName, srcVolumeName, _, err := DecodeMetadataURL(backupURL)
+	srcBackupName, srcVolumeName, _, err := DecodeBackupURL(backupURL)
 	if err != nil {
 		return err
 	}
@@ -771,7 +771,7 @@ func DeleteDeltaBlockBackup(backupURL string) error {
 		return err
 	}
 
-	backupName, volumeName, _, err := DecodeMetadataURL(backupURL)
+	backupName, volumeName, _, err := DecodeBackupURL(backupURL)
 	if err != nil {
 		return err
 	}

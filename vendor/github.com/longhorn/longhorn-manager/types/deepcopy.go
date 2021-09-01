@@ -215,6 +215,13 @@ func (bi *BackingImageSpec) DeepCopyInto(to *BackingImageSpec) {
 
 func (bi *BackingImageStatus) DeepCopyInto(to *BackingImageStatus) {
 	*to = *bi
+	if bi.DiskFileStatusMap != nil {
+		to.DiskFileStatusMap = make(map[string]*BackingImageDiskFileStatus)
+		for key, value := range bi.DiskFileStatusMap {
+			to.DiskFileStatusMap[key] = &BackingImageDiskFileStatus{}
+			*to.DiskFileStatusMap[key] = *value
+		}
+	}
 	if bi.DiskDownloadStateMap != nil {
 		to.DiskDownloadStateMap = make(map[string]BackingImageDownloadState)
 		for key, value := range bi.DiskDownloadStateMap {
@@ -251,6 +258,104 @@ func (bim *BackingImageManagerStatus) DeepCopyInto(to *BackingImageManagerStatus
 		to.BackingImageFileMap = make(map[string]BackingImageFileInfo)
 		for key, value := range bim.BackingImageFileMap {
 			to.BackingImageFileMap[key] = value
+		}
+	}
+}
+
+func (from *BackingImageDataSourceSpec) DeepCopyInto(to *BackingImageDataSourceSpec) {
+	*to = *from
+	if from.Parameters != nil {
+		to.Parameters = make(map[string]string)
+		for key, value := range from.Parameters {
+			to.Parameters[key] = value
+		}
+	}
+}
+
+func (from *BackingImageDataSourceStatus) DeepCopyInto(to *BackingImageDataSourceStatus) {
+	*to = *from
+}
+
+func (in *BackupTargetSpec) DeepCopyInto(out *BackupTargetSpec) {
+	*out = *in
+	return
+}
+
+func (in *BackupTargetStatus) DeepCopyInto(out *BackupTargetStatus) {
+	*out = *in
+	if in.Conditions != nil {
+		out.Conditions = make(map[string]Condition)
+		for key, value := range in.Conditions {
+			out.Conditions[key] = value
+		}
+	}
+	return
+}
+
+func (in *BackupVolumeSpec) DeepCopyInto(out *BackupVolumeSpec) {
+	*out = *in
+	return
+}
+
+func (in *BackupVolumeStatus) DeepCopyInto(out *BackupVolumeStatus) {
+	*out = *in
+	if in.Labels != nil {
+		out.Labels = make(map[string]string)
+		for key, value := range in.Labels {
+			out.Labels[key] = value
+		}
+	}
+	if in.Messages != nil {
+		out.Messages = make(map[string]string)
+		for key, value := range in.Messages {
+			out.Messages[key] = value
+		}
+	}
+	return
+}
+
+func (in *SnapshotBackupSpec) DeepCopyInto(out *SnapshotBackupSpec) {
+	*out = *in
+	if in.Labels != nil {
+		out.Labels = make(map[string]string)
+		for key, value := range in.Labels {
+			out.Labels[key] = value
+		}
+	}
+	return
+}
+
+func (in *SnapshotBackupStatus) DeepCopyInto(out *SnapshotBackupStatus) {
+	*out = *in
+	if in.Labels != nil {
+		out.Labels = make(map[string]string)
+		for key, value := range in.Labels {
+			out.Labels[key] = value
+		}
+	}
+	if in.Messages != nil {
+		out.Messages = make(map[string]string)
+		for key, value := range in.Messages {
+			out.Messages[key] = value
+		}
+	}
+	return
+}
+
+func (in *RecurringJobSpec) DeepCopyInto(out *RecurringJobSpec) {
+	*out = *in
+
+	if in.Groups != nil {
+		out.Groups = make([]string, len(in.Groups))
+		for i := 0; i < len(in.Groups); i++ {
+			out.Groups[i] = in.Groups[i]
+		}
+	}
+
+	if in.Labels != nil {
+		out.Labels = make(map[string]string)
+		for key, value := range in.Labels {
+			out.Labels[key] = value
 		}
 	}
 }
