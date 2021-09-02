@@ -39,6 +39,18 @@ questions:
       description: "specify the tag of harvester-network-controller image"
       type: "string"
       group: "Harvester Settings"
+    - variable: harvester-node-disk-manager.image.repository
+      default: "rancher/harvester-node-disk-manager"
+      label: "Image"
+      description: "specify the repository of harvester-node-disk-manager image"
+      type: "string"
+      group: "Harvester Settings"
+    - variable: harvester-node-disk-manager.image.tag
+      default: "master-head"
+      label: "Image Tag"
+      description: "specify the tag of harvester-node-disk-manager image"
+      type: "string"
+      group: "Harvester Settings"
     #################### Harvester Resource Settings ####################
     - variable: containers.apiserver.resources.requests.cpu
       default: "250m"
