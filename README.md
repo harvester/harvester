@@ -42,7 +42,7 @@ To get the Harvester server up and running the following minimum hardware is req
 | Network Card | 1 Gbps Ethernet minimum, 10Gbps Ethernet recommended |
 | Network Switch | Trunking of ports required for VLAN support |
 
-We recommend server-class hardware for best results. Laptops and nested virtualizaion are not supported. 
+We recommend server-class hardware for best results. Laptops and nested virtualization are not supported. 
 
 ## Quick start
 
