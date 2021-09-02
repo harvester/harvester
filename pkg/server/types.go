@@ -30,7 +30,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/harvester/harvester/pkg/api"
-	"github.com/harvester/harvester/pkg/api/auth"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/admission"
 	"github.com/harvester/harvester/pkg/controller/global"
@@ -232,19 +231,7 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 	s.steve.APIServer.Parser = dynamicURLBuilderParse
 	apiroot.Register(s.steve.BaseSchemas, []string{"v1", "v1/harvester"}, "proxy:/apis")
 
-	var authMiddleware steveauth.Middleware
-	if !options.SkipAuthentication {
-		md, err := auth.NewMiddleware(s.Context, scaled,
-			s.RancherRESTConfig, options.RancherEmbedded || options.RancherURL != "",
-			[]string{"/v1", "/apis"},
-			[]string{"/v1-public", "/v1/management.cattle.io.setting"})
-		if err != nil {
-			return err
-		}
-		authMiddleware = md.ToAuthMiddleware()
-	} else {
-		authMiddleware = steveauth.ToMiddleware(steveauth.AuthenticatorFunc(steveauth.AlwaysAdmin))
-	}
+	authMiddleware := steveauth.ToMiddleware(steveauth.AuthenticatorFunc(steveauth.AlwaysAdmin))
 	s.Handler = authMiddleware(s.steve)
 
 	s.startHooks = []StartHook{

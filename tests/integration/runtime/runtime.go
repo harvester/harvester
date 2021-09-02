@@ -55,10 +55,6 @@ func SetConfig(kubeConfig *rest.Config, testCluster cluster.Cluster) (config.Opt
 	// config http and https
 	options.HTTPListenPort = ports[0]
 	options.HTTPSListenPort = ports[1]
-
-	// config skip auth
-	options.SkipAuthentication = true
-
 	options.Namespace = testHarvesterNamespace
 
 	// inject the preset envs, this is used for testing setting.

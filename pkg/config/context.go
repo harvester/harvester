@@ -20,7 +20,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 
-	"github.com/harvester/harvester/pkg/auth/jwe"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	cniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
@@ -168,10 +167,6 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 		return nil, nil, err
 	}
 
-	scaled.TokenManager, err = jwe.NewJWETokenManager(scaled.CoreFactory.Core().V1().Secret(), namespace)
-	if err != nil {
-		return nil, nil, err
-	}
 	return context.WithValue(scaled.Ctx, _scaledKey{}, scaled), scaled, nil
 }
 

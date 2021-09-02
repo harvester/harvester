@@ -16,18 +16,12 @@ var (
 	InjectDefaults string
 
 	APIUIVersion                 = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
-	AuthSecretName               = NewSetting("auth-secret-name", "harvester-key-holder")
-	AuthTokenMaxTTLMinutes       = NewSetting("auth-token-max-ttl-minutes", "720")
-	FirstLogin                   = NewSetting("first-login", "true")
-	NoDefaultAdmin               = NewSetting("no-default-admin", "")
-	ServerURL                    = NewSetting("server-url", "")
 	ServerVersion                = NewSetting("server-version", "dev")
-	UIIndex                      = NewSetting("ui-index", "https://releases.rancher.com/harvester-ui/latest/index.html")
+	LocalUIIndex                 = NewSetting("local-ui-index", "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html")
 	UIPath                       = NewSetting("ui-path", "/usr/share/harvester/harvester")
 	APIUISource                  = NewSetting("api-ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
 	VolumeSnapshotClass          = NewSetting("volume-snapshot-class", "longhorn")
 	BackupTargetSet              = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
-	RancherEnabled               = NewSetting("rancher-enabled", "false") // Specify whether the UI should display the Rancher UI navigation
 	UpgradableVersions           = NewSetting("upgradable-versions", "")
 	UpgradeCheckerEnabled        = NewSetting("upgrade-checker-enabled", "true")
 	UpgradeCheckerURL            = NewSetting("upgrade-checker-url", "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
