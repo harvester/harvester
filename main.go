@@ -76,6 +76,12 @@ func main() {
 			Usage:       "Specify the URL to connect to the Rancher server",
 			Destination: &options.RancherURL,
 		},
+		cli.BoolFlag{
+			Name:        "add-local-ui",
+			Usage:       "Add local dashboard UI (true, false)",
+			Destination: &options.AddLocalUI,
+			Hidden:      true,
+		},
 	}
 
 	app := cmd.NewApp("Harvester API Server", "", flags, func(commonOptions *config.CommonOptions) error {
