@@ -11,7 +11,6 @@ import (
 	"github.com/rancher/steve/pkg/server/router"
 	"k8s.io/client-go/rest"
 
-	"github.com/harvester/harvester/pkg/api/auth"
 	"github.com/harvester/harvester/pkg/api/kubeconfig"
 	"github.com/harvester/harvester/pkg/api/proxy"
 	"github.com/harvester/harvester/pkg/api/supportbundle"
@@ -75,27 +74,27 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	m.Path("/v1/harvester/{type}/{namespace}/{name}").Handler(h.K8sResource)
 	m.Path("/v1/harvester/{type}/{namespace}/{name}/{link}").Handler(h.K8sResource)
 
-	loginHandler := auth.NewLoginHandler()
-	m.Path("/v1-public/auth").Handler(loginHandler)
+	// enable local dashboard ui for dev
+	if r.options.AddLocalUI {
+		vueUI := ui.Vue
+		m.Handle("/dashboard/", vueUI.IndexFile())
+		m.PathPrefix("/dashboard/").Handler(vueUI.IndexFileOnNotFound())
+		m.PathPrefix("/api-ui").Handler(vueUI.ServeAsset())
 
-	vueUI := ui.Vue
-	m.Handle("/dashboard/", vueUI.IndexFile())
-	m.PathPrefix("/dashboard/").Handler(vueUI.IndexFileOnNotFound())
-	m.PathPrefix("/api-ui").Handler(vueUI.ServeAsset())
-
-	if r.options.RancherEmbedded || r.options.RancherURL != "" {
-		host, scheme, err := parseRancherServerURL(r.options.RancherURL)
-		if err != nil {
-			logrus.Fatal(err)
+		if r.options.RancherURL != "" {
+			host, scheme, err := parseRancherServerURL(r.options.RancherURL)
+			if err != nil {
+				logrus.Fatal(err)
+			}
+			rancherHandler := &proxy.Handler{
+				Host:   host,
+				Scheme: scheme,
+			}
+			m.PathPrefix("/v3-public/").Handler(rancherHandler)
+			m.PathPrefix("/v3/").Handler(rancherHandler)
+			m.PathPrefix("/v1/userpreferences").Handler(rancherHandler)
+			m.PathPrefix("/v1/management.cattle.io.setting").Handler(rancherHandler)
 		}
-		rancherHandler := &proxy.Handler{
-			Host:   host,
-			Scheme: scheme,
-		}
-		m.PathPrefix("/v3-public/").Handler(rancherHandler)
-		m.PathPrefix("/v3/").Handler(rancherHandler)
-		m.PathPrefix("/v1/userpreferences").Handler(rancherHandler)
-		m.PathPrefix("/v1/management.cattle.io.setting").Handler(rancherHandler)
 	}
 
 	m.NotFoundHandler = router.Routes(h)

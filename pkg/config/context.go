@@ -43,6 +43,7 @@ type Options struct {
 	RancherEmbedded    bool
 	RancherURL         string
 	HCIMode            bool
+	AddLocalUI         bool
 }
 
 type Scaled struct {
