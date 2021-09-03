@@ -121,7 +121,7 @@ metadata:
   name: harvester-webhook
   labels:
 {{ include "harvester.labels" . | indent 4 }}
-    app.kubernetes.io/name: harvester
+    app.kubernetes.io/name: harvester-webhook
     app.kubernetes.io/component: webhook-server
 spec:
   selector:

@@ -34,8 +34,8 @@ var registerFuncs = []registerFunc{
 	backup.RegisterBackup,
 	backup.RegisterRestore,
 	backup.RegisterBackupTarget,
-	rancher.Register,
 	supportbundle.Register,
+	rancher.Register,
 	//upgrade.Register,
 }
 
