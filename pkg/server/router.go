@@ -4,11 +4,10 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
 	"github.com/rancher/steve/pkg/server/router"
+	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/rest"
 
 	"github.com/harvester/harvester/pkg/api/kubeconfig"
