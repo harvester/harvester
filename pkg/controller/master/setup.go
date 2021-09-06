@@ -16,7 +16,6 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle"
 	"github.com/harvester/harvester/pkg/controller/master/template"
-	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
 	"github.com/harvester/harvester/pkg/indexeres"
 )
@@ -32,7 +31,6 @@ var registerFuncs = []registerFunc{
 	setting.Register,
 	template.Register,
 	virtualmachine.Register,
-	upgrade.Register,
 	backup.RegisterBackup,
 	backup.RegisterRestore,
 	backup.RegisterBackupTarget,
