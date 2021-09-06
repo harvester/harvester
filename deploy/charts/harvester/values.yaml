@@ -63,6 +63,10 @@ kubevirt:
     ##
     configuration:
 
+      ## Specify kubevirt feature gates
+      developerConfiguration:
+        featureGates: ["LiveMigration", "HotplugVolumes"]
+
       ## Specify the network configuration of VirtualMachineInstance.
       ##
       network:
