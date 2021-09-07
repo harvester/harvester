@@ -8,6 +8,8 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         unzip \
         netcat \
         zstd \
+        squashfs-tools \
+        xorriso \
     && rm -rf /var/lib/apt/lists/*
 
 # install yq
@@ -51,6 +53,10 @@ RUN  GO111MODULE=on go get k8s.io/code-generator/cmd/openapi-gen@v0.20.3
 
 # install kind
 RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 && chmod +x /usr/bin/kind
+
+# makeiso
+RUN wget --quiet https://github.com/mudler/luet/releases/download/0.17.0/luet-0.17.0-linux-amd64 -O /usr/bin/luet && chmod +x /usr/bin/luet
+RUN wget --quiet https://github.com/mudler/luet-makeiso/releases/download/0.3.3/luet-makeiso-0.3.3-linux-amd64 -O /usr/bin/luet-makeiso && chmod +x /usr/bin/luet-makeiso
 
 # -- for make rules
 
