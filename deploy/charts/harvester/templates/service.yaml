@@ -53,6 +53,11 @@ spec:
     app.kubernetes.io/component: webhook-server
 ---
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: cattle-system
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: rancher-expose
