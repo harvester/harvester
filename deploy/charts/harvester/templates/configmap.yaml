@@ -5,5 +5,5 @@ metadata:
   namespace: kube-system
 data:
 {{- if and (eq .Values.service.harvester.vipMode "static") .Values.service.harvester.vip }}
-  cidr-harvester-system: {{ .Values.service.harvester.vip }}/32
+  cidr-cattle-system: {{ .Values.service.harvester.vip }}/32
 {{- end }}
