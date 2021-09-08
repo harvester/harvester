@@ -22,7 +22,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 	resources := []types.Resource{}
 	validators := []types.Validator{
 		network.NewValidator(clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache(), clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()),
-		persistentvolumeclaim.NewValidator(clients.Core.PersistentVolumeClaim().Cache()),
+		persistentvolumeclaim.NewValidator(clients.Core.PersistentVolumeClaim().Cache(), clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()),
 		keypair.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
 		virtualmachine.NewValidator(clients.Core.PersistentVolumeClaim().Cache()),
 		virtualmachineimage.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()),
