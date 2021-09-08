@@ -6,13 +6,6 @@ metadata:
   # name: {{ template "harvester.fullname" . }}
   # because we can easily confirm this resource from the corresponding namespace.
   name: harvester
-  annotations:
-{{- if and (eq .Values.service.harvester.type "LoadBalancer") (eq .Values.service.harvester.vipMode "DHCP") }}
-{{- if and .Values.service.harvester.vip .Values.service.harvester.vipHwAddr }}
-    kube-vip.io/requestedIP: {{ .Values.service.harvester.vip }}
-    kube-vip.io/hwaddr: {{ .Values.service.harvester.vipHwAddr }}
-{{- end }}
-{{- end }}
   labels:
 {{ include "harvester.labels" . | indent 4 }}
     app.kubernetes.io/name: harvester
@@ -22,16 +15,11 @@ metadata:
 {{- end }}
 spec:
   sessionAffinity: {{ .Values.service.harvester.sessionAffinity }}
-  type: {{ .Values.service.harvester.type }}
+  type: ClusterIP
   selector:
 {{ include "harvester.labels" . | indent 4 }}
     app.kubernetes.io/name: harvester
     app.kubernetes.io/component: apiserver
-{{- if and (eq .Values.service.harvester.type "LoadBalancer") (eq .Values.service.harvester.vipMode "DHCP") }}
-  loadBalancerIP: "0.0.0.0"
-{{- else}}
-  loadBalancerIP: {{ .Values.service.harvester.loadBalancerIP }}
-{{- end }}
   ports:
 {{- if gt (.Values.service.harvester.httpsPort | int) 0 }}
     - name: https
@@ -63,3 +51,32 @@ spec:
   selector:
     app.kubernetes.io/name: harvester
     app.kubernetes.io/component: webhook-server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rancher-expose
+  namespace: cattle-system
+{{- if and (eq .Values.service.harvester.type "LoadBalancer") (eq .Values.service.harvester.vipMode "DHCP") }}
+{{- if and .Values.service.harvester.vip .Values.service.harvester.vipHwAddr }}
+  annotations:
+    kube-vip.io/requestedIP: {{ .Values.service.harvester.vip }}
+    kube-vip.io/hwaddr: {{ .Values.service.harvester.vipHwAddr }}
+{{- end }}
+{{- end }}
+spec:
+  externalTrafficPolicy: Cluster
+  ports:
+    - name: https-internal
+      port: 443
+      protocol: TCP
+      targetPort: 444
+  selector:
+    app: rancher
+  sessionAffinity: None
+  type: LoadBalancer
+  {{- if and (eq .Values.service.harvester.type "LoadBalancer") (eq .Values.service.harvester.vipMode "DHCP") }}
+  loadBalancerIP: "0.0.0.0"
+  {{- else }}
+  loadBalancerIP: {{ .Values.service.harvester.loadBalancerIP }}
+  {{- end }}
