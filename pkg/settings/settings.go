@@ -33,7 +33,7 @@ var (
 
 const (
 	BackupTargetSettingName = "backup-target"
-	DefaultDashboardUIURL   = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
+	DefaultDashboardUIURL   = "https://releases.rancher.com/harvester-ui/dashboard/v0.3.0-preview1/index.html"
 )
 
 func init() {
