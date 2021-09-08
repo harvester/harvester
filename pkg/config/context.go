@@ -6,6 +6,7 @@ import (
 	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/rancher/lasso/pkg/controller"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
+	"github.com/rancher/wrangler/pkg/apply"
 	appsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps"
 	batchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch"
 	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core"
@@ -68,6 +69,7 @@ type Scaled struct {
 
 type Management struct {
 	ctx               context.Context
+	Apply             apply.Apply
 	ControllerFactory controller.SharedControllerFactory
 
 	VirtFactory              *kubevirt.Factory
@@ -175,6 +177,12 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management := &Management{
 		ctx: ctx,
 	}
+
+	apply, err := apply.NewForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
+	management.Apply = apply
 
 	virt, err := kubevirt.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {

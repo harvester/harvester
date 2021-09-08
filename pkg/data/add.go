@@ -11,15 +11,17 @@ func Init(ctx context.Context, mgmtCtx *config.Management, options config.Option
 	if err := createCRDs(ctx, mgmtCtx.RestConfig); err != nil {
 		return err
 	}
-	if err := createPublicNamespace(mgmtCtx); err != nil {
+
+	if err := addPublicNamespace(mgmtCtx.Apply); err != nil {
 		return err
 	}
-	if err := createTemplates(mgmtCtx, publicNamespace); err != nil {
+	if err := addAPIService(mgmtCtx.Apply, options.Namespace); err != nil {
 		return err
 	}
-	if err := createAPIService(mgmtCtx, options.Namespace); err != nil {
+	if err := addAuthenticatedRoles(mgmtCtx.Apply); err != nil {
 		return err
 	}
 
-	return nil
+	// Not applying the built-in templates in case users have edited them.
+	return createTemplates(mgmtCtx, publicNamespace)
 }
