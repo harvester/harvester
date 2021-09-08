@@ -8,11 +8,14 @@ dependencies:
 - name: harvester-network-controller
   repository: https://charts.harvesterhci.io
   version: 0.1.0
+- name: harvester-node-disk-manager
+  repository: https://charts.harvesterhci.io
+  version: 0.1.0
 - name: csi-snapshotter
   repository: file://dependency_charts/csi-snapshotter
   version: 0.1.0
 - name: longhorn
   repository: https://charts.longhorn.io
   version: 1.2.0
-digest: sha256:625216df17135b61519c8cf07377b09eed08f11976c218d47ce625a99f12d85d
-generated: "2021-09-01T13:35:01.706215+08:00"
+digest: sha256:572641d314112e8c902ff7dd3f5f9f36a54e0faee444a352278c9dbdd6f3e579
+generated: "2021-09-08T21:27:02.315516688+08:00"
