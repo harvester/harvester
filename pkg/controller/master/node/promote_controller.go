@@ -51,7 +51,6 @@ disable: rke2-ingress-nginx
 cluster-cidr: 10.52.0.0/16
 service-cidr: 10.53.0.0/16
 cluster-dns: 10.53.0.10
-disable-cloud-controller: true
 EOF
 systemctl disable --now rke2-agent && \
 systemctl enable --now rke2-server && \
