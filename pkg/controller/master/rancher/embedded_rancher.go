@@ -6,7 +6,7 @@ import (
 )
 
 var UpdateRancherUISettings = map[string]string{
-	"ui-dashboard-index":   "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html",
+	"ui-dashboard-index":   "https://releases.rancher.com/harvester-ui/dashboard/v0.3.0-preview1/index.html",
 	"ui-offline-preferred": "false",
 	"ui-pl":                "Harvester",
 }
