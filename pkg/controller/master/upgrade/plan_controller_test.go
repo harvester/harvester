@@ -170,18 +170,26 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 		if tc.expected.serverPlan != nil {
 			actual.serverPlan, err = handler.planClient.Get(k3osSystemNamespace, tc.expected.serverPlan.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
-			//skip hash comparison
-			tc.expected.serverPlan.Status.LatestHash = ""
-			actual.serverPlan.Status.LatestHash = ""
+			sanitizeStatus(&tc.expected.serverPlan.Status)
+			sanitizeStatus(&actual.serverPlan.Status)
 		}
 
 		if tc.expected.agentPlan != nil {
 			actual.agentPlan, err = handler.planClient.Get(k3osSystemNamespace, tc.expected.agentPlan.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
-			//skip hash comparison
-			tc.expected.agentPlan.Status.LatestHash = ""
-			actual.agentPlan.Status.LatestHash = ""
+			sanitizeStatus(&tc.expected.agentPlan.Status)
+			sanitizeStatus(&actual.agentPlan.Status)
 		}
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
+	}
+}
+
+// sanitizeStatus resets hash and timestamps that may fail the comparison
+func sanitizeStatus(status *upgradeapiv1.PlanStatus) {
+	status.LatestHash = ""
+	for i, cond := range status.Conditions {
+		cond.LastTransitionTime = ""
+		cond.LastUpdateTime = ""
+		status.Conditions[i] = cond
 	}
 }
