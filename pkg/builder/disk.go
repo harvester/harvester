@@ -40,6 +40,7 @@ type PersistentVolumeClaimOption struct {
 	VolumeMode       corev1.PersistentVolumeMode
 	AccessMode       corev1.PersistentVolumeAccessMode
 	StorageClassName *string
+	Annotations      map[string]string
 }
 
 func UintPtr(in int) *uint {
@@ -172,10 +173,13 @@ func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, opt *Persisten
 			logrus.Warnf("failed to unmarshal the volumeClaimTemplates annotation: %v", err)
 		}
 	}
+	if opt.Annotations == nil {
+		opt.Annotations = map[string]string{}
+	}
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        pvcName,
-			Annotations: map[string]string{},
+			Annotations: opt.Annotations,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{
