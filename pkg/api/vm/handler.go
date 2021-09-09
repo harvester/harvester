@@ -453,8 +453,11 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 			},
 		},
 		VolumeSource: &kv1.HotplugVolumeSource{
-			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-				ClaimName: input.VolumeSourceName,
+			PersistentVolumeClaim: &kv1.PersistentVolumeClaimVolumeSource{
+				PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: input.VolumeSourceName,
+				},
+				Hotpluggable: true,
 			},
 		},
 	})
