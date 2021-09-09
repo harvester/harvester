@@ -125,8 +125,11 @@ func (v *VMBuilder) ExistingPVCVolume(diskName, pvcName string) *VMBuilder {
 	return v.Volume(diskName, kubevirtv1.Volume{
 		Name: diskName,
 		VolumeSource: kubevirtv1.VolumeSource{
-			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-				ClaimName: pvcName,
+			PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+				PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvcName,
+				},
+				Hotpluggable: true,
 			},
 		},
 	})
