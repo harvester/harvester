@@ -81,7 +81,7 @@ var _ = Describe("verify vm APIs", func() {
 			By("create a virtual machine should fail if name missing")
 			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name("").
 				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
-				PVCDisk(testVMBlankDiskName, testVMDefaultDiskBus, false, 1, testVMDiskSize, "", nil).
+				PVCDisk(testVMBlankDiskName, testVMDefaultDiskBus, false, false, 1, testVMDiskSize, "", nil).
 				VM()
 			MustNotError(err)
 			respCode, respBody, err := helper.PostObject(vmsAPI, vm)
@@ -124,7 +124,7 @@ var _ = Describe("verify vm APIs", func() {
 			// edit
 			By("when edit virtual machine")
 			vm, err = builder.NewVMBuilder(testCreator).Update(vm).CPU(testVMUpdatedCPUCore).Memory(testVMUpdatedMemory).
-				PVCDisk(testVMCDRomDiskName, testVMCDRomBus, true, 2, testVMDiskSize, "", &builder.PersistentVolumeClaimOption{
+				PVCDisk(testVMCDRomDiskName, testVMCDRomBus, true, false, 2, testVMDiskSize, "", &builder.PersistentVolumeClaimOption{
 					VolumeMode: builder.PersistentVolumeModeFilesystem,
 					AccessMode: builder.PersistentVolumeAccessModeReadWriteOnce,
 				}).VM()
@@ -240,7 +240,7 @@ var _ = Describe("verify vm APIs", func() {
 			vmName := testVMGenerateName + fuzz.String(5)
 			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
 				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
-				PVCDisk(testVMRemoveDiskName, testVMDefaultDiskBus, false, 1, testVMDiskSize, testVMRemoveDiskName, &builder.PersistentVolumeClaimOption{
+				PVCDisk(testVMRemoveDiskName, testVMDefaultDiskBus, false, false, 1, testVMDiskSize, testVMRemoveDiskName, &builder.PersistentVolumeClaimOption{
 					VolumeMode: builder.PersistentVolumeModeFilesystem,
 					AccessMode: builder.PersistentVolumeAccessModeReadWriteOnce,
 				}).

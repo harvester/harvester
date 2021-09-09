@@ -131,7 +131,7 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 				vmName := testVMGenerateName + fuzz.String(5)
 				vm, err := NewDefaultTestVMBuilder(testVMBackupLabels).Name(vmName).
 					NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
-					PVCDisk("root-disk", testVMDefaultDiskBus, false, 1, "2Gi", "", nil).
+					PVCDisk("root-disk", testVMDefaultDiskBus, false, false, 1, "2Gi", "", nil).
 					Run(true).VM()
 				MustNotError(err)
 				respCode, respBody, err := helper.PostObject(vmsAPI, vm)
