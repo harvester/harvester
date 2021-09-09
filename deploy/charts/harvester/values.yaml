@@ -218,9 +218,9 @@ service:
     # httpsNodePort: 30443
 
     ## Specify the port of HTTPs endpoint.
-    ## defaults to "443".
+    ## defaults to "8443".
     ##
-    httpsPort: 443
+    httpsPort: 8443
 
     ## Specify the port of golang pprof endpoint.
     ## defaults to "6060".
@@ -242,16 +242,24 @@ service:
     ## defaults to "ClientIP".
     sessionAffinity: ClientIP
 
+  # specify the vip service configs
+  vip:
+    enabled: false
+
+    ## Specify the VIP service type
+    ## select from [ClusterIP, NodePort, LoadBalancer],
+    type: LoadBalancer
+
     ## Specify the loadBalancerIP
     loadBalancerIP: ""
 
     ## kube-vip annotations help to get the vip
     ## Specify the mode of vip,
-    ## select from ["DHCP", "static"],
-    ## defaults to "DHCP".
-    vipMode: "static"
-    vip: ""
-    vipHwAddr: ""
+    ## select from ["dhcp", "static"],
+    ## defaults to "static".
+    mode: "static"
+    ip: ""
+    hwAddress: ""
 
 ## Specify the lifecycle jobs.
 ##
@@ -405,14 +413,14 @@ webhook:
   httpsPort: 9443
 
 harvester-load-balancer:
-  enabled: true
+  enabled: false
   image:
     imagePullPolicy: Always
     repository: rancher/harvester-load-balancer
     tag: master-head
 
 kube-vip:
-  enabled: true
+  enabled: false
   image:
     repository: plndr/kube-vip
     tag: v0.3.7
@@ -420,7 +428,7 @@ kube-vip:
     vip_interface: eth0
 
 kube-vip-cloud-provider:
-  enabled: true
+  enabled: false
   image:
     repository: kubevip/kube-vip-cloud-provider
     tag: 0.1
