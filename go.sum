@@ -925,8 +925,8 @@ github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1/go.mod h1:dV5oB3U62KBdl
 github.com/kubernetes-sigs/kube-storage-version-migrator v0.0.0-20191127225502-51849bc15f17/go.mod h1:enH0BVV+4+DAgWdwSlMefG8bBzTfVMTr1lApzdLZ/cc=
 github.com/kubernetes/dashboard v1.10.1 h1:RsBRF5S8DBH7lqGDJ8LjNiRt0C6PIvVeBrmuqmi/i3c=
 github.com/kubernetes/dashboard v1.10.1/go.mod h1:SLnjPMuDgwsEIPHCsd3eeMLm3mOvZijuujWxS9yT8xE=
-github.com/kubevirt/client-go v0.44.0 h1:oA2Cs+h5gWEKGacLRL6MTyzjnK+Qb16om6o33ZbEmzk=
-github.com/kubevirt/client-go v0.44.0/go.mod h1:21ra7fM4ZP7zTyaPCJYbycw/ss8duZ9xcW8cBE8f8Qg=
+github.com/kubevirt/client-go v0.45.0 h1:twVW30abyk6tfZWvCgOuvuNrT8YYCtPl+aPZN1/B/6o=
+github.com/kubevirt/client-go v0.45.0/go.mod h1:21ra7fM4ZP7zTyaPCJYbycw/ss8duZ9xcW8cBE8f8Qg=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 h1:SOEGU9fKiNWd/HOJuq6+3iTQz8KNCLtVX6idSoTLdUw=
 github.com/lann/builder v0.0.0-20180802200727-47ae307949d0/go.mod h1:dXGbAdH5GtBTC4WfIxhKZfyBF/HBFgRZSWwZ9g/He9o=
@@ -2267,8 +2267,8 @@ kubevirt.io/controller-lifecycle-operator-sdk v0.1.2/go.mod h1:M+UuZsp90mmKUVGb5
 kubevirt.io/controller-lifecycle-operator-sdk v0.2.0 h1:/6baCbfeFl3z09nCPNAeCgTR2704yqj/HV+sv7ZhHNI=
 kubevirt.io/controller-lifecycle-operator-sdk v0.2.0/go.mod h1:ZJhLceiY2Gl5CXFGSp5eMGt/sksOiJP0289nAZFCQf0=
 kubevirt.io/kubevirt v0.40.0/go.mod h1:ict4gmDJ/mOHvI8/pF3LIsOUMmJqaEo0/CHsbLLDj8w=
-kubevirt.io/kubevirt v0.44.0 h1:3rAq7F2tjZhi7L9+04Q0mTAR/xMQJxIzjNmCSqNIEuA=
-kubevirt.io/kubevirt v0.44.0/go.mod h1:Ko43wAkSbC4dE9933cnV9GeQPZ+B19knra5K8HQUfd0=
+kubevirt.io/kubevirt v0.45.0 h1:paxJ0pEGzvE9aSjAch83iD4HpTD3uaDhORM1o/rigVo=
+kubevirt.io/kubevirt v0.45.0/go.mod h1:Ko43wAkSbC4dE9933cnV9GeQPZ+B19knra5K8HQUfd0=
 kubevirt.io/qe-tools v0.1.6/go.mod h1:PJyH/YXC4W0AmxfheDmXWMbLNsMSboVGXKpMAwfKzVE=
 launchpad.net/gocheck v0.0.0-20140225173054-000000000087/go.mod h1:hj7XX3B/0A+80Vse0e+BUHsHMTEhd0O4cpUHr/e/BUM=
 libvirt.org/go/libvirt v1.7005.0/go.mod h1:1WiFE8EjZfq+FCVog+rvr1yatKbKZ9FaFMZgEqxEJqQ=

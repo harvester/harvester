@@ -145,6 +145,20 @@ func newControllerClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
+					"apps",
+				},
+				Resources: []string{
+					"controllerrevisions",
+				},
+				Verbs: []string{
+					"watch",
+					"list",
+					"create",
+					"delete",
+				},
+			},
+			{
+				APIGroups: []string{
 					"",
 				},
 				Resources: []string{
@@ -187,7 +201,6 @@ func newControllerClusterRole() *rbacv1.ClusterRole {
 					"virtualmachineinstances/unfreeze",
 				},
 				Verbs: []string{
-					"get",
 					"update",
 				},
 			},
