@@ -4,9 +4,10 @@ metadata:
   # NB(thxCode): name should not be customized as below:
   # name: {{ template "kubevirt-operator.fullname" . }}
   # because we need to keep it as same as all-in-one YAML from upstream.
-  name: kubevirt-operator
+  name: kubevirt-operator-rolebinding
   labels:
 {{ include "kubevirt-operator.labels" . | indent 4 }}
+    kubevirt.io: ""
     app.kubernetes.io/name: virt-operator
     app.kubernetes.io/component: operator
 roleRef:
