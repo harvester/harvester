@@ -121,19 +121,22 @@ func (v *VMBuilder) Volume(diskName string, volume kubevirtv1.Volume) *VMBuilder
 	return v
 }
 
-func (v *VMBuilder) ExistingPVCVolume(diskName, pvcName string) *VMBuilder {
+func (v *VMBuilder) ExistingPVCVolume(diskName, pvcName string, hotpluggable bool) *VMBuilder {
 	return v.Volume(diskName, kubevirtv1.Volume{
 		Name: diskName,
 		VolumeSource: kubevirtv1.VolumeSource{
-			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-				ClaimName: pvcName,
+			PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+				PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvcName,
+				},
+				Hotpluggable: hotpluggable,
 			},
 		},
 	})
 }
 
-func (v *VMBuilder) ExistingVolumeDisk(diskName, diskBus string, isCDRom bool, bootOrder int, pvcName string) *VMBuilder {
-	return v.Disk(diskName, diskBus, isCDRom, bootOrder).ExistingPVCVolume(diskName, pvcName)
+func (v *VMBuilder) ExistingVolumeDisk(diskName, diskBus string, isCDRom, hotpluggable bool, bootOrder int, pvcName string) *VMBuilder {
+	return v.Disk(diskName, diskBus, isCDRom, bootOrder).ExistingPVCVolume(diskName, pvcName, hotpluggable)
 }
 
 func (v *VMBuilder) ContainerDiskVolume(diskName, imageName, ImagePullPolicy string) *VMBuilder {
@@ -152,7 +155,7 @@ func (v *VMBuilder) ContainerDisk(diskName, diskBus string, isCDRom bool, bootOr
 	return v.Disk(diskName, diskBus, isCDRom, bootOrder).ContainerDiskVolume(diskName, imageName, ImagePullPolicy)
 }
 
-func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, opt *PersistentVolumeClaimOption) *VMBuilder {
+func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, hotpluggable bool, opt *PersistentVolumeClaimOption) *VMBuilder {
 	if opt == nil {
 		defaultStorageClass := "longhorn"
 		opt = &PersistentVolumeClaimOption{
@@ -207,9 +210,9 @@ func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, opt *Persisten
 		v.VirtualMachine.Annotations[util.AnnotationVolumeClaimTemplates] = string(toUpdateVolumeClaimTemplates)
 	}
 
-	return v.ExistingPVCVolume(diskName, pvcName)
+	return v.ExistingPVCVolume(diskName, pvcName, hotpluggable)
 }
 
-func (v *VMBuilder) PVCDisk(diskName, diskBus string, isCDRom bool, bootOrder int, diskSize, pvcName string, opt *PersistentVolumeClaimOption) *VMBuilder {
-	return v.Disk(diskName, diskBus, isCDRom, bootOrder).PVCVolume(diskName, diskSize, pvcName, opt)
+func (v *VMBuilder) PVCDisk(diskName, diskBus string, isCDRom, hotpluggable bool, bootOrder int, diskSize, pvcName string, opt *PersistentVolumeClaimOption) *VMBuilder {
+	return v.Disk(diskName, diskBus, isCDRom, bootOrder).PVCVolume(diskName, diskSize, pvcName, hotpluggable, opt)
 }
