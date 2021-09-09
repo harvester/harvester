@@ -7,6 +7,7 @@ metadata:
   name: virt-operator
   labels:
 {{ include "kubevirt-operator.labels" . | indent 4 }}
+    kubevirt.io: virt-operator
     app.kubernetes.io/name: virt-operator
     app.kubernetes.io/component: operator
 spec:
