@@ -1435,7 +1435,7 @@ k8s.io/utils/integer
 k8s.io/utils/path
 k8s.io/utils/pointer
 k8s.io/utils/trace
-# kubevirt.io/client-go v0.44.0 => github.com/kubevirt/client-go v0.44.0
+# kubevirt.io/client-go v0.45.0 => github.com/kubevirt/client-go v0.45.0
 ## explicit
 kubevirt.io/client-go/api/v1
 kubevirt.io/client-go/apis/snapshot
@@ -1447,7 +1447,7 @@ kubevirt.io/containerized-data-importer/pkg/apis/core
 kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1
 # kubevirt.io/controller-lifecycle-operator-sdk v0.2.0
 kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api
-# kubevirt.io/kubevirt v0.44.0
+# kubevirt.io/kubevirt v0.45.0
 ## explicit
 kubevirt.io/kubevirt/pkg/rest
 kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/rbac
@@ -1613,6 +1613,6 @@ sigs.k8s.io/yaml
 # k8s.io/metrics => k8s.io/metrics v0.21.2
 # k8s.io/mount-utils => k8s.io/mount-utils v0.21.2
 # k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.21.2
-# kubevirt.io/client-go => github.com/kubevirt/client-go v0.44.0
+# kubevirt.io/client-go => github.com/kubevirt/client-go v0.45.0
 # kubevirt.io/containerized-data-importer => github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210802100720-9bcf4e7ba0ce
 # sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2

@@ -9078,6 +9078,10 @@
         "name"
       ],
       "properties": {
+        "hotpluggable": {
+          "description": "Hotpluggable indicates whether the volume can be hotplugged and hotunplugged.",
+          "type": "boolean"
+        },
         "name": {
           "description": "Name represents the name of the DataVolume in the same namespace",
           "type": "string",
@@ -9697,7 +9701,7 @@
         },
         "persistentVolumeClaim": {
           "description": "PersistentVolumeClaimVolumeSource represents a reference to a PersistentVolumeClaim in the same namespace. Directly attached to the vmi via qemu. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims",
-          "$ref": "#/definitions/k8s.io.v1.PersistentVolumeClaimVolumeSource"
+          "$ref": "#/definitions/kubevirt.io.v1.PersistentVolumeClaimVolumeSource"
         }
       }
     },
@@ -9994,6 +9998,59 @@
         "tickPolicy": {
           "description": "TickPolicy determines what happens when QEMU misses a deadline for injecting a tick to the guest. One of \"delay\", \"catchup\", \"discard\".",
           "type": "string"
+        }
+      }
+    },
+    "kubevirt.io.v1.PersistentVolumeClaimInfo": {
+      "description": "PersistentVolumeClaimInfo contains the relavant information virt-handler needs cached about a PVC",
+      "type": "object",
+      "properties": {
+        "accessModes": {
+          "description": "AccessModes contains the desired access modes the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "capacity": {
+          "description": "Capacity represents the capacity set on the corresponding PVC spec",
+          "type": "object",
+          "additionalProperties": {
+            "default": {},
+            "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
+          }
+        },
+        "preallocated": {
+          "description": "Preallocated indicates if the PVC's storage is preallocated or not",
+          "type": "boolean"
+        },
+        "volumeMode": {
+          "description": "VolumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
+          "type": "string"
+        }
+      }
+    },
+    "kubevirt.io.v1.PersistentVolumeClaimVolumeSource": {
+      "description": "PersistentVolumeClaimVolumeSource represents a reference to a PersistentVolumeClaim in the same namespace. Directly attached to the vmi via qemu. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims",
+      "type": "object",
+      "required": [
+        "claimName"
+      ],
+      "properties": {
+        "claimName": {
+          "description": "ClaimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims",
+          "type": "string",
+          "default": ""
+        },
+        "hotpluggable": {
+          "description": "Hotpluggable indicates whether the volume can be hotplugged and hotunplugged.",
+          "type": "boolean"
+        },
+        "readOnly": {
+          "description": "Will force the ReadOnly setting in VolumeMounts. Default false.",
+          "type": "boolean"
         }
       }
     },
@@ -10945,6 +11002,10 @@
         "topologyHints": {
           "$ref": "#/definitions/kubevirt.io.v1.TopologyHints"
         },
+        "virtualMachineRevisionName": {
+          "description": "VirtualMachineRevisionName is used to get the vm revision of the vmi when doing an online vm snapshot",
+          "type": "string"
+        },
         "volumeStatus": {
           "description": "VolumeStatus contains the statuses of all the volumes",
           "type": "array",
@@ -11094,6 +11155,10 @@
           "description": "Ready indicates if the virtual machine is running and ready",
           "type": "boolean"
         },
+        "restoreInProgress": {
+          "description": "RestoreInProgress is the name of the VirtualMachineRestore currently executing",
+          "type": "string"
+        },
         "snapshotInProgress": {
           "description": "SnapshotInProgress is the name of the VirtualMachineSnapshot currently executing",
           "type": "string"
@@ -11196,7 +11261,7 @@
         },
         "persistentVolumeClaim": {
           "description": "PersistentVolumeClaimVolumeSource represents a reference to a PersistentVolumeClaim in the same namespace. Directly attached to the vmi via qemu. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims",
-          "$ref": "#/definitions/k8s.io.v1.PersistentVolumeClaimVolumeSource"
+          "$ref": "#/definitions/kubevirt.io.v1.PersistentVolumeClaimVolumeSource"
         },
         "secret": {
           "description": "SecretVolumeSource represents a reference to a secret data in the same namespace. More info: https://kubernetes.io/docs/concepts/configuration/secret/",
@@ -11255,6 +11320,10 @@
           "description": "Name is the name of the volume",
           "type": "string",
           "default": ""
+        },
+        "persistentVolumeClaimInfo": {
+          "description": "PersistentVolumeClaimInfo is information about the PVC that handler requires during start flow",
+          "$ref": "#/definitions/kubevirt.io.v1.PersistentVolumeClaimInfo"
         },
         "phase": {
           "description": "Phase is the phase",
