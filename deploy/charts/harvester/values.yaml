@@ -27,7 +27,7 @@ kubevirt-operator:
     operator:
       image:
         repository: registry.suse.com/harvester-beta/virt-operator
-        tag: &kubevirtVersion 0.44.0-1
+        tag: &kubevirtVersion 0.45.0
     ## The following images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
