@@ -7,28 +7,29 @@ metadata:
   name: kubevirt-operator
   labels:
 {{ include "kubevirt-operator.labels" . | indent 4 }}
+    kubevirt.io: ""
     app.kubernetes.io/name: virt-operator
     app.kubernetes.io/component: operator
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-    verbs:
-      - create
-      - get
-      - list
-      - watch
-      - patch
-      - delete
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-    verbs:
-      - create
-      - get
-      - list
-      - watch
-      - patch
-      - delete
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - patch
+  - delete
