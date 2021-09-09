@@ -4,6 +4,20 @@ metadata:
   name: kubevip
   namespace: kube-system
 data:
-{{- if and (eq .Values.service.harvester.vipMode "static") .Values.service.harvester.vip }}
-  cidr-harvester-system: {{ .Values.service.harvester.vip }}/32
+{{- if and (eq .Values.service.vip.mode "static") .Values.service.vip.ip }}
+  cidr-cattle-system: {{ .Values.service.vip.ip }}/32
 {{- end }}
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vip
+data:
+  enabled: {{ .Values.service.vip.enabled | quote }}
+  serviceType: {{ .Values.service.vip.type }}
+  ip: {{ .Values.service.vip.ip | quote }}
+  mode: {{ .Values.service.vip.mode }}
+  hwAddress: {{ .Values.service.vip.hwAddress | quote }}
+  loadBalancerIP: {{ .Values.service.vip.loadBalancerIP | quote }}

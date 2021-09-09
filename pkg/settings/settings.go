@@ -17,7 +17,7 @@ var (
 
 	APIUIVersion                 = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
 	ServerVersion                = NewSetting("server-version", "dev")
-	LocalUIIndex                 = NewSetting("local-ui-index", "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html")
+	LocalUIIndex                 = NewSetting("local-ui-index", DefaultDashboardUIURL)
 	UIPath                       = NewSetting("ui-path", "/usr/share/harvester/harvester")
 	APIUISource                  = NewSetting("api-ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
 	VolumeSnapshotClass          = NewSetting("volume-snapshot-class", "longhorn")
@@ -31,7 +31,10 @@ var (
 	DefaultStorageClass          = NewSetting("default-storage-class", "longhorn")
 )
 
-const BackupTargetSettingName = "backup-target"
+const (
+	BackupTargetSettingName = "backup-target"
+	DefaultDashboardUIURL   = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
+)
 
 func init() {
 	if InjectDefaults == "" {

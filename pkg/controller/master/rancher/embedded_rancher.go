@@ -3,10 +3,12 @@ package rancher
 import (
 	rancherv3api "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/sirupsen/logrus"
+
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 var UpdateRancherUISettings = map[string]string{
-	"ui-dashboard-index":   "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html",
+	"ui-dashboard-index":   settings.DefaultDashboardUIURL,
 	"ui-offline-preferred": "false",
 	"ui-pl":                "Harvester",
 }
