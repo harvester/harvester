@@ -659,8 +659,11 @@ func TestVMIController_UnsetOwnerOfPVCs(t *testing.T) {
 									{
 										Name: "disk3",
 										VolumeSource: kubevirtapis.VolumeSource{
-											PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-												ClaimName: "pvc-disk",
+											PersistentVolumeClaim: &kubevirtapis.PersistentVolumeClaimVolumeSource{
+												PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+													ClaimName: "pvc-disk",
+												},
+												Hotpluggable: true,
 											},
 										},
 									},
@@ -796,8 +799,11 @@ func TestVMIController_UnsetOwnerOfPVCs(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-										ClaimName: "pvc-disk",
+									PersistentVolumeClaim: &kubevirtapis.PersistentVolumeClaimVolumeSource{
+										PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+											ClaimName: "pvc-disk",
+										},
+										Hotpluggable: true,
 									},
 								},
 							},
@@ -899,8 +905,11 @@ func TestVMIController_UnsetOwnerOfPVCs(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-										ClaimName: "pvc-disk",
+									PersistentVolumeClaim: &kubevirtapis.PersistentVolumeClaimVolumeSource{
+										PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+											ClaimName: "pvc-disk",
+										},
+										Hotpluggable: true,
 									},
 								},
 							},
@@ -969,8 +978,11 @@ func TestVMIController_UnsetOwnerOfPVCs(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-										ClaimName: "pvc-disk",
+									PersistentVolumeClaim: &kubevirtapis.PersistentVolumeClaimVolumeSource{
+										PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+											ClaimName: "pvc-disk",
+										},
+										Hotpluggable: true,
 									},
 								},
 							},
@@ -1092,8 +1104,11 @@ func TestVMIController_UnsetOwnerOfPVCs(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-										ClaimName: "pvc-disk",
+									PersistentVolumeClaim: &kubevirtapis.PersistentVolumeClaimVolumeSource{
+										PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+											ClaimName: "pvc-disk",
+										},
+										Hotpluggable: true,
 									},
 								},
 							},
@@ -1179,8 +1194,11 @@ func TestVMIController_UnsetOwnerOfPVCs(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-										ClaimName: "pvc-disk",
+									PersistentVolumeClaim: &kubevirtapis.PersistentVolumeClaimVolumeSource{
+										PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+											ClaimName: "pvc-disk",
+										},
+										Hotpluggable: true,
 									},
 								},
 							},
@@ -1312,8 +1330,11 @@ func TestVMIController_UnsetOwnerOfPVCs(t *testing.T) {
 							{
 								Name: "disk2",
 								VolumeSource: kubevirtapis.VolumeSource{
-									PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-										ClaimName: "pvc-disk",
+									PersistentVolumeClaim: &kubevirtapis.PersistentVolumeClaimVolumeSource{
+										PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+											ClaimName: "pvc-disk",
+										},
+										Hotpluggable: true,
 									},
 								},
 							},
