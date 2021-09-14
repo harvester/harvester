@@ -44,17 +44,9 @@ const (
 	promoteImage         = "busybox:1.32.0"
 	promoteRootMountPath = "/host"
 
-	promoteCommand = `echo start promote && \
-cat > /etc/rancher/rke2/config.yaml.d/90-harvester-server.yaml <<EOF
-cni: multus,canal
-disable: rke2-ingress-nginx
-cluster-cidr: 10.52.0.0/16
-service-cidr: 10.53.0.0/16
-cluster-dns: 10.53.0.10
-EOF
-systemctl disable --now rke2-agent && \
-systemctl enable --now rke2-server && \
-echo finish promote`
+	promoteScriptsMountPath = "/harvester-helpers"
+	promoteScript           = "/harvester-helpers/promote.sh"
+	helperConfigMapName     = "harvester-helpers"
 )
 
 var (
@@ -449,7 +441,17 @@ func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
 								Path: "/", Type: &hostPathDirectory,
 							},
 						},
+					}, {
+						Name: "helpers",
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: helperConfigMapName,
+								},
+							},
+						},
 					}},
+					ServiceAccountName: "harvester",
 				},
 			},
 		},
@@ -461,10 +463,11 @@ func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
 			Name:      "promote",
 			Image:     promoteImage,
 			Command:   []string{"sh"},
-			Args:      []string{"-c", fmt.Sprintf(`chroot %s bash -c '%s'`, promoteRootMountPath, promoteCommand)},
+			Args:      []string{"-e", promoteScript},
 			Resources: corev1.ResourceRequirements{},
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "host-root", MountPath: promoteRootMountPath},
+				{Name: "helpers", MountPath: promoteScriptsMountPath},
 			},
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			SecurityContext: &corev1.SecurityContext{
