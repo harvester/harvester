@@ -19,8 +19,11 @@ import (
 const (
 	controllerRancherName     = "harvester-rancher-controller"
 	cattleSystemNamespaceName = "cattle-system"
+	internalCACertsSetting    = "internal-cacerts"
 	rancherExposeServiceName  = "rancher-expose"
 	rancherAppLabelName       = "app"
+	tlsCertName               = "tls-rancher-internal"
+	tlsCNPrefix               = "listener.cattle.io/cn-"
 
 	vipConfigmapName      = "vip"
 	vipDHCPMode           = "dhcp"
@@ -28,10 +31,13 @@ const (
 )
 
 type Handler struct {
-	RancherSettings rancherv3.SettingClient
-	Services        ctlcorev1.ServiceClient
-	Configmaps      ctlcorev1.ConfigMapClient
-	Namespace       string
+	RancherSettings     rancherv3.SettingClient
+	RancherSettingCache rancherv3.SettingCache
+	Services            ctlcorev1.ServiceClient
+	Configmaps          ctlcorev1.ConfigMapClient
+	Secrets             ctlcorev1.SecretClient
+	SecretCache         ctlcorev1.SecretCache
+	Namespace           string
 }
 
 type VIPConfig struct {
@@ -46,13 +52,17 @@ type VIPConfig struct {
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	if options.RancherEmbedded {
 		rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
+		secrets := management.CoreFactory.Core().V1().Secret()
 		services := management.CoreFactory.Core().V1().Service()
 		configmaps := management.CoreFactory.Core().V1().ConfigMap()
 		h := Handler{
-			RancherSettings: rancherSettings,
-			Services:        services,
-			Configmaps:      configmaps,
-			Namespace:       options.Namespace,
+			RancherSettings:     rancherSettings,
+			RancherSettingCache: rancherSettings.Cache(),
+			Services:            services,
+			Configmaps:          configmaps,
+			Secrets:             secrets,
+			SecretCache:         secrets.Cache(),
+			Namespace:           options.Namespace,
 		}
 
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
@@ -91,6 +101,12 @@ func (h *Handler) registerRancherExposeService() error {
 						Port:       443,
 						Protocol:   corev1.ProtocolTCP,
 						TargetPort: intstr.FromInt(444),
+					},
+					{
+						Name:       "http",
+						Port:       80,
+						Protocol:   corev1.ProtocolTCP,
+						TargetPort: intstr.FromInt(80),
 					},
 				},
 			},
