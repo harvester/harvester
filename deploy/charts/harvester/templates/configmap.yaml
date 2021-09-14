@@ -21,3 +21,46 @@ data:
   mode: {{ .Values.service.vip.mode }}
   hwAddress: {{ .Values.service.vip.hwAddress | quote }}
   loadBalancerIP: {{ .Values.service.vip.loadBalancerIP | quote }}
+
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: harvester-helpers
+  labels:
+{{ include "harvester.labels" . | indent 4 }}
+data:
+  promote.sh: |-
+    {{`KUBECTL="/host/$(readlink /host/var/lib/rancher/rke2/bin)/kubectl"
+    CUSTOM_MACHINE=$($KUBECTL get node $HOSTNAME -o go-template=$'{{index .metadata.annotations "cluster.x-k8s.io/machine"}}\n')
+
+    until $KUBECTL get machines.cluster.x-k8s.io $CUSTOM_MACHINE -n fleet-local &> /dev/null
+    do
+      echo Waiting for custom machine $CUSTOM_MACHINE...
+      sleep 2
+    done
+
+    VIP=$($KUBECTL get configmap vip -n harvester-system -o=jsonpath='{.data.ip}')
+    cat > /host/etc/rancher/rke2/config.yaml.d/90-harvester-server.yaml <<EOF
+    cni: multus,canal
+    disable: rke2-ingress-nginx
+    cluster-cidr: 10.52.0.0/16
+    service-cidr: 10.53.0.0/16
+    cluster-dns: 10.53.0.10
+    tls-san:
+      - $VIP
+    EOF
+
+    $KUBECTL label -n fleet-local machines.cluster.x-k8s.io $CUSTOM_MACHINE rke.cattle.io/control-plane-role=true rke.cattle.io/etcd-role=true
+
+    while true
+    do
+      CONTROL_PLANE=$($KUBECTL get node $HOSTNAME -o go-template=$'{{index .metadata.labels "node-role.kubernetes.io/control-plane"}}\n' || true)
+
+      if [ "$CONTROL_PLANE" = "true" ]; then
+        break
+      fi
+      echo Waiting for promotion...
+      sleep 2
+    done
+    `}}
