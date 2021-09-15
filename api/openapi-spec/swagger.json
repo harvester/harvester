@@ -7069,6 +7069,14 @@
           "type": "string",
           "default": ""
         },
+        "pvcName": {
+          "type": "string",
+          "default": ""
+        },
+        "pvcNamespace": {
+          "type": "string",
+          "default": ""
+        },
         "sourceType": {
           "type": "string",
           "default": ""
