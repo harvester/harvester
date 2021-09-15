@@ -12,8 +12,9 @@ var (
 )
 
 const (
-	VirtualMachineImageSourceTypeDownload = "download"
-	VirtualMachineImageSourceTypeUpload   = "upload"
+	VirtualMachineImageSourceTypeDownload     = "download"
+	VirtualMachineImageSourceTypeUpload       = "upload"
+	VirtualMachineImageSourceTypeExportVolume = "export-from-volume"
 )
 
 // +genclient
@@ -39,8 +40,14 @@ type VirtualMachineImageSpec struct {
 	DisplayName string `json:"displayName"`
 
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=download;upload
+	// +kubebuilder:validation:Enum=download;upload;export-from-volume
 	SourceType string `json:"sourceType"`
+
+	// +optional
+	PVCName string `json:"pvcName"`
+
+	// +optional
+	PVCNamespace string `json:"pvcNamespace"`
 
 	// +optional
 	URL string `json:"url"`

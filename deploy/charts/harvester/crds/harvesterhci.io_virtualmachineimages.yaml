@@ -51,10 +51,15 @@ spec:
                 type: string
               displayName:
                 type: string
+              pvcName:
+                type: string
+              pvcNamespace:
+                type: string
               sourceType:
                 enum:
                 - download
                 - upload
+                - export-from-volume
                 type: string
               url:
                 type: string

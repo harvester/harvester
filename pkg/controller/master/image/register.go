@@ -17,6 +17,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	backingImages := management.LonghornFactory.Longhorn().V1beta1().BackingImage()
 	images := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	storageClasses := management.StorageFactory.Storage().V1().StorageClass()
+	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	vmImageHandler := &vmImageHandler{
 		backingImages:  backingImages,
 		storageClasses: storageClasses,
@@ -24,6 +25,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		httpClient: http.Client{
 			Timeout: 15 * time.Second,
 		},
+		pvcCache: pvcs.Cache(),
 	}
 	backingImageHandler := &backingImageHandler{
 		vmImages:          images,

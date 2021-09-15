@@ -10,6 +10,7 @@ import (
 	"github.com/harvester/harvester/pkg/api/node"
 	"github.com/harvester/harvester/pkg/api/vm"
 	"github.com/harvester/harvester/pkg/api/vmtemplate"
+	"github.com/harvester/harvester/pkg/api/volume"
 	"github.com/harvester/harvester/pkg/config"
 )
 
@@ -31,5 +32,6 @@ func Setup(ctx context.Context, server *server.Server, controllers *server.Contr
 		keypair.RegisterSchema,
 		vmtemplate.RegisterSchema,
 		vm.RegisterSchema,
-		node.RegisterSchema)
+		node.RegisterSchema,
+		volume.RegisterSchema)
 }

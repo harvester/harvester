@@ -70,8 +70,13 @@ func (v *virtualMachineImageValidator) Create(request *types.Request, newObj run
 
 	if newImage.Spec.SourceType == v1beta1.VirtualMachineImageSourceTypeDownload && newImage.Spec.URL == "" {
 		return werror.NewInvalidError(`url is required when image source type is "download"`, "spec.url")
-	} else if newImage.Spec.SourceType == v1beta1.VirtualMachineImageSourceTypeUpload && newImage.Spec.URL != "" {
-		return werror.NewInvalidError(`url should be empty when image source type is "upload"`, "spec.url")
+	} else if newImage.Spec.SourceType != v1beta1.VirtualMachineImageSourceTypeDownload && newImage.Spec.URL != "" {
+		return werror.NewInvalidError(`url should be empty when image source type is not "download"`, "spec.url")
+	} else if newImage.Spec.SourceType == v1beta1.VirtualMachineImageSourceTypeExportVolume {
+		if _, err := v.pvcCache.Get(newImage.Spec.PVCNamespace, newImage.Spec.PVCName); err != nil {
+			message := fmt.Sprintf("failed to get pvc %s/%s, error: %s", newImage.Spec.PVCName, newImage.Spec.PVCNamespace, err.Error())
+			return werror.NewInvalidError(message, "")
+		}
 	}
 
 	return nil
