@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	ctlrbacv1 "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
@@ -19,12 +21,15 @@ import (
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/controller/master/rancher"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
 	defaultTimeout        = time.Second * 3
 	defaultTickerInterval = time.Second
+
+	port = "6443"
 )
 
 type GenerateHandler struct {
@@ -36,9 +41,11 @@ type GenerateHandler struct {
 	roleBindingCache  ctlrbacv1.RoleBindingCache
 	secretCache       ctlcorev1.SecretCache
 	secretClient      ctlcorev1.SecretClient
+	configMapCache    ctlcorev1.ConfigMapCache
+	namespace         string
 }
 
-func NewGenerateHandler(scaled *config.Scaled) *GenerateHandler {
+func NewGenerateHandler(scaled *config.Scaled, option config.Options) *GenerateHandler {
 	return &GenerateHandler{
 		context:           scaled.Ctx,
 		saClient:          scaled.CoreFactory.Core().V1().ServiceAccount(),
@@ -48,11 +55,12 @@ func NewGenerateHandler(scaled *config.Scaled) *GenerateHandler {
 		roleBindingCache:  scaled.RbacFactory.Rbac().V1().RoleBinding().Cache(),
 		secretCache:       scaled.CoreFactory.Core().V1().Secret().Cache(),
 		secretClient:      scaled.CoreFactory.Core().V1().Secret(),
+		configMapCache:    scaled.CoreFactory.Core().V1().ConfigMap().Cache(),
+		namespace:         option.Namespace,
 	}
 }
 
 type req struct {
-	ServerUrl       string `json:"serverUrl"`
 	ClusterRoleName string `json:"clusterRoleName"`
 	Namespace       string `json:"namespace"`
 	SaName          string `json:"serviceAccountName"`
@@ -68,7 +76,7 @@ func decodeRequest(r *http.Request) (*req, error) {
 		return nil, err
 	}
 
-	if req.ClusterRoleName == "" || req.Namespace == "" || req.ServerUrl == "" || req.SaName == "" {
+	if req.ClusterRoleName == "" || req.Namespace == "" || req.SaName == "" {
 		return nil, fmt.Errorf("invalid request")
 	}
 
@@ -99,13 +107,38 @@ func (h *GenerateHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	kubeConfig, err := h.generateKubeConfig(secret, req.ServerUrl)
+	serverUrl, err := h.getServerUrl()
+	if err != nil {
+		util.ResponseError(rw, http.StatusInternalServerError, errors.Wrap(err, "failed to get server url"))
+		return
+	}
+
+	kubeConfig, err := h.generateKubeConfig(secret, serverUrl)
 	if err != nil {
 		util.ResponseError(rw, http.StatusInternalServerError, errors.Wrap(err, "fail to generate kubeconfig"))
 		return
 	}
 
 	util.ResponseOKWithBody(rw, kubeConfig)
+}
+
+func (h *GenerateHandler) getServerUrl() (string, error) {
+	vipCm, err := h.configMapCache.Get(h.namespace, rancher.VipConfigmapName)
+	if err != nil {
+		return "", err
+	}
+
+	vipConfig := rancher.VIPConfig{}
+	if err := mapstructure.Decode(vipCm.Data, &vipConfig); err != nil {
+		return "", err
+	}
+
+	vip := vipConfig.IP
+	if ip := net.ParseIP(vip); ip == nil {
+		return "", fmt.Errorf("invalid vip %s", vip)
+	}
+
+	return "https://" + vip + ":" + port, nil
 }
 
 func (h *GenerateHandler) createRoleBindingIfNotExit(clusterRoleName string, sa *corev1.ServiceAccount) (*rbacv1.RoleBinding, error) {
