@@ -25,7 +25,7 @@ const (
 	tlsCertName               = "tls-rancher-internal"
 	tlsCNPrefix               = "listener.cattle.io/cn-"
 
-	vipConfigmapName      = "vip"
+	VipConfigmapName      = "vip"
 	vipDHCPMode           = "dhcp"
 	vipDHCPLoadBalancerIP = "0.0.0.0"
 )
@@ -138,7 +138,7 @@ func (h *Handler) registerRancherExposeService() error {
 
 func (h *Handler) getVipConfig() (*VIPConfig, error) {
 	vipConfig := &VIPConfig{}
-	conf, err := h.Configmaps.Get(h.Namespace, vipConfigmapName, v1.GetOptions{})
+	conf, err := h.Configmaps.Get(h.Namespace, VipConfigmapName, v1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
