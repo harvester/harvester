@@ -22,7 +22,7 @@ func addAPIService(apply apply.Apply, namespace string) error {
 			Spec: v3.APIServiceSpec{
 				SecretName:      AggregationSecretName,
 				SecretNamespace: namespace,
-				PathPrefixes:    []string{"/v1/harvester/"},
+				PathPrefixes:    []string{"/v1/harvester/", "/dashboard/"},
 				Paths:           []string{"/v1/harvester"},
 			},
 		})
