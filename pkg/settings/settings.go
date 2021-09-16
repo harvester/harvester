@@ -17,9 +17,9 @@ var (
 
 	APIUIVersion                 = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
 	ServerVersion                = NewSetting("server-version", "dev")
-	LocalUIIndex                 = NewSetting("local-ui-index", DefaultDashboardUIURL)
+	UIIndex                      = NewSetting("ui-index", DefaultDashboardUIURL)
 	UIPath                       = NewSetting("ui-path", "/usr/share/harvester/harvester")
-	APIUISource                  = NewSetting("api-ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
+	UISource                     = NewSetting("ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
 	VolumeSnapshotClass          = NewSetting("volume-snapshot-class", "longhorn")
 	BackupTargetSet              = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
 	UpgradableVersions           = NewSetting("upgradable-versions", "")
