@@ -27,7 +27,7 @@ func ConfigureAPIUI(server *apiserver.Server) {
 }
 
 func JSURL() string {
-	switch settings.APIUISource.Get() {
+	switch settings.UISource.Get() {
 	case "auto":
 		if !settings.IsRelease() {
 			return ""
@@ -39,7 +39,7 @@ func JSURL() string {
 }
 
 func CSSURL() string {
-	switch settings.APIUISource.Get() {
+	switch settings.UISource.Get() {
 	case "auto":
 		if !settings.IsRelease() {
 			return ""
