@@ -40,11 +40,9 @@ type Options struct {
 	HTTPListenPort  int
 	HTTPSListenPort int
 
-	SkipAuthentication bool
-	RancherEmbedded    bool
-	RancherURL         string
-	HCIMode            bool
-	AddLocalUI         bool
+	RancherEmbedded bool
+	RancherURL      string
+	HCIMode         bool
 }
 
 type Scaled struct {

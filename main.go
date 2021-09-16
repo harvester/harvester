@@ -53,12 +53,6 @@ func main() {
 			Required:    true,
 		},
 		cli.BoolFlag{
-			Name:        "skip-authentication",
-			EnvVar:      "SKIP_AUTHENTICATION",
-			Usage:       "Define whether to skip auth login or not, default to false",
-			Destination: &options.SkipAuthentication,
-		},
-		cli.BoolFlag{
 			Name:        "hci-mode",
 			EnvVar:      "HCI_MODE",
 			Usage:       "Enable HCI mode. Additional controllers are registered in HCI mode",
@@ -75,11 +69,6 @@ func main() {
 			EnvVar:      "RANCHER_SERVER_URL",
 			Usage:       "Specify the URL to connect to the Rancher server",
 			Destination: &options.RancherURL,
-		},
-		cli.BoolFlag{
-			Name:        "add-local-ui",
-			Usage:       "Add local dashboard UI (true, false)",
-			Destination: &options.AddLocalUI,
 			Hidden:      true,
 		},
 	}

@@ -26,9 +26,9 @@ var (
 		},
 	}
 
-	Vue = newHandler(settings.LocalUIIndex.Get,
+	Vue = newHandler(settings.UIIndex.Get,
 		settings.UIPath.Get,
-		settings.APIUISource.Get)
+		settings.UISource.Get)
 	VueIndex = Vue.IndexFile()
 )
 
