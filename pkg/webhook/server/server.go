@@ -29,6 +29,7 @@ var (
 	validationPath      = "/v1/webhook/validation"
 	mutationPath        = "/v1/webhook/mutation"
 	failPolicyFail      = v1.Fail
+	failPolicyIgnore    = v1.Ignore
 	sideEffectClassNone = v1.SideEffectClassNone
 )
 
@@ -130,7 +131,7 @@ func (s *AdmissionWebhookServer) listenAndServe(clients *clients.Clients, handle
 						CABundle: secret.Data[corev1.TLSCertKey],
 					},
 					Rules:                   mutationRules,
-					FailurePolicy:           &failPolicyFail,
+					FailurePolicy:           &failPolicyIgnore,
 					SideEffects:             &sideEffectClassNone,
 					AdmissionReviewVersions: []string{"v1", "v1beta1"},
 				},

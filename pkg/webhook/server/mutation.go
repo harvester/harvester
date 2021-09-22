@@ -9,6 +9,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
+	"github.com/harvester/harvester/pkg/webhook/resources/pod"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -16,6 +17,7 @@ import (
 func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, []types.Resource, error) {
 	resources := []types.Resource{}
 	mutators := []types.Mutator{
+		pod.NewMutator(clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
 		templateversion.NewMutator(),
 	}
 
