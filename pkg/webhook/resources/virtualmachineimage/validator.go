@@ -5,9 +5,12 @@ import (
 
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -19,10 +22,11 @@ const (
 	fieldDisplayName = "spec.displayName"
 )
 
-func NewValidator(vmimages ctlharvesterv1.VirtualMachineImageCache, pvcCache ctlcorev1.PersistentVolumeClaimCache) types.Validator {
+func NewValidator(vmimages ctlharvesterv1.VirtualMachineImageCache, pvcCache ctlcorev1.PersistentVolumeClaimCache, ssar authorizationv1client.SelfSubjectAccessReviewInterface) types.Validator {
 	return &virtualMachineImageValidator{
 		vmimages: vmimages,
 		pvcCache: pvcCache,
+		ssar:     ssar,
 	}
 }
 
@@ -31,6 +35,7 @@ type virtualMachineImageValidator struct {
 
 	vmimages ctlharvesterv1.VirtualMachineImageCache
 	pvcCache ctlcorev1.PersistentVolumeClaimCache
+	ssar     authorizationv1client.SelfSubjectAccessReviewInterface
 }
 
 func (v *virtualMachineImageValidator) Resource() types.Resource {
@@ -73,7 +78,37 @@ func (v *virtualMachineImageValidator) Create(request *types.Request, newObj run
 	} else if newImage.Spec.SourceType != v1beta1.VirtualMachineImageSourceTypeDownload && newImage.Spec.URL != "" {
 		return werror.NewInvalidError(`url should be empty when image source type is not "download"`, "spec.url")
 	} else if newImage.Spec.SourceType == v1beta1.VirtualMachineImageSourceTypeExportVolume {
-		if _, err := v.pvcCache.Get(newImage.Spec.PVCNamespace, newImage.Spec.PVCName); err != nil {
+		if newImage.Spec.PVCNamespace == "" {
+			return werror.NewInvalidError(`pvcNamespace is required when image source type is "export-from-volume"`, "spec.pvcNamespace")
+		}
+		if newImage.Spec.PVCName == "" {
+			return werror.NewInvalidError(`pvcName is required when image source type is "export-from-volume"`, "spec.pvcName")
+		}
+
+		ssar, err := v.ssar.Create(request.Context, &authorizationv1.SelfSubjectAccessReview{
+			Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Namespace: newImage.Spec.PVCNamespace,
+					Verb:      "get",
+					Group:     "",
+					Version:   "*",
+					Resource:  "persistentvolumeclaims",
+					Name:      newImage.Spec.PVCName,
+				},
+			},
+		}, metav1.CreateOptions{})
+		if err != nil {
+			message := fmt.Sprintf("failed to check user permission, error: %s", err.Error())
+			return werror.NewInvalidError(message, "")
+		}
+
+		if !ssar.Status.Allowed || ssar.Status.Denied {
+			message := fmt.Sprintf("user has no permission to get the pvc resource %s/%s", newImage.Spec.PVCName, newImage.Spec.PVCNamespace)
+			return werror.NewInvalidError(message, "")
+		}
+
+		_, err = v.pvcCache.Get(newImage.Spec.PVCNamespace, newImage.Spec.PVCName)
+		if err != nil {
 			message := fmt.Sprintf("failed to get pvc %s/%s, error: %s", newImage.Spec.PVCName, newImage.Spec.PVCNamespace, err.Error())
 			return werror.NewInvalidError(message, "")
 		}
