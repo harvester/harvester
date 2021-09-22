@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
 
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -76,6 +77,11 @@ func (m *podMutator) Create(request *types.Request, newObj runtime.Object) (type
 		return nil, err
 	}
 	patchOps = append(patchOps, httpProxyPatches...)
+	additionalCAPatches, err := m.additionalCAPatches(pod)
+	if err != nil {
+		return nil, err
+	}
+	patchOps = append(patchOps, additionalCAPatches...)
 
 	return patchOps, nil
 }
@@ -145,4 +151,84 @@ func envPatches(target, envVars []corev1.EnvVar, basePath string) (types.PatchOp
 		patchOps = append(patchOps, fmt.Sprintf(`{"op": "add", "path": "%s", "value": %s}`, path, valueStr))
 	}
 	return patchOps, nil
+}
+
+func (m *podMutator) additionalCAPatches(pod *corev1.Pod) (types.PatchOps, error) {
+	additionalCASetting, err := m.setttingCache.Get("additional-ca")
+	if err != nil || additionalCASetting.Value == "" {
+		if errors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var (
+		additionalCAvolume = corev1.Volume{
+			Name: "additional-ca-volume",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					DefaultMode: pointer.Int32(400),
+					SecretName:  util.AdditionalCASecretName,
+				},
+			},
+		}
+		additionalCAVolumeMount = corev1.VolumeMount{
+			Name:      "additional-ca-volume",
+			MountPath: "/etc/ssl/certs/" + util.AdditionalCAFileName,
+			SubPath:   util.AdditionalCAFileName,
+			ReadOnly:  true,
+		}
+		patchOps types.PatchOps
+	)
+
+	volumePatch, err := volumePatch(pod.Spec.Volumes, additionalCAvolume)
+	if err != nil {
+		return nil, err
+	}
+	patchOps = append(patchOps, volumePatch)
+
+	for idx, container := range pod.Spec.Containers {
+		volumeMountPatch, err := volumeMountPatch(container.VolumeMounts, fmt.Sprintf("/spec/containers/%d/volumeMounts", idx), additionalCAVolumeMount)
+		if err != nil {
+			return nil, err
+		}
+		patchOps = append(patchOps, volumeMountPatch)
+	}
+
+	return patchOps, nil
+}
+
+func volumePatch(target []corev1.Volume, volume corev1.Volume) (string, error) {
+	var (
+		value      interface{} = []corev1.Volume{volume}
+		path                   = "/spec/volumes"
+		first                  = len(target) == 0
+		valueBytes []byte
+		err        error
+	)
+	if !first {
+		value = volume
+		path = path + "/-"
+	}
+	valueBytes, err = json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(`{"op": "add", "path": "%s", "value": %s}`, path, valueBytes), nil
+}
+
+func volumeMountPatch(target []corev1.VolumeMount, path string, volumeMount corev1.VolumeMount) (string, error) {
+	var (
+		value interface{} = []corev1.VolumeMount{volumeMount}
+		first             = len(target) == 0
+	)
+	if !first {
+		path = path + "/-"
+		value = volumeMount
+	}
+	valueStr, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(`{"op": "add", "path": "%s", "value": %s}`, path, valueStr), nil
 }

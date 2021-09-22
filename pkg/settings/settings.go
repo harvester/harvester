@@ -16,6 +16,7 @@ var (
 	provider       Provider
 	InjectDefaults string
 
+	AdditionalCA                 = NewSetting("additional-ca", "")
 	APIUIVersion                 = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
 	ServerVersion                = NewSetting("server-version", "dev")
 	UIIndex                      = NewSetting("ui-index", DefaultDashboardUIURL)

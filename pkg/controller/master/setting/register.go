@@ -27,6 +27,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 
 	syncers = map[string]syncerFunc{
+		"additional-ca":     controller.syncAdditionalTrustedCAs,
 		"http-proxy":        controller.syncHTTPProxy,
 		"log-level":         controller.setLogLevel,
 		"overcommit-config": controller.syncOvercommitConfig,
