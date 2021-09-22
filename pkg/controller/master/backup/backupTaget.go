@@ -35,7 +35,6 @@ import (
 
 const (
 	backupTargetControllerName = "harvester-backup-target-controller"
-	backupTargetSecretName     = "harvester-backup-target-secret"
 
 	longhornBackupTargetSettingName       = "backup-target"
 	longhornBackupTargetSecretSettingName = "backup-target-credential-secret"
@@ -154,7 +153,7 @@ func setBackupSecret(target *settings.BackupTarget) map[string]string {
 
 func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) error {
 	var found = true
-	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, backupTargetSecretName)
+	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
@@ -163,7 +162,7 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 		found = false
 		newSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      backupTargetSecretName,
+				Name:      util.BackupTargetSecretName,
 				Namespace: util.LonghornSystemNamespaceName,
 			},
 		}
@@ -191,7 +190,7 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 	}
 
 	targetSecCpy := targetSecret.DeepCopy()
-	targetSecCpy.Value = backupTargetSecretName
+	targetSecCpy.Value = util.BackupTargetSecretName
 
 	if targetSecret.Value != targetSecCpy.Value {
 		if _, err := h.longhornSettings.Update(targetSecCpy); err != nil {

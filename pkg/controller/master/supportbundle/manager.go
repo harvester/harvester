@@ -18,6 +18,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -43,7 +44,7 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 	logrus.Debugf("creating deployment %s with image %s", deployName, image)
 
 	pullPolicy := m.getImagePullPolicy()
-	namespaces := []string{sb.Namespace, "longhorn-system"}
+	namespaces := []string{sb.Namespace, util.LonghornSystemNamespaceName}
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{

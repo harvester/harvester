@@ -29,6 +29,7 @@ var (
 	SupportBundleImage           = NewSetting("support-bundle-image", "rancher/support-bundle-kit:v0.0.3")
 	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
 	DefaultStorageClass          = NewSetting("default-storage-class", "longhorn")
+	HTTPProxy                    = NewSetting("http-proxy", "{}")
 )
 
 const (
