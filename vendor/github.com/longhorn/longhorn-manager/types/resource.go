@@ -187,7 +187,7 @@ const (
 //       spec.
 type RecurringJob struct {
 	Name        string            `json:"name"`
-	Groups      []string          `json:"groups"`
+	Groups      []string          `json:"groups,omitempty"`
 	Task        RecurringJobType  `json:"task"`
 	Cron        string            `json:"cron"`
 	Retain      int               `json:"retain"`
@@ -545,6 +545,7 @@ const (
 	ShareManagerStateUnknown  = ShareManagerState("unknown")
 	ShareManagerStateStarting = ShareManagerState("starting")
 	ShareManagerStateRunning  = ShareManagerState("running")
+	ShareManagerStateStopping = ShareManagerState("stopping")
 	ShareManagerStateStopped  = ShareManagerState("stopped")
 	ShareManagerStateError    = ShareManagerState("error")
 )
@@ -599,9 +600,10 @@ type BackingImageStatus struct {
 }
 
 type BackingImageDiskFileStatus struct {
-	State    BackingImageState `json:"state"`
-	Progress int               `json:"progress"`
-	Message  string            `json:"message"`
+	State                   BackingImageState `json:"state"`
+	Progress                int               `json:"progress"`
+	Message                 string            `json:"message"`
+	LastStateTransitionTime string            `json:"lastStateTransitionTime"`
 }
 
 type BackingImageManagerState string
@@ -695,7 +697,7 @@ type BackupTargetSpec struct {
 	BackupTargetURL  string          `json:"backupTargetURL"`
 	CredentialSecret string          `json:"credentialSecret"`
 	PollInterval     metav1.Duration `json:"pollInterval"`
-	SyncRequestedAt  metav1.Time     `json:"syncRequestedAt"`
+	SyncRequestedAt  time.Time       `json:"syncRequestedAt"`
 }
 
 const (
@@ -708,11 +710,11 @@ type BackupTargetStatus struct {
 	OwnerID      string               `json:"ownerID"`
 	Available    bool                 `json:"available"`
 	Conditions   map[string]Condition `json:"conditions"`
-	LastSyncedAt metav1.Time          `json:"lastSyncedAt"`
+	LastSyncedAt time.Time            `json:"lastSyncedAt"`
 }
 
 type BackupVolumeSpec struct {
-	SyncRequestedAt metav1.Time `json:"syncRequestedAt"`
+	SyncRequestedAt time.Time `json:"syncRequestedAt"`
 }
 
 type BackupVolumeStatus struct {
@@ -727,11 +729,11 @@ type BackupVolumeStatus struct {
 	Messages             map[string]string `json:"messages"`
 	BackingImageName     string            `json:"backingImageName"`
 	BackingImageChecksum string            `json:"backingImageChecksum"`
-	LastSyncedAt         metav1.Time       `json:"lastSyncedAt"`
+	LastSyncedAt         time.Time         `json:"lastSyncedAt"`
 }
 
 type SnapshotBackupSpec struct {
-	SyncRequestedAt metav1.Time       `json:"syncRequestedAt"`
+	SyncRequestedAt time.Time         `json:"syncRequestedAt"`
 	SnapshotName    string            `json:"snapshotName"`
 	Labels          map[string]string `json:"labels"`
 }
@@ -759,12 +761,12 @@ type SnapshotBackupStatus struct {
 	VolumeSize             string            `json:"volumeSize"`
 	VolumeCreated          string            `json:"volumeCreated"`
 	VolumeBackingImageName string            `json:"volumeBackingImageName"`
-	LastSyncedAt           metav1.Time       `json:"lastSyncedAt"`
+	LastSyncedAt           time.Time         `json:"lastSyncedAt"`
 }
 
 type RecurringJobSpec struct {
 	Name        string            `json:"name"`
-	Groups      []string          `json:"groups"`
+	Groups      []string          `json:"groups,omitempty"`
 	Task        RecurringJobType  `json:"task"`
 	Cron        string            `json:"cron"`
 	Retain      int               `json:"retain"`
