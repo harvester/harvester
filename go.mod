@@ -53,7 +53,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.2.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.9.0
 	github.com/containernetworking/cni v0.8.0
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful v2.10.0+incompatible
 	github.com/go-openapi/spec v0.20.3
@@ -64,10 +63,11 @@ require (
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 	github.com/kubernetes/dashboard v1.10.1
-	github.com/longhorn/backupstore v0.0.0-20210817080617-8ea3843e6b0d
-	github.com/longhorn/longhorn-manager v1.2.0
+	github.com/longhorn/backupstore v0.0.0-20210908163358-43c9d3298665
+	github.com/longhorn/longhorn-manager v1.2.1-rc1
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
+	github.com/mitchellh/mapstructure v1.4.1
 	github.com/onsi/ginkgo v1.16.1
 	github.com/onsi/gomega v1.11.0
 	github.com/openshift/api v0.0.0
@@ -87,16 +87,13 @@ require (
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	gopkg.in/square/go-jose.v2 v2.5.1
 	helm.sh/helm/v3 v3.5.4
 	k8s.io/api v0.21.2
 	k8s.io/apiextensions-apiserver v0.21.2
 	k8s.io/apimachinery v0.21.2
-	k8s.io/apiserver v0.21.2
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
-	k8s.io/kubernetes v1.21.2
 	k8s.io/utils v0.0.0-20210305010621-2afb4311ab10
 	kubevirt.io/client-go v0.44.0
 	kubevirt.io/containerized-data-importer v1.36.0
