@@ -48,7 +48,7 @@ func (h ExportActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
 	action := vars["action"]
 	pvcName := vars["name"]
-	imageNamespace := vars["namespace"]
+	pvcNamespace := vars["namespace"]
 
 	switch action {
 	case actionExport:
@@ -62,13 +62,13 @@ func (h ExportActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 		if input.Namespace == "" {
 			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `namespace` is required")
 		}
-		return h.exportVolume(r.Context(), input.Namespace, pvcName, input.DisplayName, imageNamespace)
+		return h.exportVolume(r.Context(), input.Namespace, input.DisplayName, pvcName, pvcNamespace)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
 }
 
-func (h ExportActionHandler) exportVolume(ctx context.Context, pvcNamespace, pvcName, imageDisplayName, imageNamespace string) error {
+func (h ExportActionHandler) exportVolume(ctx context.Context, imageNamespace, imageDisplayName, pvcName, pvcNamespace string) error {
 	vmImage := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "image-",
