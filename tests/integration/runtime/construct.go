@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"os"
 
 	restclient "k8s.io/client-go/rest"
 
@@ -67,6 +68,14 @@ func installHarvesterChart(ctx context.Context, kubeConfig *restclient.Config) e
 
 	if env.IsUsingEmulation() {
 		patches["kubevirt.spec.configuration.developerConfiguration.useEmulation"] = "true"
+
+		// Create fake /dev/kvm device if software emulation is enabled
+		// to get kubevirt.io/schedulable=true label for node
+		f, err := os.Create("/host/dev/kvm")
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer f.Close()
 	}
 
 	// install chart

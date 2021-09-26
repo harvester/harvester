@@ -3,6 +3,8 @@ package node
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -227,7 +229,8 @@ func (h *PromoteHandler) setPromoteStart(node *corev1.Node) (*corev1.Node, error
 	return h.nodes.Update(toUpdate)
 }
 
-// setPromoteResult set node schedulable and update promote status if the promote is successful
+// setPromoteResult update promote status if the promote is successful
+// If node supports virtualization also marks it schedulable
 func (h *PromoteHandler) setPromoteResult(job *batchv1.Job, node *corev1.Node, status string) (*batchv1.Job, error) {
 	if node.Annotations[HarvesterPromoteStatusAnnotationKey] == status {
 		return job, nil
@@ -236,7 +239,9 @@ func (h *PromoteHandler) setPromoteResult(job *batchv1.Job, node *corev1.Node, s
 	toUpdate := node.DeepCopy()
 	toUpdate.Annotations[HarvesterPromoteStatusAnnotationKey] = status
 	if status == PromoteStatusComplete {
-		toUpdate.Spec.Unschedulable = false
+		if _, err := os.Stat(filepath.Join(promoteRootMountPath, "/dev/kvm")); err == nil {
+			toUpdate.Spec.Unschedulable = false
+		}
 	}
 	_, err := h.nodes.Update(toUpdate)
 	return job, err
