@@ -1,10 +1,14 @@
 package rancher
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	rancherv3api "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	ranchersettings "github.com/rancher/rancher/pkg/settings"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 var UpdateRancherUISettings = map[string]string{
@@ -19,6 +23,13 @@ func (h *Handler) RancherSettingOnChange(key string, setting *rancherv3api.Setti
 	if setting.Name == internalCACertsSetting && setting.Value != "" {
 		return nil, h.initializeTLS(setting)
 	}
+	if setting.Name == serverURLSetting && setting.Value == "" {
+		return h.initializeServerURL(setting)
+	}
+
+	if setting.Name == systemNamespacesSetting && !strings.Contains(setting.Default, "harvester-system") {
+		return h.initializeSystemNamespaces(setting)
+	}
 
 	for name, value := range UpdateRancherUISettings {
 		if setting.Name == name && setting.Default != value {
@@ -31,6 +42,48 @@ func (h *Handler) RancherSettingOnChange(key string, setting *rancherv3api.Setti
 		}
 	}
 	return nil, nil
+}
+
+func (h *Handler) initializeServerURL(setting *rancherv3api.Setting) (*rancherv3api.Setting, error) {
+	vipConfig, err := h.getVipConfig()
+	if err != nil {
+		return nil, err
+	}
+	toUpdate := setting.DeepCopy()
+	toUpdate.Value = fmt.Sprintf("https://%s", vipConfig.IP)
+	logrus.Debugf("Updating server-url setting to %s", toUpdate.Value)
+	return h.RancherSettings.Update(toUpdate)
+}
+
+func (h *Handler) initializeSystemNamespaces(setting *rancherv3api.Setting) (*rancherv3api.Setting, error) {
+	sets := labels.Set{
+		defaultAdminLabelKey: defaultAdminLabelValue,
+	}
+	users, err := h.RancherUserCache.List(sets.AsSelector())
+	if err != nil {
+		return nil, err
+	}
+	if len(users) == 0 {
+		// The default admin and its namespace is not created, enqueue and check later
+		h.RancherSettingController.EnqueueAfter(setting.Name, 30*time.Second)
+		return nil, nil
+	}
+	defaultAdminNamespace := users[0].Name
+	harvesterDefaultSystemNamespaces := strings.Join([]string{
+		ranchersettings.SystemNamespaces.Default,
+		"cattle-dashboards",
+		"cattle-fleet-clusters-system",
+		"cattle-monitoring-system",
+		"fleet-local",
+		"harvester-system",
+		"local",
+		"longhorn-system",
+		defaultAdminNamespace,
+	}, ",")
+	logrus.Debugf("Updating system-namespaces setting to %s", harvesterDefaultSystemNamespaces)
+	toUpdate := setting.DeepCopy()
+	toUpdate.Default = harvesterDefaultSystemNamespaces
+	return h.RancherSettings.Update(toUpdate)
 }
 
 // initializeTLS writes internal-cacerts to cacerts value and adds the VIP to certificate SANs
