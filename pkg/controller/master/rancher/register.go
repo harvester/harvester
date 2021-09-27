@@ -19,9 +19,13 @@ import (
 const (
 	controllerRancherName     = "harvester-rancher-controller"
 	cattleSystemNamespaceName = "cattle-system"
+	defaultAdminLabelKey      = "authz.management.cattle.io/bootstrapping"
+	defaultAdminLabelValue    = "admin-user"
 	internalCACertsSetting    = "internal-cacerts"
 	rancherExposeServiceName  = "rancher-expose"
 	rancherAppLabelName       = "app"
+	serverURLSetting          = "server-url"
+	systemNamespacesSetting   = "system-namespaces"
 	tlsCertName               = "tls-rancher-internal"
 	tlsCNPrefix               = "listener.cattle.io/cn-"
 
@@ -31,13 +35,15 @@ const (
 )
 
 type Handler struct {
-	RancherSettings     rancherv3.SettingClient
-	RancherSettingCache rancherv3.SettingCache
-	Services            ctlcorev1.ServiceClient
-	Configmaps          ctlcorev1.ConfigMapClient
-	Secrets             ctlcorev1.SecretClient
-	SecretCache         ctlcorev1.SecretCache
-	Namespace           string
+	RancherSettings          rancherv3.SettingClient
+	RancherSettingCache      rancherv3.SettingCache
+	RancherSettingController rancherv3.SettingController
+	RancherUserCache         rancherv3.UserCache
+	Services                 ctlcorev1.ServiceClient
+	Configmaps               ctlcorev1.ConfigMapClient
+	Secrets                  ctlcorev1.SecretClient
+	SecretCache              ctlcorev1.SecretCache
+	Namespace                string
 }
 
 type VIPConfig struct {
@@ -52,17 +58,20 @@ type VIPConfig struct {
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	if options.RancherEmbedded {
 		rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
+		rancherUsers := management.RancherManagementFactory.Management().V3().User()
 		secrets := management.CoreFactory.Core().V1().Secret()
 		services := management.CoreFactory.Core().V1().Service()
 		configmaps := management.CoreFactory.Core().V1().ConfigMap()
 		h := Handler{
-			RancherSettings:     rancherSettings,
-			RancherSettingCache: rancherSettings.Cache(),
-			Services:            services,
-			Configmaps:          configmaps,
-			Secrets:             secrets,
-			SecretCache:         secrets.Cache(),
-			Namespace:           options.Namespace,
+			RancherSettings:          rancherSettings,
+			RancherSettingController: rancherSettings,
+			RancherSettingCache:      rancherSettings.Cache(),
+			RancherUserCache:         rancherUsers.Cache(),
+			Services:                 services,
+			Configmaps:               configmaps,
+			Secrets:                  secrets,
+			SecretCache:              secrets.Cache(),
+			Namespace:                options.Namespace,
 		}
 
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
