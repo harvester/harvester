@@ -36,7 +36,7 @@ func TestPodHandler_OnChanged(t *testing.T) {
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "upgrade-node-pod",
-						Namespace: k3osSystemNamespace,
+						Namespace: upgradeNamespace,
 						Labels: map[string]string{
 							upgradePlanLabel: testPlanName,
 							upgradeNodeLabel: testNodeName,
@@ -58,7 +58,7 @@ func TestPodHandler_OnChanged(t *testing.T) {
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "upgrade-node-pod",
-						Namespace: k3osSystemNamespace,
+						Namespace: upgradeNamespace,
 						Labels: map[string]string{
 							upgradePlanLabel: testPlanName,
 							upgradeNodeLabel: testNodeName,
@@ -113,7 +113,7 @@ func TestPodHandler_OnChanged(t *testing.T) {
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "upgrade-chart-pod",
-						Namespace: kubeSystemNamespace,
+						Namespace: upgradeNamespace,
 						Labels: map[string]string{
 							helmChartLabel: harvesterChartname,
 						},

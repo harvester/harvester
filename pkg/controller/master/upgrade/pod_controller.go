@@ -20,7 +20,7 @@ type podHandler struct {
 }
 
 func (h *podHandler) OnChanged(key string, pod *v1.Pod) (*v1.Pod, error) {
-	if pod == nil || pod.DeletionTimestamp != nil || pod.Labels == nil {
+	if pod == nil || pod.DeletionTimestamp != nil || pod.Labels == nil || pod.Namespace != upgradeNamespace {
 		return pod, nil
 	}
 
@@ -71,7 +71,7 @@ func (h *podHandler) syncNodeUpgradePod(pod *v1.Pod, planName string, nodeName s
 	if pod.Status.Phase == v1.PodSucceeded {
 		return pod, nil
 	}
-	plan, err := h.planCache.Get(k3osSystemNamespace, planName)
+	plan, err := h.planCache.Get(upgradeNamespace, planName)
 	if err != nil {
 		return pod, err
 	}

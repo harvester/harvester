@@ -32,7 +32,7 @@ type jobHandler struct {
 }
 
 func (h *jobHandler) OnChanged(key string, job *batchv1.Job) (*batchv1.Job, error) {
-	if job == nil || job.DeletionTimestamp != nil || job.Labels == nil {
+	if job == nil || job.DeletionTimestamp != nil || job.Labels == nil || job.Namespace != upgradeNamespace {
 		return job, nil
 	}
 
@@ -49,7 +49,7 @@ func (h *jobHandler) OnChanged(key string, job *batchv1.Job) (*batchv1.Job, erro
 }
 
 func (h *jobHandler) syncNodeJob(job *batchv1.Job, planName string, nodeName string) (*batchv1.Job, error) {
-	plan, err := h.planCache.Get(k3osSystemNamespace, planName)
+	plan, err := h.planCache.Get(upgradeNamespace, planName)
 	if err != nil {
 		return job, err
 	}
