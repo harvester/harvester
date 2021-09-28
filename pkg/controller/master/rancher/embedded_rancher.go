@@ -20,7 +20,7 @@ func (h *Handler) RancherSettingOnChange(key string, setting *rancherv3api.Setti
 		return nil, nil
 	}
 
-	if setting.Name == internalCACertsSetting && setting.Value != "" {
+	if setting.Name == caCertsSetting && setting.Default == "" {
 		return nil, h.initializeTLS(setting)
 	}
 	if setting.Name == serverURLSetting && setting.Value == "" {
@@ -89,15 +89,19 @@ func (h *Handler) initializeSystemNamespaces(setting *rancherv3api.Setting) (*ra
 // initializeTLS writes internal-cacerts to cacerts value and adds the VIP to certificate SANs
 // cacerts is used in generated kubeconfig files
 func (h *Handler) initializeTLS(setting *rancherv3api.Setting) error {
-	cacerts, err := h.RancherSettingCache.Get("cacerts")
+	internalCACerts, err := h.RancherSettingCache.Get(internalCACertsSetting)
 	if err != nil {
 		return err
 	}
-	if cacerts.Value != "" {
+	if internalCACerts.Value == "" {
+		// Not initialized, enqueue
+		h.RancherSettingController.EnqueueAfter(caCertsSetting, 30*time.Second)
 		return nil
 	}
 
-	if err := h.setCACerts(setting.Value); err != nil {
+	caCertsCopy := setting.DeepCopy()
+	caCertsCopy.Default = internalCACerts.Value
+	if _, err = h.RancherSettings.Update(caCertsCopy); err != nil {
 		return err
 	}
 
@@ -105,21 +109,6 @@ func (h *Handler) initializeTLS(setting *rancherv3api.Setting) error {
 		return err
 	}
 	return nil
-}
-
-func (h *Handler) setCACerts(cert string) error {
-	cacerts, err := h.RancherSettingCache.Get("cacerts")
-	if err != nil {
-		return err
-	}
-	if cacerts.Value == cert {
-		return nil
-	}
-
-	cacertsCopy := cacerts.DeepCopy()
-	cacertsCopy.Value = cert
-	_, err = h.RancherSettings.Update(cacertsCopy)
-	return err
 }
 
 // addVIPToSAN writes VIP to TLS SAN of the serving cert
@@ -132,11 +121,16 @@ func (h *Handler) addVIPToSAN() error {
 	if err != nil {
 		return err
 	}
+
+	toAddAnnotation := tlsCNPrefix + vipConfig.IP
+	if _, ok := secret.Annotations[toAddAnnotation]; ok {
+		return nil
+	}
+
 	toUpdate := secret.DeepCopy()
 	if toUpdate.Annotations == nil {
 		toUpdate.Annotations = make(map[string]string)
 	}
-
 	//clean up other cns
 	newAnnotations := map[string]string{}
 	for k, v := range toUpdate.Annotations {
@@ -145,7 +139,7 @@ func (h *Handler) addVIPToSAN() error {
 		}
 	}
 	toUpdate.Annotations = newAnnotations
-	toUpdate.Annotations[tlsCNPrefix+vipConfig.IP] = vipConfig.IP
+	toUpdate.Annotations[toAddAnnotation] = vipConfig.IP
 	_, err = h.Secrets.Update(toUpdate)
 	return err
 }
