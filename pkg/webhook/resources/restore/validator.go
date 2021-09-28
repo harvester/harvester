@@ -52,7 +52,7 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	newVM := newRestore.Spec.NewVM
 
 	if targetVM == "" {
-		return werror.NewInvalidError("taget VM name is empty", fieldTargetName)
+		return werror.NewInvalidError("target VM name is empty", fieldTargetName)
 	}
 	if backupName == "" {
 		return werror.NewInvalidError("backup name is empty", fieldVirtualMachineBackupName)
