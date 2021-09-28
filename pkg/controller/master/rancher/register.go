@@ -18,6 +18,7 @@ import (
 
 const (
 	controllerRancherName     = "harvester-rancher-controller"
+	caCertsSetting            = "cacerts"
 	cattleSystemNamespaceName = "cattle-system"
 	defaultAdminLabelKey      = "authz.management.cattle.io/bootstrapping"
 	defaultAdminLabelValue    = "admin-user"
