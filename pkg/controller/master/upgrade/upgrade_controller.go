@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	//system upgrade controller is deployed in k3os-system namespace
-	k3osSystemNamespace            = "k3os-system"
-	k3osUpgradeServiceAccount      = "k3os-upgrade"
+	//system upgrade controller is deployed in cattle-system namespace
+	upgradeNamespace               = "cattle-system"
+	upgradeServiceAccount          = "system-upgrade-controller"
 	kubeSystemNamespace            = "kube-system"
 	harvesterSystemNamespace       = "harvester-system"
 	harvesterVersionLabel          = "harvesterhci.io/version"
