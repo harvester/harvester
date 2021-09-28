@@ -168,14 +168,14 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 			assert.Nil(t, err)
 		}
 		if tc.expected.serverPlan != nil {
-			actual.serverPlan, err = handler.planClient.Get(k3osSystemNamespace, tc.expected.serverPlan.Name, metav1.GetOptions{})
+			actual.serverPlan, err = handler.planClient.Get(upgradeNamespace, tc.expected.serverPlan.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
 			sanitizeStatus(&tc.expected.serverPlan.Status)
 			sanitizeStatus(&actual.serverPlan.Status)
 		}
 
 		if tc.expected.agentPlan != nil {
-			actual.agentPlan, err = handler.planClient.Get(k3osSystemNamespace, tc.expected.agentPlan.Name, metav1.GetOptions{})
+			actual.agentPlan, err = handler.planClient.Get(upgradeNamespace, tc.expected.agentPlan.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
 			sanitizeStatus(&tc.expected.agentPlan.Status)
 			sanitizeStatus(&actual.agentPlan.Status)

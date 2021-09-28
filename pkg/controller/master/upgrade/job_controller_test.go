@@ -133,7 +133,7 @@ func TestJobHandler_OnChanged(t *testing.T) {
 		}
 		if tc.expected.plan != nil {
 			var err error
-			actual.plan, err = handler.planCache.Get(k3osSystemNamespace, tc.given.upgrade.Name)
+			actual.plan, err = handler.planCache.Get(upgradeNamespace, tc.given.upgrade.Name)
 			assert.Nil(t, err)
 		}
 

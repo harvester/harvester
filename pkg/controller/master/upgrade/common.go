@@ -112,7 +112,7 @@ func basePlan(upgrade *harvesterv1.Upgrade, disableEviction bool) *upgradev1.Pla
 	return &upgradev1.Plan{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      upgrade.Name,
-			Namespace: k3osSystemNamespace,
+			Namespace: upgradeNamespace,
 			Labels: map[string]string{
 				harvesterVersionLabel: version,
 				harvesterUpgradeLabel: upgrade.Name,
@@ -126,7 +126,7 @@ func basePlan(upgrade *harvesterv1.Upgrade, disableEviction bool) *upgradev1.Pla
 					harvesterManagedLabel: "true",
 				},
 			},
-			ServiceAccountName: k3osUpgradeServiceAccount,
+			ServiceAccountName: upgradeServiceAccount,
 			Drain: &upgradev1.DrainSpec{
 				Force:           true,
 				DisableEviction: disableEviction,
@@ -289,7 +289,8 @@ func newJobBuilder(name string) *jobBuilder {
 	return &jobBuilder{
 		job: &batchv1.Job{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
+				Name:      name,
+				Namespace: upgradeNamespace,
 			},
 		},
 	}
@@ -393,7 +394,7 @@ func newPlanBuilder(name string) *planBuilder {
 		plan: &upgradev1.Plan{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
-				Namespace: k3osSystemNamespace,
+				Namespace: upgradeNamespace,
 			},
 		},
 	}
