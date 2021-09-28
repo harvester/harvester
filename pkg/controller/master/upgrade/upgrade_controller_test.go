@@ -84,7 +84,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		var err error
 		actual.upgrade, actual.err = handler.OnChanged(tc.given.key, tc.given.upgrade)
 		if tc.expected.plan != nil {
-			actual.plan, err = handler.planClient.Get(k3osSystemNamespace, tc.expected.plan.Name, metav1.GetOptions{})
+			actual.plan, err = handler.planClient.Get(upgradeNamespace, tc.expected.plan.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
 			//skip hash comparison
 			actual.plan.Status.LatestHash = ""
