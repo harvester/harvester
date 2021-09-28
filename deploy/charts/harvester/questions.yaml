@@ -22,7 +22,7 @@ questions:
       type: "string"
       group: "Harvester Settings"
     - variable: containers.apiserver.image.tag
-      default: "v0.3.0-preview1"
+      default: "v0.3.0-rc1"
       label: "Image Tag"
       description: "specify the tag of harvester image"
       type: "string"
