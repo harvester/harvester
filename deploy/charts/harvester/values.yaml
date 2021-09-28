@@ -155,7 +155,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: v0.3.0-preview1
+      tag: v0.3.0-rc1
 
     ## Specify whether to run in HCI mode. This option enables additional controllers.
     ## defaults to "false", this will be enabled in ISO mode installation.
@@ -347,7 +347,7 @@ harvester-network-controller:
     repository: rancher/harvester-network-controller
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.2.0
+    tag: v0.2.1
 
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
@@ -361,7 +361,7 @@ harvester-node-disk-manager:
     repository: rancher/harvester-node-disk-manager
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.1.0
+    tag: v0.1.2
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter
@@ -406,7 +406,7 @@ webhook:
 
     ## Specify the tag of image.
     ##
-    tag: v0.3.0-preview1
+    tag: v0.3.0-rc1
 
   httpsPort: 9443
 
