@@ -56,7 +56,7 @@ RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 
 
 # makeiso
 RUN wget --quiet https://github.com/mudler/luet/releases/download/0.17.0/luet-0.17.0-linux-amd64 -O /usr/bin/luet && chmod +x /usr/bin/luet
-RUN wget --quiet https://github.com/mudler/luet-makeiso/releases/download/0.3.3/luet-makeiso-0.3.3-linux-amd64 -O /usr/bin/luet-makeiso && chmod +x /usr/bin/luet-makeiso
+RUN wget --quiet https://github.com/mudler/luet-makeiso/releases/download/0.3.8/luet-makeiso-0.3.8-linux-amd64 -O /usr/bin/luet-makeiso && chmod +x /usr/bin/luet-makeiso
 
 # -- for make rules
 
