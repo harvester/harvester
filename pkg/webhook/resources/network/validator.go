@@ -121,10 +121,18 @@ func (v *networkAttachmentDefinitionValidator) getVLAN(namespace string, vid int
 
 func (v *networkAttachmentDefinitionValidator) Delete(request *types.Request, oldObj runtime.Object) error {
 	netAttachDef := oldObj.(*v1.NetworkAttachmentDefinition)
-	networkName := netAttachDef.Name
+
+	// multus network name can be <networkName> or <namespace>/<networkName>
+	// ref: https://github.com/kubevirt/client-go/blob/148fa0d1c7e83b7a56606a7ca92394ba6768c9ac/api/v1/schema.go#L1436-L1439
+	networkName := fmt.Sprintf("%s/%s", netAttachDef.Namespace, netAttachDef.Name)
 	vms, err := v.vms.GetByIndex(indexeres.VMByNetworkIndex, networkName)
 	if err != nil {
 		return err
+	}
+	if vmsTmp, err := v.vms.GetByIndex(indexeres.VMByNetworkIndex, netAttachDef.Name); err != nil {
+		return err
+	} else {
+		vms = append(vms, vmsTmp...)
 	}
 
 	if len(vms) > 0 {
