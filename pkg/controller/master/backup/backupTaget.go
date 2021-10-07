@@ -23,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -47,6 +48,7 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, op
 	secrets := management.CoreFactory.Core().V1().Secret()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta1().Setting()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
+	vmBackup := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 
 	backupTargetController := &TargetHandler{
 		ctx:                  ctx,
@@ -55,6 +57,8 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, op
 		secrets:              secrets,
 		secretCache:          secrets.Cache(),
 		vms:                  vms,
+		vmBackup:             vmBackup,
+		vmBackupCache:        vmBackup.Cache(),
 		settings:             settings,
 	}
 
@@ -69,6 +73,8 @@ type TargetHandler struct {
 	secrets              ctlcorev1.SecretClient
 	secretCache          ctlcorev1.SecretCache
 	vms                  ctlkubevirtv1.VirtualMachineController
+	vmBackup             ctlharvesterv1.VirtualMachineBackupClient
+	vmBackupCache        ctlharvesterv1.VirtualMachineBackupCache
 	settings             ctlharvesterv1.SettingClient
 }
 
@@ -102,6 +108,31 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Se
 	if target.Type == settings.S3BackupType {
 		if err = h.updateBackupTargetSecret(target); err != nil {
 			return nil, err
+		}
+	}
+
+	// find backup in all namespace and delete which's annotation is not matched backup target
+	vmBackups, err := h.vmBackupCache.List("", labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	for _, vmBackup := range vmBackups {
+		var endpoint, bucketName, bucketRegion string
+		if v, ok := vmBackup.Annotations[backupTargetAnnotation]; ok {
+			endpoint = v
+		}
+		if v, ok := vmBackup.Annotations[backupBucketNameAnnotation]; ok {
+			bucketName = v
+		}
+		if v, ok := vmBackup.Annotations[backupBucketRegionAnnotation]; ok {
+			bucketRegion = v
+		}
+		if endpoint != target.Endpoint || bucketName != target.BucketName || bucketRegion != target.BucketRegion {
+			err := h.vmBackup.Delete(vmBackup.Namespace, vmBackup.Name, &metav1.DeleteOptions{})
+			if err != nil {
+				logrus.Errorf("fail to delete vmbackup %s/%s: %s", vmBackup.Namespace, vmBackup.Name, err)
+				return nil, err
+			}
 		}
 	}
 
