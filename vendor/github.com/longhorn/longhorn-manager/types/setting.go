@@ -52,6 +52,7 @@ const (
 	SettingNameStorageMinimalAvailablePercentage            = SettingName("storage-minimal-available-percentage")
 	SettingNameUpgradeChecker                               = SettingName("upgrade-checker")
 	SettingNameLatestLonghornVersion                        = SettingName("latest-longhorn-version")
+	SettingNameStableLonghornVersions                       = SettingName("stable-longhorn-versions")
 	SettingNameDefaultReplicaCount                          = SettingName("default-replica-count")
 	SettingNameDefaultDataLocality                          = SettingName("default-data-locality")
 	SettingNameGuaranteedEngineCPU                          = SettingName("guaranteed-engine-cpu")
@@ -101,6 +102,7 @@ var (
 		SettingNameStorageMinimalAvailablePercentage,
 		SettingNameUpgradeChecker,
 		SettingNameLatestLonghornVersion,
+		SettingNameStableLonghornVersions,
 		SettingNameDefaultReplicaCount,
 		SettingNameDefaultDataLocality,
 		SettingNameGuaranteedEngineCPU,
@@ -171,6 +173,7 @@ var (
 		SettingNameStorageMinimalAvailablePercentage:            SettingDefinitionStorageMinimalAvailablePercentage,
 		SettingNameUpgradeChecker:                               SettingDefinitionUpgradeChecker,
 		SettingNameLatestLonghornVersion:                        SettingDefinitionLatestLonghornVersion,
+		SettingNameStableLonghornVersions:                       SettingDefinitionStableLonghornVersions,
 		SettingNameDefaultReplicaCount:                          SettingDefinitionDefaultReplicaCount,
 		SettingNameDefaultDataLocality:                          SettingDefinitionDefaultDataLocality,
 		SettingNameGuaranteedEngineCPU:                          SettingDefinitionGuaranteedEngineCPU,
@@ -369,6 +372,15 @@ var (
 	SettingDefinitionLatestLonghornVersion = SettingDefinition{
 		DisplayName: "Latest Longhorn Version",
 		Description: "The latest version of Longhorn available. Updated by Upgrade Checker automatically",
+		Category:    SettingCategoryGeneral,
+		Type:        SettingTypeString,
+		Required:    false,
+		ReadOnly:    true,
+	}
+
+	SettingDefinitionStableLonghornVersions = SettingDefinition{
+		DisplayName: "Stable Longhorn Versions",
+		Description: "The latest stable version of every minor release line. Updated by Upgrade Checker automatically",
 		Category:    SettingCategoryGeneral,
 		Type:        SettingTypeString,
 		Required:    false,
@@ -602,7 +614,7 @@ var (
 		DisplayName: "Disable Replica Rebuild",
 		Description: "This setting disable replica rebuild cross the whole cluster, eviction and data locality feature won't work if this setting is true. But doesn't have any impact to any current replica rebuild and restore disaster recovery volume.",
 		Category:    SettingCategoryDangerZone,
-		Type:        SettingTypeBool,
+		Type:        SettingTypeDeprecated,
 		Required:    true,
 		ReadOnly:    false,
 		Default:     "false",
@@ -621,13 +633,17 @@ var (
 
 	SettingDefinitionConcurrentReplicaRebuildPerNodeLimit = SettingDefinition{
 		DisplayName: "Concurrent Replica Rebuild Per Node Limit",
-		Description: "This setting controls how many replicas on a node can be rebuilt simultaneously." +
-			"If the value is 0, Longhorn will not limit the rebuilding.",
-		Category: SettingCategoryGeneral,
+		Description: "This setting controls how many replicas on a node can be rebuilt simultaneously. \n\n" +
+			"Typically, Longhorn can block the replica starting once the current rebuilding count on a node exceeds the limit. But when the value is 0, it means disabling the replica rebuilding. \n\n" +
+			"WARNING: \n\n" +
+			"  - The old setting \"Disable Replica Rebuild\" is replaced by this setting. \n\n" +
+			"  - Different from relying on replica starting delay to limit the concurrent rebuilding, if the rebuilding is disabled, replica object replenishment will be directly skipped. \n\n" +
+			"  - When the value is 0, the eviction and data locality feature won't work. But this shouldn't have any impact to any current replica rebuild and backup restore.",
+		Category: SettingCategoryDangerZone,
 		Type:     SettingTypeInt,
 		Required: true,
 		ReadOnly: false,
-		Default:  "0",
+		Default:  "5",
 	}
 
 	SettingDefinitionSystemManagedPodsImagePullPolicy = SettingDefinition{
