@@ -32,6 +32,8 @@ spec:
 {{ include "harvester.labels" . | indent 8 }}
         app.kubernetes.io/name: harvester
         app.kubernetes.io/component: apiserver
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/apiserver: unconfined
     spec:
       serviceAccountName: harvester
       affinity:
