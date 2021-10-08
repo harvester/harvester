@@ -1,6 +1,8 @@
 package restore
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -8,7 +10,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/backup"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/settings"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -19,16 +24,24 @@ const (
 	fieldNewVM                    = "spec.newVM"
 )
 
-func NewValidator(vms ctlkubevirtv1.VirtualMachineCache) types.Validator {
+func NewValidator(
+	vms ctlkubevirtv1.VirtualMachineCache,
+	setting ctlharvesterv1.SettingCache,
+	vmBackup ctlharvesterv1.VirtualMachineBackupCache,
+) types.Validator {
 	return &restoreValidator{
-		vms: vms,
+		vms:      vms,
+		setting:  setting,
+		vmBackup: vmBackup,
 	}
 }
 
 type restoreValidator struct {
 	types.DefaultValidator
 
-	vms ctlkubevirtv1.VirtualMachineCache
+	vms      ctlkubevirtv1.VirtualMachineCache
+	setting  ctlharvesterv1.SettingCache
+	vmBackup ctlharvesterv1.VirtualMachineBackupCache
 }
 
 func (v *restoreValidator) Resource() types.Resource {
@@ -58,6 +71,10 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 		return werror.NewInvalidError("backup name is empty", fieldVirtualMachineBackupName)
 	}
 
+	if err := v.checkBackupTarget(newRestore); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
+	}
+
 	vm, err := v.vms.Get(newRestore.Namespace, targetVM)
 	if err != nil {
 		if newVM && apierrors.IsNotFound(err) {
@@ -74,6 +91,33 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	// restore an existing vm but the vm is still running
 	if !newVM && vm.Status.Ready {
 		return werror.NewInvalidError(fmt.Sprintf("please stop the VM %q before doing a restore", vm.Name), fieldTargetName)
+	}
+
+	return nil
+}
+
+func (v *restoreValidator) checkBackupTarget(vmRestore *v1beta1.VirtualMachineRestore) error {
+	// get backup target
+	backupTargetSetting, err := v.setting.Get(settings.BackupTargetSettingName)
+	if err != nil {
+		return fmt.Errorf("can't get backup target setting, err: %w", err)
+	}
+	backupTarget := &settings.BackupTarget{}
+	if err := json.Unmarshal([]byte(backupTargetSetting.Value), backupTarget); err != nil {
+		return fmt.Errorf("unmarshal backup target failed, value: %s, err: %w", backupTargetSetting.Value, err)
+	}
+
+	// get vmbackup
+	vmBackup, err := v.vmBackup.Get(vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName)
+	if err != nil {
+		return fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName, err)
+	}
+
+	endpoint := vmBackup.Annotations[backup.BackupTargetAnnotation]
+	bucketName := vmBackup.Annotations[backup.BackupBucketNameAnnotation]
+	bucketRegion := vmBackup.Annotations[backup.BackupBucketRegionAnnotation]
+	if backupTarget.Endpoint != endpoint || backupTarget.BucketName != bucketName || backupTarget.BucketRegion != bucketRegion {
+		return errors.New("VM Backup is not matched with Backup Target")
 	}
 
 	return nil
