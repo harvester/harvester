@@ -30,9 +30,9 @@ const (
 	backupControllerName = "harvester-vm-backup-controller"
 	vmBackupKindName     = "VirtualMachineBackup"
 
-	backupTargetAnnotation       = "backup.harvesterhci.io/backup-target"
-	backupBucketNameAnnotation   = "backup.harvesterhci.io/bucket-name"
-	backupBucketRegionAnnotation = "backup.harvesterhci.io/bucket-region"
+	BackupTargetAnnotation       = "backup.harvesterhci.io/backup-target"
+	BackupBucketNameAnnotation   = "backup.harvesterhci.io/bucket-name"
+	BackupBucketRegionAnnotation = "backup.harvesterhci.io/bucket-region"
 
 	volumeSnapshotMissingEvent = "VolumeSnapshotMissing"
 	volumeSnapshotCreateEvent  = "VolumeSnapshotCreated"
@@ -258,15 +258,15 @@ func (h *Handler) updateStatus(vmBackup *harvesterv1.VirtualMachineBackup, sourc
 		vmBackupCpy.Annotations = make(map[string]string)
 	}
 
-	if vmBackupCpy.Annotations[backupTargetAnnotation] == "" {
+	if vmBackupCpy.Annotations[BackupTargetAnnotation] == "" {
 		target, err := decodeTarget(settings.BackupTargetSet.Get())
 		if err != nil {
 			return err
 		}
-		vmBackupCpy.Annotations[backupTargetAnnotation] = target.Endpoint
+		vmBackupCpy.Annotations[BackupTargetAnnotation] = target.Endpoint
 		if target.Type == settings.S3BackupType {
-			vmBackupCpy.Annotations[backupBucketNameAnnotation] = target.BucketName
-			vmBackupCpy.Annotations[backupBucketRegionAnnotation] = target.BucketRegion
+			vmBackupCpy.Annotations[BackupBucketNameAnnotation] = target.BucketName
+			vmBackupCpy.Annotations[BackupBucketRegionAnnotation] = target.BucketRegion
 		}
 	}
 
