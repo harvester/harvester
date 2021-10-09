@@ -327,7 +327,7 @@ spec:
               claimName: pvc-rootdisk
             name: rootdisk
           - containerDisk:
-              image: kubevirt/virtio-container-disk
+              image: registry.suse.com/harvester-beta/vmdp:latest
               imagePullPolicy: IfNotPresent
             name: virtio-container-disk
 `
