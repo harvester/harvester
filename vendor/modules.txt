@@ -133,7 +133,8 @@ github.com/c9s/goprocinfo/linux
 github.com/cespare/xxhash/v2
 # github.com/containerd/cgroups v0.0.0-20200531161412-0dbf7f05ba59
 github.com/containerd/cgroups/stats/v1
-# github.com/containerd/containerd v1.4.4
+# github.com/containerd/containerd v1.4.11
+## explicit
 github.com/containerd/containerd/archive/compression
 github.com/containerd/containerd/content
 github.com/containerd/containerd/content/local
@@ -236,6 +237,8 @@ github.com/fatih/color
 github.com/fsnotify/fsnotify
 # github.com/ghodss/yaml v1.0.0
 github.com/ghodss/yaml
+# github.com/gin-gonic/gin v1.7.0
+## explicit
 # github.com/go-errors/errors v1.0.1
 github.com/go-errors/errors
 # github.com/go-logr/logr v0.4.0

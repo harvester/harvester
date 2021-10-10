@@ -52,9 +52,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.3.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.2.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.9.0
+	github.com/containerd/containerd v1.4.11 // indirect
 	github.com/containernetworking/cni v0.8.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful v2.10.0+incompatible
+	github.com/gin-gonic/gin v1.7.0 // indirect
 	github.com/go-openapi/spec v0.20.3
 	github.com/gorilla/mux v1.8.0
 	github.com/guonaihong/gout v0.1.3

@@ -295,12 +295,14 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
 				if lastErr == nil {
 					lastErr = err
 				}
+				log.G(ctx).WithError(err).Info("trying next host")
 				continue // try another host
 			}
 			resp.Body.Close() // don't care about body contents.
 
 			if resp.StatusCode > 299 {
 				if resp.StatusCode == http.StatusNotFound {
+					log.G(ctx).Info("trying next host - response was http.StatusNotFound")
 					continue
 				}
 				return "", ocispec.Descriptor{}, errors.Errorf("unexpected status code %v: %v", u, resp.Status)
@@ -546,7 +548,21 @@ func (r *request) do(ctx context.Context) (*http.Response, error) {
 	if err := r.authorize(ctx, req); err != nil {
 		return nil, errors.Wrap(err, "failed to authorize")
 	}
-	resp, err := ctxhttp.Do(ctx, r.host.Client, req)
+
+	var client = &http.Client{}
+	if r.host.Client != nil {
+		*client = *r.host.Client
+	}
+	if client.CheckRedirect == nil {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+			return errors.Wrap(r.authorize(ctx, req), "failed to authorize redirect")
+		}
+	}
+
+	resp, err := ctxhttp.Do(ctx, client, req)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to do request")
 	}
