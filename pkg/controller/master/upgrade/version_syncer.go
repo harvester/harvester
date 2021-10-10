@@ -66,7 +66,7 @@ func (s *versionSyncer) start() {
 func (s *versionSyncer) sync() error {
 	upgradeCheckerEnabled := settings.UpgradeCheckerEnabled.Get()
 	upgradeCheckerURL := settings.UpgradeCheckerURL.Get()
-	if upgradeCheckerEnabled != "true" || upgradeCheckerURL == "" || !settings.IsRelease() {
+	if upgradeCheckerEnabled != "true" || upgradeCheckerURL == "" {
 		return nil
 	}
 	req := &CheckUpgradeRequest{
