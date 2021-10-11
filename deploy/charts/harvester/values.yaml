@@ -155,7 +155,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: v0.3.0-rc2
+      tag: v0.3.0
 
     ## Specify whether to run in HCI mode. This option enables additional controllers.
     ## defaults to "false", this will be enabled in ISO mode installation.
@@ -406,7 +406,7 @@ webhook:
 
     ## Specify the tag of image.
     ##
-    tag: v0.3.0-rc2
+    tag: v0.3.0
 
   httpsPort: 9443
 
