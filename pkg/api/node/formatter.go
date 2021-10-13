@@ -25,6 +25,9 @@ const (
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
 	resource.Actions = make(map[string]string, 1)
+	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
+		return
+	}
 
 	if resource.APIObject.Data().String("metadata", "annotations", ctlnode.MaintainStatusAnnotationKey) != "" {
 		resource.AddAction(request, disableMaintenanceModeAction)
