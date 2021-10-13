@@ -30,6 +30,10 @@ const (
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
 	resource.Actions = make(map[string]string, 1)
+	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
+		return
+	}
+
 	if resource.APIObject.Data().String("spec", "sourceType") == apisv1beta1.VirtualMachineImageSourceTypeUpload {
 		resource.AddAction(request, actionUpload)
 	}

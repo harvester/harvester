@@ -34,6 +34,9 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	// reset resource actions, because action map already be set when add actions handler,
 	// but current framework can't support use formatter to remove key from action map
 	resource.Actions = make(map[string]string, 1)
+	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
+		return
+	}
 
 	vm := &kv1.VirtualMachine{}
 	err := convert.ToObj(resource.APIObject.Data(), vm)
