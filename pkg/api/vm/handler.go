@@ -51,6 +51,7 @@ type vmActionHandler struct {
 	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
 	virtSubresourceRestClient rest.Interface
 	virtRestClient            rest.Interface
+	vmImageClient             ctlharvesterv1.VirtualMachineImageClient
 }
 
 func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -415,6 +416,31 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 	if err != nil {
 		return err
 	}
+
+	var imageIDs []string
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {
+			pvcName := volume.PersistentVolumeClaim.ClaimName
+			createdImage, err := h.vmImageClient.Create(
+				&harvesterv1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: "image-",
+						Namespace:    namespace,
+					},
+					Spec: harvesterv1.VirtualMachineImageSpec{
+						DisplayName:  vmt.Name + "-" + pvcName,
+						SourceType:   harvesterv1.VirtualMachineImageSourceTypeExportVolume,
+						PVCName:      pvcName,
+						PVCNamespace: namespace,
+					},
+				})
+			if err != nil {
+				return err
+			}
+			imageIDs = append(imageIDs, namespace+"/"+createdImage.Name)
+		}
+	}
+
 	vmID := fmt.Sprintf("%s/%s", vmt.Namespace, vmt.Name)
 
 	_, err = h.vmTemplateVersionClient.Create(
@@ -428,6 +454,7 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 				Description: fmt.Sprintf("Template drived from virtual machine [%s]", vmID),
 				VM:          removeMacAddresses(vm),
 				KeyPairIDs:  keyPairIDs,
+				ImageID:     imageIDs,
 			},
 		})
 	return err

@@ -7408,7 +7408,11 @@
           "type": "string"
         },
         "imageId": {
-          "type": "string"
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          }
         },
         "keyPairIds": {
           "type": "array",

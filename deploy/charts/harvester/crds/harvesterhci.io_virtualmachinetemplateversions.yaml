@@ -54,7 +54,9 @@ spec:
               description:
                 type: string
               imageId:
-                type: string
+                items:
+                  type: string
+                type: array
               keyPairIds:
                 items:
                   type: string

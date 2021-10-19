@@ -46,6 +46,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	pvcs := scaled.CoreFactory.Core().V1().PersistentVolumeClaim()
 	vmt := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
 	vmtv := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
+	vmImageClient := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 
 	copyConfig := rest.CopyConfig(server.RESTConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion
@@ -77,6 +78,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		pvcCache:                  pvcs.Cache(),
 		virtSubresourceRestClient: virtSubresourceClient,
 		virtRestClient:            virtv1Client.RESTClient(),
+		vmImageClient:             vmImageClient,
 	}
 
 	vmformatter := vmformatter{

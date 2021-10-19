@@ -3021,8 +3021,16 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineTemplateVersionSpec(re
 					},
 					"imageId": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
 						},
 					},
 					"keyPairIds": {

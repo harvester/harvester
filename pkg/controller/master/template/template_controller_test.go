@@ -117,7 +117,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 					Spec: harvesterv1.VirtualMachineTemplateVersionSpec{
 						Description: "fake_description",
 						TemplateID:  "default/test",
-						ImageID:     "fake_image_id",
+						ImageID:     []string{"fake_image_id"},
 						VM:          harvesterv1.VirtualMachineSourceSpec{},
 					},
 					Status: harvesterv1.VirtualMachineTemplateVersionStatus{
@@ -160,7 +160,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 					Spec: harvesterv1.VirtualMachineTemplateVersionSpec{
 						Description: "fake_description",
 						TemplateID:  "fake_template_id",
-						ImageID:     "fake_image_id",
+						ImageID:     []string{"fake_image_id"},
 						VM:          harvesterv1.VirtualMachineSourceSpec{},
 					},
 					Status: harvesterv1.VirtualMachineTemplateVersionStatus{
@@ -215,7 +215,7 @@ func TestTemplateHandler_OnChanged(t *testing.T) {
 					Spec: harvesterv1.VirtualMachineTemplateVersionSpec{
 						Description: "fake_description",
 						TemplateID:  "default/test",
-						ImageID:     "fake_image_id",
+						ImageID:     []string{"fake_image_id"},
 						VM:          harvesterv1.VirtualMachineSourceSpec{},
 					},
 					Status: harvesterv1.VirtualMachineTemplateVersionStatus{
