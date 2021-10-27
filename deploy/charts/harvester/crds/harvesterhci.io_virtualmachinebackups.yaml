@@ -122,6 +122,20 @@ spec:
                 type: object
               readyToUse:
                 type: boolean
+              secretBackups:
+                items:
+                  description: SecretBackup contains the secret data need to restore
+                    a secret referenced by the VM
+                  properties:
+                    data:
+                      additionalProperties:
+                        format: byte
+                        type: string
+                      type: object
+                    name:
+                      type: string
+                  type: object
+                type: array
               source:
                 description: SourceSpec contains the vm spec source of the backup
                   target

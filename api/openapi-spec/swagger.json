@@ -6688,6 +6688,22 @@
         }
       }
     },
+    "harvesterhci.io.v1beta1.SecretBackup": {
+      "description": "SecretBackup contains the secret data need to restore a secret referenced by the VM",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "byte"
+          }
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
     "harvesterhci.io.v1beta1.SupportBundle": {
       "type": "object",
       "required": [
@@ -6977,6 +6993,13 @@
         },
         "readyToUse": {
           "type": "boolean"
+        },
+        "secretBackups": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/harvesterhci.io.v1beta1.SecretBackup"
+          }
         },
         "source": {
           "description": "SourceSpec contains the vm spec source of the backup target",
