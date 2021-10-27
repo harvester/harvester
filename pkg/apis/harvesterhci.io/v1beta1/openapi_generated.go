@@ -53,6 +53,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.PersistentVolumeClaimSourceSpec":                                  schema_pkg_apis_harvesterhciio_v1beta1_PersistentVolumeClaimSourceSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Preference":                                                       schema_pkg_apis_harvesterhciio_v1beta1_Preference(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.PreferenceList":                                                   schema_pkg_apis_harvesterhciio_v1beta1_PreferenceList(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SecretBackup":                                                     schema_pkg_apis_harvesterhciio_v1beta1_SecretBackup(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Setting":                                                          schema_pkg_apis_harvesterhciio_v1beta1_Setting(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SettingList":                                                      schema_pkg_apis_harvesterhciio_v1beta1_SettingList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SettingStatus":                                                    schema_pkg_apis_harvesterhciio_v1beta1_SettingStatus(ref),
@@ -1655,6 +1656,39 @@ func schema_pkg_apis_harvesterhciio_v1beta1_PreferenceList(ref common.ReferenceC
 	}
 }
 
+func schema_pkg_apis_harvesterhciio_v1beta1_SecretBackup(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SecretBackup contains the secret data need to restore a secret referenced by the VM",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"data": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "byte",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_harvesterhciio_v1beta1_Setting(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2285,6 +2319,19 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref commo
 							},
 						},
 					},
+					"secretBackups": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SecretBackup"),
+									},
+								},
+							},
+						},
+					},
 					"readyToUse": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"boolean"},
@@ -2313,7 +2360,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineSourceSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VolumeBackup", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SecretBackup", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineSourceSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VolumeBackup", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 
