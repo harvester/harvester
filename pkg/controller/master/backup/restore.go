@@ -73,6 +73,8 @@ type RestoreHandler struct {
 	vmCache           ctlkubevirtv1.VirtualMachineCache
 	pvcClient         ctlcorev1.PersistentVolumeClaimClient
 	pvcCache          ctlcorev1.PersistentVolumeClaimCache
+	secretClient      ctlcorev1.SecretClient
+	secretCache       ctlcorev1.SecretCache
 
 	recorder   record.EventRecorder
 	restClient *rest.RESTClient
@@ -83,6 +85,7 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 	backups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
+	secrets := management.CoreFactory.Core().V1().Secret()
 
 	handler := &RestoreHandler{
 		context:           ctx,
@@ -93,6 +96,8 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 		vmCache:           vms.Cache(),
 		pvcClient:         pvcs,
 		pvcCache:          pvcs.Cache(),
+		secretClient:      secrets,
+		secretCache:       secrets.Cache(),
 		recorder:          management.NewRecorder(restoreControllerName, "", ""),
 	}
 
@@ -161,6 +166,11 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.Virtu
 		}
 	}
 
+	//restore referenced secrets
+	if err := h.restoreCloudInitSecrets(backup, target); err != nil {
+		return nil, h.doUpdateError(restore, restoreCpy, err, true)
+	}
+
 	if !updated {
 		var ready bool
 		ready, err = target.Ready()
@@ -224,6 +234,73 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.Virtu
 		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "Waiting for new PVCs"))
 	}
 	return nil, h.doUpdate(restore, restoreCpy)
+}
+
+func (h *RestoreHandler) restoreCloudInitSecrets(backup *harvesterv1.VirtualMachineBackup, target *vmRestoreTarget) error {
+	if !target.newVM {
+		//Update existing secrets
+		for _, secretBackup := range backup.Status.SecretBackups {
+			secret, err := h.secretCache.Get(backup.Namespace, secretBackup.Name)
+			if err != nil {
+				return err
+			}
+			toUpdate := secret.DeepCopy()
+			toUpdate.Data = secretBackup.Data
+			if _, err := h.secretClient.Update(toUpdate); err != nil {
+				return err
+			}
+		}
+	} else {
+		for _, secretBackup := range backup.Status.SecretBackups {
+			for _, volume := range backup.Status.SourceSpec.Spec.Template.Spec.Volumes {
+				if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.UserDataSecretRef != nil &&
+					secretBackup.Name == volume.CloudInitNoCloud.UserDataSecretRef.Name {
+					newSecretName := getVMUserDataSecretName(target.vmRestore.Spec.Target.Name, volume.Name)
+					newSecret := &corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      newSecretName,
+							Namespace: target.vmRestore.Namespace,
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									APIVersion: target.vm.APIVersion,
+									Kind:       target.vm.Kind,
+									Name:       target.vm.Name,
+									UID:        target.vm.UID,
+								},
+							},
+						},
+						Data: secretBackup.Data,
+					}
+					if _, err := h.secretClient.Create(newSecret); err != nil && !apierrors.IsAlreadyExists(err) {
+						return err
+					}
+				}
+				if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.NetworkDataSecretRef != nil &&
+					secretBackup.Name == volume.CloudInitNoCloud.NetworkDataSecretRef.Name {
+					newSecretName := getVMNetworkDataSecretName(target.vmRestore.Spec.Target.Name, volume.Name)
+					newSecret := &corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      newSecretName,
+							Namespace: target.vmRestore.Namespace,
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									APIVersion: target.vm.APIVersion,
+									Kind:       target.vm.Kind,
+									Name:       target.vm.Name,
+									UID:        target.vm.UID,
+								},
+							},
+						},
+						Data: secretBackup.Data,
+					}
+					if _, err := h.secretClient.Create(newSecret); err != nil && !apierrors.IsAlreadyExists(err) {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // PersistentVolumeClaimOnChange watching the PVCs on change and enqueue the vmRestore if it has the restore annotation
@@ -523,7 +600,7 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 						vmNameLabel:    vmName,
 					},
 				},
-				Spec: vmCpy.Spec.Template.Spec,
+				Spec: sanitizeVirtualMachineForRestore(restore, vmCpy.Spec.Template.Spec),
 			},
 		},
 	}
@@ -553,6 +630,18 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 	}
 
 	return vm, nil
+}
+
+func sanitizeVirtualMachineForRestore(restore *harvesterv1.VirtualMachineRestore, spec kv1.VirtualMachineInstanceSpec) kv1.VirtualMachineInstanceSpec {
+	for index, volume := range spec.Volumes {
+		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.UserDataSecretRef != nil {
+			spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getVMUserDataSecretName(restore.Spec.Target.Name, volume.Name)
+		}
+		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
+			spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getVMNetworkDataSecretName(restore.Spec.Target.Name, volume.Name)
+		}
+	}
+	return spec
 }
 
 // createRestoredPVC helps to create new PVC from CSI volumeSnapshot
@@ -669,4 +758,12 @@ func configVMOwner(vm *kv1.VirtualMachine) []metav1.OwnerReference {
 			BlockOwnerDeletion: pointer.BoolPtr(true),
 		},
 	}
+}
+
+func getVMUserDataSecretName(vmName, volumeName string) string {
+	return fmt.Sprintf("vm-%s-%s-userdata", vmName, volumeName)
+}
+
+func getVMNetworkDataSecretName(vmName, volumeName string) string {
+	return fmt.Sprintf("vm-%s-%s-networkdata", vmName, volumeName)
 }

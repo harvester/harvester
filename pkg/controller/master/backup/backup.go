@@ -44,6 +44,7 @@ var vmBackupKind = harvesterv1.SchemeGroupVersion.WithKind(vmBackupKindName)
 func RegisterBackup(ctx context.Context, management *config.Management, opts config.Options) error {
 	vmBackups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 	pvc := management.CoreFactory.Core().V1().PersistentVolumeClaim()
+	secrets := management.CoreFactory.Core().V1().Secret()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	volumes := management.LonghornFactory.Longhorn().V1beta1().Volume()
 	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
@@ -54,6 +55,7 @@ func RegisterBackup(ctx context.Context, management *config.Management, opts con
 		vmBackupController: vmBackups,
 		vmBackupCache:      vmBackups.Cache(),
 		pvcCache:           pvc.Cache(),
+		secretCache:        secrets.Cache(),
 		vms:                vms,
 		vmsCache:           vms.Cache(),
 		volumeCache:        volumes.Cache(),
@@ -76,6 +78,7 @@ type Handler struct {
 	vms                ctlkubevirtv1.VirtualMachineClient
 	vmsCache           ctlkubevirtv1.VirtualMachineCache
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
+	secretCache        ctlcorev1.SecretCache
 	volumeCache        ctllonghornv1.VolumeCache
 	volumes            ctllonghornv1.VolumeClient
 	snapshots          ctlsnapshotv1.VolumeSnapshotClient
@@ -175,6 +178,36 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 	return volumeBackups, nil
 }
 
+// getSecretBackups helps to build a list of SecretBackup upon the cloud init secrets used by the backup VM
+func (h *Handler) getSecretBackups(vm *kv1.VirtualMachine) ([]harvesterv1.SecretBackup, error) {
+	var secretBackups []harvesterv1.SecretBackup
+
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.UserDataSecretRef != nil {
+			secret, err := h.secretCache.Get(vm.Namespace, volume.CloudInitNoCloud.UserDataSecretRef.Name)
+			if err != nil {
+				return nil, err
+			}
+			secretBackups = append(secretBackups, harvesterv1.SecretBackup{
+				Name: secret.Name,
+				Data: secret.Data,
+			})
+		}
+		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
+			secret, err := h.secretCache.Get(vm.Namespace, volume.CloudInitNoCloud.NetworkDataSecretRef.Name)
+			if err != nil {
+				return nil, err
+			}
+			secretBackups = append(secretBackups, harvesterv1.SecretBackup{
+				Name: secret.Name,
+				Data: secret.Data,
+			})
+		}
+	}
+
+	return secretBackups, nil
+}
+
 // updateBackupStatusContent helps to store the backup source and volume contents within the VM backup status
 func (h *Handler) updateBackupStatusContent(backup *harvesterv1.VirtualMachineBackup, vm *kv1.VirtualMachine) (*harvesterv1.VirtualMachineBackupStatus, error) {
 	var err error
@@ -182,6 +215,13 @@ func (h *Handler) updateBackupStatusContent(backup *harvesterv1.VirtualMachineBa
 
 	if status.VolumeBackups == nil {
 		status.VolumeBackups, err = h.getVolumeBackups(backup, vm)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if status.SecretBackups == nil {
+		status.SecretBackups, err = h.getSecretBackups(vm)
 		if err != nil {
 			return nil, err
 		}

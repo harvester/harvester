@@ -70,6 +70,9 @@ type VirtualMachineBackupStatus struct {
 	VolumeBackups []VolumeBackup `json:"volumeBackups,omitempty"`
 
 	// +optional
+	SecretBackups []SecretBackup `json:"secretBackups,omitempty"`
+
+	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty"`
 
 	// +optional
@@ -107,6 +110,15 @@ type VolumeBackup struct {
 
 	// +optional
 	Error *Error `json:"error,omitempty"`
+}
+
+// SecretBackup contains the secret data need to restore a secret referenced by the VM
+type SecretBackup struct {
+	// +kubebuilder:validation:Required
+	Name string `json:"name,omitempty"`
+
+	// +optional
+	Data map[string][]byte `json:"data,omitempty"`
 }
 
 type PersistentVolumeClaimSourceSpec struct {

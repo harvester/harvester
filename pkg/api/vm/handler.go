@@ -17,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/rest"
 	kv1 "kubevirt.io/client-go/api/v1"
 
@@ -49,6 +50,8 @@ type vmActionHandler struct {
 	settingCache              ctlharvesterv1.SettingCache
 	nodeCache                 ctlcorev1.NodeCache
 	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
+	secretClient              ctlcorev1.SecretClient
+	secretCache               ctlcorev1.SecretCache
 	virtSubresourceRestClient rest.Interface
 	virtRestClient            rest.Interface
 }
@@ -418,22 +421,74 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 	if err != nil {
 		return err
 	}
+
 	vmID := fmt.Sprintf("%s/%s", vmt.Namespace, vmt.Name)
 
-	_, err = h.vmTemplateVersionClient.Create(
+	vmtvName := fmt.Sprintf("%s-%s", vmt.Name, rand.String(5))
+	vmtv, err := h.vmTemplateVersionClient.Create(
 		&harvesterv1.VirtualMachineTemplateVersion{
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: fmt.Sprintf("%s-", vmt.Name),
-				Namespace:    namespace,
+				Name:      vmtvName,
+				Namespace: namespace,
 			},
 			Spec: harvesterv1.VirtualMachineTemplateVersionSpec{
 				TemplateID:  vmID,
 				Description: fmt.Sprintf("Template drived from virtual machine [%s]", vmID),
-				VM:          removeMacAddresses(vm),
+				VM:          sanitizeVirtualMachineForTemplateVersion(vmtvName, vm),
 				KeyPairIDs:  keyPairIDs,
 			},
 		})
+	if err != nil {
+		return err
+	}
+
+	return h.createCloudConfigSecrets(vmtv, vm)
+}
+
+func (h *vmActionHandler) createCloudConfigSecrets(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kv1.VirtualMachine) error {
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.CloudInitNoCloud == nil {
+			continue
+		}
+		if volume.CloudInitNoCloud.UserDataSecretRef != nil {
+			toCreateSecretName := getTemplateVersionUserDataSecretName(templateVersion.Name, volume.Name)
+			if err := h.copySecret(volume.CloudInitNoCloud.UserDataSecretRef.Name, toCreateSecretName, templateVersion); err != nil {
+				return err
+			}
+		}
+		if volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
+			toCreateSecretName := getTemplateVersionNetworkDataSecretName(templateVersion.Name, volume.Name)
+			if err := h.copySecret(volume.CloudInitNoCloud.NetworkDataSecretRef.Name, toCreateSecretName, templateVersion); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (h *vmActionHandler) copySecret(sourceName, targetName string, templateVersion *harvesterv1.VirtualMachineTemplateVersion) error {
+	secret, err := h.secretCache.Get(templateVersion.Namespace, sourceName)
+	if err != nil {
+		return err
+	}
+	toCreate := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      targetName,
+			Namespace: secret.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: templateVersion.APIVersion,
+					Kind:       templateVersion.Kind,
+					Name:       templateVersion.Name,
+					UID:        templateVersion.UID,
+				},
+			},
+		},
+		Data: secret.Data,
+	}
+	_, err = h.secretClient.Create(toCreate)
 	return err
+
 }
 
 // addVolume add a hotplug volume with given volume source and disk name.
@@ -518,17 +573,40 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		Error()
 }
 
-// removeMacAddresses replaces the mac address of each device interface with an empty string.
-// This is because macAddresses are unique, and should not reuse the original's.
-func removeMacAddresses(vm *kv1.VirtualMachine) harvesterv1.VirtualMachineSourceSpec {
-	sanitizedVm := vm.DeepCopy()
-	for index := range sanitizedVm.Spec.Template.Spec.Domain.Devices.Interfaces {
-		sanitizedVm.Spec.Template.Spec.Domain.Devices.Interfaces[index].MacAddress = ""
-	}
+func sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kv1.VirtualMachine) harvesterv1.VirtualMachineSourceSpec {
+	sanitizedVm := removeMacAddresses(vm)
+	sanitizedVm = replaceCloudInitSecrets(templateVersionName, sanitizedVm)
+
 	return harvesterv1.VirtualMachineSourceSpec{
 		ObjectMeta: sanitizedVm.ObjectMeta,
 		Spec:       sanitizedVm.Spec,
 	}
+}
+
+func replaceCloudInitSecrets(templateVersionName string, vm *kv1.VirtualMachine) *kv1.VirtualMachine {
+	sanitizedVm := vm.DeepCopy()
+	for index, volume := range sanitizedVm.Spec.Template.Spec.Volumes {
+		if volume.CloudInitNoCloud == nil {
+			continue
+		}
+		if volume.CloudInitNoCloud.UserDataSecretRef != nil {
+			sanitizedVm.Spec.Template.Spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getTemplateVersionUserDataSecretName(templateVersionName, volume.Name)
+		}
+		if volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
+			sanitizedVm.Spec.Template.Spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getTemplateVersionNetworkDataSecretName(templateVersionName, volume.Name)
+		}
+	}
+	return sanitizedVm
+}
+
+// removeMacAddresses replaces the mac address of each device interface with an empty string.
+// This is because macAddresses are unique, and should not reuse the original's.
+func removeMacAddresses(vm *kv1.VirtualMachine) *kv1.VirtualMachine {
+	sanitizedVm := vm.DeepCopy()
+	for index := range sanitizedVm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		sanitizedVm.Spec.Template.Spec.Domain.Devices.Interfaces[index].MacAddress = ""
+	}
+	return sanitizedVm
 }
 
 // getSSHKeysFromVMITemplateSpec first checks the given VirtualMachineInstanceTemplateSpec
@@ -547,4 +625,12 @@ func getSSHKeysFromVMITemplateSpec(vmitSpec *kv1.VirtualMachineInstanceTemplateS
 		return nil, err
 	}
 	return sshKeys, nil
+}
+
+func getTemplateVersionUserDataSecretName(templateVersionName, volumeName string) string {
+	return fmt.Sprintf("templateversion-%s-%s-userdata", templateVersionName, volumeName)
+}
+
+func getTemplateVersionNetworkDataSecretName(templateVersionName, volumeName string) string {
+	return fmt.Sprintf("templateversion-%s-%s-networkdata", templateVersionName, volumeName)
 }
