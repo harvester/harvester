@@ -260,6 +260,7 @@ service:
     mode: "static"
     ip: ""
     hwAddress: ""
+  installerProvidedSettings: {}
 
 ## Specify the lifecycle jobs.
 ##

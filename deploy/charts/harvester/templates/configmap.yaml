@@ -64,3 +64,16 @@ data:
       sleep 2
     done
     `}}
+
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: installer-provided-settings
+  labels:
+{{ include "harvester.labels" . | indent 4 }}
+immutable: true
+data:
+{{- range $key, $value := .Values.service.installerProvidedSettings }}
+  {{ $key }}: {{ $value | printf "%q" -}}
+{{ end }}
