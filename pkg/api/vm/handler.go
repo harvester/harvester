@@ -255,6 +255,9 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 	if !vmi.IsRunning() {
 		return errors.New("The VM is not in running state")
 	}
+	if !isReady(vmi) {
+		return errors.New("Can't migrate the VM, the VM is not in ready status")
+	}
 	if !canMigrate(vmi) {
 		return errors.New("The VM is already in migrating state")
 	}
