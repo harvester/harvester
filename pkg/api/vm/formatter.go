@@ -3,6 +3,7 @@ package vm
 import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/data/convert"
+	corev1 "k8s.io/api/core/v1"
 	kv1 "kubevirt.io/client-go/api/v1"
 
 	"github.com/harvester/harvester/pkg/controller/master/migration"
@@ -169,6 +170,15 @@ func canMigrate(vmi *kv1.VirtualMachineInstance) bool {
 	if vmi != nil && vmi.IsRunning() &&
 		vmi.Annotations[util.AnnotationMigrationUID] == "" {
 		return true
+	}
+	return false
+}
+
+func isReady(vmi *kv1.VirtualMachineInstance) bool {
+	for _, cond := range vmi.Status.Conditions {
+		if cond.Type == kv1.VirtualMachineInstanceReady && cond.Status == corev1.ConditionTrue {
+			return true
+		}
 	}
 	return false
 }

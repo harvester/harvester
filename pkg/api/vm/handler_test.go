@@ -72,6 +72,58 @@ func TestMigrateAction(t *testing.T) {
 			},
 		},
 		{
+			name: "VMI's ready status is false",
+			given: input{
+				namespace: "default",
+				name:      "test",
+				vmInstance: &kubevirtapis.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+					},
+					Status: kubevirtapis.VirtualMachineInstanceStatus{
+						Phase: kubevirtapis.Running,
+						Conditions: []kubevirtapis.VirtualMachineInstanceCondition{
+							{
+								Type:   kubevirtapis.VirtualMachineInstanceReady,
+								Status: corev1.ConditionFalse,
+							},
+						},
+					},
+				},
+			},
+			expected: output{
+				vmInstanceMigrations: []*kubevirtapis.VirtualMachineInstanceMigration{},
+				err:                  errors.New("Can't migrate the VM, the VM is not in ready status"),
+			},
+		},
+		{
+			name: "VMI's ready status is unknown",
+			given: input{
+				namespace: "default",
+				name:      "test",
+				vmInstance: &kubevirtapis.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+					},
+					Status: kubevirtapis.VirtualMachineInstanceStatus{
+						Phase: kubevirtapis.Running,
+						Conditions: []kubevirtapis.VirtualMachineInstanceCondition{
+							{
+								Type:   kubevirtapis.VirtualMachineInstanceReady,
+								Status: corev1.ConditionUnknown,
+							},
+						},
+					},
+				},
+			},
+			expected: output{
+				vmInstanceMigrations: []*kubevirtapis.VirtualMachineInstanceMigration{},
+				err:                  errors.New("Can't migrate the VM, the VM is not in ready status"),
+			},
+		},
+		{
 			name: "Migration is triggered",
 			given: input{
 				namespace: "default",
@@ -83,6 +135,12 @@ func TestMigrateAction(t *testing.T) {
 					},
 					Status: kubevirtapis.VirtualMachineInstanceStatus{
 						Phase: kubevirtapis.Running,
+						Conditions: []kubevirtapis.VirtualMachineInstanceCondition{
+							{
+								Type:   kubevirtapis.VirtualMachineInstanceReady,
+								Status: corev1.ConditionTrue,
+							},
+						},
 					},
 				},
 			},
