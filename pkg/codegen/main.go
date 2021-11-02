@@ -72,6 +72,7 @@ func main() {
 					longhornv1.Volume{},
 					longhornv1.Setting{},
 				},
+				GenerateClients: true,
 			},
 			upgradev1.SchemeGroupVersion.Group: {
 				Types: []interface{}{

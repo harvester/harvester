@@ -26,6 +26,8 @@ import (
 	fakek8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1/fake"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	fakekubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1/fake"
+	longhornv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta1"
+	fakelonghornv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta1/fake"
 	snapshotv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1"
 	fakesnapshotv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1/fake"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
@@ -97,6 +99,11 @@ func (c *Clientset) K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface {
 // KubevirtV1 retrieves the KubevirtV1Client
 func (c *Clientset) KubevirtV1() kubevirtv1.KubevirtV1Interface {
 	return &fakekubevirtv1.FakeKubevirtV1{Fake: &c.Fake}
+}
+
+// LonghornV1beta1 retrieves the LonghornV1beta1Client
+func (c *Clientset) LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface {
+	return &fakelonghornv1beta1.FakeLonghornV1beta1{Fake: &c.Fake}
 }
 
 // SnapshotV1beta1 retrieves the SnapshotV1beta1Client

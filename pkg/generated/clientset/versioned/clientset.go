@@ -24,6 +24,7 @@ import (
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	longhornv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta1"
 	snapshotv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
 	discovery "k8s.io/client-go/discovery"
@@ -36,6 +37,7 @@ type Interface interface {
 	HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
 	KubevirtV1() kubevirtv1.KubevirtV1Interface
+	LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface
 	SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface
 	UpgradeV1() upgradev1.UpgradeV1Interface
 }
@@ -47,6 +49,7 @@ type Clientset struct {
 	harvesterhciV1beta1 *harvesterhciv1beta1.HarvesterhciV1beta1Client
 	k8sCniCncfIoV1      *k8scnicncfiov1.K8sCniCncfIoV1Client
 	kubevirtV1          *kubevirtv1.KubevirtV1Client
+	longhornV1beta1     *longhornv1beta1.LonghornV1beta1Client
 	snapshotV1beta1     *snapshotv1beta1.SnapshotV1beta1Client
 	upgradeV1           *upgradev1.UpgradeV1Client
 }
@@ -64,6 +67,11 @@ func (c *Clientset) K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface {
 // KubevirtV1 retrieves the KubevirtV1Client
 func (c *Clientset) KubevirtV1() kubevirtv1.KubevirtV1Interface {
 	return c.kubevirtV1
+}
+
+// LonghornV1beta1 retrieves the LonghornV1beta1Client
+func (c *Clientset) LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface {
+	return c.longhornV1beta1
 }
 
 // SnapshotV1beta1 retrieves the SnapshotV1beta1Client
@@ -109,6 +117,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
+	cs.longhornV1beta1, err = longhornv1beta1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 	cs.snapshotV1beta1, err = snapshotv1beta1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -132,6 +144,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.NewForConfigOrDie(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.NewForConfigOrDie(c)
 	cs.kubevirtV1 = kubevirtv1.NewForConfigOrDie(c)
+	cs.longhornV1beta1 = longhornv1beta1.NewForConfigOrDie(c)
 	cs.snapshotV1beta1 = snapshotv1beta1.NewForConfigOrDie(c)
 	cs.upgradeV1 = upgradev1.NewForConfigOrDie(c)
 
@@ -145,6 +158,7 @@ func New(c rest.Interface) *Clientset {
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.New(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
 	cs.kubevirtV1 = kubevirtv1.New(c)
+	cs.longhornV1beta1 = longhornv1beta1.New(c)
 	cs.snapshotV1beta1 = snapshotv1beta1.New(c)
 	cs.upgradeV1 = upgradev1.New(c)
 
