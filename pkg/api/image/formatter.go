@@ -119,7 +119,9 @@ func (h UploadActionHandler) uploadImage(rw http.ResponseWriter, req *http.Reque
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 	if uploadResp.StatusCode >= http.StatusBadRequest {
-		return fmt.Errorf("upload failed: %s", string(body))
+		// err will be recorded in image condition in the defer function
+		err = fmt.Errorf("upload failed: %s", string(body))
+		return err
 	}
 
 	return nil

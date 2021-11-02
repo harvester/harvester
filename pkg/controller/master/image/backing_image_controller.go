@@ -36,7 +36,7 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta1.Backin
 	} else if err != nil {
 		return nil, err
 	}
-	if !harvesterv1beta1.ImageInitialized.IsTrue(vmImage) {
+	if !harvesterv1beta1.ImageInitialized.IsTrue(vmImage) || !harvesterv1beta1.ImageImported.IsUnknown(vmImage) {
 		return nil, nil
 	}
 	toUpdate := vmImage.DeepCopy()
