@@ -11,6 +11,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -19,12 +20,14 @@ type syncerFunc func(*harvesterv1.Setting) error
 var syncers map[string]syncerFunc
 
 type Handler struct {
-	namespace       string
-	settings        v1beta1.SettingClient
-	secrets         corev1.SecretClient
-	secretCache     corev1.SecretCache
-	deployments     v1.DeploymentClient
-	deploymentCache v1.DeploymentCache
+	namespace            string
+	settings             v1beta1.SettingClient
+	secrets              corev1.SecretClient
+	secretCache          corev1.SecretCache
+	deployments          v1.DeploymentClient
+	deploymentCache      v1.DeploymentCache
+	longhornSettings     ctllonghornv1.SettingClient
+	longhornSettingCache ctllonghornv1.SettingCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
