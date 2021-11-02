@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	httpProxySettingName = "http-proxy"
+	httpProxySettingName        = "http-proxy"
+	overcommitConfigSettingName = "overcommit-config"
 )
 
 type validateSettingFunc func(setting *v1beta1.Setting) error
@@ -23,6 +24,7 @@ type validateSettingFunc func(setting *v1beta1.Setting) error
 var validateSettingFuncs = map[string]validateSettingFunc{
 	httpProxySettingName:                      validateHTTPProxy,
 	settings.VMForceDeletionPolicySettingName: validateVMForceDeletionPolicy,
+	overcommitConfigSettingName:               validateOvercommitConfig,
 }
 
 func NewValidator() types.Validator {
@@ -58,10 +60,8 @@ func (v *settingValidator) Update(request *types.Request, oldObj runtime.Object,
 func validateSetting(newObj runtime.Object) error {
 	setting := newObj.(*v1beta1.Setting)
 
-	for key, validateFunc := range validateSettingFuncs {
-		if setting.Name == key {
-			return validateFunc(setting)
-		}
+	if validateFunc, ok := validateSettingFuncs[setting.Name]; ok {
+		return validateFunc(setting)
 	}
 
 	return nil
@@ -75,7 +75,30 @@ func validateHTTPProxy(setting *v1beta1.Setting) error {
 		message := fmt.Sprintf("failed to unmarshal the setting value, %v", err)
 		return werror.NewInvalidError(message, "value")
 	}
+	return nil
+}
 
+func validateOvercommitConfig(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+	overcommit := &settings.Overcommit{}
+	if err := json.Unmarshal([]byte(setting.Value), overcommit); err != nil {
+		return werror.NewInvalidError(fmt.Sprintf("Invalid JSON: %s", setting.Value), "Value")
+	}
+	emit := func(percentage int, field string) error {
+		msg := fmt.Sprintf("Cannot undercommit. Should be greater than or equal to 100 but got %d", percentage)
+		return werror.NewInvalidError(msg, field)
+	}
+	if overcommit.Cpu < 100 {
+		return emit(overcommit.Cpu, "cpu")
+	}
+	if overcommit.Memory < 100 {
+		return emit(overcommit.Memory, "memory")
+	}
+	if overcommit.Storage < 100 {
+		return emit(overcommit.Storage, "storage")
+	}
 	return nil
 }
 

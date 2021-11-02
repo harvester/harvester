@@ -32,6 +32,7 @@ var (
 	DefaultStorageClass          = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                    = NewSetting("http-proxy", "{}")
 	VMForceDeletionPolicySet     = NewSetting(VMForceDeletionPolicySettingName, InitVMForceDeletionPolicy())
+	OvercommitConfig             = NewSetting("overcommit-config", `{"cpu":1600,"memory":150,"storage":200}`)
 )
 
 const (
@@ -190,4 +191,10 @@ func DecodeVMForceDeletionPolicy(value string) (*VMForceDeletionPolicy, error) {
 	}
 
 	return policy, nil
+}
+
+type Overcommit struct {
+	Cpu     int `json:"cpu"`
+	Memory  int `json:"memory"`
+	Storage int `json:"storage"`
 }
