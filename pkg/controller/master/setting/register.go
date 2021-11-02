@@ -14,18 +14,22 @@ func Register(ctx context.Context, management *config.Management, options config
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
+	lhs := management.LonghornFactory.Longhorn().V1beta1().Setting()
 	controller := &Handler{
-		namespace:       options.Namespace,
-		settings:        settings,
-		secrets:         secrets,
-		secretCache:     secrets.Cache(),
-		deployments:     deployments,
-		deploymentCache: deployments.Cache(),
+		namespace:            options.Namespace,
+		settings:             settings,
+		secrets:              secrets,
+		secretCache:          secrets.Cache(),
+		deployments:          deployments,
+		deploymentCache:      deployments.Cache(),
+		longhornSettings:     lhs,
+		longhornSettingCache: lhs.Cache(),
 	}
 
 	syncers = map[string]syncerFunc{
-		"http-proxy": controller.syncHTTPProxy,
-		"log-level":  controller.setLogLevel,
+		"http-proxy":        controller.syncHTTPProxy,
+		"log-level":         controller.setLogLevel,
+		"overcommit-config": controller.syncOvercommitConfig,
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
