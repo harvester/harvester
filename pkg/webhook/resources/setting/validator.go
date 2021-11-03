@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -20,7 +21,8 @@ const (
 type validateSettingFunc func(setting *v1beta1.Setting) error
 
 var validateSettingFuncs = map[string]validateSettingFunc{
-	httpProxySettingName: validateHTTPProxy,
+	httpProxySettingName:                      validateHTTPProxy,
+	settings.VMForceDeletionPolicySettingName: validateVMForceDeletionPolicy,
 }
 
 func NewValidator() types.Validator {
@@ -72,6 +74,18 @@ func validateHTTPProxy(setting *v1beta1.Setting) error {
 	if err := json.Unmarshal([]byte(setting.Value), &util.HTTPProxyConfig{}); err != nil {
 		message := fmt.Sprintf("failed to unmarshal the setting value, %v", err)
 		return werror.NewInvalidError(message, "value")
+	}
+
+	return nil
+}
+
+func validateVMForceDeletionPolicy(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	if _, err := settings.DecodeVMForceDeletionPolicy(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
 	}
 
 	return nil
