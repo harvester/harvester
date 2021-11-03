@@ -32,49 +32,49 @@ func TestJobHandler_OnChanged(t *testing.T) {
 		expected output
 	}{
 		{
-			name: "upgrading a node",
+			name: "preparing a node",
 			given: input{
 				key:     testJobName,
 				job:     newTestNodeJobBuilder().Running().Build(),
 				plan:    newTestPlanBuilder().Build(),
-				upgrade: newTestUpgradeBuilder().Build(),
+				upgrade: newTestUpgradeBuilder().WithLabel(upgradeStateLabel, StatePreparingNodes).Build(),
 			},
 			expected: output{
 				job:     newTestNodeJobBuilder().Running().Build(),
-				upgrade: newTestUpgradeBuilder().NodeUpgradeStatus(testNodeName, stateUpgrading, "", "").Build(),
+				upgrade: newTestUpgradeBuilder().WithLabel(upgradeStateLabel, StatePreparingNodes).NodeUpgradeStatus(testNodeName, nodeStateImagesPreloading, "", "").Build(),
 				err:     nil,
 			},
 		},
 		{
-			name: "node upgrade job failed",
+			name: "node preparing job failed",
 			given: input{
 				key:     testJobName,
 				job:     newTestNodeJobBuilder().Failed("FailedReason", "failed message").Build(),
 				plan:    newTestPlanBuilder().Build(),
-				upgrade: newTestUpgradeBuilder().Build(),
+				upgrade: newTestUpgradeBuilder().WithLabel(upgradeStateLabel, StatePreparingNodes).Build(),
 			},
 			expected: output{
 				job:     newTestNodeJobBuilder().Failed("FailedReason", "failed message").Build(),
-				upgrade: newTestUpgradeBuilder().NodeUpgradeStatus("test-node", stateFailed, "FailedReason", "failed message").Build(),
+				upgrade: newTestUpgradeBuilder().NodeUpgradeStatus("test-node", StateFailed, "FailedReason", "failed message").Build(),
 				err:     nil,
 			},
 		},
 		{
-			name: "node upgrade job succeeded",
+			name: "node preparing job succeeded",
 			given: input{
 				key:     testJobName,
 				job:     newTestNodeJobBuilder().Completed().Build(),
 				plan:    newTestPlanBuilder().Build(),
-				upgrade: newTestUpgradeBuilder().Build(),
+				upgrade: newTestUpgradeBuilder().WithLabel(upgradeStateLabel, StatePreparingNodes).Build(),
 			},
 			expected: output{
 				job:     newTestNodeJobBuilder().Completed().Build(),
-				upgrade: newTestUpgradeBuilder().NodeUpgradeStatus("test-node", stateSucceeded, "", "").Build(),
+				upgrade: newTestUpgradeBuilder().WithLabel(upgradeStateLabel, StatePreparingNodes).NodeUpgradeStatus("test-node", nodeStateImagesPreloaded, "", "").Build(),
 				err:     nil,
 			},
 		},
 		{
-			name: "upgrading harvester chart",
+			name: "upgrading manifest job is running",
 			given: input{
 				key:     testJobName,
 				job:     newTestChartJobBuilder().Running().Build(),
@@ -88,7 +88,7 @@ func TestJobHandler_OnChanged(t *testing.T) {
 			},
 		},
 		{
-			name: "chart upgrade job failed",
+			name: "upgrading manifest job failed",
 			given: input{
 				key:     testJobName,
 				job:     newTestChartJobBuilder().Failed("FailedReason", "failed message").Build(),
@@ -102,7 +102,7 @@ func TestJobHandler_OnChanged(t *testing.T) {
 			},
 		},
 		{
-			name: "chart upgrade job succeeded",
+			name: "upgrading manifest job succeeded",
 			given: input{
 				key:     testJobName,
 				job:     newTestChartJobBuilder().Completed().Build(),
@@ -136,6 +136,9 @@ func TestJobHandler_OnChanged(t *testing.T) {
 			actual.plan, err = handler.planCache.Get(upgradeNamespace, tc.given.upgrade.Name)
 			assert.Nil(t, err)
 		}
+
+		emptyConditionsTime(tc.expected.upgrade.Status.Conditions)
+		emptyConditionsTime(actual.upgrade.Status.Conditions)
 
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
 	}
