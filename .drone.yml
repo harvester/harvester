@@ -246,10 +246,32 @@ steps:
   when:
     instance:
       - drone-publish.rancher.io
+    event:
+      - tag
+
+- name: upload_iso_release_master
+  image: plugins/gcs
+  settings:
+    acl:
+      - allUsers:READER
+    cache_control: "public,no-cache,proxy-revalidate"
+    source: dist/artifacts
+    target: releases.rancher.com/harvester/master
+    token:
+      from_secret: google_auth_key
+  when:
+    instance:
+      - drone-publish.rancher.io
+    event:
+      - push
 
 trigger:
   event:
-  - tag
+    - tag
+    - push
+  ref:
+    - "refs/heads/master"
+    - "refs/heads/release/v*"
 
 volumes:
 - name: docker
