@@ -6,15 +6,16 @@ import (
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
 const (
-	stateUpgrading    = "Upgrading"
 	upgradeStateLabel = "harvesterhci.io/upgradeState"
 )
 
@@ -46,10 +47,12 @@ func (v *upgradeValidator) Resource() types.Resource {
 func (v *upgradeValidator) Create(request *types.Request, newObj runtime.Object) error {
 	newUpgrade := newObj.(*v1beta1.Upgrade)
 
-	sets := labels.Set{
-		upgradeStateLabel: stateUpgrading,
+	req, err := labels.NewRequirement(upgradeStateLabel, selection.NotIn, []string{upgrade.StateSucceeded, upgrade.StateFailed})
+	if err != nil {
+		return err
 	}
-	upgrades, err := v.upgrades.List(newUpgrade.Namespace, sets.AsSelector())
+
+	upgrades, err := v.upgrades.List(newUpgrade.Namespace, labels.NewSelector().Add(*req))
 	if err != nil {
 		return err
 	}

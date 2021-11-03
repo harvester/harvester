@@ -10,7 +10,6 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
-	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -31,112 +30,31 @@ func TestPodHandler_OnChanged(t *testing.T) {
 		expected output
 	}{
 		{
-			name: "upgrade node pod running",
+			name: "upgrade repo vm ready",
 			given: input{
-				key: "upgrade-node-pod",
+				key: "upgrade-repo-vm-pod",
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "upgrade-node-pod",
+						Name:      "upgrade-repo-vm-pod",
 						Namespace: upgradeNamespace,
 						Labels: map[string]string{
-							upgradePlanLabel: testPlanName,
-							upgradeNodeLabel: testNodeName,
-						},
-					},
-				},
-				plan:    newTestPlanBuilder().Build(),
-				upgrade: newTestUpgradeBuilder().Build(),
-			},
-			expected: output{
-				upgrade: newTestUpgradeBuilder().NodeUpgradeStatus(testNodeName, stateUpgrading, "", "").Build(),
-				err:     nil,
-			},
-		},
-		{
-			name: "upgrade node pod in waiting state",
-			given: input{
-				key: "upgrade-node-pod",
-				pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "upgrade-node-pod",
-						Namespace: upgradeNamespace,
-						Labels: map[string]string{
-							upgradePlanLabel: testPlanName,
-							upgradeNodeLabel: testNodeName,
+							harvesterUpgradeLabel:          testUpgradeName,
+							harvesterUpgradeComponentLabel: upgradeComponentRepo,
 						},
 					},
 					Status: corev1.PodStatus{
 						ContainerStatuses: []corev1.ContainerStatus{
 							{
-								State: corev1.ContainerState{
-									Waiting: &corev1.ContainerStateWaiting{
-										Reason:  "ErrImagePull",
-										Message: "failed to pull and unpack image",
-									},
-								},
+								Ready: true,
 							},
 						},
 					},
 				},
 				plan:    newTestPlanBuilder().Build(),
-				upgrade: newTestUpgradeBuilder().Build(),
+				upgrade: newTestUpgradeBuilder().WithLabel(upgradeStateLabel, StatePreparingRepo).Build(),
 			},
 			expected: output{
-				upgrade: newTestUpgradeBuilder().NodeUpgradeStatus(testNodeName, stateUpgrading, "ErrImagePull", "failed to pull and unpack image").Build(),
-				err:     nil,
-			},
-		},
-		{
-			name: "upgrade chart pod running",
-			given: input{
-				key: "upgrade-chart-pod",
-				pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "upgrade-chart-pod",
-						Namespace: util.KubeSystemNamespace,
-						Labels: map[string]string{
-							helmChartLabel: harvesterChartname,
-						},
-					},
-				},
-				plan:    newTestPlanBuilder().Build(),
-				upgrade: newTestUpgradeBuilder().ChartUpgradeStatus(corev1.ConditionUnknown, "", "").Build(),
-			},
-			expected: output{
-				upgrade: newTestUpgradeBuilder().ChartUpgradeStatus(corev1.ConditionUnknown, "", "").Build(),
-				err:     nil,
-			},
-		},
-		{
-			name: "upgrade chart pod in waiting state",
-			given: input{
-				key: "upgrade-chart-pod",
-				pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "upgrade-chart-pod",
-						Namespace: upgradeNamespace,
-						Labels: map[string]string{
-							helmChartLabel: harvesterChartname,
-						},
-					},
-					Status: corev1.PodStatus{
-						ContainerStatuses: []corev1.ContainerStatus{
-							{
-								State: corev1.ContainerState{
-									Waiting: &corev1.ContainerStateWaiting{
-										Reason:  "ErrImagePull",
-										Message: "failed to pull and unpack image",
-									},
-								},
-							},
-						},
-					},
-				},
-				plan:    newTestPlanBuilder().Build(),
-				upgrade: newTestUpgradeBuilder().ChartUpgradeStatus(corev1.ConditionUnknown, "", "").Build(),
-			},
-			expected: output{
-				upgrade: newTestUpgradeBuilder().ChartUpgradeStatus(corev1.ConditionUnknown, "ErrImagePull", "failed to pull and unpack image").Build(),
+				upgrade: newTestUpgradeBuilder().WithLabel(upgradeStateLabel, StateRepoPrepared).RepoProvisionedCondition(corev1.ConditionTrue, "", "").Build(),
 				err:     nil,
 			},
 		},
@@ -154,6 +72,10 @@ func TestPodHandler_OnChanged(t *testing.T) {
 		_, actual.err = handler.OnChanged(tc.given.key, tc.given.pod)
 		actual.upgrade, getErr = handler.upgradeCache.Get(handler.namespace, tc.given.upgrade.Name)
 		assert.Nil(t, getErr)
+
+		emptyConditionsTime(tc.expected.upgrade.Status.Conditions)
+		emptyConditionsTime(actual.upgrade.Status.Conditions)
+
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
 	}
 }
