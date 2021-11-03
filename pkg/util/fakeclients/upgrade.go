@@ -51,8 +51,8 @@ func (c UpgradeCache) List(namespace string, selector labels.Selector) ([]*harve
 		return nil, err
 	}
 	result := make([]*harvesterv1.Upgrade, 0, len(list.Items))
-	for _, upgrade := range list.Items {
-		result = append(result, &upgrade)
+	for i := range list.Items {
+		result = append(result, &list.Items[i])
 	}
 	return result, err
 }

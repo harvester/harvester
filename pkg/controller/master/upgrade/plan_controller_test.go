@@ -16,15 +16,9 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
-func newTestServerPlan() *upgradeapiv1.Plan {
-	plan := serverPlan(newTestUpgradeBuilder().Build(), false)
+func newTestPreparePlan() *upgradeapiv1.Plan {
+	plan := preparePlan(newTestUpgradeBuilder().Build())
 	plan.Status.LatestHash = testPlanHash
-	return plan
-}
-
-func newTestAgentPlan() *upgradeapiv1.Plan {
-	plan := agentPlan(newTestUpgradeBuilder().Build())
-	plan.Status.LatestHash = testAgentPlanHash
 	return plan
 }
 
@@ -36,10 +30,9 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 		nodes   []*v1.Node
 	}
 	type output struct {
-		serverPlan *upgradeapiv1.Plan
-		agentPlan  *upgradeapiv1.Plan
-		upgrade    *harvesterv1.Upgrade
-		err        error
+		plan    *upgradeapiv1.Plan
+		upgrade *harvesterv1.Upgrade
+		err     error
 	}
 	var testCases = []struct {
 		name     string
@@ -47,100 +40,48 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 		expected output
 	}{
 		{
-			name: "server plan is running",
+			name: "prepare plan is running",
 			given: input{
 				key:     testPlanName,
-				plan:    newTestServerPlan(),
-				upgrade: newTestUpgradeBuilder().NodeUpgradeStatus("node-1", stateSucceeded, "", "").Build(),
+				plan:    newTestPreparePlan(),
+				upgrade: newTestUpgradeBuilder().NodeUpgradeStatus("node-1", StateSucceeded, "", "").Build(),
 				nodes: []*v1.Node{
-					newNodeBuilder("node-1").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestServerPlan().Name), testPlanHash).Build(),
+					newNodeBuilder("node-1").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestPreparePlan().Name), testPlanHash).Build(),
 					newNodeBuilder("node-2").Managed().ControlPlane().Build(),
 					newNodeBuilder("node-3").Managed().ControlPlane().Build(),
 				},
 			},
 			expected: output{
-				serverPlan: newTestServerPlan(),
-				err:        nil,
+				plan: newTestPreparePlan(),
+				err:  nil,
 			},
 		},
 		{
-			name: "agent plan is created when server plan completes",
+			name: "set NodesPrepared condition when prepare plan completes",
 			given: input{
 				key:  testPlanName,
-				plan: newTestServerPlan(),
+				plan: newTestPreparePlan(),
 				upgrade: newTestUpgradeBuilder().
-					NodeUpgradeStatus("node-1", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-2", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-3", stateSucceeded, "", "").
+					NodeUpgradeStatus("node-1", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-2", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-3", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-4", nodeStateImagesPreloaded, "", "").
+					NodesPreparedCondition(v1.ConditionUnknown, "", "").
 					Build(),
 				nodes: []*v1.Node{
-					newNodeBuilder("node-1").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestServerPlan().Name), testPlanHash).Build(),
-					newNodeBuilder("node-2").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestServerPlan().Name), testPlanHash).Build(),
-					newNodeBuilder("node-3").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestServerPlan().Name), testPlanHash).Build(),
-				},
-			},
-			expected: output{
-				serverPlan: newTestServerPlan(),
-				agentPlan:  newTestAgentPlan(),
-				err:        nil,
-			},
-		},
-		{
-			name: "agent plan is running",
-			given: input{
-				key:  testPlanName,
-				plan: newTestAgentPlan(),
-				upgrade: newTestUpgradeBuilder().
-					NodeUpgradeStatus("node-1", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-2", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-3", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-4", stateUpgrading, "", "").
-					NodesUpgradedCondition(v1.ConditionUnknown, "", "").
-					Build(),
-				nodes: []*v1.Node{
-					newNodeBuilder("node-1").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestServerPlan().Name), testPlanHash).Build(),
-					newNodeBuilder("node-2").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestServerPlan().Name), testPlanHash).Build(),
-					newNodeBuilder("node-3").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestServerPlan().Name), testPlanHash).Build(),
-					newNodeBuilder("node-4").Managed().Build(),
+					newNodeBuilder("node-1").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestPreparePlan().Name), testPlanHash).Build(),
+					newNodeBuilder("node-2").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestPreparePlan().Name), testPlanHash).Build(),
+					newNodeBuilder("node-3").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestPreparePlan().Name), testPlanHash).Build(),
+					newNodeBuilder("node-4").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestPreparePlan().Name), testPlanHash).Build(),
 				},
 			},
 			expected: output{
 				upgrade: newTestUpgradeBuilder().
-					NodeUpgradeStatus("node-1", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-2", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-3", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-4", stateUpgrading, "", "").
-					NodesUpgradedCondition(v1.ConditionUnknown, "", "").
-					Build(),
-				err: nil,
-			},
-		},
-		{
-			name: "set nodesUpgraded condition when agent plan completes",
-			given: input{
-				key:  testPlanName,
-				plan: newTestAgentPlan(),
-				upgrade: newTestUpgradeBuilder().
-					NodeUpgradeStatus("node-1", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-2", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-3", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-4", stateSucceeded, "", "").
-					NodesUpgradedCondition(v1.ConditionUnknown, "", "").
-					Build(),
-				nodes: []*v1.Node{
-					newNodeBuilder("node-1").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestServerPlan().Name), testPlanHash).Build(),
-					newNodeBuilder("node-2").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestServerPlan().Name), testPlanHash).Build(),
-					newNodeBuilder("node-3").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestServerPlan().Name), testPlanHash).Build(),
-					newNodeBuilder("node-4").Managed().WithLabel(upgrade.LabelPlanName(newTestAgentPlan().Name), testAgentPlanHash).Build(),
-				},
-			},
-			expected: output{
-				upgrade: newTestUpgradeBuilder().
-					NodeUpgradeStatus("node-1", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-2", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-3", stateSucceeded, "", "").
-					NodeUpgradeStatus("node-4", stateSucceeded, "", "").
-					NodesUpgradedCondition(v1.ConditionTrue, "", "").
+					NodeUpgradeStatus("node-1", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-2", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-3", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-4", nodeStateImagesPreloaded, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").
 					Build(),
 				err: nil,
 			},
@@ -165,21 +106,17 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 		_, actual.err = handler.OnChanged(tc.given.key, tc.given.plan)
 		if tc.expected.upgrade != nil {
 			actual.upgrade, err = handler.upgradeCache.Get(handler.namespace, tc.given.upgrade.Name)
+			emptyConditionsTime(tc.expected.upgrade.Status.Conditions)
+			emptyConditionsTime(actual.upgrade.Status.Conditions)
 			assert.Nil(t, err)
 		}
-		if tc.expected.serverPlan != nil {
-			actual.serverPlan, err = handler.planClient.Get(upgradeNamespace, tc.expected.serverPlan.Name, metav1.GetOptions{})
+		if tc.expected.plan != nil {
+			actual.plan, err = handler.planClient.Get(sucNamespace, tc.expected.plan.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
-			sanitizeStatus(&tc.expected.serverPlan.Status)
-			sanitizeStatus(&actual.serverPlan.Status)
+			sanitizeStatus(&tc.expected.plan.Status)
+			sanitizeStatus(&actual.plan.Status)
 		}
 
-		if tc.expected.agentPlan != nil {
-			actual.agentPlan, err = handler.planClient.Get(upgradeNamespace, tc.expected.agentPlan.Name, metav1.GetOptions{})
-			assert.Nil(t, err)
-			sanitizeStatus(&tc.expected.agentPlan.Status)
-			sanitizeStatus(&actual.agentPlan.Status)
-		}
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
 	}
 }
