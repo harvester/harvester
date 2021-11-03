@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	"github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	cniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
@@ -88,6 +89,7 @@ type Management struct {
 
 	NetworkingFactory *networking.Factory
 	UpgradeFactory    *upgrade.Factory
+	ClusterFactory    *cluster.Factory
 
 	ClientSet  *kubernetes.Clientset
 	RestConfig *rest.Config
@@ -286,6 +288,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.RancherManagementFactory = rancher
 	management.starters = append(management.starters, rancher)
+
+	cluster, err := cluster.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.ClusterFactory = cluster
+	management.starters = append(management.starters, cluster)
 
 	management.RestConfig = restConfig
 	management.ClientSet, err = kubernetes.NewForConfig(restConfig)

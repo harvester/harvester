@@ -20,18 +20,32 @@ type podHandler struct {
 }
 
 func (h *podHandler) OnChanged(key string, pod *v1.Pod) (*v1.Pod, error) {
-	if pod == nil || pod.DeletionTimestamp != nil || pod.Labels == nil || pod.Namespace != upgradeNamespace {
+	if pod == nil || pod.DeletionTimestamp != nil || pod.Labels == nil || pod.Namespace != upgradeNamespace || pod.Labels[harvesterUpgradeLabel] == "" {
 		return pod, nil
 	}
 
-	chartName := pod.Labels[helmChartLabel]
-	planName := pod.Labels[upgradePlanLabel]
-	nodeName := pod.Labels[upgradeNodeLabel]
-	if chartName == harvesterChartname {
-		return h.syncHelmChartPod(pod)
-	} else if planName != "" && nodeName != "" {
-		return h.syncNodeUpgradePod(pod, planName, nodeName)
+	upgradeControllerLock.Lock()
+	defer upgradeControllerLock.Unlock()
+
+	upgrade, err := h.upgradeCache.Get(upgradeNamespace, pod.Labels[harvesterUpgradeLabel])
+	if err != nil {
+		return nil, err
 	}
+
+	component := pod.Labels[harvesterUpgradeComponentLabel]
+	switch upgrade.Labels[upgradeStateLabel] {
+	case StatePreparingRepo:
+		if component == upgradeComponentRepo && len(pod.Status.ContainerStatuses) > 0 {
+			if pod.Status.ContainerStatuses[0].Ready {
+				toUpdate := upgrade.DeepCopy()
+				toUpdate.Labels[upgradeStateLabel] = StateRepoPrepared
+				setRepoProvisionedCondition(toUpdate, v1.ConditionTrue, "", "")
+				_, err = h.upgradeClient.Update(toUpdate)
+				return pod, err
+			}
+		}
+	}
+
 	return pod, nil
 }
 
@@ -86,7 +100,7 @@ func (h *podHandler) syncNodeUpgradePod(pod *v1.Pod, planName string, nodeName s
 	toUpdate := upgrade.DeepCopy()
 
 	reason, message := getPodWaitingStatus(pod)
-	setNodeUpgradeStatus(toUpdate, nodeName, stateUpgrading, reason, message)
+	setNodeUpgradeStatus(toUpdate, nodeName, StateUpgrading, reason, message)
 	if !reflect.DeepEqual(upgrade, toUpdate) {
 		if _, err := h.upgradeClient.Update(toUpdate); err != nil {
 			return pod, err
