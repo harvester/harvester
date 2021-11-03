@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -30,11 +31,13 @@ var (
 	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
 	DefaultStorageClass          = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                    = NewSetting("http-proxy", "{}")
+	VMForceDeletionPolicySet     = NewSetting(VMForceDeletionPolicySettingName, InitVMForceDeletionPolicy())
 )
 
 const (
-	BackupTargetSettingName = "backup-target"
-	DefaultDashboardUIURL   = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
+	BackupTargetSettingName          = "backup-target"
+	VMForceDeletionPolicySettingName = "vm-force-deletion-policy"
+	DefaultDashboardUIURL            = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
 )
 
 func init() {
@@ -153,11 +156,38 @@ type BackupTarget struct {
 	VirtualHostedStyle bool       `json:"virtualHostedStyle"`
 }
 
+type VMForceDeletionPolicy struct {
+	Enable bool `json:"enable"`
+	// Period means how many seconds to wait for a node get back.
+	Period int64 `json:"period"`
+}
+
 func InitBackupTargetToString() string {
 	target := &BackupTarget{}
 	targetStr, err := json.Marshal(target)
 	if err != nil {
-		logrus.Errorf("failed to init string backupTarget, error: %s", err.Error())
+		logrus.Errorf("failed to init %s, error: %s", BackupTargetSettingName, err.Error())
 	}
 	return string(targetStr)
+}
+
+func InitVMForceDeletionPolicy() string {
+	policy := &VMForceDeletionPolicy{
+		Enable: true,
+		Period: 5 * 60, // 5 minutes
+	}
+	policyStr, err := json.Marshal(policy)
+	if err != nil {
+		logrus.Errorf("failed to init %s, error: %s", VMForceDeletionPolicySettingName, err.Error())
+	}
+	return string(policyStr)
+}
+
+func DecodeVMForceDeletionPolicy(value string) (*VMForceDeletionPolicy, error) {
+	policy := &VMForceDeletionPolicy{}
+	if err := json.Unmarshal([]byte(value), policy); err != nil {
+		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
+	}
+
+	return policy, nil
 }

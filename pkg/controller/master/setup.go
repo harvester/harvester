@@ -29,6 +29,7 @@ var registerFuncs = []registerFunc{
 	migration.Register,
 	node.PromoteRegister,
 	node.MaintainRegister,
+	node.NodeDownRegister,
 	setting.Register,
 	template.Register,
 	virtualmachine.Register,
