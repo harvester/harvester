@@ -2,6 +2,9 @@ package setting
 
 import (
 	"context"
+	"crypto/tls"
+	"net/http"
+	"time"
 
 	"github.com/harvester/harvester/pkg/config"
 )
@@ -18,6 +21,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	lhs := management.LonghornFactory.Longhorn().V1beta1().Setting()
 	controller := &Handler{
 		namespace:            options.Namespace,
+		apply:                management.Apply,
 		settings:             settings,
 		secrets:              secrets,
 		secretCache:          secrets.Cache(),
@@ -25,6 +29,14 @@ func Register(ctx context.Context, management *config.Management, options config
 		deploymentCache:      deployments.Cache(),
 		longhornSettings:     lhs,
 		longhornSettingCache: lhs.Cache(),
+		httpClient: http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		},
 	}
 
 	preconfigController := &LoadingPreconfigHandler{
@@ -33,10 +45,11 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 
 	syncers = map[string]syncerFunc{
-		"additional-ca":     controller.syncAdditionalTrustedCAs,
-		"http-proxy":        controller.syncHTTPProxy,
-		"log-level":         controller.setLogLevel,
-		"overcommit-config": controller.syncOvercommitConfig,
+		"additional-ca":            controller.syncAdditionalTrustedCAs,
+		"cluster-registration-url": controller.registerCluster,
+		"http-proxy":               controller.syncHTTPProxy,
+		"log-level":                controller.setLogLevel,
+		"overcommit-config":        controller.syncOvercommitConfig,
 	}
 
 	settings.OnChange(ctx, settingControllerName, controller.settingOnChanged)

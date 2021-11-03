@@ -3,8 +3,10 @@ package setting
 import (
 	"crypto/sha256"
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/rancher/wrangler/pkg/apply"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -21,6 +23,8 @@ var syncers map[string]syncerFunc
 
 type Handler struct {
 	namespace            string
+	httpClient           http.Client
+	apply                apply.Apply
 	settings             v1beta1.SettingClient
 	secrets              corev1.SecretClient
 	secretCache          corev1.SecretCache
@@ -53,6 +57,9 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 		}
 
 		if err := syncer(setting); err != nil {
+			if updateErr := h.setConfiguredCondition(setting.DeepCopy(), err); updateErr != nil {
+				return setting, updateErr
+			}
 			return setting, err
 		}
 
@@ -61,10 +68,28 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 			toUpdate.Annotations = make(map[string]string)
 		}
 		toUpdate.Annotations[util.AnnotationHash] = currentHash
-		return h.settings.Update(toUpdate)
+		return setting, h.setConfiguredCondition(toUpdate, nil)
 	}
 
 	return nil, nil
+}
+
+func (h *Handler) setConfiguredCondition(settingCopy *harvesterv1.Setting, err error) error {
+	if err != nil && (!harvesterv1.SettingConfigured.IsFalse(settingCopy) ||
+		harvesterv1.SettingConfigured.GetMessage(settingCopy) != err.Error()) {
+		harvesterv1.SettingConfigured.False(settingCopy)
+		harvesterv1.SettingConfigured.Message(settingCopy, err.Error())
+		if _, err := h.settings.Update(settingCopy); err != nil {
+			return err
+		}
+	} else if err == nil {
+		harvesterv1.SettingConfigured.True(settingCopy)
+		harvesterv1.SettingConfigured.Message(settingCopy, "")
+		if _, err := h.settings.Update(settingCopy); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *Handler) updateBackupSecret(data map[string]string) error {
