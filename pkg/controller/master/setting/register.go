@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	controllerName = "harvester-setting-controller"
+	settingControllerName   = "harvester-setting-controller"
+	preconfigControllerName = "harvester-setting-preconfig-controller"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -26,6 +27,11 @@ func Register(ctx context.Context, management *config.Management, options config
 		longhornSettingCache: lhs.Cache(),
 	}
 
+	preconfigController := &LoadingPreconfigHandler{
+		namespace: options.Namespace,
+		settings:  settings,
+	}
+
 	syncers = map[string]syncerFunc{
 		"additional-ca":     controller.syncAdditionalTrustedCAs,
 		"http-proxy":        controller.syncHTTPProxy,
@@ -33,6 +39,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		"overcommit-config": controller.syncOvercommitConfig,
 	}
 
-	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
+	settings.OnChange(ctx, settingControllerName, controller.settingOnChanged)
+	settings.OnChange(ctx, preconfigControllerName, preconfigController.settingOnChanged)
 	return nil
 }

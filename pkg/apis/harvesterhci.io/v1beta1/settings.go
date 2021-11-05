@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	SettingConfigured condition.Cond = "configured"
+	SettingConfigured      condition.Cond = "configured"
+	SettingPreconfigLoaded condition.Cond = "preconfigLoaded"
 )
 
 // +genclient
