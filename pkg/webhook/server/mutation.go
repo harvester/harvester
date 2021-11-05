@@ -20,7 +20,7 @@ func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, 
 	mutators := []types.Mutator{
 		pod.NewMutator(clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
 		templateversion.NewMutator(),
-		virtualmachine.NewMutator(clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
+		virtualmachine.NewMutator(),
 	}
 
 	router := webhook.NewRouter()

@@ -59,13 +59,6 @@ func init() {
 	}
 }
 
-type Provider interface {
-	Get(name string) string
-	Set(name, value string) error
-	SetIfUnset(name, value string) error
-	SetAll(settings map[string]Setting) error
-}
-
 type Setting struct {
 	Name     string
 	Default  string

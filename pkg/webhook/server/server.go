@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/webhook"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
@@ -50,6 +51,15 @@ func New(ctx context.Context, restConfig *rest.Config, options *config.Options) 
 func (s *AdmissionWebhookServer) ListenAndServe() error {
 	clients, err := clients.New(s.context, s.restConfig, s.options.Threadiness)
 	if err != nil {
+		return err
+	}
+
+	sp := settings.NewSettingsProvider(
+		s.context,
+		clients.HarvesterFactory.Harvesterhci().V1beta1().Setting(),
+		clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
+	)
+	if err := settings.SetProvider(&sp); err != nil {
 		return err
 	}
 

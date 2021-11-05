@@ -6,27 +6,20 @@ import (
 
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 
-	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewMutator(
-	setting ctlharvesterv1.SettingCache,
-) types.Mutator {
-	return &vmMutator{
-		setting: setting,
-	}
+func NewMutator() types.Mutator {
+	return &vmMutator{}
 }
 
 type vmMutator struct {
 	types.DefaultMutator
-	setting ctlharvesterv1.SettingCache
 }
 
 func (m *vmMutator) Resource() types.Resource {
@@ -104,18 +97,12 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 }
 
 func (m *vmMutator) getOvercommit() (*settings.Overcommit, error) {
-	s, err := m.setting.Get("overcommit-config")
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if s.Value == "" {
+	value := settings.OvercommitConfig.Get()
+	if value == "" {
 		return nil, nil
 	}
 	overcommit := &settings.Overcommit{}
-	if err := json.Unmarshal([]byte(s.Value), overcommit); err != nil {
+	if err := json.Unmarshal([]byte(value), overcommit); err != nil {
 		return overcommit, err
 	}
 	return overcommit, nil
