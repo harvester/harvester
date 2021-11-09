@@ -1,6 +1,7 @@
 package rancher
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,8 @@ import (
 	ranchersettings "github.com/rancher/rancher/pkg/settings"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 var UpdateRancherUISettings = map[string]string{
@@ -21,7 +24,7 @@ func (h *Handler) RancherSettingOnChange(key string, setting *rancherv3api.Setti
 	}
 
 	if setting.Name == caCertsSetting && setting.Default == "" {
-		return nil, h.initializeTLS(setting)
+		return nil, h.syncCACert(setting)
 	}
 	if setting.Name == serverURLSetting && setting.Value == "" {
 		return h.initializeServerURL(setting)
@@ -86,60 +89,26 @@ func (h *Handler) initializeSystemNamespaces(setting *rancherv3api.Setting) (*ra
 	return h.RancherSettings.Update(toUpdate)
 }
 
-// initializeTLS writes internal-cacerts to cacerts value and adds the VIP to certificate SANs
-// cacerts is used in generated kubeconfig files
-func (h *Handler) initializeTLS(setting *rancherv3api.Setting) error {
-	internalCACerts, err := h.RancherSettingCache.Get(internalCACertsSetting)
-	if err != nil {
+// syncCACert updates the cacerts setting to ca certificate of Harvester setting
+// or internal-cacerts when it is not specified.
+func (h *Handler) syncCACert(setting *rancherv3api.Setting) error {
+	var cacert string
+	sslCertificate := &settings.SSLCertificate{}
+	if err := json.Unmarshal([]byte(settings.SSLCertificates.Get()), sslCertificate); err != nil {
 		return err
 	}
-	if internalCACerts.Value == "" {
-		// Not initialized, enqueue
-		h.RancherSettingController.EnqueueAfter(caCertsSetting, 30*time.Second)
-		return nil
+	if sslCertificate.PublicCertificate != "" && sslCertificate.PrivateKey != "" {
+		cacert = sslCertificate.CA
+	} else {
+		internalCACerts, err := h.RancherSettingCache.Get(internalCACertsSetting)
+		if err != nil {
+			return err
+		}
+		cacert = internalCACerts.Value
 	}
 
 	caCertsCopy := setting.DeepCopy()
-	caCertsCopy.Default = internalCACerts.Value
-	if _, err = h.RancherSettings.Update(caCertsCopy); err != nil {
-		return err
-	}
-
-	if err := h.addVIPToSAN(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// addVIPToSAN writes VIP to TLS SAN of the serving cert
-func (h *Handler) addVIPToSAN() error {
-	vipConfig, err := h.getVipConfig()
-	if err != nil {
-		return err
-	}
-	secret, err := h.SecretCache.Get(cattleSystemNamespaceName, tlsCertName)
-	if err != nil {
-		return err
-	}
-
-	toAddAnnotation := tlsCNPrefix + vipConfig.IP
-	if _, ok := secret.Annotations[toAddAnnotation]; ok {
-		return nil
-	}
-
-	toUpdate := secret.DeepCopy()
-	if toUpdate.Annotations == nil {
-		toUpdate.Annotations = make(map[string]string)
-	}
-	//clean up other cns
-	newAnnotations := map[string]string{}
-	for k, v := range toUpdate.Annotations {
-		if !strings.Contains(k, tlsCNPrefix) {
-			newAnnotations[k] = v
-		}
-	}
-	toUpdate.Annotations = newAnnotations
-	toUpdate.Annotations[toAddAnnotation] = vipConfig.IP
-	_, err = h.Secrets.Update(toUpdate)
+	caCertsCopy.Default = cacert
+	_, err := h.RancherSettings.Update(caCertsCopy)
 	return err
 }

@@ -29,14 +29,15 @@ var (
 	UpgradeCheckerEnabled        = NewSetting("upgrade-checker-enabled", "true")
 	UpgradeCheckerURL            = NewSetting("upgrade-checker-url", "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
 	LogLevel                     = NewSetting("log-level", "info") // options are info, debug and trace
+	SSLCertificates              = NewSetting(SSLCertificatesSettingName, "{}")
 	SupportBundleImage           = NewSetting("support-bundle-image", "rancher/support-bundle-kit:v0.0.4")
 	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
 	SupportBundleTimeout         = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
 	DefaultStorageClass          = NewSetting("default-storage-class", "longhorn")
-	HTTPProxy                    = NewSetting("http-proxy", "{}")
+	HTTPProxy                    = NewSetting(HttpProxySettingName, "{}")
 	VMForceDeletionPolicySet     = NewSetting(VMForceDeletionPolicySettingName, InitVMForceDeletionPolicy())
-	OvercommitConfig             = NewSetting("overcommit-config", `{"cpu":1600,"memory":150,"storage":200}`)
-	VipPools                     = NewSetting("vip-pools", "")
+	OvercommitConfig             = NewSetting(OvercommitConfigSettingName, `{"cpu":1600,"memory":150,"storage":200}`)
+	VipPools                     = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths       = NewSetting("auto-disk-provision-paths", "")
 )
 
@@ -44,6 +45,10 @@ const (
 	BackupTargetSettingName          = "backup-target"
 	VMForceDeletionPolicySettingName = "vm-force-deletion-policy"
 	SupportBundleTimeoutSettingName  = "support-bundle-timeout"
+	HttpProxySettingName             = "http-proxy"
+	OvercommitConfigSettingName      = "overcommit-config"
+	SSLCertificatesSettingName       = "ssl-certificates"
+	VipPoolsConfigSettingName        = "vip-pools"
 	DefaultDashboardUIURL            = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
 )
 
@@ -212,4 +217,10 @@ type Overcommit struct {
 	Cpu     int `json:"cpu"`
 	Memory  int `json:"memory"`
 	Storage int `json:"storage"`
+}
+
+type SSLCertificate struct {
+	CA                string `json:"ca"`
+	PublicCertificate string `json:"publicCertificate"`
+	PrivateKey        string `json:"privateKey"`
 }

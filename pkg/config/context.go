@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 
+	helmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
 	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/rancher/lasso/pkg/controller"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
@@ -27,6 +28,7 @@ import (
 	cniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
 	longhornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
+	"github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io"
 	snapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io"
 )
@@ -82,7 +84,10 @@ type Management struct {
 	LonghornFactory          *longhornv1.Factory
 	ProvisioningFactory      *provisioningv1.Factory
 	RancherManagementFactory *rancherv3.Factory
-	UpgradeFactory           *upgrade.Factory
+	HelmFactory              *helmv1.Factory
+
+	NetworkingFactory *networking.Factory
+	UpgradeFactory    *upgrade.Factory
 
 	ClientSet  *kubernetes.Clientset
 	RestConfig *rest.Config
@@ -260,6 +265,20 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.ProvisioningFactory = provisioning
 	management.starters = append(management.starters, provisioning)
+
+	helm, err := helmv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.HelmFactory = helm
+	management.starters = append(management.starters, helm)
+
+	networking, err := networking.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.NetworkingFactory = networking
+	management.starters = append(management.starters, networking)
 
 	rancher, err := rancherv3.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {

@@ -18,24 +18,20 @@ import (
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/tls"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
-)
-
-const (
-	httpProxySettingName        = "http-proxy"
-	overcommitConfigSettingName = "overcommit-config"
-	vipPoolsConfigSettingName   = "vip-pools"
 )
 
 type validateSettingFunc func(setting *v1beta1.Setting) error
 
 var validateSettingFuncs = map[string]validateSettingFunc{
-	httpProxySettingName:                      validateHTTPProxy,
+	settings.HttpProxySettingName:             validateHTTPProxy,
 	settings.VMForceDeletionPolicySettingName: validateVMForceDeletionPolicy,
-	overcommitConfigSettingName:               validateOvercommitConfig,
-	vipPoolsConfigSettingName:                 validateVipPoolsConfig,
 	settings.SupportBundleTimeoutSettingName:  validateSupportBundleTimeout,
+	settings.OvercommitConfigSettingName:      validateOvercommitConfig,
+	settings.VipPoolsConfigSettingName:        validateVipPoolsConfig,
+	settings.SSLCertificatesSettingName:       validateSSLCertificates,
 }
 
 func NewValidator(settingCache ctlv1beta1.SettingCache) types.Validator {
@@ -160,7 +156,7 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 		if settings.AdditionalCA.Get() != "" {
 			os.Setenv(backup.AWSCERT, settings.AdditionalCA.Get())
 		}
-		httpProxySetting, err := v.settingCache.Get(httpProxySettingName)
+		httpProxySetting, err := v.settingCache.Get(settings.HttpProxySettingName)
 		if err != nil {
 			return err
 		}
@@ -214,5 +210,34 @@ func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
 	if i < 0 {
 		return werror.NewInvalidError("timeout can't be negative", "value")
 	}
+	return nil
+}
+
+func validateSSLCertificates(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	sslCertificate := &settings.SSLCertificate{}
+	if err := json.Unmarshal([]byte(setting.Value), sslCertificate); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	if sslCertificate.CA == "" && sslCertificate.PublicCertificate == "" && sslCertificate.PrivateKey == "" {
+		return nil
+	} else if sslCertificate.CA != "" {
+		if err := tls.ValidateCABundle([]byte(sslCertificate.CA)); err != nil {
+			return werror.NewInvalidError(err.Error(), "ca")
+		}
+	}
+
+	if err := tls.ValidateServingBundle([]byte(sslCertificate.PublicCertificate)); err != nil {
+		return werror.NewInvalidError(err.Error(), "publicCertificate")
+	}
+
+	if err := tls.ValidatePrivateKey([]byte(sslCertificate.PrivateKey)); err != nil {
+		return werror.NewInvalidError(err.Error(), "privateKey")
+	}
+
 	return nil
 }

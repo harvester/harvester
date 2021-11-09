@@ -21,6 +21,8 @@ func Register(ctx context.Context, management *config.Management, options config
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
 	lhs := management.LonghornFactory.Longhorn().V1beta1().Setting()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
+	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
+	helmChartConfigs := management.HelmFactory.Helm().V1().HelmChartConfig()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -31,12 +33,16 @@ func Register(ctx context.Context, management *config.Management, options config
 		clusterCache:         clusters.Cache(),
 		deployments:          deployments,
 		deploymentCache:      deployments.Cache(),
+		ingresses:            ingresses,
+		ingressCache:         ingresses.Cache(),
 		longhornSettings:     lhs,
 		longhornSettingCache: lhs.Cache(),
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
 		managedCharts:        managedCharts,
 		managedChartCache:    managedCharts.Cache(),
+		helmChartConfigs:     helmChartConfigs,
+		helmChartConfigCache: helmChartConfigs.Cache(),
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -56,6 +62,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		"overcommit-config":         controller.syncOvercommitConfig,
 		"vip-pools":                 controller.syncVipPoolsConfig,
 		"auto-disk-provision-paths": controller.syncNDMAutoProvisionPaths,
+		"ssl-certificates":          controller.syncSSLCertificate,
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)

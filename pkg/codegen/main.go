@@ -13,6 +13,7 @@ import (
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 	"github.com/sirupsen/logrus"
+	networkingv1 "k8s.io/api/networking/v1"
 	kv1 "kubevirt.io/client-go/api/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -52,6 +53,13 @@ func main() {
 			cniv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
 					cniv1.NetworkAttachmentDefinition{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			networkingv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					networkingv1.Ingress{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
