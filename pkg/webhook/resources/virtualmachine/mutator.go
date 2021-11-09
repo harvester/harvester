@@ -111,11 +111,15 @@ func (m *vmMutator) getOvercommit() (*settings.Overcommit, error) {
 		}
 		return nil, err
 	}
-	if s.Value == "" {
+	value := s.Value
+	if value == "" {
+		value = s.Default
+	}
+	if value == "" {
 		return nil, nil
 	}
 	overcommit := &settings.Overcommit{}
-	if err := json.Unmarshal([]byte(s.Value), overcommit); err != nil {
+	if err := json.Unmarshal([]byte(value), overcommit); err != nil {
 		return overcommit, err
 	}
 	return overcommit, nil
