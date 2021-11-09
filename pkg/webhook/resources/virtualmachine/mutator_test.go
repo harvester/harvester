@@ -19,6 +19,7 @@ func Test_virtualmachine_mutator(t *testing.T) {
 		name        string
 		resourceReq kubevirtv1.ResourceRequirements
 		patchOps    []string
+		setting     string
 	}{
 		{
 			name: "has no limit",
@@ -33,6 +34,7 @@ func Test_virtualmachine_mutator(t *testing.T) {
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "250M"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits", "value": {"cpu":"1","memory":"1G"}}`,
 			},
+			setting: "",
 		},
 		{
 			name: "has memory limit",
@@ -48,6 +50,7 @@ func Test_virtualmachine_mutator(t *testing.T) {
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/cpu", "value": "500m"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits/cpu", "value": "1"}`,
 			},
+			setting: "",
 		},
 		{
 			name: "has cpu limit",
@@ -63,6 +66,7 @@ func Test_virtualmachine_mutator(t *testing.T) {
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "250M"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits/memory", "value": "1G"}`,
 			},
+			setting: "",
 		},
 		{
 			name: "has both cpu and memory limits",
@@ -73,6 +77,22 @@ func Test_virtualmachine_mutator(t *testing.T) {
 				},
 			},
 			patchOps: nil,
+			setting:  "",
+		},
+		{
+			name: "use value instead of default setting",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewScaledQuantity(1, resource.Giga),
+					v1.ResourceCPU:    *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/cpu", "value": "100m"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "100M"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits", "value": {"cpu":"1","memory":"1G"}}`,
+			},
+			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
 		},
 	}
 
@@ -80,16 +100,20 @@ func Test_virtualmachine_mutator(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "overcommit-config",
 		},
-		Value: `{"cpu":200,"memory":400,"storage":800}`,
+		Default: `{"cpu":200,"memory":400,"storage":800}`,
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// arrage
 			clientset := fake.NewSimpleClientset()
-			err := clientset.Tracker().Add(setting)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings))
+			settingCpy := setting.DeepCopy()
+			if tc.setting != "" {
+				settingCpy.Value = tc.setting
+			}
+			err := clientset.Tracker().Add(settingCpy)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings))
 			vm := &kubevirtv1.VirtualMachine{
 				Spec: kubevirtv1.VirtualMachineSpec{
 					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -110,6 +134,5 @@ func Test_virtualmachine_mutator(t *testing.T) {
 			assert.Nil(t, err, tc.name)
 			assert.Equal(t, tc.patchOps, actual)
 		})
-
 	}
 }
