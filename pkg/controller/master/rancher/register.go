@@ -14,21 +14,22 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/harvester/harvester/pkg/config"
+	networkingv1 "github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io/v1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
-	controllerRancherName     = "harvester-rancher-controller"
-	caCertsSetting            = "cacerts"
-	cattleSystemNamespaceName = "cattle-system"
-	defaultAdminLabelKey      = "authz.management.cattle.io/bootstrapping"
-	defaultAdminLabelValue    = "admin-user"
-	internalCACertsSetting    = "internal-cacerts"
-	rancherExposeServiceName  = "rancher-expose"
-	rancherAppLabelName       = "app"
-	serverURLSetting          = "server-url"
-	systemNamespacesSetting   = "system-namespaces"
-	tlsCertName               = "tls-rancher-internal"
-	tlsCNPrefix               = "listener.cattle.io/cn-"
+	appLabelName             = "app.kubernetes.io/name"
+	controllerRancherName    = "harvester-rancher-controller"
+	caCertsSetting           = "cacerts"
+	defaultAdminLabelKey     = "authz.management.cattle.io/bootstrapping"
+	defaultAdminLabelValue   = "admin-user"
+	internalCACertsSetting   = "internal-cacerts"
+	rancherExposeServiceName = "rancher-expose"
+	ingressExposeServiceName = "ingress-expose"
+	serverURLSetting         = "server-url"
+	systemNamespacesSetting  = "system-namespaces"
+	tlsCNPrefix              = "listener.cattle.io/cn-"
 
 	VipConfigmapName      = "vip"
 	vipDHCPMode           = "dhcp"
@@ -40,6 +41,7 @@ type Handler struct {
 	RancherSettingCache      rancherv3.SettingCache
 	RancherSettingController rancherv3.SettingController
 	RancherUserCache         rancherv3.UserCache
+	ingresses                networkingv1.IngressClient
 	Services                 ctlcorev1.ServiceClient
 	Configmaps               ctlcorev1.ConfigMapClient
 	Secrets                  ctlcorev1.SecretClient
@@ -60,6 +62,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	if options.RancherEmbedded {
 		rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 		rancherUsers := management.RancherManagementFactory.Management().V3().User()
+		ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 		secrets := management.CoreFactory.Core().V1().Secret()
 		services := management.CoreFactory.Core().V1().Service()
 		configmaps := management.CoreFactory.Core().V1().ConfigMap()
@@ -68,6 +71,7 @@ func Register(ctx context.Context, management *config.Management, options config
 			RancherSettingController: rancherSettings,
 			RancherSettingCache:      rancherSettings.Cache(),
 			RancherUserCache:         rancherUsers.Cache(),
+			ingresses:                ingresses,
 			Services:                 services,
 			Configmaps:               configmaps,
 			Secrets:                  secrets,
@@ -76,15 +80,21 @@ func Register(ctx context.Context, management *config.Management, options config
 		}
 
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
-		return h.registerRancherExposeService()
+		secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
+		if err := h.registerExposeService(); err != nil {
+			return err
+		}
+		if err := h.cleanUpLegacyExposeService(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-// registerRancherExposeService help to create rancher-expose svc in the cattle-system namespace,
+// registerExposeService help to create ingress-expose svc in the kube-system namespace,
 // by default it is nodePort, if the VIP is enabled it will be set to LoadBalancer type service.
-func (h *Handler) registerRancherExposeService() error {
-	_, err := h.Services.Get(cattleSystemNamespaceName, rancherExposeServiceName, v1.GetOptions{})
+func (h *Handler) registerExposeService() error {
+	_, err := h.Services.Get(util.KubeSystemNamespace, ingressExposeServiceName, v1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
@@ -96,21 +106,20 @@ func (h *Handler) registerRancherExposeService() error {
 
 		svc := &corev1.Service{
 			ObjectMeta: v1.ObjectMeta{
-				Name:      rancherExposeServiceName,
-				Namespace: cattleSystemNamespaceName,
+				Name:      ingressExposeServiceName,
+				Namespace: util.KubeSystemNamespace,
 			},
 			Spec: corev1.ServiceSpec{
 				Type: corev1.ServiceTypeNodePort,
 				Selector: map[string]string{
-					rancherAppLabelName: "rancher",
+					appLabelName: util.Rke2IngressNginxAppName,
 				},
 				Ports: []corev1.ServicePort{
 					{
 						Name:       "https-internal",
-						NodePort:   30443,
 						Port:       443,
 						Protocol:   corev1.ProtocolTCP,
-						TargetPort: intstr.FromInt(444),
+						TargetPort: intstr.FromInt(443),
 					},
 					{
 						Name:       "http",
@@ -142,6 +151,14 @@ func (h *Handler) registerRancherExposeService() error {
 		if _, err := h.Services.Create(svc); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// cleanUpLegacyExposeService removes rancher-expose service in cattle-system
+func (h *Handler) cleanUpLegacyExposeService() error {
+	if err := h.Services.Delete(util.CattleSystemNamespaceName, rancherExposeServiceName, &v1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
 	}
 	return nil
 }

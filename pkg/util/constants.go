@@ -14,8 +14,10 @@ const (
 	AnnotationHash                 = prefix + "/hash"
 
 	BackupTargetSecretName      = "harvester-backup-target-secret"
-	LonghornSystemNamespaceName = "longhorn-system"
+	InternalTLSSecretName       = "tls-rancher-internal"
+	Rke2IngressNginxAppName     = "rke2-ingress-nginx"
 	CattleSystemNamespaceName   = "cattle-system"
+	LonghornSystemNamespaceName = "longhorn-system"
 	KubeSystemNamespace         = "kube-system"
 
 	HTTPProxyEnv  = "HTTP_PROXY"

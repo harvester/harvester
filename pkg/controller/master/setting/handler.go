@@ -6,22 +6,32 @@ import (
 	"net/http"
 	"time"
 
+	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/slice"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	networkingv1 "github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io/v1"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 type syncerFunc func(*harvesterv1.Setting) error
 
-var syncers map[string]syncerFunc
+var (
+	syncers map[string]syncerFunc
+	// bootstrapSettings are the setting that syncs on bootstrap
+	bootstrapSettings = []string{
+		settings.SSLCertificatesSettingName,
+	}
+)
 
 type Handler struct {
 	namespace            string
@@ -34,12 +44,16 @@ type Handler struct {
 	secretCache          ctlcorev1.SecretCache
 	deployments          v1.DeploymentClient
 	deploymentCache      v1.DeploymentCache
+	ingresses            networkingv1.IngressClient
+	ingressCache         networkingv1.IngressCache
 	longhornSettings     ctllonghornv1.SettingClient
 	longhornSettingCache ctllonghornv1.SettingCache
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
 	managedCharts        mgmtv3.ManagedChartClient
 	managedChartCache    mgmtv3.ManagedChartCache
+	helmChartConfigs     ctlhelmv1.HelmChartConfigClient
+	helmChartConfigCache ctlhelmv1.HelmChartConfigCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
@@ -49,7 +63,8 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 
 	// The setting value hash is stored in the annotation when a setting syncer completes.
 	// So that we only proceed when value is changed.
-	if setting.Value == "" && setting.Annotations[util.AnnotationHash] == "" {
+	if setting.Value == "" && setting.Annotations[util.AnnotationHash] == "" &&
+		!slice.ContainsString(bootstrapSettings, setting.Name) {
 		return nil, nil
 	}
 	hash := sha256.New224()
