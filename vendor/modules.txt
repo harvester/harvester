@@ -326,6 +326,12 @@ github.com/jmoiron/sqlx/reflectx
 github.com/josharian/intern
 # github.com/json-iterator/go v1.1.10
 github.com/json-iterator/go
+# github.com/k3s-io/helm-controller v0.11.7
+## explicit
+github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io
+github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1
+github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io
+github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1
 # github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
 ## explicit
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io
@@ -646,7 +652,7 @@ github.com/rancher/steve/pkg/summarycache
 github.com/rancher/system-upgrade-controller/pkg/apis/condition
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1
-# github.com/rancher/wrangler v0.8.1-0.20210618171953-ab479ee75244
+# github.com/rancher/wrangler v0.8.3
 ## explicit
 github.com/rancher/wrangler/pkg/apply
 github.com/rancher/wrangler/pkg/apply/injectors

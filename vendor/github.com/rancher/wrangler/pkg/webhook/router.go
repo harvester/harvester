@@ -61,25 +61,29 @@ func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		},
 	}
 
+	review.Response = &response.AdmissionResponse
+
 	if err := r.admit(response, review.Request, req); err != nil {
 		r.sendError(rw, review, err)
 		return
 	}
 
-	review.Response = &response.AdmissionResponse
 	writeResponse(rw, review)
 }
 
 func (r *Router) admit(response *Response, request *v1.AdmissionRequest, req *http.Request) error {
 	for _, m := range r.matches {
 		if m.matches(request) {
-			return m.admit(response, &Request{
+			err := m.admit(response, &Request{
 				AdmissionRequest: *request,
 				Context:          req.Context(),
 				objTemplate:      m.getObjType(),
 			})
+			logrus.Debugf("admit result: %s %s %s user=%s allowed=%v err=%v", request.Operation, request.Kind.String(), resourceString(request.Namespace, request.Name), request.UserInfo.Username, response.Allowed, err)
+			return err
 		}
 	}
+	logrus.Debugf("no route match found for %s %s %s", request.Operation, request.Kind.String(), resourceString(request.Namespace, request.Name))
 	return nil
 }
 
@@ -140,4 +144,12 @@ type HandlerFunc func(resp *Response, req *Request) error
 
 func (h HandlerFunc) Admit(resp *Response, req *Request) error {
 	return h(resp, req)
+}
+
+// resourceString returns the resource formatted as a string
+func resourceString(ns, name string) string {
+	if ns == "" {
+		return name
+	}
+	return fmt.Sprintf("%s/%s", ns, name)
 }

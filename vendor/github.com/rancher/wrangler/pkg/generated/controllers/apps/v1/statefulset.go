@@ -360,6 +360,10 @@ func (a *statefulSetGeneratingHandler) Remove(key string, obj *v1.StatefulSet) (
 }
 
 func (a *statefulSetGeneratingHandler) Handle(obj *v1.StatefulSet, status v1.StatefulSetStatus) (v1.StatefulSetStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.StatefulSetGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

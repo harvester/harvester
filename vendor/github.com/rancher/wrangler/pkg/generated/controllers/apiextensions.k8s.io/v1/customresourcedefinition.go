@@ -360,6 +360,10 @@ func (a *customResourceDefinitionGeneratingHandler) Remove(key string, obj *v1.C
 }
 
 func (a *customResourceDefinitionGeneratingHandler) Handle(obj *v1.CustomResourceDefinition, status v1.CustomResourceDefinitionStatus) (v1.CustomResourceDefinitionStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.CustomResourceDefinitionGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

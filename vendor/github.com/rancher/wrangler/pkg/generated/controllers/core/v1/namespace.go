@@ -360,6 +360,10 @@ func (a *namespaceGeneratingHandler) Remove(key string, obj *v1.Namespace) (*v1.
 }
 
 func (a *namespaceGeneratingHandler) Handle(obj *v1.Namespace, status v1.NamespaceStatus) (v1.NamespaceStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.NamespaceGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

@@ -360,6 +360,10 @@ func (a *jobGeneratingHandler) Remove(key string, obj *v1.Job) (*v1.Job, error) 
 }
 
 func (a *jobGeneratingHandler) Handle(obj *v1.Job, status v1.JobStatus) (v1.JobStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.JobGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

@@ -58,6 +58,7 @@ require (
 	github.com/guonaihong/gout v0.1.3
 	github.com/harvester/harvester-network-controller v0.1.7
 	github.com/iancoleman/strcase v0.1.2
+	github.com/k3s-io/helm-controller v0.11.7
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 	github.com/kubernetes/dashboard v1.10.1
@@ -78,7 +79,7 @@ require (
 	github.com/rancher/rancher/pkg/apis v0.0.0
 	github.com/rancher/steve v0.0.0-20210804220357-bb76e4db5669
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210424054953-634d28b7def3
-	github.com/rancher/wrangler v0.8.1-0.20210618171953-ab479ee75244
+	github.com/rancher/wrangler v0.8.3
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.9.3

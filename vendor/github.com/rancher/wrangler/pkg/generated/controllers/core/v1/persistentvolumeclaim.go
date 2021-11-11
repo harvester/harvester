@@ -360,6 +360,10 @@ func (a *persistentVolumeClaimGeneratingHandler) Remove(key string, obj *v1.Pers
 }
 
 func (a *persistentVolumeClaimGeneratingHandler) Handle(obj *v1.PersistentVolumeClaim, status v1.PersistentVolumeClaimStatus) (v1.PersistentVolumeClaimStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.PersistentVolumeClaimGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
