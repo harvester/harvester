@@ -25,6 +25,7 @@ import (
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	longhornv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta1"
+	networkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1"
 	snapshotv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
 	discovery "k8s.io/client-go/discovery"
@@ -38,6 +39,7 @@ type Interface interface {
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
 	KubevirtV1() kubevirtv1.KubevirtV1Interface
 	LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface
+	NetworkingV1() networkingv1.NetworkingV1Interface
 	SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface
 	UpgradeV1() upgradev1.UpgradeV1Interface
 }
@@ -50,6 +52,7 @@ type Clientset struct {
 	k8sCniCncfIoV1      *k8scnicncfiov1.K8sCniCncfIoV1Client
 	kubevirtV1          *kubevirtv1.KubevirtV1Client
 	longhornV1beta1     *longhornv1beta1.LonghornV1beta1Client
+	networkingV1        *networkingv1.NetworkingV1Client
 	snapshotV1beta1     *snapshotv1beta1.SnapshotV1beta1Client
 	upgradeV1           *upgradev1.UpgradeV1Client
 }
@@ -72,6 +75,11 @@ func (c *Clientset) KubevirtV1() kubevirtv1.KubevirtV1Interface {
 // LonghornV1beta1 retrieves the LonghornV1beta1Client
 func (c *Clientset) LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface {
 	return c.longhornV1beta1
+}
+
+// NetworkingV1 retrieves the NetworkingV1Client
+func (c *Clientset) NetworkingV1() networkingv1.NetworkingV1Interface {
+	return c.networkingV1
 }
 
 // SnapshotV1beta1 retrieves the SnapshotV1beta1Client
@@ -121,6 +129,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
+	cs.networkingV1, err = networkingv1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 	cs.snapshotV1beta1, err = snapshotv1beta1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -145,6 +157,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.NewForConfigOrDie(c)
 	cs.kubevirtV1 = kubevirtv1.NewForConfigOrDie(c)
 	cs.longhornV1beta1 = longhornv1beta1.NewForConfigOrDie(c)
+	cs.networkingV1 = networkingv1.NewForConfigOrDie(c)
 	cs.snapshotV1beta1 = snapshotv1beta1.NewForConfigOrDie(c)
 	cs.upgradeV1 = upgradev1.NewForConfigOrDie(c)
 
@@ -159,6 +172,7 @@ func New(c rest.Interface) *Clientset {
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
 	cs.kubevirtV1 = kubevirtv1.New(c)
 	cs.longhornV1beta1 = longhornv1beta1.New(c)
+	cs.networkingV1 = networkingv1.New(c)
 	cs.snapshotV1beta1 = snapshotv1beta1.New(c)
 	cs.upgradeV1 = upgradev1.New(c)
 
