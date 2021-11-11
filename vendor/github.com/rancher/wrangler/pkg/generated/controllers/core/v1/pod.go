@@ -360,6 +360,10 @@ func (a *podGeneratingHandler) Remove(key string, obj *v1.Pod) (*v1.Pod, error) 
 }
 
 func (a *podGeneratingHandler) Handle(obj *v1.Pod, status v1.PodStatus) (v1.PodStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.PodGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

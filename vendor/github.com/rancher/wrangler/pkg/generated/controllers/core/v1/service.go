@@ -360,6 +360,10 @@ func (a *serviceGeneratingHandler) Remove(key string, obj *v1.Service) (*v1.Serv
 }
 
 func (a *serviceGeneratingHandler) Handle(obj *v1.Service, status v1.ServiceStatus) (v1.ServiceStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.ServiceGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

@@ -360,6 +360,10 @@ func (a *deploymentGeneratingHandler) Remove(key string, obj *v1.Deployment) (*v
 }
 
 func (a *deploymentGeneratingHandler) Handle(obj *v1.Deployment, status v1.DeploymentStatus) (v1.DeploymentStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.DeploymentGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

@@ -22,13 +22,13 @@ import (
 	"context"
 	"time"
 
+	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/kv"
-	v1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,51 +41,51 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-type DaemonSetHandler func(string, *v1.DaemonSet) (*v1.DaemonSet, error)
+type HelmChartHandler func(string, *v1.HelmChart) (*v1.HelmChart, error)
 
-type DaemonSetController interface {
+type HelmChartController interface {
 	generic.ControllerMeta
-	DaemonSetClient
+	HelmChartClient
 
-	OnChange(ctx context.Context, name string, sync DaemonSetHandler)
-	OnRemove(ctx context.Context, name string, sync DaemonSetHandler)
+	OnChange(ctx context.Context, name string, sync HelmChartHandler)
+	OnRemove(ctx context.Context, name string, sync HelmChartHandler)
 	Enqueue(namespace, name string)
 	EnqueueAfter(namespace, name string, duration time.Duration)
 
-	Cache() DaemonSetCache
+	Cache() HelmChartCache
 }
 
-type DaemonSetClient interface {
-	Create(*v1.DaemonSet) (*v1.DaemonSet, error)
-	Update(*v1.DaemonSet) (*v1.DaemonSet, error)
-	UpdateStatus(*v1.DaemonSet) (*v1.DaemonSet, error)
+type HelmChartClient interface {
+	Create(*v1.HelmChart) (*v1.HelmChart, error)
+	Update(*v1.HelmChart) (*v1.HelmChart, error)
+	UpdateStatus(*v1.HelmChart) (*v1.HelmChart, error)
 	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1.DaemonSet, error)
-	List(namespace string, opts metav1.ListOptions) (*v1.DaemonSetList, error)
+	Get(namespace, name string, options metav1.GetOptions) (*v1.HelmChart, error)
+	List(namespace string, opts metav1.ListOptions) (*v1.HelmChartList, error)
 	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.DaemonSet, err error)
+	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.HelmChart, err error)
 }
 
-type DaemonSetCache interface {
-	Get(namespace, name string) (*v1.DaemonSet, error)
-	List(namespace string, selector labels.Selector) ([]*v1.DaemonSet, error)
+type HelmChartCache interface {
+	Get(namespace, name string) (*v1.HelmChart, error)
+	List(namespace string, selector labels.Selector) ([]*v1.HelmChart, error)
 
-	AddIndexer(indexName string, indexer DaemonSetIndexer)
-	GetByIndex(indexName, key string) ([]*v1.DaemonSet, error)
+	AddIndexer(indexName string, indexer HelmChartIndexer)
+	GetByIndex(indexName, key string) ([]*v1.HelmChart, error)
 }
 
-type DaemonSetIndexer func(obj *v1.DaemonSet) ([]string, error)
+type HelmChartIndexer func(obj *v1.HelmChart) ([]string, error)
 
-type daemonSetController struct {
+type helmChartController struct {
 	controller    controller.SharedController
 	client        *client.Client
 	gvk           schema.GroupVersionKind
 	groupResource schema.GroupResource
 }
 
-func NewDaemonSetController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) DaemonSetController {
+func NewHelmChartController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) HelmChartController {
 	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &daemonSetController{
+	return &helmChartController{
 		controller: c,
 		client:     c.Client(),
 		gvk:        gvk,
@@ -96,13 +96,13 @@ func NewDaemonSetController(gvk schema.GroupVersionKind, resource string, namesp
 	}
 }
 
-func FromDaemonSetHandlerToHandler(sync DaemonSetHandler) generic.Handler {
+func FromHelmChartHandlerToHandler(sync HelmChartHandler) generic.Handler {
 	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1.DaemonSet
+		var v *v1.HelmChart
 		if obj == nil {
 			v, err = sync(key, nil)
 		} else {
-			v, err = sync(key, obj.(*v1.DaemonSet))
+			v, err = sync(key, obj.(*v1.HelmChart))
 		}
 		if v == nil {
 			return nil, err
@@ -111,9 +111,9 @@ func FromDaemonSetHandlerToHandler(sync DaemonSetHandler) generic.Handler {
 	}
 }
 
-func (c *daemonSetController) Updater() generic.Updater {
+func (c *helmChartController) Updater() generic.Updater {
 	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1.DaemonSet))
+		newObj, err := c.Update(obj.(*v1.HelmChart))
 		if newObj == nil {
 			return nil, err
 		}
@@ -121,7 +121,7 @@ func (c *daemonSetController) Updater() generic.Updater {
 	}
 }
 
-func UpdateDaemonSetDeepCopyOnChange(client DaemonSetClient, obj *v1.DaemonSet, handler func(obj *v1.DaemonSet) (*v1.DaemonSet, error)) (*v1.DaemonSet, error) {
+func UpdateHelmChartDeepCopyOnChange(client HelmChartClient, obj *v1.HelmChart, handler func(obj *v1.HelmChart) (*v1.HelmChart, error)) (*v1.HelmChart, error) {
 	if obj == nil {
 		return obj, nil
 	}
@@ -138,92 +138,92 @@ func UpdateDaemonSetDeepCopyOnChange(client DaemonSetClient, obj *v1.DaemonSet, 
 	return copyObj, err
 }
 
-func (c *daemonSetController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
+func (c *helmChartController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
 	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
 }
 
-func (c *daemonSetController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
+func (c *helmChartController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
 	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
 }
 
-func (c *daemonSetController) OnChange(ctx context.Context, name string, sync DaemonSetHandler) {
-	c.AddGenericHandler(ctx, name, FromDaemonSetHandlerToHandler(sync))
+func (c *helmChartController) OnChange(ctx context.Context, name string, sync HelmChartHandler) {
+	c.AddGenericHandler(ctx, name, FromHelmChartHandlerToHandler(sync))
 }
 
-func (c *daemonSetController) OnRemove(ctx context.Context, name string, sync DaemonSetHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromDaemonSetHandlerToHandler(sync)))
+func (c *helmChartController) OnRemove(ctx context.Context, name string, sync HelmChartHandler) {
+	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromHelmChartHandlerToHandler(sync)))
 }
 
-func (c *daemonSetController) Enqueue(namespace, name string) {
+func (c *helmChartController) Enqueue(namespace, name string) {
 	c.controller.Enqueue(namespace, name)
 }
 
-func (c *daemonSetController) EnqueueAfter(namespace, name string, duration time.Duration) {
+func (c *helmChartController) EnqueueAfter(namespace, name string, duration time.Duration) {
 	c.controller.EnqueueAfter(namespace, name, duration)
 }
 
-func (c *daemonSetController) Informer() cache.SharedIndexInformer {
+func (c *helmChartController) Informer() cache.SharedIndexInformer {
 	return c.controller.Informer()
 }
 
-func (c *daemonSetController) GroupVersionKind() schema.GroupVersionKind {
+func (c *helmChartController) GroupVersionKind() schema.GroupVersionKind {
 	return c.gvk
 }
 
-func (c *daemonSetController) Cache() DaemonSetCache {
-	return &daemonSetCache{
+func (c *helmChartController) Cache() HelmChartCache {
+	return &helmChartCache{
 		indexer:  c.Informer().GetIndexer(),
 		resource: c.groupResource,
 	}
 }
 
-func (c *daemonSetController) Create(obj *v1.DaemonSet) (*v1.DaemonSet, error) {
-	result := &v1.DaemonSet{}
+func (c *helmChartController) Create(obj *v1.HelmChart) (*v1.HelmChart, error) {
+	result := &v1.HelmChart{}
 	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
 }
 
-func (c *daemonSetController) Update(obj *v1.DaemonSet) (*v1.DaemonSet, error) {
-	result := &v1.DaemonSet{}
+func (c *helmChartController) Update(obj *v1.HelmChart) (*v1.HelmChart, error) {
+	result := &v1.HelmChart{}
 	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
-func (c *daemonSetController) UpdateStatus(obj *v1.DaemonSet) (*v1.DaemonSet, error) {
-	result := &v1.DaemonSet{}
+func (c *helmChartController) UpdateStatus(obj *v1.HelmChart) (*v1.HelmChart, error) {
+	result := &v1.HelmChart{}
 	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
-func (c *daemonSetController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+func (c *helmChartController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
 	}
 	return c.client.Delete(context.TODO(), namespace, name, *options)
 }
 
-func (c *daemonSetController) Get(namespace, name string, options metav1.GetOptions) (*v1.DaemonSet, error) {
-	result := &v1.DaemonSet{}
+func (c *helmChartController) Get(namespace, name string, options metav1.GetOptions) (*v1.HelmChart, error) {
+	result := &v1.HelmChart{}
 	return result, c.client.Get(context.TODO(), namespace, name, result, options)
 }
 
-func (c *daemonSetController) List(namespace string, opts metav1.ListOptions) (*v1.DaemonSetList, error) {
-	result := &v1.DaemonSetList{}
+func (c *helmChartController) List(namespace string, opts metav1.ListOptions) (*v1.HelmChartList, error) {
+	result := &v1.HelmChartList{}
 	return result, c.client.List(context.TODO(), namespace, result, opts)
 }
 
-func (c *daemonSetController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c *helmChartController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.client.Watch(context.TODO(), namespace, opts)
 }
 
-func (c *daemonSetController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1.DaemonSet, error) {
-	result := &v1.DaemonSet{}
+func (c *helmChartController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1.HelmChart, error) {
+	result := &v1.HelmChart{}
 	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
 }
 
-type daemonSetCache struct {
+type helmChartCache struct {
 	indexer  cache.Indexer
 	resource schema.GroupResource
 }
 
-func (c *daemonSetCache) Get(namespace, name string) (*v1.DaemonSet, error) {
+func (c *helmChartCache) Get(namespace, name string) (*v1.HelmChart, error) {
 	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
 	if err != nil {
 		return nil, err
@@ -231,55 +231,55 @@ func (c *daemonSetCache) Get(namespace, name string) (*v1.DaemonSet, error) {
 	if !exists {
 		return nil, errors.NewNotFound(c.resource, name)
 	}
-	return obj.(*v1.DaemonSet), nil
+	return obj.(*v1.HelmChart), nil
 }
 
-func (c *daemonSetCache) List(namespace string, selector labels.Selector) (ret []*v1.DaemonSet, err error) {
+func (c *helmChartCache) List(namespace string, selector labels.Selector) (ret []*v1.HelmChart, err error) {
 
 	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.DaemonSet))
+		ret = append(ret, m.(*v1.HelmChart))
 	})
 
 	return ret, err
 }
 
-func (c *daemonSetCache) AddIndexer(indexName string, indexer DaemonSetIndexer) {
+func (c *helmChartCache) AddIndexer(indexName string, indexer HelmChartIndexer) {
 	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
 		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1.DaemonSet))
+			return indexer(obj.(*v1.HelmChart))
 		},
 	}))
 }
 
-func (c *daemonSetCache) GetByIndex(indexName, key string) (result []*v1.DaemonSet, err error) {
+func (c *helmChartCache) GetByIndex(indexName, key string) (result []*v1.HelmChart, err error) {
 	objs, err := c.indexer.ByIndex(indexName, key)
 	if err != nil {
 		return nil, err
 	}
-	result = make([]*v1.DaemonSet, 0, len(objs))
+	result = make([]*v1.HelmChart, 0, len(objs))
 	for _, obj := range objs {
-		result = append(result, obj.(*v1.DaemonSet))
+		result = append(result, obj.(*v1.HelmChart))
 	}
 	return result, nil
 }
 
-type DaemonSetStatusHandler func(obj *v1.DaemonSet, status v1.DaemonSetStatus) (v1.DaemonSetStatus, error)
+type HelmChartStatusHandler func(obj *v1.HelmChart, status v1.HelmChartStatus) (v1.HelmChartStatus, error)
 
-type DaemonSetGeneratingHandler func(obj *v1.DaemonSet, status v1.DaemonSetStatus) ([]runtime.Object, v1.DaemonSetStatus, error)
+type HelmChartGeneratingHandler func(obj *v1.HelmChart, status v1.HelmChartStatus) ([]runtime.Object, v1.HelmChartStatus, error)
 
-func RegisterDaemonSetStatusHandler(ctx context.Context, controller DaemonSetController, condition condition.Cond, name string, handler DaemonSetStatusHandler) {
-	statusHandler := &daemonSetStatusHandler{
+func RegisterHelmChartStatusHandler(ctx context.Context, controller HelmChartController, condition condition.Cond, name string, handler HelmChartStatusHandler) {
+	statusHandler := &helmChartStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromDaemonSetHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, FromHelmChartHandlerToHandler(statusHandler.sync))
 }
 
-func RegisterDaemonSetGeneratingHandler(ctx context.Context, controller DaemonSetController, apply apply.Apply,
-	condition condition.Cond, name string, handler DaemonSetGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
-	statusHandler := &daemonSetGeneratingHandler{
-		DaemonSetGeneratingHandler: handler,
+func RegisterHelmChartGeneratingHandler(ctx context.Context, controller HelmChartController, apply apply.Apply,
+	condition condition.Cond, name string, handler HelmChartGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &helmChartGeneratingHandler{
+		HelmChartGeneratingHandler: handler,
 		apply:                      apply,
 		name:                       name,
 		gvk:                        controller.GroupVersionKind(),
@@ -288,16 +288,16 @@ func RegisterDaemonSetGeneratingHandler(ctx context.Context, controller DaemonSe
 		statusHandler.opts = *opts
 	}
 	controller.OnChange(ctx, name, statusHandler.Remove)
-	RegisterDaemonSetStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+	RegisterHelmChartStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
 }
 
-type daemonSetStatusHandler struct {
-	client    DaemonSetClient
+type helmChartStatusHandler struct {
+	client    HelmChartClient
 	condition condition.Cond
-	handler   DaemonSetStatusHandler
+	handler   HelmChartStatusHandler
 }
 
-func (a *daemonSetStatusHandler) sync(key string, obj *v1.DaemonSet) (*v1.DaemonSet, error) {
+func (a *helmChartStatusHandler) sync(key string, obj *v1.HelmChart) (*v1.HelmChart, error) {
 	if obj == nil {
 		return obj, nil
 	}
@@ -336,20 +336,20 @@ func (a *daemonSetStatusHandler) sync(key string, obj *v1.DaemonSet) (*v1.Daemon
 	return obj, err
 }
 
-type daemonSetGeneratingHandler struct {
-	DaemonSetGeneratingHandler
+type helmChartGeneratingHandler struct {
+	HelmChartGeneratingHandler
 	apply apply.Apply
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
 }
 
-func (a *daemonSetGeneratingHandler) Remove(key string, obj *v1.DaemonSet) (*v1.DaemonSet, error) {
+func (a *helmChartGeneratingHandler) Remove(key string, obj *v1.HelmChart) (*v1.HelmChart, error) {
 	if obj != nil {
 		return obj, nil
 	}
 
-	obj = &v1.DaemonSet{}
+	obj = &v1.HelmChart{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
@@ -359,12 +359,12 @@ func (a *daemonSetGeneratingHandler) Remove(key string, obj *v1.DaemonSet) (*v1.
 		ApplyObjects()
 }
 
-func (a *daemonSetGeneratingHandler) Handle(obj *v1.DaemonSet, status v1.DaemonSetStatus) (v1.DaemonSetStatus, error) {
+func (a *helmChartGeneratingHandler) Handle(obj *v1.HelmChart, status v1.HelmChartStatus) (v1.HelmChartStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
 	}
 
-	objs, newStatus, err := a.DaemonSetGeneratingHandler(obj, status)
+	objs, newStatus, err := a.HelmChartGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
 	}
