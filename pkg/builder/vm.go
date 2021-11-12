@@ -51,8 +51,9 @@ func NewVMBuilder(creator string) *VMBuilder {
 		Cores: defaultVMCPUCores,
 	}
 	resources := kubevirtv1.ResourceRequirements{
-		Requests: corev1.ResourceList{
+		Limits: corev1.ResourceList{
 			corev1.ResourceMemory: resource.MustParse(defaultVMMemory),
+			corev1.ResourceCPU:    *resource.NewQuantity(defaultVMCPUCores, resource.DecimalSI),
 		},
 	}
 	template := &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -139,14 +140,19 @@ func (v *VMBuilder) Annotations(annotations map[string]string) *VMBuilder {
 }
 
 func (v *VMBuilder) Memory(memory string) *VMBuilder {
-	v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Requests = corev1.ResourceList{
-		corev1.ResourceMemory: resource.MustParse(memory),
+	if len(v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits) == 0 {
+		v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits = corev1.ResourceList{}
 	}
+	v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits[corev1.ResourceMemory] = resource.MustParse(memory)
 	return v
 }
 
 func (v *VMBuilder) CPU(cores int) *VMBuilder {
 	v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Cores = uint32(cores)
+	if len(v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits) == 0 {
+		v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits = corev1.ResourceList{}
+	}
+	v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits[corev1.ResourceCPU] = *resource.NewQuantity(int64(cores), resource.DecimalSI)
 	return v
 }
 
