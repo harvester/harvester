@@ -22,22 +22,13 @@ func Test_virtualmachine_mutator(t *testing.T) {
 		setting     string
 	}{
 		{
-			name: "has no limit",
-			resourceReq: kubevirtv1.ResourceRequirements{
-				Requests: map[v1.ResourceName]resource.Quantity{
-					v1.ResourceMemory: *resource.NewScaledQuantity(1, resource.Giga),
-					v1.ResourceCPU:    *resource.NewMilliQuantity(1000, resource.DecimalSI),
-				},
-			},
-			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/cpu", "value": "500m"}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "250M"}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits", "value": {"cpu":"1","memory":"1G"}}`,
-			},
-			setting: "",
+			name:        "has no limits",
+			resourceReq: kubevirtv1.ResourceRequirements{},
+			patchOps:    nil,
+			setting:     "",
 		},
 		{
-			name: "has memory limit",
+			name: "has memory limit and other requests",
 			resourceReq: kubevirtv1.ResourceRequirements{
 				Limits: map[v1.ResourceName]resource.Quantity{
 					v1.ResourceMemory: *resource.NewScaledQuantity(1, resource.Giga),
@@ -47,13 +38,12 @@ func Test_virtualmachine_mutator(t *testing.T) {
 				},
 			},
 			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/cpu", "value": "500m"}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits/cpu", "value": "1"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "250M"}`,
 			},
 			setting: "",
 		},
 		{
-			name: "has cpu limit",
+			name: "has cpu limit and other requests",
 			resourceReq: kubevirtv1.ResourceRequirements{
 				Limits: map[v1.ResourceName]resource.Quantity{
 					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
@@ -63,34 +53,32 @@ func Test_virtualmachine_mutator(t *testing.T) {
 				},
 			},
 			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "250M"}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits/memory", "value": "1G"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/cpu", "value": "500m"}`,
 			},
 			setting: "",
 		},
 		{
-			name: "has both cpu and memory limits",
+			name: "has both cpu and memory limits but not requests",
 			resourceReq: kubevirtv1.ResourceRequirements{
 				Limits: map[v1.ResourceName]resource.Quantity{
 					v1.ResourceCPU:    *resource.NewMilliQuantity(1000, resource.DecimalSI),
 					v1.ResourceMemory: *resource.NewScaledQuantity(1, resource.Giga),
 				},
 			},
-			patchOps: nil,
-			setting:  "",
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"500m","memory":"250M"}}`,
+			},
 		},
 		{
 			name: "use value instead of default setting",
 			resourceReq: kubevirtv1.ResourceRequirements{
-				Requests: map[v1.ResourceName]resource.Quantity{
-					v1.ResourceMemory: *resource.NewScaledQuantity(1, resource.Giga),
+				Limits: map[v1.ResourceName]resource.Quantity{
 					v1.ResourceCPU:    *resource.NewMilliQuantity(1000, resource.DecimalSI),
+					v1.ResourceMemory: *resource.NewScaledQuantity(1, resource.Giga),
 				},
 			},
 			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/cpu", "value": "100m"}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "100M"}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits", "value": {"cpu":"1","memory":"1G"}}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"100M"}}`,
 			},
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
 		},

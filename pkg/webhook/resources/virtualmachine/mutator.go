@@ -53,52 +53,73 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 }
 
 func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
-	vm := newObj.(*kubevirtv1.VirtualMachine)
-	patchOps, err := m.patchResourceOvercommit(vm)
+	newVm := newObj.(*kubevirtv1.VirtualMachine)
+	oldVm := oldObj.(*kubevirtv1.VirtualMachine)
+
+	var patchOps types.PatchOps
+	var err error
+
+	if needUpdateResourceOvercommit(oldVm, newVm) {
+		patchOps, err = m.patchResourceOvercommit(newVm)
+	}
 	if err != nil {
 		return patchOps, err
 	}
 	return patchOps, nil
 }
 
+func needUpdateResourceOvercommit(oldVm, newVm *kubevirtv1.VirtualMachine) bool {
+	newLimits := newVm.Spec.Template.Spec.Domain.Resources.Limits
+	newCpu := newLimits.Cpu()
+	newMem := newLimits.Memory()
+	oldLimits := oldVm.Spec.Template.Spec.Domain.Resources.Limits
+	oldCpu := oldLimits.Cpu()
+	oldMem := oldLimits.Memory()
+	if !newCpu.IsZero() && (oldCpu.IsZero() || !newCpu.Equal(*oldCpu)) {
+		return true
+	}
+	if !newMem.IsZero() && (oldMem.IsZero() || !newMem.Equal(*oldMem)) {
+		return true
+	}
+	return false
+}
+
 func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]string, error) {
-	// We only handle cases that missing limits but having requests on resources.
-	// That's where KubeVirt won't apply the overcommit feature.
 	var patchOps types.PatchOps
 	limits := vm.Spec.Template.Spec.Domain.Resources.Limits
-	requests := vm.Spec.Template.Spec.Domain.Resources.Requests
-	newLimits := v1.ResourceList{}
+	cpu := limits.Cpu()
+	mem := limits.Memory()
+	requestsMissing := len(vm.Spec.Template.Spec.Domain.Resources.Requests) == 0
+	requestsToMutate := v1.ResourceList{}
 	overcommit, err := m.getOvercommit()
 	if err != nil || overcommit == nil {
 		return patchOps, err
 	}
 
-	if limits.Cpu().IsZero() && !requests.Cpu().IsZero() {
-		newRequest := requests.Cpu().MilliValue() * int64(100) / int64(overcommit.Cpu)
-		quantity := resource.NewMilliQuantity(newRequest, requests.Cpu().Format)
-		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/cpu", "value": "%s"}`, quantity))
-		if len(limits) == 0 {
-			newLimits[v1.ResourceCPU] = *requests.Cpu()
+	if !cpu.IsZero() {
+		newRequest := cpu.MilliValue() * int64(100) / int64(overcommit.Cpu)
+		quantity := resource.NewMilliQuantity(newRequest, cpu.Format)
+		if requestsMissing {
+			requestsToMutate[v1.ResourceCPU] = *quantity
 		} else {
-			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits/cpu", "value": "%s"}`, requests.Cpu().String()))
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/cpu", "value": "%s"}`, quantity))
 		}
 	}
-	if limits.Memory().IsZero() && !requests.Memory().IsZero() {
-		newRequest := requests.Memory().Value() * int64(100) / int64(overcommit.Memory)
-		quantity := resource.NewQuantity(newRequest, requests.Memory().Format)
-		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "%s"}`, quantity))
-		if len(limits) == 0 {
-			newLimits[v1.ResourceMemory] = *requests.Memory()
+	if !mem.IsZero() {
+		newRequest := mem.Value() * int64(100) / int64(overcommit.Memory)
+		quantity := resource.NewQuantity(newRequest, mem.Format)
+		if requestsMissing {
+			requestsToMutate[v1.ResourceMemory] = *quantity
 		} else {
-			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits/memory", "value": "%s"}`, requests.Memory().String()))
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "%s"}`, quantity))
 		}
 	}
-	if len(newLimits) > 0 {
-		bytes, err := json.Marshal(newLimits)
+	if len(requestsToMutate) > 0 {
+		bytes, err := json.Marshal(requestsToMutate)
 		if err != nil {
 			return patchOps, err
 		}
-		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits", "value": %s}`, string(bytes)))
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": %s}`, string(bytes)))
 	}
 	return patchOps, nil
 }
