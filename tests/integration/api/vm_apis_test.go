@@ -137,7 +137,7 @@ var _ = Describe("verify vm APIs", func() {
 				spec := vm.Spec.Template.Spec
 				MustEqual(len(spec.Domain.Devices.Disks), 3)
 				MustEqual(spec.Domain.CPU.Cores, uint32(testVMUpdatedCPUCore))
-				MustEqual(spec.Domain.Resources.Requests[corev1.ResourceMemory], resource.MustParse(testVMUpdatedMemory))
+				MustEqual(spec.Domain.Resources.Limits[corev1.ResourceMemory], resource.MustParse(testVMUpdatedMemory))
 				return true
 			})
 
@@ -159,7 +159,7 @@ var _ = Describe("verify vm APIs", func() {
 					spec := vmi.Spec
 					MustEqual(len(spec.Domain.Devices.Disks), 3)
 					MustEqual(spec.Domain.CPU.Cores, uint32(testVMUpdatedCPUCore))
-					MustEqual(spec.Domain.Resources.Requests[corev1.ResourceMemory], resource.MustParse(testVMUpdatedMemory))
+					MustEqual(spec.Domain.Resources.Limits[corev1.ResourceMemory], resource.MustParse(testVMUpdatedMemory))
 					return true
 				})
 
