@@ -10,6 +10,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -92,7 +93,7 @@ func TestPodHandler_OnChanged(t *testing.T) {
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "upgrade-chart-pod",
-						Namespace: kubeSystemNamespace,
+						Namespace: util.KubeSystemNamespace,
 						Labels: map[string]string{
 							helmChartLabel: harvesterChartname,
 						},

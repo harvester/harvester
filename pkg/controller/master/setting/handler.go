@@ -8,7 +8,7 @@ import (
 
 	"github.com/rancher/wrangler/pkg/apply"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
-	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -26,12 +26,14 @@ type Handler struct {
 	httpClient           http.Client
 	apply                apply.Apply
 	settings             v1beta1.SettingClient
-	secrets              corev1.SecretClient
-	secretCache          corev1.SecretCache
+	secrets              ctlcorev1.SecretClient
+	secretCache          ctlcorev1.SecretCache
 	deployments          v1.DeploymentClient
 	deploymentCache      v1.DeploymentCache
 	longhornSettings     ctllonghornv1.SettingClient
 	longhornSettingCache ctllonghornv1.SettingCache
+	configmaps           ctlcorev1.ConfigMapClient
+	configmapCache       ctlcorev1.ConfigMapCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

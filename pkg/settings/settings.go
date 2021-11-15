@@ -35,6 +35,7 @@ var (
 	HTTPProxy                    = NewSetting("http-proxy", "{}")
 	VMForceDeletionPolicySet     = NewSetting(VMForceDeletionPolicySettingName, InitVMForceDeletionPolicy())
 	OvercommitConfig             = NewSetting("overcommit-config", `{"cpu":1600,"memory":150,"storage":200}`)
+	VipPools                     = NewSetting("vip-pools", "")
 )
 
 const (
