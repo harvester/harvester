@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
@@ -17,6 +18,7 @@ import (
 const (
 	httpProxySettingName        = "http-proxy"
 	overcommitConfigSettingName = "overcommit-config"
+	vipPoolsConfigSettingName   = "vip-pools"
 )
 
 type validateSettingFunc func(setting *v1beta1.Setting) error
@@ -25,6 +27,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	httpProxySettingName:                      validateHTTPProxy,
 	settings.VMForceDeletionPolicySettingName: validateVMForceDeletionPolicy,
 	overcommitConfigSettingName:               validateOvercommitConfig,
+	vipPoolsConfigSettingName:                 validateVipPoolsConfig,
 }
 
 func NewValidator() types.Validator {
@@ -108,6 +111,24 @@ func validateVMForceDeletionPolicy(setting *v1beta1.Setting) error {
 	}
 
 	if _, err := settings.DecodeVMForceDeletionPolicy(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	return nil
+}
+
+func validateVipPoolsConfig(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	pools := map[string]string{}
+	err := json.Unmarshal([]byte(setting.Value), &pools)
+	if err != nil {
+		return err
+	}
+
+	if err := settingctl.ValidateCIDRs(pools); err != nil {
 		return werror.NewInvalidError(err.Error(), "value")
 	}
 

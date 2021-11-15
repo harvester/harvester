@@ -19,6 +19,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	secrets := management.CoreFactory.Core().V1().Secret()
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
+	configmaps := management.CoreFactory.Core().V1().ConfigMap()
 	lhs := management.LonghornFactory.Longhorn().V1beta1().Setting()
 	controller := &Handler{
 		namespace:            options.Namespace,
@@ -32,6 +33,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		deploymentCache:      deployments.Cache(),
 		longhornSettings:     lhs,
 		longhornSettingCache: lhs.Cache(),
+		configmaps:           configmaps,
+		configmapCache:       configmaps.Cache(),
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -53,6 +56,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		"http-proxy":               controller.syncHTTPProxy,
 		"log-level":                controller.setLogLevel,
 		"overcommit-config":        controller.syncOvercommitConfig,
+		"vip-pools":                controller.syncVipPoolsConfig,
 	}
 
 	settings.OnChange(ctx, settingControllerName, controller.settingOnChanged)

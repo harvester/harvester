@@ -17,7 +17,6 @@ const (
 	//system upgrade controller is deployed in cattle-system namespace
 	upgradeNamespace               = "cattle-system"
 	upgradeServiceAccount          = "system-upgrade-controller"
-	kubeSystemNamespace            = "kube-system"
 	harvesterSystemNamespace       = "harvester-system"
 	harvesterVersionLabel          = "harvesterhci.io/version"
 	harvesterUpgradeLabel          = "harvesterhci.io/upgrade"
