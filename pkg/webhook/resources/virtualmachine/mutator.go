@@ -106,12 +106,21 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 		}
 	}
 	if !mem.IsZero() {
-		newRequest := mem.Value() * int64(100) / int64(overcommit.Memory)
+		// Truncate to MiB
+		newRequest := mem.Value() * int64(100) / int64(overcommit.Memory) / 1048576 * 1048576
 		quantity := resource.NewQuantity(newRequest, mem.Format)
 		if requestsMissing {
 			requestsToMutate[v1.ResourceMemory] = *quantity
 		} else {
 			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "%s"}`, quantity))
+		}
+		// Reserve 100MiB (104857600 Bytes) for QEMU on guest memory
+		// Ref: https://github.com/harvester/harvester/issues/1234
+		guestMemory := resource.NewQuantity(mem.Value()-104857600, mem.Format)
+		if vm.Spec.Template.Spec.Domain.Memory == nil {
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"%s"}}`, guestMemory))
+		} else if vm.Spec.Template.Spec.Domain.Memory.Guest == nil {
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, guestMemory))
 		}
 	}
 	if len(requestsToMutate) > 0 {
