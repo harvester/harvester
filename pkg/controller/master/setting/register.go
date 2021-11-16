@@ -17,6 +17,7 @@ const (
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	secrets := management.CoreFactory.Core().V1().Secret()
+	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	lhs := management.LonghornFactory.Longhorn().V1beta1().Setting()
 	controller := &Handler{
@@ -25,6 +26,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		settings:             settings,
 		secrets:              secrets,
 		secretCache:          secrets.Cache(),
+		clusters:             clusters,
+		clusterCache:         clusters.Cache(),
 		deployments:          deployments,
 		deploymentCache:      deployments.Cache(),
 		longhornSettings:     lhs,

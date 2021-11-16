@@ -5,6 +5,7 @@ import (
 
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	"k8s.io/client-go/rest"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -44,6 +45,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(longhornv1.SchemeGroupVersion, "BackingImageDataSource", longhornv1.BackingImageDataSource{}),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Volume", longhornv1.Volume{}),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Setting", longhornv1.Setting{}),
+			crd.FromGV(provisioningv1.SchemeGroupVersion, "Cluster", provisioningv1.Cluster{}),
 		).
 		BatchWait()
 }

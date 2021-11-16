@@ -6,6 +6,7 @@ import (
 	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/rancher/lasso/pkg/controller"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
+	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io"
 	"github.com/rancher/wrangler/pkg/apply"
 	appsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps"
 	batchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch"
@@ -79,6 +80,7 @@ type Management struct {
 	StorageFactory           *storagev1.Factory
 	SnapshotFactory          *snapshotv1.Factory
 	LonghornFactory          *longhornv1.Factory
+	ProvisioningFactory      *provisioningv1.Factory
 	RancherManagementFactory *rancherv3.Factory
 	UpgradeFactory           *upgrade.Factory
 
@@ -251,6 +253,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.SnapshotFactory = snapshot
 	management.starters = append(management.starters, snapshot)
+
+	provisioning, err := provisioningv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.ProvisioningFactory = provisioning
+	management.starters = append(management.starters, provisioning)
 
 	rancher, err := rancherv3.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
