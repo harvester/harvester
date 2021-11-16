@@ -290,17 +290,17 @@ func (h *TargetHandler) validateS3BackupTarget(target *settings.BackupTarget) er
 
 	// create a s3 service client
 	client := s3.NewFromConfig(cfg)
-	output, err := client.ListBuckets(h.ctx, &s3.ListBucketsInput{})
+
+	headBucketInput := s3.HeadBucketInput{
+		Bucket: &target.BucketName,
+	}
+
+	_, err = client.HeadBucket(h.ctx, &headBucketInput)
 	if err != nil {
 		return err
 	}
 
-	for _, b := range output.Buckets {
-		if *b.Name == target.BucketName {
-			return nil
-		}
-	}
-	return fmt.Errorf("bucket %s does not exist", target.BucketName)
+	return nil
 }
 
 func decodeTarget(value string) (*settings.BackupTarget, error) {
