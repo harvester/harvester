@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -25,6 +26,8 @@ type Handler struct {
 	namespace            string
 	httpClient           http.Client
 	apply                apply.Apply
+	clusterCache         provisioningv1.ClusterCache
+	clusters             provisioningv1.ClusterClient
 	settings             v1beta1.SettingClient
 	secrets              corev1.SecretClient
 	secretCache          corev1.SecretCache
