@@ -173,8 +173,9 @@ spec:
               - name: default
                 masquerade: {}
             resources:
-              requests:
+              limits:
                 memory: 2048Mi
+                cpu: 1
           networks:
           - name: default
             pod: {}
@@ -232,8 +233,9 @@ spec:
               - name: default
                 masquerade: {}
             resources:
-              requests:
+              limits:
                 memory: 2048Mi
+                cpu: 1
           networks:
           - name: default
             pod: {}
@@ -314,8 +316,9 @@ spec:
                 name: tablet
                 type: tablet
             resources:
-              requests:
+              limits:
                 memory: 2048Mi
+                cpu: 1
           networks:
           - name: default
             pod: {}
