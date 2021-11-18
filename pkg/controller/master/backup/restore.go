@@ -18,7 +18,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
@@ -55,13 +54,6 @@ const (
 	restoreErrorEvent    = "VirtualMachineRestoreError"
 	restoreCompleteEvent = "VirtualMachineRestoreComplete"
 )
-
-type vmRestoreTarget struct {
-	handler   *RestoreHandler
-	vmRestore *harvesterv1.VirtualMachineRestore
-	vm        *kv1.VirtualMachine
-	newVM     bool
-}
 
 type RestoreHandler struct {
 	context context.Context
@@ -114,193 +106,34 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.Virtu
 		return nil, nil
 	}
 
-	if !vmRestoreProgressing(restore) {
+	if !isVMRestoreProgressing(restore) {
 		return nil, nil
 	}
 
-	restoreCpy := restore.DeepCopy()
-
-	if restoreCpy.Status == nil {
-		restoreCpy.Status = &harvesterv1.VirtualMachineRestoreStatus{
-			Complete: pointer.BoolPtr(false),
-		}
+	if restore.Status == nil {
+		return nil, h.initStatus(restore)
 	}
 
-	// construct the vmRestore target and check if the backup reference is existed
-	target, err := h.getTarget(restoreCpy)
+	backup, err := h.getVMBackup(restore)
 	if err != nil {
-		return nil, h.doUpdateError(restore, restoreCpy, err, true)
+		return nil, h.updateStatusError(restore, err, true)
 	}
 
-	if target == nil {
-		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, fmt.Sprintf("failed to find restore target %s", restoreCpy.Spec.Target.Name)))
-		return nil, h.doUpdate(restore, restoreCpy)
+	if isVMRestoreMissingVolumes(restore) {
+		return nil, h.initVolumesStatus(restore, backup)
 	}
 
-	backup, err := h.getVMBackup(restoreCpy, target.UID(), restoreCpy.Spec.NewVM)
+	vm, isVolumesReady, err := h.reconcileResources(restore, backup)
 	if err != nil {
-		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, err.Error()))
-		return nil, h.doUpdate(restore, restoreCpy)
+		return nil, h.updateStatusError(restore, err, true)
 	}
 
 	// set vmRestore owner reference to the target VM
-	if len(restoreCpy.OwnerReferences) == 0 && !target.newVM {
-		restoreCpy.SetOwnerReferences(configVMOwner(target.vm))
-		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "Initializing VirtualMachineRestore"))
-		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "Initializing VirtualMachineRestore"))
-		return nil, h.doUpdate(restore, restoreCpy)
+	if len(restore.OwnerReferences) == 0 {
+		return nil, h.updateOwnerRefAndTargetUID(restore, vm)
 	}
 
-	// reconcile restoring volumes and create new PVC from CSI volumeSnapshot if not exist
-	var updated bool
-	restoreCpy, updated, err = h.reconcileVolumeRestores(restoreCpy, backup)
-	if err != nil {
-		return nil, h.doUpdateError(restore, restoreCpy, fmt.Errorf("error reconciling VolumeRestores"), true)
-	}
-
-	// create target vm after restore PVC volumes
-	if target.vm == nil && restoreCpy.Spec.NewVM {
-		target.vm, err = h.createNewVM(restoreCpy, backup)
-		if err != nil {
-			return nil, h.doUpdateError(restore, restoreCpy, err, true)
-		}
-	}
-
-	//restore referenced secrets
-	if err := h.restoreCloudInitSecrets(backup, target); err != nil {
-		return nil, h.doUpdateError(restore, restoreCpy, err, true)
-	}
-
-	if !updated {
-		var ready bool
-		ready, err = target.Ready()
-		if err != nil {
-			return nil, h.doUpdateError(restore, restoreCpy, fmt.Errorf("error checking target ready, err:%s", err.Error()), false)
-		}
-
-		// reconcile the vm if the restore is not ready
-		if ready {
-			updated, err = target.Reconcile()
-			if err != nil {
-				return nil, h.doUpdateError(restore, restoreCpy, fmt.Errorf("error reconciling target, err:%s", err.Error()), false)
-			}
-
-			if !updated {
-				if err = target.Cleanup(); err != nil {
-					return nil, h.doUpdateError(restore, restoreCpy, fmt.Errorf("error cleaning up, err:%s", err.Error()), false)
-				}
-
-				if err = target.RestartVM(); err != nil {
-					return nil, fmt.Errorf("failed to restart vm, err:%s", err.Error())
-				}
-
-				h.recorder.Eventf(
-					restoreCpy,
-					corev1.EventTypeNormal,
-					restoreCompleteEvent,
-					"Successfully completed VirtualMachineRestore %s",
-					restoreCpy.Name,
-				)
-
-				restoreCpy.Status.RestoreTime = currentTime()
-				restoreCpy.Status.Complete = pointer.BoolPtr(true)
-				updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "Operation complete"))
-				updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionTrue, "Operation complete"))
-			} else {
-				updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "Updating target spec"))
-				updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "Waiting for target update"))
-			}
-		} else {
-			reason := "Waiting for target vm to be ready"
-			updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, reason))
-			updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, reason))
-			// try again in 5 secs
-			h.enqueueAfter(restore, restoreCpy, 5*time.Second)
-			return nil, nil
-		}
-	} else {
-		vmCpy := target.vm
-		if vmCpy.Annotations == nil {
-			vmCpy.Annotations = make(map[string]string)
-		}
-
-		if vmCpy.Annotations[restoreNameAnnotation] != restoreCpy.Name {
-			vmCpy.Annotations[restoreNameAnnotation] = restoreCpy.Name
-			if _, err = h.vms.Update(vmCpy); err != nil {
-				return nil, err
-			}
-		}
-		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "Creating new PVCs"))
-		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "Waiting for new PVCs"))
-	}
-	return nil, h.doUpdate(restore, restoreCpy)
-}
-
-func (h *RestoreHandler) restoreCloudInitSecrets(backup *harvesterv1.VirtualMachineBackup, target *vmRestoreTarget) error {
-	if !target.newVM {
-		//Update existing secrets
-		for _, secretBackup := range backup.Status.SecretBackups {
-			secret, err := h.secretCache.Get(backup.Namespace, secretBackup.Name)
-			if err != nil {
-				return err
-			}
-			toUpdate := secret.DeepCopy()
-			toUpdate.Data = secretBackup.Data
-			if _, err := h.secretClient.Update(toUpdate); err != nil {
-				return err
-			}
-		}
-	} else {
-		for _, secretBackup := range backup.Status.SecretBackups {
-			for _, volume := range backup.Status.SourceSpec.Spec.Template.Spec.Volumes {
-				if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.UserDataSecretRef != nil &&
-					secretBackup.Name == volume.CloudInitNoCloud.UserDataSecretRef.Name {
-					newSecretName := getVMUserDataSecretName(target.vmRestore.Spec.Target.Name, volume.Name)
-					newSecret := &corev1.Secret{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      newSecretName,
-							Namespace: target.vmRestore.Namespace,
-							OwnerReferences: []metav1.OwnerReference{
-								{
-									APIVersion: target.vm.APIVersion,
-									Kind:       target.vm.Kind,
-									Name:       target.vm.Name,
-									UID:        target.vm.UID,
-								},
-							},
-						},
-						Data: secretBackup.Data,
-					}
-					if _, err := h.secretClient.Create(newSecret); err != nil && !apierrors.IsAlreadyExists(err) {
-						return err
-					}
-				}
-				if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.NetworkDataSecretRef != nil &&
-					secretBackup.Name == volume.CloudInitNoCloud.NetworkDataSecretRef.Name {
-					newSecretName := getVMNetworkDataSecretName(target.vmRestore.Spec.Target.Name, volume.Name)
-					newSecret := &corev1.Secret{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      newSecretName,
-							Namespace: target.vmRestore.Namespace,
-							OwnerReferences: []metav1.OwnerReference{
-								{
-									APIVersion: target.vm.APIVersion,
-									Kind:       target.vm.Kind,
-									Name:       target.vm.Name,
-									UID:        target.vm.UID,
-								},
-							},
-						},
-						Data: secretBackup.Data,
-					}
-					if _, err := h.secretClient.Create(newSecret); err != nil && !apierrors.IsAlreadyExists(err) {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
+	return nil, h.updateStatus(restore, backup, vm, isVolumesReady)
 }
 
 // PersistentVolumeClaimOnChange watching the PVCs on change and enqueue the vmRestore if it has the restore annotation
@@ -335,29 +168,60 @@ func (h *RestoreHandler) VMOnChange(key string, vm *kv1.VirtualMachine) (*kv1.Vi
 	return nil, nil
 }
 
-// getTarget helps to construct the vmRestoreTarget object and config whether to restoring the new VM
-// upon the vmRestore.spec.newVM option.
-func (h *RestoreHandler) getTarget(vmRestore *harvesterv1.VirtualMachineRestore) (*vmRestoreTarget, error) {
-	isNewVM := false
+func (h *RestoreHandler) initStatus(restore *harvesterv1.VirtualMachineRestore) error {
+	restoreCpy := restore.DeepCopy()
+
+	restoreCpy.Status = &harvesterv1.VirtualMachineRestoreStatus{
+		Complete: pointer.BoolPtr(false),
+	}
+
+	if _, err := h.restores.Update(restoreCpy); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *RestoreHandler) initVolumesStatus(vmRestore *harvesterv1.VirtualMachineRestore, backup *harvesterv1.VirtualMachineBackup) error {
+	restoreCpy := vmRestore.DeepCopy()
+
+	if restoreCpy.Status.VolumeRestores == nil {
+		volumeRestores, err := getVolumeRestores(restoreCpy, backup)
+		if err != nil {
+			return err
+		}
+		restoreCpy.Status.VolumeRestores = volumeRestores
+	}
+
+	if !isNewVMOrHasRetainPolicy(vmRestore) && vmRestore.Status.DeletedVolumes == nil {
+		var deletedVolumes []string
+		for _, vol := range backup.Status.VolumeBackups {
+			deletedVolumes = append(deletedVolumes, vol.PersistentVolumeClaim.ObjectMeta.Name)
+		}
+		restoreCpy.Status.DeletedVolumes = deletedVolumes
+	}
+
+	if _, err := h.restores.Update(restoreCpy); err != nil {
+		return err
+	}
+	return nil
+}
+
+// getVM returns restore target VM
+func (h *RestoreHandler) getVM(vmRestore *harvesterv1.VirtualMachineRestore) (*kv1.VirtualMachine, error) {
 	switch vmRestore.Spec.Target.Kind {
 	case kv1.VirtualMachineGroupVersionKind.Kind:
 		vm, err := h.vmCache.Get(vmRestore.Namespace, vmRestore.Spec.Target.Name)
 		if err != nil {
-			if !apierrors.IsNotFound(err) && !vmRestore.Spec.NewVM {
-				return nil, err
+			if apierrors.IsNotFound(err) {
+				return nil, nil
 			}
-			isNewVM = true
+			return nil, err
 		}
 
-		return &vmRestoreTarget{
-			handler:   h,
-			vmRestore: vmRestore,
-			vm:        vm,
-			newVM:     isNewVM,
-		}, nil
+		return vm, nil
 	}
 
-	return nil, fmt.Errorf("unknown source %+v", vmRestore.Spec.Target)
+	return nil, fmt.Errorf("unknown target %+v", vmRestore.Spec.Target)
 }
 
 // getVolumeRestores helps to create an array of new restored volumes
@@ -382,7 +246,7 @@ func getVolumeRestores(vmRestore *harvesterv1.VirtualMachineRestore, backup *har
 				VolumeName: vb.VolumeName,
 				PersistentVolumeClaim: harvesterv1.PersistentVolumeClaimSourceSpec{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      restorePVCName(vmRestore, vb.VolumeName),
+						Name:      getRestorePVCName(vmRestore, vb.VolumeName),
 						Namespace: vmRestore.Namespace,
 					},
 					Spec: vb.PersistentVolumeClaim.Spec,
@@ -395,52 +259,163 @@ func getVolumeRestores(vmRestore *harvesterv1.VirtualMachineRestore, backup *har
 	return restores, nil
 }
 
-func (h *RestoreHandler) reconcileVolumeRestores(vmRestore *harvesterv1.VirtualMachineRestore,
-	backup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineRestore, bool, error) {
-
-	if vmRestore.Status.VolumeRestores == nil {
-		volumeRestores, err := getVolumeRestores(vmRestore, backup)
-		if err != nil {
-			return vmRestore, false, err
-		}
-		vmRestore.Status.VolumeRestores = volumeRestores
+func (h *RestoreHandler) reconcileResources(
+	vmRestore *harvesterv1.VirtualMachineRestore,
+	backup *harvesterv1.VirtualMachineBackup,
+) (*kv1.VirtualMachine, bool, error) {
+	// reconcile restoring volumes and create new PVC from CSI volumeSnapshot if not exist
+	isVolumesReady, err := h.reconcileVolumeRestores(vmRestore, backup)
+	if err != nil {
+		return nil, false, err
 	}
 
-	createdPVC := false
-	waitingPVC := false
-	for i, restore := range vmRestore.Status.VolumeRestores {
-		pvc, err := h.pvcCache.Get(restore.PersistentVolumeClaim.ObjectMeta.Namespace, restore.PersistentVolumeClaim.ObjectMeta.Name)
+	// reconcile VM
+	vm, err := h.reconcileVM(vmRestore, backup)
+	if err != nil {
+		return nil, false, err
+	}
+
+	//restore referenced secrets
+	if err := h.reconcileSecretBackups(vmRestore, backup, vm); err != nil {
+		return nil, false, err
+	}
+
+	return vm, isVolumesReady, nil
+}
+
+func (h *RestoreHandler) reconcileVolumeRestores(
+	vmRestore *harvesterv1.VirtualMachineRestore,
+	backup *harvesterv1.VirtualMachineBackup,
+) (bool, error) {
+	isVolumesReady := true
+	for i, volumeRestore := range vmRestore.Status.VolumeRestores {
+		pvc, err := h.pvcCache.Get(vmRestore.Namespace, volumeRestore.PersistentVolumeClaim.ObjectMeta.Name)
 		if apierrors.IsNotFound(err) {
 			backup := backup.Status.VolumeBackups[i]
-			if err = h.createRestoredPVC(vmRestore, backup, restore); err != nil {
-				return vmRestore, false, err
+			if err = h.createRestoredPVC(vmRestore, backup, volumeRestore); err != nil {
+				return false, err
 			}
-			createdPVC = true
+			isVolumesReady = false
 			continue
 		}
 		if err != nil {
-			return vmRestore, false, err
+			return false, err
 		}
 
 		if pvc.Status.Phase == corev1.ClaimPending {
-			waitingPVC = true
+			isVolumesReady = false
 		} else if pvc.Status.Phase != corev1.ClaimBound {
-			return vmRestore, false, fmt.Errorf("PVC %s/%s in status %q", pvc.Namespace, pvc.Name, pvc.Status.Phase)
+			return false, fmt.Errorf("PVC %s/%s in status %q", pvc.Namespace, pvc.Name, pvc.Status.Phase)
 		}
 	}
-
-	if vmRestore.Status.DeletedVolumes == nil {
-		var deletedVolumes []string
-		for _, vol := range backup.Status.VolumeBackups {
-			deletedVolumes = append(deletedVolumes, vol.PersistentVolumeClaim.ObjectMeta.Name)
-		}
-		vmRestore.Status.DeletedVolumes = deletedVolumes
-	}
-
-	return vmRestore, createdPVC || waitingPVC, nil
+	return isVolumesReady, nil
 }
 
-func (h *RestoreHandler) getVMBackup(vmRestore *harvesterv1.VirtualMachineRestore, targetUID types.UID, newVM bool) (*harvesterv1.VirtualMachineBackup, error) {
+func (h *RestoreHandler) reconcileVM(
+	vmRestore *harvesterv1.VirtualMachineRestore,
+	backup *harvesterv1.VirtualMachineBackup,
+) (*kv1.VirtualMachine, error) {
+	// create new VM if it's not exist
+	vm, err := h.getVM(vmRestore)
+	if err != nil {
+		return nil, err
+	} else if vm == nil && err == nil {
+		vm, err = h.createNewVM(vmRestore, backup)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// make sure target VM has correct annotations
+	restoreID := getRestoreID(vmRestore)
+	if lastRestoreID, ok := vm.Annotations[lastRestoreAnnotation]; ok && lastRestoreID == restoreID {
+		return vm, nil
+	}
+
+	// VM doesn't have correct annotations like restore to existing VM.
+	// We update its volumes to new reconsile volumes
+	newVolumes, err := getNewVolumes(&backup.Status.SourceSpec.Spec, vmRestore)
+	if err != nil {
+		return nil, err
+	}
+
+	vmCpy := vm.DeepCopy()
+	vmCpy.Spec = backup.Status.SourceSpec.Spec
+	vmCpy.Spec.Template.Spec.Volumes = newVolumes
+	if vmCpy.Annotations == nil {
+		vmCpy.Annotations = make(map[string]string)
+	}
+	vmCpy.Annotations[lastRestoreAnnotation] = restoreID
+	vmCpy.Annotations[restoreNameAnnotation] = vmRestore.Name
+	delete(vmCpy.Annotations, util.AnnotationVolumeClaimTemplates)
+
+	if vm, err = h.vms.Update(vmCpy); err != nil {
+		return nil, err
+	}
+
+	return vm, nil
+}
+
+func (h *RestoreHandler) reconcileSecretBackups(
+	vmRestore *harvesterv1.VirtualMachineRestore,
+	backup *harvesterv1.VirtualMachineBackup,
+	vm *kv1.VirtualMachine,
+) error {
+	ownerRefs := configVMOwner(vm)
+	if !vmRestore.Spec.NewVM {
+		for _, secretBackup := range backup.Status.SecretBackups {
+			if err := h.createOrUpdateSecret(vmRestore.Namespace, secretBackup.Name, secretBackup.Data, ownerRefs); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// Create new secret for new VM
+	for _, secretBackup := range backup.Status.SecretBackups {
+		newSecretName := getCloudInitSecretRefVolumeName(vmRestore.Spec.Target.Name, secretBackup.Name)
+		if err := h.createOrUpdateSecret(vmRestore.Namespace, newSecretName, secretBackup.Data, ownerRefs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *RestoreHandler) createOrUpdateSecret(namespace, name string, data map[string][]byte, ownerRefs []metav1.OwnerReference) error {
+	secret, err := h.secretCache.Get(namespace, name)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+
+		logrus.Infof("create secret %s/%s", namespace, name)
+		secret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            name,
+				Namespace:       namespace,
+				OwnerReferences: ownerRefs,
+			},
+			Data: data,
+		}
+		if _, err := h.secretClient.Create(secret); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	secretCpy := secret.DeepCopy()
+	secretCpy.Data = data
+
+	if !reflect.DeepEqual(secret, secretCpy) {
+		logrus.Infof("update secret %s/%s", namespace, name)
+		if _, err := h.secretClient.Update(secretCpy); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *RestoreHandler) getVMBackup(vmRestore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineBackup, error) {
 	backup, err := h.backupCache.Get(vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName)
 	if err != nil {
 		return nil, err
@@ -450,128 +425,11 @@ func (h *RestoreHandler) getVMBackup(vmRestore *harvesterv1.VirtualMachineRestor
 		return nil, fmt.Errorf("VMBackup %s is not ready", backup.Name)
 	}
 
-	if !newVM && (vmRestore.Status.TargetUID == nil || *vmRestore.Status.TargetUID != targetUID) &&
-		(backup.Status.SourceUID == nil || *backup.Status.SourceUID != targetUID) {
-		return nil, fmt.Errorf("neither a new VM or VMBackup source and restore target differ")
-	}
-
 	if backup.Status.SourceSpec == nil {
 		return nil, fmt.Errorf("empty vm backup source spec of %s", backup.Name)
 	}
 
 	return backup, nil
-}
-
-func (t *vmRestoreTarget) Cleanup() error {
-	if t.vmRestore.Spec.NewVM || t.vmRestore.Spec.DeletionPolicy == harvesterv1.VirtualMachineRestoreRetain {
-		logrus.Infof("skip clean up carryover resources of vm %s/%s", t.vm.Name, t.vm.Namespace)
-		return nil
-	}
-
-	// clean up existing pvc
-	for _, volName := range t.vmRestore.Status.DeletedVolumes {
-		vol, err := t.handler.pvcCache.Get(t.vmRestore.Namespace, volName)
-		if err != nil && !apierrors.IsNotFound(err) {
-			return err
-		}
-
-		if vol != nil {
-			err = t.handler.pvcClient.Delete(vol.Namespace, vol.Name, &metav1.DeleteOptions{})
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (t *vmRestoreTarget) UID() types.UID {
-	if t.newVM {
-		return ""
-	}
-	return t.vm.UID
-}
-
-func (t *vmRestoreTarget) Ready() (bool, error) {
-	_, err := t.vm.RunStrategy()
-	if err != nil {
-		return false, err
-	}
-
-	_, err = t.handler.vmCache.Get(t.vm.Namespace, t.vm.Name)
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
-}
-
-func (t *vmRestoreTarget) RestartVM() error {
-	logrus.Infof("restarting the vm %s, current state running:%v", t.vm.Name, *t.vm.Spec.Running)
-	var running = true
-	if t.vm.Spec.Running == nil || t.vm.Spec.Running == &running {
-		return t.handler.restClient.Put().Namespace(t.vm.Namespace).Resource("virtualmachines").SubResource("restart").Name(t.vm.Name).Do(t.handler.context).Error()
-	}
-	return nil
-}
-
-func (h *RestoreHandler) GetNewVolumes(vm *kv1.VirtualMachineSpec, vmRestore *harvesterv1.VirtualMachineRestore) ([]kv1.Volume, error) {
-	var newVolumes = make([]kv1.Volume, len(vm.Template.Spec.Volumes))
-	copy(newVolumes, vm.Template.Spec.Volumes)
-
-	for j, vol := range vm.Template.Spec.Volumes {
-		if vol.PersistentVolumeClaim != nil {
-			for _, vr := range vmRestore.Status.VolumeRestores {
-				if vr.VolumeName != vol.Name {
-					continue
-				}
-
-				nv := vol.DeepCopy()
-				nv.PersistentVolumeClaim.ClaimName = vr.PersistentVolumeClaim.ObjectMeta.Name
-				newVolumes[j] = *nv
-			}
-		}
-	}
-	return newVolumes, nil
-}
-
-func (t *vmRestoreTarget) Reconcile() (bool, error) {
-	logrus.Debugf("VM created, reconciling target VM %s", t.vmRestore.Name)
-
-	restoreID := getRestoreID(t.vmRestore)
-	if lastRestoreID, ok := t.vm.Annotations[lastRestoreAnnotation]; ok && lastRestoreID == restoreID {
-		return false, nil
-	}
-
-	backup, err := t.handler.getVMBackup(t.vmRestore, t.UID(), false)
-	if err != nil {
-		return false, err
-	}
-
-	newVolumes, err := t.handler.GetNewVolumes(&backup.Status.SourceSpec.Spec, t.vmRestore)
-	if err != nil {
-		return false, err
-	}
-
-	vmCpy := t.vm.DeepCopy()
-	vmCpy.Spec = backup.Status.SourceSpec.Spec
-	vmCpy.Spec.Template.Spec.Volumes = newVolumes
-	if vmCpy.Annotations == nil {
-		vmCpy.Annotations = make(map[string]string)
-	}
-	vmCpy.Annotations[lastRestoreAnnotation] = restoreID
-	vmCpy.Annotations[restoreNameAnnotation] = t.vmRestore.Name
-	_, ok := vmCpy.Annotations[util.AnnotationVolumeClaimTemplates]
-	if ok {
-		delete(vmCpy.Annotations, util.AnnotationVolumeClaimTemplates)
-	}
-
-	if _, err = t.handler.vms.Update(vmCpy); err != nil {
-		return false, err
-	}
-
-	return true, nil
 }
 
 // createNewVM helps to create new target VM and set the associated owner reference
@@ -605,7 +463,7 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 		},
 	}
 
-	newVolumes, err := h.GetNewVolumes(&vm.Spec, restore)
+	newVolumes, err := getNewVolumes(&vm.Spec, restore)
 	if err != nil {
 		return nil, err
 	}
@@ -621,27 +479,25 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 		return nil, err
 	}
 
-	if restore.Status.TargetUID == nil {
-		restore.Status.TargetUID = &newVM.UID
-	}
-	vm.SetOwnerReferences(configVMOwner(vm))
-	if _, err = h.restores.Update(restore); err != nil {
-		return nil, err
-	}
-
-	return vm, nil
+	return newVM, nil
 }
 
-func sanitizeVirtualMachineForRestore(restore *harvesterv1.VirtualMachineRestore, spec kv1.VirtualMachineInstanceSpec) kv1.VirtualMachineInstanceSpec {
-	for index, volume := range spec.Volumes {
-		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.UserDataSecretRef != nil {
-			spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getVMUserDataSecretName(restore.Spec.Target.Name, volume.Name)
-		}
-		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
-			spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getVMNetworkDataSecretName(restore.Spec.Target.Name, volume.Name)
-		}
+func (h *RestoreHandler) updateOwnerRefAndTargetUID(vmRestore *harvesterv1.VirtualMachineRestore, vm *kv1.VirtualMachine) error {
+	restoreCpy := vmRestore.DeepCopy()
+	if restoreCpy.Status.TargetUID == nil {
+		restoreCpy.Status.TargetUID = &vm.UID
 	}
-	return spec
+
+	// set vmRestore owner reference to the target VM
+	restoreCpy.SetOwnerReferences(configVMOwner(vm))
+	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "Initializing VirtualMachineRestore"))
+	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "Initializing VirtualMachineRestore"))
+
+	if _, err := h.restores.Update(restoreCpy); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // createRestoredPVC helps to create new PVC from CSI volumeSnapshot
@@ -695,75 +551,114 @@ func (h *RestoreHandler) createRestoredPVC(vmRestore *harvesterv1.VirtualMachine
 	return err
 }
 
-func getRestoreID(vmRestore *harvesterv1.VirtualMachineRestore) string {
-	return fmt.Sprintf("%s-%s", vmRestore.Name, vmRestore.UID)
-}
-
-func (h *RestoreHandler) doUpdateError(original, updated *harvesterv1.VirtualMachineRestore, err error, createEvent bool) error {
-	if createEvent {
-		h.recorder.Eventf(
-			updated,
-			corev1.EventTypeWarning,
-			restoreErrorEvent,
-			"VirtualMachineRestore encountered error %s",
-			err.Error(),
-		)
-	}
-	updateRestoreCondition(updated, newProgressingCondition(corev1.ConditionFalse, err.Error()))
-	updateRestoreCondition(updated, newReadyCondition(corev1.ConditionFalse, err.Error()))
-	if err2 := h.doUpdate(original, updated); err2 != nil {
-		return err2
+func (h *RestoreHandler) deleteOldPVC(vmRestore *harvesterv1.VirtualMachineRestore, vm *kv1.VirtualMachine) error {
+	if isNewVMOrHasRetainPolicy(vmRestore) {
+		logrus.Infof("skip deleting old PVC of vm %s/%s", vm.Name, vm.Namespace)
+		return nil
 	}
 
-	return err
-}
-
-func updateRestoreCondition(r *harvesterv1.VirtualMachineRestore, c harvesterv1.Condition) {
-	r.Status.Conditions = updateCondition(r.Status.Conditions, c, true)
-}
-
-func (h *RestoreHandler) doUpdate(original, updated *harvesterv1.VirtualMachineRestore) error {
-	if !reflect.DeepEqual(original, updated) {
-		if _, err := h.restores.Update(updated); err != nil {
+	// clean up existing pvc
+	for _, volName := range vmRestore.Status.DeletedVolumes {
+		vol, err := h.pvcCache.Get(vmRestore.Namespace, volName)
+		if err != nil && !apierrors.IsNotFound(err) {
 			return err
+		}
+
+		if vol != nil {
+			err = h.pvcClient.Delete(vol.Namespace, vol.Name, &metav1.DeleteOptions{})
+			if err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func (h *RestoreHandler) enqueueAfter(original, updated *harvesterv1.VirtualMachineRestore, t time.Duration) {
-	if !reflect.DeepEqual(original, updated) {
-		h.restoreController.EnqueueAfter(updated.Namespace, updated.Name, t)
+func (h *RestoreHandler) restartVM(vm *kv1.VirtualMachine) error {
+	logrus.Infof("restarting the vm %s, current state running:%v", vm.Name, *vm.Spec.Running)
+	if vm.Spec.Running == nil || *vm.Spec.Running {
+		return h.restClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("restart").Name(vm.Name).Do(h.context).Error()
 	}
+	return nil
 }
 
-func restorePVCName(vmRestore *harvesterv1.VirtualMachineRestore, name string) string {
-	s := fmt.Sprintf("restore-%s-%s-%s", vmRestore.Spec.VirtualMachineBackupName, vmRestore.UID, name)
-	return s
-}
-
-func vmRestoreProgressing(vmRestore *harvesterv1.VirtualMachineRestore) bool {
-	return vmRestore.Status == nil || vmRestore.Status.Complete == nil || !*vmRestore.Status.Complete
-}
-
-func configVMOwner(vm *kv1.VirtualMachine) []metav1.OwnerReference {
-	return []metav1.OwnerReference{
-		{
-			APIVersion:         kv1.SchemeGroupVersion.String(),
-			Kind:               kv1.VirtualMachineGroupVersionKind.Kind,
-			Name:               vm.Name,
-			UID:                vm.UID,
-			Controller:         pointer.BoolPtr(true),
-			BlockOwnerDeletion: pointer.BoolPtr(true),
-		},
+func (h *RestoreHandler) updateStatus(
+	vmRestore *harvesterv1.VirtualMachineRestore,
+	backup *harvesterv1.VirtualMachineBackup,
+	vm *kv1.VirtualMachine,
+	isVolumesReady bool,
+) error {
+	restoreCpy := vmRestore.DeepCopy()
+	if !isVolumesReady {
+		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "Creating new PVCs"))
+		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "Waiting for new PVCs"))
+		if !reflect.DeepEqual(vmRestore, restoreCpy) {
+			if _, err := h.restores.Update(restoreCpy); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
+
+	if !vm.Status.Ready {
+		reason := "Waiting for target vm to be ready"
+		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, reason))
+		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, reason))
+		if !reflect.DeepEqual(vmRestore, restoreCpy) {
+			if _, err := h.restores.Update(restoreCpy); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := h.deleteOldPVC(restoreCpy, vm); err != nil {
+		return h.updateStatusError(vmRestore, fmt.Errorf("error cleaning up, err:%s", err.Error()), false)
+	}
+
+	if err := h.restartVM(vm); err != nil {
+		return h.updateStatusError(vmRestore, fmt.Errorf("failed to restart vm, err:%s", err.Error()), false)
+	}
+
+	h.recorder.Eventf(
+		restoreCpy,
+		corev1.EventTypeNormal,
+		restoreCompleteEvent,
+		"Successfully completed VirtualMachineRestore %s",
+		restoreCpy.Name,
+	)
+
+	restoreCpy.Status.RestoreTime = currentTime()
+	restoreCpy.Status.Complete = pointer.BoolPtr(true)
+	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "Operation complete"))
+	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionTrue, "Operation complete"))
+	if _, err := h.restores.Update(restoreCpy); err != nil {
+		return err
+	}
+	return nil
 }
 
-func getVMUserDataSecretName(vmName, volumeName string) string {
-	return fmt.Sprintf("vm-%s-%s-userdata", vmName, volumeName)
-}
+func (h *RestoreHandler) updateStatusError(restore *harvesterv1.VirtualMachineRestore, err error, createEvent bool) error {
+	restoreCpy := restore.DeepCopy()
+	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, err.Error()))
+	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, err.Error()))
 
-func getVMNetworkDataSecretName(vmName, volumeName string) string {
-	return fmt.Sprintf("vm-%s-%s-networkdata", vmName, volumeName)
+	if !reflect.DeepEqual(restore, restoreCpy) {
+		if createEvent {
+			h.recorder.Eventf(
+				restoreCpy,
+				corev1.EventTypeWarning,
+				restoreErrorEvent,
+				"VirtualMachineRestore encountered error %s",
+				err.Error(),
+			)
+		}
+
+		if _, err2 := h.restores.Update(restoreCpy); err2 != nil {
+			return err2
+		}
+	}
+
+	return err
 }

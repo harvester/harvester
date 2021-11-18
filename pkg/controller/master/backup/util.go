@@ -1,11 +1,14 @@
 package backup
 
 import (
+	"fmt"
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
+	kv1 "kubevirt.io/client-go/api/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
@@ -21,6 +24,19 @@ func isBackupProgressing(backup *harvesterv1.VirtualMachineBackup) bool {
 
 func isBackupError(backup *harvesterv1.VirtualMachineBackup) bool {
 	return backup.Status != nil && backup.Status.Error != nil
+}
+
+func isVMRestoreProgressing(vmRestore *harvesterv1.VirtualMachineRestore) bool {
+	return vmRestore.Status == nil || vmRestore.Status.Complete == nil || !*vmRestore.Status.Complete
+}
+
+func isVMRestoreMissingVolumes(vmRestore *harvesterv1.VirtualMachineRestore) bool {
+	return len(vmRestore.Status.VolumeRestores) == 0 ||
+		(!isNewVMOrHasRetainPolicy(vmRestore) && len(vmRestore.Status.DeletedVolumes) == 0)
+}
+
+func isNewVMOrHasRetainPolicy(vmRestore *harvesterv1.VirtualMachineRestore) bool {
+	return vmRestore.Spec.NewVM || vmRestore.Spec.DeletionPolicy == harvesterv1.VirtualMachineRestoreRetain
 }
 
 func vmBackupError(vmBackup *harvesterv1.VirtualMachineBackup) *harvesterv1.Error {
@@ -86,4 +102,66 @@ func translateError(e *snapshotv1.VolumeSnapshotError) *harvesterv1.Error {
 var currentTime = func() *metav1.Time {
 	t := metav1.Now()
 	return &t
+}
+
+func getRestoreID(vmRestore *harvesterv1.VirtualMachineRestore) string {
+	return fmt.Sprintf("%s-%s", vmRestore.Name, vmRestore.UID)
+}
+
+func updateRestoreCondition(r *harvesterv1.VirtualMachineRestore, c harvesterv1.Condition) {
+	r.Status.Conditions = updateCondition(r.Status.Conditions, c, true)
+}
+
+func getNewVolumes(vm *kv1.VirtualMachineSpec, vmRestore *harvesterv1.VirtualMachineRestore) ([]kv1.Volume, error) {
+	var newVolumes = make([]kv1.Volume, len(vm.Template.Spec.Volumes))
+	copy(newVolumes, vm.Template.Spec.Volumes)
+
+	for j, vol := range vm.Template.Spec.Volumes {
+		if vol.PersistentVolumeClaim != nil {
+			for _, vr := range vmRestore.Status.VolumeRestores {
+				if vr.VolumeName != vol.Name {
+					continue
+				}
+
+				nv := vol.DeepCopy()
+				nv.PersistentVolumeClaim.ClaimName = vr.PersistentVolumeClaim.ObjectMeta.Name
+				newVolumes[j] = *nv
+			}
+		}
+	}
+	return newVolumes, nil
+}
+
+func getRestorePVCName(vmRestore *harvesterv1.VirtualMachineRestore, name string) string {
+	s := fmt.Sprintf("restore-%s-%s-%s", vmRestore.Spec.VirtualMachineBackupName, vmRestore.UID, name)
+	return s
+}
+
+func configVMOwner(vm *kv1.VirtualMachine) []metav1.OwnerReference {
+	return []metav1.OwnerReference{
+		{
+			APIVersion:         kv1.SchemeGroupVersion.String(),
+			Kind:               kv1.VirtualMachineGroupVersionKind.Kind,
+			Name:               vm.Name,
+			UID:                vm.UID,
+			Controller:         pointer.BoolPtr(true),
+			BlockOwnerDeletion: pointer.BoolPtr(true),
+		},
+	}
+}
+
+func sanitizeVirtualMachineForRestore(restore *harvesterv1.VirtualMachineRestore, spec kv1.VirtualMachineInstanceSpec) kv1.VirtualMachineInstanceSpec {
+	for index, volume := range spec.Volumes {
+		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.UserDataSecretRef != nil {
+			spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getCloudInitSecretRefVolumeName(restore.Spec.Target.Name, volume.CloudInitNoCloud.UserDataSecretRef.Name)
+		}
+		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
+			spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getCloudInitSecretRefVolumeName(restore.Spec.Target.Name, volume.CloudInitNoCloud.NetworkDataSecretRef.Name)
+		}
+	}
+	return spec
+}
+
+func getCloudInitSecretRefVolumeName(vmName string, secretName string) string {
+	return fmt.Sprintf("vm-%s-%s-volumeref", vmName, secretName)
 }
