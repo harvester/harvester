@@ -180,32 +180,53 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 
 // getSecretBackups helps to build a list of SecretBackup upon the cloud init secrets used by the backup VM
 func (h *Handler) getSecretBackups(vm *kv1.VirtualMachine) ([]harvesterv1.SecretBackup, error) {
-	var secretBackups []harvesterv1.SecretBackup
+	secretRefs := []*corev1.LocalObjectReference{}
 
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.UserDataSecretRef != nil {
-			secret, err := h.secretCache.Get(vm.Namespace, volume.CloudInitNoCloud.UserDataSecretRef.Name)
-			if err != nil {
-				return nil, err
-			}
-			secretBackups = append(secretBackups, harvesterv1.SecretBackup{
-				Name: secret.Name,
-				Data: secret.Data,
-			})
+			secretRefs = append(secretRefs, volume.CloudInitNoCloud.UserDataSecretRef)
 		}
 		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
-			secret, err := h.secretCache.Get(vm.Namespace, volume.CloudInitNoCloud.NetworkDataSecretRef.Name)
-			if err != nil {
-				return nil, err
-			}
-			secretBackups = append(secretBackups, harvesterv1.SecretBackup{
-				Name: secret.Name,
-				Data: secret.Data,
-			})
+			secretRefs = append(secretRefs, volume.CloudInitNoCloud.NetworkDataSecretRef)
 		}
 	}
 
+	secretBackups := []harvesterv1.SecretBackup{}
+	secretBackupMap := map[string]bool{}
+	for _, secretRef := range secretRefs {
+		// users may put UserDataSecretRef and NetworkDataSecretRef in a same secret, so we only keep one
+		secretFullName := fmt.Sprintf("%s/%s", vm.Namespace, secretRef.Name)
+		if v, ok := secretBackupMap[secretFullName]; ok && v {
+			continue
+		}
+
+		secretBackup, err := h.getSecretBackupFromSecret(vm.Namespace, secretRef.Name)
+		if err != nil {
+			return nil, err
+		}
+		secretBackupMap[secretFullName] = true
+		secretBackups = append(secretBackups, *secretBackup)
+	}
+
 	return secretBackups, nil
+}
+
+func (h *Handler) getSecretBackupFromSecret(namespace, name string) (*harvesterv1.SecretBackup, error) {
+	secret, err := h.secretCache.Get(namespace, name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove empty string. If there is empty string in secret, we will encounter error.
+	// ref: https://github.com/harvester/harvester/issues/1536
+	data := secret.DeepCopy().Data
+	for k, v := range secret.Data {
+		if len(v) == 0 {
+			delete(data, k)
+		}
+	}
+
+	return &harvesterv1.SecretBackup{Name: secret.Name, Data: data}, nil
 }
 
 // updateBackupStatusContent helps to store the backup source and volume contents within the VM backup status
