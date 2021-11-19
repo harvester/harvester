@@ -91,7 +91,7 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Se
 	target, err = h.validateTargetEndpoint(target)
 	if err != nil {
 		logrus.Errorf("invalid backup target, error: %s", err.Error())
-		return h.updateBackupTargetSetting(settingCpy, target, err)
+		return nil, err
 	}
 
 	if err = h.updateLonghornTarget(target); err != nil {
@@ -202,12 +202,14 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 }
 
 func (h *TargetHandler) validateTargetEndpoint(target *settings.BackupTarget) (*settings.BackupTarget, error) {
-	// check whether have $ or , have been set in the BackupTarget
-	regStr := `[\$\,]`
-	reg := regexp.MustCompile(regStr)
-	findStr := reg.FindAllString(target.Endpoint, -1)
-	if len(findStr) != 0 {
-		return nil, fmt.Errorf("value %s, contains %v", target.Endpoint, strings.Join(findStr, " or "))
+	// check whether have $ or , have been set in the BackupTarget endpoint
+	if len(target.Endpoint) > 0 {
+		regStr := `[\$\,]`
+		reg := regexp.MustCompile(regStr)
+		findStr := reg.FindAllString(target.Endpoint, -1)
+		if len(findStr) != 0 {
+			return nil, fmt.Errorf("value %s, contains %v", target.Endpoint, strings.Join(findStr, " or "))
+		}
 	}
 
 	switch target.Type {
@@ -218,6 +220,13 @@ func (h *TargetHandler) validateTargetEndpoint(target *settings.BackupTarget) (*
 		err := h.validateS3BackupTarget(target)
 		return target, err
 	default:
+		// When "Use the default value", the target.Type is "",
+		//  if a dedicated type is added for "default value", check here
+		defaultBackupTarget := settings.BackupTarget{}
+		if reflect.DeepEqual(target, &defaultBackupTarget) {
+			return target, nil
+		}
+
 		return nil, fmt.Errorf("unknown type of the backup target, currently only support NFS and S3")
 	}
 }
