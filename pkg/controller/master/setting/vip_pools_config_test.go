@@ -1,17 +1,22 @@
 package setting
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
 	corefake "k8s.io/client-go/kubernetes/fake"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	typeharv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -124,4 +129,38 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, tc.expected.pools, cnf.Data)
 	}
+}
+
+type fakeSettingClient func() typeharv1.SettingInterface
+
+func (c fakeSettingClient) Create(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	return c().Create(context.TODO(), setting, metav1.CreateOptions{})
+}
+
+func (c fakeSettingClient) Update(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	return c().Update(context.TODO(), setting, metav1.UpdateOptions{})
+}
+
+func (c fakeSettingClient) UpdateStatus(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	return c().UpdateStatus(context.TODO(), setting, metav1.UpdateOptions{})
+}
+
+func (c fakeSettingClient) Delete(name string, opts *metav1.DeleteOptions) error {
+	return c().Delete(context.TODO(), name, *opts)
+}
+
+func (c fakeSettingClient) Get(name string, opts metav1.GetOptions) (*harvesterv1.Setting, error) {
+	return c().Get(context.TODO(), name, opts)
+}
+
+func (c fakeSettingClient) List(opts metav1.ListOptions) (*harvesterv1.SettingList, error) {
+	return c().List(context.TODO(), opts)
+}
+
+func (c fakeSettingClient) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+	return c().Watch(context.TODO(), opts)
+}
+
+func (c fakeSettingClient) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterv1.Setting, err error) {
+	return c().Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
 }
