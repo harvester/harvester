@@ -10,8 +10,7 @@ import (
 )
 
 const (
-	settingControllerName   = "harvester-setting-controller"
-	preconfigControllerName = "harvester-setting-preconfig-controller"
+	controllerName = "harvester-setting-controller"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -45,11 +44,6 @@ func Register(ctx context.Context, management *config.Management, options config
 		},
 	}
 
-	preconfigController := &LoadingPreconfigHandler{
-		namespace: options.Namespace,
-		settings:  settings,
-	}
-
 	syncers = map[string]syncerFunc{
 		"additional-ca":            controller.syncAdditionalTrustedCAs,
 		"cluster-registration-url": controller.registerCluster,
@@ -59,7 +53,6 @@ func Register(ctx context.Context, management *config.Management, options config
 		"vip-pools":                controller.syncVipPoolsConfig,
 	}
 
-	settings.OnChange(ctx, settingControllerName, controller.settingOnChanged)
-	settings.OnChange(ctx, preconfigControllerName, preconfigController.settingOnChanged)
+	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
 	return nil
 }
