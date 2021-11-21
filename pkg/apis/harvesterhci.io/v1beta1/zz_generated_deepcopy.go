@@ -1205,6 +1205,11 @@ func (in *VolumeBackup) DeepCopyInto(out *VolumeBackup) {
 		*out = (*in).DeepCopy()
 	}
 	in.PersistentVolumeClaim.DeepCopyInto(&out.PersistentVolumeClaim)
+	if in.LonghornBackupName != nil {
+		in, out := &in.LonghornBackupName, &out.LonghornBackupName
+		*out = new(string)
+		**out = **in
+	}
 	if in.ReadyToUse != nil {
 		in, out := &in.ReadyToUse, &out.ReadyToUse
 		*out = new(bool)

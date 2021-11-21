@@ -7480,6 +7480,9 @@
         "error": {
           "$ref": "#/definitions/harvesterhci.io.v1beta1.Error"
         },
+        "longhornBackupName": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },

@@ -3165,6 +3165,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackup(ref common.ReferenceCal
 							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.PersistentVolumeClaimSourceSpec"),
 						},
 					},
+					"longhornBackupName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 					"readyToUse": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"boolean"},

@@ -106,6 +106,9 @@ type VolumeBackup struct {
 	PersistentVolumeClaim PersistentVolumeClaimSourceSpec `json:"persistentVolumeClaim"`
 
 	// +optional
+	LonghornBackupName *string `json:"longhornBackupName,omitempty"`
+
+	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty"`
 
 	// +optional
