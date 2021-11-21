@@ -71,6 +71,7 @@ func main() {
 					longhornv1.BackingImageDataSource{},
 					longhornv1.Volume{},
 					longhornv1.Setting{},
+					longhornv1.Backup{},
 				},
 				GenerateClients: true,
 			},
