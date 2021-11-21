@@ -140,6 +140,8 @@ spec:
 {{ include "harvester.labels" . | indent 8 }}
         app.kubernetes.io/name: harvester
         app.kubernetes.io/component: webhook-server
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/harvester-webhook: unconfined
     spec:
       serviceAccountName: harvester
       affinity:
@@ -160,6 +162,9 @@ spec:
         name: harvester-webhook
         args: []
         imagePullPolicy: {{ .Values.webhook.image.imagePullPolicy }}
+        securityContext:
+          capabilities:
+            add: ["SYS_ADMIN"]
         ports:
         - name: https
           containerPort: {{ .Values.webhook.httpsPort }}

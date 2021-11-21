@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
@@ -25,6 +26,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
@@ -79,6 +81,15 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	secrets := management.CoreFactory.Core().V1().Secret()
 
+	copyConfig := rest.CopyConfig(management.RestConfig)
+	copyConfig.GroupVersion = &k8sschema.GroupVersion{Group: "subresources.kubevirt.io", Version: "v1"}
+	copyConfig.APIPath = "/apis"
+	copyConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	restClient, err := rest.RESTClientFor(copyConfig)
+	if err != nil {
+		return err
+	}
+
 	handler := &RestoreHandler{
 		context:           ctx,
 		restores:          restores,
@@ -91,6 +102,7 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 		secretClient:      secrets,
 		secretCache:       secrets.Cache(),
 		recorder:          management.NewRecorder(restoreControllerName, "", ""),
+		restClient:        restClient,
 	}
 
 	restores.OnChange(ctx, restoreControllerName, handler.RestoreOnChanged)
@@ -577,7 +589,7 @@ func (h *RestoreHandler) deleteOldPVC(vmRestore *harvesterv1.VirtualMachineResto
 
 func (h *RestoreHandler) restartVM(vm *kv1.VirtualMachine) error {
 	logrus.Infof("restarting the vm %s, current state running:%v", vm.Name, *vm.Spec.Running)
-	if vm.Spec.Running == nil || *vm.Spec.Running {
+	if vm.Spec.Running == nil || !*vm.Spec.Running {
 		return h.restClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("restart").Name(vm.Name).Do(h.context).Error()
 	}
 	return nil

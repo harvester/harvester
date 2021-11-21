@@ -18,12 +18,12 @@ func isBackupReady(backup *harvesterv1.VirtualMachineBackup) bool {
 }
 
 func isBackupProgressing(backup *harvesterv1.VirtualMachineBackup) bool {
-	return vmBackupError(backup) == nil &&
+	return getVMBackupError(backup) == nil &&
 		(backup.Status == nil || backup.Status.ReadyToUse == nil || !*backup.Status.ReadyToUse)
 }
 
-func isBackupError(backup *harvesterv1.VirtualMachineBackup) bool {
-	return backup.Status != nil && backup.Status.Error != nil
+func isBackupMissingStatus(backup *harvesterv1.VirtualMachineBackup) bool {
+	return backup.Status == nil || backup.Status.SourceSpec == nil || backup.Status.VolumeBackups == nil
 }
 
 func isVMRestoreProgressing(vmRestore *harvesterv1.VirtualMachineRestore) bool {
@@ -39,11 +39,15 @@ func isNewVMOrHasRetainPolicy(vmRestore *harvesterv1.VirtualMachineRestore) bool
 	return vmRestore.Spec.NewVM || vmRestore.Spec.DeletionPolicy == harvesterv1.VirtualMachineRestoreRetain
 }
 
-func vmBackupError(vmBackup *harvesterv1.VirtualMachineBackup) *harvesterv1.Error {
+func getVMBackupError(vmBackup *harvesterv1.VirtualMachineBackup) *harvesterv1.Error {
 	if vmBackup.Status != nil && vmBackup.Status.Error != nil {
 		return vmBackup.Status.Error
 	}
 	return nil
+}
+
+func isBackupAnnotationMissing(backup *harvesterv1.VirtualMachineBackup) bool {
+	return backup.Annotations == nil || (backup.Annotations[BackupTargetAnnotation] == "" && backup.Annotations[BackupBucketNameAnnotation] == "")
 }
 
 func newReadyCondition(status corev1.ConditionStatus, message string) harvesterv1.Condition {

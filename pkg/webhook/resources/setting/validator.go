@@ -3,11 +3,16 @@ package setting
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
+	"github.com/longhorn/backupstore"
+	_ "github.com/longhorn/backupstore/nfs"
+	_ "github.com/longhorn/backupstore/s3"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/backup"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -28,6 +33,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.VMForceDeletionPolicySettingName: validateVMForceDeletionPolicy,
 	overcommitConfigSettingName:               validateOvercommitConfig,
 	vipPoolsConfigSettingName:                 validateVipPoolsConfig,
+	settings.BackupTargetSettingName:          validateBackupTarget,
 }
 
 func NewValidator() types.Validator {
@@ -114,6 +120,39 @@ func validateVMForceDeletionPolicy(setting *v1beta1.Setting) error {
 		return werror.NewInvalidError(err.Error(), "value")
 	}
 
+	return nil
+}
+
+func validateBackupTarget(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	target, err := settings.DecodeBackupTarget(setting.Value)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	// Since we remove S3 access key id and secret access key after S3 backup target has been verified,
+	// we stop the controller to reconcile it again.
+	if target.Type == settings.S3BackupType && (target.SecretAccessKey == "" || target.AccessKeyID == "") {
+		return nil
+	}
+
+	// Set OS environment variables for S3
+	if target.Type == settings.S3BackupType {
+		os.Setenv(backup.AWSAccessKey, target.AccessKeyID)
+		os.Setenv(backup.AWSSecretKey, target.SecretAccessKey)
+		os.Setenv(backup.AWSCERT, target.Cert)
+	}
+
+	// GetBackupStoreDriver tests whether the driver can List objects, so we don't need to do it again here.
+	// S3: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/s3/s3.go#L38-L87
+	// NFS: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/nfs/nfs.go#L46-L81
+	endpoint := backup.ConstructEndpoint(target)
+	if _, err := backupstore.GetBackupStoreDriver(endpoint); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
 	return nil
 }
 

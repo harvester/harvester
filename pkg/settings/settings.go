@@ -175,6 +175,15 @@ func InitBackupTargetToString() string {
 	return string(targetStr)
 }
 
+func DecodeBackupTarget(value string) (*BackupTarget, error) {
+	target := &BackupTarget{}
+	if err := json.Unmarshal([]byte(value), target); err != nil {
+		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
+	}
+
+	return target, nil
+}
+
 func InitVMForceDeletionPolicy() string {
 	policy := &VMForceDeletionPolicy{
 		Enable: true,
