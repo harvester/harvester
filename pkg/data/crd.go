@@ -42,6 +42,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			// The expected CRD will be applied by Longhorn chart.
 			crd.FromGV(longhornv1.SchemeGroupVersion, "BackingImage", nil),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "BackingImageDataSource", longhornv1.BackingImageDataSource{}),
+			crd.FromGV(longhornv1.SchemeGroupVersion, "Backup", longhornv1.Backup{}),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Volume", longhornv1.Volume{}),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Setting", longhornv1.Setting{}),
 			crd.FromGV(provisioningv1.SchemeGroupVersion, "Cluster", provisioningv1.Cluster{}),
