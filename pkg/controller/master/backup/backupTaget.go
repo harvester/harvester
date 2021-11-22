@@ -38,6 +38,8 @@ const (
 
 	longhornBackupTargetSettingName       = "backup-target"
 	longhornBackupTargetSecretSettingName = "backup-target-credential-secret"
+
+	awss3EndpointKeyword = "amazonaws.com"
 )
 
 // RegisterBackupTarget register the setting controller and validate the configured backup target server
@@ -300,16 +302,52 @@ func (h *TargetHandler) validateS3BackupTarget(target *settings.BackupTarget) er
 	// create a s3 service client
 	client := s3.NewFromConfig(cfg)
 
-	headBucketInput := s3.HeadBucketInput{
-		Bucket: &target.BucketName,
-	}
+	// client.HeadBucket is the right way to check if s3 bucket is existing
+	// we also support using minio for the replacement of s3
+	// as per the test, minio is not working well with HeadBucket
+	// aws api will format URL like: http://backupbucket.minioip:9000, it gets DNS lookup fail error
+	// if we skip the URL in endpointResolver, the "api error Forbidden: Forbidden" is returned from minio server
+	//
+	// in harvester web UI, when setting the backup target
+	// for aws s3: the endpoint will normally be empty, aws api will format it;
+	// when user input it, it will be like:
+	// s3 in a virtual-hosted–style URL:
+	//   http://bucket.s3.amazonaws.com
+	//   http://bucket.s3-aws-region.amazonaws.com.
+	// s3 in a path-style URL:
+	//   http://s3.amazonaws.com/bucket
+	//   http://s3-aws-region.amazonaws.com/bucket
 
-	_, err = client.HeadBucket(h.ctx, &headBucketInput)
-	if err != nil {
-		return err
-	}
+	// for minio (s3 replacement): the endpoint is required, like
+	//   https://minio-service.default:9000
+	//   http://127.0.0.1:9000
+	if target.Endpoint != "" && !strings.Contains(target.Endpoint, awss3EndpointKeyword) {
+		// s3 replacement, like minio
+		output, err := client.ListBuckets(h.ctx, &s3.ListBucketsInput{})
+		if err != nil {
+			return err
+		}
 
-	return nil
+		for _, b := range output.Buckets {
+			if *b.Name == target.BucketName {
+				return nil
+			}
+		}
+
+		return fmt.Errorf("bucket %s does not exist", target.BucketName)
+	} else {
+		// aws s3
+		headBucketInput := s3.HeadBucketInput{
+			Bucket: &target.BucketName,
+		}
+
+		_, err = client.HeadBucket(h.ctx, &headBucketInput)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
 }
 
 func decodeTarget(value string) (*settings.BackupTarget, error) {
