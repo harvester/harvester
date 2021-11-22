@@ -47,7 +47,7 @@ func (h *Handler) syncVipPoolsConfig(setting *harvesterv1.Setting) error {
 		}
 	} else {
 		vipConfigmapCpy := vipConfigmap.DeepCopy()
-		vipConfigmapCpy.Data = pools
+		vipConfigmapCpy.Data = poolsData
 		if _, err := h.configmaps.Update(vipConfigmapCpy); err != nil {
 			return err
 		}
