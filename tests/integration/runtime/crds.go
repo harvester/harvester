@@ -4,6 +4,7 @@ import (
 	"context"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	wcrd "github.com/rancher/wrangler/pkg/crd"
 	"k8s.io/client-go/rest"
 
@@ -19,6 +20,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 	return factory.
 		BatchCreateCRDsIfNotExisted(
 			createNetworkAttachmentDefinitionCRD(),
+			createManagedChartCRD(),
 		).
 		BatchWait()
 }
@@ -28,4 +30,11 @@ func createNetworkAttachmentDefinitionCRD() wcrd.CRD {
 	nad.PluralName = "network-attachment-definitions"
 	nad.SingularName = "network-attachment-definition"
 	return nad
+}
+
+func createManagedChartCRD() wcrd.CRD {
+	mChart := crd.FromGV(mgmtv3.SchemeGroupVersion, "ManagedChart", mgmtv3.ManagedChart{})
+	mChart.PluralName = "managedcharts"
+	mChart.SingularName = "managedchart"
+	return mChart
 }

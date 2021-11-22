@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
@@ -37,6 +38,8 @@ type Handler struct {
 	longhornSettingCache ctllonghornv1.SettingCache
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
+	managedCharts        mgmtv3.ManagedChartClient
+	managedChartCache    mgmtv3.ManagedChartCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

@@ -20,6 +20,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
 	lhs := management.LonghornFactory.Longhorn().V1beta1().Setting()
+	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -34,6 +35,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		longhornSettingCache: lhs.Cache(),
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
+		managedCharts:        managedCharts,
+		managedChartCache:    managedCharts.Cache(),
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -45,12 +48,13 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 
 	syncers = map[string]syncerFunc{
-		"additional-ca":            controller.syncAdditionalTrustedCAs,
-		"cluster-registration-url": controller.registerCluster,
-		"http-proxy":               controller.syncHTTPProxy,
-		"log-level":                controller.setLogLevel,
-		"overcommit-config":        controller.syncOvercommitConfig,
-		"vip-pools":                controller.syncVipPoolsConfig,
+		"additional-ca":             controller.syncAdditionalTrustedCAs,
+		"cluster-registration-url":  controller.registerCluster,
+		"http-proxy":                controller.syncHTTPProxy,
+		"log-level":                 controller.setLogLevel,
+		"overcommit-config":         controller.syncOvercommitConfig,
+		"vip-pools":                 controller.syncVipPoolsConfig,
+		"auto-disk-provision-paths": controller.syncNDMAutoProvisionPaths,
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
