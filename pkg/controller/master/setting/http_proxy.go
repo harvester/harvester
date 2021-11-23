@@ -22,9 +22,9 @@ func (h *Handler) syncHTTPProxy(setting *harvesterv1.Setting) error {
 		return err
 	}
 	backupConfig := map[string]string{
-		"HTTP_PROXY":  httpProxyConfig.HTTPProxy,
-		"HTTPS_PROXY": httpProxyConfig.HTTPSProxy,
-		"NO_PROXY":    util.AddBuiltInNoProxy(httpProxyConfig.NoProxy),
+		util.HTTPProxyEnv:  httpProxyConfig.HTTPProxy,
+		util.HTTPSProxyEnv: httpProxyConfig.HTTPSProxy,
+		util.NoProxyEnv:    util.AddBuiltInNoProxy(httpProxyConfig.NoProxy),
 	}
 	if err := h.updateBackupSecret(backupConfig); err != nil {
 		return err
@@ -50,13 +50,13 @@ func (h *Handler) syncRke2HTTPProxy(httpProxyConfig util.HTTPProxyConfig) error 
 		}
 	}
 	newEnvVars = append(newEnvVars, v1.EnvVar{
-		Name:  "HTTP_PROXY",
+		Name:  util.HTTPProxyEnv,
 		Value: httpProxyConfig.HTTPProxy,
 	}, v1.EnvVar{
-		Name:  "HTTPS_PROXY",
+		Name:  util.HTTPSProxyEnv,
 		Value: httpProxyConfig.HTTPSProxy,
 	}, v1.EnvVar{
-		Name:  "NO_PROXY",
+		Name:  util.NoProxyEnv,
 		Value: util.AddBuiltInNoProxy(httpProxyConfig.NoProxy),
 	})
 	toUpdate.Spec.AgentEnvVars = newEnvVars
