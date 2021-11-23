@@ -34,15 +34,15 @@ func Test_envPatches(t *testing.T) {
 				},
 				proxyEnvs: []corev1.EnvVar{
 					{
-						Name:  "HTTP_PROXY",
+						Name:  util.HTTPProxyEnv,
 						Value: "http://192.168.0.1:3128",
 					},
 					{
-						Name:  "HTTPS_PROXY",
+						Name:  util.HTTPSProxyEnv,
 						Value: "http://192.168.0.1:3128",
 					},
 					{
-						Name:  "NO_PROXY",
+						Name:  util.NoProxyEnv,
 						Value: "127.0.0.1,0.0.0.0,10.0.0.0/8",
 					},
 				},
@@ -60,15 +60,15 @@ func Test_envPatches(t *testing.T) {
 				targetEnvs: []corev1.EnvVar{},
 				proxyEnvs: []corev1.EnvVar{
 					{
-						Name:  "HTTP_PROXY",
+						Name:  util.HTTPProxyEnv,
 						Value: "http://192.168.0.1:3128",
 					},
 					{
-						Name:  "HTTPS_PROXY",
+						Name:  util.HTTPSProxyEnv,
 						Value: "http://192.168.0.1:3128",
 					},
 					{
-						Name:  "NO_PROXY",
+						Name:  util.NoProxyEnv,
 						Value: "127.0.0.1,0.0.0.0,10.0.0.0/8",
 					},
 				},

@@ -148,7 +148,7 @@ func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget
 	return nil
 }
 
-func getBackupSecretData(target *settings.BackupTarget) map[string]string {
+func getBackupSecretData(target *settings.BackupTarget) (map[string]string, error) {
 	data := map[string]string{
 		AWSAccessKey:       target.AccessKeyID,
 		AWSSecretKey:       target.SecretAccessKey,
@@ -159,12 +159,23 @@ func getBackupSecretData(target *settings.BackupTarget) map[string]string {
 	if settings.AdditionalCA.Get() != "" {
 		data[AWSCERT] = settings.AdditionalCA.Get()
 	}
-	return data
+
+	var httpProxyConfig util.HTTPProxyConfig
+	if err := json.Unmarshal([]byte(settings.HTTPProxy.Get()), &httpProxyConfig); err != nil {
+		return nil, err
+	}
+	data[util.HTTPProxyEnv] = httpProxyConfig.HTTPProxy
+	data[util.HTTPSProxyEnv] = httpProxyConfig.HTTPSProxy
+	data[util.NoProxyEnv] = util.AddBuiltInNoProxy(httpProxyConfig.NoProxy)
+
+	return data, nil
 }
 
 func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) error {
-	backupSecretData := getBackupSecretData(target)
-
+	backupSecretData, err := getBackupSecretData(target)
+	if err != nil {
+		return err
+	}
 	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
@@ -184,7 +195,6 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 	} else {
 		secretCpy := secret.DeepCopy()
 		secretCpy.StringData = backupSecretData
-
 		if !reflect.DeepEqual(secret.StringData, secretCpy.StringData) {
 			if _, err := h.secrets.Update(secretCpy); err != nil {
 				return err

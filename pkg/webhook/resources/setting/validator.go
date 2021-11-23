@@ -14,6 +14,7 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
+	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
@@ -33,15 +34,20 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.VMForceDeletionPolicySettingName: validateVMForceDeletionPolicy,
 	overcommitConfigSettingName:               validateOvercommitConfig,
 	vipPoolsConfigSettingName:                 validateVipPoolsConfig,
-	settings.BackupTargetSettingName:          validateBackupTarget,
 }
 
-func NewValidator() types.Validator {
-	return &settingValidator{}
+func NewValidator(settingCache ctlv1beta1.SettingCache) types.Validator {
+	validator := &settingValidator{
+		settingCache: settingCache,
+	}
+	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
+	return validator
 }
 
 type settingValidator struct {
 	types.DefaultValidator
+
+	settingCache ctlv1beta1.SettingCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -123,7 +129,7 @@ func validateVMForceDeletionPolicy(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateBackupTarget(setting *v1beta1.Setting) error {
+func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
 	}
@@ -152,6 +158,18 @@ func validateBackupTarget(setting *v1beta1.Setting) error {
 		if settings.AdditionalCA.Get() != "" {
 			os.Setenv(backup.AWSCERT, settings.AdditionalCA.Get())
 		}
+		httpProxySetting, err := v.settingCache.Get(httpProxySettingName)
+		if err != nil {
+			return err
+		}
+		var httpProxyConfig util.HTTPProxyConfig
+		if err := json.Unmarshal([]byte(httpProxySetting.Value), &httpProxyConfig); err != nil {
+			return err
+		}
+		os.Setenv(util.HTTPProxyEnv, httpProxyConfig.HTTPProxy)
+		os.Setenv(util.HTTPSProxyEnv, httpProxyConfig.HTTPSProxy)
+		os.Setenv(util.NoProxyEnv, util.AddBuiltInNoProxy(httpProxyConfig.NoProxy))
+
 	}
 
 	// GetBackupStoreDriver tests whether the driver can List objects, so we don't need to do it again here.

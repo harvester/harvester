@@ -16,4 +16,8 @@ const (
 	BackupTargetSecretName      = "harvester-backup-target-secret"
 	LonghornSystemNamespaceName = "longhorn-system"
 	KubeSystemNamespace         = "kube-system"
+
+	HTTPProxyEnv  = "HTTP_PROXY"
+	HTTPSProxyEnv = "HTTPS_PROXY"
+	NoProxyEnv    = "NO_PROXY"
 )

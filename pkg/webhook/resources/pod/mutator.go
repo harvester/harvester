@@ -105,15 +105,15 @@ func (m *podMutator) httpProxyPatches(pod *corev1.Pod) (types.PatchOps, error) {
 
 	var proxyEnvs = []corev1.EnvVar{
 		{
-			Name:  "HTTP_PROXY",
+			Name:  util.HTTPProxyEnv,
 			Value: httpProxyConfig.HTTPProxy,
 		},
 		{
-			Name:  "HTTPS_PROXY",
+			Name:  util.HTTPSProxyEnv,
 			Value: httpProxyConfig.HTTPSProxy,
 		},
 		{
-			Name:  "NO_PROXY",
+			Name:  util.NoProxyEnv,
 			Value: util.AddBuiltInNoProxy(httpProxyConfig.NoProxy),
 		},
 	}
