@@ -28,7 +28,7 @@ func (h *Handler) syncAdditionalTrustedCAs(setting *harvesterv1.Setting) error {
 }
 
 func (h *Handler) syncAdditionalCASecrets(setting *harvesterv1.Setting) error {
-	namespaces := []string{h.namespace, util.LonghornSystemNamespaceName}
+	namespaces := []string{h.namespace, util.LonghornSystemNamespaceName, util.CattleSystemNamespaceName}
 
 	for _, namespace := range namespaces {
 		secret, err := h.secretCache.Get(namespace, util.AdditionalCASecretName)
