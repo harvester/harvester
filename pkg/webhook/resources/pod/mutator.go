@@ -24,6 +24,9 @@ var matchingLabels = []labels.Set{
 		"app.kubernetes.io/name":      "harvester",
 		"app.kubernetes.io/component": "apiserver",
 	},
+	{
+		"app": "rancher",
+	},
 }
 
 func NewMutator(settingCache v1beta1.SettingCache) types.Mutator {
