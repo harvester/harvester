@@ -62,6 +62,9 @@ type VirtualMachineBackupStatus struct {
 	// +optional
 	CreationTime *metav1.Time `json:"creationTime,omitempty"`
 
+	// +optional
+	BackupTarget *BackupTarget `json:"backupTarget,omitempty"`
+
 	// +kubebuilder:validation:Required
 	// SourceSpec contains the vm spec source of the backup target
 	SourceSpec *VirtualMachineSourceSpec `json:"source,omitempty"`
@@ -80,6 +83,13 @@ type VirtualMachineBackupStatus struct {
 
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
+}
+
+// BackupTarget is where VM Backup stores
+type BackupTarget struct {
+	Endpoint     string `json:"endpoint,omitempty"`
+	BucketName   string `json:"bucketName,omitempty"`
+	BucketRegion string `json:"bucketRegion,omitempty"`
 }
 
 // Error is the last error encountered during the snapshot/restore
@@ -104,6 +114,9 @@ type VolumeBackup struct {
 
 	// +kubebuilder:validation:Required
 	PersistentVolumeClaim PersistentVolumeClaimSourceSpec `json:"persistentVolumeClaim"`
+
+	// +optional
+	LonghornBackupName *string `json:"longhornBackupName,omitempty"`
 
 	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty"`

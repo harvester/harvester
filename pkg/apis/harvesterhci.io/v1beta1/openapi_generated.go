@@ -41,6 +41,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkList":                       schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkList(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkSpec":                       schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkSpec(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkStatus":                     schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkStatus(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.BackupTarget":                                                     schema_pkg_apis_harvesterhciio_v1beta1_BackupTarget(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition":                                                        schema_pkg_apis_harvesterhciio_v1beta1_Condition(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error":                                                            schema_pkg_apis_harvesterhciio_v1beta1_Error(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ErrorResponse":                                                    schema_pkg_apis_harvesterhciio_v1beta1_ErrorResponse(ref),
@@ -1223,6 +1224,37 @@ func schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkStatus(ref common.
 	}
 }
 
+func schema_pkg_apis_harvesterhciio_v1beta1_BackupTarget(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "BackupTarget is where VM Backup stores",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"endpoint": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"bucketName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"bucketRegion": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_harvesterhciio_v1beta1_Condition(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2300,6 +2332,11 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref commo
 							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
+					"backupTarget": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.BackupTarget"),
+						},
+					},
 					"source": {
 						SchemaProps: spec.SchemaProps{
 							Description: "SourceSpec contains the vm spec source of the backup target",
@@ -2360,7 +2397,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SecretBackup", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineSourceSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VolumeBackup", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.BackupTarget", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SecretBackup", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineSourceSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VolumeBackup", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 
@@ -3163,6 +3200,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackup(ref common.ReferenceCal
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
 							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.PersistentVolumeClaimSourceSpec"),
+						},
+					},
+					"longhornBackupName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 					"readyToUse": {
