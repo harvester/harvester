@@ -6526,6 +6526,21 @@
         }
       }
     },
+    "harvesterhci.io.v1beta1.BackupTarget": {
+      "description": "BackupTarget is where VM Backup stores",
+      "type": "object",
+      "properties": {
+        "bucketName": {
+          "type": "string"
+        },
+        "bucketRegion": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        }
+      }
+    },
     "harvesterhci.io.v1beta1.Condition": {
       "type": "object",
       "required": [
@@ -6978,6 +6993,9 @@
       "description": "VirtualMachineBackupStatus is the status for a VirtualMachineBackup resource",
       "type": "object",
       "properties": {
+        "backupTarget": {
+          "$ref": "#/definitions/harvesterhci.io.v1beta1.BackupTarget"
+        },
         "conditions": {
           "type": "array",
           "items": {
@@ -7479,6 +7497,9 @@
         },
         "error": {
           "$ref": "#/definitions/harvesterhci.io.v1beta1.Error"
+        },
+        "longhornBackupName": {
+          "type": "string"
         },
         "name": {
           "type": "string"

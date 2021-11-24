@@ -80,6 +80,16 @@ spec:
             description: VirtualMachineBackupStatus is the status for a VirtualMachineBackup
               resource
             properties:
+              backupTarget:
+                description: BackupTarget is where VM Backup stores
+                properties:
+                  bucketName:
+                    type: string
+                  bucketRegion:
+                    type: string
+                  endpoint:
+                    type: string
+                type: object
               conditions:
                 items:
                   properties:
@@ -3864,6 +3874,8 @@ spec:
                           format: date-time
                           type: string
                       type: object
+                    longhornBackupName:
+                      type: string
                     name:
                       type: string
                     persistentVolumeClaim:
