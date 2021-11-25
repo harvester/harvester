@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/controller/master/backup"
+	ctlbackup "github.com/harvester/harvester/pkg/controller/master/backup"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -113,10 +113,7 @@ func (v *restoreValidator) checkBackupTarget(vmRestore *v1beta1.VirtualMachineRe
 		return fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName, err)
 	}
 
-	endpoint := vmBackup.Annotations[backup.BackupTargetAnnotation]
-	bucketName := vmBackup.Annotations[backup.BackupBucketNameAnnotation]
-	bucketRegion := vmBackup.Annotations[backup.BackupBucketRegionAnnotation]
-	if backupTarget.Endpoint != endpoint || backupTarget.BucketName != bucketName || backupTarget.BucketRegion != bucketRegion {
+	if vmBackup.Status == nil || vmBackup.Status.BackupTarget == nil || !ctlbackup.IsBackupTargetSame(vmBackup.Status.BackupTarget, backupTarget) {
 		return errors.New("VM Backup is not matched with Backup Target")
 	}
 
