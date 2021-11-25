@@ -11,6 +11,7 @@ import (
 	kv1 "kubevirt.io/client-go/api/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 func isBackupReady(backup *harvesterv1.VirtualMachineBackup) bool {
@@ -18,12 +19,16 @@ func isBackupReady(backup *harvesterv1.VirtualMachineBackup) bool {
 }
 
 func isBackupProgressing(backup *harvesterv1.VirtualMachineBackup) bool {
-	return vmBackupError(backup) == nil &&
+	return getVMBackupError(backup) == nil &&
 		(backup.Status == nil || backup.Status.ReadyToUse == nil || !*backup.Status.ReadyToUse)
 }
 
-func isBackupError(backup *harvesterv1.VirtualMachineBackup) bool {
-	return backup.Status != nil && backup.Status.Error != nil
+func isBackupMissingStatus(backup *harvesterv1.VirtualMachineBackup) bool {
+	return backup.Status == nil || backup.Status.SourceSpec == nil || backup.Status.VolumeBackups == nil || backup.Status.BackupTarget == nil
+}
+
+func IsBackupTargetSame(vmBackupTarget *harvesterv1.BackupTarget, target *settings.BackupTarget) bool {
+	return vmBackupTarget.Endpoint == target.Endpoint && vmBackupTarget.BucketName == target.BucketName && vmBackupTarget.BucketRegion == target.BucketRegion
 }
 
 func isVMRestoreProgressing(vmRestore *harvesterv1.VirtualMachineRestore) bool {
@@ -39,7 +44,7 @@ func isNewVMOrHasRetainPolicy(vmRestore *harvesterv1.VirtualMachineRestore) bool
 	return vmRestore.Spec.NewVM || vmRestore.Spec.DeletionPolicy == harvesterv1.VirtualMachineRestoreRetain
 }
 
-func vmBackupError(vmBackup *harvesterv1.VirtualMachineBackup) *harvesterv1.Error {
+func getVMBackupError(vmBackup *harvesterv1.VirtualMachineBackup) *harvesterv1.Error {
 	if vmBackup.Status != nil && vmBackup.Status.Error != nil {
 		return vmBackup.Status.Error
 	}
@@ -164,4 +169,8 @@ func sanitizeVirtualMachineForRestore(restore *harvesterv1.VirtualMachineRestore
 
 func getCloudInitSecretRefVolumeName(vmName string, secretName string) string {
 	return fmt.Sprintf("vm-%s-%s-volumeref", vmName, secretName)
+}
+
+func getVMBackupMetadataFileName(vmBackupNamespace, vmBackupName string) string {
+	return fmt.Sprintf("%s-%s.cfg", vmBackupNamespace, vmBackupName)
 }
