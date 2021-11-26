@@ -385,7 +385,7 @@ func (h *RestoreHandler) reconcileSecretBackups(
 
 	// Create new secret for new VM
 	for _, secretBackup := range backup.Status.SecretBackups {
-		newSecretName := getCloudInitSecretRefVolumeName(vmRestore.Spec.Target.Name, secretBackup.Name)
+		newSecretName := getSecretRefName(vmRestore.Spec.Target.Name, secretBackup.Name)
 		if err := h.createOrUpdateSecret(vmRestore.Namespace, newSecretName, secretBackup.Data, ownerRefs); err != nil {
 			return err
 		}

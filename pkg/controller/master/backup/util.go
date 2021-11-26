@@ -156,19 +156,27 @@ func configVMOwner(vm *kv1.VirtualMachine) []metav1.OwnerReference {
 }
 
 func sanitizeVirtualMachineForRestore(restore *harvesterv1.VirtualMachineRestore, spec kv1.VirtualMachineInstanceSpec) kv1.VirtualMachineInstanceSpec {
+	for index, credential := range spec.AccessCredentials {
+		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
+			spec.AccessCredentials[index].SSHPublicKey.Source.Secret.SecretName = getSecretRefName(restore.Spec.Target.Name, credential.SSHPublicKey.Source.Secret.SecretName)
+		}
+		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
+			spec.AccessCredentials[index].UserPassword.Source.Secret.SecretName = getSecretRefName(restore.Spec.Target.Name, credential.UserPassword.Source.Secret.SecretName)
+		}
+	}
 	for index, volume := range spec.Volumes {
 		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.UserDataSecretRef != nil {
-			spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getCloudInitSecretRefVolumeName(restore.Spec.Target.Name, volume.CloudInitNoCloud.UserDataSecretRef.Name)
+			spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getSecretRefName(restore.Spec.Target.Name, volume.CloudInitNoCloud.UserDataSecretRef.Name)
 		}
 		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
-			spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getCloudInitSecretRefVolumeName(restore.Spec.Target.Name, volume.CloudInitNoCloud.NetworkDataSecretRef.Name)
+			spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getSecretRefName(restore.Spec.Target.Name, volume.CloudInitNoCloud.NetworkDataSecretRef.Name)
 		}
 	}
 	return spec
 }
 
-func getCloudInitSecretRefVolumeName(vmName string, secretName string) string {
-	return fmt.Sprintf("vm-%s-%s-volumeref", vmName, secretName)
+func getSecretRefName(vmName string, secretName string) string {
+	return fmt.Sprintf("vm-%s-%s-ref", vmName, secretName)
 }
 
 func getVMBackupMetadataFileName(vmBackupNamespace, vmBackupName string) string {
