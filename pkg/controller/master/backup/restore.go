@@ -385,7 +385,7 @@ func (h *RestoreHandler) reconcileSecretBackups(
 
 	// Create new secret for new VM
 	for _, secretBackup := range backup.Status.SecretBackups {
-		newSecretName := getCloudInitSecretRefVolumeName(vmRestore.Spec.Target.Name, secretBackup.Name)
+		newSecretName := getSecretRefName(vmRestore.Spec.Target.Name, secretBackup.Name)
 		if err := h.createOrUpdateSecret(vmRestore.Namespace, newSecretName, secretBackup.Data, ownerRefs); err != nil {
 			return err
 		}
@@ -451,6 +451,12 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 
 	restoreID := getRestoreID(restore)
 	vmCpy := backup.Status.SourceSpec.DeepCopy()
+
+	newAnnotations, err := sanitizeVirtualMachineAnnotationsForRestore(restore, vmCpy.Spec.Template.ObjectMeta.Annotations)
+	if err != nil {
+		return nil, err
+	}
+
 	vm := &kv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmName,
@@ -464,7 +470,7 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 			Running: pointer.BoolPtr(true),
 			Template: &kv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Annotations: vmCpy.Spec.Template.ObjectMeta.Annotations,
+					Annotations: newAnnotations,
 					Labels: map[string]string{
 						vmCreatorLabel: "harvester",
 						vmNameLabel:    vmName,
