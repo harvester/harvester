@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -12,6 +13,12 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+)
+
+const (
+	// UI stores the mapping between access credential secret and ssh keys in the annotation `harvesterhci.io/dynamic-ssh-key-names`
+	// example: '{"secretname1":["sshkeyname1","sshkeyname2"],"secretname2":["sshkeyname3","sshkeyname4"]}'
+	dynamicSSHKeyNamesAnnotation = "harvesterhci.io/dynamic-ssh-key-names"
 )
 
 func isBackupReady(backup *harvesterv1.VirtualMachineBackup) bool {
@@ -166,20 +173,54 @@ func configVMOwner(vm *kv1.VirtualMachine) []metav1.OwnerReference {
 	}
 }
 
+func sanitizeVirtualMachineAnnotationsForRestore(restore *harvesterv1.VirtualMachineRestore, annotations map[string]string) (map[string]string, error) {
+	dynamicSSHKeyNames := map[string][]string{}
+	newDynamicSSHKeyNames := map[string][]string{}
+	for key, value := range annotations {
+		if key != dynamicSSHKeyNamesAnnotation {
+			continue
+		}
+		if value == "" {
+			continue
+		}
+		if err := json.Unmarshal([]byte(value), &dynamicSSHKeyNames); err != nil {
+			return nil, err
+		}
+		for secretName, sshKeyNames := range dynamicSSHKeyNames {
+			newSecretName := getSecretRefName(restore.Spec.Target.Name, secretName)
+			newDynamicSSHKeyNames[newSecretName] = sshKeyNames
+		}
+		newValue, err := json.Marshal(newDynamicSSHKeyNames)
+		if err != nil {
+			return nil, err
+		}
+		annotations[key] = string(newValue)
+	}
+	return annotations, nil
+}
+
 func sanitizeVirtualMachineForRestore(restore *harvesterv1.VirtualMachineRestore, spec kv1.VirtualMachineInstanceSpec) kv1.VirtualMachineInstanceSpec {
+	for index, credential := range spec.AccessCredentials {
+		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
+			spec.AccessCredentials[index].SSHPublicKey.Source.Secret.SecretName = getSecretRefName(restore.Spec.Target.Name, credential.SSHPublicKey.Source.Secret.SecretName)
+		}
+		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
+			spec.AccessCredentials[index].UserPassword.Source.Secret.SecretName = getSecretRefName(restore.Spec.Target.Name, credential.UserPassword.Source.Secret.SecretName)
+		}
+	}
 	for index, volume := range spec.Volumes {
 		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.UserDataSecretRef != nil {
-			spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getCloudInitSecretRefVolumeName(restore.Spec.Target.Name, volume.CloudInitNoCloud.UserDataSecretRef.Name)
+			spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getSecretRefName(restore.Spec.Target.Name, volume.CloudInitNoCloud.UserDataSecretRef.Name)
 		}
 		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
-			spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getCloudInitSecretRefVolumeName(restore.Spec.Target.Name, volume.CloudInitNoCloud.NetworkDataSecretRef.Name)
+			spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getSecretRefName(restore.Spec.Target.Name, volume.CloudInitNoCloud.NetworkDataSecretRef.Name)
 		}
 	}
 	return spec
 }
 
-func getCloudInitSecretRefVolumeName(vmName string, secretName string) string {
-	return fmt.Sprintf("vm-%s-%s-volumeref", vmName, secretName)
+func getSecretRefName(vmName string, secretName string) string {
+	return fmt.Sprintf("vm-%s-%s-ref", vmName, secretName)
 }
 
 func getVMBackupMetadataFileName(vmBackupNamespace, vmBackupName string) string {
