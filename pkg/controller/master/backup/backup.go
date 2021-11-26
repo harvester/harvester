@@ -238,9 +238,22 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 	return volumeBackups, nil
 }
 
-// getSecretBackups helps to build a list of SecretBackup upon the cloud init secrets used by the backup VM
+// getSecretBackups helps to build a list of SecretBackup upon the secrets used by the backup VM
 func (h *Handler) getSecretBackups(vm *kv1.VirtualMachine) ([]harvesterv1.SecretBackup, error) {
 	secretRefs := []*corev1.LocalObjectReference{}
+
+	for _, credential := range vm.Spec.Template.Spec.AccessCredentials {
+		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
+			secretRefs = append(secretRefs, &corev1.LocalObjectReference{
+				Name: sshPublicKey.Source.Secret.SecretName,
+			})
+		}
+		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
+			secretRefs = append(secretRefs, &corev1.LocalObjectReference{
+				Name: userPassword.Source.Secret.SecretName,
+			})
+		}
+	}
 
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.CloudInitNoCloud != nil && volume.CloudInitNoCloud.UserDataSecretRef != nil {
@@ -254,7 +267,7 @@ func (h *Handler) getSecretBackups(vm *kv1.VirtualMachine) ([]harvesterv1.Secret
 	secretBackups := []harvesterv1.SecretBackup{}
 	secretBackupMap := map[string]bool{}
 	for _, secretRef := range secretRefs {
-		// users may put UserDataSecretRef and NetworkDataSecretRef in a same secret, so we only keep one
+		// users may put SecretRefs in a same secret, so we only keep one
 		secretFullName := fmt.Sprintf("%s/%s", vm.Namespace, secretRef.Name)
 		if v, ok := secretBackupMap[secretFullName]; ok && v {
 			continue
