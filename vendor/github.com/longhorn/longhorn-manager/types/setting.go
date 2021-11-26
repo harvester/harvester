@@ -14,16 +14,13 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	"github.com/longhorn/longhorn-manager/util"
 )
 
 const (
 	EnvDefaultSettingPath = "DEFAULT_SETTING_PATH"
 )
-
-type Setting struct {
-	Value string `json:"value"`
-}
 
 type SettingType string
 
@@ -331,11 +328,11 @@ var (
 		Type:     SettingTypeString,
 		Required: true,
 		ReadOnly: false,
-		Default:  string(ReplicaAutoBalanceDisabled),
+		Default:  string(longhorn.ReplicaAutoBalanceDisabled),
 		Choices: []string{
-			string(ReplicaAutoBalanceDisabled),
-			string(ReplicaAutoBalanceLeastEffort),
-			string(ReplicaAutoBalanceBestEffort),
+			string(longhorn.ReplicaAutoBalanceDisabled),
+			string(longhorn.ReplicaAutoBalanceLeastEffort),
+			string(longhorn.ReplicaAutoBalanceBestEffort),
 		},
 	}
 
@@ -408,10 +405,10 @@ var (
 		Type:     SettingTypeString,
 		Required: true,
 		ReadOnly: false,
-		Default:  string(DataLocalityDisabled),
+		Default:  string(longhorn.DataLocalityDisabled),
 		Choices: []string{
-			string(DataLocalityDisabled),
-			string(DataLocalityBestEffort),
+			string(longhorn.DataLocalityDisabled),
+			string(longhorn.DataLocalityBestEffort),
 		},
 	}
 
@@ -858,7 +855,7 @@ func ValidateInitSetting(name, value string) (err error) {
 			return fmt.Errorf("value %v: %v", c, err)
 		}
 	case SettingNameReplicaAutoBalance:
-		if err := ValidateReplicaAutoBalance(ReplicaAutoBalance(value)); err != nil {
+		if err := ValidateReplicaAutoBalance(longhorn.ReplicaAutoBalance(value)); err != nil {
 			return fmt.Errorf("value %v: %v", value, err)
 		}
 	case SettingNameGuaranteedEngineCPU:

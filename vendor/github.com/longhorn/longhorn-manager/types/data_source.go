@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 )
 
 const (
@@ -15,42 +17,42 @@ const (
 	SnapshotNameKey = "snapshotName"
 )
 
-func NewVolumeDataSource(volumeDataSourceType string, parameters map[string]string) (dataSource VolumeDataSource, err error) {
+func NewVolumeDataSource(volumeDataSourceType string, parameters map[string]string) (dataSource longhorn.VolumeDataSource, err error) {
 	defer func() {
-		err = errors.Wrapf(err, "cannot create new VolumeDataSource of type %v with parameters %v", volumeDataSourceType, parameters)
+		err = errors.Wrapf(err, "cannot create new longhorn.VolumeDataSource of type %v with parameters %v", volumeDataSourceType, parameters)
 	}()
 
 	switch volumeDataSourceType {
-	case VolumeDataSourceTypeVolume:
+	case longhorn.VolumeDataSourceTypeVolume:
 		volumeName := parameters[VolumeNameKey]
 		if volumeName == "" {
-			return VolumeDataSource(""), fmt.Errorf("volume name is empty")
+			return longhorn.VolumeDataSource(""), fmt.Errorf("volume name is empty")
 		}
 		return NewVolumeDataSourceTypeVolume(volumeName), nil
-	case VolumeDataSourceTypeSnapshot:
+	case longhorn.VolumeDataSourceTypeSnapshot:
 		volumeName := parameters[VolumeNameKey]
 		snapshotName := parameters[SnapshotNameKey]
 		if volumeName == "" {
-			return VolumeDataSource(""), fmt.Errorf("volume name is empty")
+			return longhorn.VolumeDataSource(""), fmt.Errorf("volume name is empty")
 		}
 		if snapshotName == "" {
-			return VolumeDataSource(""), fmt.Errorf("snapshot name is empty")
+			return longhorn.VolumeDataSource(""), fmt.Errorf("snapshot name is empty")
 		}
 		return NewVolumeDataSourceTypeSnapshot(volumeName, snapshotName), nil
 	default:
-		return VolumeDataSource(""), fmt.Errorf("invalid volumeDataSourceType")
+		return longhorn.VolumeDataSource(""), fmt.Errorf("invalid volumeDataSourceType")
 	}
 }
 
-func NewVolumeDataSourceTypeVolume(volumeName string) VolumeDataSource {
-	return VolumeDataSource(fmt.Sprintf("%v://%s", VolPrefix, volumeName))
+func NewVolumeDataSourceTypeVolume(volumeName string) longhorn.VolumeDataSource {
+	return longhorn.VolumeDataSource(fmt.Sprintf("%v://%s", VolPrefix, volumeName))
 }
 
-func NewVolumeDataSourceTypeSnapshot(volumeName, snapshotName string) VolumeDataSource {
-	return VolumeDataSource(fmt.Sprintf("%v://%s/%s", SnapPrefix, volumeName, snapshotName))
+func NewVolumeDataSourceTypeSnapshot(volumeName, snapshotName string) longhorn.VolumeDataSource {
+	return longhorn.VolumeDataSource(fmt.Sprintf("%v://%s/%s", SnapPrefix, volumeName, snapshotName))
 }
 
-func IsValidVolumeDataSource(vds VolumeDataSource) bool {
+func IsValidVolumeDataSource(vds longhorn.VolumeDataSource) bool {
 	split := strings.Split(string(vds), "://")
 	if len(split) != 2 {
 		return false
@@ -59,17 +61,17 @@ func IsValidVolumeDataSource(vds VolumeDataSource) bool {
 
 	switch prefix {
 	case VolPrefix:
-		volumeName := vds.decodeDataSourceTypeVolume()
+		volumeName := decodeDataSourceTypeVolume(vds)
 		return volumeName != ""
 	case SnapPrefix:
-		volumeName, snapshotName := vds.decodeDataSourceTypeSnapshot()
+		volumeName, snapshotName := decodeDataSourceTypeSnapshot(vds)
 		return volumeName != "" && snapshotName != ""
 	default:
 		return false
 	}
 }
 
-func (vds VolumeDataSource) GetType() string {
+func getType(vds longhorn.VolumeDataSource) string {
 	split := strings.Split(string(vds), "://")
 	if len(split) != 2 {
 		return ""
@@ -77,43 +79,43 @@ func (vds VolumeDataSource) GetType() string {
 	prefix := split[0]
 	switch prefix {
 	case VolPrefix:
-		return VolumeDataSourceTypeVolume
+		return longhorn.VolumeDataSourceTypeVolume
 	case SnapPrefix:
-		return VolumeDataSourceTypeSnapshot
+		return longhorn.VolumeDataSourceTypeSnapshot
 	default:
 		return ""
 	}
 }
 
-func (vds VolumeDataSource) IsDataFromVolume() bool {
-	t := vds.GetType()
-	return t == VolumeDataSourceTypeVolume || t == VolumeDataSourceTypeSnapshot
+func IsDataFromVolume(vds longhorn.VolumeDataSource) bool {
+	t := getType(vds)
+	return t == longhorn.VolumeDataSourceTypeVolume || t == longhorn.VolumeDataSourceTypeSnapshot
 }
 
-func (vds VolumeDataSource) GetVolumeName() string {
-	switch vds.GetType() {
-	case VolumeDataSourceTypeVolume:
-		volName := vds.decodeDataSourceTypeVolume()
+func GetVolumeName(vds longhorn.VolumeDataSource) string {
+	switch getType(vds) {
+	case longhorn.VolumeDataSourceTypeVolume:
+		volName := decodeDataSourceTypeVolume(vds)
 		return volName
-	case VolumeDataSourceTypeSnapshot:
-		volName, _ := vds.decodeDataSourceTypeSnapshot()
+	case longhorn.VolumeDataSourceTypeSnapshot:
+		volName, _ := decodeDataSourceTypeSnapshot(vds)
 		return volName
 	default:
 		return ""
 	}
 }
 
-func (vds VolumeDataSource) GetSnapshotName() string {
-	switch vds.GetType() {
-	case VolumeDataSourceTypeSnapshot:
-		_, snapshotName := vds.decodeDataSourceTypeSnapshot()
+func GetSnapshotName(vds longhorn.VolumeDataSource) string {
+	switch getType(vds) {
+	case longhorn.VolumeDataSourceTypeSnapshot:
+		_, snapshotName := decodeDataSourceTypeSnapshot(vds)
 		return snapshotName
 	default:
 		return ""
 	}
 }
 
-func (vds VolumeDataSource) decodeDataSourceTypeVolume() (volumeName string) {
+func decodeDataSourceTypeVolume(vds longhorn.VolumeDataSource) (volumeName string) {
 	split := strings.Split(string(vds), "://")
 	if len(split) != 2 {
 		return ""
@@ -121,7 +123,7 @@ func (vds VolumeDataSource) decodeDataSourceTypeVolume() (volumeName string) {
 	return split[1]
 }
 
-func (vds VolumeDataSource) decodeDataSourceTypeSnapshot() (volumeName, snapshotName string) {
+func decodeDataSourceTypeSnapshot(vds longhorn.VolumeDataSource) (volumeName, snapshotName string) {
 	split := strings.Split(string(vds), "://")
 	if len(split) != 2 {
 		return "", ""
@@ -131,8 +133,4 @@ func (vds VolumeDataSource) decodeDataSourceTypeSnapshot() (volumeName, snapshot
 		return "", ""
 	}
 	return split[0], split[1]
-}
-
-func (vds VolumeDataSource) ToString() string {
-	return string(vds)
 }
