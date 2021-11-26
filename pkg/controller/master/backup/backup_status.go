@@ -6,8 +6,7 @@ import (
 	"strings"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	"github.com/longhorn/longhorn-manager/types"
+	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -122,7 +121,7 @@ func (h *Handler) mountLonghornVolumes(vm *kubevirtv1.VirtualMachine) error {
 		}
 
 		volCpy := volume.DeepCopy()
-		if volume.Status.State == types.VolumeStateDetached || volume.Status.State == types.VolumeStateDetaching {
+		if volume.Status.State == lhv1beta1.VolumeStateDetached || volume.Status.State == lhv1beta1.VolumeStateDetaching {
 			volCpy.Spec.NodeID = volume.Status.OwnerID
 		}
 
@@ -140,7 +139,7 @@ func getVolumeSnapshotContentName(volumeBackup harvesterv1.VolumeBackup) string 
 	return fmt.Sprintf("%s-vsc", *volumeBackup.Name)
 }
 
-func (h *Handler) OnLHBackupChanged(key string, lhBackup *longhornv1.Backup) (*longhornv1.Backup, error) {
+func (h *Handler) OnLHBackupChanged(key string, lhBackup *lhv1beta1.Backup) (*lhv1beta1.Backup, error) {
 	if lhBackup == nil || lhBackup.DeletionTimestamp != nil || lhBackup.Status.SnapshotName == "" {
 		return nil, nil
 	}

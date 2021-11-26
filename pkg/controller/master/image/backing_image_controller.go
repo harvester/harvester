@@ -4,7 +4,6 @@ import (
 	"reflect"
 
 	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	"github.com/longhorn/longhorn-manager/types"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -41,12 +40,12 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta1.Backin
 	}
 	toUpdate := vmImage.DeepCopy()
 	for _, status := range backingImage.Status.DiskFileStatusMap {
-		if status.State == types.BackingImageStateFailed {
+		if status.State == lhv1beta1.BackingImageStateFailed {
 			harvesterv1beta1.ImageImported.False(toUpdate)
 			harvesterv1beta1.ImageImported.Reason(toUpdate, "ImportFailed")
 			harvesterv1beta1.ImageImported.Message(toUpdate, status.Message)
 			toUpdate.Status.Progress = status.Progress
-		} else if status.State == types.BackingImageStateReady || status.State == types.BackingImageStateReadyForTransfer {
+		} else if status.State == lhv1beta1.BackingImageStateReady || status.State == lhv1beta1.BackingImageStateReadyForTransfer {
 			harvesterv1beta1.ImageImported.True(toUpdate)
 			harvesterv1beta1.ImageImported.Reason(toUpdate, "Imported")
 			harvesterv1beta1.ImageImported.Message(toUpdate, status.Message)

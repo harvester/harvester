@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
+	lhcontroller "github.com/longhorn/longhorn-manager/controller"
 	"github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhmanager "github.com/longhorn/longhorn-manager/manager"
 	"github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
@@ -120,13 +122,13 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 				util.AnnotationImageID: ref.Construct(image.Namespace, image.Name),
 			},
 		},
-		Spec: types.BackingImageSpec{
-			SourceType:       types.BackingImageDataSourceType(image.Spec.SourceType),
+		Spec: v1beta1.BackingImageSpec{
+			SourceType:       v1beta1.BackingImageDataSourceType(image.Spec.SourceType),
 			SourceParameters: map[string]string{},
 		},
 	}
 	if image.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeDownload {
-		bi.Spec.SourceParameters[types.DataSourceTypeDownloadParameterURL] = image.Spec.URL
+		bi.Spec.SourceParameters[v1beta1.DataSourceTypeDownloadParameterURL] = image.Spec.URL
 	}
 
 	if image.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeExportVolume {
@@ -135,8 +137,8 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 			return fmt.Errorf("failed to get pvc %s/%s, error: %s", image.Spec.PVCName, image.Namespace, err.Error())
 		}
 
-		bi.Spec.SourceParameters[types.DataSourceTypeExportFromVolumeParameterVolumeName] = pvc.Spec.VolumeName
-		bi.Spec.SourceParameters[types.DataSourceTypeExportFromVolumeParameterExportType] = types.DataSourceTypeExportFromVolumeParameterExportTypeRAW
+		bi.Spec.SourceParameters[lhcontroller.DataSourceTypeExportFromVolumeParameterVolumeName] = pvc.Spec.VolumeName
+		bi.Spec.SourceParameters[lhmanager.DataSourceTypeExportFromVolumeParameterExportType] = lhmanager.DataSourceTypeExportFromVolumeParameterExportTypeRAW
 	}
 
 	_, err := h.backingImages.Create(bi)
