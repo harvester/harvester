@@ -449,10 +449,24 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 		return err
 	}
 
-	return h.createCloudConfigSecrets(vmtv, vm)
+	return h.createSecrets(vmtv, vm)
 }
 
-func (h *vmActionHandler) createCloudConfigSecrets(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kv1.VirtualMachine) error {
+func (h *vmActionHandler) createSecrets(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kv1.VirtualMachine) error {
+	for _, credential := range vm.Spec.Template.Spec.AccessCredentials {
+		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
+			toCreateSecretName := getTemplateVersionSSHPublicKeySecretName(templateVersion.Name)
+			if err := h.copySecret(sshPublicKey.Source.Secret.SecretName, toCreateSecretName, templateVersion); err != nil {
+				return err
+			}
+		}
+		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
+			toCreateSecretName := getTemplateVersionUserPasswordSecretName(templateVersion.Name)
+			if err := h.copySecret(userPassword.Source.Secret.SecretName, toCreateSecretName, templateVersion); err != nil {
+				return err
+			}
+		}
+	}
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.CloudInitNoCloud == nil {
 			continue
@@ -582,7 +596,7 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 
 func sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kv1.VirtualMachine) harvesterv1.VirtualMachineSourceSpec {
 	sanitizedVm := removeMacAddresses(vm)
-	sanitizedVm = replaceCloudInitSecrets(templateVersionName, sanitizedVm)
+	sanitizedVm = replaceSecrets(templateVersionName, sanitizedVm)
 
 	return harvesterv1.VirtualMachineSourceSpec{
 		ObjectMeta: sanitizedVm.ObjectMeta,
@@ -590,8 +604,16 @@ func sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kv
 	}
 }
 
-func replaceCloudInitSecrets(templateVersionName string, vm *kv1.VirtualMachine) *kv1.VirtualMachine {
+func replaceSecrets(templateVersionName string, vm *kv1.VirtualMachine) *kv1.VirtualMachine {
 	sanitizedVm := vm.DeepCopy()
+	for index, credential := range sanitizedVm.Spec.Template.Spec.AccessCredentials {
+		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
+			sanitizedVm.Spec.Template.Spec.AccessCredentials[index].SSHPublicKey.Source.Secret.SecretName = getTemplateVersionSSHPublicKeySecretName(templateVersionName)
+		}
+		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
+			sanitizedVm.Spec.Template.Spec.AccessCredentials[index].UserPassword.Source.Secret.SecretName = getTemplateVersionUserPasswordSecretName(templateVersionName)
+		}
+	}
 	for index, volume := range sanitizedVm.Spec.Template.Spec.Volumes {
 		if volume.CloudInitNoCloud == nil {
 			continue
@@ -640,4 +662,12 @@ func getTemplateVersionUserDataSecretName(templateVersionName, volumeName string
 
 func getTemplateVersionNetworkDataSecretName(templateVersionName, volumeName string) string {
 	return fmt.Sprintf("templateversion-%s-%s-networkdata", templateVersionName, volumeName)
+}
+
+func getTemplateVersionSSHPublicKeySecretName(templateVersionName string) string {
+	return fmt.Sprintf("templateversion-%s-accesscredentials-sshpublickey", templateVersionName)
+}
+
+func getTemplateVersionUserPasswordSecretName(templateVersionName string) string {
+	return fmt.Sprintf("templateversion-%s-accesscredentials-userpassword", templateVersionName)
 }
