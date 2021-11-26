@@ -48,10 +48,6 @@ replace (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.6.0
-	github.com/aws/aws-sdk-go-v2/config v1.3.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.2.1
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.9.0
 	github.com/containerd/containerd v1.4.11 // indirect
 	github.com/containernetworking/cni v0.8.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
@@ -66,7 +62,7 @@ require (
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20210908163358-43c9d3298665
-	github.com/longhorn/longhorn-manager v1.2.2
+	github.com/longhorn/longhorn-manager v1.2.3-rc1
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.4.1
@@ -85,7 +81,7 @@ require (
 	github.com/rancher/wrangler v0.8.1-0.20210618171953-ab479ee75244
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.8.0
+	github.com/tidwall/gjson v1.9.3
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
@@ -96,7 +92,7 @@ require (
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
-	k8s.io/utils v0.0.0-20210305010621-2afb4311ab10
+	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a
 	kubevirt.io/client-go v0.45.0
 	kubevirt.io/containerized-data-importer v1.36.0
 	kubevirt.io/kubevirt v0.45.0

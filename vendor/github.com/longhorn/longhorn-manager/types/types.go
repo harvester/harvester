@@ -12,6 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	"github.com/longhorn/longhorn-manager/util"
 )
 
@@ -110,13 +111,7 @@ const (
 	KubernetesMinVersion = "v1.18.0"
 )
 
-type ReplicaMode string
-
 const (
-	ReplicaModeRW  = ReplicaMode("RW")
-	ReplicaModeWO  = ReplicaMode("WO")
-	ReplicaModeERR = ReplicaMode("ERR")
-
 	EnvNodeName       = "NODE_NAME"
 	EnvPodNamespace   = "POD_NAMESPACE"
 	EnvPodIP          = "POD_IP"
@@ -281,7 +276,7 @@ func GetEngineImageComponentLabel() map[string]string {
 	}
 }
 
-func GetInstanceManagerLabels(node, instanceManagerImage string, managerType InstanceManagerType) map[string]string {
+func GetInstanceManagerLabels(node, instanceManagerImage string, managerType longhorn.InstanceManagerType) map[string]string {
 	labels := GetBaseLabelsForSystemManagedComponent()
 	labels[GetLonghornLabelComponentKey()] = LonghornLabelInstanceManager
 	labels[GetLonghornLabelKey(LonghornLabelInstanceManagerType)] = string(managerType)
@@ -328,7 +323,7 @@ func GetShareManagerLabels(name, image string) map[string]string {
 	return labels
 }
 
-func GetCronJobLabels(job *RecurringJobSpec) map[string]string {
+func GetCronJobLabels(job *longhorn.RecurringJobSpec) map[string]string {
 	labels := GetBaseLabelsForSystemManagedComponent()
 	labels[fmt.Sprintf(LonghornLabelRecurringJobKeyPrefixFmt, LonghornLabelRecurringJob)] = job.Name
 	return labels
@@ -426,21 +421,21 @@ func ValidateEngineImageChecksumName(name string) bool {
 	return matched
 }
 
-func GetInstanceManagerName(imType InstanceManagerType) (string, error) {
+func GetInstanceManagerName(imType longhorn.InstanceManagerType) (string, error) {
 	switch imType {
-	case InstanceManagerTypeEngine:
+	case longhorn.InstanceManagerTypeEngine:
 		return engineManagerPrefix + util.RandomID(), nil
-	case InstanceManagerTypeReplica:
+	case longhorn.InstanceManagerTypeReplica:
 		return replicaManagerPrefix + util.RandomID(), nil
 	}
 	return "", fmt.Errorf("cannot generate name for unknown instance manager type %v", imType)
 }
 
-func GetInstanceManagerPrefix(imType InstanceManagerType) string {
+func GetInstanceManagerPrefix(imType longhorn.InstanceManagerType) string {
 	switch imType {
-	case InstanceManagerTypeEngine:
+	case longhorn.InstanceManagerTypeEngine:
 		return engineManagerPrefix
-	case InstanceManagerTypeReplica:
+	case longhorn.InstanceManagerTypeReplica:
 		return replicaManagerPrefix
 	}
 	return ""
@@ -476,27 +471,27 @@ func ValidateReplicaCount(count int) error {
 	return nil
 }
 
-func ValidateReplicaAutoBalance(option ReplicaAutoBalance) error {
+func ValidateReplicaAutoBalance(option longhorn.ReplicaAutoBalance) error {
 	switch option {
-	case ReplicaAutoBalanceIgnored,
-		ReplicaAutoBalanceDisabled,
-		ReplicaAutoBalanceLeastEffort,
-		ReplicaAutoBalanceBestEffort:
+	case longhorn.ReplicaAutoBalanceIgnored,
+		longhorn.ReplicaAutoBalanceDisabled,
+		longhorn.ReplicaAutoBalanceLeastEffort,
+		longhorn.ReplicaAutoBalanceBestEffort:
 		return nil
 	default:
 		return fmt.Errorf("invalid replica auto-balance option: %v", option)
 	}
 }
 
-func ValidateDataLocality(mode DataLocality) error {
-	if mode != DataLocalityDisabled && mode != DataLocalityBestEffort {
+func ValidateDataLocality(mode longhorn.DataLocality) error {
+	if mode != longhorn.DataLocalityDisabled && mode != longhorn.DataLocalityBestEffort {
 		return fmt.Errorf("invalid data locality mode: %v", mode)
 	}
 	return nil
 }
 
-func ValidateAccessMode(mode AccessMode) error {
-	if mode != AccessModeReadWriteMany && mode != AccessModeReadWriteOnce {
+func ValidateAccessMode(mode longhorn.AccessMode) error {
+	if mode != longhorn.AccessModeReadWriteMany && mode != longhorn.AccessModeReadWriteOnce {
 		return fmt.Errorf("invalid access mode: %v", mode)
 	}
 	return nil
@@ -519,8 +514,8 @@ func LabelsToString(labels map[string]string) string {
 	return res
 }
 
-func CreateDisksFromAnnotation(annotation string) (map[string]DiskSpec, error) {
-	validDisks := map[string]DiskSpec{}
+func CreateDisksFromAnnotation(annotation string) (map[string]longhorn.DiskSpec, error) {
+	validDisks := map[string]longhorn.DiskSpec{}
 	existFsid := map[string]string{}
 
 	disks, err := UnmarshalToDisks(annotation)
@@ -588,7 +583,7 @@ func GetNodeTagsFromAnnotation(annotation string) ([]string, error) {
 }
 
 type DiskSpecWithName struct {
-	DiskSpec
+	longhorn.DiskSpec
 	Name string `json:"name"`
 }
 
@@ -612,7 +607,7 @@ func UnmarshalToNodeTags(s string) ([]string, error) {
 	return res, nil
 }
 
-func CreateDefaultDisk(dataPath string) (map[string]DiskSpec, error) {
+func CreateDefaultDisk(dataPath string) (map[string]longhorn.DiskSpec, error) {
 	if err := util.CreateDiskPathReplicaSubdirectory(dataPath); err != nil {
 		return nil, err
 	}
@@ -620,7 +615,7 @@ func CreateDefaultDisk(dataPath string) (map[string]DiskSpec, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]DiskSpec{
+	return map[string]longhorn.DiskSpec{
 		DefaultDiskPrefix + diskInfo.Fsid: {
 			Path:              diskInfo.Path,
 			AllowScheduling:   true,
