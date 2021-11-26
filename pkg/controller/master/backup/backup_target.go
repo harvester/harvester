@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	"github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -131,7 +130,7 @@ func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget
 				Name:      longhornBackupTargetSettingName,
 				Namespace: util.LonghornSystemNamespaceName,
 			},
-			Setting: types.Setting{Value: ConstructEndpoint(backupTarget)},
+			Value: ConstructEndpoint(backupTarget),
 		}); err != nil {
 			return err
 		}
@@ -207,7 +206,7 @@ func (h *TargetHandler) updateLonghornBackupTargetSecretSetting(target *settings
 				Name:      longhornBackupTargetSecretSettingName,
 				Namespace: util.LonghornSystemNamespaceName,
 			},
-			Setting: types.Setting{Value: util.BackupTargetSecretName},
+			Value: util.BackupTargetSecretName,
 		}); err != nil {
 			return err
 		}

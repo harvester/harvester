@@ -25,7 +25,10 @@ import (
 	v1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +58,7 @@ type BackingImageDataSourceController interface {
 type BackingImageDataSourceClient interface {
 	Create(*v1beta1.BackingImageDataSource) (*v1beta1.BackingImageDataSource, error)
 	Update(*v1beta1.BackingImageDataSource) (*v1beta1.BackingImageDataSource, error)
-
+	UpdateStatus(*v1beta1.BackingImageDataSource) (*v1beta1.BackingImageDataSource, error)
 	Delete(namespace, name string, options *metav1.DeleteOptions) error
 	Get(namespace, name string, options metav1.GetOptions) (*v1beta1.BackingImageDataSource, error)
 	List(namespace string, opts metav1.ListOptions) (*v1beta1.BackingImageDataSourceList, error)
@@ -184,6 +187,11 @@ func (c *backingImageDataSourceController) Update(obj *v1beta1.BackingImageDataS
 	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
+func (c *backingImageDataSourceController) UpdateStatus(obj *v1beta1.BackingImageDataSource) (*v1beta1.BackingImageDataSource, error) {
+	result := &v1beta1.BackingImageDataSource{}
+	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
+}
+
 func (c *backingImageDataSourceController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
@@ -253,4 +261,116 @@ func (c *backingImageDataSourceCache) GetByIndex(indexName, key string) (result 
 		result = append(result, obj.(*v1beta1.BackingImageDataSource))
 	}
 	return result, nil
+}
+
+type BackingImageDataSourceStatusHandler func(obj *v1beta1.BackingImageDataSource, status v1beta1.BackingImageDataSourceStatus) (v1beta1.BackingImageDataSourceStatus, error)
+
+type BackingImageDataSourceGeneratingHandler func(obj *v1beta1.BackingImageDataSource, status v1beta1.BackingImageDataSourceStatus) ([]runtime.Object, v1beta1.BackingImageDataSourceStatus, error)
+
+func RegisterBackingImageDataSourceStatusHandler(ctx context.Context, controller BackingImageDataSourceController, condition condition.Cond, name string, handler BackingImageDataSourceStatusHandler) {
+	statusHandler := &backingImageDataSourceStatusHandler{
+		client:    controller,
+		condition: condition,
+		handler:   handler,
+	}
+	controller.AddGenericHandler(ctx, name, FromBackingImageDataSourceHandlerToHandler(statusHandler.sync))
+}
+
+func RegisterBackingImageDataSourceGeneratingHandler(ctx context.Context, controller BackingImageDataSourceController, apply apply.Apply,
+	condition condition.Cond, name string, handler BackingImageDataSourceGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &backingImageDataSourceGeneratingHandler{
+		BackingImageDataSourceGeneratingHandler: handler,
+		apply:                                   apply,
+		name:                                    name,
+		gvk:                                     controller.GroupVersionKind(),
+	}
+	if opts != nil {
+		statusHandler.opts = *opts
+	}
+	controller.OnChange(ctx, name, statusHandler.Remove)
+	RegisterBackingImageDataSourceStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+}
+
+type backingImageDataSourceStatusHandler struct {
+	client    BackingImageDataSourceClient
+	condition condition.Cond
+	handler   BackingImageDataSourceStatusHandler
+}
+
+func (a *backingImageDataSourceStatusHandler) sync(key string, obj *v1beta1.BackingImageDataSource) (*v1beta1.BackingImageDataSource, error) {
+	if obj == nil {
+		return obj, nil
+	}
+
+	origStatus := obj.Status.DeepCopy()
+	obj = obj.DeepCopy()
+	newStatus, err := a.handler(obj, obj.Status)
+	if err != nil {
+		// Revert to old status on error
+		newStatus = *origStatus.DeepCopy()
+	}
+
+	if a.condition != "" {
+		if errors.IsConflict(err) {
+			a.condition.SetError(&newStatus, "", nil)
+		} else {
+			a.condition.SetError(&newStatus, "", err)
+		}
+	}
+	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		if a.condition != "" {
+			// Since status has changed, update the lastUpdatedTime
+			a.condition.LastUpdated(&newStatus, time.Now().UTC().Format(time.RFC3339))
+		}
+
+		var newErr error
+		obj.Status = newStatus
+		newObj, newErr := a.client.UpdateStatus(obj)
+		if err == nil {
+			err = newErr
+		}
+		if newErr == nil {
+			obj = newObj
+		}
+	}
+	return obj, err
+}
+
+type backingImageDataSourceGeneratingHandler struct {
+	BackingImageDataSourceGeneratingHandler
+	apply apply.Apply
+	opts  generic.GeneratingHandlerOptions
+	gvk   schema.GroupVersionKind
+	name  string
+}
+
+func (a *backingImageDataSourceGeneratingHandler) Remove(key string, obj *v1beta1.BackingImageDataSource) (*v1beta1.BackingImageDataSource, error) {
+	if obj != nil {
+		return obj, nil
+	}
+
+	obj = &v1beta1.BackingImageDataSource{}
+	obj.Namespace, obj.Name = kv.RSplit(key, "/")
+	obj.SetGroupVersionKind(a.gvk)
+
+	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects()
+}
+
+func (a *backingImageDataSourceGeneratingHandler) Handle(obj *v1beta1.BackingImageDataSource, status v1beta1.BackingImageDataSourceStatus) (v1beta1.BackingImageDataSourceStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
+	objs, newStatus, err := a.BackingImageDataSourceGeneratingHandler(obj, status)
+	if err != nil {
+		return newStatus, err
+	}
+
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects(objs...)
 }

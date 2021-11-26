@@ -25,7 +25,10 @@ import (
 	v1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +58,7 @@ type BackupController interface {
 type BackupClient interface {
 	Create(*v1beta1.Backup) (*v1beta1.Backup, error)
 	Update(*v1beta1.Backup) (*v1beta1.Backup, error)
-
+	UpdateStatus(*v1beta1.Backup) (*v1beta1.Backup, error)
 	Delete(namespace, name string, options *metav1.DeleteOptions) error
 	Get(namespace, name string, options metav1.GetOptions) (*v1beta1.Backup, error)
 	List(namespace string, opts metav1.ListOptions) (*v1beta1.BackupList, error)
@@ -184,6 +187,11 @@ func (c *backupController) Update(obj *v1beta1.Backup) (*v1beta1.Backup, error) 
 	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
+func (c *backupController) UpdateStatus(obj *v1beta1.Backup) (*v1beta1.Backup, error) {
+	result := &v1beta1.Backup{}
+	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
+}
+
 func (c *backupController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
@@ -253,4 +261,116 @@ func (c *backupCache) GetByIndex(indexName, key string) (result []*v1beta1.Backu
 		result = append(result, obj.(*v1beta1.Backup))
 	}
 	return result, nil
+}
+
+type BackupStatusHandler func(obj *v1beta1.Backup, status v1beta1.BackupStatus) (v1beta1.BackupStatus, error)
+
+type BackupGeneratingHandler func(obj *v1beta1.Backup, status v1beta1.BackupStatus) ([]runtime.Object, v1beta1.BackupStatus, error)
+
+func RegisterBackupStatusHandler(ctx context.Context, controller BackupController, condition condition.Cond, name string, handler BackupStatusHandler) {
+	statusHandler := &backupStatusHandler{
+		client:    controller,
+		condition: condition,
+		handler:   handler,
+	}
+	controller.AddGenericHandler(ctx, name, FromBackupHandlerToHandler(statusHandler.sync))
+}
+
+func RegisterBackupGeneratingHandler(ctx context.Context, controller BackupController, apply apply.Apply,
+	condition condition.Cond, name string, handler BackupGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &backupGeneratingHandler{
+		BackupGeneratingHandler: handler,
+		apply:                   apply,
+		name:                    name,
+		gvk:                     controller.GroupVersionKind(),
+	}
+	if opts != nil {
+		statusHandler.opts = *opts
+	}
+	controller.OnChange(ctx, name, statusHandler.Remove)
+	RegisterBackupStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+}
+
+type backupStatusHandler struct {
+	client    BackupClient
+	condition condition.Cond
+	handler   BackupStatusHandler
+}
+
+func (a *backupStatusHandler) sync(key string, obj *v1beta1.Backup) (*v1beta1.Backup, error) {
+	if obj == nil {
+		return obj, nil
+	}
+
+	origStatus := obj.Status.DeepCopy()
+	obj = obj.DeepCopy()
+	newStatus, err := a.handler(obj, obj.Status)
+	if err != nil {
+		// Revert to old status on error
+		newStatus = *origStatus.DeepCopy()
+	}
+
+	if a.condition != "" {
+		if errors.IsConflict(err) {
+			a.condition.SetError(&newStatus, "", nil)
+		} else {
+			a.condition.SetError(&newStatus, "", err)
+		}
+	}
+	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		if a.condition != "" {
+			// Since status has changed, update the lastUpdatedTime
+			a.condition.LastUpdated(&newStatus, time.Now().UTC().Format(time.RFC3339))
+		}
+
+		var newErr error
+		obj.Status = newStatus
+		newObj, newErr := a.client.UpdateStatus(obj)
+		if err == nil {
+			err = newErr
+		}
+		if newErr == nil {
+			obj = newObj
+		}
+	}
+	return obj, err
+}
+
+type backupGeneratingHandler struct {
+	BackupGeneratingHandler
+	apply apply.Apply
+	opts  generic.GeneratingHandlerOptions
+	gvk   schema.GroupVersionKind
+	name  string
+}
+
+func (a *backupGeneratingHandler) Remove(key string, obj *v1beta1.Backup) (*v1beta1.Backup, error) {
+	if obj != nil {
+		return obj, nil
+	}
+
+	obj = &v1beta1.Backup{}
+	obj.Namespace, obj.Name = kv.RSplit(key, "/")
+	obj.SetGroupVersionKind(a.gvk)
+
+	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects()
+}
+
+func (a *backupGeneratingHandler) Handle(obj *v1beta1.Backup, status v1beta1.BackupStatus) (v1beta1.BackupStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
+	objs, newStatus, err := a.BackupGeneratingHandler(obj, status)
+	if err != nil {
+		return newStatus, err
+	}
+
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects(objs...)
 }

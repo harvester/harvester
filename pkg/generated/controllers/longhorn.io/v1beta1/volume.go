@@ -25,7 +25,10 @@ import (
 	v1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +58,7 @@ type VolumeController interface {
 type VolumeClient interface {
 	Create(*v1beta1.Volume) (*v1beta1.Volume, error)
 	Update(*v1beta1.Volume) (*v1beta1.Volume, error)
-
+	UpdateStatus(*v1beta1.Volume) (*v1beta1.Volume, error)
 	Delete(namespace, name string, options *metav1.DeleteOptions) error
 	Get(namespace, name string, options metav1.GetOptions) (*v1beta1.Volume, error)
 	List(namespace string, opts metav1.ListOptions) (*v1beta1.VolumeList, error)
@@ -184,6 +187,11 @@ func (c *volumeController) Update(obj *v1beta1.Volume) (*v1beta1.Volume, error) 
 	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
+func (c *volumeController) UpdateStatus(obj *v1beta1.Volume) (*v1beta1.Volume, error) {
+	result := &v1beta1.Volume{}
+	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
+}
+
 func (c *volumeController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
@@ -253,4 +261,116 @@ func (c *volumeCache) GetByIndex(indexName, key string) (result []*v1beta1.Volum
 		result = append(result, obj.(*v1beta1.Volume))
 	}
 	return result, nil
+}
+
+type VolumeStatusHandler func(obj *v1beta1.Volume, status v1beta1.VolumeStatus) (v1beta1.VolumeStatus, error)
+
+type VolumeGeneratingHandler func(obj *v1beta1.Volume, status v1beta1.VolumeStatus) ([]runtime.Object, v1beta1.VolumeStatus, error)
+
+func RegisterVolumeStatusHandler(ctx context.Context, controller VolumeController, condition condition.Cond, name string, handler VolumeStatusHandler) {
+	statusHandler := &volumeStatusHandler{
+		client:    controller,
+		condition: condition,
+		handler:   handler,
+	}
+	controller.AddGenericHandler(ctx, name, FromVolumeHandlerToHandler(statusHandler.sync))
+}
+
+func RegisterVolumeGeneratingHandler(ctx context.Context, controller VolumeController, apply apply.Apply,
+	condition condition.Cond, name string, handler VolumeGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &volumeGeneratingHandler{
+		VolumeGeneratingHandler: handler,
+		apply:                   apply,
+		name:                    name,
+		gvk:                     controller.GroupVersionKind(),
+	}
+	if opts != nil {
+		statusHandler.opts = *opts
+	}
+	controller.OnChange(ctx, name, statusHandler.Remove)
+	RegisterVolumeStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+}
+
+type volumeStatusHandler struct {
+	client    VolumeClient
+	condition condition.Cond
+	handler   VolumeStatusHandler
+}
+
+func (a *volumeStatusHandler) sync(key string, obj *v1beta1.Volume) (*v1beta1.Volume, error) {
+	if obj == nil {
+		return obj, nil
+	}
+
+	origStatus := obj.Status.DeepCopy()
+	obj = obj.DeepCopy()
+	newStatus, err := a.handler(obj, obj.Status)
+	if err != nil {
+		// Revert to old status on error
+		newStatus = *origStatus.DeepCopy()
+	}
+
+	if a.condition != "" {
+		if errors.IsConflict(err) {
+			a.condition.SetError(&newStatus, "", nil)
+		} else {
+			a.condition.SetError(&newStatus, "", err)
+		}
+	}
+	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		if a.condition != "" {
+			// Since status has changed, update the lastUpdatedTime
+			a.condition.LastUpdated(&newStatus, time.Now().UTC().Format(time.RFC3339))
+		}
+
+		var newErr error
+		obj.Status = newStatus
+		newObj, newErr := a.client.UpdateStatus(obj)
+		if err == nil {
+			err = newErr
+		}
+		if newErr == nil {
+			obj = newObj
+		}
+	}
+	return obj, err
+}
+
+type volumeGeneratingHandler struct {
+	VolumeGeneratingHandler
+	apply apply.Apply
+	opts  generic.GeneratingHandlerOptions
+	gvk   schema.GroupVersionKind
+	name  string
+}
+
+func (a *volumeGeneratingHandler) Remove(key string, obj *v1beta1.Volume) (*v1beta1.Volume, error) {
+	if obj != nil {
+		return obj, nil
+	}
+
+	obj = &v1beta1.Volume{}
+	obj.Namespace, obj.Name = kv.RSplit(key, "/")
+	obj.SetGroupVersionKind(a.gvk)
+
+	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects()
+}
+
+func (a *volumeGeneratingHandler) Handle(obj *v1beta1.Volume, status v1beta1.VolumeStatus) (v1beta1.VolumeStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
+	objs, newStatus, err := a.VolumeGeneratingHandler(obj, status)
+	if err != nil {
+		return newStatus, err
+	}
+
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects(objs...)
 }
