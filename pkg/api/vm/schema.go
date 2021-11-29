@@ -60,7 +60,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	if err != nil {
 		return err
 	}
-	actionHandler := vmActionHandler{
+	vmHandler := vmActionHandler{
 		namespace:                 options.Namespace,
 		vms:                       vms,
 		vmCache:                   vms.Cache(),
@@ -81,6 +81,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		virtSubresourceRestClient: virtSubresourceClient,
 		virtRestClient:            virtv1Client.RESTClient(),
 	}
+	vmHandler.Init()
 
 	vmformatter := vmformatter{
 		vmiCache: vmis.Cache(),
@@ -98,19 +99,19 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		ID: vmSchemaID,
 		Customize: func(apiSchema *types.APISchema) {
 			apiSchema.ActionHandlers = map[string]http.Handler{
-				startVM:        &actionHandler,
-				stopVM:         &actionHandler,
-				restartVM:      &actionHandler,
-				ejectCdRom:     &actionHandler,
-				pauseVM:        &actionHandler,
-				unpauseVM:      &actionHandler,
-				migrate:        &actionHandler,
-				abortMigration: &actionHandler,
-				backupVM:       &actionHandler,
-				restoreVM:      &actionHandler,
-				createTemplate: &actionHandler,
-				addVolume:      &actionHandler,
-				removeVolume:   &actionHandler,
+				startVM:        &vmHandler,
+				stopVM:         &vmHandler,
+				restartVM:      &vmHandler,
+				ejectCdRom:     &vmHandler,
+				pauseVM:        &vmHandler,
+				unpauseVM:      &vmHandler,
+				migrate:        &vmHandler,
+				abortMigration: &vmHandler,
+				backupVM:       &vmHandler,
+				restoreVM:      &vmHandler,
+				createTemplate: &vmHandler,
+				addVolume:      &vmHandler,
+				removeVolume:   &vmHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:   {},

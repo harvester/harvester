@@ -2,7 +2,6 @@ package volume
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -57,14 +56,8 @@ func (h ExportActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 	switch action {
 	case actionExport:
 		var input vm.ExportVolumeInput
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
-		}
-		if input.DisplayName == "" {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `displayName` is required")
-		}
-		if input.Namespace == "" {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `namespace` is required")
+		if err := vm.DecodeBodyToInput(r, &input); err != nil {
+			return err
 		}
 		return h.exportVolume(r.Context(), input.Namespace, input.DisplayName, pvcName, pvcNamespace)
 	default:

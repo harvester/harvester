@@ -54,6 +54,7 @@ require (
 	github.com/emicklei/go-restful v2.10.0+incompatible
 	github.com/gin-gonic/gin v1.7.0 // indirect
 	github.com/go-openapi/spec v0.20.3
+	github.com/go-playground/validator/v10 v10.4.1
 	github.com/gorilla/mux v1.8.0
 	github.com/guonaihong/gout v0.1.3
 	github.com/harvester/harvester-network-controller v0.1.7
