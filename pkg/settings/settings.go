@@ -16,7 +16,7 @@ var (
 	provider       Provider
 	InjectDefaults string
 
-	AdditionalCA                 = NewSetting("additional-ca", "")
+	AdditionalCA                 = NewSetting(AdditionalCASettingName, "")
 	APIUIVersion                 = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
 	ClusterRegistrationURL       = NewSetting("cluster-registration-url", "")
 	ServerVersion                = NewSetting("server-version", "dev")
@@ -42,6 +42,7 @@ var (
 )
 
 const (
+	AdditionalCASettingName          = "additional-ca"
 	BackupTargetSettingName          = "backup-target"
 	VMForceDeletionPolicySettingName = "vm-force-deletion-policy"
 	SupportBundleTimeoutSettingName  = "support-bundle-timeout"
