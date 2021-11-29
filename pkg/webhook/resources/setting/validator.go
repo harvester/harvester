@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/longhorn/backupstore"
 	_ "github.com/longhorn/backupstore/nfs"
@@ -34,6 +35,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.VMForceDeletionPolicySettingName: validateVMForceDeletionPolicy,
 	overcommitConfigSettingName:               validateOvercommitConfig,
 	vipPoolsConfigSettingName:                 validateVipPoolsConfig,
+	settings.SupportBundleTimeoutSettingName:  validateSupportBundleTimeout,
 }
 
 func NewValidator(settingCache ctlv1beta1.SettingCache) types.Validator {
@@ -197,5 +199,20 @@ func validateVipPoolsConfig(setting *v1beta1.Setting) error {
 		return werror.NewInvalidError(err.Error(), "value")
 	}
 
+	return nil
+}
+
+func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	i, err := strconv.Atoi(setting.Value)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+	if i < 0 {
+		return werror.NewInvalidError("timeout can't be negative", "value")
+	}
 	return nil
 }
