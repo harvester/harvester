@@ -31,6 +31,7 @@ var (
 	LogLevel                     = NewSetting("log-level", "info") // options are info, debug and trace
 	SupportBundleImage           = NewSetting("support-bundle-image", "rancher/support-bundle-kit:v0.0.4")
 	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
+	SupportBundleTimeout         = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
 	DefaultStorageClass          = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                    = NewSetting("http-proxy", "{}")
 	VMForceDeletionPolicySet     = NewSetting(VMForceDeletionPolicySettingName, InitVMForceDeletionPolicy())
@@ -42,6 +43,7 @@ var (
 const (
 	BackupTargetSettingName          = "backup-target"
 	VMForceDeletionPolicySettingName = "vm-force-deletion-policy"
+	SupportBundleTimeoutSettingName  = "support-bundle-timeout"
 	DefaultDashboardUIURL            = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
 )
 

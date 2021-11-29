@@ -7,6 +7,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 func Test_validateOvercommitConfig(t *testing.T) {
@@ -57,5 +58,65 @@ func Test_validateOvercommitConfig(t *testing.T) {
 			}
 		})
 
+	}
+}
+
+func Test_validateSupportBundleTimeout(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        *v1beta1.Setting
+		expectedErr bool
+	}{
+		{
+			name: "invalid int",
+			args: &v1beta1.Setting{
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
+				Value:      "not int",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "negative int",
+			args: &v1beta1.Setting{
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
+				Value:      "-1",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "input 0",
+			args: &v1beta1.Setting{
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
+				Value:      "0",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "empty input",
+			args: &v1beta1.Setting{
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
+				Value:      "",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "positive int",
+			args: &v1beta1.Setting{
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
+				Value:      "1",
+			},
+			expectedErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSupportBundleTimeout(tt.args)
+			if tt.expectedErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+		})
 	}
 }

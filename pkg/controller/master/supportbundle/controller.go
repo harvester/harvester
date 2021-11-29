@@ -2,6 +2,7 @@ package supportbundle
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
@@ -51,7 +52,15 @@ func (h *Handler) OnSupportBundleChanged(key string, sb *harvesterv1.SupportBund
 }
 
 func (h *Handler) checkManagerStatus(sb *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {
-	if time.Now().After(sb.CreationTimestamp.Add(types.BundleCreationTimeout)) {
+	var timeout int
+	var err error
+	if timeoutStr := settings.SupportBundleTimeout.Get(); timeoutStr != "" {
+		if timeout, err = strconv.Atoi(timeoutStr); err != nil {
+			return nil, err
+		}
+	}
+
+	if timeout != 0 && time.Now().After(sb.CreationTimestamp.Add(time.Duration(timeout)*time.Minute)) {
 		return h.setError(sb, "fail to generate supportbundle: timeout")
 	}
 
