@@ -31,6 +31,13 @@ func IsBackupTargetSame(vmBackupTarget *harvesterv1.BackupTarget, target *settin
 	return vmBackupTarget.Endpoint == target.Endpoint && vmBackupTarget.BucketName == target.BucketName && vmBackupTarget.BucketRegion == target.BucketRegion
 }
 
+func isBackupTargetOnAnnotation(backup *harvesterv1.VirtualMachineBackup) bool {
+	return backup.Annotations != nil &&
+		(backup.Annotations[backupTargetAnnotation] != "" ||
+			backup.Annotations[backupBucketNameAnnotation] != "" ||
+			backup.Annotations[backupBucketRegionAnnotation] != "")
+}
+
 func isVMRestoreProgressing(vmRestore *harvesterv1.VirtualMachineRestore) bool {
 	return vmRestore.Status == nil || vmRestore.Status.Complete == nil || !*vmRestore.Status.Complete
 }
