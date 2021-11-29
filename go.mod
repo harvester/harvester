@@ -85,6 +85,7 @@ require (
 	github.com/tidwall/gjson v1.9.3
 	github.com/urfave/cli v1.22.2
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
+	golang.org/x/net v0.0.0-20211123203042-d83791d6bcd9
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 	helm.sh/helm/v3 v3.5.4
 	k8s.io/api v0.21.2
