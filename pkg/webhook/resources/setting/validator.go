@@ -1,14 +1,19 @@
 package setting
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 
 	"github.com/longhorn/backupstore"
 	_ "github.com/longhorn/backupstore/nfs"
 	_ "github.com/longhorn/backupstore/s3"
+	"golang.org/x/net/http/httpproxy"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -18,10 +23,12 @@ import (
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
-	"github.com/harvester/harvester/pkg/util/tls"
+	tlsutil "github.com/harvester/harvester/pkg/util/tls"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
+
+var certs = getSystemCerts()
 
 type validateSettingFunc func(setting *v1beta1.Setting) error
 
@@ -152,22 +159,9 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 		os.Setenv(backup.AWSAccessKey, target.AccessKeyID)
 		os.Setenv(backup.AWSSecretKey, target.SecretAccessKey)
 		os.Setenv(backup.AWSEndpoints, target.Endpoint)
-		os.Setenv(backup.AWSCERT, target.Cert)
-		if settings.AdditionalCA.Get() != "" {
-			os.Setenv(backup.AWSCERT, settings.AdditionalCA.Get())
-		}
-		httpProxySetting, err := v.settingCache.Get(settings.HttpProxySettingName)
-		if err != nil {
+		if err := v.customizeTransport(); err != nil {
 			return err
 		}
-		var httpProxyConfig util.HTTPProxyConfig
-		if err := json.Unmarshal([]byte(httpProxySetting.Value), &httpProxyConfig); err != nil {
-			return err
-		}
-		os.Setenv(util.HTTPProxyEnv, httpProxyConfig.HTTPProxy)
-		os.Setenv(util.HTTPSProxyEnv, httpProxyConfig.HTTPSProxy)
-		os.Setenv(util.NoProxyEnv, util.AddBuiltInNoProxy(httpProxyConfig.NoProxy))
-
 	}
 
 	// GetBackupStoreDriver tests whether the driver can List objects, so we don't need to do it again here.
@@ -177,6 +171,44 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	if _, err := backupstore.GetBackupStoreDriver(endpoint); err != nil {
 		return werror.NewInvalidError(err.Error(), "value")
 	}
+	return nil
+}
+
+// customizeTransport sets HTTP proxy and trusted CAs in the default HTTP transport.
+// The transport used in the library is a one-time cache. Overwrite to update dynamically.
+func (v *settingValidator) customizeTransport() error {
+	httpProxySetting, err := v.settingCache.Get(settings.HttpProxySettingName)
+	if err != nil {
+		return err
+	}
+	var httpProxyConfig util.HTTPProxyConfig
+	if err := json.Unmarshal([]byte(httpProxySetting.Value), &httpProxyConfig); err != nil {
+		return err
+	}
+	os.Setenv(util.HTTPProxyEnv, httpProxyConfig.HTTPProxy)
+	os.Setenv(util.HTTPSProxyEnv, httpProxyConfig.HTTPSProxy)
+	os.Setenv(util.NoProxyEnv, util.AddBuiltInNoProxy(httpProxyConfig.NoProxy))
+
+	caSetting, err := v.settingCache.Get(settings.AdditionalCASettingName)
+	if err != nil {
+		return err
+	}
+	if caSetting.Value != "" {
+		if ok := certs.AppendCertsFromPEM([]byte(caSetting.Value)); !ok {
+			return fmt.Errorf("failed to append custom certificates: %v", caSetting.Value)
+		}
+	}
+
+	customTransport, ok := http.DefaultTransport.(*http.Transport)
+	if ok {
+		customTransport.Proxy = func(request *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(request.URL)
+		}
+		customTransport.TLSClientConfig = &tls.Config{
+			RootCAs: certs,
+		}
+	}
+
 	return nil
 }
 
@@ -226,18 +258,26 @@ func validateSSLCertificates(setting *v1beta1.Setting) error {
 	if sslCertificate.CA == "" && sslCertificate.PublicCertificate == "" && sslCertificate.PrivateKey == "" {
 		return nil
 	} else if sslCertificate.CA != "" {
-		if err := tls.ValidateCABundle([]byte(sslCertificate.CA)); err != nil {
+		if err := tlsutil.ValidateCABundle([]byte(sslCertificate.CA)); err != nil {
 			return werror.NewInvalidError(err.Error(), "ca")
 		}
 	}
 
-	if err := tls.ValidateServingBundle([]byte(sslCertificate.PublicCertificate)); err != nil {
+	if err := tlsutil.ValidateServingBundle([]byte(sslCertificate.PublicCertificate)); err != nil {
 		return werror.NewInvalidError(err.Error(), "publicCertificate")
 	}
 
-	if err := tls.ValidatePrivateKey([]byte(sslCertificate.PrivateKey)); err != nil {
+	if err := tlsutil.ValidatePrivateKey([]byte(sslCertificate.PrivateKey)); err != nil {
 		return werror.NewInvalidError(err.Error(), "privateKey")
 	}
 
 	return nil
+}
+
+func getSystemCerts() *x509.CertPool {
+	certs, _ := x509.SystemCertPool()
+	if certs == nil {
+		certs = x509.NewCertPool()
+	}
+	return certs
 }
