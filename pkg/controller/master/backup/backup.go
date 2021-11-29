@@ -43,6 +43,10 @@ const (
 	vmBackupKindName             = "VirtualMachineBackup"
 
 	volumeSnapshotCreateEvent = "VolumeSnapshotCreated"
+
+	backupTargetAnnotation       = "backup.harvesterhci.io/backup-target"
+	backupBucketNameAnnotation   = "backup.harvesterhci.io/bucket-name"
+	backupBucketRegionAnnotation = "backup.harvesterhci.io/bucket-region"
 )
 
 var vmBackupKind = harvesterv1.SchemeGroupVersion.WithKind(vmBackupKindName)
@@ -116,6 +120,12 @@ func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachin
 	}
 
 	if isBackupReady(vmBackup) {
+		// We've changed backup target information to status since v1.0.0.
+		// For backport to v0.3.0, we move backup target information from annotation to status.
+		if vmBackup, err = h.configureBackupTargetOnStatus(vmBackup); err != nil {
+			return nil, err
+		}
+
 		// generate vm backup metadata and upload to backup target
 		return nil, h.uploadVMBackupMetadata(vmBackup, target)
 	}
@@ -346,7 +356,7 @@ func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineB
 		}
 
 		if volumeSnapshot != nil && volumeSnapshot.DeletionTimestamp != nil {
-			logrus.Infof("volumeSnapshot %s/%s is being deleted, requeue vm backup %s/%s again",
+			logrus.Debugf("volumeSnapshot %s/%s is being deleted, requeue vm backup %s/%s again",
 				volumeSnapshot.Namespace, volumeSnapshot.Name,
 				vmBackup.Namespace, vmBackup.Name)
 			h.vmBackupController.EnqueueAfter(vmBackup.Namespace, vmBackup.Name, 5*time.Second)
@@ -356,7 +366,7 @@ func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineB
 		if volumeSnapshot == nil {
 			volumeSnapshot, err = h.createVolumeSnapshot(vmBackupCpy, volumeBackup)
 			if err != nil {
-				logrus.Errorf("create volume snapshot error: %v", err)
+				logrus.Debugf("create volumeSnapshot %s/%s error: %v", volumeSnapshot.Namespace, volumeSnapshot.Name, err)
 				return err
 			}
 		}
@@ -434,7 +444,7 @@ func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBacku
 		},
 	}
 
-	logrus.Infof("create VolumeSnapshot %s", *volumeBackup.Name)
+	logrus.Debugf("create VolumeSnapshot %s/%s", vmBackup.Namespace, *volumeBackup.Name)
 	volumeSnapshot, err := h.snapshots.Create(snapshot)
 	if err != nil {
 		return nil, err
@@ -470,7 +480,7 @@ func (h *Handler) createVolumeSnapshotContent(
 	}
 	snapshotHandle := fmt.Sprintf("bs://%s/%s", volumeBackup.PersistentVolumeClaim.ObjectMeta.Name, lhBackup.Name)
 
-	logrus.Infof("create VolumeSnapshotContent %s", getVolumeSnapshotContentName(volumeBackup))
+	logrus.Debugf("create VolumeSnapshotContent %s", getVolumeSnapshotContentName(volumeBackup))
 	return h.snapshotContents.Create(&snapshotv1.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      getVolumeSnapshotContentName(volumeBackup),
@@ -546,7 +556,7 @@ func (h *Handler) deleteVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 
 	destURL := filepath.Join(metadataFolderPath, getVMBackupMetadataFileName(vmBackup.Namespace, vmBackup.Name))
 	if exist := bsDriver.FileExists(destURL); exist {
-		logrus.Infof("delete vm backup metadata %s/%s inbackup target %s", vmBackup.Namespace, vmBackup.Name, target.Type)
+		logrus.Debugf("delete vm backup metadata %s/%s in backup target %s", vmBackup.Namespace, vmBackup.Name, target.Type)
 		return bsDriver.Remove(destURL)
 	}
 
@@ -608,7 +618,7 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		}
 	}
 	if shouldUpload {
-		logrus.Infof("upload vm backup metadata %s/%s to backup target %s", vmBackup.Namespace, vmBackup.Name, target.Type)
+		logrus.Debugf("upload vm backup metadata %s/%s to backup target %s", vmBackup.Namespace, vmBackup.Name, target.Type)
 		if err := bsDriver.Write(destURL, bytes.NewReader(j)); err != nil {
 			return err
 		}
@@ -657,9 +667,11 @@ func (h *Handler) forceDeleteVolumeSnapshotAndContent(namespace string, volumeBa
 		// remove finalizers in VolumeSnapshot and force delete it
 		volumeSnapshotCpy := volumeSnapshot.DeepCopy()
 		volumeSnapshot.Finalizers = []string{}
+		logrus.Debugf("remove finalizers in volume snapshot %s/%s", namespace, *volumeBackup.Name)
 		if _, err := h.snapshots.Update(volumeSnapshotCpy); err != nil {
 			return err
 		}
+		logrus.Debugf("delete volume snapshot %s/%s", namespace, *volumeBackup.Name)
 		if err := h.snapshots.Delete(namespace, *volumeBackup.Name, metav1.NewDeleteOptions(0)); err != nil {
 			return err
 		}
@@ -678,12 +690,32 @@ func (h *Handler) forceDeleteVolumeSnapshotAndContent(namespace string, volumeBa
 		// remove finalizers in VolumeSnapshotContent and force delete it
 		volumeSnapshotContetCpy := volumeSnapshotContet.DeepCopy()
 		volumeSnapshotContetCpy.Finalizers = []string{}
+		logrus.Debugf("remove finalizers in volume snapshot content %s", *volumeSnapshot.Status.BoundVolumeSnapshotContentName)
 		if _, err := h.snapshotContents.Update(volumeSnapshotContetCpy); err != nil {
 			return err
 		}
+		logrus.Debugf("delete volume snapshot content %s", *volumeSnapshot.Status.BoundVolumeSnapshotContentName)
 		if err := h.snapshotContents.Delete(*volumeSnapshot.Status.BoundVolumeSnapshotContentName, metav1.NewDeleteOptions(0)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (h *Handler) configureBackupTargetOnStatus(vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
+	if !isBackupTargetOnAnnotation(vmBackup) {
+		return vmBackup, nil
+	}
+
+	logrus.Debugf("configure backup target from annotation to status for vm backup %s/%s", vmBackup.Namespace, vmBackup.Name)
+	vmBackupCpy := vmBackup.DeepCopy()
+	vmBackupCpy.Status.BackupTarget = &harvesterv1.BackupTarget{
+		Endpoint:     vmBackup.Annotations[backupTargetAnnotation],
+		BucketName:   vmBackup.Annotations[backupBucketNameAnnotation],
+		BucketRegion: vmBackup.Annotations[backupBucketRegionAnnotation],
+	}
+	delete(vmBackup.Annotations, backupTargetAnnotation)
+	delete(vmBackup.Annotations, backupBucketNameAnnotation)
+	delete(vmBackup.Annotations, backupBucketRegionAnnotation)
+	return h.vmBackups.Update(vmBackupCpy)
 }
