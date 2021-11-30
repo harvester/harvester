@@ -2,7 +2,6 @@ package rancher
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -26,9 +25,6 @@ func (h *Handler) RancherSettingOnChange(key string, setting *rancherv3api.Setti
 	if setting.Name == caCertsSetting && setting.Default == "" {
 		return nil, h.syncCACert(setting)
 	}
-	if setting.Name == serverURLSetting && setting.Value == "" {
-		return h.initializeServerURL(setting)
-	}
 
 	if setting.Name == systemNamespacesSetting && !strings.Contains(setting.Default, "harvester-system") {
 		return h.initializeSystemNamespaces(setting)
@@ -45,17 +41,6 @@ func (h *Handler) RancherSettingOnChange(key string, setting *rancherv3api.Setti
 		}
 	}
 	return nil, nil
-}
-
-func (h *Handler) initializeServerURL(setting *rancherv3api.Setting) (*rancherv3api.Setting, error) {
-	vipConfig, err := h.getVipConfig()
-	if err != nil {
-		return nil, err
-	}
-	toUpdate := setting.DeepCopy()
-	toUpdate.Value = fmt.Sprintf("https://%s", vipConfig.IP)
-	logrus.Debugf("Updating server-url setting to %s", toUpdate.Value)
-	return h.RancherSettings.Update(toUpdate)
 }
 
 func (h *Handler) initializeSystemNamespaces(setting *rancherv3api.Setting) (*rancherv3api.Setting, error) {

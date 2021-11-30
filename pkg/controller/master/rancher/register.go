@@ -27,7 +27,6 @@ const (
 	internalCACertsSetting   = "internal-cacerts"
 	rancherExposeServiceName = "rancher-expose"
 	ingressExposeServiceName = "ingress-expose"
-	serverURLSetting         = "server-url"
 	systemNamespacesSetting  = "system-namespaces"
 	tlsCNPrefix              = "listener.cattle.io/cn-"
 
