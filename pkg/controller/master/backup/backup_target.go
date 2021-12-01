@@ -10,6 +10,7 @@ import (
 
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,32 +80,64 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Se
 		return setting, err
 	}
 
-	// Since we remove S3 access key id and secret access key after S3 backup target has been verified,
-	// we stop the controller to reconcile it again.
-	if target.Type == settings.S3BackupType && (target.SecretAccessKey == "" || target.AccessKeyID == "") {
-		return nil, nil
-	}
+	logrus.Debugf("backup target change:%s:%s", target.Type, target.Endpoint)
 
-	if err = h.updateLonghornTarget(target); err != nil {
-		return nil, err
-	}
+	switch target.Type {
+	case settings.S3BackupType:
+		// Since S3 access key id and secret access key are stripped after S3 backup target has been verified
+		// in reUpdateBackupTargetSettingSecret
+		// stop the controller to reconcile it
+		if target.SecretAccessKey == "" && target.AccessKeyID == "" {
+			return nil, nil
+		}
 
-	if target.Type == settings.S3BackupType {
+		if err = h.updateLonghornTarget(target); err != nil {
+			return nil, err
+		}
+
 		if err = h.updateBackupTargetSecret(target); err != nil {
 			return nil, err
 		}
-	}
 
-	return h.updateBackupTargetSetting(setting.DeepCopy(), target, err)
+		return h.reUpdateBackupTargetSettingSecret(setting, target)
+
+	case settings.NFSBackupType:
+		if err = h.updateLonghornTarget(target); err != nil {
+			return nil, err
+		}
+
+		// delete the may existing previous secret of S3
+		if err = h.deleteBackupTargetSecret(target); err != nil {
+			return nil, err
+		}
+
+		return nil, nil
+
+	default:
+		// reset backup target to default, then delete/update related settings
+		if target.IsDefaultBackupTarget() {
+			if err = h.updateLonghornTarget(target); err != nil {
+				return nil, err
+			}
+
+			// delete the may existing previous secret of S3
+			if err = h.deleteBackupTargetSecret(target); err != nil {
+				return nil, err
+			}
+
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("Invalid backup target type:%s or parameter", target.Type)
+	}
 }
 
-func (h *TargetHandler) updateBackupTargetSetting(setting *harvesterv1.Setting, target *settings.BackupTarget, err error) (*harvesterv1.Setting, error) {
-	harvesterv1.SettingConfigured.SetError(setting, "", err)
-
-	if target.Type == settings.NFSBackupType {
-		target.BucketName = ""
-		target.BucketRegion = ""
+func (h *TargetHandler) reUpdateBackupTargetSettingSecret(setting *harvesterv1.Setting, target *settings.BackupTarget) (*harvesterv1.Setting, error) {
+	// only do a second update when s3 with credentials
+	if target.Type != settings.S3BackupType {
+		return nil, nil
 	}
+
 	// reset the s3 credentials to prevent controller reconcile and not to expose secret key
 	target.SecretAccessKey = ""
 	target.AccessKeyID = ""
@@ -113,9 +146,10 @@ func (h *TargetHandler) updateBackupTargetSetting(setting *harvesterv1.Setting, 
 		return nil, err
 	}
 
-	setting.Value = string(targetBytes)
+	settingCpy := setting.DeepCopy()
+	settingCpy.Value = string(targetBytes)
 
-	return h.settings.Update(setting)
+	return h.settings.Update(settingCpy)
 }
 
 func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget) error {
@@ -202,6 +236,18 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 	}
 
 	return h.updateLonghornBackupTargetSecretSetting(target)
+}
+
+func (h *TargetHandler) deleteBackupTargetSecret(target *settings.BackupTarget) error {
+	if err := h.secrets.Delete(util.LonghornSystemNamespaceName, util.BackupTargetSecretName, nil); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	if err := h.longhornSettings.Delete(util.LonghornSystemNamespaceName, longhornBackupTargetSecretSettingName, nil); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	return nil
 }
 
 func (h *TargetHandler) updateLonghornBackupTargetSecretSetting(target *settings.BackupTarget) error {

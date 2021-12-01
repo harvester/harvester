@@ -380,9 +380,16 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 }
 
 func (h *vmActionHandler) checkBackupTargetConfigured() error {
-	target, err := h.settingCache.Get(settings.BackupTargetSettingName)
-	if err == nil && harvesterv1.SettingConfigured.IsTrue(target) {
-		return nil
+	targetSetting, err := h.settingCache.Get(settings.BackupTargetSettingName)
+	if err == nil && harvesterv1.SettingConfigured.IsTrue(targetSetting) {
+		// backup target may be reset to initial/default, the SettingConfigured.IsTrue meets
+		target, err := settings.DecodeBackupTarget(targetSetting.Value)
+		if err != nil {
+			return err
+		}
+		if !target.IsDefaultBackupTarget() {
+			return nil
+		}
 	}
 	return fmt.Errorf("backup target is invalid")
 }
