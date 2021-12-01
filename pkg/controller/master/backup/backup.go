@@ -119,6 +119,8 @@ func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachin
 		return nil, err
 	}
 
+	logrus.Debugf("OnBackupChange: vmBackup name:%s, target:%s:%s", vmBackup.Name, target.Type, target.Endpoint)
+
 	if isBackupReady(vmBackup) {
 		// We've changed backup target information to status since v1.0.0.
 		// For backport to v0.3.0, we move backup target information from annotation to status.
@@ -537,6 +539,12 @@ func (h *Handler) deleteVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		}
 	}
 
+	// when backup target has been reset to default, skip following
+	if target.IsDefaultBackupTarget() {
+		logrus.Debugf("vmBackup delete:%s, backup target is default, skip", vmBackup.Name)
+		return nil
+	}
+
 	if !IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
 		return nil
 	}
@@ -579,6 +587,12 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		}
 	}
 
+	// when current backup target is default, skip following steps
+	// if backup target is default, IsBackupTargetSame is true when vmBackup.Status.BackupTarget is also default value
+	if target.IsDefaultBackupTarget() {
+		return nil
+	}
+
 	if !IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
 		return nil
 	}
@@ -618,13 +632,14 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 
 	shouldUpload := true
 	destURL := filepath.Join(metadataFolderPath, getVMBackupMetadataFileName(vmBackup.Namespace, vmBackup.Name))
-	if exist := bsDriver.FileExists(destURL); exist {
+	if bsDriver.FileExists(destURL) {
 		if remoteVMBackupMetadata, err := loadBackupMetadataInBackupTarget(destURL, bsDriver); err != nil {
 			return err
 		} else if reflect.DeepEqual(vmBackupMetadata, remoteVMBackupMetadata) {
 			shouldUpload = false
 		}
 	}
+
 	if shouldUpload {
 		logrus.Debugf("upload vm backup metadata %s/%s to backup target %s", vmBackup.Namespace, vmBackup.Name, target.Type)
 		if err := bsDriver.Write(destURL, bytes.NewReader(j)); err != nil {
