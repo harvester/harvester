@@ -359,6 +359,7 @@ trigger:
   ref:
     - "refs/heads/master"
     - "refs/heads/v*"
+    - "refs/tags/*"
 
 volumes:
 - name: docker
