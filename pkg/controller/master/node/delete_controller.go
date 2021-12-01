@@ -83,7 +83,7 @@ func (h *deleteNodeHandler) OnNodeRemove(key string, node *corev1.Node) (*corev1
 	}
 
 	if node.DeletionTimestamp != nil {
-		if _, err := h.createDeleteNodeJob(node); err != nil {
+		if _, err := h.createDeleteNodeJob(node); err != nil && !apierrors.IsAlreadyExists(err) {
 			return node, err
 		}
 	}
