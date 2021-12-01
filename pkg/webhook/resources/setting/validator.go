@@ -179,11 +179,13 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 func (v *settingValidator) customizeTransport() error {
 	httpProxySetting, err := v.settingCache.Get(settings.HttpProxySettingName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get HTTP proxy setting: %v", err)
 	}
 	var httpProxyConfig util.HTTPProxyConfig
-	if err := json.Unmarshal([]byte(httpProxySetting.Value), &httpProxyConfig); err != nil {
-		return err
+	if httpProxySetting.Value != "" {
+		if err := json.Unmarshal([]byte(httpProxySetting.Value), &httpProxyConfig); err != nil {
+			return fmt.Errorf("failed to parse HTTP proxy config: %v", err)
+		}
 	}
 	os.Setenv(util.HTTPProxyEnv, httpProxyConfig.HTTPProxy)
 	os.Setenv(util.HTTPSProxyEnv, httpProxyConfig.HTTPSProxy)
@@ -191,7 +193,7 @@ func (v *settingValidator) customizeTransport() error {
 
 	caSetting, err := v.settingCache.Get(settings.AdditionalCASettingName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get additional CA setting: %v", err)
 	}
 	if caSetting.Value != "" {
 		if ok := certs.AppendCertsFromPEM([]byte(caSetting.Value)); !ok {
