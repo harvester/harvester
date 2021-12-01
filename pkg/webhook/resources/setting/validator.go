@@ -15,6 +15,7 @@ import (
 	_ "github.com/longhorn/backupstore/nfs"
 	_ "github.com/longhorn/backupstore/s3"
 	"github.com/rancher/wrangler/pkg/slice"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -146,6 +147,59 @@ func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
 	return nil
 }
 
+// chech if this backup target is updated again by controller to strip secret information
+func (v *settingValidator) isUpdatedS3BackupTarget(target *settings.BackupTarget) bool {
+	if target.Type != settings.S3BackupType || target.SecretAccessKey != "" || target.AccessKeyID != "" {
+		return false
+	}
+
+	if savedSetting, err := v.settingCache.Get(settings.BackupTargetSettingName); err != nil {
+		return false
+	} else if savedTarget, err := settings.DecodeBackupTarget(savedSetting.Value); err != nil {
+		return false
+	} else {
+		// when any of those fields is different, then it is from user input, not from internal re-config
+		if savedTarget.Type != target.Type || savedTarget.BucketName != target.BucketName || savedTarget.BucketRegion != target.BucketRegion || savedTarget.Endpoint != target.Endpoint || savedTarget.VirtualHostedStyle != target.VirtualHostedStyle {
+			return false
+		}
+	}
+
+	return true
+}
+
+// for each type of backup target, a well defined field composition is checked here
+func (v *settingValidator) validateBackupTargetFields(target *settings.BackupTarget) error {
+	switch target.Type {
+	case settings.S3BackupType:
+		if target.SecretAccessKey == "" || target.AccessKeyID == "" {
+			return werror.NewInvalidError("S3 backup target should have access key and access key id", "value")
+		}
+
+		if target.BucketName == "" || target.BucketRegion == "" {
+			return werror.NewInvalidError("S3 backup target should have bucket name and region ", "value")
+		}
+
+	case settings.NFSBackupType:
+		if target.Endpoint == "" {
+			return werror.NewInvalidError("NFS backup target should have endpoint", "value")
+		}
+
+		if target.SecretAccessKey != "" || target.AccessKeyID != "" {
+			return werror.NewInvalidError("NFS backup target should not have access key or access key id", "value")
+		}
+
+		if target.BucketName != "" || target.BucketRegion != "" {
+			return werror.NewInvalidError("NFS backup target should not have bucket name or region", "value")
+		}
+
+	default:
+		// do not check target.IsDefaultBackupTarget again, direct return error
+		return werror.NewInvalidError("Invalid backup target type", "value")
+	}
+
+	return nil
+}
+
 func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
@@ -156,15 +210,12 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 		return werror.NewInvalidError(err.Error(), "value")
 	}
 
-	// Since we remove S3 access key id and secret access key after S3 backup target has been verified,
-	// we stop the controller to reconcile it again.
-	if target.Type == settings.S3BackupType && (target.SecretAccessKey == "" || target.AccessKeyID == "") {
+	// when target is from internal re-update, allow fast pass
+	if v.isUpdatedS3BackupTarget(target) {
 		return nil
 	}
 
-	if target.Type == settings.NFSBackupType && (target.BucketName != "" || target.BucketRegion != "") {
-		return werror.NewInvalidError("NFS backup target should not have bucket name or region ", "value")
-	}
+	logrus.Debugf("validate backup target:%s:%s", target.Type, target.Endpoint)
 
 	vmBackups, err := v.vmBackupCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
@@ -174,8 +225,18 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 		return werror.NewBadRequest("There is VMBackup in creating or deleting progress")
 	}
 
-	// Set OS environment variables for S3
+	// It is allowed to reset the current backup target setting to the default value
+	// when it is default, the validator will skip all remaining checks
+	if target.IsDefaultBackupTarget() {
+		return nil
+	}
+
+	if err = v.validateBackupTargetFields(target); err != nil {
+		return err
+	}
+
 	if target.Type == settings.S3BackupType {
+		// Set OS environment variables for S3
 		os.Setenv(backup.AWSAccessKey, target.AccessKeyID)
 		os.Setenv(backup.AWSSecretKey, target.SecretAccessKey)
 		os.Setenv(backup.AWSEndpoints, target.Endpoint)

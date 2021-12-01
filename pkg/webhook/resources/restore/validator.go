@@ -1,7 +1,6 @@
 package restore
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -102,9 +101,14 @@ func (v *restoreValidator) checkBackupTarget(vmRestore *v1beta1.VirtualMachineRe
 	if err != nil {
 		return fmt.Errorf("can't get backup target setting, err: %w", err)
 	}
-	backupTarget := &settings.BackupTarget{}
-	if err := json.Unmarshal([]byte(backupTargetSetting.Value), backupTarget); err != nil {
+
+	backupTarget, err := settings.DecodeBackupTarget(backupTargetSetting.Value)
+	if err != nil {
 		return fmt.Errorf("unmarshal backup target failed, value: %s, err: %w", backupTargetSetting.Value, err)
+	}
+
+	if backupTarget.IsDefaultBackupTarget() {
+		return fmt.Errorf("backup target is invalid")
 	}
 
 	// get vmbackup

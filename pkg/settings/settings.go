@@ -3,6 +3,7 @@ package settings
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -194,6 +195,15 @@ func DecodeBackupTarget(value string) (*BackupTarget, error) {
 	}
 
 	return target, nil
+}
+
+func (target *BackupTarget) IsDefaultBackupTarget() bool {
+	if target == nil || target.Type != "" {
+		return false
+	}
+
+	defaultTarget := &BackupTarget{}
+	return reflect.DeepEqual(target, defaultTarget)
 }
 
 func InitVMForceResetPolicy() string {
