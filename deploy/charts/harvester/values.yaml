@@ -342,12 +342,15 @@ harvester-network-controller:
   ## Specify to install harvester network controller,
   ## defaults to "false".
   enabled: false
-
   image:
     repository: rancher/harvester-network-controller
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
     tag: master-head
+  helper:
+    image:
+      repository: rancher/harvester-network-helper
+      tag: master-head
 
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
