@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/longhorn/backupstore"
 	_ "github.com/longhorn/backupstore/nfs"
@@ -84,14 +85,21 @@ func (h *MetadataHandler) OnBackupTargetChange(key string, setting *harvesterv1.
 		return nil, nil
 	}
 
-	target, err := settings.DecodeBackupTarget(settings.BackupTargetSet.Get())
+	target, err := settings.DecodeBackupTarget(setting.Value)
 	if err != nil {
 		return setting, err
 	}
 
+	logrus.Debugf("backup target change, sync vm backup:%s:%s", target.Type, target.Endpoint)
+
+	// when backup target is reset to default, do not trig sync
+	if target.IsDefaultBackupTarget() {
+		return nil, nil
+	}
+
 	if err = h.syncVMBackup(target); err != nil {
-		logrus.Errorf("can't sync vm backup metadata, err: %v", err)
-		h.settings.Enqueue(setting.Name)
+		logrus.Errorf("can't sync vm backup metadata, target:%s:%s, err: %v", target.Type, target.Endpoint, err)
+		h.settings.EnqueueAfter(setting.Name, 5*time.Second)
 		return nil, nil
 	}
 

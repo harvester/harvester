@@ -15,7 +15,7 @@ import (
 
 const (
 	AdmissionTypeMutation   = "mutation"
-	AdmissionTypeValidation = "validaton"
+	AdmissionTypeValidation = "validation"
 )
 
 // JSON Patch operations to mutate input data. See https://jsonpatch.com/ for more information.
