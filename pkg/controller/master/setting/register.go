@@ -63,6 +63,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		"vip-pools":                 controller.syncVipPoolsConfig,
 		"auto-disk-provision-paths": controller.syncNDMAutoProvisionPaths,
 		"ssl-certificates":          controller.syncSSLCertificate,
+		"ssl-parameters":            controller.syncSSLParameters,
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)

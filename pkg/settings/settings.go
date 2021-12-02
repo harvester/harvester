@@ -30,6 +30,7 @@ var (
 	UpgradeCheckerURL            = NewSetting("upgrade-checker-url", "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
 	LogLevel                     = NewSetting("log-level", "info") // options are info, debug and trace
 	SSLCertificates              = NewSetting(SSLCertificatesSettingName, "{}")
+	SSLParameters                = NewSetting(SSLParametersName, "{}")
 	SupportBundleImage           = NewSetting("support-bundle-image", "rancher/support-bundle-kit:v0.0.4")
 	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
 	SupportBundleTimeout         = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
@@ -49,6 +50,7 @@ const (
 	HttpProxySettingName             = "http-proxy"
 	OvercommitConfigSettingName      = "overcommit-config"
 	SSLCertificatesSettingName       = "ssl-certificates"
+	SSLParametersName                = "ssl-parameters"
 	VipPoolsConfigSettingName        = "vip-pools"
 	DefaultDashboardUIURL            = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
 )
@@ -224,4 +226,9 @@ type SSLCertificate struct {
 	CA                string `json:"ca"`
 	PublicCertificate string `json:"publicCertificate"`
 	PrivateKey        string `json:"privateKey"`
+}
+
+type SSLParameter struct {
+	Protocols string `json:"protocols"`
+	Ciphers   string `json:"ciphers"`
 }
