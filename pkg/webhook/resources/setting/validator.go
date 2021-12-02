@@ -9,10 +9,12 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/longhorn/backupstore"
 	_ "github.com/longhorn/backupstore/nfs"
 	_ "github.com/longhorn/backupstore/s3"
+	"github.com/rancher/wrangler/pkg/slice"
 	"golang.org/x/net/http/httpproxy"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,6 +32,11 @@ import (
 
 var certs = getSystemCerts()
 
+// See supported TLS protocols of ingress-nginx and Nginx.
+// - https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#ssl-protocols
+// - http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_protocols
+var supportedSSLProtocols = []string{"SSLv2", "SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3"}
+
 type validateSettingFunc func(setting *v1beta1.Setting) error
 
 var validateSettingFuncs = map[string]validateSettingFunc{
@@ -39,6 +46,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.OvercommitConfigSettingName:      validateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:        validateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:       validateSSLCertificates,
+	settings.SSLParametersName:                validateSSLParameters,
 }
 
 func NewValidator(settingCache ctlv1beta1.SettingCache) types.Validator {
@@ -271,6 +279,50 @@ func validateSSLCertificates(setting *v1beta1.Setting) error {
 
 	if err := tlsutil.ValidatePrivateKey([]byte(sslCertificate.PrivateKey)); err != nil {
 		return werror.NewInvalidError(err.Error(), "privateKey")
+	}
+
+	return nil
+}
+
+func validateSSLParameters(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	sslParameter := &settings.SSLParameter{}
+	if err := json.Unmarshal([]byte(setting.Value), sslParameter); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	if sslParameter.Protocols == "" && sslParameter.Ciphers == "" {
+		return nil
+	}
+
+	if err := validateSSLProtocols(sslParameter); err != nil {
+		return werror.NewInvalidError(err.Error(), "protocols")
+	}
+
+	// TODO: Validate ciphers
+	// Currently, there's no easy way to actually tell what Ciphers are supported by rke2-ingress-nginx,
+	// we need to tell users where to look for ciphers in docs.
+	return nil
+}
+
+func validateSSLProtocols(param *settings.SSLParameter) error {
+	if param.Protocols == "" {
+		return nil
+	}
+
+	for _, given := range strings.Split(param.Protocols, " ") {
+		// Deal with multiple spaces between words e.g. "TLSv1.1    TLSv1.2"
+		// ingress-nginx supports this so we also support it
+		if len(given) == 0 {
+			continue
+		}
+
+		if !slice.ContainsString(supportedSSLProtocols, given) {
+			return fmt.Errorf("unsupported SSL protocol: %s", given)
+		}
 	}
 
 	return nil
