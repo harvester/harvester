@@ -20,7 +20,6 @@ import (
 
 const (
 	nodeDownControllerName = "node-down-controller"
-	vmCreatorLabel         = "harvesterhci.io/creator"
 )
 
 // nodeDownHandler force deletes VMI's pod when a node is down, so VMI can be reschduled to anothor healthy node
@@ -93,8 +92,7 @@ func (h *nodeDownHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.
 	// get VMI pods on unhealthy node
 	pods, err := h.pods.List(corev1.NamespaceAll, metav1.ListOptions{
 		LabelSelector: labels.Set{
-			kv1.AppLabel:   "virt-launcher",
-			vmCreatorLabel: "harvester",
+			kv1.AppLabel: "virt-launcher",
 		}.String(),
 		FieldSelector: "spec.nodeName=" + node.Name,
 	})
@@ -104,6 +102,7 @@ func (h *nodeDownHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.
 
 	gracePeriod := int64(0)
 	for _, pod := range pods.Items {
+		logrus.Debugf("force delete pod %s/%s", pod.Namespace, pod.Name)
 		if err := h.pods.Delete(
 			pod.Namespace,
 			pod.Name,
