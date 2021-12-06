@@ -79,7 +79,7 @@ require (
 	github.com/rancher/rancher/pkg/apis v0.0.0
 	github.com/rancher/steve v0.0.0-20210804220357-bb76e4db5669
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210424054953-634d28b7def3
-	github.com/rancher/wrangler v0.8.3
+	github.com/rancher/wrangler v0.8.10
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.9.3
@@ -87,6 +87,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 	golang.org/x/net v0.0.0-20211123203042-d83791d6bcd9
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	helm.sh/helm/v3 v3.5.4
 	k8s.io/api v0.21.2
 	k8s.io/apiextensions-apiserver v0.21.2
