@@ -28,7 +28,7 @@ type Router struct {
 }
 
 func (r *Router) sendError(rw http.ResponseWriter, review *v1.AdmissionReview, err error) {
-	logrus.Debug(err)
+	logrus.Error(err)
 	if review == nil || review.Request == nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
@@ -83,8 +83,7 @@ func (r *Router) admit(response *Response, request *v1.AdmissionRequest, req *ht
 			return err
 		}
 	}
-	logrus.Debugf("no route match found for %s %s %s", request.Operation, request.Kind.String(), resourceString(request.Namespace, request.Name))
-	return nil
+	return fmt.Errorf("no route match found for %s %s %s", request.Operation, request.Kind.String(), resourceString(request.Namespace, request.Name))
 }
 
 func (r *Router) next() *RouteMatch {

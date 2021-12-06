@@ -652,7 +652,7 @@ github.com/rancher/steve/pkg/summarycache
 github.com/rancher/system-upgrade-controller/pkg/apis/condition
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1
-# github.com/rancher/wrangler v0.8.3
+# github.com/rancher/wrangler v0.8.10
 ## explicit
 github.com/rancher/wrangler/pkg/apply
 github.com/rancher/wrangler/pkg/apply/injectors
@@ -972,6 +972,7 @@ gopkg.in/tomb.v1
 # gopkg.in/yaml.v2 v2.4.0
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+## explicit
 gopkg.in/yaml.v3
 # helm.sh/helm/v3 v3.5.4 => github.com/rancher/helm/v3 v3.5.4-rancher.1
 ## explicit

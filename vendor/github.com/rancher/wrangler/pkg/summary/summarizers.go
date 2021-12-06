@@ -86,6 +86,7 @@ var (
 	// Unknown == error
 	TransitioningFalse = map[string]string{
 		"Completed":           "activating",
+		"Ready":               "unavailable",
 		"Available":           "updating",
 		"BootstrapReady":      reason,
 		"InfrastructureReady": reason,
