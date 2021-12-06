@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	_ "net/http/pprof"
 
@@ -65,7 +64,7 @@ func main() {
 func run(commonOptions *harvesterconfig.CommonOptions, options *config.Options) error {
 	logrus.Info("Starting webhook server")
 
-	ctx := signals.SetupSignalHandler(context.Background())
+	ctx := signals.SetupSignalContext()
 
 	kubeConfig, err := apiserver.GetConfig(commonOptions.KubeConfig)
 	if err != nil {
