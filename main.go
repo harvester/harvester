@@ -7,7 +7,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	_ "net/http/pprof"
 
@@ -81,7 +80,7 @@ func main() {
 
 func run(commonOptions *config.CommonOptions, options config.Options) error {
 	logrus.Info("Starting controller")
-	ctx := signals.SetupSignalHandler(context.Background())
+	ctx := signals.SetupSignalContext()
 
 	kubeConfig, err := server.GetConfig(commonOptions.KubeConfig)
 	if err != nil {
