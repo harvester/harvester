@@ -8,5 +8,6 @@ cd $(dirname $0)
 ./build
 ./test
 ./package-webhook
+./package-upgrade
 ./test-integration
 ./package
