@@ -116,7 +116,7 @@ func checkPodProjectedVolume(obj data.Object, _ []Condition, summary Summary) Su
 			if configMap := source.String("configMap", "name"); configMap != "" {
 				summary.Relationships = append(summary.Relationships, Relationship{
 					Name:       configMap,
-					Kind:       "Secret",
+					Kind:       "ConfigMap",
 					APIVersion: "v1",
 					Type:       "uses",
 				})
