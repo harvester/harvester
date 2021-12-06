@@ -10,7 +10,8 @@ if [ "$(uname)" = "Linux" ]; then
     OTHER_LINKFLAGS="-extldflags -static -s"
 fi
 
-LINKFLAGS="-X github.com/harvester/harvester/pkg/version.Version=$VERSION
+LINKFLAGS="-X github.com/harvester/harvester/vendor/google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn
+           -X github.com/harvester/harvester/pkg/version.Version=$VERSION
            -X github.com/harvester/harvester/pkg/version.GitCommit=$COMMIT
            -X github.com/harvester/harvester/pkg/settings.InjectDefaults=$DEFAULT_VALUES $LINKFLAGS"
 
