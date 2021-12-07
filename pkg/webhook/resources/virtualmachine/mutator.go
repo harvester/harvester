@@ -116,10 +116,11 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 		}
 		// Reserve 100MiB (104857600 Bytes) for QEMU on guest memory
 		// Ref: https://github.com/harvester/harvester/issues/1234
+		// TODO: handle hugepage memory
 		guestMemory := resource.NewQuantity(mem.Value()-104857600, mem.Format)
 		if vm.Spec.Template.Spec.Domain.Memory == nil {
 			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"%s"}}`, guestMemory))
-		} else if vm.Spec.Template.Spec.Domain.Memory.Guest == nil {
+		} else {
 			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, guestMemory))
 		}
 	}
