@@ -12,7 +12,8 @@ fi
 
 LINKFLAGS="-X github.com/harvester/harvester/pkg/version.Version=$VERSION
            -X github.com/harvester/harvester/pkg/version.GitCommit=$COMMIT
-           -X github.com/harvester/harvester/pkg/settings.InjectDefaults=$DEFAULT_VALUES $LINKFLAGS"
+           -X github.com/harvester/harvester/pkg/settings.InjectDefaults=$DEFAULT_VALUES $LINKFLAGS
+           -X github.com/harvester/harvester/vendor/google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn"
 
 build_binary () {
     local BINARY="$1"
