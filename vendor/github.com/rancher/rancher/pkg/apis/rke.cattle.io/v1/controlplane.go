@@ -2,7 +2,6 @@ package v1
 
 import (
 	"github.com/rancher/wrangler/pkg/genericcondition"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -16,16 +15,22 @@ type RKEControlPlane struct {
 	Status            RKEControlPlaneStatus `json:"status,omitempty"`
 }
 
+type EnvVar struct {
+	Name  string `json:"name,omitempty"`
+	Value string `json:"value,omitempty"`
+}
+
 type RKEControlPlaneSpec struct {
 	RKEClusterSpecCommon
 
-	AgentEnvVars          []corev1.EnvVar     `json:"agentEnvVars,omitempty"`
-	ETCDSnapshotCreate    *ETCDSnapshotCreate `json:"etcdSnapshotCreate,omitempty"`
-	ETCDSnapshotRestore   *ETCDSnapshot       `json:"etcdSnapshotRestore,omitempty"`
-	KubernetesVersion     string              `json:"kubernetesVersion,omitempty"`
-	ClusterName           string              `json:"clusterName,omitempty" wrangler:"required"`
-	ManagementClusterName string              `json:"managementClusterName,omitempty" wrangler:"required"`
-	UnmanagedConfig       bool                `json:"unmanagedConfig,omitempty"`
+	AgentEnvVars             []EnvVar                 `json:"agentEnvVars,omitempty"`
+	LocalClusterAuthEndpoint LocalClusterAuthEndpoint `json:"localClusterAuthEndpoint"`
+	ETCDSnapshotCreate       *ETCDSnapshotCreate      `json:"etcdSnapshotCreate,omitempty"`
+	ETCDSnapshotRestore      *ETCDSnapshotRestore     `json:"etcdSnapshotRestore,omitempty"`
+	KubernetesVersion        string                   `json:"kubernetesVersion,omitempty"`
+	ClusterName              string                   `json:"clusterName,omitempty" wrangler:"required"`
+	ManagementClusterName    string                   `json:"managementClusterName,omitempty" wrangler:"required"`
+	UnmanagedConfig          bool                     `json:"unmanagedConfig,omitempty"`
 }
 
 type ETCDSnapshotPhase string
@@ -35,13 +40,14 @@ var (
 	ETCDSnapshotPhaseShutdown ETCDSnapshotPhase = "Shutdown"
 	ETCDSnapshotPhaseRestore  ETCDSnapshotPhase = "Restore"
 	ETCDSnapshotPhaseFinished ETCDSnapshotPhase = "Finished"
+	ETCDSnapshotPhaseFailed   ETCDSnapshotPhase = "Failed"
 )
 
 type RKEControlPlaneStatus struct {
 	Conditions               []genericcondition.GenericCondition `json:"conditions,omitempty"`
 	Ready                    bool                                `json:"ready,omitempty"`
 	ObservedGeneration       int64                               `json:"observedGeneration"`
-	ETCDSnapshotRestore      *ETCDSnapshot                       `json:"etcdSnapshotRestore,omitempty"`
+	ETCDSnapshotRestore      *ETCDSnapshotRestore                `json:"etcdSnapshotRestore,omitempty"`
 	ETCDSnapshotRestorePhase ETCDSnapshotPhase                   `json:"etcdSnapshotRestorePhase,omitempty"`
 	ETCDSnapshotCreate       *ETCDSnapshotCreate                 `json:"etcdSnapshotCreate,omitempty"`
 	ETCDSnapshotCreatePhase  ETCDSnapshotPhase                   `json:"etcdSnapshotCreatePhase,omitempty"`

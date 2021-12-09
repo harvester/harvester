@@ -111,6 +111,7 @@ type GKENodeConfig struct {
 	MachineType   string               `json:"machineType,omitempty"`
 	OauthScopes   []string             `json:"oauthScopes,omitempty"`
 	Preemptible   bool                 `json:"preemptible,omitempty"`
+	Tags          []string             `json:"tags,omitempty"`
 	Taints        []GKENodeTaintConfig `json:"taints,omitempty"`
 }
 

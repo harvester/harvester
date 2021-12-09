@@ -107,6 +107,11 @@ type MachineStatus struct {
 	// +optional
 	NodeRef *corev1.ObjectReference `json:"nodeRef,omitempty"`
 
+	// NodeInfo is a set of ids/uuids to uniquely identify the node.
+	// More info: https://kubernetes.io/docs/concepts/nodes/node/#info
+	// +optional
+	NodeInfo *corev1.NodeSystemInfo `json:"nodeInfo,omitempty"`
+
 	// LastUpdated identifies when the phase of the Machine last transitioned.
 	// +optional
 	LastUpdated *metav1.Time `json:"lastUpdated,omitempty"`
@@ -231,6 +236,8 @@ type Bootstrap struct {
 // +kubebuilder:resource:path=machines,shortName=ma,scope=Namespaced,categories=cluster-api
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".spec.clusterName",description="Cluster"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of Machine"
 // +kubebuilder:printcolumn:name="ProviderID",type="string",JSONPath=".spec.providerID",description="Provider ID"
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="Machine status such as Terminating/Pending/Running/Failed etc"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version",description="Kubernetes version associated with this Machine"
@@ -245,10 +252,12 @@ type Machine struct {
 	Status MachineStatus `json:"status,omitempty"`
 }
 
+// GetConditions returns the set of conditions for this object.
 func (m *Machine) GetConditions() Conditions {
 	return m.Status.Conditions
 }
 
+// SetConditions sets the conditions on this object.
 func (m *Machine) SetConditions(conditions Conditions) {
 	m.Status.Conditions = conditions
 }

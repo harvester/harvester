@@ -63,6 +63,11 @@ type BundleSpec struct {
 	Resources          []BundleResource          `json:"resources,omitempty"`
 	Targets            []BundleTarget            `json:"targets,omitempty"`
 	TargetRestrictions []BundleTargetRestriction `json:"targetRestrictions,omitempty"`
+	DependsOn          []BundleRef               `json:"dependsOn,omitempty"`
+}
+
+type BundleRef struct {
+	Name string `json:"name,omitempty"`
 }
 
 type BundleResource struct {
@@ -264,6 +269,7 @@ type BundleDeploymentSpec struct {
 	StagedDeploymentID string                  `json:"stagedDeploymentID,omitempty"`
 	Options            BundleDeploymentOptions `json:"options,omitempty"`
 	DeploymentID       string                  `json:"deploymentID,omitempty"`
+	DependsOn          []BundleRef             `json:"dependsOn,omitempty"`
 }
 
 type BundleDeploymentStatus struct {

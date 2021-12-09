@@ -73,6 +73,14 @@ func formatter(summarycache *summarycache.SummaryCache) types.Formatter {
 			resource.Links["update"] = u
 		}
 
+		if _, ok := resource.Links["update"]; !ok && slice.ContainsString(resource.Schema.ResourceMethods, "blocked-PUT") {
+			resource.Links["update"] = "blocked"
+		}
+
+		if _, ok := resource.Links["remove"]; !ok && slice.ContainsString(resource.Schema.ResourceMethods, "blocked-DELETE") {
+			resource.Links["remove"] = "blocked"
+		}
+
 		if unstr, ok := resource.APIObject.Object.(*unstructured.Unstructured); ok {
 			s, rel := summarycache.SummaryAndRelationship(unstr)
 			data.PutValue(unstr.Object, map[string]interface{}{

@@ -57,9 +57,9 @@ const (
 	ClusterConditionconditionDefaultProjectCreated condition.Cond = "DefaultProjectCreated"
 	// ClusterConditionconditionSystemProjectCreated true when system project has been created
 	ClusterConditionconditionSystemProjectCreated condition.Cond = "SystemProjectCreated"
-	// ClusterConditionDefaultNamespaceAssigned true when cluster's default namespace has been initially assigned
+	// Deprecated: ClusterConditionDefaultNamespaceAssigned true when cluster's default namespace has been initially assigned
 	ClusterConditionDefaultNamespaceAssigned condition.Cond = "DefaultNamespaceAssigned"
-	// ClusterConditionSystemNamespacesAssigned true when cluster's system namespaces has been initially assigned to
+	// Deprecated: ClusterConditionSystemNamespacesAssigned true when cluster's system namespaces has been initially assigned to
 	// a system project
 	ClusterConditionSystemNamespacesAssigned   condition.Cond = "SystemNamespacesAssigned"
 	ClusterConditionAddonDeploy                condition.Cond = "AddonDeploy"
@@ -173,6 +173,8 @@ type ClusterStatus struct {
 	MonitoringStatus                     *MonitoringStatus           `json:"monitoringStatus,omitempty" norman:"nocreate,noupdate"`
 	NodeVersion                          int                         `json:"nodeVersion,omitempty"`
 	NodeCount                            int                         `json:"nodeCount,omitempty" norman:"nocreate,noupdate"`
+	LinuxWorkerCount                     int                         `json:"linuxWorkerCount,omitempty" norman:"nocreate,noupdate"`
+	WindowsWorkerCount                   int                         `json:"windowsWorkerCount,omitempty" norman:"nocreate,noupdate"`
 	IstioEnabled                         bool                        `json:"istioEnabled,omitempty" norman:"nocreate,noupdate,default=false"`
 	CertificatesExpiration               map[string]CertExpiration   `json:"certificatesExpiration,omitempty"`
 	ScheduledClusterScanStatus           *ScheduledClusterScanStatus `json:"scheduledClusterScanStatus,omitempty"`
@@ -255,13 +257,14 @@ func (c *ClusterRegistrationTokenSpec) ObjClusterName() string {
 }
 
 type ClusterRegistrationTokenStatus struct {
-	InsecureCommand     string `json:"insecureCommand"`
-	Command             string `json:"command"`
-	WindowsNodeCommand  string `json:"windowsNodeCommand"`
-	NodeCommand         string `json:"nodeCommand"`
-	InsecureNodeCommand string `json:"insecureNodeCommand"`
-	ManifestURL         string `json:"manifestUrl"`
-	Token               string `json:"token"`
+	InsecureCommand            string `json:"insecureCommand"`
+	Command                    string `json:"command"`
+	WindowsNodeCommand         string `json:"windowsNodeCommand"`
+	InsecureWindowsNodeCommand string `json:"insecureWindowsNodeCommand"`
+	NodeCommand                string `json:"nodeCommand"`
+	InsecureNodeCommand        string `json:"insecureNodeCommand"`
+	ManifestURL                string `json:"manifestUrl"`
+	Token                      string `json:"token"`
 }
 
 type GenerateKubeConfigOutput struct {

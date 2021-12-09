@@ -12,8 +12,8 @@ replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c
 	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
-	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20210702001641-82b212ddba18
-	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20210702001641-82b212ddba18
+	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20211208233239-77392a65423d
+	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20211208233239-77392a65423d
 
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.5.4-rancher.1
 	k8s.io/api => k8s.io/api v0.21.2
@@ -44,6 +44,7 @@ replace (
 
 	kubevirt.io/client-go => github.com/kubevirt/client-go v0.45.0
 	kubevirt.io/containerized-data-importer => github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210802100720-9bcf4e7ba0ce
+	sigs.k8s.io/cluster-api => sigs.k8s.io/cluster-api v0.4.4
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2
 )
 
@@ -64,34 +65,34 @@ require (
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20210908163358-43c9d3298665
 	github.com/longhorn/longhorn-manager v1.2.3-rc2
-	github.com/mattn/go-isatty v0.0.12
+	github.com/mattn/go-isatty v0.0.14
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
-	github.com/mitchellh/mapstructure v1.4.1
-	github.com/onsi/ginkgo v1.16.1
-	github.com/onsi/gomega v1.11.0
+	github.com/mitchellh/mapstructure v1.4.2
+	github.com/onsi/ginkgo v1.16.4
+	github.com/onsi/gomega v1.16.0
 	github.com/openshift/api v0.0.0
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/apiserver v0.0.0-20210727155917-6a723678dd3d
-	github.com/rancher/dynamiclistener v0.3.1-0.20210803172359-94e22490cfa8
-	github.com/rancher/lasso v0.0.0-20210616224652-fc3ebd901c08
-	github.com/rancher/norman v0.0.0-20210608202517-59b3523c3133
-	github.com/rancher/rancher v0.0.0-20210702001641-82b212ddba18
+	github.com/rancher/apiserver v0.0.0-20211025232108-df28932a5627
+	github.com/rancher/dynamiclistener v0.3.1-0.20211104200948-cd5d71f2fe95
+	github.com/rancher/lasso v0.0.0-20210709145333-6c6cd7fd6607
+	github.com/rancher/norman v0.0.0-20211201154850-abe17976423e
+	github.com/rancher/rancher v0.0.0-20211208233239-77392a65423d
 	github.com/rancher/rancher/pkg/apis v0.0.0
-	github.com/rancher/steve v0.0.0-20210804220357-bb76e4db5669
-	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210424054953-634d28b7def3
+	github.com/rancher/steve v0.0.0-20210915171517-ae8b16260899
+	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210727200656-10b094e30007
 	github.com/rancher/wrangler v0.8.10
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.9.3
 	github.com/urfave/cli v1.22.2
-	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
+	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/net v0.0.0-20211123203042-d83791d6bcd9
-	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
-	helm.sh/helm/v3 v3.5.4
-	k8s.io/api v0.21.2
-	k8s.io/apiextensions-apiserver v0.21.2
-	k8s.io/apimachinery v0.21.2
+	helm.sh/helm/v3 v3.7.1
+	k8s.io/api v0.22.3
+	k8s.io/apiextensions-apiserver v0.22.3
+	k8s.io/apimachinery v0.22.3
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
@@ -99,6 +100,7 @@ require (
 	kubevirt.io/client-go v0.45.0
 	kubevirt.io/containerized-data-importer v1.36.0
 	kubevirt.io/kubevirt v0.45.0
+	sigs.k8s.io/cluster-api v0.4.4 // indirect
 	sigs.k8s.io/kind v0.11.1
 	sigs.k8s.io/yaml v1.2.0
 )

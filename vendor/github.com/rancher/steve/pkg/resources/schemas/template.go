@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rancher/apiserver/pkg/builtin"
+	"k8s.io/apimachinery/pkg/api/equality"
 
 	schemastore "github.com/rancher/apiserver/pkg/store/schema"
 	"github.com/rancher/apiserver/pkg/types"
@@ -96,12 +97,24 @@ func (s *Store) sendSchemas(result chan types.APIEvent, apiOp *types.APIRequest,
 
 	inNewSchemas := map[string]bool{}
 	for _, apiObject := range schemastore.FilterSchemas(apiOp, schemas.Schemas).Objects {
+		inNewSchemas[apiObject.ID] = true
+		eventName := types.ChangeAPIEvent
+		if oldSchema := oldSchemas.LookupSchema(apiObject.ID); oldSchema == nil {
+			eventName = types.CreateAPIEvent
+		} else {
+			newSchemaCopy := apiObject.Object.(*types.APISchema).Schema.DeepCopy()
+			oldSchemaCopy := oldSchema.Schema.DeepCopy()
+			newSchemaCopy.Mapper = nil
+			oldSchemaCopy.Mapper = nil
+			if equality.Semantic.DeepEqual(newSchemaCopy, oldSchemaCopy) {
+				continue
+			}
+		}
 		result <- types.APIEvent{
-			Name:         types.ChangeAPIEvent,
+			Name:         eventName,
 			ResourceType: "schema",
 			Object:       apiObject,
 		}
-		inNewSchemas[apiObject.ID] = true
 	}
 
 	for _, oldSchema := range schemastore.FilterSchemas(apiOp, oldSchemas.Schemas).Objects {
