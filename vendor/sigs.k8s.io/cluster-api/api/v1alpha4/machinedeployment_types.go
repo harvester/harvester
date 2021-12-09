@@ -21,10 +21,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+const (
+	// MachineDeploymentTopologyFinalizer is the finalizer used by the topology MachineDeployment controller to
+	// clean up referenced template resources if necessary when a MachineDeployment is being deleted.
+	MachineDeploymentTopologyFinalizer = "machinedeployment.topology.cluster.x-k8s.io"
+)
+
+// MachineDeploymentStrategyType defines the type of MachineDeployment rollout strategies.
 type MachineDeploymentStrategyType string
 
 const (
-	// Replace the old MachineSet by new one using rolling update
+	// RollingUpdateMachineDeploymentStrategyType replaces the old MachineSet by new one using rolling update
 	// i.e. gradually scale down the old MachineSet and scale up the new one.
 	RollingUpdateMachineDeploymentStrategyType MachineDeploymentStrategyType = "RollingUpdate"
 
@@ -33,16 +40,23 @@ const (
 
 	// RevisionAnnotation is the revision annotation of a machine deployment's machine sets which records its rollout sequence.
 	RevisionAnnotation = "machinedeployment.clusters.x-k8s.io/revision"
+
 	// RevisionHistoryAnnotation maintains the history of all old revisions that a machine set has served for a machine deployment.
 	RevisionHistoryAnnotation = "machinedeployment.clusters.x-k8s.io/revision-history"
+
 	// DesiredReplicasAnnotation is the desired replicas for a machine deployment recorded as an annotation
 	// in its machine sets. Helps in separating scaling events from the rollout process and for
 	// determining if the new machine set for a deployment is really saturated.
 	DesiredReplicasAnnotation = "machinedeployment.clusters.x-k8s.io/desired-replicas"
+
 	// MaxReplicasAnnotation is the maximum replicas a deployment can have at a given point, which
 	// is machinedeployment.spec.replicas + maxSurge. Used by the underlying machine sets to estimate their
 	// proportions in case the deployment has surge replicas.
 	MaxReplicasAnnotation = "machinedeployment.clusters.x-k8s.io/max-replicas"
+
+	// MachineDeploymentUniqueLabel is the label applied to Machines
+	// in a MachineDeployment containing the hash of the template.
+	MachineDeploymentUniqueLabel = "machine-template-hash"
 )
 
 // ANCHOR: MachineDeploymentSpec
@@ -207,6 +221,10 @@ type MachineDeploymentStatus struct {
 	// Phase represents the current phase of a MachineDeployment (ScalingUp, ScalingDown, Running, Failed, or Unknown).
 	// +optional
 	Phase string `json:"phase,omitempty"`
+
+	// Conditions defines current service state of the MachineDeployment.
+	// +optional
+	Conditions Conditions `json:"conditions,omitempty"`
 }
 
 // ANCHOR_END: MachineDeploymentStatus
@@ -256,6 +274,8 @@ func (md *MachineDeploymentStatus) GetTypedPhase() MachineDeploymentPhase {
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
+// +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".spec.clusterName",description="Cluster"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of MachineDeployment"
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="MachineDeployment status such as ScalingUp/ScalingDown/Running/Failed/Unknown"
 // +kubebuilder:printcolumn:name="Replicas",type="integer",JSONPath=".status.replicas",description="Total number of non-terminated machines targeted by this MachineDeployment"
 // +kubebuilder:printcolumn:name="Ready",type="integer",JSONPath=".status.readyReplicas",description="Total number of ready machines targeted by this MachineDeployment"
@@ -282,4 +302,14 @@ type MachineDeploymentList struct {
 
 func init() {
 	SchemeBuilder.Register(&MachineDeployment{}, &MachineDeploymentList{})
+}
+
+// GetConditions returns the set of conditions for the machinedeployment.
+func (m *MachineDeployment) GetConditions() Conditions {
+	return m.Status.Conditions
+}
+
+// SetConditions updates the set of conditions on the machinedeployment.
+func (m *MachineDeployment) SetConditions(conditions Conditions) {
+	m.Status.Conditions = conditions
 }

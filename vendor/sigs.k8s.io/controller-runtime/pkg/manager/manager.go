@@ -37,9 +37,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/config/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	logf "sigs.k8s.io/controller-runtime/pkg/internal/log"
 	intrec "sigs.k8s.io/controller-runtime/pkg/internal/recorder"
 	"sigs.k8s.io/controller-runtime/pkg/leaderelection"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/recorder"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -95,7 +95,7 @@ type Manager interface {
 	GetControllerOptions() v1alpha1.ControllerConfigurationSpec
 }
 
-// Options are the arguments for creating a new Manager
+// Options are the arguments for creating a new Manager.
 type Options struct {
 	// Scheme is the scheme used to resolve runtime.Objects to GroupVersionKinds / Resources
 	// Defaults to the kubernetes/client-go scheme.Scheme, but it's almost always better
@@ -209,17 +209,24 @@ type Options struct {
 	LivenessEndpointName string
 
 	// Port is the port that the webhook server serves at.
-	// It is used to set webhook.Server.Port.
+	// It is used to set webhook.Server.Port if WebhookServer is not set.
 	Port int
 	// Host is the hostname that the webhook server binds to.
-	// It is used to set webhook.Server.Host.
+	// It is used to set webhook.Server.Host if WebhookServer is not set.
 	Host string
 
 	// CertDir is the directory that contains the server key and certificate.
-	// if not set, webhook server would look up the server key and certificate in
+	// If not set, webhook server would look up the server key and certificate in
 	// {TempDir}/k8s-webhook-server/serving-certs. The server key and certificate
 	// must be named tls.key and tls.crt, respectively.
+	// It is used to set webhook.Server.CertDir if WebhookServer is not set.
 	CertDir string
+
+	// WebhookServer is an externally configured webhook.Server. By default,
+	// a Manager will create a default server using Port, Host, and CertDir;
+	// if this is set, the Manager will use this server instead.
+	WebhookServer *webhook.Server
+
 	// Functions to all for a user to customize the values that will be injected.
 
 	// NewCache is the function that will create the cache to be used
@@ -285,7 +292,7 @@ type Runnable interface {
 // until it's done running.
 type RunnableFunc func(context.Context) error
 
-// Start implements Runnable
+// Start implements Runnable.
 func (r RunnableFunc) Start(ctx context.Context) error {
 	return r(ctx)
 }
@@ -312,7 +319,7 @@ func New(config *rest.Config, options Options) (Manager, error) {
 		clusterOptions.NewClient = options.NewClient
 		clusterOptions.ClientDisableCacheFor = options.ClientDisableCacheFor
 		clusterOptions.DryRunClient = options.DryRunClient
-		clusterOptions.EventBroadcaster = options.EventBroadcaster
+		clusterOptions.EventBroadcaster = options.EventBroadcaster //nolint:staticcheck
 	})
 	if err != nil {
 		return nil, err
@@ -359,32 +366,34 @@ func New(config *rest.Config, options Options) (Manager, error) {
 	}
 
 	return &controllerManager{
-		cluster:                 cluster,
-		recorderProvider:        recorderProvider,
-		resourceLock:            resourceLock,
-		metricsListener:         metricsListener,
-		metricsExtraHandlers:    metricsExtraHandlers,
-		controllerOptions:       options.Controller,
-		logger:                  options.Logger,
-		elected:                 make(chan struct{}),
-		port:                    options.Port,
-		host:                    options.Host,
-		certDir:                 options.CertDir,
-		leaseDuration:           *options.LeaseDuration,
-		renewDeadline:           *options.RenewDeadline,
-		retryPeriod:             *options.RetryPeriod,
-		healthProbeListener:     healthProbeListener,
-		readinessEndpointName:   options.ReadinessEndpointName,
-		livenessEndpointName:    options.LivenessEndpointName,
-		gracefulShutdownTimeout: *options.GracefulShutdownTimeout,
-		internalProceduresStop:  make(chan struct{}),
-		leaderElectionStopped:   make(chan struct{}),
+		cluster:                       cluster,
+		recorderProvider:              recorderProvider,
+		resourceLock:                  resourceLock,
+		metricsListener:               metricsListener,
+		metricsExtraHandlers:          metricsExtraHandlers,
+		controllerOptions:             options.Controller,
+		logger:                        options.Logger,
+		elected:                       make(chan struct{}),
+		port:                          options.Port,
+		host:                          options.Host,
+		certDir:                       options.CertDir,
+		webhookServer:                 options.WebhookServer,
+		leaseDuration:                 *options.LeaseDuration,
+		renewDeadline:                 *options.RenewDeadline,
+		retryPeriod:                   *options.RetryPeriod,
+		healthProbeListener:           healthProbeListener,
+		readinessEndpointName:         options.ReadinessEndpointName,
+		livenessEndpointName:          options.LivenessEndpointName,
+		gracefulShutdownTimeout:       *options.GracefulShutdownTimeout,
+		internalProceduresStop:        make(chan struct{}),
+		leaderElectionStopped:         make(chan struct{}),
+		leaderElectionReleaseOnCancel: options.LeaderElectionReleaseOnCancel,
 	}, nil
 }
 
 // AndFrom will use a supplied type and convert to Options
 // any options already set on Options will be ignored, this is used to allow
-// cli flags to override anything specified in the config file
+// cli flags to override anything specified in the config file.
 func (o Options) AndFrom(loader config.ControllerManagerConfiguration) (Options, error) {
 	if inj, wantsScheme := loader.(inject.Scheme); wantsScheme {
 		err := inj.InjectScheme(o.Scheme)
@@ -449,7 +458,7 @@ func (o Options) AndFrom(loader config.ControllerManagerConfiguration) (Options,
 	return o, nil
 }
 
-// AndFromOrDie will use options.AndFrom() and will panic if there are errors
+// AndFromOrDie will use options.AndFrom() and will panic if there are errors.
 func (o Options) AndFromOrDie(loader config.ControllerManagerConfiguration) Options {
 	o, err := o.AndFrom(loader)
 	if err != nil {
@@ -459,7 +468,7 @@ func (o Options) AndFromOrDie(loader config.ControllerManagerConfiguration) Opti
 }
 
 func (o Options) setLeaderElectionConfig(obj v1alpha1.ControllerManagerConfigurationSpec) Options {
-	if o.LeaderElection == false && obj.LeaderElection.LeaderElect != nil {
+	if !o.LeaderElection && obj.LeaderElection.LeaderElect != nil {
 		o.LeaderElection = *obj.LeaderElection.LeaderElect
 	}
 
@@ -490,7 +499,7 @@ func (o Options) setLeaderElectionConfig(obj v1alpha1.ControllerManagerConfigura
 	return o
 }
 
-// defaultHealthProbeListener creates the default health probes listener bound to the given address
+// defaultHealthProbeListener creates the default health probes listener bound to the given address.
 func defaultHealthProbeListener(addr string) (net.Listener, error) {
 	if addr == "" || addr == "0" {
 		return nil, nil
@@ -503,9 +512,8 @@ func defaultHealthProbeListener(addr string) (net.Listener, error) {
 	return ln, nil
 }
 
-// setOptionsDefaults set default values for Options fields
+// setOptionsDefaults set default values for Options fields.
 func setOptionsDefaults(options Options) Options {
-
 	// Allow newResourceLock to be mocked
 	if options.newResourceLock == nil {
 		options.newResourceLock = leaderelection.NewResourceLock
@@ -564,7 +572,7 @@ func setOptionsDefaults(options Options) Options {
 	}
 
 	if options.Logger == nil {
-		options.Logger = logf.RuntimeLog.WithName("manager")
+		options.Logger = log.Log
 	}
 
 	return options

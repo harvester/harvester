@@ -14,13 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package version implements version handling.
 package version
 
 import (
-	"github.com/blang/semver"
-	"github.com/pkg/errors"
 	"regexp"
 	"strconv"
+	"strings"
+
+	"github.com/blang/semver"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -71,4 +74,116 @@ func parseMajorMinorPatch(version string, tolerant bool) (semver.Version, error)
 		Minor: minor,
 		Patch: patch,
 	}, nil
+}
+
+const (
+	numbers = "01234567890"
+)
+
+func containsOnly(s string, set string) bool {
+	return strings.IndexFunc(s, func(r rune) bool {
+		return !strings.ContainsRune(set, r)
+	}) == -1
+}
+
+type buildIdentifiers []buildIdentifier
+
+func newBuildIdentifiers(ids []string) buildIdentifiers {
+	bis := make(buildIdentifiers, 0, len(ids))
+	for _, id := range ids {
+		bis = append(bis, newBuildIdentifier(id))
+	}
+	return bis
+}
+
+// compare compares 2 builidentifiers v and 0.
+// -1 == v is less than o.
+// 0 == v is equal to o.
+// 1 == v is greater than o.
+// Note: If everything else is equal the longer build identifier is greater.
+func (v buildIdentifiers) compare(o buildIdentifiers) int {
+	i := 0
+	for ; i < len(v) && i < len(o); i++ {
+		if comp := v[i].compare(o[i]); comp == 0 {
+			continue
+		} else {
+			return comp
+		}
+	}
+
+	// if everything is equal till now the longer is greater
+	if i == len(v) && i == len(o) { //nolint: gocritic
+		return 0
+	} else if i == len(v) && i < len(o) {
+		return -1
+	} else {
+		return 1
+	}
+}
+
+type buildIdentifier struct {
+	IdentifierInt uint64
+	IdentifierStr string
+	IsNum         bool
+}
+
+func newBuildIdentifier(s string) buildIdentifier {
+	bi := buildIdentifier{}
+	if containsOnly(s, numbers) {
+		num, _ := strconv.ParseUint(s, 10, 64)
+		bi.IdentifierInt = num
+		bi.IsNum = true
+	} else {
+		bi.IdentifierStr = s
+		bi.IsNum = false
+	}
+	return bi
+}
+
+// compare compares v and o.
+// -1 == v is less than o.
+// 0 == v is equal to o.
+// 1 == v is greater than o.
+// Note: number is considered lower than string.
+func (v buildIdentifier) compare(o buildIdentifier) int {
+	if v.IsNum && !o.IsNum {
+		return -1
+	}
+	if !v.IsNum && o.IsNum {
+		return 1
+	}
+	if v.IsNum && o.IsNum { // both are numbers
+		switch {
+		case v.IdentifierInt < o.IdentifierInt:
+			return -1
+		case v.IdentifierInt == o.IdentifierInt:
+			return 0
+		default:
+			return 1
+		}
+	} else { // both are strings
+		switch {
+		case v.IdentifierStr < o.IdentifierStr:
+			return -1
+		case v.IdentifierStr == o.IdentifierStr:
+			return 0
+		default:
+			return 1
+		}
+	}
+}
+
+// CompareWithBuildIdentifiers compares 2 version a and b.
+// Perfoms a standard version compare between a and b. If the versions
+// are equal, build identifiers will be used to compare further.
+//   -1 == a is less than b.
+//   0 == a is equal to b.
+//   1 == a is greater than b.
+func CompareWithBuildIdentifiers(a semver.Version, b semver.Version) int {
+	if comp := a.Compare(b); comp != 0 {
+		return comp
+	}
+	biA := newBuildIdentifiers(a.Build)
+	biB := newBuildIdentifiers(b.Build)
+	return biA.compare(biB)
 }

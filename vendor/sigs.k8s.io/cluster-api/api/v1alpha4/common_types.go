@@ -18,12 +18,24 @@ package v1alpha4
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
 	// ClusterLabelName is the label set on machines linked to a cluster and
 	// external objects(bootstrap and infrastructure providers).
 	ClusterLabelName = "cluster.x-k8s.io/cluster-name"
+
+	// ClusterTopologyLabelName is the label set on all the object which are managed as part of a ClusterTopology.
+	// Deprecated: use ClusterTopologyOwnedLabel instead.
+	ClusterTopologyLabelName = "cluster.x-k8s.io/topology"
+
+	// ClusterTopologyOwnedLabel is the label set on all the object which are managed as part of a ClusterTopology.
+	ClusterTopologyOwnedLabel = "topology.cluster.x-k8s.io/owned"
+
+	// ClusterTopologyMachineDeploymentLabelName is the label set on the generated  MachineDeployment objects
+	// to track the name of the MachineDeployment topology it represents.
+	ClusterTopologyMachineDeploymentLabelName = "topology.cluster.x-k8s.io/deployment-name"
 
 	// ProviderLabelName is the label set on components in the provider manifest.
 	// This label allows to easily identify all the components belonging to a provider; the clusterctl
@@ -83,20 +95,47 @@ const (
 
 	// InterruptibleLabel is the label used to mark the nodes that run on interruptible instances.
 	InterruptibleLabel = "cluster.x-k8s.io/interruptible"
+
+	// ManagedByAnnotation is an annotation that can be applied to InfraCluster resources to signify that
+	// some external system is managing the cluster infrastructure.
+	//
+	// Provider InfraCluster controllers will ignore resources with this annotation.
+	// An external controller must fulfill the contract of the InfraCluster resource.
+	// External infrastructure providers should ensure that the annotation, once set, cannot be removed.
+	ManagedByAnnotation = "cluster.x-k8s.io/managed-by"
+)
+
+const (
+	// TemplateSuffix is the object kind suffix used by template types.
+	TemplateSuffix = "Template"
+)
+
+var (
+	// ZeroDuration is a zero value of the metav1.Duration type.
+	ZeroDuration = metav1.Duration{}
+)
+
+const (
+	// MachineNodeNameIndex is used by the Machine Controller to index Machines by Node name, and add a watch on Nodes.
+	// Deprecated: Use api/v1alpha4/index.MachineNodeNameField instead.
+	MachineNodeNameIndex = "status.nodeRef.name"
+
+	// MachineProviderIDIndex is used to index Machines by ProviderID. It's useful to find Machines
+	// in a management cluster from Nodes in a workload cluster.
+	// Deprecated: Use api/v1alpha4/index.MachineProviderIDField instead.
+	MachineProviderIDIndex = "spec.providerID"
 )
 
 // MachineAddressType describes a valid MachineAddress type.
 type MachineAddressType string
 
+// Define the MachineAddressType constants.
 const (
 	MachineHostName    MachineAddressType = "Hostname"
 	MachineExternalIP  MachineAddressType = "ExternalIP"
 	MachineInternalIP  MachineAddressType = "InternalIP"
 	MachineExternalDNS MachineAddressType = "ExternalDNS"
 	MachineInternalDNS MachineAddressType = "InternalDNS"
-
-	// MachineNodeNameIndex is used by the Machine Controller to index Machines by Node name, and add a watch on Nodes.
-	MachineNodeNameIndex = "status.nodeRef.name"
 )
 
 // MachineAddress contains information for the node's address.

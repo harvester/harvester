@@ -85,7 +85,7 @@ func (h *handler) shouldRestart(secret *corev1.Secret) (string, []byte, string, 
 
 	if h.url != url ||
 		h.token != token ||
-		bytes.Equal(h.caCert, caCert) {
+		!bytes.Equal(h.caCert, caCert) {
 		return url, caCert, token, true, nil
 	}
 

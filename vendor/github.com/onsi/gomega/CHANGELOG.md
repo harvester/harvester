@@ -1,3 +1,57 @@
+## 1.16.0
+
+### Features
+- feat: HaveHTTPStatus multiple expected values (#465) [aa69f1b]
+- feat: HaveHTTPHeaderWithValue() matcher (#463) [dd83a96]
+- feat: HaveHTTPBody matcher (#462) [504e1f2]
+- feat: formatter for HTTP responses (#461) [e5b3157]
+
+## 1.15.0
+
+### Fixes
+The previous version (1.14.0) introduced a change to allow `Eventually` and `Consistently` to support functions that make assertions.  This was accomplished by overriding the global fail handler when running the callbacks passed to `Eventually/Consistently` in order to capture any resulting errors.  Issue #457 uncovered a flaw with this approach: when multiple `Eventually`s are running concurrently they race when overriding the singleton global fail handler.
+
+1.15.0 resolves this by requiring users who want to make assertions in `Eventually/Consistently` call backs to explicitly pass in a function that takes a `Gomega` as an argument.  The passed-in `Gomega` instance can be used to make assertions.  Any failures will cause `Eventually` to retry the callback.  This cleaner interface avoids the issue of swapping out globals but comes at the cost of changing the contract introduced in v1.14.0.  As such 1.15.0 introduces a breaking change with respect to 1.14.0 - however we expect that adoption of this feature in 1.14.0 remains limited.
+
+In addition, 1.15.0 cleans up some of Gomega's internals.  Most users shouldn't notice any differences stemming from the refactoring that was made.
+
+## 1.14.0
+
+### Features
+- gmeasure.SamplingConfig now suppers a MinSamplingInterval [e94dbca]
+- Eventually and Consistently support functions that make assertions [2f04e6e]
+    - Eventually and Consistently now allow their passed-in functions to make assertions.
+    These assertions must pass or the function is considered to have failed and is retried.
+    - Eventually and Consistently can now take functions with no return values.  These implicitly return nil
+    if they contain no failed assertion.  Otherwise they return an error wrapping the first assertion failure.  This allows
+    these functions to be used with the Succeed() matcher.
+    - Introduce InterceptGomegaFailure - an analogue to InterceptGomegaFailures - that captures the first assertion failure
+    and halts execution in its passed-in callback.
+
+### Fixes
+- Call Verify GHTTPWithGomega receiver funcs (#454) [496e6fd]
+- Build a binary with an expected name (#446) [7356360]
+
+## 1.13.0
+
+### Features
+- gmeasure provides BETA support for benchmarking (#447) [8f2dfbf]
+- Set consistently and eventually defaults on init (#443) [12eb778]
+
+## 1.12.0
+
+### Features
+- Add Satisfy() matcher (#437) [c548f31]
+- tweak truncation message [3360b8c]
+- Add format.GomegaStringer (#427) [cc80b6f]
+- Add Clear() method to gbytes.Buffer [c3c0920]
+
+### Fixes
+- Fix error message in BeNumericallyMatcher (#432) [09c074a]
+- Bump github.com/onsi/ginkgo from 1.12.1 to 1.16.2 (#442) [e5f6ea0]
+- Bump github.com/golang/protobuf from 1.4.3 to 1.5.2 (#431) [adae3bf]
+- Bump golang.org/x/net (#441) [3275b35]
+
 ## 1.11.0
 
 ### Features
