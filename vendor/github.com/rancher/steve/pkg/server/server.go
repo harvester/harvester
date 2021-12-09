@@ -37,6 +37,7 @@ type Server struct {
 	AccessSetLookup accesscontrol.AccessSetLookup
 	APIServer       *apiserver.Server
 	ClusterRegistry string
+	Version         string
 
 	authMiddleware      auth.Middleware
 	controllers         *Controllers
@@ -59,6 +60,7 @@ type Options struct {
 	AggregationSecretNamespace string
 	AggregationSecretName      string
 	ClusterRegistry            string
+	ServerVersion              string
 }
 
 func New(ctx context.Context, restConfig *rest.Config, opts *Options) (*Server, error) {
@@ -77,6 +79,7 @@ func New(ctx context.Context, restConfig *rest.Config, opts *Options) (*Server, 
 		aggregationSecretNamespace: opts.AggregationSecretNamespace,
 		aggregationSecretName:      opts.AggregationSecretName,
 		ClusterRegistry:            opts.ClusterRegistry,
+		Version:                    opts.ServerVersion,
 	}
 
 	if err := setup(ctx, server); err != nil {
@@ -135,7 +138,7 @@ func setup(ctx context.Context, server *Server) error {
 	server.ClusterCache = ccache
 	sf := schema.NewCollection(ctx, server.BaseSchemas, asl)
 
-	if err = resources.DefaultSchemas(ctx, server.BaseSchemas, ccache, server.ClientFactory, sf); err != nil {
+	if err = resources.DefaultSchemas(ctx, server.BaseSchemas, ccache, server.ClientFactory, sf, server.Version); err != nil {
 		return err
 	}
 

@@ -6,11 +6,20 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 )
 
-func Register(schemas *types.APISchemas) {
+type SchemasGetter func(apiOp *types.APIRequest) *types.APISchemas
+
+func DefaultGetter(apiOp *types.APIRequest) *types.APISchemas {
+	return apiOp.Schemas
+}
+
+func Register(schemas *types.APISchemas, getter SchemasGetter, serverVersion string) {
+	if getter == nil {
+		getter = DefaultGetter
+	}
 	schemas.MustImportAndCustomize(Subscribe{}, func(schema *types.APISchema) {
 		schema.CollectionMethods = []string{http.MethodGet}
 		schema.ResourceMethods = []string{}
-		schema.ListHandler = Handler
+		schema.ListHandler = NewHandler(getter, serverVersion)
 		schema.PluralName = "subscribe"
 	})
 }

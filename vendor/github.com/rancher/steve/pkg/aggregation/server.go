@@ -60,11 +60,23 @@ func ListenAndServe(ctx context.Context, url string, caCert []byte, token string
 func serve(ctx context.Context, dialer websocket.Dialer, url string, headers http.Header, handler http.Handler) error {
 	url = strings.Replace(url, "http://", "ws://", 1)
 	url = strings.Replace(url, "https://", "wss://", 1)
-	conn, _, err := dialer.DialContext(ctx, url, headers)
+
+	// ensure we clean up everything on exit
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	dialCtx, dialCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer dialCancel()
+	conn, _, err := dialer.DialContext(dialCtx, url, headers)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+
+	go func() {
+		<-ctx.Done()
+		conn.Close()
+	}()
 
 	listener := NewListener("steve")
 	server := http.Server{

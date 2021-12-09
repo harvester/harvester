@@ -15,9 +15,10 @@ const (
 
 var (
 	allowedFormats = map[string]bool{
-		"html": true,
-		"json": true,
-		"yaml": true,
+		"html":  true,
+		"json":  true,
+		"jsonl": true,
+		"yaml":  true,
 	}
 )
 
@@ -139,11 +140,20 @@ func parseResponseFormat(req *http.Request) string {
 	if isYaml(req) {
 		return "yaml"
 	}
+
+	if isJSONL(req) {
+		return "jsonl"
+	}
+
 	return "json"
 }
 
 func isYaml(req *http.Request) bool {
 	return strings.Contains(req.Header.Get("Accept"), "application/yaml")
+}
+
+func isJSONL(req *http.Request) bool {
+	return strings.Contains(req.Header.Get("Accept"), "application/jsonl")
 }
 
 func parseMethod(req *http.Request) string {
