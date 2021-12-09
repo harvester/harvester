@@ -1,0 +1,73 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    {}
+  creationTimestamp: null
+  name: versions.harvesterhci.io
+spec:
+  group: harvesterhci.io
+  names:
+    kind: Version
+    listKind: VersionList
+    plural: versions
+    singular: version
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.isoURL
+      name: ISO-URL
+      type: string
+    - jsonPath: .spec.releaseDate
+      name: ReleaseDate
+      type: string
+    - jsonPath: .spec.minUpgradableVersion
+      name: MinUpgradableVersion
+      type: string
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              isoChecksum:
+                type: string
+              isoURL:
+                type: string
+              minUpgradableVersion:
+                type: string
+              releaseDate:
+                type: string
+              tags:
+                items:
+                  type: string
+                type: array
+            required:
+            - isoURL
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
