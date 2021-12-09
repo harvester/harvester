@@ -20,6 +20,7 @@ func init() {
 	allProviders[providers.Docker] = providers.IsDocker
 	allProviders[providers.EKS] = providers.IsEKS
 	allProviders[providers.GKE] = providers.IsGKE
+	allProviders[providers.Harvester] = providers.IsHarvester
 	allProviders[providers.K3s] = providers.IsK3s
 	allProviders[providers.Minikube] = providers.IsMinikube
 	allProviders[providers.RKE] = providers.IsRKE

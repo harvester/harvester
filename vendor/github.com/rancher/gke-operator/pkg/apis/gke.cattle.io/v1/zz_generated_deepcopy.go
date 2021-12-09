@@ -291,6 +291,11 @@ func (in *GKENodeConfig) DeepCopyInto(out *GKENodeConfig) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.Tags != nil {
+		in, out := &in.Tags, &out.Tags
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Taints != nil {
 		in, out := &in.Taints, &out.Taints
 		*out = make([]GKENodeTaintConfig, len(*in))

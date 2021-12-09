@@ -14,6 +14,7 @@ type WatchSession struct {
 	sync.Mutex
 
 	apiOp    *types.APIRequest
+	getter   SchemasGetter
 	watchers map[string]func()
 	wg       sync.WaitGroup
 	ctx      context.Context
@@ -55,7 +56,8 @@ func (s *WatchSession) add(sub Subscribe, resp chan<- types.APIEvent) {
 }
 
 func (s *WatchSession) stream(ctx context.Context, sub Subscribe, result chan<- types.APIEvent) error {
-	schema := s.apiOp.Schemas.LookupSchema(sub.ResourceType)
+	schemas := s.getter(s.apiOp)
+	schema := schemas.LookupSchema(sub.ResourceType)
 	if schema == nil {
 		return fmt.Errorf("failed to find schema %s", sub.ResourceType)
 	} else if schema.Store == nil {
@@ -68,6 +70,7 @@ func (s *WatchSession) stream(ctx context.Context, sub Subscribe, result chan<- 
 
 	apiOp := s.apiOp.Clone().WithContext(ctx)
 	apiOp.Namespace = sub.Namespace
+	apiOp.Schemas = schemas
 	c, err := schema.Store.Watch(apiOp, schema, types.WatchRequest{
 		Revision: sub.ResourceVersion,
 		ID:       sub.ID,
@@ -91,7 +94,17 @@ func (s *WatchSession) stream(ctx context.Context, sub Subscribe, result chan<- 
 			if event.Error == nil {
 				event.ID = sub.ID
 				event.Selector = sub.Selector
-				result <- event
+				select {
+				case result <- event:
+				default:
+					// handle slow consumer
+					go func() {
+						for range c {
+							// continue to drain until close
+						}
+					}()
+					return nil
+				}
 			} else {
 				sendErr(result, event.Error, sub)
 			}
@@ -101,9 +114,10 @@ func (s *WatchSession) stream(ctx context.Context, sub Subscribe, result chan<- 
 	return nil
 }
 
-func NewWatchSession(apiOp *types.APIRequest) *WatchSession {
+func NewWatchSession(apiOp *types.APIRequest, getter SchemasGetter) *WatchSession {
 	ws := &WatchSession{
 		apiOp:    apiOp,
+		getter:   getter,
 		watchers: map[string]func(){},
 	}
 

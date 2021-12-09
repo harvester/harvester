@@ -282,21 +282,8 @@ func returnErr(err error, c chan types.APIEvent) {
 
 func (s *Store) listAndWatch(apiOp *types.APIRequest, k8sClient dynamic.ResourceInterface, schema *types.APISchema, w types.WatchRequest, result chan types.APIEvent) {
 	rev := w.Revision
-	if rev == "-1" {
+	if rev == "-1" || rev == "0" {
 		rev = ""
-	} else {
-		// ensure the revision is valid or get the latest one
-		list, err := k8sClient.List(apiOp.Context(), metav1.ListOptions{
-			Limit:           1,
-			ResourceVersion: rev,
-		})
-		if err != nil {
-			returnErr(errors.Wrapf(err, "failed to list %s", schema.ID), result)
-			return
-		}
-		if rev == "" {
-			rev = list.GetResourceVersion()
-		}
 	}
 
 	timeout := int64(60 * 30)

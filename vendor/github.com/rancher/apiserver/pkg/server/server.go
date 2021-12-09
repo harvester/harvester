@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/rancher/apiserver/pkg/builtin"
 	"github.com/rancher/apiserver/pkg/handlers"
@@ -37,6 +38,12 @@ func DefaultAPIServer() *Server {
 					Encoder:     types.JSONEncoder,
 				},
 			},
+			"jsonl": &writer.GzipWriter{
+				ResponseWriter: &writer.EncodingResponseWriter{
+					ContentType: "application/jsonl",
+					Encoder:     types.JSONLinesEncoder,
+				},
+			},
 			"html": &writer.GzipWriter{
 				ResponseWriter: &writer.HTMLResponseWriter{
 					EncodingResponseWriter: writer.EncodingResponseWriter{
@@ -57,7 +64,7 @@ func DefaultAPIServer() *Server {
 		URLParser:     parse.MuxURLParser,
 	}
 
-	subscribe.Register(s.Schemas)
+	subscribe.Register(s.Schemas, subscribe.DefaultGetter, os.Getenv("SERVER_VERSION"))
 	return s
 }
 
@@ -144,13 +151,13 @@ func (s *Server) handleOp(apiOp *types.APIRequest) (int, interface{}, error) {
 		return 0, nil, err
 	}
 
+	if apiOp.Schema == nil {
+		return http.StatusNotFound, nil, nil
+	}
+
 	action, err := ValidateAction(apiOp)
 	if err != nil {
 		return 0, nil, err
-	}
-
-	if apiOp.Schema == nil {
-		return http.StatusNotFound, nil, nil
 	}
 
 	if action != nil {

@@ -10,6 +10,10 @@ import (
 const K3s = "k3s"
 
 func IsK3s(ctx context.Context, k8sClient kubernetes.Interface) (bool, error) {
+	if isHarvester, err := IsHarvester(ctx, k8sClient); err != nil || isHarvester {
+		return false, err
+	}
+
 	v, err := k8sClient.Discovery().ServerVersion()
 	if err != nil {
 		return false, err

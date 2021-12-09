@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	v1 "k8s.io/api/core/v1"
+	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -46,19 +46,19 @@ func (h *Handler) syncRke2HTTPProxy(httpProxyConfig util.HTTPProxyConfig) error 
 		return err
 	}
 	toUpdate := localCluster.DeepCopy()
-	var newEnvVars []v1.EnvVar
+	var newEnvVars []rkev1.EnvVar
 	for _, envVar := range toUpdate.Spec.AgentEnvVars {
 		if !strings.HasSuffix(envVar.Name, "_PROXY") {
 			newEnvVars = append(newEnvVars, envVar)
 		}
 	}
-	newEnvVars = append(newEnvVars, v1.EnvVar{
+	newEnvVars = append(newEnvVars, rkev1.EnvVar{
 		Name:  util.HTTPProxyEnv,
 		Value: httpProxyConfig.HTTPProxy,
-	}, v1.EnvVar{
+	}, rkev1.EnvVar{
 		Name:  util.HTTPSProxyEnv,
 		Value: httpProxyConfig.HTTPSProxy,
-	}, v1.EnvVar{
+	}, rkev1.EnvVar{
 		Name:  util.NoProxyEnv,
 		Value: util.AddBuiltInNoProxy(httpProxyConfig.NoProxy),
 	})
