@@ -32,6 +32,7 @@ func main() {
 					harvesterv1.Preference{},
 					harvesterv1.Setting{},
 					harvesterv1.Upgrade{},
+					harvesterv1.Version{},
 					harvesterv1.VirtualMachineBackup{},
 					harvesterv1.VirtualMachineRestore{},
 					harvesterv1.VirtualMachineImage{},
