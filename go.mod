@@ -100,7 +100,7 @@ require (
 	kubevirt.io/client-go v0.45.0
 	kubevirt.io/containerized-data-importer v1.36.0
 	kubevirt.io/kubevirt v0.45.0
-	sigs.k8s.io/cluster-api v0.4.4 // indirect
+	sigs.k8s.io/cluster-api v0.4.4
 	sigs.k8s.io/kind v0.11.1
 	sigs.k8s.io/yaml v1.2.0
 )
