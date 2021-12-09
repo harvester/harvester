@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 	networkingv1 "k8s.io/api/networking/v1"
 	kv1 "kubevirt.io/client-go/api/v1"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
@@ -86,6 +87,13 @@ func main() {
 			upgradev1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
 					upgradev1.Plan{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			capi.GroupVersion.Group: {
+				Types: []interface{}{
+					capi.Machine{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
