@@ -7113,6 +7113,10 @@
         "sourceType"
       ],
       "properties": {
+        "checksum": {
+          "type": "string",
+          "default": ""
+        },
         "description": {
           "type": "string"
         },
