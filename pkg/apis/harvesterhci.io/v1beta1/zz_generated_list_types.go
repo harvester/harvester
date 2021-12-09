@@ -94,6 +94,23 @@ func NewUpgrade(namespace, name string, obj Upgrade) *Upgrade {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// VersionList is a list of Version resources
+type VersionList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []Version `json:"items"`
+}
+
+func NewVersion(namespace, name string, obj Version) *Version {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("Version").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // VirtualMachineBackupList is a list of VirtualMachineBackup resources
 type VirtualMachineBackupList struct {
 	metav1.TypeMeta `json:",inline"`

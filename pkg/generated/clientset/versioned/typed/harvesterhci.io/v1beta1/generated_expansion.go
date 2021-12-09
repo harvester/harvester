@@ -28,6 +28,8 @@ type SupportBundleExpansion interface{}
 
 type UpgradeExpansion interface{}
 
+type VersionExpansion interface{}
+
 type VirtualMachineBackupExpansion interface{}
 
 type VirtualMachineImageExpansion interface{}
