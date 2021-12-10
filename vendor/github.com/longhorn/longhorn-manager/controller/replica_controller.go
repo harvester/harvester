@@ -789,14 +789,16 @@ func (rc *ReplicaController) enqueueBackingImageChange(obj interface{}) {
 		}
 	}
 
+	replicas, err := rc.ds.ListReplicasByNodeRO(rc.controllerID)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("failed to list replicas on node %v for backing image %v: %v", rc.controllerID, backingImage.Name, err))
+		return
+	}
 	for diskUUID := range backingImage.Status.DiskFileStatusMap {
-		replicas, err := rc.ds.ListReplicasByDiskUUID(diskUUID)
-		if err != nil {
-			utilruntime.HandleError(fmt.Errorf("failed to list replicas in disk %v for backing image %v: %v", diskUUID, backingImage.Name, err))
-			continue
-		}
 		for _, r := range replicas {
-			rc.enqueueReplica(r)
+			if r.Spec.DiskID == diskUUID && r.Spec.BackingImage == backingImage.Name {
+				rc.enqueueReplica(r)
+			}
 		}
 	}
 
