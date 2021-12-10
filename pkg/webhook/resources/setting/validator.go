@@ -17,6 +17,8 @@ import (
 	"github.com/rancher/wrangler/pkg/slice"
 	"golang.org/x/net/http/httpproxy"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -49,9 +51,10 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.SSLParametersName:                validateSSLParameters,
 }
 
-func NewValidator(settingCache ctlv1beta1.SettingCache) types.Validator {
+func NewValidator(settingCache ctlv1beta1.SettingCache, vmBackupCache ctlv1beta1.VirtualMachineBackupCache) types.Validator {
 	validator := &settingValidator{
-		settingCache: settingCache,
+		settingCache:  settingCache,
+		vmBackupCache: vmBackupCache,
 	}
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
 	return validator
@@ -60,7 +63,8 @@ func NewValidator(settingCache ctlv1beta1.SettingCache) types.Validator {
 type settingValidator struct {
 	types.DefaultValidator
 
-	settingCache ctlv1beta1.SettingCache
+	settingCache  ctlv1beta1.SettingCache
+	vmBackupCache ctlv1beta1.VirtualMachineBackupCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -160,6 +164,14 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 
 	if target.Type == settings.NFSBackupType && (target.BucketName != "" || target.BucketRegion != "") {
 		return werror.NewInvalidError("NFS backup target should not have bucket name or region ", "value")
+	}
+
+	vmBackups, err := v.vmBackupCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	if hasVMBackupInCreatingOrDeletingProgress(vmBackups) {
+		return werror.NewBadRequest("There is VMBackup in creating or deleting progress")
 	}
 
 	// Set OS environment variables for S3
@@ -334,4 +346,13 @@ func getSystemCerts() *x509.CertPool {
 		certs = x509.NewCertPool()
 	}
 	return certs
+}
+
+func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachineBackup) bool {
+	for _, vmBackup := range vmBackups {
+		if vmBackup.DeletionTimestamp != nil || vmBackup.Status == nil || !*vmBackup.Status.ReadyToUse {
+			return true
+		}
+	}
+	return false
 }

@@ -135,13 +135,16 @@ func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachin
 		// get vmBackup source
 		sourceVM, err := h.getBackupSource(vmBackup)
 		if err != nil {
-			return nil, err
+			return nil, h.setStatusError(vmBackup, err)
+		}
+		if sourceVM.DeletionTimestamp != nil {
+			return nil, h.setStatusError(vmBackup, fmt.Errorf("vm %s/%s is being deleted", vmBackup.Namespace, vmBackup.Spec.Source.Name))
 		}
 
 		// check if the VM is running, if not make sure the volumes are mounted to the host
 		if !sourceVM.Status.Ready || !sourceVM.Status.Created {
 			if err := h.mountLonghornVolumes(sourceVM); err != nil {
-				return nil, err
+				return nil, h.setStatusError(vmBackup, err)
 			}
 		}
 
