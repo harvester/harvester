@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -964,6 +966,19 @@ func (imc *InstanceManagerController) createReplicaManagerPodSpec(im *longhorn.I
 				},
 			},
 		},
+	}
+
+	service, err := net.LookupCNAME("longhorn-backend")
+
+	if err == nil {
+		podSpec.Spec.Containers[0].Env = []v1.EnvVar{
+			{
+				Name:  "HOST_SUFFIX",
+				Value: strings.TrimPrefix(service, "longhorn-backend"),
+			},
+		}
+	} else {
+		logrus.Errorf("error getting fully qualified domain name for longhorn services: %v", err)
 	}
 	return podSpec, nil
 }
