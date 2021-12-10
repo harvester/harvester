@@ -568,6 +568,11 @@ func (h *Handler) deleteVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 
 func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBackup, target *settings.BackupTarget) error {
 	var err error
+	// if users don't update VMBackup CRD, we may lose backup target data.
+	if vmBackup.Status.BackupTarget == nil {
+		return fmt.Errorf("no backup target in vmbackup.status")
+	}
+
 	if target == nil {
 		if target, err = settings.DecodeBackupTarget(settings.BackupTargetSet.Get()); err != nil {
 			return err
@@ -717,8 +722,5 @@ func (h *Handler) configureBackupTargetOnStatus(vmBackup *harvesterv1.VirtualMac
 		BucketName:   vmBackup.Annotations[backupBucketNameAnnotation],
 		BucketRegion: vmBackup.Annotations[backupBucketRegionAnnotation],
 	}
-	delete(vmBackup.Annotations, backupTargetAnnotation)
-	delete(vmBackup.Annotations, backupBucketNameAnnotation)
-	delete(vmBackup.Annotations, backupBucketRegionAnnotation)
 	return h.vmBackups.Update(vmBackupCpy)
 }
