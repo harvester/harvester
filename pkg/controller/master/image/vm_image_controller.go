@@ -125,6 +125,7 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 		Spec: v1beta1.BackingImageSpec{
 			SourceType:       v1beta1.BackingImageDataSourceType(image.Spec.SourceType),
 			SourceParameters: map[string]string{},
+			Checksum:         image.Spec.Checksum,
 		},
 	}
 	if image.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeDownload {
