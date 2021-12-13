@@ -47,6 +47,8 @@ spec:
             type: object
           spec:
             properties:
+              checksum:
+                type: string
               description:
                 type: string
               displayName:
