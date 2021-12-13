@@ -42,13 +42,13 @@ var supportedSSLProtocols = []string{"SSLv2", "SSLv3", "TLSv1", "TLSv1.1", "TLSv
 type validateSettingFunc func(setting *v1beta1.Setting) error
 
 var validateSettingFuncs = map[string]validateSettingFunc{
-	settings.HttpProxySettingName:             validateHTTPProxy,
-	settings.VMForceDeletionPolicySettingName: validateVMForceDeletionPolicy,
-	settings.SupportBundleTimeoutSettingName:  validateSupportBundleTimeout,
-	settings.OvercommitConfigSettingName:      validateOvercommitConfig,
-	settings.VipPoolsConfigSettingName:        validateVipPoolsConfig,
-	settings.SSLCertificatesSettingName:       validateSSLCertificates,
-	settings.SSLParametersName:                validateSSLParameters,
+	settings.HttpProxySettingName:            validateHTTPProxy,
+	settings.VMForceResetPolicySettingName:   validateVMForceResetPolicy,
+	settings.SupportBundleTimeoutSettingName: validateSupportBundleTimeout,
+	settings.OvercommitConfigSettingName:     validateOvercommitConfig,
+	settings.VipPoolsConfigSettingName:       validateVipPoolsConfig,
+	settings.SSLCertificatesSettingName:      validateSSLCertificates,
+	settings.SSLParametersName:               validateSSLParameters,
 }
 
 func NewValidator(settingCache ctlv1beta1.SettingCache, vmBackupCache ctlv1beta1.VirtualMachineBackupCache) types.Validator {
@@ -134,12 +134,12 @@ func validateOvercommitConfig(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateVMForceDeletionPolicy(setting *v1beta1.Setting) error {
+func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
 	}
 
-	if _, err := settings.DecodeVMForceDeletionPolicy(setting.Value); err != nil {
+	if _, err := settings.DecodeVMForceResetPolicy(setting.Value); err != nil {
 		return werror.NewInvalidError(err.Error(), "value")
 	}
 

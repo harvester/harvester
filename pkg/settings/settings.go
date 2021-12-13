@@ -36,23 +36,23 @@ var (
 	SupportBundleTimeout         = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
 	DefaultStorageClass          = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                    = NewSetting(HttpProxySettingName, "{}")
-	VMForceDeletionPolicySet     = NewSetting(VMForceDeletionPolicySettingName, InitVMForceDeletionPolicy())
+	VMForceResetPolicySet        = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
 	OvercommitConfig             = NewSetting(OvercommitConfigSettingName, `{"cpu":1600,"memory":150,"storage":200}`)
 	VipPools                     = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths       = NewSetting("auto-disk-provision-paths", "")
 )
 
 const (
-	AdditionalCASettingName          = "additional-ca"
-	BackupTargetSettingName          = "backup-target"
-	VMForceDeletionPolicySettingName = "vm-force-deletion-policy"
-	SupportBundleTimeoutSettingName  = "support-bundle-timeout"
-	HttpProxySettingName             = "http-proxy"
-	OvercommitConfigSettingName      = "overcommit-config"
-	SSLCertificatesSettingName       = "ssl-certificates"
-	SSLParametersName                = "ssl-parameters"
-	VipPoolsConfigSettingName        = "vip-pools"
-	DefaultDashboardUIURL            = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
+	AdditionalCASettingName         = "additional-ca"
+	BackupTargetSettingName         = "backup-target"
+	VMForceResetPolicySettingName   = "vm-force-reset-policy"
+	SupportBundleTimeoutSettingName = "support-bundle-timeout"
+	HttpProxySettingName            = "http-proxy"
+	OvercommitConfigSettingName     = "overcommit-config"
+	SSLCertificatesSettingName      = "ssl-certificates"
+	SSLParametersName               = "ssl-parameters"
+	VipPoolsConfigSettingName       = "vip-pools"
+	DefaultDashboardUIURL           = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
 )
 
 func init() {
@@ -171,7 +171,7 @@ type BackupTarget struct {
 	VirtualHostedStyle bool       `json:"virtualHostedStyle"`
 }
 
-type VMForceDeletionPolicy struct {
+type VMForceResetPolicy struct {
 	Enable bool `json:"enable"`
 	// Period means how many seconds to wait for a node get back.
 	Period int64 `json:"period"`
@@ -195,20 +195,20 @@ func DecodeBackupTarget(value string) (*BackupTarget, error) {
 	return target, nil
 }
 
-func InitVMForceDeletionPolicy() string {
-	policy := &VMForceDeletionPolicy{
+func InitVMForceResetPolicy() string {
+	policy := &VMForceResetPolicy{
 		Enable: true,
 		Period: 5 * 60, // 5 minutes
 	}
 	policyStr, err := json.Marshal(policy)
 	if err != nil {
-		logrus.Errorf("failed to init %s, error: %s", VMForceDeletionPolicySettingName, err.Error())
+		logrus.Errorf("failed to init %s, error: %s", VMForceResetPolicySettingName, err.Error())
 	}
 	return string(policyStr)
 }
 
-func DecodeVMForceDeletionPolicy(value string) (*VMForceDeletionPolicy, error) {
-	policy := &VMForceDeletionPolicy{}
+func DecodeVMForceResetPolicy(value string) (*VMForceResetPolicy, error) {
+	policy := &VMForceResetPolicy{}
 	if err := json.Unmarshal([]byte(value), policy); err != nil {
 		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
 	}

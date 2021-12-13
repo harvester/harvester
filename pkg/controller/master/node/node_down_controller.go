@@ -44,15 +44,15 @@ func NodeDownRegister(ctx context.Context, management *config.Management, option
 	}
 
 	nodes.OnChange(ctx, nodeDownControllerName, nodeDownHandler.OnNodeChanged)
-	setting.OnChange(ctx, nodeDownControllerName, nodeDownHandler.OnVMForceDeletionPolicyChanged)
+	setting.OnChange(ctx, nodeDownControllerName, nodeDownHandler.OnVMForceResetPolicyChanged)
 
 	return nil
 }
 
 // OnNodeChanged monitors whether a node is ready or not
 // Force delete a pod when all of the below conditions are meet:
-// 1. VMDeletionPolicy is enabled.
-// 2. A node has been down for more than VMDeletionPolicy.Period seconds
+// 1. VMForceResetPolicy is enabled.
+// 2. A node has been down for more than VMForceResetPolicy.Period seconds
 // 3. The owner of Pod is VirtualMachineInstance.
 // 4. The Pod is on a down node.
 func (h *nodeDownHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.Node, error) {
@@ -71,19 +71,19 @@ func (h *nodeDownHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.
 		return node, nil
 	}
 
-	// get VMForceDeletionPolicy setting
-	vmForceDeletionPolicy, err := settings.DecodeVMForceDeletionPolicy(settings.VMForceDeletionPolicySet.Get())
+	// get VMForceResetPolicy setting
+	vmForceResetPolicy, err := settings.DecodeVMForceResetPolicy(settings.VMForceResetPolicySet.Get())
 	if err != nil {
 		return node, err
 	}
 
-	if !vmForceDeletionPolicy.Enable {
+	if !vmForceResetPolicy.Enable {
 		return node, nil
 	}
 
-	// if we haven't waited for vmForceDeletionPolicy.Period seconds, we enqueue event again
-	if time.Since(cond.LastTransitionTime.Time) < time.Duration(vmForceDeletionPolicy.Period)*time.Second {
-		deadline := cond.LastTransitionTime.Add(time.Duration(vmForceDeletionPolicy.Period) * time.Second)
+	// if we haven't waited for vmForceResetPolicy.Period seconds, we enqueue event again
+	if time.Since(cond.LastTransitionTime.Time) < time.Duration(vmForceResetPolicy.Period)*time.Second {
+		deadline := cond.LastTransitionTime.Add(time.Duration(vmForceResetPolicy.Period) * time.Second)
 		logrus.Debugf("Enqueue node event again at %v", deadline)
 		h.nodes.EnqueueAfter(node.Name, time.Until(deadline))
 		return node, nil
@@ -116,19 +116,18 @@ func (h *nodeDownHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.
 	return node, nil
 }
 
-func (h *nodeDownHandler) OnVMForceDeletionPolicyChanged(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+func (h *nodeDownHandler) OnVMForceResetPolicyChanged(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil ||
-		setting.Name != settings.VMForceDeletionPolicySettingName || setting.Value == "" {
+		setting.Name != settings.VMForceResetPolicySettingName || setting.Value == "" {
 		return setting, nil
 	}
 
-	// get VMForceDeletionPolicy setting
-	vmForceDeletionPolicy, err := settings.DecodeVMForceDeletionPolicy(setting.Value)
+	vmForceResetPolicy, err := settings.DecodeVMForceResetPolicy(setting.Value)
 	if err != nil {
 		return setting, err
 	}
 
-	if !vmForceDeletionPolicy.Enable {
+	if !vmForceResetPolicy.Enable {
 		return setting, nil
 	}
 
