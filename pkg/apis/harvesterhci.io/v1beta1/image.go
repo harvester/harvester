@@ -51,6 +51,9 @@ type VirtualMachineImageSpec struct {
 
 	// +optional
 	URL string `json:"url"`
+
+	// +optional
+	Checksum string `json:"checksum"`
 }
 
 type VirtualMachineImageStatus struct {
