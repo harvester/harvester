@@ -18,7 +18,6 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/settings"
-	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -44,7 +43,6 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 	logrus.Debugf("creating deployment %s with image %s", deployName, image)
 
 	pullPolicy := m.getImagePullPolicy()
-	namespaces := []string{sb.Namespace, util.LonghornSystemNamespaceName}
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -84,7 +82,7 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 							Env: []corev1.EnvVar{
 								{
 									Name:  "SUPPORT_BUNDLE_TARGET_NAMESPACES",
-									Value: strings.Join(namespaces, ","),
+									Value: m.getCollectNamespaces(),
 								},
 								{
 									Name:  "SUPPORT_BUNDLE_NAME",
@@ -130,6 +128,25 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 
 	_, err := m.deployments.Create(deployment)
 	return err
+}
+
+func (m *Manager) getCollectNamespaces() string {
+	namespaces := []string{
+		"cattle-dashboards",
+		"cattle-fleet-clusters-system",
+		"cattle-monitoring-system",
+		"fleet-local",
+		"harvester-system",
+		"local",
+		"longhorn-system",
+	}
+
+	extraNamespaces := settings.SupportBundleNamespaces.Get()
+	if extraNamespaces != "" {
+		namespaces = append(namespaces, extraNamespaces)
+	}
+
+	return strings.Join(namespaces, ",")
 }
 
 func (m *Manager) getImagePullPolicy() corev1.PullPolicy {

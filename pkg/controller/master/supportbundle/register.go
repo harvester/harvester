@@ -14,7 +14,6 @@ const (
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	sbs := management.HarvesterFactory.Harvesterhci().V1beta1().SupportBundle()
-	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 	nodeCache := management.CoreFactory.Core().V1().Node().Cache()
 	podCache := management.CoreFactory.Core().V1().Pod().Cache()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
@@ -24,7 +23,6 @@ func Register(ctx context.Context, management *config.Management, options config
 	handler := &Handler{
 		supportBundles:          sbs,
 		supportBundleController: sbs,
-		settingCache:            settings,
 		nodeCache:               nodeCache,
 		podCache:                podCache,
 		deployments:             deployments,

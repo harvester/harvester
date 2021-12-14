@@ -33,6 +33,7 @@ var (
 	SSLParameters                = NewSetting(SSLParametersName, "{}")
 	SupportBundleImage           = NewSetting("support-bundle-image", "rancher/support-bundle-kit:v0.0.4")
 	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
+	SupportBundleNamespaces      = NewSetting("support-bundle-namespaces", "")
 	SupportBundleTimeout         = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
 	DefaultStorageClass          = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                    = NewSetting(HttpProxySettingName, "{}")
