@@ -369,7 +369,7 @@ func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineB
 		if volumeSnapshot == nil {
 			volumeSnapshot, err = h.createVolumeSnapshot(vmBackupCpy, volumeBackup)
 			if err != nil {
-				logrus.Debugf("create volumeSnapshot %s/%s error: %v", volumeSnapshot.Namespace, volumeSnapshot.Name, err)
+				logrus.Debugf("create volumeSnapshot %s/%s error: %v", vmBackupCpy.Namespace, snapshotName, err)
 				return err
 			}
 		}
