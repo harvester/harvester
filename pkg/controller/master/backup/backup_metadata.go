@@ -137,7 +137,7 @@ func (h *MetadataHandler) syncVMBackup(target *settings.BackupTarget) error {
 }
 
 func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachineBackupMetadata, target *settings.BackupTarget) error {
-	if _, err := h.vmBackupCache.Get(metav1.NamespaceDefault, backupMetadata.Name); err != nil && !apierrors.IsNotFound(err) {
+	if _, err := h.vmBackupCache.Get(backupMetadata.Namespace, backupMetadata.Name); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	} else if err == nil {
 		return nil
