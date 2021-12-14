@@ -19,7 +19,6 @@ import (
 type Handler struct {
 	supportBundles          v1beta1.SupportBundleClient
 	supportBundleController v1beta1.SupportBundleController
-	settingCache            v1beta1.SettingCache
 	nodeCache               ctlcorev1.NodeCache
 	podCache                ctlcorev1.PodCache
 	deployments             ctlappsv1.DeploymentClient
