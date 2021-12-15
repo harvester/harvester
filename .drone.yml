@@ -118,6 +118,54 @@ steps:
     event:
     - tag
 
+
+- name: docker-publish-upgrade-master
+  image: plugins/docker
+  settings:
+    build_args:
+    - ARCH=amd64
+    - VERSION=${DRONE_BRANCH}-${DRONE_COMMIT_SHA:0:8}-head
+    context: package/upgrade
+    custom_dns: 1.1.1.1
+    dockerfile: package/upgrade/Dockerfile
+    password:
+      from_secret: docker_password
+    repo: "rancher/harvester-upgrade"
+    tag: ${DRONE_BRANCH}-head-amd64
+    username:
+      from_secret: docker_username
+  when:
+    ref:
+      include:
+      - "refs/heads/master"
+      - "refs/heads/release/v*"
+    event:
+    - push
+
+- name: docker-publish-upgrade
+  image: plugins/docker
+  settings:
+    build_args:
+    - ARCH=amd64
+    - "VERSION=${DRONE_TAG}"
+    context: package/upgrade
+    custom_dns: 1.1.1.1
+    dockerfile: package/upgrade/Dockerfile
+    password:
+      from_secret: docker_password
+    repo: "rancher/harvester-upgrade"
+    tag: "${DRONE_TAG}-amd64"
+    username:
+      from_secret: docker_username
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+
 volumes:
 - name: docker
   host:
