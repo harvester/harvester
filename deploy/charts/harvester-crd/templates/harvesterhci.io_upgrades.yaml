@@ -38,8 +38,6 @@ spec:
                 type: string
               version:
                 type: string
-            required:
-            - version
             type: object
           status:
             properties:

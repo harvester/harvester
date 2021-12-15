@@ -6885,9 +6885,6 @@
     },
     "harvesterhci.io.v1beta1.UpgradeSpec": {
       "type": "object",
-      "required": [
-        "version"
-      ],
       "properties": {
         "image": {
           "type": "string",
