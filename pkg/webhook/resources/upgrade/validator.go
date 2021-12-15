@@ -47,6 +47,10 @@ func (v *upgradeValidator) Resource() types.Resource {
 func (v *upgradeValidator) Create(request *types.Request, newObj runtime.Object) error {
 	newUpgrade := newObj.(*v1beta1.Upgrade)
 
+	if newUpgrade.Spec.Version == "" && newUpgrade.Spec.Image == "" {
+		return werror.NewBadRequest("version or image field are not specified.")
+	}
+
 	req, err := labels.NewRequirement(upgradeStateLabel, selection.NotIn, []string{upgrade.StateSucceeded, upgrade.StateFailed})
 	if err != nil {
 		return err

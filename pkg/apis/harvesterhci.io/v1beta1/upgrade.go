@@ -32,7 +32,7 @@ type Upgrade struct {
 }
 
 type UpgradeSpec struct {
-	// +kubebuilder:validation:Required
+	// +optional
 	Version string `json:"version"`
 
 	// +optional

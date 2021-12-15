@@ -118,7 +118,8 @@ func markComplete(upgrade *harvesterv1.Upgrade) {
 }
 
 func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
-	version := upgrade.Spec.Version
+	planVersion := upgrade.Name
+
 	// Use current running version because new images are not preloaded yet.
 	imageVersion := upgrade.Status.PreviousVersion
 	return &upgradev1.Plan{
@@ -126,14 +127,13 @@ func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
 			Name:      fmt.Sprintf("%s-prepare", upgrade.Name),
 			Namespace: sucNamespace,
 			Labels: map[string]string{
-				harvesterVersionLabel:          version,
 				harvesterUpgradeLabel:          upgrade.Name,
 				harvesterUpgradeComponentLabel: nodeComponent,
 			},
 		},
 		Spec: upgradev1.PlanSpec{
 			Concurrency: int64(1),
-			Version:     version,
+			Version:     planVersion,
 			NodeSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					harvesterManagedLabel: "true",
@@ -190,7 +190,6 @@ func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
 }
 
 func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo, nodeName string, jobType string) *batchv1.Job {
-	version := upgrade.Spec.Version
 	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
 	imageVersion := repoInfo.Release.Harvester
 	hostPathDirectory := corev1.HostPathDirectory
@@ -200,7 +199,6 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo, nodeN
 			Name:      fmt.Sprintf("%s-%s-%s", upgrade.Name, jobType, nodeName),
 			Namespace: upgrade.Namespace,
 			Labels: map[string]string{
-				harvesterVersionLabel:          version,
 				harvesterUpgradeLabel:          upgrade.Name,
 				harvesterUpgradeComponentLabel: nodeComponent,
 				harvesterNodeLabel:             nodeName,
@@ -215,7 +213,6 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo, nodeN
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						harvesterVersionLabel:          version,
 						harvesterUpgradeLabel:          upgrade.Name,
 						harvesterUpgradeComponentLabel: nodeComponent,
 						upgradeJobTypeLabel:            jobType,
@@ -298,7 +295,6 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo, nodeN
 }
 
 func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo) *batchv1.Job {
-	version := upgrade.Spec.Version
 	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
 	imageVersion := repoInfo.Release.Harvester
 	return &batchv1.Job{
@@ -306,7 +302,6 @@ func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo) 
 			Name:      fmt.Sprintf("%s-apply-manifests", upgrade.Name),
 			Namespace: upgrade.Namespace,
 			Labels: map[string]string{
-				harvesterVersionLabel:          version,
 				harvesterUpgradeLabel:          upgrade.Name,
 				harvesterUpgradeComponentLabel: manifestComponent,
 			},
@@ -319,7 +314,6 @@ func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo) 
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						harvesterVersionLabel:          version,
 						harvesterUpgradeLabel:          upgrade.Name,
 						harvesterUpgradeComponentLabel: manifestComponent,
 					},
