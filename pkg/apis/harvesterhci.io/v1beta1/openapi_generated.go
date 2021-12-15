@@ -2146,7 +2146,6 @@ func schema_pkg_apis_harvesterhciio_v1beta1_UpgradeSpec(ref common.ReferenceCall
 						},
 					},
 				},
-				Required: []string{"version"},
 			},
 		},
 	}
