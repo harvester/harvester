@@ -101,6 +101,7 @@ func main() {
 		},
 	})
 	nadControllerInterfaceRefactor()
+	capiWorkaround()
 }
 
 // NB(GC), nadControllerInterfaceRefactor modify the generated resource name of NetworkAttachmentDefinition controller using a dash-separator,
@@ -118,5 +119,21 @@ func nadControllerInterfaceRefactor() {
 
 	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
 		logrus.Fatalf("failed to update the network-attachment-definition file: %v", err)
+	}
+}
+
+// capiWorkaround replaces the variable `SchemeGroupVersion` with `GroupVersion` in clusters.cluster.x-k8s.io client because
+// `SchemeGroupVersion` is not declared in the vendor package but wrangler uses it.
+// https://github.com/kubernetes-sigs/cluster-api/blob/56f9e9db7a9e9ca625ffe4bdc1e5e93a14d5e96c/api/v1alpha4/groupversion_info.go#L29
+func capiWorkaround() {
+	absPath, _ := filepath.Abs("pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1alpha4/cluster.x-k8s.io_client.go")
+	input, err := ioutil.ReadFile(absPath)
+	if err != nil {
+		logrus.Fatalf("failed to read the clusters.cluster.x-k8s.io client file: %v", err)
+	}
+	output := bytes.Replace(input, []byte("v1alpha4.SchemeGroupVersion"), []byte("v1alpha4.GroupVersion"), -1)
+
+	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
+		logrus.Fatalf("failed to update the clusters.cluster.x-k8s.io client file: %v", err)
 	}
 }
