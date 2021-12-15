@@ -34,7 +34,6 @@ const (
 	sucNamespace                   = "cattle-system"
 	upgradeServiceAccount          = "system-upgrade-controller"
 	harvesterSystemNamespace       = "harvester-system"
-	harvesterVersionLabel          = "harvesterhci.io/version"
 	harvesterUpgradeLabel          = "harvesterhci.io/upgrade"
 	harvesterManagedLabel          = "harvesterhci.io/managed"
 	harvesterLatestUpgradeLabel    = "harvesterhci.io/latestUpgrade"
