@@ -67,7 +67,7 @@ func New(c rest.Interface) *ClusterV1alpha4Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := v1alpha4.SchemeGroupVersion
+	gv := v1alpha4.GroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
 	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
