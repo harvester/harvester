@@ -43,7 +43,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
-      - "refs/heads/release/v*"
+      - "refs/heads/v*"
     event:
     - push
 
@@ -90,7 +90,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
-      - "refs/heads/release/v*"
+      - "refs/heads/v*"
     event:
     - push
 
@@ -138,7 +138,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
-      - "refs/heads/release/v*"
+      - "refs/heads/v*"
     event:
     - push
 
@@ -195,7 +195,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
-      - "refs/heads/release/v*"
+      - "refs/heads/v*"
     event:
     - push
 
@@ -234,7 +234,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
-      - "refs/heads/release/v*"
+      - "refs/heads/v*"
     event:
     - push
 
@@ -273,7 +273,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
-      - "refs/heads/release/v*"
+      - "refs/heads/v*"
     event:
     - push
 
@@ -358,7 +358,7 @@ trigger:
     - push
   ref:
     - "refs/heads/master"
-    - "refs/heads/release/v*"
+    - "refs/heads/v*"
 
 volumes:
 - name: docker
