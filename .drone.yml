@@ -258,6 +258,45 @@ steps:
     event:
     - tag
 
+- name: manifest-upgrade-master
+  image: plugins/manifest
+  settings:
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+    platforms:
+    - linux/amd64
+    target: "rancher/harvester-upgrade:${DRONE_BRANCH}-head"
+    template: "rancher/harvester-upgrade:${DRONE_BRANCH}-head-ARCH"
+  when:
+    ref:
+      include:
+      - "refs/heads/master"
+      - "refs/heads/release/v*"
+    event:
+    - push
+
+- name: manifest-upgrade
+  image: plugins/manifest
+  settings:
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+    platforms:
+      - linux/amd64
+    target: "rancher/harvester-upgrade:${DRONE_TAG}"
+    template: "rancher/harvester-upgrade:${DRONE_TAG}-ARCH"
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+
 depends_on:
 - amd64
 
