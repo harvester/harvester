@@ -4,7 +4,7 @@ set -e
 # The root of the harvester directory
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
-out_dir="${ROOT_DIR}/deploy/charts/harvester/crds"
+out_dir="${ROOT_DIR}/deploy/charts/harvester-crd/templates"
 mkdir -p "${out_dir}"
 
 # Clean up stable CRD manifest YAMLs
