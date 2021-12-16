@@ -13,10 +13,12 @@ import (
 )
 
 const (
-	testChartDir           = "../../../deploy/charts/harvester"
-	testHarvesterNamespace = "harvester-system"
-	testLonghornNamespace  = "longhorn-system"
-	testChartReleaseName   = "harvester"
+	testChartDir            = "../../../deploy/charts/harvester"
+	testCRDChartDir         = "../../../deploy/charts/harvester-crd"
+	testHarvesterNamespace  = "harvester-system"
+	testLonghornNamespace   = "longhorn-system"
+	testChartReleaseName    = "harvester"
+	testCRDChartReleaseName = "harvester-crd"
 )
 
 var (

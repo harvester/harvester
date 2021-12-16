@@ -69,8 +69,14 @@ func installHarvesterChart(ctx context.Context, kubeConfig *restclient.Config) e
 		patches["kubevirt.spec.configuration.developerConfiguration.useEmulation"] = "true"
 	}
 
+	// install crd chart
+	_, err := helm.InstallChart(testCRDChartReleaseName, testHarvesterNamespace, testCRDChartDir, nil)
+	if err != nil {
+		return fmt.Errorf("failed to install harvester-crd chart: %w", err)
+	}
+
 	// install chart
-	_, err := helm.InstallChart(testChartReleaseName, testHarvesterNamespace, testChartDir, patches)
+	_, err = helm.InstallChart(testChartReleaseName, testHarvesterNamespace, testChartDir, patches)
 	if err != nil {
 		return fmt.Errorf("failed to install harvester chart: %w", err)
 	}
