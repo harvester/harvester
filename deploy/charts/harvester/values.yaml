@@ -415,6 +415,11 @@ webhook:
 
   httpsPort: 9443
 
+upgrade:
+  image:
+    repository: rancher/harvester-upgrade
+    tag: master-head
+
 harvester-load-balancer:
   enabled: false
   image:
