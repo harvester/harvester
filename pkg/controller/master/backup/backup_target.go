@@ -111,6 +111,9 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Se
 			return nil, err
 		}
 
+		// set configured flag, as s3 does
+		harvesterv1.SettingConfigured.SetError(setting, "", nil)
+
 		return nil, nil
 
 	default:
@@ -137,6 +140,9 @@ func (h *TargetHandler) reUpdateBackupTargetSettingSecret(setting *harvesterv1.S
 	if target.Type != settings.S3BackupType {
 		return nil, nil
 	}
+
+	// set configured flag
+	harvesterv1.SettingConfigured.SetError(setting, "", nil)
 
 	// reset the s3 credentials to prevent controller reconcile and not to expose secret key
 	target.SecretAccessKey = ""
