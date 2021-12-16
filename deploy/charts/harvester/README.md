@@ -18,6 +18,7 @@ This chart will do the following:
 - Kubernetes 1.16+.
 - Helm 3.2+.
 - [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni). An [example chart](https://github.com/rancher/rke2-charts/tree/main-source/packages/rke2-multus/charts).
+- [Harvester CRDs](https://github.com/harvester/harvester/tree/master/deploy/charts/harvester-crd)
 
 ### Installing the Chart
 

@@ -70,7 +70,7 @@ func (f *Factory) BatchCreateCRDsIfNotExisted(crds ...crd.CRD) *Factory {
 	f.wg.Add(1)
 	go func() {
 		defer f.wg.Done()
-		if _, err := f.CreateCRDs(f.ctx, false, crds...); err != nil && err == nil {
+		if _, err := f.CreateCRDs(f.ctx, false, crds...); err != nil && f.err == nil {
 			f.err = err
 		}
 	}()
