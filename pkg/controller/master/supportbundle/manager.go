@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
@@ -112,6 +113,10 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
 									Name:  "SUPPORT_BUNDLE_NODE_SELECTOR",
 									Value: "harvesterhci.io/managed=true",
 								},
+								{
+									Name:  "SUPPORT_BUNDLE_EXCLUDE_RESOURCES",
+									Value: m.getExcludeResources(),
+								},
 							},
 							Ports: []corev1.ContainerPort{
 								{
@@ -147,6 +152,20 @@ func (m *Manager) getCollectNamespaces() string {
 	}
 
 	return strings.Join(namespaces, ",")
+}
+
+func (m *Manager) getExcludeResources() string {
+	resources := []string{}
+
+	// Sensitive data not go into support bundle
+	resources = append(resources, harvesterv1.Resource(harvesterv1.SettingResourceName).String()) // TLS certificate and private key
+	resources = append(resources, rancherv3.Resource(rancherv3.AuthConfigResourceName).String())
+	resources = append(resources, rancherv3.Resource(rancherv3.AuthTokenResourceName).String())
+	resources = append(resources, rancherv3.Resource(rancherv3.SamlTokenResourceName).String())
+	resources = append(resources, rancherv3.Resource(rancherv3.TokenResourceName).String())
+	resources = append(resources, rancherv3.Resource(rancherv3.UserResourceName).String())
+
+	return strings.Join(resources, ",")
 }
 
 func (m *Manager) getImagePullPolicy() corev1.PullPolicy {

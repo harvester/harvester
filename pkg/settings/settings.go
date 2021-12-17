@@ -32,7 +32,7 @@ var (
 	LogLevel                     = NewSetting("log-level", "info") // options are info, debug and trace
 	SSLCertificates              = NewSetting(SSLCertificatesSettingName, "{}")
 	SSLParameters                = NewSetting(SSLParametersName, "{}")
-	SupportBundleImage           = NewSetting("support-bundle-image", "rancher/support-bundle-kit:v0.0.4")
+	SupportBundleImage           = NewSetting("support-bundle-image", "rancher/support-bundle-kit:v0.0.5")
 	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
 	SupportBundleNamespaces      = NewSetting("support-bundle-namespaces", "")
 	SupportBundleTimeout         = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
