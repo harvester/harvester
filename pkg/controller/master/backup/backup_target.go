@@ -112,7 +112,6 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Se
 		}
 
 		return nil, nil
-
 	default:
 		// reset backup target to default, then delete/update related settings
 		if target.IsDefaultBackupTarget() {

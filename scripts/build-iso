@@ -5,6 +5,14 @@ source $(dirname $0)/version
 
 cd $(dirname $0)/..
 
+echo "Replace the Chart version"
+sed -i -e "s/0.0.0-dev/${CHART_VERSION}/g" deploy/charts/harvester/Chart.yaml
+sed -i -e "s/v0.0.0-dev/${APP_VERSION}/g" deploy/charts/harvester/Chart.yaml
+sed -i -e "s/%IMAGE_TAG%/${IMAGE_TAG}/g" deploy/charts/harvester/values.yaml
+
+sed -i -e "s/0.0.0-dev/${CHART_VERSION}/g" deploy/charts/harvester-crd/Chart.yaml
+sed -i -e "s/v0.0.0-dev/${APP_VERSION}/g" deploy/charts/harvester-crd/Chart.yaml
+
 echo "Start building ISO image"
 
 HARVESTER_INSTALLER_VERSION=master

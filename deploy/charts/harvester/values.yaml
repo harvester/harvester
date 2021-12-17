@@ -155,7 +155,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: master-head
+      tag: "%IMAGE_TAG%"
 
     ## Specify whether to run in HCI mode. This option enables additional controllers.
     ## defaults to "false", this will be enabled in ISO mode installation.
@@ -409,14 +409,14 @@ webhook:
 
     ## Specify the tag of image.
     ##
-    tag: master-head
+    tag: "%IMAGE_TAG%"
 
   httpsPort: 9443
 
 upgrade:
   image:
     repository: rancher/harvester-upgrade
-    tag: master-head
+    tag: "%IMAGE_TAG%"
 
 harvester-load-balancer:
   enabled: false
