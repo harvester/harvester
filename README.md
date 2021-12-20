@@ -19,7 +19,7 @@ Some notable features of Harvester include the following:
 1. Distributed block storage
 1. Multiple NICs in the VM connecting to the management network or VLANs
 1. Virtual Machine and cloud-init templates
-1. [Rancher](https://github.com/rancher/rancher) integration with multi-cluster management and the Harvester node driver
+1. [Rancher integration](https://docs.harvesterhci.io/latest/rancher/rancher-integration/) with multi-cluster management and the Harvester node driver
 1. [PXE/iPXE boot support](https://docs.harvesterhci.io/latest/install/pxe-boot-install)
 1. Virtual IP and bond NIC support
 1. Monitoring integration
@@ -39,12 +39,12 @@ To get the Harvester server up and running the following minimum hardware is req
 |:---|:---|
 | CPU | x86_64 only. Hardware-assisted virtualization is required. 8-core processor minimum; 16-core or above preferred |
 | Memory | 32 GB minimum, 64 GB or above preferred |
-| Disk Capacity |  120 GB minimum, 500 GB or above preferred |
+| Disk Capacity |  140 GB minimum, 500 GB or above preferred |
 | Disk Performance |  5,000+ random IOPS per disk(SSD/NVMe). Management nodes (first 3 nodes) must be [fast enough for Etcd](https://www.ibm.com/cloud/blog/using-fio-to-tell-whether-your-storage-is-fast-enough-for-etcd). |
 | Network Card | 1 Gbps Ethernet minimum, 10Gbps Ethernet recommended |
 | Network Switch | Trunking of ports required for VLAN support |
 
-We recommend server-class hardware for best results. Laptops and nested virtualization are not supported. 
+We recommend server-class hardware for best results. Laptops and nested virtualization are not officially supported.
 
 ## Quick start
 
@@ -57,7 +57,7 @@ During the installation, you can either choose to form a new cluster, or join th
 1. Mount the Harvester ISO disk and boot the server by selecting the `Harvester Installer`.
 ![iso-install.png](./docs/assets/iso-install.png)
 1. Choose the installation mode by either creating a new Harvester cluster, or by joining an existing one.
-1. Choose the installation device that Harvester will be formatted to.
+1. Choose the installation device on which the Harvester will be installed to.
 1. Configure the hostname and select the network interface for the management network. By default, Harvester will create a bonded NIC named `harvester-mgmt`, and the IP address can either be configured via DHCP or a static method.
 ![iso-installed.png](./docs/assets/iso-nic-config.gif)
 1. (Optional) Configure the DNS servers. Use commas as a delimiter.
