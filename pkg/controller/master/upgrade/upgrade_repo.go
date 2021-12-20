@@ -292,6 +292,8 @@ func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kv1.Vir
 								Port: intstr.FromInt(80),
 							},
 						},
+						TimeoutSeconds:   30,
+						FailureThreshold: 5,
 					},
 				},
 			},
