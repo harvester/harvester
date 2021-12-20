@@ -1,7 +1,7 @@
 apiVersion: v2
 name: harvester
-version: 1.0.0-rc2
-appVersion: v1.0.0-rc2
+version: 1.0.0
+appVersion: v1.0.0
 description: Harvester is an open source Hyper-Converged Infrastructure(HCI) solution based on Kubernetes.
 icon: https://harvester.github.io/images/logo_horizontal.svg
 type: application
