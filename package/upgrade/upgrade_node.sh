@@ -220,12 +220,6 @@ wait_rke2_upgrade() {
   done
 }
 
-rebrand_grub () {
-  mount -o remount,rw $HOST_DIR/run/initramfs/cos-state/
-  chroot $HOST_DIR grub2-editenv /run/initramfs/cos-state/grub_oem_env set "default_menu_entry=$REPO_OS_PRETTY_NAME"
-  mount -o remount,ro $HOST_DIR/host/run/initramfs/cos-state/
-}
-
 upgrade_os() {
   CURRENT_OS_VERSION=$(source $HOST_DIR/etc/os-release && echo $PRETTY_NAME)
 
@@ -253,9 +247,6 @@ upgrade_os() {
   rm -rf $tmp_rootfs_squashfs
 
   umount -R /run
-
-  # https://github.com/rancher-sandbox/cOS-toolkit/issues/928
-  rebrand_grub || true
 
   reboot_if_job_succeed
 }
