@@ -83,7 +83,7 @@ Find more documentation [here](https://docs.harvesterhci.io/latest)
 
 ## Demo
 
-Check out this [demo](https://youtu.be/97ADieBX6bE) to get a quick overview of the Harvester UI.
+Check out this [demo](https://youtu.be/Ngsk7m6NYf4) to get a quick overview of the Harvester UI.
 
 
 ## Source code
