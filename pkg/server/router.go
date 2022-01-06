@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	ranchermetrics "github.com/rancher/lasso/pkg/metrics"
+
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
 	"github.com/rancher/steve/pkg/server/router"
@@ -93,6 +96,9 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 		m.PathPrefix("/v1/management.cattle.io.setting").Handler(rancherHandler)
 	}
 
+	if r.options.ExposePrometheusMetrics {
+		m.Handle("/metrics", promhttp.HandlerFor(ranchermetrics.Registry, promhttp.HandlerOpts{}))
+	}
 	m.NotFoundHandler = router.Routes(h)
 
 	return m

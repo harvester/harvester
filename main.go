@@ -44,6 +44,12 @@ func main() {
 			Value:       8443,
 			Destination: &options.HTTPSListenPort,
 		},
+		cli.BoolFlag{
+			Name:        "expose-prometheus-metrics",
+			EnvVar:      "EXPOSE_PROMETHEUS_METRICS",
+			Usage:       "Define whether to expose prometheus metrics",
+			Destination: &options.ExposePrometheusMetrics,
+		},
 		cli.StringFlag{
 			Name:        "namespace",
 			EnvVar:      "NAMESPACE",

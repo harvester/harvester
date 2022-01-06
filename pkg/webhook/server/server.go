@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rancher/dynamiclistener"
 	"github.com/rancher/dynamiclistener/server"
+	ranchermetrics "github.com/rancher/lasso/pkg/metrics"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,6 +20,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
+	"github.com/harvester/harvester/pkg/webhook/metrics"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -28,6 +31,7 @@ var (
 
 	validationPath      = "/v1/webhook/validation"
 	mutationPath        = "/v1/webhook/mutation"
+	metricsPath         = "/metrics"
 	failPolicyFail      = v1.Fail
 	failPolicyIgnore    = v1.Ignore
 	sideEffectClassNone = v1.SideEffectClassNone
@@ -62,9 +66,15 @@ func (s *AdmissionWebhookServer) ListenAndServe() error {
 		return err
 	}
 
+	middleware := metrics.NewMiddleware(s.options.ExposePrometheusMetrics)
+
 	router := mux.NewRouter()
-	router.Handle(validationPath, validationHandler)
-	router.Handle(mutationPath, mutationHandler)
+	router.Handle(validationPath, middleware.MetricsInstrument(validationPath, validationHandler))
+	router.Handle(mutationPath, middleware.MetricsInstrument(mutationPath, mutationHandler))
+	if s.options.ExposePrometheusMetrics {
+		router.Handle(metricsPath, promhttp.HandlerFor(ranchermetrics.Registry, promhttp.HandlerOpts{}))
+	}
+
 	if err := s.listenAndServe(clients, router, validationResources, mutationResources); err != nil {
 		return err
 	}

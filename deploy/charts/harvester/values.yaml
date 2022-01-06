@@ -187,6 +187,10 @@ containers:
     ##
     debug: false
 
+    ## Specify whether expose harvester metrics
+    ##
+    exposePrometheusMetrics: true
+
     ## Specify the resources.
     ##
     resources:
@@ -397,6 +401,11 @@ rancherEmbedded: false
 webhook:
   replicas: 3
   debug: false
+
+  ## Specify whether expose harvester webhook metrics
+  ##
+  exposePrometheusMetrics: true
+
   image:
 
     ## Specify the pull policy of image.

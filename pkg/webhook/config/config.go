@@ -6,5 +6,6 @@ type Options struct {
 	HTTPSListenPort int
 
 	HarvesterControllerUsername string
+	ExposePrometheusMetrics     bool
 	GarbageCollectionUsername   string
 }

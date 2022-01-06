@@ -46,6 +46,12 @@ func main() {
 			Destination: &options.HarvesterControllerUsername,
 			Usage:       "The harvester controller username",
 		},
+		cli.BoolFlag{
+			Name:        "expose-prometheus-metrics",
+			EnvVar:      "EXPOSE_PROMETHEUS_METRICS",
+			Usage:       "Define whether to expose prometheus metrics",
+			Destination: &options.ExposePrometheusMetrics,
+		},
 		cli.StringFlag{
 			Name:        "gc-user",
 			EnvVar:      "GARBAGE_COLLECTION_USER_NAME",

@@ -60,6 +60,8 @@ spec:
               value: {{ .Values.containers.apiserver.debug | quote }}
             - name: HARVESTER_SERVER_HTTP_PORT
               value: {{ .Values.service.harvester.httpPort | quote }}
+            - name: EXPOSE_PROMETHEUS_METRICS
+              value: {{ .Values.containers.apiserver.exposePrometheusMetrics | quote }}
 {{- if .Values.containers.apiserver.hciMode }}
             - name: HCI_MODE
               value: "true"
@@ -156,6 +158,8 @@ spec:
               fieldPath: metadata.namespace
         - name: HARVESTER_DEBUG
           value: {{ .Values.webhook.debug | quote }}
+        - name: EXPOSE_PROMETHEUS_METRICS
+          value: {{ .Values.webhook.exposePrometheusMetrics | quote }}
         - name: HARVESTER_CONTROLLER_USER_NAME
           value: {{ .Values.webhook.controllerUser | default (print "system:serviceaccount:" .Release.Namespace ":harvester")  | quote }}
         image: {{ .Values.webhook.image.repository }}:{{ .Values.webhook.image.tag }}
