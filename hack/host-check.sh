@@ -44,14 +44,3 @@ if [[ ${kernel_main_version} -gt 3 ]];then
 else
 	FAIL
 fi
-
-printf "    NETWORK: Checking for 'FORWARD' policy for 'harvester-br0' is 'ACCEPT': "
-if sudo iptables -t filter -L | grep "Chain FORWARD (policy ACCEPT)" >/dev/null ; then
-    PASS
-else
-    if sudo iptables -t filter -C FORWARD -i harvester-br0 -j ACCEPT >/dev/null 2>&1 && sudo iptables -t filter -C FORWARD -o harvester-br0 -j ACCEPT >/dev/null 2>&1; then
-        PASS
-    else
-        FAIL
-    fi
-fi
