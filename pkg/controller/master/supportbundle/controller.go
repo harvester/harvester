@@ -1,15 +1,19 @@
 package supportbundle
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
+	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
+	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -24,6 +28,10 @@ type Handler struct {
 	deployments             ctlappsv1.DeploymentClient
 	daemonSets              ctlappsv1.DaemonSetClient
 	services                ctlcorev1.ServiceClient
+	appCache                catalogv1.AppCache
+	managedChartCache       mgmtv3.ManagedChartCache
+	settings                v1beta1.SettingClient
+	settingCache            v1beta1.SettingCache
 
 	manager *Manager
 }
@@ -36,7 +44,25 @@ func (h *Handler) OnSupportBundleChanged(key string, sb *harvesterv1.SupportBund
 	switch sb.Status.State {
 	case types.StateNone:
 		logrus.Debugf("[%s] generating a support bundle", sb.Name)
-		err := h.manager.Create(sb, settings.SupportBundleImage.Get())
+
+		imageStr := settings.SupportBundleImage.Get()
+		if imageStr == "{}" || imageStr == "" {
+			err := h.updateSupportBundleImageSetting()
+			if err != nil {
+				return nil, err
+			}
+			h.supportBundleController.Enqueue(sb.Namespace, sb.Name)
+			return nil, nil
+		}
+
+		var image settings.Image
+		err := json.Unmarshal([]byte(imageStr), &image)
+		if err != nil {
+			return h.setError(sb, fmt.Sprintf("fail to parse support bundle image for %s: %s", sb.Name, err))
+		}
+		logrus.Debugf("[%s] support bundle image: %+v", sb.Name, image)
+
+		err = h.manager.Create(sb, fmt.Sprintf("%s:%s", image.Repository, image.Tag), image.ImagePullPolicy)
 		if err != nil {
 			return h.setError(sb, fmt.Sprintf("fail to create manager for %s: %s", sb.Name, err))
 		}
@@ -48,6 +74,20 @@ func (h *Handler) OnSupportBundleChanged(key string, sb *harvesterv1.SupportBund
 		logrus.Debugf("[%s] noop for state %s", sb.Name, sb.Status.State)
 		return sb, nil
 	}
+}
+
+func (h *Handler) updateSupportBundleImageSetting() error {
+	harvesterManagedChart, err := h.managedChartCache.Get(settingctl.ManagedChartNamespace, settingctl.HarvesterManagedChartName)
+	if err != nil {
+		return err
+	}
+
+	app, err := h.appCache.Get(harvesterManagedChart.Spec.DefaultNamespace, harvesterManagedChart.Spec.ReleaseName)
+	if err != nil {
+		return err
+	}
+
+	return settingctl.UpdateSupportBundleImage(h.settings, h.settingCache, app)
 }
 
 func (h *Handler) checkManagerStatus(sb *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {

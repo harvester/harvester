@@ -39,11 +39,9 @@ func (m *Manager) getManagerName(sb *harvesterv1.SupportBundle) string {
 	return fmt.Sprintf("supportbundle-manager-%s", sb.Name)
 }
 
-func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string) error {
+func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy corev1.PullPolicy) error {
 	deployName := m.getManagerName(sb)
 	logrus.Debugf("creating deployment %s with image %s", deployName, image)
-
-	pullPolicy := m.getImagePullPolicy()
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -166,19 +164,6 @@ func (m *Manager) getExcludeResources() string {
 	resources = append(resources, rancherv3.Resource(rancherv3.UserResourceName).String())
 
 	return strings.Join(resources, ",")
-}
-
-func (m *Manager) getImagePullPolicy() corev1.PullPolicy {
-	switch strings.ToLower(settings.SupportBundleImagePullPolicy.Get()) {
-	case "always":
-		return corev1.PullAlways
-	case "ifnotpresent":
-		return corev1.PullIfNotPresent
-	case "never":
-		return corev1.PullNever
-	default:
-		return corev1.PullIfNotPresent
-	}
 }
 
 func (m *Manager) GetStatus(sb *harvesterv1.SupportBundle) (*types.ManagerStatus, error) {
