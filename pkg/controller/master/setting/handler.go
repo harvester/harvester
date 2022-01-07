@@ -7,6 +7,8 @@ import (
 	"time"
 
 	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
+	catalogv1api "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
+	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
@@ -40,6 +42,7 @@ type Handler struct {
 	clusterCache         provisioningv1.ClusterCache
 	clusters             provisioningv1.ClusterClient
 	settings             v1beta1.SettingClient
+	settingCache         v1beta1.SettingCache
 	secrets              ctlcorev1.SecretClient
 	secretCache          ctlcorev1.SecretCache
 	deployments          v1.DeploymentClient
@@ -50,6 +53,7 @@ type Handler struct {
 	longhornSettingCache ctllonghornv1.SettingCache
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
+	apps                 catalogv1.AppClient
 	managedCharts        mgmtv3.ManagedChartClient
 	managedChartCache    mgmtv3.ManagedChartCache
 	helmChartConfigs     ctlhelmv1.HelmChartConfigClient
@@ -147,4 +151,21 @@ func (h *Handler) redeployDeployment(namespace, name string) error {
 
 	_, err = h.deployments.Update(toUpdate)
 	return err
+}
+
+func (h *Handler) appOnChanged(_ string, app *catalogv1api.App) (*catalogv1api.App, error) {
+	if app == nil || app.DeletionTimestamp != nil {
+		return nil, nil
+	}
+
+	harvesterManagedChart, err := h.managedChartCache.Get(ManagedChartNamespace, HarvesterManagedChartName)
+	if err != nil {
+		return nil, err
+	}
+
+	if app.Namespace != harvesterManagedChart.Spec.DefaultNamespace || app.Name != harvesterManagedChart.Spec.ReleaseName {
+		return nil, nil
+	}
+
+	return nil, UpdateSupportBundleImage(h.settings, h.settingCache, app)
 }
