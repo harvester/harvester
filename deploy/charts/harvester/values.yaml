@@ -438,3 +438,9 @@ kube-vip-cloud-provider:
   image:
     repository: kubevip/kube-vip-cloud-provider
     tag: 0.1
+
+support-bundle-kit:
+  image:
+    imagePullPolicy: IfNotPresent
+    repository: rancher/support-bundle-kit
+    tag: master-head
