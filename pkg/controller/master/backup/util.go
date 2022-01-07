@@ -6,6 +6,7 @@ import (
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	wranglername "github.com/rancher/wrangler/pkg/name"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -220,7 +221,8 @@ func sanitizeVirtualMachineForRestore(restore *harvesterv1.VirtualMachineRestore
 }
 
 func getSecretRefName(vmName string, secretName string) string {
-	return fmt.Sprintf("vm-%s-%s-ref", vmName, secretName)
+	// Use secret Hex to avoid the length of secret name exceeding the K8s limit caused by repeated backup and restore
+	return fmt.Sprintf("vm-%s-%s-ref", vmName, wranglername.Hex(secretName, 8))
 }
 
 func getVMBackupMetadataFileName(vmBackupNamespace, vmBackupName string) string {
