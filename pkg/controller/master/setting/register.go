@@ -20,6 +20,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
 	lhs := management.LonghornFactory.Longhorn().V1beta1().Setting()
+	apps := management.CatalogFactory.Catalog().V1().App()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 	helmChartConfigs := management.HelmFactory.Helm().V1().HelmChartConfig()
@@ -27,6 +28,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		namespace:            options.Namespace,
 		apply:                management.Apply,
 		settings:             settings,
+		settingCache:         settings.Cache(),
 		secrets:              secrets,
 		secretCache:          secrets.Cache(),
 		clusters:             clusters,
@@ -39,6 +41,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		longhornSettingCache: lhs.Cache(),
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
+		apps:                 apps,
 		managedCharts:        managedCharts,
 		managedChartCache:    managedCharts.Cache(),
 		helmChartConfigs:     helmChartConfigs,
@@ -67,5 +70,6 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
+	apps.OnChange(ctx, controllerName, controller.appOnChanged)
 	return nil
 }

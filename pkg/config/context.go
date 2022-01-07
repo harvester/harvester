@@ -6,6 +6,7 @@ import (
 	helmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
 	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/rancher/lasso/pkg/controller"
+	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io"
 	"github.com/rancher/wrangler/pkg/apply"
@@ -84,6 +85,7 @@ type Management struct {
 	SnapshotFactory          *snapshotv1.Factory
 	LonghornFactory          *longhornv1.Factory
 	ProvisioningFactory      *provisioningv1.Factory
+	CatalogFactory           *catalogv1.Factory
 	RancherManagementFactory *rancherv3.Factory
 	HelmFactory              *helmv1.Factory
 
@@ -267,6 +269,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.ProvisioningFactory = provisioning
 	management.starters = append(management.starters, provisioning)
+
+	catalog, err := catalogv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.CatalogFactory = catalog
+	management.starters = append(management.starters, catalog)
 
 	helm, err := helmv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
