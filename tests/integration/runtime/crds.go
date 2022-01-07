@@ -5,6 +5,7 @@ import (
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	wcrd "github.com/rancher/wrangler/pkg/crd"
 	"k8s.io/client-go/rest"
@@ -23,6 +24,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			createHelmChartConfigCRD(),
 			createNetworkAttachmentDefinitionCRD(),
 			createManagedChartCRD(),
+			createAppCRD(),
 		).
 		BatchWait()
 }
@@ -46,4 +48,11 @@ func createHelmChartConfigCRD() wcrd.CRD {
 	mChart.PluralName = "helmchartconfigs"
 	mChart.SingularName = "helmchartconfig"
 	return mChart
+}
+
+func createAppCRD() wcrd.CRD {
+	app := crd.FromGV(catalogv1.SchemeGroupVersion, "App", catalogv1.App{})
+	app.PluralName = "apps"
+	app.SingularName = "app"
+	return app
 }
