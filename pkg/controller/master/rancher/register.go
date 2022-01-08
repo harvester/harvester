@@ -144,6 +144,8 @@ func (h *Handler) registerExposeService() error {
 					"kube-vip.io/hwaddr":      vip.HwAddress,
 				}
 				svc.Spec.LoadBalancerIP = vipDHCPLoadBalancerIP
+			} else {
+				svc.Spec.LoadBalancerIP = vip.IP
 			}
 		}
 
