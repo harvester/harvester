@@ -43,7 +43,7 @@ dependencies:
     repository: https://charts.longhorn.io
     condition: longhorn.enabled
   - name: kube-vip
-    version: 0.3.7
+    version: 0.4.1
     repository: https://kube-vip.io/helm-charts
   - name: kube-vip-cloud-provider
     version: 0.1.0
