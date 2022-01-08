@@ -429,9 +429,9 @@ kube-vip:
   enabled: false
   image:
     repository: plndr/kube-vip
-    tag: v0.3.7
-  config:
-    vip_interface: eth0
+    tag: main
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: "true"
 
 kube-vip-cloud-provider:
   enabled: false
