@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	wranglername "github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/rancher/wrangler/pkg/slice"
 	corev1 "k8s.io/api/core/v1"
@@ -453,15 +454,15 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 }
 
 func (h *vmActionHandler) createSecrets(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kv1.VirtualMachine) error {
-	for _, credential := range vm.Spec.Template.Spec.AccessCredentials {
+	for index, credential := range vm.Spec.Template.Spec.AccessCredentials {
 		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
-			toCreateSecretName := getTemplateVersionSSHPublicKeySecretName(templateVersion.Name)
+			toCreateSecretName := getTemplateVersionSSHPublicKeySecretName(templateVersion.Name, index)
 			if err := h.copySecret(sshPublicKey.Source.Secret.SecretName, toCreateSecretName, templateVersion); err != nil {
 				return err
 			}
 		}
 		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
-			toCreateSecretName := getTemplateVersionUserPasswordSecretName(templateVersion.Name)
+			toCreateSecretName := getTemplateVersionUserPasswordSecretName(templateVersion.Name, index)
 			if err := h.copySecret(userPassword.Source.Secret.SecretName, toCreateSecretName, templateVersion); err != nil {
 				return err
 			}
@@ -608,10 +609,10 @@ func replaceSecrets(templateVersionName string, vm *kv1.VirtualMachine) *kv1.Vir
 	sanitizedVm := vm.DeepCopy()
 	for index, credential := range sanitizedVm.Spec.Template.Spec.AccessCredentials {
 		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
-			sanitizedVm.Spec.Template.Spec.AccessCredentials[index].SSHPublicKey.Source.Secret.SecretName = getTemplateVersionSSHPublicKeySecretName(templateVersionName)
+			sanitizedVm.Spec.Template.Spec.AccessCredentials[index].SSHPublicKey.Source.Secret.SecretName = getTemplateVersionSSHPublicKeySecretName(templateVersionName, index)
 		}
 		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
-			sanitizedVm.Spec.Template.Spec.AccessCredentials[index].UserPassword.Source.Secret.SecretName = getTemplateVersionUserPasswordSecretName(templateVersionName)
+			sanitizedVm.Spec.Template.Spec.AccessCredentials[index].UserPassword.Source.Secret.SecretName = getTemplateVersionUserPasswordSecretName(templateVersionName, index)
 		}
 	}
 	for index, volume := range sanitizedVm.Spec.Template.Spec.Volumes {
@@ -657,17 +658,17 @@ func getSSHKeysFromVMITemplateSpec(vmitSpec *kv1.VirtualMachineInstanceTemplateS
 }
 
 func getTemplateVersionUserDataSecretName(templateVersionName, volumeName string) string {
-	return fmt.Sprintf("templateversion-%s-%s-userdata", templateVersionName, volumeName)
+	return wranglername.SafeConcatName("templateversion", templateVersionName, volumeName, "userdata")
 }
 
 func getTemplateVersionNetworkDataSecretName(templateVersionName, volumeName string) string {
-	return fmt.Sprintf("templateversion-%s-%s-networkdata", templateVersionName, volumeName)
+	return wranglername.SafeConcatName("templateversion", templateVersionName, volumeName, "networkdata")
 }
 
-func getTemplateVersionSSHPublicKeySecretName(templateVersionName string) string {
-	return fmt.Sprintf("templateversion-%s-accesscredentials-sshpublickey", templateVersionName)
+func getTemplateVersionSSHPublicKeySecretName(templateVersionName string, credentialIndex int) string {
+	return wranglername.SafeConcatName("templateversion", templateVersionName, fmt.Sprintf("credential-%d", credentialIndex), "sshpublickey")
 }
 
-func getTemplateVersionUserPasswordSecretName(templateVersionName string) string {
-	return fmt.Sprintf("templateversion-%s-accesscredentials-userpassword", templateVersionName)
+func getTemplateVersionUserPasswordSecretName(templateVersionName string, credentialIndex int) string {
+	return wranglername.SafeConcatName("templateversion", templateVersionName, fmt.Sprintf("credential-%d", credentialIndex), "userpassword")
 }
