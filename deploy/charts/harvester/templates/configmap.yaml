@@ -34,13 +34,13 @@ data:
     {{`KUBECTL="/host/$(readlink /host/var/lib/rancher/rke2/bin)/kubectl"
 
     get_machine_from_node() {
-      $KUBECTL get node $HOSTNAME -o jsonpath='{.metadata.annotations.cluster\.x-k8s\.io/machine}'
+      $KUBECTL get node $HARVESTER_PROMOTE_NODE_NAME -o jsonpath='{.metadata.annotations.cluster\.x-k8s\.io/machine}'
     }
 
     CUSTOM_MACHINE=$(get_machine_from_node)
     until [ -n "$CUSTOM_MACHINE" ]
     do
-      echo Waiting for custom machine label of $HOSTNAME ...
+      echo Waiting for custom machine label of $HARVESTER_PROMOTE_NODE_NAME ...
       sleep 2
       CUSTOM_MACHINE=$(get_machine_from_node)
     done
