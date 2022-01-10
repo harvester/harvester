@@ -473,6 +473,12 @@ func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
 			SecurityContext: &corev1.SecurityContext{
 				Privileged: pointer.BoolPtr(true),
 			},
+			Env: []corev1.EnvVar{
+				{
+					Name:  "HARVESTER_PROMOTE_NODE_NAME",
+					Value: node.Name,
+				},
+			},
 		},
 	}
 
