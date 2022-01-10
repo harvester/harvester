@@ -8,9 +8,12 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/rancher/lasso/pkg/metrics"
 )
 
 var (
@@ -66,13 +69,24 @@ func (h *SharedHandler) OnChange(key string, obj runtime.Object) error {
 	h.lock.RUnlock()
 
 	for _, handler := range handlers {
+		handlerName := handler.name
+		reconcileStartTS := time.Now()
+
 		newObj, err := handler.handler.OnChange(key, obj)
-		if err != nil && !errors.Is(err, ErrIgnore) {
+		if err == nil {
+			metrics.ReportReconcileTotal(handlerName, metrics.ReconcileResultSuccess)
+		} else if errors.Is(err, ErrIgnore) {
+			metrics.ReportReconcileTotal(handlerName, metrics.ReconcileResultErrorIgnore)
+		} else {
 			errs = append(errs, &handlerError{
 				HandlerName: handler.name,
 				Err:         err,
 			})
+			metrics.ReportReconcileTotal(handlerName, metrics.ReconcileResultError)
 		}
+		reconcileTime := time.Since(reconcileStartTS)
+		metrics.ReportReconcileTime(reconcileTime.Seconds(), handlerName)
+
 		if newObj != nil && !reflect.ValueOf(newObj).IsNil() {
 			meta, err := meta.Accessor(newObj)
 			if err == nil && meta.GetUID() != "" {

@@ -12,6 +12,7 @@ replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c
 	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
+	github.com/rancher/lasso => github.com/aiwantaozi/lasso v0.0.0-20220208082840-d8fa075d6b8b
 	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20211208233239-77392a65423d
 	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20211208233239-77392a65423d
 
@@ -72,6 +73,7 @@ require (
 	github.com/onsi/gomega v1.16.0
 	github.com/openshift/api v0.0.0
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.11.0
 	github.com/rancher/apiserver v0.0.0-20211025232108-df28932a5627
 	github.com/rancher/dynamiclistener v0.3.1-0.20211104200948-cd5d71f2fe95
 	github.com/rancher/lasso v0.0.0-20210709145333-6c6cd7fd6607

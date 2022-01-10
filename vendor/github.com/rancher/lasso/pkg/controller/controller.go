@@ -135,6 +135,9 @@ func (c *controller) run(workers int, stopCh <-chan struct{}) {
 	}
 
 	<-stopCh
+	c.startLock.Lock()
+	defer c.startLock.Unlock()
+	c.started = false
 	log.Infof("Shutting down %s workers", c.name)
 }
 
