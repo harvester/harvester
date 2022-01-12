@@ -104,6 +104,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				ejectCdRom:     &actionHandler,
 				pauseVM:        &actionHandler,
 				unpauseVM:      &actionHandler,
+				resetVM:        &actionHandler,
 				migrate:        &actionHandler,
 				abortMigration: &actionHandler,
 				backupVM:       &actionHandler,
@@ -118,6 +119,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				restartVM: {},
 				pauseVM:   {},
 				unpauseVM: {},
+				resetVM:   {},
 				migrate: {
 					Input: "migrateInput",
 				},

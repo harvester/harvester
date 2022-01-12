@@ -12,6 +12,7 @@ const (
 	AnnotationVolumeClaimTemplates = prefix + "/volumeClaimTemplates"
 	AnnotationImageID              = prefix + "/imageId"
 	AnnotationHash                 = prefix + "/hash"
+	AnnotationRemovePVC            = prefix + "/removePVC"
 
 	BackupTargetSecretName      = "harvester-backup-target-secret"
 	InternalTLSSecretName       = "tls-rancher-internal"

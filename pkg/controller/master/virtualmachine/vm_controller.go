@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	kv1 "kubevirt.io/client-go/api/v1"
 
+	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
@@ -21,6 +22,7 @@ import (
 type VMController struct {
 	pvcClient v1.PersistentVolumeClaimClient
 	pvcCache  v1.PersistentVolumeClaimCache
+	vmClient  kubevirtctrl.VirtualMachineClient
 }
 
 // createPVCsFromAnnotation creates PVCs defined in the volumeClaimTemplates annotation if they don't exist.
@@ -177,6 +179,29 @@ func (h *VMController) UnsetOwnerOfPVCs(_ string, vm *kv1.VirtualMachine) (*kv1.
 				}
 			}
 		}
+	}
+
+	return vm, nil
+}
+
+func (h *VMController) RemovePVC(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
+	if vm == nil || vm.DeletionTimestamp != nil {
+		return vm, nil
+	}
+
+	shouldRemovePVC, ok := vm.Annotations[util.AnnotationRemovePVC]
+	if !ok {
+		return vm, nil
+	}
+
+	if err := h.pvcClient.Delete(vm.Namespace, shouldRemovePVC, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to delete PVC(%s/%s): %w", vm.Namespace, shouldRemovePVC, err)
+	}
+
+	updateVM := vm.DeepCopy()
+	delete(updateVM.Annotations, util.AnnotationRemovePVC)
+	if _, err := h.vmClient.Update(updateVM); err != nil {
+		return nil, fmt.Errorf("failed to update vm(%s/%s): %w", vm.Namespace, vm.Name, err)
 	}
 
 	return vm, nil

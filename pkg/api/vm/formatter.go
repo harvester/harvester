@@ -17,6 +17,7 @@ const (
 	restartVM      = "restart"
 	pauseVM        = "pause"
 	unpauseVM      = "unpause"
+	resetVM        = "reset"
 	ejectCdRom     = "ejectCdRom"
 	migrate        = "migrate"
 	abortMigration = "abortMigration"
@@ -71,6 +72,10 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canUnPause(vmi) {
 		resource.AddAction(request, unpauseVM)
+	}
+
+	if vf.canReset(vm) {
+		resource.AddAction(request, resetVM)
 	}
 
 	if canMigrate(vmi) {
@@ -230,4 +235,15 @@ func (vf *vmformatter) getVMI(vm *kv1.VirtualMachine) *kv1.VirtualMachineInstanc
 		return vmi
 	}
 	return nil
+}
+
+func (vf *vmformatter) canReset(vm *kv1.VirtualMachine) bool {
+	if vm.Status.SnapshotInProgress != nil {
+		return false
+	}
+
+	if _, ok := vm.Annotations[util.AnnotationRemovePVC]; ok {
+		return false
+	}
+	return true
 }

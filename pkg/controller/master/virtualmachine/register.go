@@ -11,10 +11,12 @@ const (
 	vmControllerSetOwnerOfPVCsControllerName           = "VMController.SetOwnerOfPVCs"
 	vmControllerUnsetOwnerOfPVCsControllerName         = "VMController.UnsetOwnerOfPVCs"
 	vmiControllerUnsetOwnerOfPVCsControllerName        = "VMIController.UnsetOwnerOfPVCs"
+	vmControllerRemovePVCControllerName                = "VMController.RemovePVC"
 	vmControllerSetDefaultManagementNetworkMac         = "VMController.SetDefaultManagementNetworkMacAddress"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
+	var vmClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	var pvcClient = management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	var pvcCache = pvcClient.Cache()
 
@@ -22,10 +24,12 @@ func Register(ctx context.Context, management *config.Management, options config
 	var vmCtrl = &VMController{
 		pvcClient: pvcClient,
 		pvcCache:  pvcCache,
+		vmClient:  vmClient,
 	}
 	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	virtualMachineClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
 	virtualMachineClient.OnChange(ctx, vmControllerSetOwnerOfPVCsControllerName, vmCtrl.SetOwnerOfPVCs)
+	virtualMachineClient.OnChange(ctx, vmControllerRemovePVCControllerName, vmCtrl.RemovePVC)
 	virtualMachineClient.OnRemove(ctx, vmControllerUnsetOwnerOfPVCsControllerName, vmCtrl.UnsetOwnerOfPVCs)
 
 	// registers the vmi controller
@@ -40,7 +44,6 @@ func Register(ctx context.Context, management *config.Management, options config
 
 	// register the vm network controller upon the VMI changes
 	var (
-		vmClient  = management.VirtFactory.Kubevirt().V1().VirtualMachine()
 		vmCache   = management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 		vmiClient = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	)

@@ -15,6 +15,7 @@ import (
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/rancher/wrangler/pkg/slice"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -24,6 +25,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -32,6 +34,9 @@ const (
 	vmResource    = "virtualmachines"
 	vmiResource   = "virtualmachineinstances"
 	sshAnnotation = "harvesterhci.io/sshNames"
+
+	systemDiskBootOrder    uint = 1
+	pvcNameRandomStringLen int  = 5
 )
 
 type vmActionHandler struct {
@@ -580,6 +585,98 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		Error()
 }
 
+func (h *vmActionHandler) resetVM(vmName, vmNamespace string) error {
+	vm, err := h.vmCache.Get(vmNamespace, vmName)
+	if err != nil {
+		return err
+	}
+
+	if vm.Annotations[util.AnnotationRemovePVC] != "" {
+		return fmt.Errorf("vm is reseting")
+	}
+
+	updatedVM := vm.DeepCopy()
+	if err = h.resetVMSystemDisk(updatedVM); err != nil {
+		return err
+	}
+
+	if _, err = h.vms.Update(updatedVM); err != nil {
+		return err
+	}
+
+	if err = h.vmis.Delete(vmNamespace, vmName, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	return nil
+}
+
+func (h *vmActionHandler) resetVMSystemDisk(vm *kv1.VirtualMachine) error {
+	//pre check
+	disks := vm.Spec.Template.Spec.Domain.Devices.Disks
+	if len(disks) == 0 {
+		return fmt.Errorf("disks is empty")
+	}
+
+	volumes := vm.Spec.Template.Spec.Volumes
+	if len(volumes) == 0 {
+		return fmt.Errorf("volumes is empty")
+	}
+
+	//get systemDisk
+	var systemDiskName string
+	for _, disk := range disks {
+		if disk.BootOrder != nil && *disk.BootOrder == systemDiskBootOrder {
+			systemDiskName = disk.Name
+			break
+		}
+	}
+
+	if systemDiskName == "" {
+		return fmt.Errorf("can't find disk with bootOrder %d", systemDiskBootOrder)
+	}
+
+	//get systemDiskPVC
+	var oldSystemDiskPVCName string
+	var oldSystemDiskVolumeIndex int
+	for index, volume := range volumes {
+		if volume.Name == systemDiskName && volume.PersistentVolumeClaim != nil {
+			oldSystemDiskPVCName = volume.PersistentVolumeClaim.ClaimName
+			oldSystemDiskVolumeIndex = index
+			break
+		}
+	}
+
+	if oldSystemDiskPVCName == "" {
+		return fmt.Errorf("can't find volume for disk %s", systemDiskName)
+	}
+
+	oldSystemDiskPVC, err := h.pvcCache.Get(vm.Namespace, oldSystemDiskPVCName)
+	if err != nil {
+		return err
+	}
+
+	imageID, ok := oldSystemDiskPVC.Annotations[util.AnnotationImageID]
+	if !ok {
+		return fmt.Errorf("can't find image id from pvc %s/%s", oldSystemDiskPVC.Namespace, oldSystemDiskPVC.Name)
+	}
+
+	//generate volumeClaimTemplates
+	newSystemDiskPVCName := generateDiskPVCName(vm.Name, systemDiskName)
+	addedPVC := generatePVC(newSystemDiskPVCName, imageID, oldSystemDiskPVC.Spec.Resources)
+	newVolumeClaimTemplate, err := generateVolumeClaimTemplates(vm.Annotations[util.AnnotationVolumeClaimTemplates], oldSystemDiskPVCName, addedPVC)
+	if err != nil {
+		return fmt.Errorf("failed to generate pvc template, error %s", err.Error())
+	}
+
+	//reset systemDiskPVC
+	vm.Annotations[util.AnnotationRemovePVC] = oldSystemDiskPVCName
+	vm.Annotations[util.AnnotationVolumeClaimTemplates] = newVolumeClaimTemplate
+	vm.Spec.Template.Spec.Volumes[oldSystemDiskVolumeIndex].PersistentVolumeClaim.ClaimName = newSystemDiskPVCName
+
+	return nil
+}
+
 func sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kv1.VirtualMachine) harvesterv1.VirtualMachineSourceSpec {
 	sanitizedVm := removeMacAddresses(vm)
 	sanitizedVm = replaceCloudInitSecrets(templateVersionName, sanitizedVm)
@@ -640,4 +737,64 @@ func getTemplateVersionUserDataSecretName(templateVersionName, volumeName string
 
 func getTemplateVersionNetworkDataSecretName(templateVersionName, volumeName string) string {
 	return fmt.Sprintf("templateversion-%s-%s-networkdata", templateVersionName, volumeName)
+}
+
+func generateVolumeClaimTemplates(template, deletedPVCName string, added *corev1.PersistentVolumeClaim) (string, error) {
+	pvcs := []*corev1.PersistentVolumeClaim{added}
+
+	if template != "" {
+		var current []*corev1.PersistentVolumeClaim
+		if err := json.Unmarshal([]byte(template), &current); err != nil {
+			return "", err
+		}
+
+		var index int
+		for i, v := range current {
+			if v.Name == deletedPVCName {
+				index = i
+				break
+			}
+		}
+
+		pvcs = append(pvcs, current[:index]...)
+		pvcs = append(pvcs, current[index+1:]...)
+	}
+
+	b, err := json.Marshal(pvcs)
+	if err != nil {
+		return "", nil
+	}
+
+	return string(b), nil
+}
+
+func generatePVC(name, imageID string, resource corev1.ResourceRequirements) *corev1.PersistentVolumeClaim {
+	_, imageName := ref.Parse(imageID)
+	storageClassName := getStorageClassFromImage(imageName)
+	volumeMode := corev1.PersistentVolumeBlock
+
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Annotations: map[string]string{
+				util.AnnotationImageID: imageID,
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &storageClassName,
+			VolumeMode:       &volumeMode,
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteMany,
+			},
+			Resources: resource,
+		},
+	}
+}
+
+func generateDiskPVCName(vmName, diskName string) string {
+	return fmt.Sprintf("%s-%s-%s", vmName, diskName, rand.String(pvcNameRandomStringLen))
+}
+
+func getStorageClassFromImage(imageName string) string {
+	return fmt.Sprintf("longhorn-%s", imageName)
 }
