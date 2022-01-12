@@ -45,6 +45,7 @@ type validateSettingFunc func(setting *v1beta1.Setting) error
 var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.HttpProxySettingName:            validateHTTPProxy,
 	settings.VMForceResetPolicySettingName:   validateVMForceResetPolicy,
+	settings.SupportBundleImageName:          validateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName: validateSupportBundleTimeout,
 	settings.OvercommitConfigSettingName:     validateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:       validateVipPoolsConfig,
@@ -416,4 +417,20 @@ func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachine
 		}
 	}
 	return false
+}
+
+func validateSupportBundleImage(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	var image settings.Image
+	err := json.Unmarshal([]byte(setting.Value), &image)
+	if err != nil {
+		return err
+	}
+	if image.Repository == "" || image.Tag == "" || image.ImagePullPolicy == "" {
+		return fmt.Errorf("image field can't be blank")
+	}
+	return nil
 }
