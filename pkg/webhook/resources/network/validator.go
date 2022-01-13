@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	cniv1 "github.com/containernetworking/cni/pkg/types"
+	v1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-
-	cniv1 "github.com/containernetworking/cni/pkg/types"
-	v1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -41,7 +40,7 @@ type networkAttachmentDefinitionValidator struct {
 
 func (v *networkAttachmentDefinitionValidator) Resource() types.Resource {
 	return types.Resource{
-		Name:       "network-attachment-definitions",
+		Names:      []string{"network-attachment-definitions"},
 		Scope:      admissionregv1.NamespacedScope,
 		APIGroup:   v1.SchemeGroupVersion.Group,
 		APIVersion: v1.SchemeGroupVersion.Version,

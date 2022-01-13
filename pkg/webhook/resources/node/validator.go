@@ -25,7 +25,7 @@ type nodeValidator struct {
 
 func (v *nodeValidator) Resource() types.Resource {
 	return types.Resource{
-		Name:       "nodes",
+		Names:      []string{"nodes"},
 		Scope:      admissionregv1.ClusterScope,
 		APIGroup:   corev1.SchemeGroupVersion.Group,
 		APIVersion: corev1.SchemeGroupVersion.Version,

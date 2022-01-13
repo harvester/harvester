@@ -12,26 +12,32 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewValidator(pvcCache v1.PersistentVolumeClaimCache) types.Validator {
+func NewValidator(
+	pvcCache v1.PersistentVolumeClaimCache,
+	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
+) types.Validator {
 	return &vmValidator{
-		pvcCache: pvcCache,
+		pvcCache:      pvcCache,
+		vmBackupCache: vmBackupCache,
 	}
 }
 
 type vmValidator struct {
 	types.DefaultValidator
-	pvcCache v1.PersistentVolumeClaimCache
+	pvcCache      v1.PersistentVolumeClaimCache
+	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 }
 
 func (v *vmValidator) Resource() types.Resource {
 	return types.Resource{
-		Name:       "virtualmachines",
+		Names:      []string{"virtualmachines"},
 		Scope:      admissionregv1.NamespacedScope,
 		APIGroup:   kubevirtv1.SchemeGroupVersion.Group,
 		APIVersion: kubevirtv1.SchemeGroupVersion.Version,

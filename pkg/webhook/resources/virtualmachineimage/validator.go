@@ -40,7 +40,7 @@ type virtualMachineImageValidator struct {
 
 func (v *virtualMachineImageValidator) Resource() types.Resource {
 	return types.Resource{
-		Name:       v1beta1.VirtualMachineImageResourceName,
+		Names:      []string{v1beta1.VirtualMachineImageResourceName},
 		Scope:      admissionregv1.NamespacedScope,
 		APIGroup:   v1beta1.SchemeGroupVersion.Group,
 		APIVersion: v1beta1.SchemeGroupVersion.Version,

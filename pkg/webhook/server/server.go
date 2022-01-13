@@ -18,6 +18,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
+	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -50,6 +51,10 @@ func New(ctx context.Context, restConfig *rest.Config, options *config.Options) 
 func (s *AdmissionWebhookServer) ListenAndServe() error {
 	clients, err := clients.New(s.context, s.restConfig, s.options.Threadiness)
 	if err != nil {
+		return err
+	}
+
+	if err = indexeres.RegisterIndexers(clients); err != nil {
 		return err
 	}
 
@@ -167,7 +172,7 @@ func (s *AdmissionWebhookServer) buildRules(resources []types.Resource) []v1.Rul
 			Rule: v1.Rule{
 				APIGroups:   []string{rsc.APIGroup},
 				APIVersions: []string{rsc.APIVersion},
-				Resources:   []string{rsc.Name},
+				Resources:   rsc.Names,
 				Scope:       &scope,
 			},
 		})

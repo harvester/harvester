@@ -45,7 +45,7 @@ type restoreValidator struct {
 
 func (v *restoreValidator) Resource() types.Resource {
 	return types.Resource{
-		Name:       v1beta1.VirtualMachineRestoreResourceName,
+		Names:      []string{v1beta1.VirtualMachineRestoreResourceName},
 		Scope:      admissionregv1.NamespacedScope,
 		APIGroup:   v1beta1.SchemeGroupVersion.Group,
 		APIVersion: v1beta1.SchemeGroupVersion.Version,
