@@ -30,7 +30,7 @@ type keyPairValidator struct {
 
 func (v *keyPairValidator) Resource() types.Resource {
 	return types.Resource{
-		Name:       v1beta1.KeyPairResourceName,
+		Names:      []string{v1beta1.KeyPairResourceName},
 		Scope:      admissionregv1.NamespacedScope,
 		APIGroup:   v1beta1.SchemeGroupVersion.Group,
 		APIVersion: v1beta1.SchemeGroupVersion.Version,

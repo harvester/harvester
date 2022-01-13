@@ -33,7 +33,7 @@ type upgradeValidator struct {
 
 func (v *upgradeValidator) Resource() types.Resource {
 	return types.Resource{
-		Name:       v1beta1.UpgradeResourceName,
+		Names:      []string{v1beta1.UpgradeResourceName},
 		Scope:      admissionregv1.NamespacedScope,
 		APIGroup:   v1beta1.SchemeGroupVersion.Group,
 		APIVersion: v1beta1.SchemeGroupVersion.Version,
