@@ -3,6 +3,8 @@ package node
 import (
 	"fmt"
 	"net/http"
+	"reflect"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/apierror"
@@ -11,6 +13,7 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 )
@@ -73,7 +76,7 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	case enableMaintenanceModeAction:
 		return h.enableMaintenanceMode(toUpdate)
 	case disableMaintenanceModeAction:
-		return h.disableMaintenanceMode(toUpdate)
+		return h.disableMaintenanceMode(name)
 	case cordonAction:
 		return h.cordonUncordonNode(toUpdate, cordonAction, true)
 	case uncordonAction:
@@ -118,15 +121,44 @@ func hasDrainTaint(taints []corev1.Taint) bool {
 	return false
 }
 
-func (h ActionHandler) disableMaintenanceMode(node *corev1.Node) error {
-	node.Spec.Unschedulable = false
-	for i, taint := range node.Spec.Taints {
-		if taint.Key == drainKey {
-			node.Spec.Taints = append(node.Spec.Taints[:i], node.Spec.Taints[i+1:]...)
-			break
+type maintenanceModeUpdateFunc func(node *corev1.Node)
+
+func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
+	disableMaintaenanceModeFunc := func(node *corev1.Node) {
+		node.Spec.Unschedulable = false
+		for i, taint := range node.Spec.Taints {
+			if taint.Key == drainKey {
+				node.Spec.Taints = append(node.Spec.Taints[:i], node.Spec.Taints[i+1:]...)
+				break
+			}
+		}
+		delete(node.Annotations, ctlnode.MaintainStatusAnnotationKey)
+	}
+
+	return h.retryMaintenanceModeUpdate(nodeName, disableMaintaenanceModeFunc, "disable")
+}
+
+func (h ActionHandler) retryMaintenanceModeUpdate(nodeName string, updateFunc maintenanceModeUpdateFunc, actionName string) error {
+	maxTry := 3
+	for i := 0; i < maxTry; i++ {
+		node, err := h.nodeCache.Get(nodeName)
+		if err != nil {
+			return err
+		}
+		toUpdate := node.DeepCopy()
+		updateFunc(toUpdate)
+		if reflect.DeepEqual(node, toUpdate) {
+			return nil
+		}
+		_, err = h.nodeClient.Update(toUpdate)
+		if err == nil || !errors.IsConflict(err) {
+			return err
+		}
+		// after last try, do not sleep, return asap.
+		if i < maxTry-1 {
+			time.Sleep(2 * time.Second)
 		}
 	}
-	delete(node.Annotations, ctlnode.MaintainStatusAnnotationKey)
-	_, err := h.nodeClient.Update(node)
-	return err
+
+	return fmt.Errorf("Fail to %s maintenance mode on node:%s", actionName, nodeName)
 }
