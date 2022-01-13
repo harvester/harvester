@@ -36,5 +36,5 @@ func addHandler(router *webhook.Router, admissionType string, admitter types.Adm
 	rsc := admitter.Resource()
 	kind := reflect.Indirect(reflect.ValueOf(rsc.ObjectType)).Type().Name()
 	router.Kind(kind).Group(rsc.APIGroup).Type(rsc.ObjectType).Handle(types.NewAdmissionHandler(admitter, admissionType, options))
-	logrus.Infof("add %s handler for %s.%s (%s)", admissionType, rsc.Name, rsc.APIGroup, kind)
+	logrus.Infof("add %s handler for %+v.%s (%s)", admissionType, rsc.Names, rsc.APIGroup, kind)
 }

@@ -31,7 +31,7 @@ type vmMutator struct {
 
 func (m *vmMutator) Resource() types.Resource {
 	return types.Resource{
-		Name:       "virtualmachines",
+		Names:      []string{"virtualmachines"},
 		Scope:      admissionregv1.NamespacedScope,
 		APIGroup:   kubevirtv1.SchemeGroupVersion.Group,
 		APIVersion: kubevirtv1.SchemeGroupVersion.Version,

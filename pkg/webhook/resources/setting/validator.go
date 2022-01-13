@@ -71,7 +71,7 @@ type settingValidator struct {
 
 func (v *settingValidator) Resource() types.Resource {
 	return types.Resource{
-		Name:       v1beta1.SettingResourceName,
+		Names:      []string{v1beta1.SettingResourceName},
 		Scope:      admissionregv1.ClusterScope,
 		APIGroup:   v1beta1.SchemeGroupVersion.Group,
 		APIVersion: v1beta1.SchemeGroupVersion.Version,

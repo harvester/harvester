@@ -44,7 +44,7 @@ type podMutator struct {
 
 func newResource(ops []admissionregv1.OperationType) types.Resource {
 	return types.Resource{
-		Name:           string(corev1.ResourcePods),
+		Names:          []string{string(corev1.ResourcePods)},
 		Scope:          admissionregv1.NamespacedScope,
 		APIGroup:       corev1.SchemeGroupVersion.Group,
 		APIVersion:     corev1.SchemeGroupVersion.Version,
