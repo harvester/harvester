@@ -22,7 +22,7 @@ type templateVersionMutator struct {
 
 func newResource(ops []admissionregv1.OperationType) types.Resource {
 	return types.Resource{
-		Name:           v1beta1.VirtualMachineTemplateVersionResourceName,
+		Names:          []string{v1beta1.VirtualMachineTemplateVersionResourceName},
 		Scope:          admissionregv1.NamespacedScope,
 		APIGroup:       v1beta1.SchemeGroupVersion.Group,
 		APIVersion:     v1beta1.SchemeGroupVersion.Version,

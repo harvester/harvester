@@ -27,7 +27,9 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		network.NewValidator(clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache(), clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()),
 		persistentvolumeclaim.NewValidator(clients.Core.PersistentVolumeClaim().Cache(), clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()),
 		keypair.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
-		virtualmachine.NewValidator(clients.Core.PersistentVolumeClaim().Cache()),
+		virtualmachine.NewValidator(
+			clients.Core.PersistentVolumeClaim().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()),
 		virtualmachineimage.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.Core.PersistentVolumeClaim().Cache(),

@@ -31,7 +31,7 @@ type pvcValidator struct {
 
 func (v *pvcValidator) Resource() types.Resource {
 	return types.Resource{
-		Name:       "persistentvolumeclaims",
+		Names:      []string{"persistentvolumeclaims"},
 		Scope:      admissionregv1.NamespacedScope,
 		APIGroup:   corev1.SchemeGroupVersion.Group,
 		APIVersion: corev1.SchemeGroupVersion.Version,

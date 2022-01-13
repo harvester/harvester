@@ -8,7 +8,7 @@ import (
 )
 
 type Resource struct {
-	Name           string
+	Names          []string
 	Scope          admissionregv1.ScopeType
 	APIGroup       string
 	APIVersion     string
@@ -17,8 +17,13 @@ type Resource struct {
 }
 
 func (r Resource) Validate() error {
-	if r.Name == "" {
-		return errUndefined("Name")
+	if len(r.Names) == 0 {
+		return errUndefined("Names")
+	}
+	for _, name := range r.Names {
+		if name == "" {
+			return errUndefined("Names")
+		}
 	}
 	if r.Scope == "" {
 		return errUndefined("Scope")
