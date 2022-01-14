@@ -11,6 +11,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
 )
 
 type Clients struct {
@@ -19,6 +20,7 @@ type Clients struct {
 	HarvesterFactory *ctlharvesterv1.Factory
 	KubevirtFactory  *ctlkubevirtv1.Factory
 	CNIFactory       *ctlcniv1.Factory
+	SnapshotFactory  *ctlsnapshotv1.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
@@ -58,10 +60,20 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
+	snapshotFactory, err := ctlsnapshotv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = snapshotFactory.Start(ctx, threadiness); err != nil {
+		return nil, err
+	}
+
 	return &Clients{
 		Clients:          *clients,
 		HarvesterFactory: harvesterFactory,
 		KubevirtFactory:  kubevirtFactory,
 		CNIFactory:       cniFactory,
+		SnapshotFactory:  snapshotFactory,
 	}, nil
 }
