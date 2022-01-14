@@ -43,6 +43,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		setting.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
+			clients.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotClass().Cache(),
 		),
 		templateversion.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate().Cache(),

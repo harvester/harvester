@@ -26,7 +26,7 @@ var (
 	UIIndex                 = NewSetting("ui-index", DefaultDashboardUIURL)
 	UIPath                  = NewSetting("ui-path", "/usr/share/harvester/harvester")
 	UISource                = NewSetting("ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
-	VolumeSnapshotClass     = NewSetting("volume-snapshot-class", "longhorn")
+	VolumeSnapshotClass     = NewSetting(VolumeSnapshotClassSettingName, "longhorn")
 	BackupTargetSet         = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
 	UpgradableVersions      = NewSetting("upgradable-versions", "")
 	UpgradeCheckerEnabled   = NewSetting("upgrade-checker-enabled", "true")
@@ -55,6 +55,7 @@ const (
 	SSLCertificatesSettingName      = "ssl-certificates"
 	SSLParametersName               = "ssl-parameters"
 	VipPoolsConfigSettingName       = "vip-pools"
+	VolumeSnapshotClassSettingName  = "volume-snapshot-class"
 	DefaultDashboardUIURL           = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
 	SupportBundleImageName          = "support-bundle-image"
 )
