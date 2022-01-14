@@ -26,6 +26,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	tlsutil "github.com/harvester/harvester/pkg/util/tls"
@@ -53,20 +54,27 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.SSLParametersName:               validateSSLParameters,
 }
 
-func NewValidator(settingCache ctlv1beta1.SettingCache, vmBackupCache ctlv1beta1.VirtualMachineBackupCache) types.Validator {
+func NewValidator(
+	settingCache ctlv1beta1.SettingCache,
+	vmBackupCache ctlv1beta1.VirtualMachineBackupCache,
+	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
+) types.Validator {
 	validator := &settingValidator{
-		settingCache:  settingCache,
-		vmBackupCache: vmBackupCache,
+		settingCache:       settingCache,
+		vmBackupCache:      vmBackupCache,
+		snapshotClassCache: snapshotClassCache,
 	}
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
+	validateSettingFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateVolumeSnapshotClass
 	return validator
 }
 
 type settingValidator struct {
 	types.DefaultValidator
 
-	settingCache  ctlv1beta1.SettingCache
-	vmBackupCache ctlv1beta1.VirtualMachineBackupCache
+	settingCache       ctlv1beta1.SettingCache
+	vmBackupCache      ctlv1beta1.VirtualMachineBackupCache
+	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -433,4 +441,12 @@ func validateSupportBundleImage(setting *v1beta1.Setting) error {
 		return fmt.Errorf("image field can't be blank")
 	}
 	return nil
+}
+
+func (v *settingValidator) validateVolumeSnapshotClass(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+	_, err := v.snapshotClassCache.Get(setting.Value)
+	return err
 }
