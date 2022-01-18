@@ -36,7 +36,7 @@ upgrade_rancher()
   if [ "$RANCHER_CURRENT_VERSION" = "$REPO_RANCHER_VERSION" ]; then
     echo "Skip update Rancher. The version is already $RANCHER_CURRENT_VERSION"
     return
-  fi 
+  fi
 
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
   ./helm upgrade rancher ./*.tgz --namespace cattle-system -f values.yaml
@@ -107,9 +107,19 @@ EOF
   kubectl patch managedcharts.management.cattle.io rancher-monitoring -n fleet-local --patch-file ./rancher-monitoring.yaml --type merge
 }
 
+apply_extra_manifests()
+{
+    shopt -s nullglob
+    for manifest in /usr/local/share/extra_manifests/*.yaml; do
+        kubectl apply -f $manifest
+    done
+    shopt -u nullglob
+}
+
 wait_repo
 detect_repo
 upgrade_rancher
 upgrade_harvester_cluster_repo
 upgrade_harvester
 upgrade_monitoring
+apply_extra_manifests
