@@ -502,8 +502,8 @@ func (h *RestoreHandler) updateOwnerRefAndTargetUID(vmRestore *harvesterv1.Virtu
 
 	// set vmRestore owner reference to the target VM
 	restoreCpy.SetOwnerReferences(configVMOwner(vm))
-	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "Initializing VirtualMachineRestore"))
-	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "Initializing VirtualMachineRestore"))
+	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "", "Initializing VirtualMachineRestore"))
+	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "", "Initializing VirtualMachineRestore"))
 
 	if _, err := h.restores.Update(restoreCpy); err != nil {
 		return err
@@ -603,8 +603,8 @@ func (h *RestoreHandler) updateStatus(
 ) error {
 	restoreCpy := vmRestore.DeepCopy()
 	if !isVolumesReady {
-		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "Creating new PVCs"))
-		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "Waiting for new PVCs"))
+		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "", "Creating new PVCs"))
+		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "", "Waiting for new PVCs"))
 		if !reflect.DeepEqual(vmRestore, restoreCpy) {
 			if _, err := h.restores.Update(restoreCpy); err != nil {
 				return err
@@ -614,9 +614,9 @@ func (h *RestoreHandler) updateStatus(
 	}
 
 	if !vm.Status.Ready {
-		reason := "Waiting for target vm to be ready"
-		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, reason))
-		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, reason))
+		message := "Waiting for target vm to be ready"
+		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "", message))
+		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "", message))
 		if !reflect.DeepEqual(vmRestore, restoreCpy) {
 			if _, err := h.restores.Update(restoreCpy); err != nil {
 				return err
@@ -643,8 +643,8 @@ func (h *RestoreHandler) updateStatus(
 
 	restoreCpy.Status.RestoreTime = currentTime()
 	restoreCpy.Status.Complete = pointer.BoolPtr(true)
-	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "Operation complete"))
-	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionTrue, "Operation complete"))
+	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "", "Operation complete"))
+	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionTrue, "", "Operation complete"))
 	if _, err := h.restores.Update(restoreCpy); err != nil {
 		return err
 	}
@@ -653,8 +653,8 @@ func (h *RestoreHandler) updateStatus(
 
 func (h *RestoreHandler) updateStatusError(restore *harvesterv1.VirtualMachineRestore, err error, createEvent bool) error {
 	restoreCpy := restore.DeepCopy()
-	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, err.Error()))
-	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, err.Error()))
+	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "Error", err.Error()))
+	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "Error", err.Error()))
 
 	if !reflect.DeepEqual(restore, restoreCpy) {
 		if createEvent {

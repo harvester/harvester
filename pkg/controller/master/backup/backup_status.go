@@ -21,8 +21,8 @@ import (
 func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) error {
 	var vmBackupCpy = vmBackup.DeepCopy()
 	if isBackupProgressing(vmBackupCpy) {
-		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionTrue, "Operation in progress"))
-		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "Not ready"))
+		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionTrue, "", "Operation in progress"))
+		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "", "Not ready"))
 	}
 
 	ready := true
@@ -41,8 +41,8 @@ func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) e
 	if ready && (vmBackupCpy.Status.ReadyToUse == nil || !*vmBackupCpy.Status.ReadyToUse) {
 		vmBackupCpy.Status.CreationTime = currentTime()
 		vmBackupCpy.Status.Error = nil
-		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "Operation complete"))
-		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionTrue, "Operation complete"))
+		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "", "Operation complete"))
+		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionTrue, "", "Operation complete"))
 	}
 
 	// check if the status need to update the error status
@@ -51,6 +51,8 @@ func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) e
 			Time:    currentTime(),
 			Message: pointer.StringPtr(errorMessage),
 		}
+		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "Error", errorMessage))
+		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "", "Not Ready"))
 	}
 
 	vmBackupCpy.Status.ReadyToUse = pointer.BoolPtr(ready)
