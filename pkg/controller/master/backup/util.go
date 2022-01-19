@@ -18,8 +18,8 @@ func isBackupReady(backup *harvesterv1.VirtualMachineBackup) bool {
 	return backup.Status != nil && backup.Status.ReadyToUse != nil && *backup.Status.ReadyToUse
 }
 
-func isBackupProgressing(backup *harvesterv1.VirtualMachineBackup) bool {
-	return getVMBackupError(backup) == nil &&
+func IsBackupProgressing(backup *harvesterv1.VirtualMachineBackup) bool {
+	return GetVMBackupError(backup) == nil &&
 		(backup.Status == nil || backup.Status.ReadyToUse == nil || !*backup.Status.ReadyToUse)
 }
 
@@ -51,7 +51,7 @@ func isNewVMOrHasRetainPolicy(vmRestore *harvesterv1.VirtualMachineRestore) bool
 	return vmRestore.Spec.NewVM || vmRestore.Spec.DeletionPolicy == harvesterv1.VirtualMachineRestoreRetain
 }
 
-func getVMBackupError(vmBackup *harvesterv1.VirtualMachineBackup) *harvesterv1.Error {
+func GetVMBackupError(vmBackup *harvesterv1.VirtualMachineBackup) *harvesterv1.Error {
 	if vmBackup.Status != nil && vmBackup.Status.Error != nil {
 		return vmBackup.Status.Error
 	}

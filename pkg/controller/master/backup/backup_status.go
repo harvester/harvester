@@ -20,7 +20,7 @@ import (
 
 func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) error {
 	var vmBackupCpy = vmBackup.DeepCopy()
-	if isBackupProgressing(vmBackupCpy) {
+	if IsBackupProgressing(vmBackupCpy) {
 		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionTrue, "", "Operation in progress"))
 		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "", "Not ready"))
 	}
