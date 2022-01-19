@@ -17,6 +17,7 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
 
 func NewValidator(
@@ -37,7 +38,7 @@ type vmValidator struct {
 
 func (v *vmValidator) Resource() types.Resource {
 	return types.Resource{
-		Names:      []string{"virtualmachines"},
+		Names:      []string{"virtualmachines", "virtualmachines/status"},
 		Scope:      admissionregv1.NamespacedScope,
 		APIGroup:   kubevirtv1.SchemeGroupVersion.Group,
 		APIVersion: kubevirtv1.SchemeGroupVersion.Version,
@@ -51,6 +52,9 @@ func (v *vmValidator) Resource() types.Resource {
 
 func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) error {
 	vm := newObj.(*kubevirtv1.VirtualMachine)
+	if vm == nil {
+		return nil
+	}
 
 	if err := v.checkVMSpec(vm); err != nil {
 		return err
@@ -59,10 +63,30 @@ func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) erro
 }
 
 func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
-	vm := newObj.(*kubevirtv1.VirtualMachine)
+	newVM := newObj.(*kubevirtv1.VirtualMachine)
+	if newVM == nil {
+		return nil
+	}
 
-	if err := v.checkVMSpec(vm); err != nil {
+	if err := v.checkVMSpec(newVM); err != nil {
 		return err
+	}
+
+	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
+	if oldVM == nil {
+		return nil
+	}
+
+	// Prevent users to stop/restart VM when there is VMBackup in progress.
+	// KubeVirt send stop request or change running from true to false when users stop a VM.
+	// KubeVirt send restart request (stop and start combination request) when users restart a VM.
+	// Stop reference: https://github.com/kubevirt/kubevirt/blob/c9e87c4cb6292af33ccad8faa5fb9bf269c0fbf4/pkg/virt-api/rest/subresource.go#L508-L511
+	// Restart reference: https://github.com/kubevirt/kubevirt/blob/c9e87c4cb6292af33ccad8faa5fb9bf269c0fbf4/pkg/virt-api/rest/subresource.go#L260-L263
+	if (*oldVM.Spec.Running && !*newVM.Spec.Running) ||
+		(len(newVM.Status.StateChangeRequests) != 0 && newVM.Status.StateChangeRequests[0].Action == kubevirtv1.StopRequest) {
+		if err := v.checkVMBackup(newVM); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -79,9 +103,6 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 }
 
 func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.VirtualMachine) error {
-	if vm == nil {
-		return nil
-	}
 	volumeClaimTemplates, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
 	if !ok || volumeClaimTemplates == "" {
 		return nil
@@ -99,9 +120,6 @@ func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.Virtual
 }
 
 func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
-	if vm == nil {
-		return nil
-	}
 	vmID := ref.Construct(vm.Namespace, vm.Name)
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim != nil {
@@ -127,5 +145,14 @@ func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
 		}
 	}
 
+	return nil
+}
+
+func (v *vmValidator) checkVMBackup(vm *kubevirtv1.VirtualMachine) error {
+	if exist, err := webhookutil.HasInProgressingVMBackupBySourceUID(v.vmBackupCache, string(vm.UID)); err != nil {
+		return werror.NewInternalError(err.Error())
+	} else if exist {
+		return werror.NewBadRequest(fmt.Sprintf("there is vmbackup in progress for vm %s/%s, please wait for the vmbackup or remove it before stop/restart the vm", vm.Namespace, vm.Name))
+	}
 	return nil
 }
