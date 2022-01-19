@@ -522,8 +522,8 @@ func (h *Handler) setStatusError(vmBackup *harvesterv1.VirtualMachineBackup, err
 		Time:    currentTime(),
 		Message: pointer.StringPtr(err.Error()),
 	}
-	updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "In error state"))
-	updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "Error"))
+	updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "Error", err.Error()))
+	updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "", "Not Ready"))
 
 	if _, updateErr := h.vmBackups.Update(vmBackupCpy); updateErr != nil {
 		return updateErr
