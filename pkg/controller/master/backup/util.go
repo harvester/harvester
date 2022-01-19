@@ -58,33 +58,37 @@ func getVMBackupError(vmBackup *harvesterv1.VirtualMachineBackup) *harvesterv1.E
 	return nil
 }
 
-func newReadyCondition(status corev1.ConditionStatus, message string) harvesterv1.Condition {
+func newReadyCondition(status corev1.ConditionStatus, reason string, message string) harvesterv1.Condition {
 	return harvesterv1.Condition{
 		Type:               harvesterv1.BackupConditionReady,
 		Status:             status,
 		Message:            message,
+		Reason:             reason,
 		LastTransitionTime: currentTime().Format(time.RFC3339),
 	}
 }
 
-func newProgressingCondition(status corev1.ConditionStatus, message string) harvesterv1.Condition {
+func newProgressingCondition(status corev1.ConditionStatus, reason string, message string) harvesterv1.Condition {
 	return harvesterv1.Condition{
-		Type:               harvesterv1.BackupConditionProgressing,
-		Status:             status,
+		Type:   harvesterv1.BackupConditionProgressing,
+		Status: status,
+		// wrangler use Reason to determine whether an object is in error state.
+		// ref: https://github.com/rancher/wrangler/blob/6970ad98ba7bd2755312ccfc6540a92bc9a9e316/pkg/summary/summarizers.go#L220-L243
+		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: currentTime().Format(time.RFC3339),
 	}
 }
 
 func updateBackupCondition(ss *harvesterv1.VirtualMachineBackup, c harvesterv1.Condition) {
-	ss.Status.Conditions = updateCondition(ss.Status.Conditions, c, false)
+	ss.Status.Conditions = updateCondition(ss.Status.Conditions, c)
 }
 
-func updateCondition(conditions []harvesterv1.Condition, c harvesterv1.Condition, includeReason bool) []harvesterv1.Condition {
+func updateCondition(conditions []harvesterv1.Condition, c harvesterv1.Condition) []harvesterv1.Condition {
 	found := false
 	for i := range conditions {
 		if conditions[i].Type == c.Type {
-			if conditions[i].Status != c.Status || (includeReason && conditions[i].Reason != c.Reason) {
+			if conditions[i].Status != c.Status || (conditions[i].Reason != c.Reason) || (conditions[i].Message != c.Message) {
 				conditions[i] = c
 			}
 			found = true
@@ -121,7 +125,7 @@ func getRestoreID(vmRestore *harvesterv1.VirtualMachineRestore) string {
 }
 
 func updateRestoreCondition(r *harvesterv1.VirtualMachineRestore, c harvesterv1.Condition) {
-	r.Status.Conditions = updateCondition(r.Status.Conditions, c, true)
+	r.Status.Conditions = updateCondition(r.Status.Conditions, c)
 }
 
 func getNewVolumes(vm *kv1.VirtualMachineSpec, vmRestore *harvesterv1.VirtualMachineRestore) ([]kv1.Volume, error) {
