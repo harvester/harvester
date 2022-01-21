@@ -79,7 +79,7 @@ No API changes.
 ### Implementation Overview
 
 #### Fresh install
-- Change Default Data Path to `/var/lib/longhorn_data`.
+- Change Default Data Path to `/var/lib/harvester/defaultdisk`.
   It means Longhorn will use this path to set up the Default Longhorn disk other than the default
   `/var/lib/longhorn`, where the Longhorn binaries locate.
   We can modify the Longhorn chart values to deploy Longhorn with this setting.
@@ -87,25 +87,25 @@ No API changes.
 - Make sure `/var/lib/longhorn/` is a persistent volume.
   In 1.0.0, `/var/lib/longhorn` could be persistent or not,
   depending on the config `NoDataPartition`. Now, because we will be using
-  `/var/lib/longhorn_data` to store VM data, `/var/lib/longhorn` should always be persistent
+  `/var/lib/harvester/defaultdisk` to store VM data, `/var/lib/longhorn` should always be persistent
   as it's where the Longhorn binaries locate.
 
 - The installer should format the VM disk using EXT4 **partitionless**,
   with a filesystem label `HARV_LH_DEFAULT`.
 
-- The VM disk should be mounted onto `/var/lib/longhorn_data`. In this case,
+- The VM disk should be mounted onto `/var/lib/harvester/defaultdisk`. In this case,
   we will use the filesystem label `HARV_LH_DEFAULT` to achieve this.
 
 #### Upgrade
 
 In v1.0.0, we didn't provide `default-data-path` setting so by default it's `/var/lib/longhorn/`.
-Once the cluster is upgraded, we would have change it to `/var/lib/longhorn_data`:
+Once the cluster is upgraded, we would have to change it to `/var/lib/harvester/defaultdisk`:
 
 - It does not affect the existed Nodes, as they should already have default disks configured.
   Longhorn will not re-create default disks for these Nodes.
 
 
-- While a freshly installed Node joins the cluster, Longhorn has to set up `/var/lib/longhorn_data`
+- While a freshly installed Node joins the cluster, Longhorn has to set up `/var/lib/harvester/defaultdisk`
   as the default disk on this Node, instead of `/var/lib/longhorn`.
 
 Another thing is we should prohibit v1.0.0 Nodes from joining a cluster with this change.
@@ -126,8 +126,8 @@ See [Note](#version-incompatibility) for more detail.
     ```
 
 4. After the installation finished, wait for the system to reboot and verify the following:
-    - `/dev/sda` is mounted to `/var/lib/longhorn_data` as the default disk.
-      Create a VM and verify Longhorn is storing data into `/var/lib/longhorn_data`.
+    - `/dev/sda` is mounted to `/var/lib/harvester/defaultdisk` as the default disk.
+      Create a VM and verify Longhorn is storing data into `/var/lib/harvester/defaultdisk`.
       You can create a huge file in the VM and see the space of `/dev/vda` is getting consumed.
 
     - `/var/lib/longhorn` still exists, and Longhorn binaries are stored here.
@@ -180,9 +180,9 @@ users should not add a v1.0.0 Node into a v1.0.1 cluster. The reason being:
 - In v1.0.0, the default data path is `/var/lib/longhorn`.
   and this path is configured to be persistent across reboots.
 
-- In v1.0.1, we would change the default data path to `/var/lib/longhorn_data`.
+- In v1.0.1, we would change the default data path to `/var/lib/harvester/defaultdisk`.
   When a fresh installed v1.0.0 node joins a v1.0.1 cluster,
-  Longhorn will set up `/var/lib/longhorn_data` as the default disk on the Node,
+  Longhorn will set up `/var/lib/harvester/defaultdisk` as the default disk on the Node,
   which does not configure as persistent volume for v1.0.0 Nodes.
 
 > NOTE: **This only affects fresh installed Node (ISO or PXE)**.
