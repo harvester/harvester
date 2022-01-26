@@ -42,7 +42,7 @@ func (v *VMBuilder) CloudInit(diskName string, cloudInitSource CloudInitSource) 
 			}
 		}
 		if cloudInitSource.NetworkDataSecretName != "" {
-			volume.VolumeSource.CloudInitNoCloud.UserDataSecretRef = &corev1.LocalObjectReference{
+			volume.VolumeSource.CloudInitNoCloud.NetworkDataSecretRef = &corev1.LocalObjectReference{
 				Name: cloudInitSource.NetworkDataSecretName,
 			}
 		}
@@ -64,7 +64,7 @@ func (v *VMBuilder) CloudInit(diskName string, cloudInitSource CloudInitSource) 
 			}
 		}
 		if cloudInitSource.NetworkDataSecretName != "" {
-			volume.VolumeSource.CloudInitConfigDrive.UserDataSecretRef = &corev1.LocalObjectReference{
+			volume.VolumeSource.CloudInitConfigDrive.NetworkDataSecretRef = &corev1.LocalObjectReference{
 				Name: cloudInitSource.NetworkDataSecretName,
 			}
 		}
