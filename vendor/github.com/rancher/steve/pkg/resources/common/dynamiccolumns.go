@@ -96,7 +96,7 @@ func newClient(config *rest.Config) (*rest.RESTClient, error) {
 	config = rest.CopyConfig(config)
 	config.RateLimiter = ratelimit.None
 	config.UserAgent = rest.DefaultKubernetesUserAgent()
-	config.AcceptContentTypes = "application/json;as=Table;v=v1;g=meta.k8s.io"
+	config.AcceptContentTypes = "application/json;as=Table;v=v1;g=meta.k8s.io,application/json;as=Table;v=v1beta1;g=meta.k8s.io"
 	config.GroupVersion = &schema.GroupVersion{}
 	config.NegotiatedSerializer = serializer.NewCodecFactory(scheme)
 	config.APIPath = "/"

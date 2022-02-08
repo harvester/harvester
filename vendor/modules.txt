@@ -623,13 +623,13 @@ github.com/rancher/rancher/pkg/apis/provisioning.cattle.io
 github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1
 github.com/rancher/rancher/pkg/apis/rke.cattle.io
 github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1
-# github.com/rancher/remotedialer v0.2.6-0.20210318171128-d1ebd5202be4
+# github.com/rancher/remotedialer v0.2.6-0.20220104192242-f3837f8d649a
 github.com/rancher/remotedialer
 github.com/rancher/remotedialer/metrics
 # github.com/rancher/rke v1.3.3-rc4
 github.com/rancher/rke/types
 github.com/rancher/rke/types/kdm
-# github.com/rancher/steve v0.0.0-20210915171517-ae8b16260899
+# github.com/rancher/steve v0.0.0-20220126170519-376e30bba7be
 ## explicit
 github.com/rancher/steve/pkg/accesscontrol
 github.com/rancher/steve/pkg/aggregation
@@ -661,7 +661,7 @@ github.com/rancher/steve/pkg/summarycache
 github.com/rancher/system-upgrade-controller/pkg/apis/condition
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1
-# github.com/rancher/wrangler v0.8.10
+# github.com/rancher/wrangler v0.8.11-0.20211214201934-f5aa5d9f2e81
 ## explicit
 github.com/rancher/wrangler/pkg/apply
 github.com/rancher/wrangler/pkg/apply/injectors
@@ -711,6 +711,7 @@ github.com/rancher/wrangler/pkg/schemes
 github.com/rancher/wrangler/pkg/signals
 github.com/rancher/wrangler/pkg/slice
 github.com/rancher/wrangler/pkg/start
+github.com/rancher/wrangler/pkg/stringset
 github.com/rancher/wrangler/pkg/summary
 github.com/rancher/wrangler/pkg/summary/client
 github.com/rancher/wrangler/pkg/summary/informer
