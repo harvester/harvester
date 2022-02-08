@@ -6,21 +6,25 @@ import (
 	"io"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
-	MaxBuffer = 1 << 20
+	MaxBuffer = 1 << 21
 )
 
 type readBuffer struct {
-	cond     sync.Cond
-	deadline time.Time
-	buf      bytes.Buffer
-	err      error
+	cond         sync.Cond
+	deadline     time.Time
+	buf          bytes.Buffer
+	err          error
+	backPressure *backPressure
 }
 
-func newReadBuffer() *readBuffer {
+func newReadBuffer(backPressure *backPressure) *readBuffer {
 	return &readBuffer{
+		backPressure: backPressure,
 		cond: sync.Cond{
 			L: &sync.Mutex{},
 		},
@@ -31,23 +35,27 @@ func (r *readBuffer) Offer(reader io.Reader) error {
 	r.cond.L.Lock()
 	defer r.cond.L.Unlock()
 
-	for {
-		if r.err != nil {
-			return r.err
-		}
-
-		if n, err := io.Copy(&r.buf, reader); err != nil {
-			return err
-		} else if n > 0 {
-			r.cond.Broadcast()
-		}
-
-		if r.buf.Len() < MaxBuffer {
-			return nil
-		}
-
-		r.cond.Wait()
+	if r.err != nil {
+		return r.err
 	}
+
+	if n, err := io.Copy(&r.buf, reader); err != nil {
+		return err
+	} else if n > 0 {
+		r.cond.Broadcast()
+	}
+
+	if r.buf.Len() > MaxBuffer {
+		if err := r.backPressure.Pause(); err != nil {
+			return err
+		}
+	}
+
+	if r.buf.Len() > MaxBuffer*2 {
+		logrus.Errorf("remotedialer buffer exceeded, length: %d", r.buf.Len())
+	}
+
+	return nil
 }
 
 func (r *readBuffer) Read(b []byte) (int, error) {
@@ -64,6 +72,11 @@ func (r *readBuffer) Read(b []byte) (int, error) {
 			n, err = r.buf.Read(b)
 			r.cond.Broadcast()
 			if err != io.EOF {
+				if r.buf.Len() < MaxBuffer/8 {
+					if err := r.backPressure.Resume(); err != nil {
+						return n, err
+					}
+				}
 				return n, err
 			}
 			// buffer remains to be read
