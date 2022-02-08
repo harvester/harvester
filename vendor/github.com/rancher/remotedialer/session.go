@@ -169,6 +169,10 @@ func (s *Session) serveMessage(ctx context.Context, reader io.Reader) error {
 		if err := conn.OnData(message); err != nil {
 			s.closeConnection(message.connID, err)
 		}
+	case Pause:
+		conn.OnPause()
+	case Resume:
+		conn.OnResume()
 	case Error:
 		s.closeConnection(message.connID, message.Err())
 	}
