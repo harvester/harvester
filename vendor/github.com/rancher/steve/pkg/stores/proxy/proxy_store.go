@@ -80,7 +80,7 @@ func NewProxyStore(clientGetter ClientGetter, notifier RelationshipNotifier, loo
 }
 
 func (s *Store) ByID(apiOp *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
-	result, err := s.byID(apiOp, schema, id)
+	result, err := s.byID(apiOp, schema, apiOp.Namespace, id)
 	return toAPI(schema, result), err
 }
 
@@ -117,8 +117,8 @@ func toAPI(schema *types.APISchema, obj runtime.Object) types.APIObject {
 	return apiObject
 }
 
-func (s *Store) byID(apiOp *types.APIRequest, schema *types.APISchema, id string) (*unstructured.Unstructured, error) {
-	k8sClient, err := s.clientGetter.TableClient(apiOp, schema, apiOp.Namespace)
+func (s *Store) byID(apiOp *types.APIRequest, schema *types.APISchema, namespace, id string) (*unstructured.Unstructured, error) {
+	k8sClient, err := s.clientGetter.TableClient(apiOp, schema, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,8 @@ func rowToObject(obj *unstructured.Unstructured) {
 		return
 	}
 	if obj.Object["kind"] != "Table" ||
-		obj.Object["apiVersion"] != "meta.k8s.io/v1" {
+		(obj.Object["apiVersion"] != "meta.k8s.io/v1" &&
+			obj.Object["apiVersion"] != "meta.k8s.io/v1beta1") {
 		return
 	}
 
@@ -181,7 +182,8 @@ func rowToObject(obj *unstructured.Unstructured) {
 
 func tableToList(obj *unstructured.UnstructuredList) {
 	if obj.Object["kind"] != "Table" ||
-		obj.Object["apiVersion"] != "meta.k8s.io/v1" {
+		(obj.Object["apiVersion"] != "meta.k8s.io/v1" &&
+			obj.Object["apiVersion"] != "meta.k8s.io/v1beta1") {
 		return
 	}
 
@@ -310,7 +312,7 @@ func (s *Store) listAndWatch(apiOp *types.APIRequest, k8sClient dynamic.Resource
 	if s.notifier != nil {
 		eg.Go(func() error {
 			for rel := range s.notifier.OnInboundRelationshipChange(ctx, schema, apiOp.Namespace) {
-				obj, err := s.byID(apiOp, schema, rel.Name)
+				obj, err := s.byID(apiOp, schema, rel.Namespace, rel.Name)
 				if err == nil {
 					result <- s.toAPIEvent(apiOp, schema, watch.Modified, obj)
 				}
@@ -522,7 +524,7 @@ func (s *Store) Delete(apiOp *types.APIRequest, schema *types.APISchema, id stri
 		return types.APIObject{}, err
 	}
 
-	obj, err := s.byID(apiOp, schema, id)
+	obj, err := s.byID(apiOp, schema, apiOp.Namespace, id)
 	if err != nil {
 		// ignore lookup error
 		return types.APIObject{}, validation.ErrorCode{

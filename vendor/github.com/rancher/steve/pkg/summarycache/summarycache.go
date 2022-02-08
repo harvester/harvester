@@ -80,11 +80,10 @@ func (s *SummaryCache) OnInboundRelationshipChange(ctx context.Context, schema *
 	s.cbs[id] = cb
 
 	go func() {
-		defer close(ret)
 		for rel := range cb {
 			if rel.Kind == kind &&
 				rel.APIVersion == apiVersion &&
-				rel.Namespace == namespace {
+				(namespace == "" || namespace == rel.Namespace) {
 				ret <- rel
 			}
 		}
@@ -95,10 +94,11 @@ func (s *SummaryCache) OnInboundRelationshipChange(ctx context.Context, schema *
 		s.Lock()
 		defer s.Unlock()
 		close(cb)
+		defer close(ret)
 		delete(s.cbs, id)
 	}()
 
-	return cb
+	return ret
 }
 
 func (s *SummaryCache) SummaryAndRelationship(obj runtime.Object) (*summary.SummarizedObject, []Relationship) {

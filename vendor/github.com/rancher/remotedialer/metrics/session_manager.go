@@ -49,7 +49,7 @@ var (
 		prometheus.CounterOpts{
 			Subsystem: "session_server",
 			Name:      "total_transmit_bytes",
-			Help:      "Total bytes transmited",
+			Help:      "Total bytes transmitted",
 		},
 		[]string{"clientkey"},
 	)
@@ -58,7 +58,7 @@ var (
 		prometheus.CounterOpts{
 			Subsystem: "session_server",
 			Name:      "total_transmit_error_bytes",
-			Help:      "Total error bytes transmited",
+			Help:      "Total error bytes transmitted",
 		},
 		[]string{"clientkey"},
 	)
@@ -67,7 +67,7 @@ var (
 		prometheus.CounterOpts{
 			Subsystem: "session_server",
 			Name:      "total_receive_bytes",
-			Help:      "Total bytes recieved",
+			Help:      "Total bytes received",
 		},
 		[]string{"clientkey"},
 	)
@@ -101,6 +101,9 @@ var (
 // Register registers a series of session
 // metrics for Prometheus.
 func Register() {
+
+	prometheusMetrics = true
+
 	// Session metrics
 	prometheus.MustRegister(TotalAddWS)
 	prometheus.MustRegister(TotalRemoveWS)
@@ -116,7 +119,6 @@ func Register() {
 
 func init() {
 	if os.Getenv(metricsEnv) == "true" {
-		prometheusMetrics = true
 		Register()
 	}
 }

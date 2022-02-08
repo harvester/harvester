@@ -11,6 +11,7 @@ import (
 type connection struct {
 	err           error
 	writeDeadline time.Time
+	backPressure  *backPressure
 	buffer        *readBuffer
 	addr          addr
 	session       *Session
@@ -19,7 +20,6 @@ type connection struct {
 
 func newConnection(connID int64, session *Session, proto, address string) *connection {
 	c := &connection{
-		buffer: newReadBuffer(),
 		addr: addr{
 			proto:   proto,
 			address: address,
@@ -27,6 +27,8 @@ func newConnection(connID int64, session *Session, proto, address string) *conne
 		connID:  connID,
 		session: session,
 	}
+	c.backPressure = newBackPressure(c)
+	c.buffer = newReadBuffer(c.backPressure)
 	metrics.IncSMTotalAddConnectionsForWS(session.clientKey, proto, address)
 	return c
 }
@@ -69,8 +71,33 @@ func (c *connection) Write(b []byte) (int, error) {
 	if c.err != nil {
 		return 0, io.ErrClosedPipe
 	}
+	c.backPressure.Wait()
 	msg := newMessage(c.connID, b)
 	metrics.AddSMTotalTransmitBytesOnWS(c.session.clientKey, float64(len(msg.Bytes())))
+	return c.session.writeMessage(c.writeDeadline, msg)
+}
+
+func (c *connection) OnPause() {
+	c.backPressure.OnPause()
+}
+
+func (c *connection) OnResume() {
+	c.backPressure.OnResume()
+}
+
+func (c *connection) Pause() (int, error) {
+	if c.err != nil {
+		return 0, io.ErrClosedPipe
+	}
+	msg := newPause(c.connID)
+	return c.session.writeMessage(c.writeDeadline, msg)
+}
+
+func (c *connection) Resume() (int, error) {
+	if c.err != nil {
+		return 0, io.ErrClosedPipe
+	}
+	msg := newResume(c.connID)
 	return c.session.writeMessage(c.writeDeadline, msg)
 }
 

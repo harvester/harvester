@@ -35,7 +35,7 @@ func (a *addQuery) RoundTrip(req *http.Request) (*http.Response, error) {
 	for k, v := range a.values {
 		q.Set(k, v)
 	}
-	req.Header.Set("Accept", "application/json;as=Table;v=v1;g=meta.k8s.io")
+	req.Header.Set("Accept", "application/json;as=Table;v=v1;g=meta.k8s.io,application/json;as=Table;v=v1beta1;g=meta.k8s.io")
 	req.URL.RawQuery = q.Encode()
 	return a.next.RoundTrip(req)
 }
@@ -59,10 +59,10 @@ func NewFactory(cfg *rest.Config, impersonate bool) (*Factory, error) {
 
 	tableClientCfg := rest.CopyConfig(clientCfg)
 	tableClientCfg.Wrap(setTable)
-	tableClientCfg.AcceptContentTypes = "application/json;as=Table;v=v1;g=meta.k8s.io"
+	tableClientCfg.AcceptContentTypes = "application/json;as=Table;v=v1;g=meta.k8s.io,application/json;as=Table;v=v1beta1;g=meta.k8s.io"
 	tableWatchClientCfg := rest.CopyConfig(watchClientCfg)
 	tableWatchClientCfg.Wrap(setTable)
-	tableWatchClientCfg.AcceptContentTypes = "application/json;as=Table;v=v1;g=meta.k8s.io"
+	tableWatchClientCfg.AcceptContentTypes = "application/json;as=Table;v=v1;g=meta.k8s.io,application/json;as=Table;v=v1beta1;g=meta.k8s.io"
 
 	md, err := metadata.NewForConfig(cfg)
 	if err != nil {
