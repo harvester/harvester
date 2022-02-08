@@ -74,7 +74,7 @@ func (cg *ClientGenerator) Packages(context *generator.Context, arguments *args.
 }
 
 func (cg *ClientGenerator) typesGroupPackage(name *types.Name, gv schema.GroupVersion, generatorArgs *args.GeneratorArgs, customArgs *args2.CustomArgs) generator.Package {
-	packagePath := strings.TrimRight(name.Package, "/"+gv.Version)
+	packagePath := strings.TrimSuffix(name.Package, "/"+gv.Version)
 	return Package(generatorArgs, packagePath, func(context *generator.Context) []generator.Generator {
 		return []generator.Generator{
 			RegisterGroupGo(gv.Group, generatorArgs, customArgs),
