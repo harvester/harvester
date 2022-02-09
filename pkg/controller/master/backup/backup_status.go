@@ -33,6 +33,13 @@ func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) e
 		}
 
 		if vb.Error != nil {
+			// LH CSI shows "timestamp: nil Timestamp" error before LH backup.SnapshotCreated has a value.
+			// However, this is a tempoary error, so we ignore it here.
+			// We will remove this after LH issue 3392 is resolved.
+			// https://github.com/longhorn/longhorn/issues/3392
+			if vb.Error.Message != nil && strings.Contains(*vb.Error.Message, "timestamp: nil Timestamp") {
+				continue
+			}
 			errorMessage = fmt.Sprintf("VolumeSnapshot %s in error state", *vb.Name)
 			break
 		}
