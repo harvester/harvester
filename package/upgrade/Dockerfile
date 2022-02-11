@@ -1,11 +1,11 @@
-FROM registry.suse.com/suse/sle15:15.3
+FROM registry.suse.com/bci/bci-base:15.3
 
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
 RUN zypper rm -y container-suseconnect && \
     zypper ar --priority=200 http://download.opensuse.org/distribution/leap/15.3/repo/oss repo-oss && \
     zypper --no-gpg-checks ref && \
-    zypper in -y curl e2fsprogs rsync awk zstd jq && zypper clean
+    zypper in -y curl e2fsprogs rsync awk zstd jq && zypper clean -a
 
 ENV KUBECTL_VERSION v1.21.7
 RUN curl -sfL https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl > /usr/bin/kubectl && \
