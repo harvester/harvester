@@ -14,6 +14,7 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/name"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,7 +30,10 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -60,15 +64,20 @@ const (
 type RestoreHandler struct {
 	context context.Context
 
-	restores          ctlharvesterv1.VirtualMachineRestoreClient
-	restoreController ctlharvesterv1.VirtualMachineRestoreController
-	backupCache       ctlharvesterv1.VirtualMachineBackupCache
-	vms               ctlkubevirtv1.VirtualMachineClient
-	vmCache           ctlkubevirtv1.VirtualMachineCache
-	pvcClient         ctlcorev1.PersistentVolumeClaimClient
-	pvcCache          ctlcorev1.PersistentVolumeClaimCache
-	secretClient      ctlcorev1.SecretClient
-	secretCache       ctlcorev1.SecretCache
+	restores             ctlharvesterv1.VirtualMachineRestoreClient
+	restoreController    ctlharvesterv1.VirtualMachineRestoreController
+	backupCache          ctlharvesterv1.VirtualMachineBackupCache
+	vms                  ctlkubevirtv1.VirtualMachineClient
+	vmCache              ctlkubevirtv1.VirtualMachineCache
+	pvcClient            ctlcorev1.PersistentVolumeClaimClient
+	pvcCache             ctlcorev1.PersistentVolumeClaimCache
+	secretClient         ctlcorev1.SecretClient
+	secretCache          ctlcorev1.SecretCache
+	snapshots            ctlsnapshotv1.VolumeSnapshotClient
+	snapshotCache        ctlsnapshotv1.VolumeSnapshotCache
+	snapshotContents     ctlsnapshotv1.VolumeSnapshotContentClient
+	snapshotContentCache ctlsnapshotv1.VolumeSnapshotContentCache
+	lhbackupCache        ctllonghornv1.BackupCache
 
 	recorder   record.EventRecorder
 	restClient *rest.RESTClient
@@ -80,6 +89,9 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	secrets := management.CoreFactory.Core().V1().Secret()
+	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
+	snapshotContents := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotContent()
+	lhbackups := management.LonghornFactory.Longhorn().V1beta1().Backup()
 
 	copyConfig := rest.CopyConfig(management.RestConfig)
 	copyConfig.GroupVersion = &k8sschema.GroupVersion{Group: kv1.SubresourceGroupName, Version: kv1.ApiLatestVersion}
@@ -91,21 +103,27 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 	}
 
 	handler := &RestoreHandler{
-		context:           ctx,
-		restores:          restores,
-		restoreController: restores,
-		backupCache:       backups.Cache(),
-		vms:               vms,
-		vmCache:           vms.Cache(),
-		pvcClient:         pvcs,
-		pvcCache:          pvcs.Cache(),
-		secretClient:      secrets,
-		secretCache:       secrets.Cache(),
-		recorder:          management.NewRecorder(restoreControllerName, "", ""),
-		restClient:        restClient,
+		context:              ctx,
+		restores:             restores,
+		restoreController:    restores,
+		backupCache:          backups.Cache(),
+		vms:                  vms,
+		vmCache:              vms.Cache(),
+		pvcClient:            pvcs,
+		pvcCache:             pvcs.Cache(),
+		secretClient:         secrets,
+		secretCache:          secrets.Cache(),
+		snapshots:            snapshots,
+		snapshotCache:        snapshots.Cache(),
+		snapshotContents:     snapshotContents,
+		snapshotContentCache: snapshotContents.Cache(),
+		lhbackupCache:        lhbackups.Cache(),
+		recorder:             management.NewRecorder(restoreControllerName, "", ""),
+		restClient:           restClient,
 	}
 
 	restores.OnChange(ctx, restoreControllerName, handler.RestoreOnChanged)
+	restores.OnRemove(ctx, restoreControllerName, handler.RestoreOnRemove)
 	pvcs.OnChange(ctx, restoreControllerName, handler.PersistentVolumeClaimOnChange)
 	vms.OnChange(ctx, restoreControllerName, handler.VMOnChange)
 	return nil
@@ -146,6 +164,35 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.Virtu
 	}
 
 	return nil, h.updateStatus(restore, backup, vm, isVolumesReady)
+}
+
+// RestoreOnRemove delete VolumeSnapshotContent which is created by restore controller
+// Since we would like to prevent LH Backups from being removed when users delete the VM,
+// we use Retain policy in VolumeSnapshotContent.
+// We need to delete VolumeSnapshotContent by restore controller, or there will have remaining VolumeSnapshotContent in the system.
+func (h *RestoreHandler) RestoreOnRemove(key string, restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
+	if restore == nil || restore.Status == nil {
+		return nil, nil
+	}
+
+	backup, err := h.getVMBackup(restore)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, volumeBackup := range backup.Status.VolumeBackups {
+		if volumeSnapshotContent, err := h.snapshotContentCache.Get(h.constructVolumeSnapshotContentName(restore.Namespace, restore.Name, *volumeBackup.Name)); err != nil {
+			if err != nil && !apierrors.IsNotFound(err) {
+				return nil, err
+			}
+		} else {
+			if err = h.snapshotContents.Delete(volumeSnapshotContent.Name, &metav1.DeleteOptions{}); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return nil, nil
 }
 
 // PersistentVolumeClaimOnChange watching the PVCs on change and enqueue the vmRestore if it has the restore annotation
@@ -303,8 +350,8 @@ func (h *RestoreHandler) reconcileVolumeRestores(
 	for i, volumeRestore := range vmRestore.Status.VolumeRestores {
 		pvc, err := h.pvcCache.Get(vmRestore.Namespace, volumeRestore.PersistentVolumeClaim.ObjectMeta.Name)
 		if apierrors.IsNotFound(err) {
-			backup := backup.Status.VolumeBackups[i]
-			if err = h.createRestoredPVC(vmRestore, backup, volumeRestore); err != nil {
+			volumeBackup := backup.Status.VolumeBackups[i]
+			if err = h.createRestoredPVC(vmRestore, volumeBackup, volumeRestore); err != nil {
 				return false, err
 			}
 			isVolumesReady = false
@@ -519,54 +566,161 @@ func (h *RestoreHandler) updateOwnerRefAndTargetUID(vmRestore *harvesterv1.Virtu
 }
 
 // createRestoredPVC helps to create new PVC from CSI volumeSnapshot
-func (h *RestoreHandler) createRestoredPVC(vmRestore *harvesterv1.VirtualMachineRestore,
-	volumeBackup harvesterv1.VolumeBackup, volumeRestore harvesterv1.VolumeRestore) error {
-	sourcePVC := volumeBackup.PersistentVolumeClaim
-	pvc := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        volumeRestore.PersistentVolumeClaim.ObjectMeta.Name,
-			Namespace:   vmRestore.Namespace,
-			Labels:      sourcePVC.ObjectMeta.Labels,
-			Annotations: sourcePVC.ObjectMeta.Annotations,
-		},
-		Spec: *sourcePVC.Spec.DeepCopy(),
-	}
-
-	pvc.SetOwnerReferences([]metav1.OwnerReference{
-		{
-			APIVersion:         harvesterv1.SchemeGroupVersion.String(),
-			Kind:               vmRestoreKindName,
-			Name:               vmRestore.Name,
-			UID:                vmRestore.UID,
-			Controller:         pointer.BoolPtr(true),
-			BlockOwnerDeletion: pointer.BoolPtr(true),
-		},
-	})
+func (h *RestoreHandler) createRestoredPVC(
+	vmRestore *harvesterv1.VirtualMachineRestore,
+	volumeBackup harvesterv1.VolumeBackup,
+	volumeRestore harvesterv1.VolumeRestore,
+) error {
 	if volumeBackup.Name == nil {
 		return fmt.Errorf("missing VolumeSnapshot name")
 	}
 
-	if pvc.Annotations == nil {
-		pvc.Annotations = make(map[string]string)
+	dataSourceName := *volumeBackup.Name
+	if vmRestore.Namespace != volumeBackup.PersistentVolumeClaim.ObjectMeta.Namespace {
+		// create volumesnapshot if namespace is different
+		volumeSnapshot, err := h.getOrCreateVolumeSnapshot(vmRestore, volumeBackup)
+		if err != nil {
+			return err
+		}
+		dataSourceName = volumeSnapshot.Name
 	}
 
-	for _, prefix := range restoreAnnotationsToDelete {
-		for anno := range pvc.Annotations {
-			if strings.HasPrefix(anno, prefix) {
-				delete(pvc.Annotations, anno)
+	annotations := map[string]string{}
+	for key, value := range volumeBackup.PersistentVolumeClaim.ObjectMeta.Annotations {
+		needSkip := false
+		for _, prefix := range restoreAnnotationsToDelete {
+			if strings.HasPrefix(key, prefix) {
+				needSkip = true
+				break
 			}
 		}
+		if !needSkip {
+			annotations[key] = value
+		}
 	}
-	pvc.Annotations[restoreNameAnnotation] = vmRestore.Name
-	pvc.Spec.DataSource = &corev1.TypedLocalObjectReference{
+	annotations[restoreNameAnnotation] = vmRestore.Name
+
+	sourcePVC := volumeBackup.PersistentVolumeClaim
+	spec := *sourcePVC.Spec.DeepCopy()
+	spec.VolumeName = ""
+	spec.DataSource = &corev1.TypedLocalObjectReference{
 		APIGroup: pointer.StringPtr(snapshotv1.SchemeGroupVersion.Group),
 		Kind:     volumeSnapshotKindName,
-		Name:     *volumeBackup.Name,
+		Name:     dataSourceName,
 	}
-	pvc.Spec.VolumeName = ""
 
-	_, err := h.pvcClient.Create(pvc)
+	_, err := h.pvcClient.Create(&corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        volumeRestore.PersistentVolumeClaim.ObjectMeta.Name,
+			Namespace:   vmRestore.Namespace,
+			Labels:      sourcePVC.ObjectMeta.Labels,
+			Annotations: annotations,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         harvesterv1.SchemeGroupVersion.String(),
+					Kind:               vmRestoreKindName,
+					Name:               vmRestore.Name,
+					UID:                vmRestore.UID,
+					Controller:         pointer.BoolPtr(true),
+					BlockOwnerDeletion: pointer.BoolPtr(true),
+				},
+			},
+		},
+		Spec: spec,
+	})
 	return err
+}
+
+func (h *RestoreHandler) getOrCreateVolumeSnapshotContent(
+	vmRestore *harvesterv1.VirtualMachineRestore,
+	volumeBackup harvesterv1.VolumeBackup,
+) (*snapshotv1.VolumeSnapshotContent, error) {
+	volumeSnapshotContentName := h.constructVolumeSnapshotContentName(vmRestore.Namespace, vmRestore.Name, *volumeBackup.Name)
+	if volumeSnapshotContent, err := h.snapshotContentCache.Get(volumeSnapshotContentName); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+	} else {
+		return volumeSnapshotContent, nil
+	}
+
+	lhBackup, err := h.lhbackupCache.Get(util.LonghornSystemNamespaceName, *volumeBackup.LonghornBackupName)
+	if err != nil {
+		return nil, err
+	}
+	// Ref: https://longhorn.io/docs/1.2.3/snapshots-and-backups/csi-snapshot-support/restore-a-backup-via-csi/#restore-a-backup-that-has-no-associated-volumesnapshot
+	snapshotHandle := fmt.Sprintf("bs://%s/%s", volumeBackup.PersistentVolumeClaim.ObjectMeta.Name, lhBackup.Name)
+
+	logrus.Debugf("create VolumeSnapshotContent %s ...", volumeSnapshotContentName)
+	return h.snapshotContents.Create(&snapshotv1.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      volumeSnapshotContentName,
+			Namespace: vmRestore.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: harvesterv1.SchemeGroupVersion.String(),
+					Kind:       vmRestoreKindName,
+					Name:       vmRestore.Name,
+					UID:        vmRestore.UID,
+				},
+			},
+		},
+		Spec: snapshotv1.VolumeSnapshotContentSpec{
+			Driver: "driver.longhorn.io",
+			// Use Retain policy to prevent LH Backup from being removed when users delete a VM.
+			DeletionPolicy: snapshotv1.VolumeSnapshotContentRetain,
+			Source: snapshotv1.VolumeSnapshotContentSource{
+				SnapshotHandle: pointer.StringPtr(snapshotHandle),
+			},
+			VolumeSnapshotClassName: pointer.StringPtr(settings.VolumeSnapshotClass.Get()),
+			VolumeSnapshotRef: corev1.ObjectReference{
+				Name:      h.constructVolumeSnapshotName(vmRestore.Name, *volumeBackup.Name),
+				Namespace: vmRestore.Namespace,
+			},
+		},
+	})
+}
+
+func (h *RestoreHandler) getOrCreateVolumeSnapshot(
+	vmRestore *harvesterv1.VirtualMachineRestore,
+	volumeBackup harvesterv1.VolumeBackup,
+) (*snapshotv1.VolumeSnapshot, error) {
+	volumeSnapshotName := h.constructVolumeSnapshotName(vmRestore.Name, *volumeBackup.Name)
+	if volumeSnapshot, err := h.snapshotCache.Get(vmRestore.Namespace, volumeSnapshotName); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+	} else {
+		return volumeSnapshot, nil
+	}
+
+	volumeSnapshotContent, err := h.getOrCreateVolumeSnapshotContent(vmRestore, volumeBackup)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Debugf("create VolumeSnapshot %s/%s", vmRestore.Namespace, volumeSnapshotName)
+	return h.snapshots.Create(&snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      volumeSnapshotName,
+			Namespace: vmRestore.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         harvesterv1.SchemeGroupVersion.String(),
+					Kind:               vmRestoreKindName,
+					Name:               vmRestore.Name,
+					UID:                vmRestore.UID,
+					BlockOwnerDeletion: pointer.BoolPtr(true),
+				},
+			},
+		},
+		Spec: snapshotv1.VolumeSnapshotSpec{
+			Source: snapshotv1.VolumeSnapshotSource{
+				VolumeSnapshotContentName: pointer.StringPtr(volumeSnapshotContent.Name),
+			},
+			VolumeSnapshotClassName: pointer.StringPtr(settings.VolumeSnapshotClass.Get()),
+		},
+	})
 }
 
 func (h *RestoreHandler) deleteOldPVC(vmRestore *harvesterv1.VirtualMachineRestore, vm *kv1.VirtualMachine) error {
@@ -679,4 +833,14 @@ func (h *RestoreHandler) updateStatusError(restore *harvesterv1.VirtualMachineRe
 	}
 
 	return err
+}
+
+func (h *RestoreHandler) constructVolumeSnapshotName(restoreName, volumeBackupName string) string {
+	return name.SafeConcatName("restore", restoreName, volumeBackupName)
+}
+
+func (h *RestoreHandler) constructVolumeSnapshotContentName(restoreNamespace, restoreName, volumeBackupName string) string {
+	// VolumeSnapshotContent is cluster-scoped resource,
+	// so adding restoreNamespace to its name to prevent conflict in different namespace with same restore name and backup
+	return name.SafeConcatName("restore", restoreNamespace, restoreName, volumeBackupName)
 }
