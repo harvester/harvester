@@ -12,6 +12,7 @@ const (
 	vmControllerUnsetOwnerOfPVCsControllerName         = "VMController.UnsetOwnerOfPVCs"
 	vmiControllerUnsetOwnerOfPVCsControllerName        = "VMIController.UnsetOwnerOfPVCs"
 	vmControllerSetDefaultManagementNetworkMac         = "VMController.SetDefaultManagementNetworkMacAddress"
+	vmControllerSetAnnotationsVolumeStatusName         = "VMController.SetVmAnnotationsVolumeStatus"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -50,6 +51,19 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmiClient: vmiClient,
 	}
 	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
+
+	// register the vm volume status controller, which tries to update LH Volume status to PVC and VM
+	var volumeClient = management.LonghornFactory.Longhorn().V1beta1().Volume()
+	var vmVolumeStatusController = &VMVolumeStatusController{
+		vmClient:  vmClient,
+		vmCache:   vmCache,
+		pvcClient: pvcClient,
+		pvcCache:  pvcCache,
+	}
+	volumeClient.OnChange(ctx, vmControllerSetAnnotationsVolumeStatusName, vmVolumeStatusController.OnLHVolumeChange)
+	volumeClient.OnRemove(ctx, vmControllerSetAnnotationsVolumeStatusName, vmVolumeStatusController.OnLHVolumeRemove)
+	pvcClient.OnChange(ctx, vmControllerSetAnnotationsVolumeStatusName, vmVolumeStatusController.OnPVCChange)
+	pvcClient.OnRemove(ctx, vmControllerSetAnnotationsVolumeStatusName, vmVolumeStatusController.OnPVCRemove)
 
 	return nil
 }

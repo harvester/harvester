@@ -13,6 +13,13 @@ const (
 	AnnotationImageID              = prefix + "/imageId"
 	AnnotationReservedMemory       = prefix + "/reservedMemory"
 	AnnotationHash                 = prefix + "/hash"
+	// used in VM and PVC annotations, represents Harvester volume abstracted status based on CSI driver (e.g. LH) volume status
+	// when this annotation is not existing or the value is empty, it means the volume is OK, other values mean !OK
+	AnnotationVolumeStatus = prefix + "/volume-status"
+	// used in PVC annotations, represents the previous owner VM of the PVC, PVC is just detached from it
+	// controller removes this annotation quickly
+	// NOTE: this annotation only exists for a very short time
+	AnnotationDetachedVM = prefix + "/detached-vm"
 
 	BackupTargetSecretName      = "harvester-backup-target-secret"
 	InternalTLSSecretName       = "tls-rancher-internal"

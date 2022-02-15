@@ -42,6 +42,9 @@ var (
 		"pv.kubernetes.io",
 		"volume.beta.kubernetes.io",
 		ref.AnnotationSchemaOwnerKeyName,
+		// vm volume status related annotations, skip restoring
+		util.AnnotationVolumeStatus,
+		util.AnnotationDetachedVM,
 	}
 )
 

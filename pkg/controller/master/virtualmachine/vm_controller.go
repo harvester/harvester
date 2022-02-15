@@ -89,6 +89,12 @@ func (h *VMController) SetOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine) (
 			if err := owners.Bind(toUpdate); err != nil {
 				return nil, fmt.Errorf("failed to apply schema owners to annotation: %w", err)
 			}
+
+			// update vm to PVC annotations, vm volume status controller
+			// will use it to remove volume(PVC) status from vm and then delete it
+			if err := updatePVCAnnotationsDetachedFromVM(toUpdate, vm); err != nil {
+				return nil, fmt.Errorf("failed to update pvc annotations: %w", err)
+			}
 		}
 
 		// remove volume's ownerReferences
