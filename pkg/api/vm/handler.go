@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/rest"
 	kv1 "kubevirt.io/client-go/api/v1"
 
+	volumeapi "github.com/harvester/harvester/pkg/api/volume"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -195,7 +196,37 @@ func (h *vmActionHandler) ejectCdRom(ctx context.Context, name, namespace string
 	return nil
 }
 
+func (h *vmActionHandler) startPreCheck(namespace, name string) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			pvcName := volume.PersistentVolumeClaim.PersistentVolumeClaimVolumeSource.ClaimName
+			pvcNamespace := vm.Namespace
+			pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
+			if err != nil {
+				return err
+			}
+			if volumeapi.IsResizing(pvc) {
+				return fmt.Errorf("can not start the VM %s/%s which has a resizing volume %s/%s", vm.Namespace, vm.Name, pvcNamespace, pvcName)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (h *vmActionHandler) subresourceOperate(ctx context.Context, resource, namespace, name, subresourece string) error {
+	switch subresourece {
+	case startVM:
+		if err := h.startPreCheck(namespace, name); err != nil {
+			return err
+		}
+	}
+
 	return h.virtSubresourceRestClient.Put().Namespace(namespace).Resource(resource).SubResource(subresourece).Name(name).Do(ctx).Error()
 }
 

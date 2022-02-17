@@ -1,24 +1,14 @@
 package volume
 
 import (
-	"context"
-	"encoding/json"
-	"net/http"
-
-	"github.com/gorilla/mux"
-	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/wrangler/pkg/schemas/validation"
-	"github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/harvester/harvester/pkg/api/vm"
-	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/rancher/wrangler/pkg/data/convert"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
-	actionExport = "export"
+	actionExport       = "export"
+	actionCancelExpand = "cancelExpand"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -27,68 +17,38 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 		return
 	}
 
-	resource.AddAction(request, actionExport)
-}
-
-type ExportActionHandler struct {
-	images v1beta1.VirtualMachineImageClient
-}
-
-func (h ExportActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if err := h.do(rw, req); err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
-			status = e.Code.Status
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
+	pvc := &corev1.PersistentVolumeClaim{}
+	if err := convert.ToObj(resource.APIObject.Data(), pvc); err != nil {
 		return
 	}
-	rw.WriteHeader(http.StatusOK)
-	_, _ = rw.Write([]byte("Successfully export the volume."))
-}
 
-func (h ExportActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
-	vars := mux.Vars(r)
-	action := vars["action"]
-	pvcName := vars["name"]
-	pvcNamespace := vars["namespace"]
+	if canExport(pvc) {
+		resource.AddAction(request, actionExport)
+	}
 
-	switch action {
-	case actionExport:
-		var input vm.ExportVolumeInput
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
-		}
-		if input.DisplayName == "" {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `displayName` is required")
-		}
-		if input.Namespace == "" {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `namespace` is required")
-		}
-		return h.exportVolume(r.Context(), input.Namespace, input.DisplayName, pvcName, pvcNamespace)
-	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+	if canCancelExpand(pvc) {
+		resource.AddAction(request, actionCancelExpand)
 	}
 }
 
-func (h ExportActionHandler) exportVolume(ctx context.Context, imageNamespace, imageDisplayName, pvcName, pvcNamespace string) error {
-	vmImage := &harvesterv1.VirtualMachineImage{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: "image-",
-			Namespace:    imageNamespace,
-		},
-		Spec: harvesterv1.VirtualMachineImageSpec{
-			DisplayName:  imageDisplayName,
-			SourceType:   harvesterv1.VirtualMachineImageSourceTypeExportVolume,
-			PVCName:      pvcName,
-			PVCNamespace: pvcNamespace,
-		},
+func canExport(pvc *corev1.PersistentVolumeClaim) bool {
+	return !IsResizing(pvc)
+}
+
+func canCancelExpand(pvc *corev1.PersistentVolumeClaim) bool {
+	return IsResizing(pvc)
+}
+
+func IsResizing(pvc *corev1.PersistentVolumeClaim) bool {
+	if pvc == nil {
+		return false
 	}
-	_, err := h.images.Create(vmImage)
-	if err != nil {
-		logrus.Errorf("Unable to create image from volume %s", pvcName)
-		return err
+
+	for _, condition := range pvc.Status.Conditions {
+		if condition.Type == corev1.PersistentVolumeClaimResizing && condition.Status == corev1.ConditionTrue {
+			return true
+		}
 	}
-	return nil
+
+	return false
 }

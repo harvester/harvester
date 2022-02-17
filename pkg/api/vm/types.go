@@ -37,8 +37,3 @@ type AddVolumeInput struct {
 type RemoveVolumeInput struct {
 	DiskName string `json:"diskName"`
 }
-
-type ExportVolumeInput struct {
-	DisplayName string `json:"displayName"`
-	Namespace   string `json:"namespace"`
-}
