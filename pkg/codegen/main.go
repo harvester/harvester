@@ -13,6 +13,7 @@ import (
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	kv1 "kubevirt.io/client-go/api/v1"
 	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
@@ -98,6 +99,14 @@ func main() {
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
+			},
+			corev1.GroupName: {
+				Types: []interface{}{
+					corev1.PersistentVolume{},
+				},
+				InformersPackage: "k8s.io/client-go/informers",
+				ClientSetPackage: "k8s.io/client-go/kubernetes",
+				ListersPackage:   "k8s.io/client-go/listers",
 			},
 		},
 	})
