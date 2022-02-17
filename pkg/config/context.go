@@ -26,6 +26,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	"github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
+	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	cniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
@@ -56,6 +57,7 @@ type Scaled struct {
 
 	VirtFactory              *kubevirt.Factory
 	HarvesterFactory         *ctlharvesterv1.Factory
+	HarvesterCoreFactory     *ctlharvcorev1.Factory
 	CoreFactory              *corev1.Factory
 	AppsFactory              *appsv1.Factory
 	BatchFactory             *batchv1.Factory
@@ -116,6 +118,13 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 		return nil, nil, err
 	}
 	scaled.HarvesterFactory = harvesterFactory
+	scaled.starters = append(scaled.starters, harvesterFactory)
+
+	harvesterCoreFactory, err := ctlharvcorev1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.HarvesterCoreFactory = harvesterCoreFactory
 	scaled.starters = append(scaled.starters, harvesterFactory)
 
 	core, err := corev1.NewFactoryFromConfigWithOptions(restConfig, opts)
