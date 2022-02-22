@@ -2,6 +2,7 @@ package upgrade
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
 
-	clusterv1ctl "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1alpha4"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
@@ -26,8 +26,7 @@ type nodeHandler struct {
 	nodeCache     ctlcorev1.NodeCache
 	upgradeClient ctlharvesterv1.UpgradeClient
 	upgradeCache  ctlharvesterv1.UpgradeCache
-	machineClient clusterv1ctl.MachineClient
-	machineCache  clusterv1ctl.MachineCache
+	secretClient  ctlcorev1.SecretClient
 }
 
 func (h *nodeHandler) OnChanged(key string, node *corev1.Node) (*corev1.Node, error) {
@@ -64,10 +63,22 @@ func (h *nodeHandler) OnChanged(key string, node *corev1.Node) (*corev1.Node, er
 	if !ok {
 		return node, nil
 	}
-	machine, err := h.machineClient.Get(rancherMachineNamespace, machineName, metav1.GetOptions{})
+
+	// find machine plan secret
+	secrets, err := h.secretClient.List(rancherPlanSecretNamespace, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=%s", rancherPlanSecretMachineLabel, machineName),
+		FieldSelector: fmt.Sprintf("type=%s", rancherPlanSecretType),
+	})
+
 	if err != nil {
 		return node, err
 	}
+
+	if len(secrets.Items) != 1 {
+		return node, fmt.Errorf("Found %d plan secret for machine %s", len(secrets.Items), machineName)
+	}
+
+	secret := secrets.Items[0]
 
 	logrus.Debugf("Waiting for node %s's OS to be upgraded (Want: %s, Got: %s).", node.Name, expectedVersion, node.Status.NodeInfo.OSImage)
 	if expectedVersion == node.Status.NodeInfo.OSImage {
@@ -78,10 +89,10 @@ func (h *nodeHandler) OnChanged(key string, node *corev1.Node) (*corev1.Node, er
 		}
 
 		if upgrade.Status.SingleNode == "" {
-			logrus.Infof("Adding post-hook done annotation on %s/%s", machine.Namespace, machine.Name)
-			machineUpdate := machine.DeepCopy()
-			machineUpdate.Annotations[postDrainAnnotation] = machine.Annotations[rke2PostDrainAnnotation]
-			if _, err := h.machineClient.Update(machineUpdate); err != nil {
+			logrus.Infof("Adding post-hook done annotation on %s/%s", secret.Namespace, secret.Name)
+			secretUpdate := secret.DeepCopy()
+			secretUpdate.Annotations[postDrainAnnotation] = secret.Annotations[rke2PostDrainAnnotation]
+			if _, err := h.secretClient.Update(secretUpdate); err != nil {
 				return nil, err
 			}
 		}

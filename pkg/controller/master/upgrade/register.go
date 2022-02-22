@@ -13,7 +13,7 @@ const (
 	podControllerName     = "harvester-upgrade-pod-controller"
 	settingControllerName = "harvester-version-setting-controller"
 	vmImageControllerName = "harvester-upgrade-vm-image-controller"
-	machineControllerName = "harvester-upgrade-machine-controller"
+	secretControllerName  = "harvester-upgrade-secret-controller"
 	nodeControllerName    = "harvester-upgrade-node-controller"
 )
 
@@ -34,6 +34,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	services := management.CoreFactory.Core().V1().Service()
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
 	machines := management.ClusterFactory.Cluster().V1alpha4().Machine()
+	secrets := management.CoreFactory.Core().V1().Secret()
 
 	controller := &upgradeHandler{
 		ctx:           ctx,
@@ -70,8 +71,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		planCache:     plans.Cache(),
 		upgradeClient: upgrades,
 		upgradeCache:  upgrades.Cache(),
-		machineClient: machines,
 		machineCache:  machines.Cache(),
+		secretClient:  secrets,
 		nodeClient:    nodes,
 		nodeCache:     nodes.Cache(),
 	}
@@ -92,14 +93,15 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 	vmImages.OnChange(ctx, vmImageControllerName, vmImageHandler.OnChanged)
 
-	machineHandler := &machineHandler{
+	secretHandler := &secretHandler{
 		namespace:     options.Namespace,
 		upgradeClient: upgrades,
 		upgradeCache:  upgrades.Cache(),
 		jobClient:     jobs,
 		jobCache:      jobs.Cache(),
+		machineCache:  machines.Cache(),
 	}
-	machines.OnChange(ctx, machineControllerName, machineHandler.OnChanged)
+	secrets.OnChange(ctx, secretControllerName, secretHandler.OnChanged)
 
 	nodeHandler := &nodeHandler{
 		namespace:     options.Namespace,
@@ -107,8 +109,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		nodeCache:     nodes.Cache(),
 		upgradeClient: upgrades,
 		upgradeCache:  upgrades.Cache(),
-		machineClient: machines,
-		machineCache:  machines.Cache(),
+		secretClient:  secrets,
 	}
 	nodes.OnChange(ctx, nodeControllerName, nodeHandler.OnChanged)
 

@@ -2,6 +2,7 @@ package upgrade
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -51,10 +52,10 @@ type jobHandler struct {
 	upgradeClient ctlharvesterv1.UpgradeClient
 	upgradeCache  ctlharvesterv1.UpgradeCache
 
-	machineClient clusterv1ctl.MachineClient
-	machineCache  clusterv1ctl.MachineCache
-	nodeClient    ctlcorev1.NodeClient
-	nodeCache     ctlcorev1.NodeCache
+	machineCache clusterv1ctl.MachineCache
+	secretClient ctlcorev1.SecretClient
+	nodeClient   ctlcorev1.NodeClient
+	nodeCache    ctlcorev1.NodeCache
 }
 
 func (h *jobHandler) OnChanged(key string, job *batchv1.Job) (*batchv1.Job, error) {
@@ -159,23 +160,34 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 		}
 	}
 
-	machine, err := h.machineClient.Get(rancherMachineNamespace, machineName, metav1.GetOptions{})
+	// find machine plan secret
+	secrets, err := h.secretClient.List(rancherPlanSecretNamespace, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=%s", rancherPlanSecretMachineLabel, machineName),
+		FieldSelector: fmt.Sprintf("type=%s", rancherPlanSecretType),
+	})
+
 	if err != nil {
 		return job, err
 	}
 
+	if len(secrets.Items) != 1 {
+		return job, fmt.Errorf("Found %d plan secret for machine %s", len(secrets.Items), machineName)
+	}
+
+	secret := secrets.Items[0]
+
 	if preDrained {
-		toUpdate := machine.DeepCopy()
-		toUpdate.Annotations[preDrainAnnotation] = machine.Annotations[rke2PreDrainAnnotation]
-		if _, err := h.machineClient.Update(toUpdate); err != nil {
+		toUpdate := secret.DeepCopy()
+		toUpdate.Annotations[preDrainAnnotation] = secret.Annotations[rke2PreDrainAnnotation]
+		if _, err := h.secretClient.Update(toUpdate); err != nil {
 			return nil, err
 		}
 	}
 
 	if postDrained {
-		toUpdate := machine.DeepCopy()
-		toUpdate.Annotations[postDrainAnnotation] = machine.Annotations[rke2PostDrainAnnotation]
-		if _, err := h.machineClient.Update(toUpdate); err != nil {
+		toUpdate := secret.DeepCopy()
+		toUpdate.Annotations[postDrainAnnotation] = secret.Annotations[rke2PostDrainAnnotation]
+		if _, err := h.secretClient.Update(toUpdate); err != nil {
 			return nil, err
 		}
 	}
