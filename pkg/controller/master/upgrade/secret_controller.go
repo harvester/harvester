@@ -3,39 +3,44 @@ package upgrade
 import (
 	"fmt"
 
-	v1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
+	jobV1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	"github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	clusterv1ctl "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1alpha4"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 const (
-	rancherMachineNamespace = "fleet-local"
+	rancherMachineNamespace       = "fleet-local"
+	rancherPlanSecretNamespace    = "fleet-local"
+	rancherPlanSecretType         = "rke.cattle.io/machine-plan"
+	rancherPlanSecretMachineLabel = "rke.cattle.io/machine-name"
 )
 
-// machineHandler watches pre-drain and pos-drain annotations set by Rancher and create corresponding node jobs
-type machineHandler struct {
+// secretHandler watches pre-drain and pos-drain annotations set by Rancher and create corresponding node jobs
+type secretHandler struct {
 	namespace     string
 	upgradeClient ctlharvesterv1.UpgradeClient
 	upgradeCache  ctlharvesterv1.UpgradeCache
-	jobClient     v1.JobClient
-	jobCache      v1.JobCache
+	jobClient     jobV1.JobClient
+	jobCache      jobV1.JobCache
+	machineCache  clusterv1ctl.MachineCache
 }
 
-func (h *machineHandler) OnChanged(key string, machine *clusterv1.Machine) (*clusterv1.Machine, error) {
-	if machine == nil || machine.DeletionTimestamp != nil || machine.Namespace != rancherMachineNamespace || machine.Annotations == nil {
-		return machine, nil
+func (h *secretHandler) OnChanged(key string, secret *v1.Secret) (*v1.Secret, error) {
+	if secret == nil || secret.DeletionTimestamp != nil || secret.Namespace != rancherPlanSecretNamespace || secret.Annotations == nil || secret.Type != rancherPlanSecretType {
+		return secret, nil
 	}
 
-	if machine.Annotations[rke2PreDrainAnnotation] == "" && machine.Annotations[rke2PostDrainAnnotation] == "" {
-		return machine, nil
+	if secret.Annotations[rke2PreDrainAnnotation] == "" && secret.Annotations[rke2PostDrainAnnotation] == "" {
+		return secret, nil
 	}
 
-	if machine.Annotations[rke2PreDrainAnnotation] == machine.Annotations[preDrainAnnotation] && machine.Annotations[rke2PostDrainAnnotation] == machine.Annotations[postDrainAnnotation] {
-		return machine, nil
+	if secret.Annotations[rke2PreDrainAnnotation] == secret.Annotations[preDrainAnnotation] && secret.Annotations[rke2PostDrainAnnotation] == secret.Annotations[postDrainAnnotation] {
+		return secret, nil
 	}
 
 	upgradeControllerLock.Lock()
@@ -47,31 +52,38 @@ func (h *machineHandler) OnChanged(key string, machine *clusterv1.Machine) (*clu
 	}
 
 	if upgrade.Labels[upgradeStateLabel] != StateUpgradingNodes {
-		return machine, nil
+		return secret, nil
+	}
+
+	machineName, ok := secret.Labels[rancherPlanSecretMachineLabel]
+	if !ok {
+		return secret, nil
+	}
+
+	machine, err := h.machineCache.Get(rancherMachineNamespace, machineName)
+	if err != nil {
+		return secret, nil
 	}
 
 	if machine.Status.NodeRef == nil {
-		return machine, nil
+		return secret, nil
 	}
 	nodeName := machine.Status.NodeRef.Name
 
 	if upgrade.Status.NodeStatuses == nil || upgrade.Status.NodeStatuses[nodeName].State == "" {
-		return machine, nil
-	}
-	if upgrade.Status.NodeStatuses == nil {
-		return machine, nil
+		return secret, nil
 	}
 
 	switch upgrade.Status.NodeStatuses[nodeName].State {
 	case nodeStateImagesPreloaded:
-		if machine.Annotations[rke2PreDrainAnnotation] != machine.Annotations[preDrainAnnotation] {
+		if secret.Annotations[rke2PreDrainAnnotation] != secret.Annotations[preDrainAnnotation] {
 			logrus.Debugf("Create pre-drain job on %s", nodeName)
 			if err := h.createHookJob(upgrade, nodeName, upgradeJobTypePreDrain, nodeStatePreDraining); err != nil {
 				return nil, err
 			}
 		}
 	case nodeStatePreDrained:
-		if machine.Annotations[rke2PostDrainAnnotation] != machine.Annotations[postDrainAnnotation] {
+		if secret.Annotations[rke2PostDrainAnnotation] != secret.Annotations[postDrainAnnotation] {
 			logrus.Debugf("Create post-drain job on %s", nodeName)
 			if err := h.createHookJob(upgrade, nodeName, upgradeJobTypePostDrain, nodeStatePostDraining); err != nil {
 				return nil, err
@@ -79,10 +91,10 @@ func (h *machineHandler) OnChanged(key string, machine *clusterv1.Machine) (*clu
 		}
 	}
 
-	return machine, nil
+	return secret, nil
 }
 
-func (h *machineHandler) createHookJob(upgrade *harvesterv1.Upgrade, nodeName string, jobType string, nextState string) error {
+func (h *secretHandler) createHookJob(upgrade *harvesterv1.Upgrade, nodeName string, jobType string, nextState string) error {
 	err := h.checkPendingHookJobs(upgrade.Name)
 	if err != nil {
 		return err
@@ -107,7 +119,7 @@ func (h *machineHandler) createHookJob(upgrade *harvesterv1.Upgrade, nodeName st
 	return nil
 }
 
-func (h *machineHandler) checkPendingHookJobs(upgrade string) error {
+func (h *secretHandler) checkPendingHookJobs(upgrade string) error {
 	sets := labels.Set{
 		harvesterUpgradeLabel: upgrade,
 	}
