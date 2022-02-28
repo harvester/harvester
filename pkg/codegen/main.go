@@ -14,7 +14,7 @@ import (
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 	"github.com/sirupsen/logrus"
 	networkingv1 "k8s.io/api/networking/v1"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -43,11 +43,11 @@ func main() {
 				GenerateTypes:   true,
 				GenerateClients: true,
 			},
-			kv1.SchemeGroupVersion.Group: {
+			kubevirtv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
-					kv1.VirtualMachine{},
-					kv1.VirtualMachineInstance{},
-					kv1.VirtualMachineInstanceMigration{},
+					kubevirtv1.VirtualMachine{},
+					kubevirtv1.VirtualMachineInstance{},
+					kubevirtv1.VirtualMachineInstanceMigration{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

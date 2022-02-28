@@ -7,7 +7,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	kubevirtapis "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
@@ -26,7 +26,7 @@ type VMIController struct {
 //
 // Since the handler of VMController has recorded the relationship in the PVC's annotation,
 // this handler will erase the target owner from the PVC's annotation to avoid logic leak.
-func (h *VMIController) UnsetOwnerOfPVCs(_ string, vmi *kubevirtapis.VirtualMachineInstance) (*kubevirtapis.VirtualMachineInstance, error) {
+func (h *VMIController) UnsetOwnerOfPVCs(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
 	if vmi == nil || vmi.DeletionTimestamp == nil {
 		return vmi, nil
 	}
@@ -38,7 +38,7 @@ func (h *VMIController) UnsetOwnerOfPVCs(_ string, vmi *kubevirtapis.VirtualMach
 		// doesn't process ownerless VirtualMachineInstance
 		return vmi, nil
 	}
-	var vmGVK = kubevirtapis.VirtualMachineGroupVersionKind
+	var vmGVK = kubevirtv1.VirtualMachineGroupVersionKind
 	if vmReferred.APIVersion != vmGVK.GroupVersion().String() ||
 		vmReferred.Kind != vmGVK.Kind {
 		// doesn't process the VirtualMachineInstance that didn't own by VirtualMachine

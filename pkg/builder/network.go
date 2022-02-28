@@ -1,7 +1,7 @@
 package builder
 
 import (
-	kubevirtv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 const (

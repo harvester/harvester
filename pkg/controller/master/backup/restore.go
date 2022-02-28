@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -94,7 +94,7 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 	lhbackups := management.LonghornFactory.Longhorn().V1beta1().Backup()
 
 	copyConfig := rest.CopyConfig(management.RestConfig)
-	copyConfig.GroupVersion = &k8sschema.GroupVersion{Group: kv1.SubresourceGroupName, Version: kv1.ApiLatestVersion}
+	copyConfig.GroupVersion = &k8sschema.GroupVersion{Group: kubevirtv1.SubresourceGroupName, Version: kubevirtv1.ApiLatestVersion}
 	copyConfig.APIPath = "/apis"
 	copyConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 	restClient, err := rest.RESTClientFor(copyConfig)
@@ -212,7 +212,7 @@ func (h *RestoreHandler) PersistentVolumeClaimOnChange(key string, pvc *corev1.P
 }
 
 // VMOnChange watching the VM on change and enqueue the vmRestore if it has the restore annotation
-func (h *RestoreHandler) VMOnChange(key string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
+func (h *RestoreHandler) VMOnChange(key string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -266,9 +266,9 @@ func (h *RestoreHandler) initVolumesStatus(vmRestore *harvesterv1.VirtualMachine
 }
 
 // getVM returns restore target VM
-func (h *RestoreHandler) getVM(vmRestore *harvesterv1.VirtualMachineRestore) (*kv1.VirtualMachine, error) {
+func (h *RestoreHandler) getVM(vmRestore *harvesterv1.VirtualMachineRestore) (*kubevirtv1.VirtualMachine, error) {
 	switch vmRestore.Spec.Target.Kind {
-	case kv1.VirtualMachineGroupVersionKind.Kind:
+	case kubevirtv1.VirtualMachineGroupVersionKind.Kind:
 		vm, err := h.vmCache.Get(vmRestore.Namespace, vmRestore.Spec.Target.Name)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -321,7 +321,7 @@ func getVolumeRestores(vmRestore *harvesterv1.VirtualMachineRestore, backup *har
 func (h *RestoreHandler) reconcileResources(
 	vmRestore *harvesterv1.VirtualMachineRestore,
 	backup *harvesterv1.VirtualMachineBackup,
-) (*kv1.VirtualMachine, bool, error) {
+) (*kubevirtv1.VirtualMachine, bool, error) {
 	// reconcile restoring volumes and create new PVC from CSI volumeSnapshot if not exist
 	isVolumesReady, err := h.reconcileVolumeRestores(vmRestore, backup)
 	if err != nil {
@@ -373,7 +373,7 @@ func (h *RestoreHandler) reconcileVolumeRestores(
 func (h *RestoreHandler) reconcileVM(
 	vmRestore *harvesterv1.VirtualMachineRestore,
 	backup *harvesterv1.VirtualMachineBackup,
-) (*kv1.VirtualMachine, error) {
+) (*kubevirtv1.VirtualMachine, error) {
 	// create new VM if it's not exist
 	vm, err := h.getVM(vmRestore)
 	if err != nil {
@@ -418,7 +418,7 @@ func (h *RestoreHandler) reconcileVM(
 func (h *RestoreHandler) reconcileSecretBackups(
 	vmRestore *harvesterv1.VirtualMachineRestore,
 	backup *harvesterv1.VirtualMachineBackup,
-	vm *kv1.VirtualMachine,
+	vm *kubevirtv1.VirtualMachine,
 ) error {
 	ownerRefs := configVMOwner(vm)
 	if !vmRestore.Spec.NewVM {
@@ -492,7 +492,7 @@ func (h *RestoreHandler) getVMBackup(vmRestore *harvesterv1.VirtualMachineRestor
 }
 
 // createNewVM helps to create new target VM and set the associated owner reference
-func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore, backup *harvesterv1.VirtualMachineBackup) (*kv1.VirtualMachine, error) {
+func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore, backup *harvesterv1.VirtualMachineBackup) (*kubevirtv1.VirtualMachine, error) {
 	vmName := restore.Spec.Target.Name
 	logrus.Infof("restore target does not exist, creating a new vm %s", vmName)
 
@@ -504,7 +504,7 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 		return nil, err
 	}
 
-	vm := &kv1.VirtualMachine{
+	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmName,
 			Namespace: restore.Namespace,
@@ -513,9 +513,9 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 				restoreNameAnnotation: restore.Name,
 			},
 		},
-		Spec: kv1.VirtualMachineSpec{
+		Spec: kubevirtv1.VirtualMachineSpec{
 			Running: pointer.BoolPtr(true),
-			Template: &kv1.VirtualMachineInstanceTemplateSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: newAnnotations,
 					Labels: map[string]string{
@@ -547,7 +547,7 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 	return newVM, nil
 }
 
-func (h *RestoreHandler) updateOwnerRefAndTargetUID(vmRestore *harvesterv1.VirtualMachineRestore, vm *kv1.VirtualMachine) error {
+func (h *RestoreHandler) updateOwnerRefAndTargetUID(vmRestore *harvesterv1.VirtualMachineRestore, vm *kubevirtv1.VirtualMachine) error {
 	restoreCpy := vmRestore.DeepCopy()
 	if restoreCpy.Status.TargetUID == nil {
 		restoreCpy.Status.TargetUID = &vm.UID
@@ -723,7 +723,7 @@ func (h *RestoreHandler) getOrCreateVolumeSnapshot(
 	})
 }
 
-func (h *RestoreHandler) deleteOldPVC(vmRestore *harvesterv1.VirtualMachineRestore, vm *kv1.VirtualMachine) error {
+func (h *RestoreHandler) deleteOldPVC(vmRestore *harvesterv1.VirtualMachineRestore, vm *kubevirtv1.VirtualMachine) error {
 	if isNewVMOrHasRetainPolicy(vmRestore) {
 		logrus.Infof("skip deleting old PVC of vm %s/%s", vm.Name, vm.Namespace)
 		return nil
@@ -747,7 +747,7 @@ func (h *RestoreHandler) deleteOldPVC(vmRestore *harvesterv1.VirtualMachineResto
 	return nil
 }
 
-func (h *RestoreHandler) startVM(vm *kv1.VirtualMachine) error {
+func (h *RestoreHandler) startVM(vm *kubevirtv1.VirtualMachine) error {
 	logrus.Infof("starting the vm %s, current state running:%v", vm.Name, *vm.Spec.Running)
 	if vm.Spec.Running == nil || !*vm.Spec.Running {
 		return h.restClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("start").Name(vm.Name).Do(h.context).Error()
@@ -758,7 +758,7 @@ func (h *RestoreHandler) startVM(vm *kv1.VirtualMachine) error {
 func (h *RestoreHandler) updateStatus(
 	vmRestore *harvesterv1.VirtualMachineRestore,
 	backup *harvesterv1.VirtualMachineBackup,
-	vm *kv1.VirtualMachine,
+	vm *kubevirtv1.VirtualMachine,
 	isVolumesReady bool,
 ) error {
 	restoreCpy := vmRestore.DeepCopy()

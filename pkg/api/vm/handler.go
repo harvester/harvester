@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/rest"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -199,8 +199,8 @@ func (h *vmActionHandler) subresourceOperate(ctx context.Context, resource, name
 	return h.virtSubresourceRestClient.Put().Namespace(namespace).Resource(resource).SubResource(subresourece).Name(name).Do(ctx).Error()
 }
 
-func ejectCdRomFromVM(vm *kv1.VirtualMachine, diskNames []string) error {
-	disks := make([]kv1.Disk, 0, len(vm.Spec.Template.Spec.Domain.Devices.Disks))
+func ejectCdRomFromVM(vm *kubevirtv1.VirtualMachine, diskNames []string) error {
+	disks := make([]kubevirtv1.Disk, 0, len(vm.Spec.Template.Spec.Domain.Devices.Disks))
 	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
 		if slice.ContainsString(diskNames, disk.Name) {
 			if disk.CDRom == nil {
@@ -211,7 +211,7 @@ func ejectCdRomFromVM(vm *kv1.VirtualMachine, diskNames []string) error {
 		disks = append(disks, disk)
 	}
 
-	volumes := make([]kv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
+	volumes := make([]kubevirtv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
 	toRemoveClaimNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
 	for _, vol := range vm.Spec.Template.Spec.Volumes {
 		if vol.VolumeSource.PersistentVolumeClaim != nil && slice.ContainsString(diskNames, vol.Name) {
@@ -229,7 +229,7 @@ func ejectCdRomFromVM(vm *kv1.VirtualMachine, diskNames []string) error {
 	return nil
 }
 
-func removeVolumeClaimTemplatesFromVmAnnotation(vm *kv1.VirtualMachine, toRemoveDiskNames []string) error {
+func removeVolumeClaimTemplatesFromVmAnnotation(vm *kubevirtv1.VirtualMachine, toRemoveDiskNames []string) error {
 	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
 	if !ok {
 		return nil
@@ -265,12 +265,12 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 	if !canMigrate(vmi) {
 		return errors.New("The VM is already in migrating state")
 	}
-	vmim := &kv1.VirtualMachineInstanceMigration{
+	vmim := &kubevirtv1.VirtualMachineInstanceMigration{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: vmName + "-",
 			Namespace:    namespace,
 		},
-		Spec: kv1.VirtualMachineInstanceMigrationSpec{
+		Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
 			VMIName: vmName,
 		},
 	}
@@ -332,7 +332,7 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 }
 
 func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input BackupInput) error {
-	apiGroup := kv1.SchemeGroupVersion.Group
+	apiGroup := kubevirtv1.SchemeGroupVersion.Group
 	backup := &harvesterv1.VirtualMachineBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      input.Name,
@@ -341,7 +341,7 @@ func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input Backu
 		Spec: harvesterv1.VirtualMachineBackupSpec{
 			Source: corev1.TypedLocalObjectReference{
 				APIGroup: &apiGroup,
-				Kind:     kv1.VirtualMachineGroupVersionKind.Kind,
+				Kind:     kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 				Name:     vmName,
 			},
 		},
@@ -356,7 +356,7 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 	if _, err := h.backupCache.Get(vmNamespace, input.BackupName); err != nil {
 		return err
 	}
-	apiGroup := kv1.SchemeGroupVersion.Group
+	apiGroup := kubevirtv1.SchemeGroupVersion.Group
 	backup := &harvesterv1.VirtualMachineRestore{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      input.Name,
@@ -365,7 +365,7 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 		Spec: harvesterv1.VirtualMachineRestoreSpec{
 			Target: corev1.TypedLocalObjectReference{
 				APIGroup: &apiGroup,
-				Kind:     kv1.VirtualMachineGroupVersionKind.Kind,
+				Kind:     kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 				Name:     vmName,
 			},
 			VirtualMachineBackupName: input.BackupName,
@@ -395,7 +395,7 @@ func (h *vmActionHandler) checkBackupTargetConfigured() error {
 	return fmt.Errorf("backup target is invalid")
 }
 
-func getMigrationUID(vmi *kv1.VirtualMachineInstance) string {
+func getMigrationUID(vmi *kubevirtv1.VirtualMachineInstance) string {
 	if vmi.Annotations[util.AnnotationMigrationUID] != "" {
 		return vmi.Annotations[util.AnnotationMigrationUID]
 	} else if vmi.Status.MigrationState != nil {
@@ -453,7 +453,7 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 	return h.createSecrets(vmtv, vm)
 }
 
-func (h *vmActionHandler) createSecrets(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kv1.VirtualMachine) error {
+func (h *vmActionHandler) createSecrets(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kubevirtv1.VirtualMachine) error {
 	for index, credential := range vm.Spec.Template.Spec.AccessCredentials {
 		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
 			toCreateSecretName := getTemplateVersionSSHPublicKeySecretName(templateVersion.Name, index)
@@ -522,18 +522,18 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 	}
 
 	// Restrict the flexibility of disk options here but future extension may be possible.
-	body, err := json.Marshal(kv1.AddVolumeOptions{
+	body, err := json.Marshal(kubevirtv1.AddVolumeOptions{
 		Name: input.DiskName,
-		Disk: &kv1.Disk{
-			DiskDevice: kv1.DiskDevice{
-				Disk: &kv1.DiskTarget{
+		Disk: &kubevirtv1.Disk{
+			DiskDevice: kubevirtv1.DiskDevice{
+				Disk: &kubevirtv1.DiskTarget{
 					// KubeVirt only support SCSI for hotplug volume.
 					Bus: "scsi",
 				},
 			},
 		},
-		VolumeSource: &kv1.HotplugVolumeSource{
-			PersistentVolumeClaim: &kv1.PersistentVolumeClaimVolumeSource{
+		VolumeSource: &kubevirtv1.HotplugVolumeSource{
+			PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
 				PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
 					ClaimName: input.VolumeSourceName,
 				},
@@ -576,7 +576,7 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		return fmt.Errorf("Disk `%s` not found in virtual machine `%s/%s`", input.DiskName, namespace, name)
 	}
 
-	body, err := json.Marshal(kv1.RemoveVolumeOptions{
+	body, err := json.Marshal(kubevirtv1.RemoveVolumeOptions{
 		Name: input.DiskName,
 	})
 
@@ -595,7 +595,7 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		Error()
 }
 
-func sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kv1.VirtualMachine) harvesterv1.VirtualMachineSourceSpec {
+func sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kubevirtv1.VirtualMachine) harvesterv1.VirtualMachineSourceSpec {
 	sanitizedVm := removeMacAddresses(vm)
 	sanitizedVm = replaceSecrets(templateVersionName, sanitizedVm)
 
@@ -605,7 +605,7 @@ func sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kv
 	}
 }
 
-func replaceSecrets(templateVersionName string, vm *kv1.VirtualMachine) *kv1.VirtualMachine {
+func replaceSecrets(templateVersionName string, vm *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
 	sanitizedVm := vm.DeepCopy()
 	for index, credential := range sanitizedVm.Spec.Template.Spec.AccessCredentials {
 		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
@@ -631,7 +631,7 @@ func replaceSecrets(templateVersionName string, vm *kv1.VirtualMachine) *kv1.Vir
 
 // removeMacAddresses replaces the mac address of each device interface with an empty string.
 // This is because macAddresses are unique, and should not reuse the original's.
-func removeMacAddresses(vm *kv1.VirtualMachine) *kv1.VirtualMachine {
+func removeMacAddresses(vm *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
 	sanitizedVm := vm.DeepCopy()
 	for index := range sanitizedVm.Spec.Template.Spec.Domain.Devices.Interfaces {
 		sanitizedVm.Spec.Template.Spec.Domain.Devices.Interfaces[index].MacAddress = ""
@@ -642,7 +642,7 @@ func removeMacAddresses(vm *kv1.VirtualMachine) *kv1.VirtualMachine {
 // getSSHKeysFromVMITemplateSpec first checks the given VirtualMachineInstanceTemplateSpec
 // for ssh key annotation. If found, it attempts to parse it into a string slice and return
 // it.
-func getSSHKeysFromVMITemplateSpec(vmitSpec *kv1.VirtualMachineInstanceTemplateSpec) ([]string, error) {
+func getSSHKeysFromVMITemplateSpec(vmitSpec *kubevirtv1.VirtualMachineInstanceTemplateSpec) ([]string, error) {
 	if vmitSpec == nil {
 		return nil, nil
 	}
