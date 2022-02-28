@@ -15,7 +15,7 @@ replace (
 	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20211208233239-77392a65423d
 	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20211208233239-77392a65423d
 
-	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.5.4-rancher.1
+	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.7.1-rancher.1
 	k8s.io/api => k8s.io/api v0.21.2
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.21.2
 	k8s.io/apimachinery => k8s.io/apimachinery v0.21.2
@@ -41,16 +41,17 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.21.2
 	k8s.io/mount-utils => k8s.io/mount-utils v0.21.2
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.21.2
+	kubevirt.io/api => github.com/kubevirt/api v0.49.0
 
-	kubevirt.io/client-go => github.com/kubevirt/client-go v0.45.0
-	kubevirt.io/containerized-data-importer => github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210802100720-9bcf4e7ba0ce
+	kubevirt.io/client-go => github.com/kubevirt/client-go v0.49.0
+	kubevirt.io/containerized-data-importer => github.com/kubevirt/containerized-data-importer v1.41.0
+	kubevirt.io/containerized-data-importer-api => github.com/kubevirt/containerized-data-importer-api v1.41.0
 	sigs.k8s.io/cluster-api => sigs.k8s.io/cluster-api v0.4.4
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2
 )
 
 require (
-	github.com/containerd/containerd v1.4.11 // indirect
-	github.com/containernetworking/cni v0.8.0
+	github.com/containernetworking/cni v0.8.1
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful v2.10.0+incompatible
 	github.com/gin-gonic/gin v1.7.0 // indirect
@@ -85,7 +86,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.9.3
 	github.com/urfave/cli v1.22.2
-	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
 	golang.org/x/net v0.0.0-20211123203042-d83791d6bcd9
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
@@ -97,9 +98,10 @@ require (
 	k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a
-	kubevirt.io/client-go v0.45.0
-	kubevirt.io/containerized-data-importer v1.36.0
-	kubevirt.io/kubevirt v0.45.0
+	kubevirt.io/api v0.0.0-20220111180619-bd15f69822b9
+	kubevirt.io/client-go v0.49.0 // indirect
+	kubevirt.io/containerized-data-importer-api v1.41.0
+	kubevirt.io/kubevirt v0.49.0
 	sigs.k8s.io/cluster-api v0.4.4
 	sigs.k8s.io/kind v0.11.1
 	sigs.k8s.io/yaml v1.2.0
