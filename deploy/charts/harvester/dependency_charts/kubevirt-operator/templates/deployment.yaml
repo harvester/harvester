@@ -101,6 +101,8 @@ spec:
             - mountPath: /etc/virt-operator/certificates
               name: kubevirt-operator-certs
               readOnly: true
+            - mountPath: /profile-data
+              name: profile-data
 {{- if .Values.securityContext }}
       securityContext:
 {{ toYaml .Values.securityContext | indent 8 }}
@@ -118,3 +120,5 @@ spec:
           secret:
             optional: true
             secretName: {{ .Values.containers.operator.certificates.admissionWebhook.secretName }}
+        - emptyDir: {}
+          name: profile-data

@@ -13,8 +13,8 @@ import (
 	_ "github.com/openshift/api/operator/v1"
 	"k8s.io/kube-openapi/pkg/builder"
 	"k8s.io/kube-openapi/pkg/common"
-	_ "kubevirt.io/client-go/apis/snapshot/v1alpha1"
-	_ "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	_ "kubevirt.io/api/snapshot/v1alpha1"
+	_ "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	_ "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"

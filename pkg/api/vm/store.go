@@ -9,7 +9,7 @@ import (
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/rancher/wrangler/pkg/slice"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
@@ -57,7 +57,7 @@ func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id 
 	return apiObj, nil
 }
 
-func (s *vmStore) setRemovedPVCs(vm *kv1.VirtualMachine, removedPVCs []string) error {
+func (s *vmStore) setRemovedPVCs(vm *kubevirtv1.VirtualMachine, removedPVCs []string) error {
 	vmCopy := vm.DeepCopy()
 	vmCopy.Annotations[util.RemovedPVCsAnnotationKey] = strings.Join(removedPVCs, ",")
 	_, err := s.vms.Update(vmCopy)

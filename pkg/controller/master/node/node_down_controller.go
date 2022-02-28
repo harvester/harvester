@@ -10,7 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -92,7 +92,7 @@ func (h *nodeDownHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.
 	// get VMI pods on unhealthy node
 	pods, err := h.pods.List(corev1.NamespaceAll, metav1.ListOptions{
 		LabelSelector: labels.Set{
-			kv1.AppLabel: "virt-launcher",
+			kubevirtv1.AppLabel: "virt-launcher",
 		}.String(),
 		FieldSelector: "spec.nodeName=" + node.Name,
 	})
