@@ -14,32 +14,6 @@ github.com/Masterminds/semver/v3
 github.com/Masterminds/sprig/v3
 # github.com/Masterminds/squirrel v1.5.0
 github.com/Masterminds/squirrel
-# github.com/Microsoft/go-winio v0.4.16
-github.com/Microsoft/go-winio
-github.com/Microsoft/go-winio/pkg/guid
-github.com/Microsoft/go-winio/pkg/security
-github.com/Microsoft/go-winio/vhd
-# github.com/Microsoft/hcsshim v0.8.14
-github.com/Microsoft/hcsshim
-github.com/Microsoft/hcsshim/computestorage
-github.com/Microsoft/hcsshim/internal/cow
-github.com/Microsoft/hcsshim/internal/hcs
-github.com/Microsoft/hcsshim/internal/hcserror
-github.com/Microsoft/hcsshim/internal/hns
-github.com/Microsoft/hcsshim/internal/interop
-github.com/Microsoft/hcsshim/internal/log
-github.com/Microsoft/hcsshim/internal/logfields
-github.com/Microsoft/hcsshim/internal/longpath
-github.com/Microsoft/hcsshim/internal/mergemaps
-github.com/Microsoft/hcsshim/internal/oc
-github.com/Microsoft/hcsshim/internal/safefile
-github.com/Microsoft/hcsshim/internal/schema1
-github.com/Microsoft/hcsshim/internal/schema2
-github.com/Microsoft/hcsshim/internal/timeout
-github.com/Microsoft/hcsshim/internal/vmcompute
-github.com/Microsoft/hcsshim/internal/wclayer
-github.com/Microsoft/hcsshim/internal/winapi
-github.com/Microsoft/hcsshim/osversion
 # github.com/PuerkitoBio/purell v1.1.1
 github.com/PuerkitoBio/purell
 # github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578
@@ -110,10 +84,7 @@ github.com/blang/semver
 github.com/c9s/goprocinfo/linux
 # github.com/cespare/xxhash/v2 v2.1.1
 github.com/cespare/xxhash/v2
-# github.com/containerd/cgroups v0.0.0-20200531161412-0dbf7f05ba59
-github.com/containerd/cgroups/stats/v1
-# github.com/containerd/containerd v1.4.11
-## explicit
+# github.com/containerd/containerd v1.5.7
 github.com/containerd/containerd/archive/compression
 github.com/containerd/containerd/content
 github.com/containerd/containerd/content/local
@@ -126,10 +97,11 @@ github.com/containerd/containerd/platforms
 github.com/containerd/containerd/reference
 github.com/containerd/containerd/remotes
 github.com/containerd/containerd/remotes/docker
+github.com/containerd/containerd/remotes/docker/auth
 github.com/containerd/containerd/remotes/docker/schema1
-github.com/containerd/containerd/sys
+github.com/containerd/containerd/remotes/errors
 github.com/containerd/containerd/version
-# github.com/containernetworking/cni v0.8.0
+# github.com/containernetworking/cni v0.8.1
 ## explicit
 github.com/containernetworking/cni/pkg/types
 # github.com/cpuguy83/go-md2man/v2 v2.0.0
@@ -138,14 +110,7 @@ github.com/cpuguy83/go-md2man/v2/md2man
 github.com/cyphar/filepath-securejoin
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/deislabs/oras v0.10.0
-github.com/deislabs/oras/pkg/artifact
-github.com/deislabs/oras/pkg/auth
-github.com/deislabs/oras/pkg/auth/docker
-github.com/deislabs/oras/pkg/content
-github.com/deislabs/oras/pkg/context
-github.com/deislabs/oras/pkg/oras
-# github.com/docker/cli v20.10.3+incompatible
+# github.com/docker/cli v20.10.7+incompatible
 github.com/docker/cli/cli/config
 github.com/docker/cli/cli/config/configfile
 github.com/docker/cli/cli/config/credentials
@@ -212,6 +177,8 @@ github.com/evanphx/json-patch/v5
 github.com/exponent-io/jsonpath
 # github.com/fatih/color v1.13.0
 github.com/fatih/color
+# github.com/felixge/httpsnoop v1.0.1
+github.com/felixge/httpsnoop
 # github.com/fsnotify/fsnotify v1.5.1
 github.com/fsnotify/fsnotify
 # github.com/ghodss/yaml v1.0.0
@@ -243,9 +210,7 @@ github.com/gobwas/glob/syntax/lexer
 github.com/gobwas/glob/util/runes
 github.com/gobwas/glob/util/strings
 # github.com/gogo/protobuf v1.3.2
-github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/proto
-github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/gogo/protobuf/sortkeys
 # github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 github.com/golang/groupcache/lru
@@ -277,7 +242,7 @@ github.com/google/uuid
 github.com/googleapis/gnostic/compiler
 github.com/googleapis/gnostic/extensions
 github.com/googleapis/gnostic/openapiv2
-# github.com/gorilla/handlers v1.4.2
+# github.com/gorilla/handlers v1.5.1
 github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.0
 ## explicit
@@ -312,7 +277,7 @@ github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
 # github.com/honestbee/jobq v1.0.2
 github.com/honestbee/jobq
-# github.com/huandu/xstrings v1.3.1
+# github.com/huandu/xstrings v1.3.2
 github.com/huandu/xstrings
 # github.com/iancoleman/strcase v0.1.2
 ## explicit
@@ -325,7 +290,7 @@ github.com/inconshreveable/mousetrap
 github.com/jinzhu/copier
 # github.com/jmespath/go-jmespath v0.4.0
 github.com/jmespath/go-jmespath
-# github.com/jmoiron/sqlx v1.2.0
+# github.com/jmoiron/sqlx v1.3.1
 github.com/jmoiron/sqlx
 github.com/jmoiron/sqlx/reflectx
 # github.com/josharian/intern v1.0.0
@@ -342,6 +307,11 @@ github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1
 ## explicit
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1
+# github.com/klauspost/compress v1.13.1
+github.com/klauspost/compress/fse
+github.com/klauspost/compress/huff0
+github.com/klauspost/compress/zstd
+github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 ## explicit
 github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1
@@ -435,15 +405,17 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 # github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 ## explicit
 github.com/mcuadros/go-version
-# github.com/mitchellh/copystructure v1.0.0
+# github.com/mitchellh/copystructure v1.1.1
 github.com/mitchellh/copystructure
 # github.com/mitchellh/go-wordwrap v1.0.0
 github.com/mitchellh/go-wordwrap
 # github.com/mitchellh/mapstructure v1.4.2
 ## explicit
 github.com/mitchellh/mapstructure
-# github.com/mitchellh/reflectwalk v1.0.0
+# github.com/mitchellh/reflectwalk v1.0.1
 github.com/mitchellh/reflectwalk
+# github.com/moby/locker v1.0.1
+github.com/moby/locker
 # github.com/moby/spdystream v0.2.0
 github.com/moby/spdystream
 github.com/moby/spdystream/spdy
@@ -723,7 +695,7 @@ github.com/rancher/wrangler/pkg/yaml
 github.com/rivo/uniseg
 # github.com/robfig/cron v1.2.0
 github.com/robfig/cron
-# github.com/rubenv/sql-migrate v0.0.0-20200616145509-8d140a17f351
+# github.com/rubenv/sql-migrate v0.0.0-20210614095031-55d5740dbbcc
 github.com/rubenv/sql-migrate
 github.com/rubenv/sql-migrate/sqlparse
 # github.com/russross/blackfriday v1.5.2
@@ -770,12 +742,6 @@ github.com/xeipuuv/gojsonreference
 github.com/xeipuuv/gojsonschema
 # github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca
 github.com/xlab/treeprint
-# go.opencensus.io v0.23.0
-go.opencensus.io
-go.opencensus.io/internal
-go.opencensus.io/trace
-go.opencensus.io/trace/internal
-go.opencensus.io/trace/tracestate
 # go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5
 go.starlark.net/internal/compile
 go.starlark.net/internal/spell
@@ -783,7 +749,7 @@ go.starlark.net/resolve
 go.starlark.net/starlark
 go.starlark.net/starlarkstruct
 go.starlark.net/syntax
-# golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+# golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
 ## explicit
 golang.org/x/crypto/acme
 golang.org/x/crypto/acme/autocert
@@ -990,7 +956,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 ## explicit
 gopkg.in/yaml.v3
-# helm.sh/helm/v3 v3.7.1 => github.com/rancher/helm/v3 v3.5.4-rancher.1
+# helm.sh/helm/v3 v3.7.1 => github.com/rancher/helm/v3 v3.7.1-rancher.1
 ## explicit
 helm.sh/helm/v3/internal/experimental/registry
 helm.sh/helm/v3/internal/fileutil
@@ -1547,22 +1513,32 @@ k8s.io/utils/net
 k8s.io/utils/path
 k8s.io/utils/pointer
 k8s.io/utils/trace
-# kubevirt.io/client-go v0.45.0 => github.com/kubevirt/client-go v0.45.0
+# kubevirt.io/api v0.0.0-20220111180619-bd15f69822b9 => github.com/kubevirt/api v0.49.0
 ## explicit
-kubevirt.io/client-go/api/v1
-kubevirt.io/client-go/apis/snapshot
-kubevirt.io/client-go/apis/snapshot/v1alpha1
-kubevirt.io/client-go/precond
-# kubevirt.io/containerized-data-importer v1.36.0 => github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210802100720-9bcf4e7ba0ce
+kubevirt.io/api/core
+kubevirt.io/api/core/v1
+kubevirt.io/api/migrations
+kubevirt.io/api/snapshot
+kubevirt.io/api/snapshot/v1alpha1
+# kubevirt.io/client-go v0.49.0 => github.com/kubevirt/client-go v0.49.0
 ## explicit
-kubevirt.io/containerized-data-importer/pkg/apis/core
-kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1
-# kubevirt.io/controller-lifecycle-operator-sdk v0.2.0
+# kubevirt.io/containerized-data-importer-api v1.41.0 => github.com/kubevirt/containerized-data-importer-api v1.41.0
+## explicit
+kubevirt.io/containerized-data-importer-api/pkg/apis/core
+kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1
+# kubevirt.io/controller-lifecycle-operator-sdk v0.2.1
 kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api
-# kubevirt.io/kubevirt v0.45.0
+# kubevirt.io/kubevirt v0.49.0
 ## explicit
 kubevirt.io/kubevirt/pkg/rest
 kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/rbac
+# oras.land/oras-go v0.4.0
+oras.land/oras-go/pkg/artifact
+oras.land/oras-go/pkg/auth
+oras.land/oras-go/pkg/auth/docker
+oras.land/oras-go/pkg/content
+oras.land/oras-go/pkg/context
+oras.land/oras-go/pkg/oras
 # sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.19
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/proto/client
@@ -1745,7 +1721,7 @@ sigs.k8s.io/yaml
 # github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
 # github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20211208233239-77392a65423d
 # github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20211208233239-77392a65423d
-# helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.5.4-rancher.1
+# helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.7.1-rancher.1
 # k8s.io/api => k8s.io/api v0.21.2
 # k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.21.2
 # k8s.io/apimachinery => k8s.io/apimachinery v0.21.2
@@ -1771,7 +1747,9 @@ sigs.k8s.io/yaml
 # k8s.io/metrics => k8s.io/metrics v0.21.2
 # k8s.io/mount-utils => k8s.io/mount-utils v0.21.2
 # k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.21.2
-# kubevirt.io/client-go => github.com/kubevirt/client-go v0.45.0
-# kubevirt.io/containerized-data-importer => github.com/rancher/kubevirt-containerized-data-importer v1.26.1-0.20210802100720-9bcf4e7ba0ce
+# kubevirt.io/api => github.com/kubevirt/api v0.49.0
+# kubevirt.io/client-go => github.com/kubevirt/client-go v0.49.0
+# kubevirt.io/containerized-data-importer => github.com/kubevirt/containerized-data-importer v1.41.0
+# kubevirt.io/containerized-data-importer-api => github.com/kubevirt/containerized-data-importer-api v1.41.0
 # sigs.k8s.io/cluster-api => sigs.k8s.io/cluster-api v0.4.4
 # sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2
