@@ -10,7 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -136,8 +136,8 @@ func updateRestoreCondition(r *harvesterv1.VirtualMachineRestore, c harvesterv1.
 	r.Status.Conditions = updateCondition(r.Status.Conditions, c)
 }
 
-func getNewVolumes(vm *kv1.VirtualMachineSpec, vmRestore *harvesterv1.VirtualMachineRestore) ([]kv1.Volume, error) {
-	var newVolumes = make([]kv1.Volume, len(vm.Template.Spec.Volumes))
+func getNewVolumes(vm *kubevirtv1.VirtualMachineSpec, vmRestore *harvesterv1.VirtualMachineRestore) ([]kubevirtv1.Volume, error) {
+	var newVolumes = make([]kubevirtv1.Volume, len(vm.Template.Spec.Volumes))
 	copy(newVolumes, vm.Template.Spec.Volumes)
 
 	for j, vol := range vm.Template.Spec.Volumes {
@@ -161,11 +161,11 @@ func getRestorePVCName(vmRestore *harvesterv1.VirtualMachineRestore, name string
 	return s
 }
 
-func configVMOwner(vm *kv1.VirtualMachine) []metav1.OwnerReference {
+func configVMOwner(vm *kubevirtv1.VirtualMachine) []metav1.OwnerReference {
 	return []metav1.OwnerReference{
 		{
-			APIVersion:         kv1.SchemeGroupVersion.String(),
-			Kind:               kv1.VirtualMachineGroupVersionKind.Kind,
+			APIVersion:         kubevirtv1.SchemeGroupVersion.String(),
+			Kind:               kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 			Name:               vm.Name,
 			UID:                vm.UID,
 			Controller:         pointer.BoolPtr(true),
@@ -200,7 +200,7 @@ func sanitizeVirtualMachineAnnotationsForRestore(restore *harvesterv1.VirtualMac
 	return annotations, nil
 }
 
-func sanitizeVirtualMachineForRestore(restore *harvesterv1.VirtualMachineRestore, spec kv1.VirtualMachineInstanceSpec) kv1.VirtualMachineInstanceSpec {
+func sanitizeVirtualMachineForRestore(restore *harvesterv1.VirtualMachineRestore, spec kubevirtv1.VirtualMachineInstanceSpec) kubevirtv1.VirtualMachineInstanceSpec {
 	for index, credential := range spec.AccessCredentials {
 		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
 			spec.AccessCredentials[index].SSHPublicKey.Source.Secret.SecretName = getSecretRefName(restore.Spec.Target.Name, credential.SSHPublicKey.Source.Secret.SecretName)

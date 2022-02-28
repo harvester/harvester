@@ -4,7 +4,7 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/data/convert"
 	corev1 "k8s.io/api/core/v1"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/controller/master/migration"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -39,7 +39,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 		return
 	}
 
-	vm := &kv1.VirtualMachine{}
+	vm := &kubevirtv1.VirtualMachine{}
 	err := convert.ToObj(resource.APIObject.Data(), vm)
 	if err != nil {
 		return
@@ -94,7 +94,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	}
 }
 
-func canEjectCdRom(vm *kv1.VirtualMachine) bool {
+func canEjectCdRom(vm *kubevirtv1.VirtualMachine) bool {
 	if !vmReady.IsTrue(vm) {
 		return false
 	}
@@ -107,12 +107,12 @@ func canEjectCdRom(vm *kv1.VirtualMachine) bool {
 	return false
 }
 
-func (vf *vmformatter) canPause(vmi *kv1.VirtualMachineInstance) bool {
+func (vf *vmformatter) canPause(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vmi == nil {
 		return false
 	}
 
-	if vmi.Status.Phase != kv1.Running {
+	if vmi.Status.Phase != kubevirtv1.Running {
 		return false
 	}
 
@@ -123,42 +123,42 @@ func (vf *vmformatter) canPause(vmi *kv1.VirtualMachineInstance) bool {
 	return !vmiPaused.IsTrue(vmi)
 }
 
-func (vf *vmformatter) canUnPause(vmi *kv1.VirtualMachineInstance) bool {
+func (vf *vmformatter) canUnPause(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vmi == nil {
 		return false
 	}
 
-	if vmi.Status.Phase != kv1.Running {
+	if vmi.Status.Phase != kubevirtv1.Running {
 		return false
 	}
 
 	return vmiPaused.IsTrue(vmi)
 }
 
-func (vf *vmformatter) canStart(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineInstance) bool {
+func (vf *vmformatter) canStart(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vf.isVMStarting(vm) {
 		return false
 	}
 
-	if vmi != nil && !vmi.IsFinal() && vmi.Status.Phase != kv1.Unknown && vmi.Status.Phase != kv1.VmPhaseUnset {
+	if vmi != nil && !vmi.IsFinal() && vmi.Status.Phase != kubevirtv1.Unknown && vmi.Status.Phase != kubevirtv1.VmPhaseUnset {
 		return false
 	}
 	return true
 }
 
-func (vf *vmformatter) canRestart(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineInstance) bool {
+func (vf *vmformatter) canRestart(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vf.isVMStarting(vm) {
 		return false
 	}
 
-	if runStrategy, err := vm.RunStrategy(); err != nil || runStrategy == kv1.RunStrategyHalted {
+	if runStrategy, err := vm.RunStrategy(); err != nil || runStrategy == kubevirtv1.RunStrategyHalted {
 		return false
 	}
 
 	return vmi != nil
 }
 
-func (vf *vmformatter) canStop(vm *kv1.VirtualMachine) bool {
+func (vf *vmformatter) canStop(vm *kubevirtv1.VirtualMachine) bool {
 	if vm.Spec.Running != nil && !*vm.Spec.Running {
 		return false
 	}
@@ -166,7 +166,7 @@ func (vf *vmformatter) canStop(vm *kv1.VirtualMachine) bool {
 	return true
 }
 
-func canMigrate(vmi *kv1.VirtualMachineInstance) bool {
+func canMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vmi != nil && vmi.IsRunning() &&
 		vmi.Annotations[util.AnnotationMigrationUID] == "" {
 		return true
@@ -174,16 +174,16 @@ func canMigrate(vmi *kv1.VirtualMachineInstance) bool {
 	return false
 }
 
-func isReady(vmi *kv1.VirtualMachineInstance) bool {
+func isReady(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	for _, cond := range vmi.Status.Conditions {
-		if cond.Type == kv1.VirtualMachineInstanceReady && cond.Status == corev1.ConditionTrue {
+		if cond.Type == kubevirtv1.VirtualMachineInstanceReady && cond.Status == corev1.ConditionTrue {
 			return true
 		}
 	}
 	return false
 }
 
-func canAbortMigrate(vmi *kv1.VirtualMachineInstance) bool {
+func canAbortMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vmi != nil &&
 		vmi.Annotations[util.AnnotationMigrationState] == migration.StateMigrating {
 		return true
@@ -191,41 +191,41 @@ func canAbortMigrate(vmi *kv1.VirtualMachineInstance) bool {
 	return false
 }
 
-func (vf *vmformatter) canDoBackup(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineInstance) bool {
+func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vm.Status.SnapshotInProgress != nil {
 		return false
 	}
 
-	if vmi != nil && vmi.Status.Phase != kv1.Running {
+	if vmi != nil && vmi.Status.Phase != kubevirtv1.Running {
 		return false
 	}
 	return true
 }
 
-func (vf *vmformatter) canDoRestore(vm *kv1.VirtualMachine, vmi *kv1.VirtualMachineInstance) bool {
+func (vf *vmformatter) canDoRestore(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vm.Status.Ready || vm.Status.SnapshotInProgress != nil || vmi != nil {
 		return false
 	}
 	return true
 }
 
-func (vf *vmformatter) isVMStarting(vm *kv1.VirtualMachine) bool {
+func (vf *vmformatter) isVMStarting(vm *kubevirtv1.VirtualMachine) bool {
 	for _, req := range vm.Status.StateChangeRequests {
-		if req.Action == kv1.StartRequest {
+		if req.Action == kubevirtv1.StartRequest {
 			return true
 		}
 	}
 	return false
 }
 
-func (vf *vmformatter) canCreateTemplate(vmi *kv1.VirtualMachineInstance) bool {
-	if vmi != nil && vmi.Status.Phase != kv1.Running {
+func (vf *vmformatter) canCreateTemplate(vmi *kubevirtv1.VirtualMachineInstance) bool {
+	if vmi != nil && vmi.Status.Phase != kubevirtv1.Running {
 		return false
 	}
 	return true
 }
 
-func (vf *vmformatter) getVMI(vm *kv1.VirtualMachine) *kv1.VirtualMachineInstance {
+func (vf *vmformatter) getVMI(vm *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachineInstance {
 	if vmi, err := vf.vmiCache.Get(vm.Namespace, vm.Name); err == nil {
 		return vmi
 	}

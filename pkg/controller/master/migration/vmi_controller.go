@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
-	v1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
@@ -26,7 +26,7 @@ type Handler struct {
 	restClient rest.Interface
 }
 
-func (h *Handler) OnVmiChanged(_ string, vmi *v1.VirtualMachineInstance) (*v1.VirtualMachineInstance, error) {
+func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
 	if vmi == nil || vmi.DeletionTimestamp != nil ||
 		vmi.Annotations == nil || vmi.Status.MigrationState == nil {
 		return vmi, nil
@@ -42,11 +42,11 @@ func (h *Handler) OnVmiChanged(_ string, vmi *v1.VirtualMachineInstance) (*v1.Vi
 		}
 	}
 
-	if vmi.Status.MigrationState.Completed && vmi.Status.MigrationState.AbortStatus == v1.MigrationAbortSucceeded {
+	if vmi.Status.MigrationState.Completed && vmi.Status.MigrationState.AbortStatus == kubevirtv1.MigrationAbortSucceeded {
 		// clean up leftover pod on abortion success
 		// https://github.com/kubevirt/kubevirt/issues/5373
 		sets := labels.Set{
-			v1.MigrationJobLabel: string(vmi.Status.MigrationState.MigrationUID),
+			kubevirtv1.MigrationJobLabel: string(vmi.Status.MigrationState.MigrationUID),
 		}
 		pods, err := h.podCache.List(vmi.Namespace, sets.AsSelector())
 		if err != nil {
@@ -62,7 +62,7 @@ func (h *Handler) OnVmiChanged(_ string, vmi *v1.VirtualMachineInstance) (*v1.Vi
 	return vmi, nil
 }
 
-func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *v1.VirtualMachineInstance) error {
+func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *kubevirtv1.VirtualMachineInstance) error {
 	toUpdate := vmi.DeepCopy()
 	delete(toUpdate.Annotations, util.AnnotationMigrationUID)
 	delete(toUpdate.Annotations, util.AnnotationMigrationState)

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	kubevirtapis "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 func TestAnnotationSchemaReferences_MarshalJSON(t *testing.T) {
@@ -244,8 +244,8 @@ func TestAnnotationSchemaOwners_Add(t *testing.T) {
 						References: NewAnnotationSchemaOwnerReferences("default/zzz", "default/test"),
 					},
 				},
-				ownerGK: kubevirtapis.VirtualMachineGroupVersionKind.GroupKind(),
-				owner: &kubevirtapis.VirtualMachine{
+				ownerGK: kubevirtv1.VirtualMachineGroupVersionKind.GroupKind(),
+				owner: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
@@ -275,8 +275,8 @@ func TestAnnotationSchemaOwners_Add(t *testing.T) {
 						References: NewAnnotationSchemaOwnerReferences("default/yyy"),
 					},
 				},
-				ownerGK: kubevirtapis.VirtualMachineGroupVersionKind.GroupKind(),
-				owner: &kubevirtapis.VirtualMachine{
+				ownerGK: kubevirtv1.VirtualMachineGroupVersionKind.GroupKind(),
+				owner: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
@@ -333,8 +333,8 @@ func TestAnnotationSchemaOwners_Delete(t *testing.T) {
 						References: NewAnnotationSchemaOwnerReferences("default/zzz"),
 					},
 				},
-				ownerGK: kubevirtapis.VirtualMachineGroupVersionKind.GroupKind(),
-				owner: &kubevirtapis.VirtualMachine{
+				ownerGK: kubevirtv1.VirtualMachineGroupVersionKind.GroupKind(),
+				owner: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
@@ -364,8 +364,8 @@ func TestAnnotationSchemaOwners_Delete(t *testing.T) {
 						References: NewAnnotationSchemaOwnerReferences("default/yyy"),
 					},
 				},
-				ownerGK: kubevirtapis.VirtualMachineGroupVersionKind.GroupKind(),
-				owner: &kubevirtapis.VirtualMachine{
+				ownerGK: kubevirtv1.VirtualMachineGroupVersionKind.GroupKind(),
+				owner: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",

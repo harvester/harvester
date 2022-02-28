@@ -52,7 +52,6 @@ func InstallChart(releaseName string, namespace string, chartDir string,
 		helmInstall := action.NewInstall(helmCfg)
 		helmInstall.Namespace = namespace
 		helmInstall.CreateNamespace = true
-		helmInstall.Atomic = true
 		helmInstall.ReleaseName = releaseName
 
 		helmRun = helmInstall.Run
@@ -60,7 +59,6 @@ func InstallChart(releaseName string, namespace string, chartDir string,
 		helmUpgrade := action.NewUpgrade(helmCfg)
 		helmUpgrade.Namespace = namespace
 		helmUpgrade.MaxHistory = 1
-		helmUpgrade.Atomic = true
 
 		helmRun = func(chart *chart.Chart, values map[string]interface{}) (*release.Release, error) {
 			return helmUpgrade.Run(releaseName, chart, values)
