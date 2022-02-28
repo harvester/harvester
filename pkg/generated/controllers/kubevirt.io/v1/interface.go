@@ -22,7 +22,7 @@ import (
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	v1 "kubevirt.io/client-go/api/v1"
+	v1 "kubevirt.io/api/core/v1"
 )
 
 func init() {

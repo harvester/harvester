@@ -38,7 +38,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
-	v1 "kubevirt.io/client-go/api/v1"
+	v1 "kubevirt.io/api/core/v1"
 )
 
 type VirtualMachineHandler func(string, *v1.VirtualMachine) (*v1.VirtualMachine, error)
