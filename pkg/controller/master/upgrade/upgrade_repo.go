@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -136,11 +136,11 @@ func (r *UpgradeRepo) GetImage(imageName string) (*harvesterv1.VirtualMachineIma
 	return image, nil
 }
 
-func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kv1.VirtualMachine, error) {
+func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.VirtualMachine, error) {
 	vmName := fmt.Sprintf("%s%s", repoVMNamePrefix, r.upgrade.Name)
 	vmRun := true
 	var bootOrder uint = 1
-	evictionStrategy := kv1.EvictionStrategyLiveMigrate
+	evictionStrategy := kubevirtv1.EvictionStrategyLiveMigrate
 
 	disk0Claim := fmt.Sprintf("%s-disk-0", vmName)
 	volumeMode := corev1.PersistentVolumeBlock
@@ -168,7 +168,7 @@ func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kv1.Vir
 		return nil, err
 	}
 
-	vm := kv1.VirtualMachine{
+	vm := kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmName,
 			Namespace: upgradeNamespace,
@@ -186,9 +186,9 @@ func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kv1.Vir
 				upgradeReference(r.upgrade),
 			},
 		},
-		Spec: kv1.VirtualMachineSpec{
+		Spec: kubevirtv1.VirtualMachineSpec{
 			Running: &vmRun,
-			Template: &kv1.VirtualMachineInstanceTemplateSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"harvesterhci.io/creator":      "harvester",
@@ -197,54 +197,54 @@ func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kv1.Vir
 						harvesterUpgradeComponentLabel: upgradeComponentRepo,
 					},
 				},
-				Spec: kv1.VirtualMachineInstanceSpec{
-					Domain: kv1.DomainSpec{
-						CPU: &kv1.CPU{
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						CPU: &kubevirtv1.CPU{
 							Cores:   1,
 							Sockets: 1,
 							Threads: 1,
 						},
-						Devices: kv1.Devices{
-							Disks: []kv1.Disk{
+						Devices: kubevirtv1.Devices{
+							Disks: []kubevirtv1.Disk{
 								{
 									BootOrder: &bootOrder,
-									DiskDevice: kv1.DiskDevice{
-										CDRom: &kv1.CDRomTarget{
+									DiskDevice: kubevirtv1.DiskDevice{
+										CDRom: &kubevirtv1.CDRomTarget{
 											Bus: "sata",
 										},
 									},
 									Name: "disk-0",
 								},
 								{
-									DiskDevice: kv1.DiskDevice{
-										CDRom: &kv1.CDRomTarget{
+									DiskDevice: kubevirtv1.DiskDevice{
+										CDRom: &kubevirtv1.CDRomTarget{
 											Bus: "sata",
 										},
 									},
 									Name: "cloudinitdisk",
 								},
 							},
-							Inputs: []kv1.Input{
+							Inputs: []kubevirtv1.Input{
 								{
 									Bus:  "usb",
 									Name: "tablet",
 									Type: "tablet",
 								},
 							},
-							Interfaces: []kv1.Interface{
+							Interfaces: []kubevirtv1.Interface{
 								{
-									InterfaceBindingMethod: kv1.InterfaceBindingMethod{
-										Masquerade: &kv1.InterfaceMasquerade{},
+									InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+										Masquerade: &kubevirtv1.InterfaceMasquerade{},
 									},
 									Model: "virtio",
 									Name:  "default",
 								},
 							},
 						},
-						Machine: &kv1.Machine{
+						Machine: &kubevirtv1.Machine{
 							Type: "q35",
 						},
-						Resources: kv1.ResourceRequirements{
+						Resources: kubevirtv1.ResourceRequirements{
 							Limits: corev1.ResourceList{
 								"cpu":    resource.MustParse("1"),
 								"memory": resource.MustParse("1G"),
@@ -257,19 +257,19 @@ func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kv1.Vir
 					},
 					EvictionStrategy: &evictionStrategy,
 					Hostname:         vmName,
-					Networks: []kv1.Network{
+					Networks: []kubevirtv1.Network{
 						{
 							Name: "default",
-							NetworkSource: kv1.NetworkSource{
-								Pod: &kv1.PodNetwork{},
+							NetworkSource: kubevirtv1.NetworkSource{
+								Pod: &kubevirtv1.PodNetwork{},
 							},
 						},
 					},
-					Volumes: []kv1.Volume{
+					Volumes: []kubevirtv1.Volume{
 						{
 							Name: "disk-0",
-							VolumeSource: kv1.VolumeSource{
-								PersistentVolumeClaim: &kv1.PersistentVolumeClaimVolumeSource{
+							VolumeSource: kubevirtv1.VolumeSource{
+								PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
 									PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
 										ClaimName: disk0Claim,
 									},
@@ -278,15 +278,15 @@ func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kv1.Vir
 						},
 						{
 							Name: "cloudinitdisk",
-							VolumeSource: kv1.VolumeSource{
-								CloudInitNoCloud: &kv1.CloudInitNoCloudSource{
+							VolumeSource: kubevirtv1.VolumeSource{
+								CloudInitNoCloud: &kubevirtv1.CloudInitNoCloudSource{
 									UserData: repoVMUserData,
 								},
 							},
 						},
 					},
-					ReadinessProbe: &kv1.Probe{
-						Handler: kv1.Handler{
+					ReadinessProbe: &kubevirtv1.Probe{
+						Handler: kubevirtv1.Handler{
 							HTTPGet: &corev1.HTTPGetAction{
 								Path: "/harvester-iso/harvester-release.yaml",
 								Port: intstr.FromInt(80),

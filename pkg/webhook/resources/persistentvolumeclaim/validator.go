@@ -8,7 +8,7 @@ import (
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
@@ -60,7 +60,7 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
 	}
 
-	attachedList := annotationSchemaOwners.List(kv1.VirtualMachineGroupVersionKind.GroupKind())
+	attachedList := annotationSchemaOwners.List(kubevirtv1.VirtualMachineGroupVersionKind.GroupKind())
 	if len(attachedList) != 0 {
 		message := fmt.Sprintf("can not delete the volume %s which is currently attached to VMs: %s", oldPVC.Name, strings.Join(attachedList, ", "))
 		return werror.NewInvalidError(message, "")
@@ -72,7 +72,7 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 
 	var ownerList []string
 	for _, owner := range pvc.OwnerReferences {
-		if owner.Kind == kv1.VirtualMachineGroupVersionKind.Kind {
+		if owner.Kind == kubevirtv1.VirtualMachineGroupVersionKind.Kind {
 			ownerList = append(ownerList, owner.Name)
 		}
 	}
@@ -100,14 +100,14 @@ func (v *pvcValidator) Update(request *types.Request, oldObj runtime.Object, new
 		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
 	}
 
-	attachedList := annotationSchemaOwners.List(kv1.VirtualMachineGroupVersionKind.GroupKind())
+	attachedList := annotationSchemaOwners.List(kubevirtv1.VirtualMachineGroupVersionKind.GroupKind())
 	for _, vmID := range attachedList {
 		ns, name := ref.Parse(vmID)
 		vm, err := v.vmCache.Get(ns, name)
 		if err != nil {
 			return fmt.Errorf("failed to get VM: %v", err)
 		}
-		if vm.Status.PrintableStatus != kv1.VirtualMachineStatusProvisioning && vm.Status.PrintableStatus != kv1.VirtualMachineStatusStopped {
+		if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusProvisioning && vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
 			message := fmt.Sprintf("resizing is only supported for detached volumes. The volueme is being used by VM %s. Please stop the VM first.", vmID)
 			return werror.NewInvalidError(message, "")
 		}

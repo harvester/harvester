@@ -11,7 +11,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/ref"
@@ -24,7 +24,7 @@ type VMController struct {
 }
 
 // createPVCsFromAnnotation creates PVCs defined in the volumeClaimTemplates annotation if they don't exist.
-func (h *VMController) createPVCsFromAnnotation(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
+func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -51,7 +51,7 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kv1.VirtualMachine
 }
 
 // SetOwnerOfPVCs records the target VirtualMachine as the owner of the PVCs in annotation.
-func (h *VMController) SetOwnerOfPVCs(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
+func (h *VMController) SetOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
 		return vm, nil
 	}
@@ -65,7 +65,7 @@ func (h *VMController) SetOwnerOfPVCs(_ string, vm *kv1.VirtualMachine) (*kv1.Vi
 		return nil, fmt.Errorf("failed to get attached PVCs by VM index: %w", err)
 	}
 
-	vmGVK := kv1.VirtualMachineGroupVersionKind
+	vmGVK := kubevirtv1.VirtualMachineGroupVersionKind
 	vmAPIVersion, vmKind := vmGVK.ToAPIVersionAndKind()
 	vmGK := vmGVK.GroupKind()
 
@@ -139,7 +139,7 @@ func (h *VMController) SetOwnerOfPVCs(_ string, vm *kv1.VirtualMachine) (*kv1.Vi
 }
 
 // UnsetOwnerOfPVCs erases the target VirtualMachine from the owner of the PVCs in annotation.
-func (h *VMController) UnsetOwnerOfPVCs(_ string, vm *kv1.VirtualMachine) (*kv1.VirtualMachine, error) {
+func (h *VMController) UnsetOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp == nil || vm.Spec.Template == nil {
 		return vm, nil
 	}
@@ -183,12 +183,12 @@ func (h *VMController) UnsetOwnerOfPVCs(_ string, vm *kv1.VirtualMachine) (*kv1.
 }
 
 // getRemovedPVCs returns removed PVCs.
-func getRemovedPVCs(vm *kv1.VirtualMachine) []string {
+func getRemovedPVCs(vm *kubevirtv1.VirtualMachine) []string {
 	return strings.Split(vm.Annotations[util.RemovedPVCsAnnotationKey], ",")
 }
 
 // getPVCNames returns a name set of the PVCs used by the VMI.
-func getPVCNames(vmiSpecPtr *kv1.VirtualMachineInstanceSpec) sets.String {
+func getPVCNames(vmiSpecPtr *kubevirtv1.VirtualMachineInstanceSpec) sets.String {
 	var pvcNames = sets.String{}
 
 	for _, volume := range vmiSpecPtr.Volumes {

@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	virtv1 "kubevirt.io/client-go/api/v1"
+	virtv1 "kubevirt.io/api/core/v1"
 	mime "kubevirt.io/kubevirt/pkg/rest"
 
 	networkv1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"

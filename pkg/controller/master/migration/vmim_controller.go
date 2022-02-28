@@ -6,7 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	v1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -20,7 +20,7 @@ const (
 // This is mainly for the period when vmim is created but VMI.status.migrationState is not updated before
 // the target pod is running.
 
-func (h *Handler) OnVmimChanged(_ string, vmim *v1.VirtualMachineInstanceMigration) (*v1.VirtualMachineInstanceMigration, error) {
+func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanceMigration) (*kubevirtv1.VirtualMachineInstanceMigration, error) {
 	if vmim == nil {
 		return nil, nil
 	}
@@ -30,18 +30,18 @@ func (h *Handler) OnVmimChanged(_ string, vmim *v1.VirtualMachineInstanceMigrati
 	}
 	abortRequested := false
 	for _, cond := range vmim.Status.Conditions {
-		if cond.Type == v1.VirtualMachineInstanceMigrationAbortRequested && cond.Status == corev1.ConditionTrue {
+		if cond.Type == kubevirtv1.VirtualMachineInstanceMigrationAbortRequested && cond.Status == corev1.ConditionTrue {
 			abortRequested = true
 		}
 	}
 	logrus.Debugf("syncing vmim for migration annotation, phase: %v,abortRequested: %v", vmim.Status.Phase, abortRequested)
-	if vmim.Status.Phase != v1.MigrationFailed && abortRequested {
+	if vmim.Status.Phase != kubevirtv1.MigrationFailed && abortRequested {
 		if err := h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateAbortingMigration); err != nil {
 			return vmim, err
 		}
-	} else if vmim.Status.Phase == v1.MigrationScheduling {
+	} else if vmim.Status.Phase == kubevirtv1.MigrationScheduling {
 		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateMigrating)
-	} else if vmi.Annotations[util.AnnotationMigrationUID] == string(vmim.UID) && vmim.Status.Phase == v1.MigrationFailed {
+	} else if vmi.Annotations[util.AnnotationMigrationUID] == string(vmim.UID) && vmim.Status.Phase == kubevirtv1.MigrationFailed {
 		// There are cases when VMIM failed but the status is not reported in VMI.status.migrationState
 		// https://github.com/kubevirt/kubevirt/issues/5503
 		if err := h.resetHarvesterMigrationStateInVMI(vmi); err != nil {
@@ -51,7 +51,7 @@ func (h *Handler) OnVmimChanged(_ string, vmim *v1.VirtualMachineInstanceMigrati
 	return vmim, nil
 }
 
-func (h *Handler) setVmiMigrationUIDAnnotation(vmi *v1.VirtualMachineInstance, UID string, state string) error {
+func (h *Handler) setVmiMigrationUIDAnnotation(vmi *kubevirtv1.VirtualMachineInstance, UID string, state string) error {
 	if vmi.Annotations[util.AnnotationMigrationUID] == UID &&
 		vmi.Annotations[util.AnnotationMigrationState] == state {
 		return nil
@@ -74,7 +74,7 @@ func (h *Handler) setVmiMigrationUIDAnnotation(vmi *v1.VirtualMachineInstance, U
 }
 
 // syncVM update vm so that UI gets websocket message with updated actions
-func (h *Handler) syncVM(vmi *v1.VirtualMachineInstance) error {
+func (h *Handler) syncVM(vmi *kubevirtv1.VirtualMachineInstance) error {
 	vm, err := h.vmCache.Get(vmi.Namespace, vmi.Name)
 	if err != nil {
 		return err
