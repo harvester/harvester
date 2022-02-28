@@ -229,7 +229,7 @@ type HttpFileSystemMigrationSource struct {
 var _ MigrationSource = (*HttpFileSystemMigrationSource)(nil)
 
 func (f HttpFileSystemMigrationSource) FindMigrations() ([]*Migration, error) {
-	return findMigrations(f.FileSystem)
+	return findMigrations(f.FileSystem, "/")
 }
 
 // A set of migrations loaded from a directory.
@@ -241,13 +241,13 @@ var _ MigrationSource = (*FileMigrationSource)(nil)
 
 func (f FileMigrationSource) FindMigrations() ([]*Migration, error) {
 	filesystem := http.Dir(f.Dir)
-	return findMigrations(filesystem)
+	return findMigrations(filesystem, "/")
 }
 
-func findMigrations(dir http.FileSystem) ([]*Migration, error) {
+func findMigrations(dir http.FileSystem, root string) ([]*Migration, error) {
 	migrations := make([]*Migration, 0)
 
-	file, err := dir.Open("/")
+	file, err := dir.Open(root)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func findMigrations(dir http.FileSystem) ([]*Migration, error) {
 
 	for _, info := range files {
 		if strings.HasSuffix(info.Name(), ".sql") {
-			migration, err := migrationFromFile(dir, info)
+			migration, err := migrationFromFile(dir, root, info)
 			if err != nil {
 				return nil, err
 			}
@@ -274,8 +274,8 @@ func findMigrations(dir http.FileSystem) ([]*Migration, error) {
 	return migrations, nil
 }
 
-func migrationFromFile(dir http.FileSystem, info os.FileInfo) (*Migration, error) {
-	path := fmt.Sprintf("/%s", strings.TrimPrefix(info.Name(), "/"))
+func migrationFromFile(dir http.FileSystem, root string, info os.FileInfo) (*Migration, error) {
+	path := path.Join(root, info.Name())
 	file, err := dir.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("Error while opening %s: %s", info.Name(), err)
