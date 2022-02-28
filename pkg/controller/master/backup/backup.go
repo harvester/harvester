@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -195,9 +195,9 @@ func (h *Handler) OnBackupRemove(key string, vmBackup *harvesterv1.VirtualMachin
 	return nil, nil
 }
 
-func (h *Handler) getBackupSource(vmBackup *harvesterv1.VirtualMachineBackup) (*kv1.VirtualMachine, error) {
+func (h *Handler) getBackupSource(vmBackup *harvesterv1.VirtualMachineBackup) (*kubevirtv1.VirtualMachine, error) {
 	switch vmBackup.Spec.Source.Kind {
-	case kv1.VirtualMachineGroupVersionKind.Kind:
+	case kubevirtv1.VirtualMachineGroupVersionKind.Kind:
 		return h.vmsCache.Get(vmBackup.Namespace, vmBackup.Spec.Source.Name)
 	}
 
@@ -205,7 +205,7 @@ func (h *Handler) getBackupSource(vmBackup *harvesterv1.VirtualMachineBackup) (*
 }
 
 // getVolumeBackups helps to build a list of VolumeBackup upon the volume list of backup VM
-func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm *kv1.VirtualMachine) ([]harvesterv1.VolumeBackup, error) {
+func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm *kubevirtv1.VirtualMachine) ([]harvesterv1.VolumeBackup, error) {
 	sourceVolumes := vm.Spec.Template.Spec.Volumes
 	var volumeBackups = make([]harvesterv1.VolumeBackup, 0, len(sourceVolumes))
 
@@ -239,7 +239,7 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 }
 
 // getSecretBackups helps to build a list of SecretBackup upon the secrets used by the backup VM
-func (h *Handler) getSecretBackups(vm *kv1.VirtualMachine) ([]harvesterv1.SecretBackup, error) {
+func (h *Handler) getSecretBackups(vm *kubevirtv1.VirtualMachine) ([]harvesterv1.SecretBackup, error) {
 	secretRefs := []*corev1.LocalObjectReference{}
 
 	for _, credential := range vm.Spec.Template.Spec.AccessCredentials {
@@ -303,7 +303,7 @@ func (h *Handler) getSecretBackupFromSecret(namespace, name string) (*harvesterv
 }
 
 // initBackup initialize VM backup status and annotation
-func (h *Handler) initBackup(backup *harvesterv1.VirtualMachineBackup, vm *kv1.VirtualMachine, target *settings.BackupTarget) error {
+func (h *Handler) initBackup(backup *harvesterv1.VirtualMachineBackup, vm *kubevirtv1.VirtualMachine, target *settings.BackupTarget) error {
 	var err error
 	backupCpy := backup.DeepCopy()
 	backupCpy.Status = &harvesterv1.VirtualMachineBackupStatus{
@@ -672,7 +672,7 @@ func sanitizeVolumeBackups(volumeBackups []harvesterv1.VolumeBackup) []harvester
 	return volumeBackups
 }
 
-func volumeToPVCMappings(volumes []kv1.Volume) map[string]string {
+func volumeToPVCMappings(volumes []kubevirtv1.Volume) map[string]string {
 	pvcs := map[string]string{}
 
 	for _, volume := range volumes {

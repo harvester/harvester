@@ -361,17 +361,25 @@ spec:
                                           description: CertConfigMap provides a reference
                                             to the Registry certs
                                           type: string
+                                        imageStream:
+                                          description: ImageStream is the name of
+                                            image stream for import
+                                          type: string
+                                        pullMethod:
+                                          description: PullMethod can be either "pod"
+                                            (default import), or "node" (node docker
+                                            cache based import)
+                                          type: string
                                         secretRef:
                                           description: SecretRef provides the secret
                                             reference needed to access the Registry
                                             source
                                           type: string
                                         url:
-                                          description: URL is the url of the Docker
-                                            registry source
+                                          description: 'URL is the url of the registry
+                                            source (starting with the scheme: docker,
+                                            oci-archive)'
                                           type: string
-                                      required:
-                                      - url
                                       type: object
                                     s3:
                                       description: DataVolumeSourceS3 provides the
@@ -599,6 +607,27 @@ spec:
                           - spec
                           type: object
                         type: array
+                      flavor:
+                        description: FlavorMatcher references a flavor that is used
+                          to fill fields in Template
+                        properties:
+                          kind:
+                            description: 'Kind specifies which flavor resource is
+                              referenced. Allowed values are: "VirtualMachineFlavor"
+                              and "VirtualMachineClusterFlavor". If not specified,
+                              "VirtualMachineClusterFlavor" is used by default.'
+                            type: string
+                          name:
+                            description: Name is the name of the VirtualMachineFlavor
+                              or VirtualMachineClusterFlavor
+                            type: string
+                          profile:
+                            description: Profile is the name of a custom profile in
+                              the flavor. If left empty, the default profile is used.
+                            type: string
+                        required:
+                        - name
+                        type: object
                       runStrategy:
                         description: Running state indicates the requested running
                           state of the VirtualMachineInstance mutually exclusive with
@@ -2025,6 +2054,18 @@ spec:
                                               host numa nodes.
                                             type: object
                                         type: object
+                                      realtime:
+                                        description: Realtime instructs the virt-launcher
+                                          to tune the VMI for lower latency, optional
+                                          for real time workloads
+                                        properties:
+                                          mask:
+                                            description: 'Mask defines the vcpu mask
+                                              expression that defines which vcpus
+                                              are used for realtime. Format matches
+                                              libvirt''s expressions. Example: "0-3,^1","0,2,3","2-3"'
+                                            type: string
+                                        type: object
                                       sockets:
                                         description: Sockets specifies the number
                                           of sockets inside the vmi. Must be a value
@@ -2256,6 +2297,33 @@ spec:
                                               description: Name of the GPU device
                                                 as exposed by a device plugin
                                               type: string
+                                            virtualGPUOptions:
+                                              properties:
+                                                display:
+                                                  properties:
+                                                    enabled:
+                                                      description: Enabled determines
+                                                        if a display addapter backed
+                                                        by a vGPU should be enabled
+                                                        or disabled on the guest.
+                                                        Defaults to true.
+                                                      type: boolean
+                                                    ramFB:
+                                                      description: Enables a boot
+                                                        framebuffer, until the guest
+                                                        OS loads a real GPU driver
+                                                        Defaults to true.
+                                                      properties:
+                                                        enabled:
+                                                          description: Enabled determines
+                                                            if the feature should
+                                                            be enabled or disabled
+                                                            on the guest. Defaults
+                                                            to true.
+                                                          type: boolean
+                                                      type: object
+                                                  type: object
+                                              type: object
                                           required:
                                           - deviceName
                                           - name
@@ -2397,7 +2465,7 @@ spec:
                                               description: List of ports to be forwarded
                                                 to the virtual machine.
                                               items:
-                                                description: Port repesents a port
+                                                description: Port represents a port
                                                   to expose from the virtual machine.
                                                   Default protocol TCP. The port field
                                                   is mandatory
@@ -2453,6 +2521,22 @@ spec:
                                       rng:
                                         description: Whether to have random number
                                           generator from host
+                                        type: object
+                                      sound:
+                                        description: Whether to emulate a sound device.
+                                        properties:
+                                          model:
+                                            description: 'We only support ich9 or
+                                              ac97. If SoundDevice is not set: No
+                                              sound card is emulated. If SoundDevice
+                                              is set but Model is not: ich9'
+                                            type: string
+                                          name:
+                                            description: User's defined name for this
+                                              sound device
+                                            type: string
+                                        required:
+                                        - name
                                         type: object
                                       useVirtioTransitional:
                                         description: Fall back to legacy virtio 0.9
@@ -2779,8 +2863,8 @@ spec:
                                               that containes kernel artifacts
                                             properties:
                                               image:
-                                                description: Image that container
-                                                  initrd / kernel files.
+                                                description: Image that contains initrd
+                                                  / kernel files.
                                                 type: string
                                               imagePullPolicy:
                                                 description: 'Image pull policy. One
@@ -2826,6 +2910,14 @@ spec:
                                       share IOThreads. Omitting IOThreadsPolicy disables
                                       use of IOThreads. One of: shared, auto'
                                     type: string
+                                  launchSecurity:
+                                    description: Launch Security setting of the vmi.
+                                    properties:
+                                      sev:
+                                        description: AMD Secure Encrypted Virtualization
+                                          (SEV).
+                                        type: object
+                                    type: object
                                   machine:
                                     description: Machine type.
                                     properties:
