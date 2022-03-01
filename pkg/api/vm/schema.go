@@ -101,6 +101,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				startVM:        &actionHandler,
 				stopVM:         &actionHandler,
 				restartVM:      &actionHandler,
+				softReboot:     &actionHandler,
 				ejectCdRom:     &actionHandler,
 				pauseVM:        &actionHandler,
 				unpauseVM:      &actionHandler,
@@ -113,11 +114,12 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				removeVolume:   &actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
-				startVM:   {},
-				stopVM:    {},
-				restartVM: {},
-				pauseVM:   {},
-				unpauseVM: {},
+				startVM:    {},
+				stopVM:     {},
+				restartVM:  {},
+				softReboot: {},
+				pauseVM:    {},
+				unpauseVM:  {},
 				migrate: {
 					Input: "migrateInput",
 				},

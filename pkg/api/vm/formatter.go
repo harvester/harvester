@@ -15,6 +15,7 @@ const (
 	startVM        = "start"
 	stopVM         = "stop"
 	restartVM      = "restart"
+	softReboot     = "softreboot"
 	pauseVM        = "pause"
 	unpauseVM      = "unpause"
 	ejectCdRom     = "ejectCdRom"
@@ -63,6 +64,10 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canRestart(vm, vmi) {
 		resource.AddAction(request, restartVM)
+	}
+
+	if vf.canSoftReboot(vmi) {
+		resource.AddAction(request, softReboot)
 	}
 
 	if vf.canPause(vmi) {
@@ -133,6 +138,10 @@ func (vf *vmformatter) canUnPause(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	}
 
 	return vmiPaused.IsTrue(vmi)
+}
+
+func (vf *vmformatter) canSoftReboot(vmi *kubevirtv1.VirtualMachineInstance) bool {
+	return vf.canPause(vmi)
 }
 
 func (vf *vmformatter) canStart(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {

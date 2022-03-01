@@ -101,7 +101,7 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		if err := h.subresourceOperate(r.Context(), vmResource, namespace, name, action); err != nil {
 			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
 		}
-	case pauseVM, unpauseVM:
+	case pauseVM, unpauseVM, softReboot:
 		if err := h.subresourceOperate(r.Context(), vmiResource, namespace, name, action); err != nil {
 			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
 		}
