@@ -35,6 +35,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
 	machines := management.ClusterFactory.Cluster().V1alpha4().Machine()
 	secrets := management.CoreFactory.Core().V1().Secret()
+	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 
 	controller := &upgradeHandler{
 		ctx:           ctx,
@@ -50,7 +51,9 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmImageClient: vmImages,
 		vmImageCache:  vmImages.Cache(),
 		vmClient:      vms,
+		vmCache:       vms.Cache(),
 		serviceClient: services,
+		pvcClient:     pvcs,
 		clusterClient: clusters,
 		clusterCache:  clusters.Cache(),
 	}

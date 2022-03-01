@@ -68,7 +68,9 @@ type upgradeHandler struct {
 	vmImageClient ctlharvesterv1.VirtualMachineImageClient
 	vmImageCache  ctlharvesterv1.VirtualMachineImageCache
 	vmClient      kubevirtctrl.VirtualMachineClient
+	vmCache       kubevirtctrl.VirtualMachineCache
 	serviceClient ctlcorev1.ServiceClient
+	pvcClient     ctlcorev1.PersistentVolumeClaimClient
 
 	clusterClient provisioningctrl.ClusterClient
 	clusterCache  provisioningctrl.ClusterCache
@@ -126,6 +128,11 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 		}
 		harvesterv1.ImageReady.CreateUnknownIfNotExists(toUpdate)
 		return h.upgradeClient.Update(toUpdate)
+	}
+
+	// clean upgrade repo VMs and images if a upgrade succeeds or fails.
+	if harvesterv1.UpgradeCompleted.IsTrue(upgrade) || harvesterv1.UpgradeCompleted.IsFalse(upgrade) {
+		return nil, repo.deleteVM()
 	}
 
 	if harvesterv1.ImageReady.IsTrue(upgrade) && harvesterv1.RepoProvisioned.GetStatus(upgrade) == "" {

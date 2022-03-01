@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -136,8 +138,12 @@ func (r *UpgradeRepo) GetImage(imageName string) (*harvesterv1.VirtualMachineIma
 	return image, nil
 }
 
+func (r *UpgradeRepo) getVMName() string {
+	return fmt.Sprintf("%s%s", repoVMNamePrefix, r.upgrade.Name)
+}
+
 func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.VirtualMachine, error) {
-	vmName := fmt.Sprintf("%s%s", repoVMNamePrefix, r.upgrade.Name)
+	vmName := r.getVMName()
 	vmRun := true
 	var bootOrder uint = 1
 	evictionStrategy := kubevirtv1.EvictionStrategyLiveMigrate
@@ -301,6 +307,74 @@ func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevir
 	}
 
 	return r.h.vmClient.Create(&vm)
+}
+
+func (r *UpgradeRepo) deleteVM() error {
+	vmName := r.getVMName()
+
+	vm, err := r.h.vmCache.Get(upgradeNamespace, vmName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return r.deleteImage("")
+		}
+		return err
+	}
+
+	if pvcName, ok := vm.Annotations[util.RemovedPVCsAnnotationKey]; ok {
+		if err := r.deleteImage(pvcName); err != nil {
+			return err
+		}
+	}
+
+	logrus.Infof("Delete upgrade repo VM %s/%s", vm.Namespace, vm.Name)
+	return r.h.vmClient.Delete(vm.Namespace, vm.Name, &metav1.DeleteOptions{})
+}
+
+// deleteImage deletes a repo image
+// (1) If a PVC based on the image exists, it adds the PVC as the OwnerReference to the repo image.
+// Once the repo VM is deleted and VM's PVC is deleted, the repo image will be garbage collected.
+// (2) If there is no PVCs based on the repo image. We delete the image directly.
+func (r *UpgradeRepo) deleteImage(pvcName string) error {
+	imageID := r.upgrade.Status.ImageID
+	if imageID == "" {
+		return errors.New("Upgrade repo image is not provided")
+	}
+
+	image, err := r.GetImage(imageID)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	if pvcName == "" {
+		logrus.Infof("Delete upgrade repo image %s", imageID)
+		return r.h.vmImageClient.Delete(image.Namespace, image.Name, &metav1.DeleteOptions{})
+	}
+
+	pvc, err := r.h.pvcClient.Get(upgradeNamespace, pvcName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logrus.Infof("Delete upgrade repo image %s", imageID)
+			return r.h.vmImageClient.Delete(image.Namespace, image.Name, &metav1.DeleteOptions{})
+		}
+		return err
+	}
+
+	logrus.Infof("Add OwnerReference %s to upgrade repo image %s", pvcName, imageID)
+	toUpdate := image.DeepCopy()
+	toUpdate.OwnerReferences = []metav1.OwnerReference{
+		{
+			Name:       pvc.Name,
+			Kind:       pvc.Kind,
+			UID:        pvc.UID,
+			APIVersion: pvc.APIVersion,
+		},
+	}
+
+	_, err = r.h.vmImageClient.Update(toUpdate)
+	return err
 }
 
 func (r *UpgradeRepo) getRepoServiceName() string {
