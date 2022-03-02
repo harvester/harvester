@@ -18,7 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
-	kv1 "kubevirt.io/client-go/api/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
@@ -110,7 +110,7 @@ func (h *ActionHandler) cancelExpand(ctx context.Context, pvcNamespace, pvcName 
 		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
 	}
 
-	if attachedList := annotationSchemaOwners.List(kv1.VirtualMachineGroupVersionKind.GroupKind()); len(attachedList) != 0 {
+	if attachedList := annotationSchemaOwners.List(kubevirtv1.Kind(kubevirtv1.VirtualMachineGroupVersionKind.Kind)); len(attachedList) != 0 {
 		return fmt.Errorf("can not operate the volume %s which is currently attached to VMs: %s", pvc.Name, strings.Join(attachedList, ", "))
 	}
 
