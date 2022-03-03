@@ -330,7 +330,7 @@ spec:
               claimName: pvc-rootdisk
             name: rootdisk
           - containerDisk:
-              image: registry.suse.com/harvester-beta/vmdp:latest
+              image: registry.suse.com/suse/vmdp/vmdp:2.5.3
               imagePullPolicy: IfNotPresent
             name: virtio-container-disk
 `
