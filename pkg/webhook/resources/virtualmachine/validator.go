@@ -9,6 +9,7 @@ import (
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -99,6 +100,9 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 	if err := v.checkOccupiedPVCs(vm); err != nil {
 		return err
 	}
+	if err := v.checkReservedMemoryAnnotation(vm); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -153,6 +157,31 @@ func (v *vmValidator) checkVMBackup(vm *kubevirtv1.VirtualMachine) error {
 		return werror.NewInternalError(err.Error())
 	} else if exist {
 		return werror.NewBadRequest(fmt.Sprintf("there is vmbackup in progress for vm %s/%s, please wait for the vmbackup or remove it before stop/restart the vm", vm.Namespace, vm.Name))
+	}
+	return nil
+}
+
+func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachine) error {
+	mem := vm.Spec.Template.Spec.Domain.Resources.Limits.Memory()
+	if mem.IsZero() {
+		return nil
+	}
+
+	reservedMemoryStr, ok := vm.Annotations[util.AnnotationReservedMemory]
+	if !ok || reservedMemoryStr == "" {
+		return nil
+	}
+
+	field := fmt.Sprintf("metadata.annotations[%s]", util.AnnotationReservedMemory)
+	reservedMemory, err := resource.ParseQuantity(reservedMemoryStr)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), field)
+	}
+	if reservedMemory.Cmp(*mem) >= 0 {
+		return werror.NewInvalidError("reservedMemory cannot be equal or greater than limits.memory", field)
+	}
+	if reservedMemory.CmpInt64(0) == -1 {
+		return werror.NewInvalidError("reservedMemory cannot be less than 0", field)
 	}
 	return nil
 }
