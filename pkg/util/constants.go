@@ -11,6 +11,7 @@ const (
 	AnnotationTimestamp            = prefix + "/timestamp"
 	AnnotationVolumeClaimTemplates = prefix + "/volumeClaimTemplates"
 	AnnotationImageID              = prefix + "/imageId"
+	AnnotationReservedMemory       = prefix + "/reservedMemory"
 	AnnotationHash                 = prefix + "/hash"
 
 	BackupTargetSecretName      = "harvester-backup-target-secret"
