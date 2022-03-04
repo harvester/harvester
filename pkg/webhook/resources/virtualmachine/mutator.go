@@ -13,6 +13,7 @@ import (
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -69,16 +70,28 @@ func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj
 }
 
 func needUpdateResourceOvercommit(oldVm, newVm *kubevirtv1.VirtualMachine) bool {
+	var newReservedMemory, oldReservedMemory string
 	newLimits := newVm.Spec.Template.Spec.Domain.Resources.Limits
 	newCpu := newLimits.Cpu()
 	newMem := newLimits.Memory()
+	if newVm.Annotations != nil {
+		newReservedMemory = newVm.Annotations[util.AnnotationReservedMemory]
+	}
+
 	oldLimits := oldVm.Spec.Template.Spec.Domain.Resources.Limits
 	oldCpu := oldLimits.Cpu()
 	oldMem := oldLimits.Memory()
+	if oldVm.Annotations != nil {
+		oldReservedMemory = oldVm.Annotations[util.AnnotationReservedMemory]
+	}
+
 	if !newCpu.IsZero() && (oldCpu.IsZero() || !newCpu.Equal(*oldCpu)) {
 		return true
 	}
 	if !newMem.IsZero() && (oldMem.IsZero() || !newMem.Equal(*oldMem)) {
+		return true
+	}
+	if newReservedMemory != oldReservedMemory {
 		return true
 	}
 	return false
@@ -117,11 +130,19 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 		// Reserve 100MiB (104857600 Bytes) for QEMU on guest memory
 		// Ref: https://github.com/harvester/harvester/issues/1234
 		// TODO: handle hugepage memory
-		guestMemory := resource.NewQuantity(mem.Value()-104857600, mem.Format)
+		reservedMemory := *resource.NewQuantity(104857600, resource.BinarySI)
+		if vm.Annotations != nil && vm.Annotations[util.AnnotationReservedMemory] != "" {
+			reservedMemory, err = resource.ParseQuantity(vm.Annotations[util.AnnotationReservedMemory])
+			if err != nil {
+				return patchOps, err
+			}
+		}
+		guestMemory := *mem
+		guestMemory.Sub(reservedMemory)
 		if vm.Spec.Template.Spec.Domain.Memory == nil {
-			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"%s"}}`, guestMemory))
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"%s"}}`, &guestMemory))
 		} else {
-			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, guestMemory))
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, &guestMemory))
 		}
 	}
 	if len(requestsToMutate) > 0 {
