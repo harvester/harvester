@@ -58,7 +58,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 		resource.AddAction(request, startVM)
 	}
 
-	if vf.canStop(vm) {
+	if vf.canStop(vm, vmi) {
 		resource.AddAction(request, stopVM)
 	}
 
@@ -167,9 +167,27 @@ func (vf *vmformatter) canRestart(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1
 	return vmi != nil
 }
 
-func (vf *vmformatter) canStop(vm *kubevirtv1.VirtualMachine) bool {
+func (vf *vmformatter) canStop(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vm.Spec.Running != nil && !*vm.Spec.Running {
 		return false
+	}
+
+	runStrategy, err := vm.RunStrategy()
+	if err == nil {
+		switch runStrategy {
+		case kubevirtv1.RunStrategyHalted:
+			return false
+		case kubevirtv1.RunStrategyManual, kubevirtv1.RunStrategyRerunOnFailure:
+			// need to check VMI status
+			if vmi == nil || vmi.Status.Phase != kubevirtv1.Running {
+				return false
+			}
+			return true
+		case kubevirtv1.RunStrategyAlways:
+			return true
+		default:
+			// skip to other condition
+		}
 	}
 
 	return true
