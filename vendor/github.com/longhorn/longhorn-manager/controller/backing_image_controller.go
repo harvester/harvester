@@ -88,23 +88,23 @@ func NewBackingImageController(
 		DeleteFunc: bic.enqueueBackingImage,
 	})
 
-	backingImageManagerInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	backingImageManagerInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImageForBackingImageManager,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImageForBackingImageManager(cur) },
 		DeleteFunc: bic.enqueueBackingImageForBackingImageManager,
-	})
+	}, 0)
 
-	backingImageDataSourceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	backingImageDataSourceInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImageForBackingImageDataSource,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImageForBackingImageDataSource(cur) },
 		DeleteFunc: bic.enqueueBackingImageForBackingImageDataSource,
-	})
+	}, 0)
 
-	replicaInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	replicaInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImageForReplica,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImageForReplica(cur) },
 		DeleteFunc: bic.enqueueBackingImageForReplica,
-	})
+	}, 0)
 
 	return bic
 }
@@ -795,7 +795,7 @@ func (bic *BackingImageController) enqueueBackingImage(obj interface{}) {
 		return
 	}
 
-	bic.queue.AddRateLimited(key)
+	bic.queue.Add(key)
 }
 
 func (bic *BackingImageController) enqueueBackingImageForBackingImageManager(obj interface{}) {
@@ -816,11 +816,11 @@ func (bic *BackingImageController) enqueueBackingImageForBackingImageManager(obj
 
 	for biName := range bim.Spec.BackingImages {
 		key := bim.Namespace + "/" + biName
-		bic.queue.AddRateLimited(key)
+		bic.queue.Add(key)
 	}
 	for biName := range bim.Status.BackingImageFileMap {
 		key := bim.Namespace + "/" + biName
-		bic.queue.AddRateLimited(key)
+		bic.queue.Add(key)
 	}
 }
 
@@ -847,7 +847,7 @@ func (bic *BackingImageController) enqueueBackingImageForReplica(obj interface{}
 	if replica.Spec.BackingImage != "" {
 		bic.logger.WithField("replica", replica.Name).WithField("backingImage", replica.Spec.BackingImage).Trace("Enqueuing backing image for replica")
 		key := replica.Namespace + "/" + replica.Spec.BackingImage
-		bic.queue.AddRateLimited(key)
+		bic.queue.Add(key)
 		return
 	}
 }

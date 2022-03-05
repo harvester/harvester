@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/mod/semver"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,11 +20,12 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	"github.com/longhorn/longhorn-manager/types"
-
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
+	"github.com/longhorn/longhorn-manager/types"
+	upgradeutil "github.com/longhorn/longhorn-manager/upgrade/util"
 
+	"github.com/longhorn/longhorn-manager/meta"
 	"github.com/longhorn/longhorn-manager/upgrade/v070to080"
 	"github.com/longhorn/longhorn-manager/upgrade/v100to101"
 	"github.com/longhorn/longhorn-manager/upgrade/v102to110"
@@ -82,6 +84,17 @@ func upgrade(currentNodeID, namespace string, config *restclient.Config, lhClien
 	var err error
 	defer cancel()
 
+	// If the current Longhorn is already the latest version,
+	// the leader election & the whole upgrade path could be skipped.
+	lhVersionBeforeUpgrade, err := upgradeutil.GetCurrentLonghornVersion(namespace, lhClient)
+	if err != nil {
+		return err
+	}
+	if semver.IsValid(meta.Version) && semver.Compare(lhVersionBeforeUpgrade, meta.Version) >= 0 {
+		logrus.Infof("Skip the leader election for the upgrade since the current Longhorn system is already up to date")
+		return nil
+	}
+
 	lock := &resourcelock.LeaseLock{
 		LeaseMeta: metav1.ObjectMeta{
 			Name:      LeaseLockName,
@@ -113,16 +126,7 @@ func upgrade(currentNodeID, namespace string, config *restclient.Config, lhClien
 				if err = doAPIVersionUpgrade(namespace, config, lhClient); err != nil {
 					return
 				}
-				if err = doCRUpgrade(namespace, lhClient, kubeClient); err != nil {
-					return
-				}
-				if err = doPodsUpgrade(namespace, lhClient, kubeClient); err != nil {
-					return
-				}
-				if err = doServicesUpgrade(namespace, kubeClient); err != nil {
-					return
-				}
-				if err = doDeploymentAndDaemonSetUpgrade(namespace, kubeClient); err != nil {
+				if err = doResourceUpgrade(namespace, lhClient, kubeClient); err != nil {
 					return
 				}
 			},
@@ -223,69 +227,64 @@ func upgradeLocalNode() (err error) {
 	return nil
 }
 
-func doCRUpgrade(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) (err error) {
+func doResourceUpgrade(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrap(err, "upgrade CRD failed")
+		err = errors.Wrap(err, "upgrade resources failed")
 	}()
-	if err := v070to080.UpgradeCRs(namespace, lhClient); err != nil {
-		return err
-	}
-	if err := v100to101.UpgradeCRs(namespace, lhClient); err != nil {
-		return err
-	}
-	if err := v102to110.UpgradeCRs(namespace, lhClient); err != nil {
-		return err
-	}
-	if err := v110to111.UpgradeCRs(namespace, lhClient); err != nil {
-		return err
-	}
-	if err := v110to120.UpgradeCRs(namespace, lhClient, kubeClient); err != nil {
-		return err
-	}
-	if err := v111to120.UpgradeCRs(namespace, lhClient); err != nil {
-		return err
-	}
-	if err := v120to121.UpgradeCRs(namespace, lhClient); err != nil {
-		return err
-	}
-	if err := v122to123.UpgradeCRs(namespace, lhClient); err != nil {
-		return err
-	}
-	return nil
-}
 
-func doPodsUpgrade(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrap(err, "upgrade Pods failed")
-	}()
-	if err = v100to101.UpgradeInstanceManagerPods(namespace, lhClient, kubeClient); err != nil {
+	lhVersionBeforeUpgrade, err := upgradeutil.GetCurrentLonghornVersion(namespace, lhClient)
+	if err != nil {
 		return err
 	}
-	if err = v102to110.UpgradePods(namespace, kubeClient); err != nil {
-		return err
-	}
-	if err = v110to111.UpgradePods(namespace, lhClient, kubeClient); err != nil {
-		return err
-	}
-	return nil
-}
 
-func doServicesUpgrade(namespace string, kubeClient *clientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrap(err, "doServicesUpgrade failed")
-	}()
-	if err = v110to111.UpgradeServices(namespace, kubeClient); err != nil {
-		return err
+	if semver.Compare(lhVersionBeforeUpgrade, "v0.8.0") < 0 {
+		logrus.Debugf("Walking through the upgrade path v0.7.0 to v0.8.0")
+		if err := v070to080.UpgradeResources(namespace, lhClient); err != nil {
+			return err
+		}
 	}
-	return nil
-}
+	if semver.Compare(lhVersionBeforeUpgrade, "v1.0.1") < 0 {
+		logrus.Debugf("Walking through the upgrade path v1.0.0 to v1.0.1")
+		if err := v100to101.UpgradeResources(namespace, lhClient, kubeClient); err != nil {
+			return err
+		}
+	}
+	if semver.Compare(lhVersionBeforeUpgrade, "v1.1.0") < 0 {
+		logrus.Debugf("Walking through the upgrade path v1.0.2 to v1.1.0")
+		if err := v102to110.UpgradeResources(namespace, lhClient, kubeClient); err != nil {
+			return err
+		}
+	}
+	if semver.Compare(lhVersionBeforeUpgrade, "v1.1.1") < 0 {
+		logrus.Debugf("Walking through the upgrade path v1.1.0 to v1.1.1")
+		if err := v110to111.UpgradeResources(namespace, lhClient, kubeClient); err != nil {
+			return err
+		}
+	}
+	if semver.Compare(lhVersionBeforeUpgrade, "v1.2.0") < 0 {
+		logrus.Debugf("Walking through the upgrade path v1.1.0 to v1.2.0")
+		if err := v110to120.UpgradeResources(namespace, lhClient, kubeClient); err != nil {
+			return err
+		}
+	}
+	if semver.Compare(lhVersionBeforeUpgrade, "v1.2.0") < 0 {
+		logrus.Debugf("Walking through the upgrade path v1.1.1 to v1.2.0")
+		if err := v111to120.UpgradeResources(namespace, lhClient); err != nil {
+			return err
+		}
+	}
+	if semver.Compare(lhVersionBeforeUpgrade, "v1.2.1") < 0 {
+		logrus.Debugf("Walking through the upgrade path v1.2.0 to v1.2.1")
+		if err := v120to121.UpgradeResources(namespace, lhClient); err != nil {
+			return err
+		}
+	}
+	if semver.Compare(lhVersionBeforeUpgrade, "v1.2.3") < 0 {
+		logrus.Debugf("Walking through the upgrade path v1.2.2 to v1.2.3")
+		if err := v122to123.UpgradeResources(namespace, lhClient); err != nil {
+			return err
+		}
+	}
 
-func doDeploymentAndDaemonSetUpgrade(namespace string, kubeClient *clientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrap(err, "doDeploymentAndDaemonSetUpgrade failed")
-	}()
-	if err = v110to111.UpgradeDeploymentAndDaemonSet(namespace, kubeClient); err != nil {
-		return err
-	}
-	return nil
+	return upgradeutil.CreateOrUpdateLonghornVersionSetting(namespace, lhClient)
 }

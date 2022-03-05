@@ -107,16 +107,16 @@ func NewKubernetesPVController(
 		},
 	})
 
-	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	podInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    kc.enqueuePodChange,
 		UpdateFunc: func(old, cur interface{}) { kc.enqueuePodChange(cur) },
 		DeleteFunc: kc.enqueuePodChange,
-	})
+	}, 0)
 
 	// after volume becomes detached, try to delete the VA of lost node
-	volumeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	volumeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(old, cur interface{}) { kc.enqueueVolumeChange(cur) },
-	})
+	}, 0)
 
 	return kc
 }
@@ -298,8 +298,7 @@ func (kc *KubernetesPVController) enqueuePersistentVolume(obj interface{}) {
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", obj, err))
 		return
 	}
-	kc.queue.AddRateLimited(key)
-	return
+	kc.queue.Add(key)
 }
 
 func (kc *KubernetesPVController) enqueuePodChange(obj interface{}) {
@@ -335,7 +334,7 @@ func (kc *KubernetesPVController) enqueuePodChange(obj interface{}) {
 		}
 
 		if pvName := pvc.Spec.VolumeName; pvName != "" {
-			kc.queue.AddRateLimited(pvName)
+			kc.queue.Add(pvName)
 		}
 	}
 	return
@@ -364,7 +363,7 @@ func (kc *KubernetesPVController) enqueueVolumeChange(obj interface{}) {
 	ks := volume.Status.KubernetesStatus
 	if ks.PVName != "" && ks.PVStatus == string(v1.VolumeBound) &&
 		ks.LastPodRefAt == "" {
-		kc.queue.AddRateLimited(volume.Status.KubernetesStatus.PVName)
+		kc.queue.Add(volume.Status.KubernetesStatus.PVName)
 	}
 	return
 }

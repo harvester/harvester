@@ -34,10 +34,8 @@ const (
 // deprecating the old setting automatically:
 // https://github.com/longhorn/longhorn/issues/2207
 
-func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrapf(err, upgradeLogPrefix+"UpgradeCRs failed")
-	}()
+func UpgradeResources(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) (err error) {
+	// Upgrade Longhorn resources
 	if err := upgradeLonghornNodes(namespace, lhClient); err != nil {
 		return err
 	}
@@ -51,40 +49,19 @@ func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset) (err error) {
 		return err
 	}
 
-	return nil
-}
-
-func UpgradePods(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrapf(err, upgradeLogPrefix+"UpgradePods failed")
-	}()
+	// Upgrade Kubernetes resources
 	if err := upgradeInstanceManagerPods(namespace, kubeClient); err != nil {
 		return err
 	}
 	if err := upgradeShareManagerPods(namespace, lhClient, kubeClient); err != nil {
 		return err
 	}
-	return nil
-}
-
-func UpgradeServices(namespace string, kubeClient *clientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrapf(err, upgradeLogPrefix+"UpgradeServices failed")
-	}()
 	if err := upgradeCSIServicesLabels(kubeClient, namespace); err != nil {
 		return err
 	}
 	if err := upgradeShareManagerServicesLabels(kubeClient, namespace); err != nil {
 		return err
 	}
-	return nil
-}
-
-func UpgradeDeploymentAndDaemonSet(namespace string, kubeClient *clientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrapf(err, upgradeLogPrefix+"UpgradeDeploymentAndDaemonset failed")
-	}()
-
 	if err := upgradeCSIDeploymentsLabels(kubeClient, namespace); err != nil {
 		return err
 	}
@@ -97,12 +74,13 @@ func UpgradeDeploymentAndDaemonSet(namespace string, kubeClient *clientset.Clien
 	if err := updateCSIDaemonSetsLastAppliedTolerationsAnnotation(kubeClient, namespace); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func upgradeLonghornNodes(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade longhorn node failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade longhorn node failed")
 	}()
 
 	deprecatedCPUSetting, err := lhClient.LonghornV1beta1().Settings(namespace).Get(context.TODO(), string(types.SettingNameGuaranteedEngineCPU), metav1.GetOptions{})
@@ -158,7 +136,7 @@ func upgradeLonghornNodes(namespace string, lhClient *lhclientset.Clientset) (er
 
 func upgradeInstanceManagers(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade instance manager failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade instance manager failed")
 	}()
 
 	imList, err := lhClient.LonghornV1beta1().InstanceManagers(namespace).List(context.TODO(), metav1.ListOptions{})
@@ -196,7 +174,7 @@ func upgradeLabelsForInstanceManager(im *longhorn.InstanceManager, lhClient *lhc
 
 func upgradeShareManagers(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade share manager failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade share manager failed")
 	}()
 	smList, err := lhClient.LonghornV1beta1().ShareManagers(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -232,7 +210,7 @@ func upgradeLabelsForShareManager(sm *longhorn.ShareManager, lhClient *lhclients
 
 func upgradeEngineImages(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade engine image failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade engine image failed")
 	}()
 
 	eiList, err := lhClient.LonghornV1beta1().EngineImages(namespace).List(context.TODO(), metav1.ListOptions{})
@@ -269,7 +247,7 @@ func upgradeLabelsForEngineImage(ei *longhorn.EngineImage, lhClient *lhclientset
 
 func upgradeShareManagerPods(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade share manager pods failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade share manager pods failed")
 	}()
 	smPods, err := upgradeutil.ListShareManagerPods(namespace, kubeClient)
 	if err != nil {
@@ -312,7 +290,7 @@ func upgradeShareManagerPodsLabels(pod *v1.Pod, sm *longhorn.ShareManager, kubeC
 
 func upgradeInstanceManagerPods(namespace string, kubeClient *clientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade instance manager pods failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade instance manager pods failed")
 	}()
 	imPods, err := upgradeutil.ListIMPods(namespace, kubeClient)
 	if err != nil {
@@ -354,7 +332,7 @@ func updateIMPodLastAppliedTolerationsAnnotation(pod *v1.Pod, kubeClient *client
 
 func upgradeCSIDeploymentsLabels(kubeClient *clientset.Clientset, namespace string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgradeCSIDeploymentsLabels failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade CSI Deployments labels failed")
 	}()
 	for _, dpName := range []string{types.CSIAttacherName, types.CSIProvisionerName, types.CSIResizerName, types.CSISnapshotterName} {
 		dp, err := kubeClient.AppsV1().Deployments(namespace).Get(context.TODO(), dpName, metav1.GetOptions{})
@@ -393,7 +371,7 @@ func upgradeLabelsForDeployment(dp *appsv1.Deployment, kubeClient *clientset.Cli
 
 func upgradeCSIDaemonSetsLabels(kubeClient *clientset.Clientset, namespace string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgradeCSIDaemonSetsLabels failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade CSI DaemonSets labels failed")
 	}()
 	dsList := []*appsv1.DaemonSet{}
 
@@ -445,7 +423,7 @@ func upgradeLabelsForDaemonSet(ds *appsv1.DaemonSet, kubeClient *clientset.Clien
 
 func upgradeCSIServicesLabels(kubeClient *clientset.Clientset, namespace string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgradeCSIServicesLabels failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade CSI services labels failed")
 	}()
 	for _, svName := range []string{types.CSIAttacherName, types.CSIProvisionerName, types.CSIResizerName, types.CSISnapshotterName} {
 		sv, err := kubeClient.CoreV1().Services(namespace).Get(context.TODO(), svName, metav1.GetOptions{})
@@ -464,7 +442,7 @@ func upgradeCSIServicesLabels(kubeClient *clientset.Clientset, namespace string)
 
 func upgradeShareManagerServicesLabels(kubeClient *clientset.Clientset, namespace string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgradeShareManagerServicesLabels failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade ShareManager services labels failed")
 	}()
 	svList, err := kubeClient.CoreV1().Services(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: types.GetLonghornLabelKey(types.LonghornLabelShareManager),
@@ -499,7 +477,7 @@ func upgradeLabelsForService(sv *v1.Service, kubeClient *clientset.Clientset, na
 
 func updateCSIDaemonSetsLastAppliedTolerationsAnnotation(kubeClient *clientset.Clientset, namespace string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "updateCSIDaemonSetsLastAppliedTolerationsAnnotation failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"update CSI DaemonSet sLastAppliedTolerations Annotation failed")
 	}()
 	daemonsetList, err := kubeClient.AppsV1().DaemonSets(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: labels.Set(types.GetBaseLabelsForSystemManagedComponent()).String(),
@@ -536,7 +514,7 @@ func updateCSIDaemonSetsLastAppliedTolerationsAnnotation(kubeClient *clientset.C
 
 func updateCSIDeploymentsLastAppliedTolerationsAnnotation(kubeClient *clientset.Clientset, namespace string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "updateCSIDeploymentsLastAppliedTolerationsAnnotation failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"update CSI Deployments LastAppliedTolerationsAnnotation failed")
 	}()
 	deploymentList, err := kubeClient.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: labels.Set(types.GetBaseLabelsForSystemManagedComponent()).String(),

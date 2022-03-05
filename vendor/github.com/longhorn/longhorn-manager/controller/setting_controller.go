@@ -132,15 +132,15 @@ func NewSettingController(
 		DeleteFunc: sc.enqueueSetting,
 	}, settingControllerResyncPeriod)
 
-	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    sc.enqueueSettingForNode,
 		UpdateFunc: func(old, cur interface{}) { sc.enqueueSettingForNode(cur) },
 		DeleteFunc: sc.enqueueSettingForNode,
-	})
+	}, 0)
 
-	backupTargetInfomer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	backupTargetInfomer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		DeleteFunc: sc.enqueueSettingForBackupTarget,
-	})
+	}, 0)
 
 	return sc
 }
@@ -437,7 +437,7 @@ func (sc *SettingController) updateTaintToleration() error {
 		if reflect.DeepEqual(util.TolerationListToMap(lastAppliedTolerations), newTolerationsMap) {
 			continue
 		}
-
+		sc.logger.Infof("Delete pod %v to update tolerations from %v to %v", pod.Name, util.TolerationListToMap(lastAppliedTolerations), newTolerationsMap)
 		if err := sc.ds.DeletePod(pod.Name); err != nil {
 			return err
 		}
@@ -458,6 +458,7 @@ func (sc *SettingController) updateTolerationForDeployment(dp *appsv1.Deployment
 	if err := util.SetAnnotation(dp, types.GetLonghornLabelKey(types.LastAppliedTolerationAnnotationKeySuffix), string(newTolerationsByte)); err != nil {
 		return err
 	}
+	sc.logger.Infof("Update tolerations from %v to %v for %v", existingTolerationsMap, dp.Spec.Template.Spec.Tolerations, dp.Name)
 	if _, err := sc.ds.UpdateDeployment(dp); err != nil {
 		return err
 	}
@@ -476,6 +477,7 @@ func (sc *SettingController) updateTolerationForDaemonset(ds *appsv1.DaemonSet, 
 	if err := util.SetAnnotation(ds, types.GetLonghornLabelKey(types.LastAppliedTolerationAnnotationKeySuffix), string(newTolerationsByte)); err != nil {
 		return err
 	}
+	sc.logger.Infof("Update tolerations from %v to %v for %v", existingTolerationsMap, ds.Spec.Template.Spec.Tolerations, ds.Name)
 	if _, err := sc.ds.UpdateDaemonSet(ds); err != nil {
 		return err
 	}
@@ -536,6 +538,7 @@ func (sc *SettingController) updatePriorityClass() error {
 		if dp.Spec.Template.Spec.PriorityClassName == newPriorityClass {
 			continue
 		}
+		sc.logger.Infof("Update the priority class from %v to %v for %v", dp.Spec.Template.Spec.PriorityClassName, newPriorityClass, dp.Name)
 		dp.Spec.Template.Spec.PriorityClassName = newPriorityClass
 		if _, err := sc.ds.UpdateDeployment(dp); err != nil {
 			return err
@@ -545,6 +548,7 @@ func (sc *SettingController) updatePriorityClass() error {
 		if ds.Spec.Template.Spec.PriorityClassName == newPriorityClass {
 			continue
 		}
+		sc.logger.Infof("Update the priority class from %v to %v for %v", ds.Spec.Template.Spec.PriorityClassName, newPriorityClass, ds.Name)
 		ds.Spec.Template.Spec.PriorityClassName = newPriorityClass
 		if _, err := sc.ds.UpdateDaemonSet(ds); err != nil {
 			return err
@@ -557,6 +561,7 @@ func (sc *SettingController) updatePriorityClass() error {
 		if pod.Spec.PriorityClassName == newPriorityClass {
 			continue
 		}
+		sc.logger.Infof("Delete pod %v to update the priority class from %v to %v", pod.Name, pod.Spec.PriorityClassName, newPriorityClass)
 		if err := sc.ds.DeletePod(pod.Name); err != nil {
 			return err
 		}
@@ -626,6 +631,7 @@ func (sc *SettingController) updateNodeSelector() error {
 		if reflect.DeepEqual(dp.Spec.Template.Spec.NodeSelector, newNodeSelector) {
 			continue
 		}
+		sc.logger.Infof("Update the node selector from %v to %v for %v", dp.Spec.Template.Spec.NodeSelector, newNodeSelector, dp.Name)
 		dp.Spec.Template.Spec.NodeSelector = newNodeSelector
 		if _, err := sc.ds.UpdateDeployment(dp); err != nil {
 			return err
@@ -640,6 +646,7 @@ func (sc *SettingController) updateNodeSelector() error {
 		if reflect.DeepEqual(ds.Spec.Template.Spec.NodeSelector, newNodeSelector) {
 			continue
 		}
+		sc.logger.Infof("Update the node selector from %v to %v for %v", ds.Spec.Template.Spec.NodeSelector, newNodeSelector, ds.Name)
 		ds.Spec.Template.Spec.NodeSelector = newNodeSelector
 		if _, err := sc.ds.UpdateDaemonSet(ds); err != nil {
 			return err
@@ -657,6 +664,7 @@ func (sc *SettingController) updateNodeSelector() error {
 			continue
 		}
 		if pod.DeletionTimestamp == nil {
+			sc.logger.Infof("Delete pod %v to update the node selector from %v to %v", pod.Name, pod.Spec.NodeSelector, newNodeSelector)
 			if err := sc.ds.DeletePod(pod.Name); err != nil {
 				return err
 			}
@@ -831,7 +839,7 @@ func (sc *SettingController) enqueueSetting(obj interface{}) {
 		return
 	}
 
-	sc.queue.AddRateLimited(key)
+	sc.queue.Add(key)
 }
 
 func (sc *SettingController) enqueueSettingForNode(obj interface{}) {
@@ -840,16 +848,16 @@ func (sc *SettingController) enqueueSettingForNode(obj interface{}) {
 		return
 	}
 
-	sc.queue.AddRateLimited(sc.namespace + "/" + string(types.SettingNameGuaranteedEngineManagerCPU))
-	sc.queue.AddRateLimited(sc.namespace + "/" + string(types.SettingNameGuaranteedReplicaManagerCPU))
-	sc.queue.AddRateLimited(sc.namespace + "/" + string(types.SettingNameBackupTarget))
+	sc.queue.Add(sc.namespace + "/" + string(types.SettingNameGuaranteedEngineManagerCPU))
+	sc.queue.Add(sc.namespace + "/" + string(types.SettingNameGuaranteedReplicaManagerCPU))
+	sc.queue.Add(sc.namespace + "/" + string(types.SettingNameBackupTarget))
 }
 
 func (sc *SettingController) enqueueSettingForBackupTarget(obj interface{}) {
 	if _, ok := obj.(*longhorn.BackupTarget); !ok {
 		return
 	}
-	sc.queue.AddRateLimited(sc.namespace + "/" + string(types.SettingNameBackupTarget))
+	sc.queue.Add(sc.namespace + "/" + string(types.SettingNameBackupTarget))
 }
 
 func (sc *SettingController) updateInstanceManagerCPURequest() error {

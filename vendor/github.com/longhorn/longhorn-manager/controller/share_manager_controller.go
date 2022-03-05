@@ -93,21 +93,21 @@ func NewShareManagerController(
 	})
 
 	// need information for volumes, to be able to claim them
-	volumeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	volumeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueShareManagerForVolume,
 		UpdateFunc: func(old, cur interface{}) { c.enqueueShareManagerForVolume(cur) },
 		DeleteFunc: c.enqueueShareManagerForVolume,
-	})
+	}, 0)
 
 	// we are only interested in pods for which we are responsible for managing
-	podInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+	podInformer.Informer().AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
 		FilterFunc: isShareManagerPod,
 		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.enqueueShareManagerForPod,
 			UpdateFunc: func(old, cur interface{}) { c.enqueueShareManagerForPod(cur) },
 			DeleteFunc: c.enqueueShareManagerForPod,
 		},
-	})
+	}, 0)
 
 	return c
 }
@@ -130,7 +130,7 @@ func (c *ShareManagerController) enqueueShareManager(obj interface{}) {
 		return
 	}
 
-	c.queue.AddRateLimited(key)
+	c.queue.Add(key)
 }
 
 func (c *ShareManagerController) enqueueShareManagerForVolume(obj interface{}) {
@@ -155,7 +155,7 @@ func (c *ShareManagerController) enqueueShareManagerForVolume(obj interface{}) {
 		// and there is no need for us to retrieve the whole object, since we already know the volume name
 		getLoggerForVolume(c.logger, volume).Trace("Enqueuing share manager for volume")
 		key := volume.Namespace + "/" + volume.Name
-		c.queue.AddRateLimited(key)
+		c.queue.Add(key)
 		return
 	}
 }
@@ -182,7 +182,7 @@ func (c *ShareManagerController) enqueueShareManagerForPod(obj interface{}) {
 	smName := pod.Labels[types.GetLonghornLabelKey(types.LonghornLabelShareManager)]
 	c.logger.WithField("pod", pod.Name).WithField("shareManager", smName).Trace("Enqueuing share manager for pod")
 	key := pod.Namespace + "/" + smName
-	c.queue.AddRateLimited(key)
+	c.queue.Add(key)
 	return
 }
 

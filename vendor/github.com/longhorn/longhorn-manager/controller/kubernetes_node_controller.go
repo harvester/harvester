@@ -73,26 +73,25 @@ func NewKubernetesNodeController(
 		knStoreSynced: kubeNodeInformer.Informer().HasSynced,
 	}
 
-	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	kubeNodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		UpdateFunc: func(old, cur interface{}) { knc.enqueueNode(cur) },
+		DeleteFunc: knc.enqueueNode,
+	})
+
+	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    knc.enqueueLonghornNode,
 		UpdateFunc: func(old, cur interface{}) { knc.enqueueLonghornNode(cur) },
 		DeleteFunc: knc.enqueueLonghornNode,
-	})
+	}, 0)
 
-	settingInformer.Informer().AddEventHandler(
+	settingInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: isSettingCreateDefaultDiskLabeledNodes,
 			Handler: cache.ResourceEventHandlerFuncs{
 				AddFunc:    knc.enqueueSetting,
 				UpdateFunc: func(old, cur interface{}) { knc.enqueueSetting(cur) },
 			},
-		},
-	)
-
-	kubeNodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		UpdateFunc: func(old, cur interface{}) { knc.enqueueNode(cur) },
-		DeleteFunc: knc.enqueueNode,
-	})
+		}, 0)
 
 	return knc
 }
@@ -267,7 +266,7 @@ func (knc *KubernetesNodeController) enqueueNode(node interface{}) {
 		return
 	}
 
-	knc.queue.AddRateLimited(key)
+	knc.queue.Add(key)
 }
 
 // syncDefaultDisks handles creation of the customized default Disk if the setting create-default-disk-labeled-nodes is enabled.
