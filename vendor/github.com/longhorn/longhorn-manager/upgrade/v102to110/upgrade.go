@@ -31,17 +31,13 @@ const (
 	upgradeLogPrefix = "upgrade from v1.0.2 to v1.1.0: "
 )
 
-func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset) error {
+func UpgradeResources(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) error {
 	if err := upgradeVolumes(namespace, lhClient); err != nil {
 		return err
 	}
 	if err := upgradeReplicas(namespace, lhClient); err != nil {
 		return err
 	}
-	return nil
-}
-
-func UpgradePods(namespace string, kubeClient *clientset.Clientset) (err error) {
 	if err := upgradeInstanceManagerPods(namespace, kubeClient); err != nil {
 		return err
 	}

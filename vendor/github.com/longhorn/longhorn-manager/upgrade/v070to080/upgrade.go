@@ -6,17 +6,16 @@ import (
 
 	"github.com/pkg/errors"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/engineapi"
-	"github.com/longhorn/longhorn-manager/types"
-	"github.com/longhorn/longhorn-manager/util"
-
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/longhorn/longhorn-manager/types"
+	"github.com/longhorn/longhorn-manager/util"
 )
 
 const (
@@ -37,7 +36,7 @@ func UpgradeLocalNode() error {
 	return nil
 }
 
-func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset) error {
+func UpgradeResources(namespace string, lhClient *lhclientset.Clientset) error {
 	if err := doInstanceManagerUpgrade(namespace, lhClient); err != nil {
 		return err
 	}

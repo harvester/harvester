@@ -20,10 +20,7 @@ const (
 	upgradeLogPrefix = "upgrade from v1.2.2 to v1.2.3: "
 )
 
-func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrapf(err, upgradeLogPrefix+"UpgradeCRs failed")
-	}()
+func UpgradeResources(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	if err := upgradeBackups(namespace, lhClient); err != nil {
 		return err
 	}
@@ -35,7 +32,7 @@ func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset) (err error) {
 
 func upgradeBackups(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade backups failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade backups failed")
 	}()
 
 	// Copy backupStatus from engine CRs to backup CRs
@@ -115,7 +112,7 @@ func upgradeBackups(namespace string, lhClient *lhclientset.Clientset) (err erro
 
 func upgradeEngines(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade engines failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade engines failed")
 	}()
 
 	// Do the field update separately to avoid messing up.

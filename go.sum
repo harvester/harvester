@@ -1206,8 +1206,8 @@ github.com/longhorn/longhorn-instance-manager v0.0.0-20201016215346-d8437b4e156e
 github.com/longhorn/longhorn-instance-manager v0.0.0-20210729081215-50c310f97378 h1:lxSMLEkPpZB/s6qAUcP9XLZV6g5FprgwU1fTQqbHe/A=
 github.com/longhorn/longhorn-instance-manager v0.0.0-20210729081215-50c310f97378/go.mod h1:6Ng1ShE4YRvWDscr1XhEhiTufv55LHBBfN5ln8S7diU=
 github.com/longhorn/longhorn-manager v1.1.0/go.mod h1:h2q+OgktnaFU3nFILh3umfR8vWywg9D2iTtdUry/JiY=
-github.com/longhorn/longhorn-manager v1.2.3-rc2 h1:Zz66bp11Z/AGrsELu/rPvvhy6xdXOxI3ikzEnq/6l/8=
-github.com/longhorn/longhorn-manager v1.2.3-rc2/go.mod h1:/WCLJxOOd+k7UiG40BsyUAibLBzoEFs/PzVVR2Q9DT0=
+github.com/longhorn/longhorn-manager v1.2.4-rc1 h1:wPF+DRZQtt1aANx1diHTjlxoyAyMDfeRLPCik2XHXns=
+github.com/longhorn/longhorn-manager v1.2.4-rc1/go.mod h1:2xs4hHmmfhIhS3EkohkbXYvYt1VA0zRUbQKXgAU6IuA=
 github.com/longhorn/nsfilelock v0.0.0-20200723175406-fa7c83ad0003/go.mod h1:0CLeXlf59Lg6C0kjLSDf47ft73Dh37CwymYRKWwAn04=
 github.com/longhorn/sparse-tools v0.0.0-20210420073041-5c51de69e0eb/go.mod h1:1WSSJRDNret4VKADAzvD49oaVt1/idYVWBL8TiyevRk=
 github.com/lovoo/gcloud-opentracing v0.3.0/go.mod h1:ZFqk2y38kMDDikZPAK7ynTTGuyt17nSPdS3K5e+ZTBY=
@@ -2093,8 +2093,9 @@ golang.org/x/mod v0.3.1-0.20200828183125-ce943fd02449/go.mod h1:s0Qsj1ACt9ePp/hM
 golang.org/x/mod v0.4.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
 golang.org/x/mod v0.4.1/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
 golang.org/x/mod v0.4.2/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
-golang.org/x/mod v0.5.0 h1:UG21uOlmZabA4fW5i7ZX6bjw1xELEGg/ZLgZq9auk/Q=
 golang.org/x/mod v0.5.0/go.mod h1:5OXOZSfqPIIbmVBIIKWRFfZjPR0E5r58TLhUjH0a2Ro=
+golang.org/x/mod v0.5.1 h1:OJxoQ/rynoF0dcCdI7cLPktw/hR2cueqYfjm43oqK38=
+golang.org/x/mod v0.5.1/go.mod h1:5OXOZSfqPIIbmVBIIKWRFfZjPR0E5r58TLhUjH0a2Ro=
 golang.org/x/net v0.0.0-20170114055629-f2499483f923/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
 golang.org/x/net v0.0.0-20180112015858-5ccada7d0a7b/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
 golang.org/x/net v0.0.0-20180218175443-cbe0f9307d01/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=

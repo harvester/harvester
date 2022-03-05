@@ -481,6 +481,10 @@ func (s *DataStore) getVolumeRO(name string) (*longhorn.Volume, error) {
 	return s.vLister.Volumes(s.namespace).Get(name)
 }
 
+func (s *DataStore) GetVolumeRO(name string) (*longhorn.Volume, error) {
+	return s.vLister.Volumes(s.namespace).Get(name)
+}
+
 // GetVolume returns a new volume object for the given namespace and name
 func (s *DataStore) GetVolume(name string) (*longhorn.Volume, error) {
 	resultRO, err := s.vLister.Volumes(s.namespace).Get(name)
@@ -525,6 +529,52 @@ func (s *DataStore) ListVolumes() (map[string]*longhorn.Volume, error) {
 		itemMap[itemRO.Name] = itemRO.DeepCopy()
 	}
 	return itemMap, nil
+}
+
+func MarshalLabelToVolumeRecurringJob(labels map[string]string) map[string]*longhorn.VolumeRecurringJob {
+	groupPrefix := fmt.Sprintf(types.LonghornLabelRecurringJobKeyPrefixFmt, types.LonghornLabelRecurringJobGroup) + "/"
+	jobPrefix := fmt.Sprintf(types.LonghornLabelRecurringJobKeyPrefixFmt, types.LonghornLabelRecurringJob) + "/"
+	jobMapVolumeJob := make(map[string]*longhorn.VolumeRecurringJob)
+	for label := range labels {
+		if strings.HasPrefix(label, groupPrefix) {
+			jobName := strings.TrimPrefix(label, groupPrefix)
+			jobMapVolumeJob[jobName] = &longhorn.VolumeRecurringJob{
+				Name:    jobName,
+				IsGroup: true,
+			}
+			continue
+		} else if strings.HasPrefix(label, jobPrefix) {
+			jobName := strings.TrimPrefix(label, jobPrefix)
+			jobMapVolumeJob[jobName] = &longhorn.VolumeRecurringJob{
+				Name:    jobName,
+				IsGroup: false,
+			}
+		}
+	}
+	return jobMapVolumeJob
+}
+
+func (s *DataStore) DeleteVolumeRecurringJob(name string, isGroup bool, v *longhorn.Volume) (volume *longhorn.Volume, err error) {
+	vName := v.Name
+	defer func() {
+		err = errors.Wrapf(err, "failed to delete volume recurring jobs for %v", vName)
+	}()
+
+	key := ""
+	if isGroup {
+		key = types.GetRecurringJobLabelKey(types.LonghornLabelRecurringJobGroup, name)
+	} else {
+		key = types.GetRecurringJobLabelKey(types.LonghornLabelRecurringJob, name)
+	}
+	if _, exist := v.Labels[key]; exist {
+		delete(v.Labels, key)
+		v, err = s.UpdateVolume(v)
+		if err != nil {
+			return nil, err
+		}
+		logrus.Debugf("Updated volume %v labels to %+v", v.Name, v.Labels)
+	}
+	return v, nil
 }
 
 // ListDRVolumesRO returns a single object contains all DR Volumes
