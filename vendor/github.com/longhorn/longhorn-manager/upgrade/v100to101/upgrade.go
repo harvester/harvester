@@ -29,7 +29,60 @@ const (
 	upgradeLogPrefix = "upgrade from v1.0.0 to v1.0.1: "
 )
 
-func UpgradeInstanceManagerPods(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) (err error) {
+func UpgradeResources(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) error {
+	if err := doInstanceManagerUpgrade(namespace, lhClient); err != nil {
+		return err
+	}
+
+	if err := doInstanceManagerPodUpgrade(namespace, lhClient, kubeClient); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func doInstanceManagerUpgrade(namespace string, lhClient *lhclientset.Clientset) (err error) {
+	defer func() {
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade instance manager failed")
+	}()
+
+	imList, err := lhClient.LonghornV1beta1().InstanceManagers(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return errors.Wrapf(err, upgradeLogPrefix+"failed to list all existing instance managers during the instance managers upgrade")
+	}
+
+	for _, im := range imList.Items {
+		if err := upgradeInstanceManagersLabels(&im, lhClient, namespace); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func upgradeInstanceManagersLabels(im *longhorn.InstanceManager, lhClient *lhclientset.Clientset, namespace string) (err error) {
+	metadata, err := meta.Accessor(im)
+	if err != nil {
+		return err
+	}
+	oldInstanceManagerLabels := metadata.GetLabels()
+	newInstanceManagerLabels := types.GetInstanceManagerLabels(im.Spec.NodeID, im.Spec.Image, im.Spec.Type)
+	imImageLabelKey := types.GetLonghornLabelKey(types.LonghornLabelInstanceManagerImage)
+
+	if oldInstanceManagerLabels[imImageLabelKey] == newInstanceManagerLabels[imImageLabelKey] {
+		return nil
+	}
+
+	metadata.SetLabels(newInstanceManagerLabels)
+	if im, err = lhClient.LonghornV1beta1().InstanceManagers(namespace).Update(context.TODO(), im, metav1.UpdateOptions{}); err != nil {
+		return errors.Wrapf(err, upgradeLogPrefix+"failed to update the spec for instance manager %v during the instance managers upgrade", im.Name)
+	}
+	return nil
+}
+
+func doInstanceManagerPodUpgrade(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) (err error) {
 	defer func() {
 		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade instance manager pods failed")
 	}()
@@ -71,57 +124,10 @@ func upgradeInstanceMangerPodLabel(pod *v1.Pod, im *longhorn.InstanceManager, ku
 	if reflect.DeepEqual(podLabels, newPodLabels) {
 		return nil
 	}
+
 	metadata.SetLabels(newPodLabels)
 	if _, err := kubeClient.CoreV1().Pods(namespace).Update(context.TODO(), pod, metav1.UpdateOptions{}); err != nil {
 		return errors.Wrapf(err, upgradeLogPrefix+"failed to update the spec for instance manager pod %v during the instance managers upgrade", pod.Name)
-	}
-	return nil
-}
-
-func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset) error {
-	if err := doInstanceManagerUpgrade(namespace, lhClient); err != nil {
-		return err
-	}
-	return nil
-}
-
-func doInstanceManagerUpgrade(namespace string, lhClient *lhclientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade instance manager failed")
-	}()
-
-	imList, err := lhClient.LonghornV1beta1().InstanceManagers(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return errors.Wrapf(err, upgradeLogPrefix+"failed to list all existing instance managers during the instance managers upgrade")
-	}
-
-	for _, im := range imList.Items {
-		if err := upgradeInstanceManagersLabels(&im, lhClient, namespace); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func upgradeInstanceManagersLabels(im *longhorn.InstanceManager, lhClient *lhclientset.Clientset, namespace string) (err error) {
-	metadata, err := meta.Accessor(im)
-	if err != nil {
-		return err
-	}
-	oldInstanceManagerLabels := metadata.GetLabels()
-	newInstanceManagerLabels := types.GetInstanceManagerLabels(im.Spec.NodeID, im.Spec.Image, im.Spec.Type)
-	imImageLabelKey := types.GetLonghornLabelKey(types.LonghornLabelInstanceManagerImage)
-
-	if oldInstanceManagerLabels[imImageLabelKey] == newInstanceManagerLabels[imImageLabelKey] {
-		return nil
-	}
-
-	metadata.SetLabels(newInstanceManagerLabels)
-	if im, err = lhClient.LonghornV1beta1().InstanceManagers(namespace).Update(context.TODO(), im, metav1.UpdateOptions{}); err != nil {
-		return errors.Wrapf(err, upgradeLogPrefix+"failed to update the spec for instance manager %v during the instance managers upgrade", im.Name)
 	}
 	return nil
 }

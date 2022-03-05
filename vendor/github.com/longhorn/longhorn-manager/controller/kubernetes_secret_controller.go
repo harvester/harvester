@@ -202,7 +202,7 @@ func (ks *KubernetesSecretController) enqueueSecretChange(obj interface{}) {
 		return
 	}
 
-	ks.queue.AddRateLimited(key)
+	ks.queue.Add(key)
 }
 
 // annotateAWSIAMRoleArn ensures that the running pods of the manager as well as the replica instance managers.

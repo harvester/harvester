@@ -93,7 +93,7 @@ func (control *RecurringJobController) enqueueRecurringJob(obj interface{}) {
 		return
 	}
 
-	control.queue.AddRateLimited(key)
+	control.queue.Add(key)
 }
 
 func (control *RecurringJobController) Run(workers int, stopCh <-chan struct{}) {
@@ -178,6 +178,24 @@ func (control *RecurringJobController) syncRecurringJob(key string) (err error) 
 			return err
 		}
 		log.Debug("Cannot find recurring job, may have been deleted")
+
+		// The detachVolumeAutoAttachedByRecurringJob is a workaround to
+		// resolve volume unable to detach via the recurring job. The volume
+		// could remain attached via recurringjob auto-attachment when the
+		// recurring job pod gets force terminated and unable to complete
+		// detachment within the grace period.
+		// This should be handled when a separate controller is introduced for
+		// attachment and detachment handling.
+		// https://github.com/longhorn/longhorn-manager/pull/1223#discussion_r814655791
+		volumes, err := control.ds.ListVolumes()
+		if err != nil {
+			return err
+		}
+		for _, vol := range volumes {
+			if err := control.detachVolumeAutoAttachedByRecurringJob(name, vol); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
@@ -197,6 +215,10 @@ func (control *RecurringJobController) syncRecurringJob(key string) (err error) 
 			return err
 		}
 		log.Infof("Recurring Job got new owner %v", control.controllerID)
+	}
+
+	if recurringJob.DeletionTimestamp != nil {
+		return control.cleanupVolumeRecurringJob(recurringJob)
 	}
 
 	existingRecurringJob := recurringJob.DeepCopy()
@@ -220,6 +242,72 @@ func (control *RecurringJobController) syncRecurringJob(key string) (err error) 
 		log.WithError(err).Error("failed to reconcile recurring job")
 	}
 
+	return nil
+}
+
+func (control *RecurringJobController) cleanupVolumeRecurringJob(recurringJob *longhorn.RecurringJob) error {
+	// Check if each group of the recurring job contains other recurring jobs.
+	// If No, it means the recurring job is the last job of the group then
+	// Longhorn will clean up this group labels for all volumes.
+	checkRecurringJobs, err := control.ds.ListRecurringJobs()
+	if err != nil {
+		return err
+	}
+	rmGroups := []string{}
+	for _, group := range recurringJob.Spec.Groups {
+		inUse := false
+		for _, checkRecurringJob := range checkRecurringJobs {
+			if checkRecurringJob.Name == recurringJob.Name {
+				continue
+			}
+			if util.Contains(checkRecurringJob.Spec.Groups, group) {
+				inUse = true
+				break
+			}
+		}
+		if !inUse {
+			rmGroups = append(rmGroups, group)
+		}
+	}
+
+	// delete volume labels
+	volumes, err := control.ds.ListVolumes()
+	if err != nil {
+		return err
+	}
+	for _, vol := range volumes {
+		jobs := datastore.MarshalLabelToVolumeRecurringJob(vol.Labels)
+		for jobName, job := range jobs {
+			if job.IsGroup {
+				if !util.Contains(rmGroups, jobName) {
+					continue
+				}
+				control.logger.Debugf("Clean up volume recurring job-group %v for %v", jobName, vol.Name)
+				if _, err := control.ds.DeleteVolumeRecurringJob(jobName, true, vol); err != nil {
+					return err
+				}
+			} else if jobName == recurringJob.Name {
+				control.logger.Debugf("Clean up volume recurring job %v for %v", jobName, vol.Name)
+				if _, err := control.ds.DeleteVolumeRecurringJob(jobName, false, vol); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (control *RecurringJobController) detachVolumeAutoAttachedByRecurringJob(name string, v *longhorn.Volume) error {
+	if v.Spec.LastAttachedBy != name {
+		return nil
+	}
+	if v.Status.State == longhorn.VolumeStateAttached {
+		control.logger.Infof("requesting auto-attached volume %v to detach from node %v", v.Name, v.Spec.NodeID)
+		v.Spec.NodeID = ""
+		if _, err := control.ds.UpdateVolume(v); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

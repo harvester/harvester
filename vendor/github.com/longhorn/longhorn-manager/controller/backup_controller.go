@@ -3,6 +3,8 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -98,11 +100,11 @@ func (bc *BackupController) enqueueBackup(obj interface{}) {
 		return
 	}
 
-	bc.queue.AddRateLimited(key)
+	bc.queue.Add(key)
 }
 
 func (bc *BackupController) enqueueBackupForMonitor(key string) {
-	bc.queue.AddRateLimited(key)
+	bc.queue.Add(key)
 }
 
 func (bc *BackupController) Run(workers int, stopCh <-chan struct{}) {
@@ -301,6 +303,10 @@ func (bc *BackupController) reconcile(backupName string) (err error) {
 			return nil // Ignore error to prevent enqueue
 		}
 
+		if backup.Status.SnapshotCreatedAt == "" || backup.Status.VolumeSize == "" {
+			bc.syncBackupStatusWithSnapshotCreationTimeAndVolumeSize(volume, backup)
+		}
+
 		monitor, err := bc.checkMonitor(backup, volume, backupTarget)
 		if err != nil {
 			return err
@@ -339,7 +345,9 @@ func (bc *BackupController) reconcile(backupName string) (err error) {
 	backupURL := backupstore.EncodeBackupURL(backup.Name, backupVolumeName, backupTargetClient.URL)
 	backupInfo, err := backupTargetClient.InspectBackupConfig(backupURL)
 	if err != nil {
-		log.WithError(err).Error("Error inspecting backup config")
+		if !strings.Contains(err.Error(), "in progress") {
+			log.WithError(err).Error("Error inspecting backup config")
+		}
 		return nil // Ignore error to prevent enqueue
 	}
 	if backupInfo == nil {
@@ -409,6 +417,9 @@ func (bc *BackupController) getEngineClient(volumeName string) (engineapi.Engine
 	engine, err := bc.ds.GetVolumeCurrentEngine(volumeName)
 	if err != nil {
 		return nil, err
+	}
+	if engine == nil {
+		return nil, fmt.Errorf("cannot get the client since the engine is nil")
 	}
 	return GetClientForEngine(engine, &engineapi.EngineCollection{}, engine.Status.CurrentImage)
 }
@@ -570,4 +581,23 @@ func (bc *BackupController) disableBackupMonitor(backupName string) {
 	defer bc.monitorLock.Unlock()
 	delete(bc.monitors, backupName)
 	monitor.Close()
+}
+
+func (bc *BackupController) syncBackupStatusWithSnapshotCreationTimeAndVolumeSize(volume *longhorn.Volume, backup *longhorn.Backup) {
+	backup.Status.VolumeSize = strconv.FormatInt(volume.Spec.Size, 10)
+	engineClient, err := bc.getEngineClient(volume.Name)
+	if err != nil {
+		bc.logger.Warnf("syncBackupStatusWithSnapshotCreationTimeAndVolumeSize: failed to get engine client: %v", err)
+		return
+	}
+	snap, err := engineClient.SnapshotGet(backup.Spec.SnapshotName)
+	if err != nil {
+		bc.logger.Warnf("syncBackupStatusWithSnapshotCreationTimeAndVolumeSize: failed to get snapshot %v: %v", backup.Spec.SnapshotName, err)
+		return
+	}
+	if snap == nil {
+		bc.logger.Warnf("syncBackupStatusWithSnapshotCreationTimeAndVolumeSize: couldn't find the snapshot %v in volume %v ", backup.Spec.SnapshotName, volume.Name)
+		return
+	}
+	backup.Status.SnapshotCreatedAt = snap.Created
 }
