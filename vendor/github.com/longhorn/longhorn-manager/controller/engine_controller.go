@@ -134,11 +134,11 @@ func NewEngineController(
 		UpdateFunc: func(old, cur interface{}) { ec.enqueueEngine(cur) },
 		DeleteFunc: ec.enqueueEngine,
 	})
-	instanceManagerInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	instanceManagerInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    ec.enqueueInstanceManagerChange,
 		UpdateFunc: func(old, cur interface{}) { ec.enqueueInstanceManagerChange(cur) },
 		DeleteFunc: ec.enqueueInstanceManagerChange,
-	})
+	}, 0)
 
 	return ec
 }
@@ -333,7 +333,7 @@ func (ec *EngineController) enqueueEngine(obj interface{}) {
 		return
 	}
 
-	ec.queue.AddRateLimited(key)
+	ec.queue.Add(key)
 }
 
 func (ec *EngineController) enqueueInstanceManagerChange(obj interface{}) {

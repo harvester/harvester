@@ -353,7 +353,7 @@ github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/rpc
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.2.3-rc2
+# github.com/longhorn/longhorn-manager v1.2.4-rc1
 ## explicit
 github.com/longhorn/longhorn-manager/controller
 github.com/longhorn/longhorn-manager/datastore
@@ -369,6 +369,7 @@ github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/l
 github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1
 github.com/longhorn/longhorn-manager/k8s/pkg/client/listers/longhorn/v1beta1
 github.com/longhorn/longhorn-manager/manager
+github.com/longhorn/longhorn-manager/meta
 github.com/longhorn/longhorn-manager/scheduler
 github.com/longhorn/longhorn-manager/types
 github.com/longhorn/longhorn-manager/upgrade
@@ -774,7 +775,7 @@ golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/scrypt
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
-# golang.org/x/mod v0.5.0
+# golang.org/x/mod v0.5.1
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/module
 golang.org/x/mod/semver

@@ -82,7 +82,7 @@ func NewBackupTargetController(
 		UpdateFunc: func(old, cur interface{}) { btc.enqueueBackupTarget(cur) },
 	})
 
-	engineImageInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	engineImageInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(old, cur interface{}) {
 			oldEI := old.(*longhorn.EngineImage)
 			curEI := cur.(*longhorn.EngineImage)
@@ -94,7 +94,7 @@ func NewBackupTargetController(
 			}
 			btc.enqueueEngineImage(cur)
 		},
-	})
+	}, 0)
 
 	return btc
 }
@@ -106,7 +106,7 @@ func (btc *BackupTargetController) enqueueBackupTarget(obj interface{}) {
 		return
 	}
 
-	btc.queue.AddRateLimited(key)
+	btc.queue.Add(key)
 }
 
 func (btc *BackupTargetController) enqueueEngineImage(obj interface{}) {
@@ -123,7 +123,7 @@ func (btc *BackupTargetController) enqueueEngineImage(obj interface{}) {
 	// For now, we only support a default backup target
 	// We've to enhance it once we support multiple backup targets
 	// https://github.com/longhorn/longhorn/issues/2317
-	btc.queue.AddRateLimited(ei.Namespace + "/" + types.DefaultBackupTargetName)
+	btc.queue.Add(ei.Namespace + "/" + types.DefaultBackupTargetName)
 }
 
 func (btc *BackupTargetController) Run(workers int, stopCh <-chan struct{}) {

@@ -17,10 +17,9 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/longhorn/longhorn-manager/meta"
 	"github.com/longhorn/longhorn-manager/util"
 )
-
-var VERSION = "v0.3.0"
 
 type BundleState string
 
@@ -120,7 +119,7 @@ func (m *VolumeManager) GenerateSupportBundle(issueURL string, description strin
 	}
 
 	bundleMeta := &BundleMeta{
-		LonghornVersion:       VERSION,
+		LonghornVersion:       meta.Version,
 		KubernetesVersion:     kubeVersion.GitVersion,
 		LonghornNamespaceUUID: string(namespace.UID),
 		BundleCreatedAt:       util.Now(),

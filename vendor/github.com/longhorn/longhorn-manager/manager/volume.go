@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -867,57 +866,15 @@ func (m *VolumeManager) ListVolumeRecurringJob(volumeName string) (map[string]*l
 	if err != nil {
 		return nil, err
 	}
-	return marshalLabelToVolumeRecurringJob(v.Labels), nil
-}
-
-func marshalLabelToVolumeRecurringJob(labels map[string]string) map[string]*longhorn.VolumeRecurringJob {
-	groupPrefix := fmt.Sprintf(types.LonghornLabelRecurringJobKeyPrefixFmt, types.LonghornLabelRecurringJobGroup) + "/"
-	jobPrefix := fmt.Sprintf(types.LonghornLabelRecurringJobKeyPrefixFmt, types.LonghornLabelRecurringJob) + "/"
-	jobMapVolumeJob := make(map[string]*longhorn.VolumeRecurringJob)
-	for label := range labels {
-		if strings.HasPrefix(label, groupPrefix) {
-			jobName := strings.TrimPrefix(label, groupPrefix)
-			jobMapVolumeJob[jobName] = &longhorn.VolumeRecurringJob{
-				Name:    jobName,
-				IsGroup: true,
-			}
-			continue
-		} else if strings.HasPrefix(label, jobPrefix) {
-			jobName := strings.TrimPrefix(label, jobPrefix)
-			jobMapVolumeJob[jobName] = &longhorn.VolumeRecurringJob{
-				Name:    jobName,
-				IsGroup: false,
-			}
-		}
-	}
-	return jobMapVolumeJob
+	return datastore.MarshalLabelToVolumeRecurringJob(v.Labels), nil
 }
 
 func (m *VolumeManager) DeleteVolumeRecurringJob(volumeName string, name string, isGroup bool) (v *longhorn.Volume, err error) {
-	defer func() {
-		err = errors.Wrapf(err, "failed to delete volume recurring jobs for %v", volumeName)
-	}()
-
-	v, err = m.ds.GetVolume(volumeName)
+	volume, err := m.ds.GetVolumeRO(volumeName)
 	if err != nil {
 		return nil, err
 	}
-
-	key := ""
-	if isGroup {
-		key = types.GetRecurringJobLabelKey(types.LonghornLabelRecurringJobGroup, name)
-	} else {
-		key = types.GetRecurringJobLabelKey(types.LonghornLabelRecurringJob, name)
-	}
-	if _, exist := v.Labels[key]; exist {
-		delete(v.Labels, key)
-		v, err = m.ds.UpdateVolume(v)
-		if err != nil {
-			return nil, err
-		}
-		logrus.Debugf("Updated volume %v labels to %+v", v.Name, v.Labels)
-	}
-	return v, nil
+	return m.ds.DeleteVolumeRecurringJob(name, isGroup, volume)
 }
 
 func (m *VolumeManager) DeleteReplica(volumeName, replicaName string) error {

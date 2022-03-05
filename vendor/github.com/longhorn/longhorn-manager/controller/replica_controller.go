@@ -124,27 +124,27 @@ func NewReplicaController(
 		DeleteFunc: rc.enqueueReplica,
 	})
 
-	instanceManagerInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	instanceManagerInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    rc.enqueueInstanceManagerChange,
 		UpdateFunc: func(old, cur interface{}) { rc.enqueueInstanceManagerChange(cur) },
 		DeleteFunc: rc.enqueueInstanceManagerChange,
-	})
+	}, 0)
 
-	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    rc.enqueueNodeChange,
 		UpdateFunc: func(old, cur interface{}) { rc.enqueueNodeChange(cur) },
 		DeleteFunc: rc.enqueueNodeChange,
-	})
+	}, 0)
 
-	backingImageInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	backingImageInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    rc.enqueueBackingImageChange,
 		UpdateFunc: func(old, cur interface{}) { rc.enqueueBackingImageChange(cur) },
 		DeleteFunc: rc.enqueueBackingImageChange,
-	})
+	}, 0)
 
-	settingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	settingInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(old, cur interface{}) { rc.enqueueSettingChange(cur) },
-	})
+	}, 0)
 
 	return rc
 }
@@ -374,7 +374,7 @@ func (rc *ReplicaController) enqueueReplica(obj interface{}) {
 		return
 	}
 
-	rc.queue.AddRateLimited(key)
+	rc.queue.Add(key)
 }
 
 func (rc *ReplicaController) getProcessManagerClient(instanceManagerName string) (*imclient.ProcessManagerClient, error) {

@@ -31,7 +31,7 @@ const (
 	longhornFinalizerKey = "longhorn.io"
 )
 
-func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) error {
+func UpgradeResources(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) error {
 	if err := upgradeRecurringJobs(namespace, lhClient, kubeClient); err != nil {
 		return err
 	}
