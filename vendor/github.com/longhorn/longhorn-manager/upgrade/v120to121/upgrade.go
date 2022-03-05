@@ -19,10 +19,7 @@ const (
 	upgradeLogPrefix = "upgrade from v1.2.0 to v1.2.1: "
 )
 
-func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrapf(err, upgradeLogPrefix+"UpgradeCRs failed")
-	}()
+func UpgradeResources(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	if err := upgradeSettings(namespace, lhClient); err != nil {
 		return err
 	}
@@ -31,7 +28,7 @@ func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset) (err error) {
 
 func upgradeSettings(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade settings failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade settings failed")
 	}()
 
 	// Skip the upgrade if this deprecated setting is unavailable.

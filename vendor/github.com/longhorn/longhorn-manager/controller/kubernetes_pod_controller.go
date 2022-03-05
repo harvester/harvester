@@ -353,7 +353,7 @@ func (kc *KubernetesPodController) enqueuePodChange(obj interface{}) {
 		}
 
 		if pv.Spec.CSI != nil && pv.Spec.CSI.Driver == types.LonghornDriverName {
-			kc.queue.AddRateLimited(key)
+			kc.queue.Add(key)
 			break
 		}
 	}

@@ -145,25 +145,25 @@ func NewBackingImageManagerController(
 		DeleteFunc: c.enqueueBackingImageManager,
 	})
 
-	biInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	biInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueForBackingImage,
 		UpdateFunc: func(old, cur interface{}) { c.enqueueForBackingImage(cur) },
 		DeleteFunc: c.enqueueForBackingImage,
-	})
+	}, 0)
 
-	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, cur interface{}) { c.enqueueForLonghornNode(cur) },
 		DeleteFunc: c.enqueueForLonghornNode,
-	})
+	}, 0)
 
-	pInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+	pInformer.Informer().AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
 		FilterFunc: isBackingImageManagerPod,
 		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.enqueueForBackingImageManagerPod,
 			UpdateFunc: func(old, cur interface{}) { c.enqueueForBackingImageManagerPod(cur) },
 			DeleteFunc: c.enqueueForBackingImageManagerPod,
 		},
-	})
+	}, 0)
 
 	return c
 }
@@ -860,7 +860,7 @@ func (c *BackingImageManagerController) enqueueBackingImageManager(backingImageM
 		return
 	}
 
-	c.queue.AddRateLimited(key)
+	c.queue.Add(key)
 }
 
 func isBackingImageManagerPod(obj interface{}) bool {

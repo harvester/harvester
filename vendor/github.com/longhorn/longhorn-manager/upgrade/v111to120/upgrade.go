@@ -23,10 +23,7 @@ const (
 	upgradeLogPrefix = "upgrade from v1.1.1 to v1.2.0: "
 )
 
-func UpgradeCRs(namespace string, lhClient *lhclientset.Clientset) (err error) {
-	defer func() {
-		err = errors.Wrapf(err, upgradeLogPrefix+"UpgradeCRs failed")
-	}()
+func UpgradeResources(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	if err := upgradeBackingImages(namespace, lhClient); err != nil {
 		return err
 	}
@@ -43,7 +40,7 @@ const (
 
 func upgradeBackingImages(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade backing images failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade backing images failed")
 	}()
 	biList, err := lhClient.LonghornV1beta1().BackingImages(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -170,7 +167,7 @@ func checkAndCreateBackingImageDataSource(namespace string, lhClient *lhclientse
 
 func upgradeVolumes(namespace string, lhClient *lhclientset.Clientset) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "upgrade volume failed")
+		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade volume failed")
 	}()
 
 	volumeList, err := lhClient.LonghornV1beta1().Volumes(namespace).List(context.TODO(), metav1.ListOptions{})
