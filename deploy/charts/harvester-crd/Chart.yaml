@@ -1,7 +1,7 @@
 apiVersion: v2
 name: harvester-crd
-version: 1.0.0
-appVersion: v1.0.0
+version: 1.0.1-rc1
+appVersion: v1.0.1-rc1
 description: Helm chart for deploying Harvester CRDs.
 icon: https://harvester.github.io/images/logo_horizontal.svg
 keywords:
