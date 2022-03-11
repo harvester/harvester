@@ -5,6 +5,8 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 fi
 
 COMMIT=$(git rev-parse --short HEAD)
+COMMIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+COMMIT_BRANCH_FORMATTED=$(echo "${COMMIT_BRANCH}" | sed -E 's/[^a-zA-Z0-9]+/-/g')
 GIT_TAG=${DRONE_TAG:-$(git tag -l --contains HEAD | head -n 1)}
 
 if [[ -z "$DIRTY" && -n "$GIT_TAG" ]]; then
@@ -12,6 +14,20 @@ if [[ -z "$DIRTY" && -n "$GIT_TAG" ]]; then
 else
     VERSION="${COMMIT}${DIRTY}"
 fi
+
+# Chart tag.
+if [[ -z "$DIRTY" && -n "$GIT_TAG" ]]; then
+    IMAGE_PUSH_TAG="${GIT_TAG}"
+    APP_VERSION="${GIT_TAG}"
+    CHART_VERSION="${GIT_TAG}"
+else
+    IMAGE_PUSH_TAG="${COMMIT_BRANCH}-head"
+    APP_VERSION="${COMMIT_BRANCH}-${COMMIT}${DIRTY}"
+    CHART_VERSION="v0.0.0-${COMMIT_BRANCH_FORMATTED}-${COMMIT}${DIRTY}"
+fi
+
+# Drop the v prefix for Chart Version to follow existing pattern.
+CHART_VERSION="$(echo ${CHART_VERSION} | sed -E 's/^v//')"
 
 if [ -z "$ARCH" ]; then
     ARCH=$(go env GOHOSTARCH)
@@ -25,3 +41,12 @@ REPO=${REPO:-rancher}
 if echo $TAG | grep -q dirty; then
     TAG=dev
 fi
+
+echo "ARCH: $ARCH"
+echo "VERSION: $VERSION"
+echo "CHART_VERSION: $CHART_VERSION"
+echo "APP_VERSION: $APP_VERSION"
+echo "SUFFIX: $SUFFIX"
+echo "REPO: $REPO"
+echo "TAG: $TAG"
+echo "IMAGE_PUSH_TAG: $IMAGE_PUSH_TAG"
