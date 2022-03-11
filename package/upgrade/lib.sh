@@ -17,6 +17,13 @@ detect_repo()
   REPO_RKE2_VERSION=$(yq -e e '.kubernetes' $release_file)
   REPO_RANCHER_VERSION=$(yq -e e '.rancher' $release_file)
   REPO_MONITORING_CHART_VERSION=$(yq -e e '.monitoringChart' $release_file)
+  REPO_FLEET_CHART_VERSION=$(yq -e e '.rancherDependencies.fleet.chart' $release_file)
+  REPO_FLEET_APP_VERSION=$(yq -e e '.rancherDependencies.fleet.app' $release_file)
+  REPO_FLEET_CRD_CHART_VERSION=$(yq -e e '.rancherDependencies.fleet-crd.chart' $release_file)
+  REPO_FLEET_CRD_APP_VERSION=$(yq -e e '.rancherDependencies.fleet-crd.app' $release_file)
+  REPO_RANCHER_WEBHOOK_CHART_VERSION=$(yq -e e '.rancherDependencies.rancher-webhook.chart' $release_file)
+  REPO_RANCHER_WEBHOOK_APP_VERSION=$(yq -e e '.rancherDependencies.rancher-webhook.app' $release_file)
+  REPO_KUBEVIRT_VERSION=$(yq -e e '.kubevirt' $release_file)
 
   if [ -z "$REPO_HARVESTER_VERSION" ]; then
     echo "[ERROR] Fail to get Harvester version from upgrade repo."
@@ -45,6 +52,41 @@ detect_repo()
 
   if [ -z "$REPO_MONITORING_CHART_VERSION" ]; then
     echo "[ERROR] Fail to get monitoring chart version from upgrade repo."
+    exit 1
+  fi
+
+  if [ -z "$REPO_FLEET_CHART_VERSION" ]; then
+    echo "[ERROR] Fail to get fleet chart version from upgrade repo."
+    exit 1
+  fi
+
+  if [ -z "$REPO_FLEET_APP_VERSION" ]; then
+    echo "[ERROR] Fail to get fleet app version from upgrade repo."
+    exit 1
+  fi
+
+  if [ -z "$REPO_FLEET_CRD_CHART_VERSION" ]; then
+    echo "[ERROR] Fail to get fleet-crd chart version from upgrade repo."
+    exit 1
+  fi
+
+  if [ -z "$REPO_FLEET_CRD_APP_VERSION" ]; then
+    echo "[ERROR] Fail to get fleet-crd app version from upgrade repo."
+    exit 1
+  fi
+
+  if [ -z "$REPO_RANCHER_WEBHOOK_CHART_VERSION" ]; then
+    echo "[ERROR] Fail to get rancher-webhook chart version from upgrade repo."
+    exit 1
+  fi
+
+  if [ -z "$REPO_RANCHER_WEBHOOK_APP_VERSION" ]; then
+    echo "[ERROR] Fail to get rancher-webhook app version from upgrade repo."
+    exit 1
+  fi
+
+  if [ -z "$REPO_KUBEVIRT_VERSION" ]; then
+    echo "[ERROR] Fail to get kubevirt version from upgrade repo."
     exit 1
   fi
 }
@@ -86,7 +128,7 @@ download_image_archives_from_repo() {
         curl -fL $archive_url -o $archive_file
       fi
     done
-  
+
   rm -f $metadata
 }
 
