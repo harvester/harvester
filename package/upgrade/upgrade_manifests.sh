@@ -83,11 +83,17 @@ EOF
   kubectl patch managedcharts.management.cattle.io harvester-crd -n fleet-local --patch-file ./harvester-crd.yaml --type merge
 
   cat > harvester.yaml <<EOF
-spec:
-  version: $REPO_HARVESTER_CHART_VERSION
+apiVersion: management.cattle.io/v3
+kind: ManagedChart
+metadata:
+  name: harvester
+  namespace: fleet-local
 EOF
-  kubectl patch managedcharts.management.cattle.io harvester -n fleet-local --patch-file ./harvester.yaml --type merge
-  # TODO: Is there a way to wait for Harvester and all components are fully upgraded (and maybe operational)?
+  kubectl get managedcharts.management.cattle.io -n fleet-local harvester -o yaml | yq e '{"spec": .spec}' - >> harvester.yaml
+
+  upgrade_managed_chart_from_version $UPGRADE_PREVIOUS_VERSION harvester harvester.yaml
+  NEW_VERSION=$REPO_HARVESTER_CHART_VERSION yq e '.spec.version = strenv(NEW_VERSION)' harvester.yaml -i
+  kubectl apply -f ./harvester.yaml
 }
 
 upgrade_monitoring() {
@@ -116,8 +122,20 @@ apply_extra_manifests()
     shopt -u nullglob
 }
 
+upgrade_managed_chart_from_version()
+{
+  version=$1
+  chart_name=$2
+  chart_manifest=$3
+
+  if [ -e "/usr/local/share/migrations/managed_charts/${version}.sh" ]; then
+    /usr/local/share/migrations/managed_charts/${version}.sh $chart_name $chart_manifest
+  fi
+}
+
 wait_repo
 detect_repo
+detect_upgrade
 upgrade_rancher
 upgrade_harvester_cluster_repo
 upgrade_harvester
