@@ -27,11 +27,11 @@ dependencies:
       - kubevirt
       - crd
   - name: harvester-network-controller
-    version: 0.2.8
+    version: 0.2.9
     repository: https://charts.harvesterhci.io
     condition: harvester-network-controller.enabled
   - name: harvester-node-disk-manager
-    version: 0.4.1
+    version: 0.4.2
     repository: https://charts.harvesterhci.io
     condition: harvester-node-disk-manager.enabled
   - name: csi-snapshotter
@@ -43,11 +43,11 @@ dependencies:
     repository: https://charts.longhorn.io
     condition: longhorn.enabled
   - name: kube-vip
-    version: 0.4.1
+    version: 0.4.2
     repository: https://kube-vip.io/helm-charts
   - name: kube-vip-cloud-provider
-    version: 0.1.0
+    version: 0.2.1
     repository: https://kube-vip.io/helm-charts
   - name: harvester-load-balancer
-    version: 0.1.2
+    version: 0.1.3
     repository: https://charts.harvesterhci.io
