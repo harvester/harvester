@@ -44,7 +44,7 @@ func (h *vmImageHandler) OnChanged(key string, image *harvesterv1.VirtualMachine
 		return image, nil
 	}
 
-	if !reflect.DeepEqual(toUpdate, image) {
+	if !reflect.DeepEqual(toUpdate, upgrade) {
 		_, err := h.upgradeClient.Update(toUpdate)
 		return image, err
 	}
