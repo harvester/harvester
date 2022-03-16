@@ -24,7 +24,7 @@ steps:
     - push
     - tag
 
-- name: docker-publish-master
+- name: docker-publish-branch
   image: plugins/docker
   settings:
     build_args:
@@ -71,7 +71,7 @@ steps:
     event:
     - tag
 
-- name: docker-publish-webhook-master
+- name: docker-publish-webhook-branch
   image: plugins/docker
   settings:
     build_args:
@@ -119,7 +119,7 @@ steps:
     - tag
 
 
-- name: docker-publish-upgrade-master
+- name: docker-publish-upgrade-branch
   image: plugins/docker
   settings:
     build_args:
@@ -180,7 +180,7 @@ platform:
   arch: amd64
 
 steps:
-- name: manifest-master
+- name: manifest-branch
   image: plugins/manifest
   settings:
     username:
@@ -219,7 +219,7 @@ steps:
     event:
     - tag
 
-- name: manifest-webhook-master
+- name: manifest-webhook-branch
   image: plugins/manifest
   settings:
     username:
@@ -258,7 +258,7 @@ steps:
     event:
     - tag
 
-- name: manifest-upgrade-master
+- name: manifest-upgrade-branch
   image: plugins/manifest
   settings:
     username:
@@ -336,14 +336,14 @@ steps:
     event:
       - tag
 
-- name: upload_iso_release_master
+- name: upload_iso_branch
   image: plugins/gcs
   settings:
     acl:
       - allUsers:READER
     cache_control: "public,no-cache,proxy-revalidate"
     source: dist/artifacts
-    target: releases.rancher.com/harvester/master
+    target: releases.rancher.com/harvester/${DRONE_BRANCH}
     token:
       from_secret: google_auth_key
   when:
