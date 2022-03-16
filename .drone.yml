@@ -7,6 +7,19 @@ platform:
   arch: amd64
 
 steps:
+- name: fetch
+  image: alpine/git
+  commands:
+  - git fetch --tags
+  when:
+    instance:
+      - drone-publish.rancher.io
+    ref:
+      - refs/head/master
+      - refs/tags/*
+    event:
+      - tag
+
 - name: build
   image: rancher/dapper:v0.4.1
   commands:
@@ -309,6 +322,19 @@ platform:
   arch: amd64
 
 steps:
+- name: fetch
+  image: alpine/git
+  commands:
+  - git fetch --tags
+  when:
+    instance:
+      - drone-publish.rancher.io
+    ref:
+      - refs/head/master
+      - refs/tags/*
+    event:
+      - tag
+
 - name: build
   image: rancher/dapper:v0.4.1
   commands:
