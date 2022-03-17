@@ -13,7 +13,7 @@ remove_vip_config()
 add_longhorn_settings()
 {
   # Add config "DataDisk" to specify the default Longhorn partition (https://github.com/harvester/harvester-installer/pull/217)
-  yq e '.spec.values.defaultDataPath.defaultSettings.defaultDataPath = "/var/lib/harvester/defaultdisk"' $CHART_MANIFEST -i
+  yq e '.spec.values.longhorn.defaultSettings.defaultDataPath = "/var/lib/harvester/defaultdisk"' $CHART_MANIFEST -i
 }
 
 case $CHART_NAME in
