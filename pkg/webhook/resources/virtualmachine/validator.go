@@ -79,12 +79,7 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 	}
 
 	// Prevent users to stop/restart VM when there is VMBackup in progress.
-	// KubeVirt send stop request or change running from true to false when users stop a VM.
-	// KubeVirt send restart request (stop and start combination request) when users restart a VM.
-	// Stop reference: https://github.com/kubevirt/kubevirt/blob/c9e87c4cb6292af33ccad8faa5fb9bf269c0fbf4/pkg/virt-api/rest/subresource.go#L508-L511
-	// Restart reference: https://github.com/kubevirt/kubevirt/blob/c9e87c4cb6292af33ccad8faa5fb9bf269c0fbf4/pkg/virt-api/rest/subresource.go#L260-L263
-	if (*oldVM.Spec.Running && !*newVM.Spec.Running) ||
-		(len(newVM.Status.StateChangeRequests) != 0 && newVM.Status.StateChangeRequests[0].Action == kubevirtv1.StopRequest) {
+	if v.checkVMStoppingStatus(oldVM, newVM) {
 		if err := v.checkVMBackup(newVM); err != nil {
 			return err
 		}
@@ -104,6 +99,26 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 		return err
 	}
 	return nil
+}
+
+func (v *vmValidator) checkVMStoppingStatus(oldVM *kubevirtv1.VirtualMachine, newVM *kubevirtv1.VirtualMachine) bool {
+	oldRunStrategy, _ := oldVM.RunStrategy()
+	newRunStrategy, _ := newVM.RunStrategy()
+
+	// KubeVirt send stop request or change running from true to false when users stop a VM.
+	// use runStrategy to determine state rather than "running"
+	if oldRunStrategy == kubevirtv1.RunStrategyAlways && newRunStrategy == kubevirtv1.RunStrategyHalted {
+		return true
+	}
+
+	// KubeVirt send restart request (stop and start combination request) when users restart a VM.
+	// Stop reference: https://github.com/kubevirt/kubevirt/blob/c9e87c4cb6292af33ccad8faa5fb9bf269c0fbf4/pkg/virt-api/rest/subresource.go#L508-L511
+	// Restart reference: https://github.com/kubevirt/kubevirt/blob/c9e87c4cb6292af33ccad8faa5fb9bf269c0fbf4/pkg/virt-api/rest/subresource.go#L260-L263
+	if len(newVM.Status.StateChangeRequests) != 0 && newVM.Status.StateChangeRequests[0].Action == kubevirtv1.StopRequest {
+		return true
+	}
+
+	return false
 }
 
 func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.VirtualMachine) error {
