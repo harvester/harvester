@@ -7,3 +7,4 @@
 /harvester
 .DS_Store
 api.test
+.docker
