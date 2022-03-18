@@ -13,3 +13,13 @@ fi
 
 docker build -f ${DOCKERFILE} -t ${IMAGE} .
 echo Built ${IMAGE}
+
+IMAGE_PUSH=${REPO}/harvester-upgrade:${IMAGE_PUSH_TAG}
+docker tag "${IMAGE}" "${IMAGE_PUSH}"
+echo Tagged "${IMAGE_PUSH}"
+
+DOCKER_CONFIG="../../.docker"
+if [[ -n ${PUSH} ]];then
+  docker --config=${DOCKER_CONFIG} push "${IMAGE_PUSH}"
+  echo Pushed "${IMAGE_PUSH}"
+fi
