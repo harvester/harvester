@@ -1209,8 +1209,8 @@ github.com/longhorn/longhorn-instance-manager v0.0.0-20201016215346-d8437b4e156e
 github.com/longhorn/longhorn-instance-manager v0.0.0-20210729081215-50c310f97378 h1:lxSMLEkPpZB/s6qAUcP9XLZV6g5FprgwU1fTQqbHe/A=
 github.com/longhorn/longhorn-instance-manager v0.0.0-20210729081215-50c310f97378/go.mod h1:6Ng1ShE4YRvWDscr1XhEhiTufv55LHBBfN5ln8S7diU=
 github.com/longhorn/longhorn-manager v1.1.0/go.mod h1:h2q+OgktnaFU3nFILh3umfR8vWywg9D2iTtdUry/JiY=
-github.com/longhorn/longhorn-manager v1.2.4-rc1 h1:wPF+DRZQtt1aANx1diHTjlxoyAyMDfeRLPCik2XHXns=
-github.com/longhorn/longhorn-manager v1.2.4-rc1/go.mod h1:2xs4hHmmfhIhS3EkohkbXYvYt1VA0zRUbQKXgAU6IuA=
+github.com/longhorn/longhorn-manager v1.2.4 h1:L+/v1MNzF+0kT7XxWnHeNT6RgTUWZ8SgqRYEdHIXrDk=
+github.com/longhorn/longhorn-manager v1.2.4/go.mod h1:2xs4hHmmfhIhS3EkohkbXYvYt1VA0zRUbQKXgAU6IuA=
 github.com/longhorn/nsfilelock v0.0.0-20200723175406-fa7c83ad0003/go.mod h1:0CLeXlf59Lg6C0kjLSDf47ft73Dh37CwymYRKWwAn04=
 github.com/longhorn/sparse-tools v0.0.0-20210420073041-5c51de69e0eb/go.mod h1:1WSSJRDNret4VKADAzvD49oaVt1/idYVWBL8TiyevRk=
 github.com/lovoo/gcloud-opentracing v0.3.0/go.mod h1:ZFqk2y38kMDDikZPAK7ynTTGuyt17nSPdS3K5e+ZTBY=
