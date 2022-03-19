@@ -354,7 +354,7 @@ github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/rpc
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.2.4-rc1
+# github.com/longhorn/longhorn-manager v1.2.4
 ## explicit
 github.com/longhorn/longhorn-manager/controller
 github.com/longhorn/longhorn-manager/datastore
