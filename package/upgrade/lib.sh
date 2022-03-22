@@ -1,5 +1,6 @@
 UPGRADE_NAMESPACE="harvester-system"
 UPGRADE_REPO_URL=http://upgrade-repo-$HARVESTER_UPGRADE_NAME.$UPGRADE_NAMESPACE/harvester-iso
+UPGRADE_REPO_VM_NAME="upgrade-repo-$HARVESTER_UPGRADE_NAME"
 UPGRADE_REPO_RELEASE_FILE="$UPGRADE_REPO_URL/harvester-release.yaml"
 UPGRADE_REPO_SQUASHFS_IMAGE="$UPGRADE_REPO_URL/rootfs.squashfs"
 UPGRADE_REPO_BUNDLE_ROOT="$UPGRADE_REPO_URL/bundle"
@@ -93,6 +94,14 @@ detect_repo()
 
 wait_repo()
 {
+  local repo_vm_status
+
+  # Start upgrade repo VM in case it's shut down due to migration timeout or job failure
+  repo_vm_status=$(kubectl get virtualmachines.kubevirt.io $UPGRADE_REPO_VM_NAME -n $UPGRADE_NAMESPACE -o=jsonpath='{.status.printableStatus}')
+  if [ "$repo_vm_status" != "Running" ]; then
+    virtctl start $UPGRADE_REPO_VM_NAME -n $UPGRADE_NAMESPACE || true
+  fi
+
   until curl -sfL $UPGRADE_REPO_RELEASE_FILE
   do
     echo "Wait for upgrade repo ready..."
