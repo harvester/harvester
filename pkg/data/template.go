@@ -151,7 +151,7 @@ spec:
             }
           }]
     spec:
-      running: true
+      runStrategy: Manual
       template:
         spec:
           evictionStrategy: LiveMigrate
@@ -219,7 +219,7 @@ spec:
             }
           }]
     spec:
-      running: true
+      runStrategy: Manual
       template:
         spec:
           evictionStrategy: LiveMigrate
@@ -293,7 +293,7 @@ spec:
             }
           }]
     spec:
-      running: true
+      runStrategy: Manual
       template:
         spec:
           evictionStrategy: LiveMigrate

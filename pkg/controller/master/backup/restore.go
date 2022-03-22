@@ -69,6 +69,8 @@ type RestoreHandler struct {
 	backupCache          ctlharvesterv1.VirtualMachineBackupCache
 	vms                  ctlkubevirtv1.VirtualMachineClient
 	vmCache              ctlkubevirtv1.VirtualMachineCache
+	vmis                 ctlkubevirtv1.VirtualMachineInstanceClient
+	vmiCache             ctlkubevirtv1.VirtualMachineInstanceCache
 	pvcClient            ctlcorev1.PersistentVolumeClaimClient
 	pvcCache             ctlcorev1.PersistentVolumeClaimCache
 	secretClient         ctlcorev1.SecretClient
@@ -87,6 +89,7 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 	restores := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore()
 	backups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
+	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
@@ -109,6 +112,8 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 		backupCache:          backups.Cache(),
 		vms:                  vms,
 		vmCache:              vms.Cache(),
+		vmis:                 vmis,
+		vmiCache:             vmis.Cache(),
 		pvcClient:            pvcs,
 		pvcCache:             pvcs.Cache(),
 		secretClient:         secrets,
@@ -504,6 +509,8 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 		return nil, err
 	}
 
+	defaultRunStrategy := kubevirtv1.RunStrategyManual
+
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmName,
@@ -514,7 +521,7 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 			},
 		},
 		Spec: kubevirtv1.VirtualMachineSpec{
-			Running: pointer.BoolPtr(true),
+			RunStrategy: &defaultRunStrategy,
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: newAnnotations,
@@ -748,9 +755,24 @@ func (h *RestoreHandler) deleteOldPVC(vmRestore *harvesterv1.VirtualMachineResto
 }
 
 func (h *RestoreHandler) startVM(vm *kubevirtv1.VirtualMachine) error {
-	logrus.Infof("starting the vm %s, current state running:%v", vm.Name, *vm.Spec.Running)
-	if vm.Spec.Running == nil || !*vm.Spec.Running {
+	runStrategy, _ := vm.RunStrategy()
+	logrus.Infof("starting the vm %s, current state running:%v", vm.Name, runStrategy)
+
+	switch runStrategy {
+	case kubevirtv1.RunStrategyAlways:
+		return nil
+	case kubevirtv1.RunStrategyManual, kubevirtv1.RunStrategyRerunOnFailure:
+		if vmi, err := h.vmiCache.Get(vm.Namespace, vm.Name); err == nil {
+			if vmi != nil && !vmi.IsFinal() && vmi.Status.Phase != kubevirtv1.Unknown && vmi.Status.Phase != kubevirtv1.VmPhaseUnset {
+				// vm is already running
+				return nil
+			}
+		}
 		return h.restClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("start").Name(vm.Name).Do(h.context).Error()
+	case kubevirtv1.RunStrategyHalted:
+		return h.restClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("start").Name(vm.Name).Do(h.context).Error()
+	default:
+		// skip
 	}
 	return nil
 }
@@ -773,6 +795,11 @@ func (h *RestoreHandler) updateStatus(
 		return nil
 	}
 
+	// start VM before checking status
+	if err := h.startVM(vm); err != nil {
+		return h.updateStatusError(vmRestore, fmt.Errorf("failed to start vm, err:%s", err.Error()), false)
+	}
+
 	if !vm.Status.Ready {
 		message := "Waiting for target vm to be ready"
 		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "", message))
@@ -787,10 +814,6 @@ func (h *RestoreHandler) updateStatus(
 
 	if err := h.deleteOldPVC(restoreCpy, vm); err != nil {
 		return h.updateStatusError(vmRestore, fmt.Errorf("error cleaning up, err:%s", err.Error()), false)
-	}
-
-	if err := h.startVM(vm); err != nil {
-		return h.updateStatusError(vmRestore, fmt.Errorf("failed to start vm, err:%s", err.Error()), false)
 	}
 
 	h.recorder.Eventf(
