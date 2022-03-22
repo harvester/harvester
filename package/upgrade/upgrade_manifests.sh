@@ -107,10 +107,17 @@ EOF
   kubectl patch managedcharts.management.cattle.io rancher-monitoring-crd -n fleet-local --patch-file ./rancher-monitoring-crd.yaml --type merge
 
   cat > rancher-monitoring.yaml <<EOF
-spec:
-  version: $REPO_MONITORING_CHART_VERSION
+apiVersion: management.cattle.io/v3
+kind: ManagedChart
+metadata:
+  name: rancher-monitoring
+  namespace: fleet-local
 EOF
-  kubectl patch managedcharts.management.cattle.io rancher-monitoring -n fleet-local --patch-file ./rancher-monitoring.yaml --type merge
+  kubectl get managedcharts.management.cattle.io -n fleet-local rancher-monitoring -o yaml | yq e '{"spec": .spec}' - >> rancher-monitoring.yaml
+
+  upgrade_managed_chart_from_version $UPGRADE_PREVIOUS_VERSION rancher-monitoring rancher-monitoring.yaml
+  NEW_VERSION=$REPO_MONITORING_CHART_VERSION yq e '.spec.version = strenv(NEW_VERSION)' rancher-monitoring.yaml -i
+  kubectl apply -f ./rancher-monitoring.yaml
 }
 
 apply_extra_manifests()
