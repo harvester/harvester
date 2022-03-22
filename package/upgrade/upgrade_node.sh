@@ -107,12 +107,37 @@ get_running_vm_count()
 
 wait_vms_out()
 {
-  vm_count="$(get_running_vm_count)"
+  local vm_count="$(get_running_vm_count)"
+
   until [ "$vm_count" = "0" ]
   do
     echo "Waiting for VM live-migration or shutdown...($vm_count left)"
     sleep 5
     vm_count="$(get_running_vm_count)"
+  done
+}
+
+wait_vms_out_or_shutdown()
+{
+  local vm_count
+  local max_retries=240
+
+  retries=0
+  while [ true ]; do
+    vm_count="$(get_running_vm_count)"
+
+    if [ "$vm_count" = "0" ]; then
+      break
+    fi
+
+    if [ "$retries" = "$max_retries" ]; then
+      echo "WARNING: fail to live-migrate $vm_count VM(s). Shutting down them..."
+      shutdown_vms_on_node
+    fi
+
+    echo "Waiting for VM live-migration or shutdown...($vm_count left)"
+    sleep 5
+    retries=$((retries+1))
   done
 }
 
@@ -125,6 +150,19 @@ shutdown_repo_vm() {
   	echo "Stop upgrade repo VM: $repo_vm_name"
   	virtctl stop $repo_vm_name -n harvester-system
   fi
+}
+
+shutdown_vms_on_node()
+{
+  kubectl get vmi -A -l kubevirt.io/nodeName=$HARVESTER_UPGRADE_NODE_NAME -o json |
+    jq -r '.items[] | [.metadata.name, .metadata.namespace] | @tsv' |
+    while IFS=$'\t' read -r name namespace; do
+      if [ -z "$name" ]; then
+        break
+      fi
+      echo "Stop ${namespace}/${name}"
+      virtctl stop $name -n $namespace
+    done
 }
 
 shutdown_all_vms()
@@ -190,7 +228,7 @@ command_pre_drain() {
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME --overwrite kubevirt.io/drain=draining:NoSchedule
 
   # Wait for VM migrated
-  wait_vms_out
+  wait_vms_out_or_shutdown
 
   # KubeVirt's pdb might cause drain fail
   wait_evacuation_pdb_gone
