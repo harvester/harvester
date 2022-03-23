@@ -156,6 +156,9 @@ spec:
         spec:
           evictionStrategy: LiveMigrate
           domain:
+            features:
+              acpi:
+                enabled: true
             cpu:
               cores: 1
             devices:
@@ -221,6 +224,9 @@ spec:
         spec:
           evictionStrategy: LiveMigrate
           domain:
+            features:
+              acpi:
+                enabled: true
             cpu:
               cores: 1
             devices:
@@ -292,6 +298,9 @@ spec:
         spec:
           evictionStrategy: LiveMigrate
           domain:
+            features:
+              acpi:
+                enabled: true
             cpu:
               cores: 1
             devices:
