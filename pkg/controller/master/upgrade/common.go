@@ -20,7 +20,8 @@ const (
 	labelArch               = "kubernetes.io/arch"
 	labelCriticalAddonsOnly = "CriticalAddonsOnly"
 
-	defaultTTLSecondsAfterFinished = 1200
+	// keep jobs for 7 days
+	defaultTTLSecondsAfterFinished = 604800
 )
 
 func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {
