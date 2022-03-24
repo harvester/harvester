@@ -6,7 +6,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
@@ -46,7 +45,7 @@ func NewVMBuilder(creator string) *VMBuilder {
 		Labels:       vmLabels,
 		Annotations:  map[string]string{},
 	}
-	running := pointer.BoolPtr(false)
+	runStrategy := kubevirtv1.RunStrategyHalted
 	cpu := &kubevirtv1.CPU{
 		Cores: defaultVMCPUCores,
 	}
@@ -78,8 +77,8 @@ func NewVMBuilder(creator string) *VMBuilder {
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: objectMeta,
 		Spec: kubevirtv1.VirtualMachineSpec{
-			Running:  running,
-			Template: template,
+			RunStrategy: &runStrategy,
+			Template:    template,
 		},
 	}
 	return &VMBuilder{
@@ -198,7 +197,11 @@ func (v *VMBuilder) PodAntiAffinity(podAffinityTerm corev1.PodAffinityTerm, soft
 }
 
 func (v *VMBuilder) Run(start bool) *VMBuilder {
-	v.VirtualMachine.Spec.Running = pointer.BoolPtr(start)
+	runStrategy := kubevirtv1.RunStrategyHalted
+	if start {
+		runStrategy = kubevirtv1.RunStrategyAlways
+	}
+	v.VirtualMachine.Spec.RunStrategy = &runStrategy
 	return v
 }
 
