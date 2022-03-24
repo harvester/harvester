@@ -1,5 +1,5 @@
 FROM quay.io/costoolkit/releases-green:luet-toolchain-0.21.2 as luet
-FROM quay.io/costoolkit/releases-green:luet-makeiso-toolchain-0.3.8-16 as makeiso
+FROM quay.io/costoolkit/releases-green:luet-makeiso-toolchain-0.4.0 as makeiso
 
 FROM golang:1.16.4-buster
 
@@ -13,6 +13,9 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         zstd \
         squashfs-tools \
         xorriso \
+        jq \
+        mtools \
+        dosfstools \
     && rm -rf /var/lib/apt/lists/*
 
 # install yq
