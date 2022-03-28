@@ -1,7 +1,6 @@
 #!/bin/bash -ex
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-HOST_DIR="${HOST_DIR:-/host}"
 UPGRADE_TMP_DIR=$HOST_DIR/usr/local/upgrade_tmp
 
 source $SCRIPT_DIR/lib.sh
@@ -64,34 +63,12 @@ preload_images()
     exit 1
   fi
 
-  metadata=$(mktemp --suffix=.yaml)
-  curl -fL $UPGRADE_REPO_BUNDLE_METADATA -o $metadata
+  import_image_archives_from_repo "common" "$UPGRADE_TMP_DIR"
 
-  tmp_image_archives=$(mktemp -d -p $UPGRADE_TMP_DIR)
-
-  # Common container images. Load with containerd.
-  yq -e -o=json e '.images.common' $metadata | jq -r '.[] | [.list, .archive] | @tsv' |
-    while IFS=$'\t' read -r list archive; do
-      archive_name=$(basename -s .tar.zst $archive)
-      image_list_url="$UPGRADE_REPO_BUNDLE_ROOT/$list"
-      archive_url="$UPGRADE_REPO_BUNDLE_ROOT/$archive"
-      image_list_file="${tmp_image_archives}/$(basename $list)"
-      archive_file="${tmp_image_archives}/${archive_name}.tar"
-
-      # Check if images already exist
-      curl -sfL $image_list_url | sort > $image_list_file
-      missing=$($CTR -n k8s.io images ls -q | grep -v ^sha256 | sort | comm -23 $image_list_file -)
-      if [ -z "$missing" ]; then
-        echo "Images in $image_list_file already present in the system. Skip preloading."
-        continue
-      fi
-
-      curl -sfL $archive_url | zstd -d -f --no-progress -o $archive_file
-      $CTR -n k8s.io image import $archive_file
-      rm -f $archive_file
-    done
-
-  rm -rf $tmp_image_archives
+  # RKE2 images might be needed during nodes upgrade.
+  # A waiting-for-upgrade node doesn't load RKE2 images yet because its RKE2
+  # server/agent doesn't restart. We need to preload RKE2 images beforehand.
+  import_image_archives_from_repo "rke2" "$UPGRADE_TMP_DIR"
 
   download_image_archives_from_repo "rke2" $HOST_DIR/var/lib/rancher/rke2/agent/images
   download_image_archives_from_repo "agent" $HOST_DIR/var/lib/rancher/agent/images
@@ -264,6 +241,14 @@ rebrand_grub () {
   mount -o remount,ro $HOST_DIR/host/run/initramfs/cos-state/
 }
 
+clean_rke2_archives() {
+  yq -e -o=json e ".images.rke2" "$CACHED_BUNDLE_METADATA" | jq -r '.[] | [.list, .archive] | @tsv' |
+    while IFS=$'\t' read -r list archive; do
+      rm -f "$HOST_DIR/var/lib/rancher/rke2/agent/images/$(basename $archive)"
+      rm -f "$HOST_DIR/var/lib/rancher/rke2/agent/images/$(basename $list)"
+    done
+}
+
 upgrade_os() {
   CURRENT_OS_VERSION=$(source $HOST_DIR/etc/os-release && echo $PRETTY_NAME)
 
@@ -315,6 +300,7 @@ command_post_drain() {
   # A post-drain signal from Rancher doesn't mean RKE2 agent/server is already patched and restarted
   # Let's wait until the RKE2 settled.
   wait_rke2_upgrade
+  clean_rke2_archives
 
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME kubevirt.io/drain- || true
   upgrade_os
@@ -337,6 +323,7 @@ command_single_node_upgrade() {
   # Upgarde RKE2
   upgrade_rke2
   wait_rke2_upgrade
+  clean_rke2_archives
 
   # Upgrade OS
   upgrade_os
