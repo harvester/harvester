@@ -5,6 +5,8 @@ UPGRADE_REPO_RELEASE_FILE="$UPGRADE_REPO_URL/harvester-release.yaml"
 UPGRADE_REPO_SQUASHFS_IMAGE="$UPGRADE_REPO_URL/rootfs.squashfs"
 UPGRADE_REPO_BUNDLE_ROOT="$UPGRADE_REPO_URL/bundle"
 UPGRADE_REPO_BUNDLE_METADATA="$UPGRADE_REPO_URL/bundle/metadata.yaml"
+CACHED_BUNDLE_METADATA=""
+HOST_DIR="${HOST_DIR:-/host}"
 
 detect_repo()
 {
@@ -90,6 +92,9 @@ detect_repo()
     echo "[ERROR] Fail to get kubevirt version from upgrade repo."
     exit 1
   fi
+
+  CACHED_BUNDLE_METADATA=$(mktemp --suffix=.yaml)
+  curl -sfL "$UPGRADE_REPO_BUNDLE_METADATA" -o "$CACHED_BUNDLE_METADATA"
 }
 
 wait_repo()
@@ -109,20 +114,54 @@ wait_repo()
   done
 }
 
+import_image_archives_from_repo() {
+  local image_type=$1
+  local upgrade_tmp_dir=$2
+  local tmp_image_archives=$(mktemp -d -p $upgrade_tmp_dir)
+
+  export CONTAINER_RUNTIME_ENDPOINT=unix:///$HOST_DIR/run/k3s/containerd/containerd.sock
+  export CONTAINERD_ADDRESS=$HOST_DIR/run/k3s/containerd/containerd.sock
+
+  CTR="$HOST_DIR/$(readlink $HOST_DIR/var/lib/rancher/rke2/bin)/ctr"
+  if [ -z "$CTR" ];then
+    echo "Fail to get host ctr binary."
+    exit 1
+  fi
+
+  echo "Importing $image_type images from repo..."
+  yq -e -o=json e ".images.$image_type" "$CACHED_BUNDLE_METADATA" | jq -r '.[] | [.list, .archive] | @tsv' |
+    while IFS=$'\t' read -r list archive; do
+      archive_name=$(basename -s .tar.zst $archive)
+      image_list_url="$UPGRADE_REPO_BUNDLE_ROOT/$list"
+      archive_url="$UPGRADE_REPO_BUNDLE_ROOT/$archive"
+      image_list_file="${tmp_image_archives}/$(basename $list)"
+      archive_file="${tmp_image_archives}/${archive_name}.tar"
+
+      # Check if images already exist
+      curl -sfL $image_list_url | sort > $image_list_file
+      missing=$($CTR -n k8s.io images ls -q | grep -v ^sha256 | sort | comm -23 $image_list_file -)
+      if [ -z "$missing" ]; then
+        echo "Images in $image_list_file already present in the system. Skip preloading."
+        continue
+      fi
+
+      curl -sfL $archive_url | zstd -d -f --no-progress -o $archive_file
+      $CTR -n k8s.io image import $archive_file
+      rm -f $archive_file
+    done
+  rm -rf $tmp_image_archives
+}
+
 download_image_archives_from_repo() {
   local image_type=$1
   local save_dir=$2
 
-  local metadata
   local image_list_url
   local archive_url
   local image_list_file
   local archive_file
 
-  metadata=$(mktemp --suffix=.yaml)
-  curl -fL $UPGRADE_REPO_BUNDLE_METADATA -o $metadata
-
-  yq -e -o=json e ".images.$image_type" $metadata | jq -r '.[] | [.list, .archive] | @tsv' |
+  yq -e -o=json e ".images.$image_type" "$CACHED_BUNDLE_METADATA" | jq -r '.[] | [.list, .archive] | @tsv' |
     while IFS=$'\t' read -r list archive; do
       image_list_url="$UPGRADE_REPO_BUNDLE_ROOT/$list"
       archive_url="$UPGRADE_REPO_BUNDLE_ROOT/$archive"
@@ -137,8 +176,6 @@ download_image_archives_from_repo() {
         curl -fL $archive_url -o $archive_file
       fi
     done
-
-  rm -f $metadata
 }
 
 detect_upgrade()
