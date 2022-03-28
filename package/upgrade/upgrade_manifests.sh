@@ -5,6 +5,15 @@ UPGRADE_TMP_DIR="/tmp/upgrade"
 
 source $SCRIPT_DIR/lib.sh
 
+pre_upgrade_manifest()
+{
+  if [ -e "/usr/local/share/migrations/upgrade_manifests/${UPGRADE_PREVIOUS_VERSION}/pre-hook.sh" ]; then
+    echo "Executing ${UPGRADE_PREVIOUS_VERSION} pre-hook..."
+    # Use source to pass current shell's variables to target script
+    source "/usr/local/share/migrations/upgrade_manifests/${UPGRADE_PREVIOUS_VERSION}/pre-hook.sh"
+  fi
+}
+
 wait_managed_chart()
 {
   namespace=$1
@@ -378,6 +387,7 @@ pause_all_charts()
 wait_repo
 detect_repo
 detect_upgrade
+pre_upgrade_manifest
 pause_all_charts
 upgrade_rancher
 upgrade_harvester_cluster_repo
