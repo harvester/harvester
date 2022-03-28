@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 UPGRADE_TMP_DIR="/tmp/upgrade"
@@ -121,6 +121,7 @@ wait_kubevirt()
   version=$3
 
 
+  echo "Waiting for KubeVirt to upgraded to $version..."
   while [ true ]; do
     kubevirt=$(kubectl get kubevirts.kubevirt.io $name -n $namespace -o yaml)
 
@@ -133,6 +134,7 @@ wait_kubevirt()
       fi
     fi
 
+    echo "Libvirt current version: $current_target_version, target version: $version"
     sleep 5
   done
 }
