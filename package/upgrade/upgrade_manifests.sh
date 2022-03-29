@@ -134,7 +134,7 @@ wait_kubevirt()
       fi
     fi
 
-    echo "Libvirt current version: $current_target_version, target version: $version"
+    echo "KubeVirt current version: $current_target_version, target version: $version"
     sleep 5
   done
 }
