@@ -155,7 +155,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: v1.0.1-rc1
+      tag: v1.0-head
 
     ## Specify whether to run in HCI mode. This option enables additional controllers.
     ## defaults to "false", this will be enabled in ISO mode installation.
@@ -411,14 +411,14 @@ webhook:
 
     ## Specify the tag of image.
     ##
-    tag: v1.0.1-rc1
+    tag: v1.0-head
 
   httpsPort: 9443
 
 upgrade:
   image:
     repository: rancher/harvester-upgrade
-    tag: v1.0.1-rc1
+    tag: v1.0-head
 
 harvester-load-balancer:
   enabled: false
@@ -431,7 +431,7 @@ kube-vip:
   enabled: false
   image:
     repository: ghcr.io/kube-vip/kube-vip
-    tag: main
+    tag: main@sha256:91a7d9ac7a2b78f1cc815d158c17d922327325b3e3dd2d6a5019bd3bb4cbe04b
   nodeSelector:
     node-role.kubernetes.io/control-plane: "true"
 
@@ -445,4 +445,4 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: v0.0.6
+    tag: v0.0.7
