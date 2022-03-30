@@ -31,6 +31,7 @@ var (
 	UpgradableVersions      = NewSetting("upgradable-versions", "")
 	UpgradeCheckerEnabled   = NewSetting("upgrade-checker-enabled", "true")
 	UpgradeCheckerURL       = NewSetting("upgrade-checker-url", "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
+	ReleaseDownloadURL      = NewSetting("release-download-url", "https://releases.rancher.com/harvester")
 	LogLevel                = NewSetting("log-level", "info") // options are info, debug and trace
 	SSLCertificates         = NewSetting(SSLCertificatesSettingName, "{}")
 	SSLParameters           = NewSetting(SSLParametersName, "{}")
