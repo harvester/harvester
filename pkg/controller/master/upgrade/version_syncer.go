@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -36,25 +38,6 @@ type Version struct {
 	ReleaseDate          string   `json:"releaseDate"`
 	MinUpgradableVersion string   `json:"minUpgradableVersion,omitempty"`
 	Tags                 []string `json:"tags"`
-	ISOURL               string   `json:"isoURL"`
-	ISOChecksum          string   `json:"isoChecksum"`
-	Checksum             string   `json:"checksum"`
-}
-
-func (v *Version) createVersionCR(namespace string) *harvesterv1.Version {
-	return &harvesterv1.Version{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      v.Name,
-		},
-		Spec: harvesterv1.VersionSpec{
-			ISOURL:               v.ISOURL,
-			ISOChecksum:          v.ISOChecksum,
-			ReleaseDate:          v.ReleaseDate,
-			MinUpgradableVersion: v.MinUpgradableVersion,
-			Tags:                 v.Tags,
-		},
-	}
 }
 
 type versionSyncer struct {
@@ -130,13 +113,16 @@ func (s *versionSyncer) syncVersions(resp CheckUpgradeResponse, currentVersion s
 	}
 
 	for _, v := range resp.Versions {
-		newVersion := v.createVersionCR(s.namespace)
+		newVersion, err := s.getNewVersion(v)
+		if err != nil {
+			return err
+		}
 
 		if !canUpgrade(currentVersion, newVersion) {
 			continue
 		}
 
-		_, err := s.versionClient.Get(s.namespace, v.Name, metav1.GetOptions{})
+		_, err = s.versionClient.Get(newVersion.Namespace, newVersion.Name, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				if _, err := s.versionClient.Create(newVersion); err != nil {
@@ -168,13 +154,43 @@ func (s *versionSyncer) cleanupVersions(currentVersion string) error {
 	return nil
 }
 
+func (s *versionSyncer) getNewVersion(v Version) (*harvesterv1.Version, error) {
+	releaseDownloadURL := settings.ReleaseDownloadURL.Get()
+	url := fmt.Sprintf("%s/%s/version.yaml", releaseDownloadURL, v.Name)
+	resp, err := s.httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("failed to download version.yaml from URL: %s", url)
+	}
+
+	var newVersion harvesterv1.Version
+	if err = yaml.Unmarshal(body, &newVersion); err != nil {
+		return nil, err
+	}
+
+	newVersion.Namespace = s.namespace
+	newVersion.Spec.ReleaseDate = v.ReleaseDate
+	newVersion.Spec.MinUpgradableVersion = v.MinUpgradableVersion
+	newVersion.Spec.Tags = v.Tags
+	return &newVersion, nil
+}
+
 func canUpgrade(currentVersion string, newVersion *harvesterv1.Version) bool {
 	switch {
 	case newVersion.Spec.ISOURL == "" || newVersion.Spec.ISOChecksum == "":
 		return false
 	case slice.ContainsString(newVersion.Spec.Tags, "dev"):
 		return true
-	case gversion.Compare(currentVersion, newVersion.Name, "<") && gversion.Compare(currentVersion, newVersion.Spec.MinUpgradableVersion, ">="):
+	case gversion.Compare(currentVersion, newVersion.Name, "<") && (newVersion.Spec.MinUpgradableVersion == "" || gversion.Compare(currentVersion, newVersion.Spec.MinUpgradableVersion, ">=")):
 		return true
 	default:
 		return false
