@@ -198,9 +198,6 @@ upgrade_rancher()
   kubectl delete clusterrepos.catalog.cattle.io rancher-partner-charts
   kubectl delete settings.management.cattle.io chart-default-branch
 
-  # Workaround of https://github.com/rancher/rancher/issues/37113
-  yq e '.extraEnv = [{"name": "CATTLE_RANCHER_WEBHOOK_MIN_VERSION", "value": "1.0.3+up0.2.5"}]' values.yaml -i
-
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
   ./helm upgrade rancher ./*.tgz --namespace cattle-system -f values.yaml --wait
 
