@@ -108,7 +108,7 @@ func (v *pvcValidator) Update(request *types.Request, oldObj runtime.Object, new
 			return fmt.Errorf("failed to get VM: %v", err)
 		}
 		if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusProvisioning && vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
-			message := fmt.Sprintf("resizing is only supported for detached volumes. The volueme is being used by VM %s. Please stop the VM first.", vmID)
+			message := fmt.Sprintf("resizing is only supported for detached volumes. The volume is being used by VM %s. Please stop the VM first.", vmID)
 			return werror.NewInvalidError(message, "")
 		}
 	}
