@@ -431,8 +431,7 @@ kube-vip:
   enabled: false
   image:
     repository: ghcr.io/kube-vip/kube-vip
-    # target commit https://github.com/kube-vip/kube-vip/commit/344cb491eb84c0a8dc73e54fa043ebf4ea44bf02
-    tag: main
+    tag: v0.4.3
   nodeSelector:
     node-role.kubernetes.io/control-plane: "true"
 
