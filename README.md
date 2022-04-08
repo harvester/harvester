@@ -64,7 +64,7 @@ During the installation, you can either choose to form a new cluster, or join th
 1. Configure the `Virtual IP` which you can use to access the cluster or join the other nodes to the cluster.
 1. Configure the `cluster token`. This token will be used for adding other nodes to the cluster.
 1. Configure the login password of the host. The default SSH user is `rancher`.
-1. (Optional) Configure the NTP Servers of the node. This defaults to `0.suse.pool.ntp.org`.
+1. Recommended configuring the NTP server to make sure all nodes' times are synchronized. This defaults to `0.suse.pool.ntp.org`.
 1. (Optional) If you need to use an HTTP proxy to access the outside world, enter the proxy URL address here. Otherwise, leave this blank.
 1. (Optional) You can choose to import SSH keys from a remote URL server. Your GitHub public keys can be used with `https://github.com/<username>.keys`.
 1. (Optional) If you need to customize the host with a cloud-init config, enter the HTTP URL here.
@@ -89,15 +89,16 @@ Check out this [demo](https://youtu.be/Ngsk7m6NYf4) to get a quick overview of t
 ## Source code
 Harvester is 100% open-source software. The project source code is spread across a number of repos:
 
-| Name | Repo Address |
-|:---|:---|
-| Harvester | https://github.com/harvester/harvester |
-| Harvester Dashboard | https://github.com/harvester/dashboard |
-| Harvester Installer | https://github.com/harvester/harvester-installer |
-| Harvester Terraform Provider | https://github.com/harvester/terraform-provider-harvester |
-| Harvester Cloud Provider | https://github.com/harvester/cloud-provider-harvester |
-| Harvester Load Balancer | https://github.com/harvester/load-balancer-harvester |
-| Harvester Network Controller | https://github.com/harvester/harvester-network-controller|
+| Name                         | Repo Address                                               |
+|:-----------------------------|:-----------------------------------------------------------|
+| Harvester                    | https://github.com/harvester/harvester                     |
+| Harvester Dashboard          | https://github.com/harvester/dashboard                     |
+| Harvester Installer          | https://github.com/harvester/harvester-installer           |
+| Harvester Terraform Provider | https://github.com/harvester/terraform-provider-harvester  |
+| Harvester Cloud Provider     | https://github.com/harvester/cloud-provider-harvester      |
+| Harvester Load Balancer      | https://github.com/harvester/load-balancer-harvester       |
+| Harvester Network Controller | https://github.com/harvester/harvester-network-controller  |
+| Harvester CSI Driver         | https://github.com/harvester/harvester-csi-driver          |
 
 ## Community
 If you need any help with Harvester, please join us at either our [Slack](https://slack.rancher.io/) #harvester channel or [forums](https://forums.rancher.com/) where most of our team hangs out at.
