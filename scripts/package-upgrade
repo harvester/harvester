@@ -1,9 +1,13 @@
 #!/bin/bash
 set -e
 
-source $(dirname $0)/version
+TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+SCRIPTS_DIR="${TOP_DIR}/scripts"
+UPGRADE_DIR="${TOP_DIR}/package/upgrade"
 
-cd $(dirname $0)/../package/upgrade
+source $SCRIPTS_DIR/version
+
+cd $UPGRADE_DIR
 
 IMAGE=${REPO}/harvester-upgrade:${TAG}
 DOCKERFILE=Dockerfile
