@@ -1,14 +1,18 @@
 #!/bin/bash
 set -e
 
-source $(dirname $0)/version
+TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+SCRIPTS_DIR="${TOP_DIR}/scripts"
+PACKAGE_DIR="${TOP_DIR}/package"
 
-cd $(dirname $0)/..
+source $SCRIPTS_DIR/version
+
+cd $TOP_DIR
 
 mkdir -p dist/artifacts
 cp bin/harvester dist/artifacts/harvester${SUFFIX}
 
-cd $(dirname $0)/package
+cd $PACKAGE_DIR
 
 IMAGE=${REPO}/harvester:${TAG}
 DOCKERFILE=Dockerfile
