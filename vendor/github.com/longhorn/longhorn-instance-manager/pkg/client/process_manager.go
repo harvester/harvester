@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/longhorn/longhorn-instance-manager/pkg/api"
+	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 	"github.com/longhorn/longhorn-instance-manager/pkg/meta"
-	"github.com/longhorn/longhorn-instance-manager/pkg/rpc"
 	"github.com/longhorn/longhorn-instance-manager/pkg/types"
 )
 

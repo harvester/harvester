@@ -11,7 +11,7 @@ import (
 
 	"github.com/longhorn/backupstore"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 )
@@ -62,7 +62,7 @@ func getBackupCredentialEnv(backupTarget string, credential map[string]string) (
 	}
 	// If AWS IAM Role not present, then the AWS credentials must be exists
 	if credential[types.AWSIAMRoleArn] == "" && len(missingKeys) > 0 {
-		return nil, fmt.Errorf("Could not backup to %s, missing %v in the secret", backupType, missingKeys)
+		return nil, fmt.Errorf("could not backup to %s, missing %v in the secret", backupType, missingKeys)
 	}
 	if len(missingKeys) == 0 {
 		envs = append(envs, fmt.Sprintf("%s=%s", types.AWSAccessKey, credential[types.AWSAccessKey]))

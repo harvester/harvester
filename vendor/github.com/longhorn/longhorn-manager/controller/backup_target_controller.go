@@ -27,8 +27,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type BackupTargetController struct {
@@ -44,15 +43,13 @@ type BackupTargetController struct {
 
 	ds *datastore.DataStore
 
-	btStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewBackupTargetController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	backupTargetInformer lhinformers.BackupTargetInformer,
-	engineImageInformer lhinformers.EngineImageInformer,
 	kubeClient clientset.Interface,
 	controllerID string,
 	namespace string) *BackupTargetController {
@@ -73,16 +70,15 @@ func NewBackupTargetController(
 
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-backup-target-controller"}),
-
-		btStoreSynced: backupTargetInformer.Informer().HasSynced,
 	}
 
-	backupTargetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.BackupTargetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    btc.enqueueBackupTarget,
 		UpdateFunc: func(old, cur interface{}) { btc.enqueueBackupTarget(cur) },
 	})
+	btc.cacheSyncs = append(btc.cacheSyncs, ds.BackupTargetInformer.HasSynced)
 
-	engineImageInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.EngineImageInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(old, cur interface{}) {
 			oldEI := old.(*longhorn.EngineImage)
 			curEI := cur.(*longhorn.EngineImage)
@@ -95,6 +91,7 @@ func NewBackupTargetController(
 			btc.enqueueEngineImage(cur)
 		},
 	}, 0)
+	btc.cacheSyncs = append(btc.cacheSyncs, ds.EngineImageInformer.HasSynced)
 
 	return btc
 }
@@ -133,7 +130,7 @@ func (btc *BackupTargetController) Run(workers int, stopCh <-chan struct{}) {
 	btc.logger.Infof("Start Longhorn Backup Target controller")
 	defer btc.logger.Infof("Shutting down Longhorn Backup Target controller")
 
-	if !cache.WaitForNamedCacheSync(btc.name, stopCh, btc.btStoreSynced) {
+	if !cache.WaitForNamedCacheSync(btc.name, stopCh, btc.cacheSyncs...) {
 		return
 	}
 	for i := 0; i < workers; i++ {
@@ -219,7 +216,7 @@ func getBackupTargetClient(ds *datastore.DataStore, backupTarget *longhorn.Backu
 	var credential map[string]string
 	if backupType == types.BackupStoreTypeS3 {
 		if backupTarget.Spec.CredentialSecret == "" {
-			return nil, fmt.Errorf("Could not access %s without credential secret", types.BackupStoreTypeS3)
+			return nil, fmt.Errorf("could not access %s without credential secret", types.BackupStoreTypeS3)
 		}
 		credential, err = ds.GetCredentialFromSecret(backupTarget.Spec.CredentialSecret)
 		if err != nil {

@@ -31,8 +31,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -57,9 +56,7 @@ type SettingController struct {
 
 	ds *datastore.DataStore
 
-	sStoreSynced  cache.InformerSynced
-	nStoreSynced  cache.InformerSynced
-	btStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	// upgrade checker
 	lastUpgradeCheckedTimestamp time.Time
@@ -97,9 +94,6 @@ func NewSettingController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	settingInformer lhinformers.SettingInformer,
-	nodeInformer lhinformers.NodeInformer,
-	backupTargetInfomer lhinformers.BackupTargetInformer,
 	kubeClient clientset.Interface,
 	namespace, controllerID, version string) *SettingController {
 
@@ -119,28 +113,27 @@ func NewSettingController(
 
 		ds: ds,
 
-		sStoreSynced:  settingInformer.Informer().HasSynced,
-		nStoreSynced:  nodeInformer.Informer().HasSynced,
-		btStoreSynced: backupTargetInfomer.Informer().HasSynced,
-
 		version: version,
 	}
 
-	settingInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.SettingInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    sc.enqueueSetting,
 		UpdateFunc: func(old, cur interface{}) { sc.enqueueSetting(cur) },
 		DeleteFunc: sc.enqueueSetting,
 	}, settingControllerResyncPeriod)
+	sc.cacheSyncs = append(sc.cacheSyncs, ds.SettingInformer.HasSynced)
 
-	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.NodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    sc.enqueueSettingForNode,
 		UpdateFunc: func(old, cur interface{}) { sc.enqueueSettingForNode(cur) },
 		DeleteFunc: sc.enqueueSettingForNode,
 	}, 0)
+	sc.cacheSyncs = append(sc.cacheSyncs, ds.NodeInformer.HasSynced)
 
-	backupTargetInfomer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.BackupTargetInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		DeleteFunc: sc.enqueueSettingForBackupTarget,
 	}, 0)
+	sc.cacheSyncs = append(sc.cacheSyncs, ds.BackupTargetInformer.HasSynced)
 
 	return sc
 }
@@ -152,7 +145,7 @@ func (sc *SettingController) Run(stopCh <-chan struct{}) {
 	sc.logger.Info("Start Longhorn Setting controller")
 	defer sc.logger.Info("Shutting down Longhorn Setting controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn settings", stopCh, sc.sStoreSynced, sc.nStoreSynced, sc.btStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn settings", stopCh, sc.cacheSyncs...) {
 		return
 	}
 
@@ -722,7 +715,7 @@ func (sc *SettingController) syncUpgradeChecker() error {
 		return err
 	}
 
-	if upgradeCheckerEnabled == false {
+	if !upgradeCheckerEnabled {
 		if latestLonghornVersion.Value != "" {
 			latestLonghornVersion.Value = ""
 			if _, err := sc.ds.UpdateSetting(latestLonghornVersion); err != nil {

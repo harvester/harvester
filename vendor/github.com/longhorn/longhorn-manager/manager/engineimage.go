@@ -2,7 +2,6 @@ package manager
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -13,7 +12,7 @@ import (
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 var (
@@ -53,11 +52,6 @@ func (m *VolumeManager) GetEngineImageByImage(image string) (*longhorn.EngineIma
 }
 
 func (m *VolumeManager) CreateEngineImage(image string) (*longhorn.EngineImage, error) {
-	image = strings.TrimSpace(image)
-	if image == "" {
-		return nil, fmt.Errorf("cannot create engine image with empty image")
-	}
-
 	name := types.GetEngineImageChecksumName(image)
 	ei := &longhorn.EngineImage{
 		ObjectMeta: metav1.ObjectMeta{

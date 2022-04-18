@@ -12,7 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/util"
 )
 
@@ -30,11 +30,19 @@ const (
 
 	CRDAPIVersionV1alpha1 = "longhorn.rancher.io/v1alpha1"
 	CRDAPIVersionV1beta1  = "longhorn.io/v1beta1"
-	CurrentCRDAPIVersion  = CRDAPIVersionV1beta1
+	CRDAPIVersionV1beta2  = "longhorn.io/v1beta2"
+	CurrentCRDAPIVersion  = CRDAPIVersionV1beta2
 )
 
 const (
-	DefaultAPIPort = 9500
+	DefaultAPIPort           = 9500
+	DefaultWebhookServerPort = 9443
+
+	WebhookTypeConversion = "conversion"
+	WebhookTypeAdmission  = "admission"
+
+	ValidatingWebhookName = "longhorn-webhook-validator"
+	MutatingWebhookName   = "longhorn-webhook-mutator"
 
 	EngineBinaryDirectoryInContainer = "/engine-binaries/"
 	EngineBinaryDirectoryOnHost      = "/var/lib/longhorn/engine-binaries/"
@@ -83,6 +91,7 @@ const (
 	LonghornLabelBackupVolume             = "backup-volume"
 	LonghornLabelRecurringJob             = "job"
 	LonghornLabelRecurringJobGroup        = "job-group"
+	LonghornLabelCRDAPIVersion            = "crd-api-version"
 
 	LonghornLabelValueEnabled = "enabled"
 
@@ -255,6 +264,10 @@ func GetLonghornLabelComponentKey() string {
 	return GetLonghornLabelKey("component")
 }
 
+func GetLonghornLabelCRDAPIVersionKey() string {
+	return GetLonghornLabelKey(LonghornLabelCRDAPIVersion)
+}
+
 func GetEngineImageLabels(engineImageName string) map[string]string {
 	labels := GetBaseLabelsForSystemManagedComponent()
 	labels[GetLonghornLabelComponentKey()] = LonghornLabelEngineImage
@@ -409,11 +422,11 @@ func GetShareManagerImageChecksumName(image string) string {
 }
 
 func GetShareManagerPodNameFromShareManagerName(smName string) string {
-	return LonghornLabelShareManager + "-" + smName
+	return shareManagerPrefix + smName
 }
 
 func GetShareManagerNameFromShareManagerPodName(podName string) string {
-	return strings.TrimPrefix(podName, LonghornLabelShareManager+"-")
+	return strings.TrimPrefix(podName, shareManagerPrefix)
 }
 
 func ValidateEngineImageChecksumName(name string) bool {
@@ -621,6 +634,7 @@ func CreateDefaultDisk(dataPath string) (map[string]longhorn.DiskSpec, error) {
 			AllowScheduling:   true,
 			EvictionRequested: false,
 			StorageReserved:   diskInfo.StorageMaximum * 30 / 100,
+			Tags:              []string{},
 		},
 	}, nil
 }

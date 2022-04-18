@@ -1,6 +1,10 @@
 syntax="proto3";
 
+package longhorn.backingimagemanager.pkg.rpc;
+
 import "google/protobuf/empty.proto";
+
+option go_package = "rpc";
 
 service BackingImageManagerService {
 	rpc Delete(DeleteRequest) returns (google.protobuf.Empty) {}

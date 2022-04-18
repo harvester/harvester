@@ -24,8 +24,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type BackingImageController struct {
@@ -42,20 +41,13 @@ type BackingImageController struct {
 
 	ds *datastore.DataStore
 
-	biStoreSynced   cache.InformerSynced
-	bimStoreSynced  cache.InformerSynced
-	bidsStoreSynced cache.InformerSynced
-	rStoreSynced    cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewBackingImageController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	backingImageInformer lhinformers.BackingImageInformer,
-	backingImageManagerInformer lhinformers.BackingImageManagerInformer,
-	backingImageDataSourceInformer lhinformers.BackingImageDataSourceInformer,
-	replicaInformer lhinformers.ReplicaInformer,
 	kubeClient clientset.Interface,
 	namespace string, controllerID, serviceAccount string) *BackingImageController {
 
@@ -75,36 +67,35 @@ func NewBackingImageController(
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "longhorn-backing-image-controller"}),
 
 		ds: ds,
-
-		biStoreSynced:   backingImageInformer.Informer().HasSynced,
-		bimStoreSynced:  backingImageManagerInformer.Informer().HasSynced,
-		bidsStoreSynced: backingImageDataSourceInformer.Informer().HasSynced,
-		rStoreSynced:    replicaInformer.Informer().HasSynced,
 	}
 
-	backingImageInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImage,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImage(cur) },
 		DeleteFunc: bic.enqueueBackingImage,
 	})
+	bic.cacheSyncs = append(bic.cacheSyncs, ds.BackingImageInformer.HasSynced)
 
-	backingImageManagerInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageManagerInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImageForBackingImageManager,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImageForBackingImageManager(cur) },
 		DeleteFunc: bic.enqueueBackingImageForBackingImageManager,
 	}, 0)
+	bic.cacheSyncs = append(bic.cacheSyncs, ds.BackingImageManagerInformer.HasSynced)
 
-	backingImageDataSourceInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageDataSourceInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImageForBackingImageDataSource,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImageForBackingImageDataSource(cur) },
 		DeleteFunc: bic.enqueueBackingImageForBackingImageDataSource,
 	}, 0)
+	bic.cacheSyncs = append(bic.cacheSyncs, ds.BackingImageDataSourceInformer.HasSynced)
 
-	replicaInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.ReplicaInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImageForReplica,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImageForReplica(cur) },
 		DeleteFunc: bic.enqueueBackingImageForReplica,
 	}, 0)
+	bic.cacheSyncs = append(bic.cacheSyncs, ds.ReplicaInformer.HasSynced)
 
 	return bic
 }
@@ -116,7 +107,7 @@ func (bic *BackingImageController) Run(workers int, stopCh <-chan struct{}) {
 	logrus.Infof("Start Longhorn Backing Image controller")
 	defer logrus.Infof("Shutting down Longhorn Backing Image controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn backing images", stopCh, bic.biStoreSynced, bic.bimStoreSynced, bic.bidsStoreSynced, bic.rStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn backing images", stopCh, bic.cacheSyncs...) {
 		return
 	}
 
@@ -801,7 +792,7 @@ func (bic *BackingImageController) enqueueBackingImage(obj interface{}) {
 func (bic *BackingImageController) enqueueBackingImageForBackingImageManager(obj interface{}) {
 	bim, isBIM := obj.(*longhorn.BackingImageManager)
 	if !isBIM {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -831,7 +822,7 @@ func (bic *BackingImageController) enqueueBackingImageForBackingImageDataSource(
 func (bic *BackingImageController) enqueueBackingImageForReplica(obj interface{}) {
 	replica, isReplica := obj.(*longhorn.Replica)
 	if !isReplica {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return

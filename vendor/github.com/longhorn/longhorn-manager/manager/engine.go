@@ -13,7 +13,7 @@ import (
 
 	"github.com/longhorn/longhorn-manager/engineapi"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -122,6 +122,9 @@ func (m *VolumeManager) RevertSnapshot(snapshotName, volumeName string) error {
 	}
 	if snapshot == nil {
 		return fmt.Errorf("not found snapshot '%s', for volume '%s'", snapshotName, volumeName)
+	}
+	if snapshot.Removed {
+		return fmt.Errorf("not revert to snapshot '%s' for volume '%s' since it's marked as Removed", snapshotName, volumeName)
 	}
 	if err := engine.SnapshotRevert(snapshotName); err != nil {
 		return err

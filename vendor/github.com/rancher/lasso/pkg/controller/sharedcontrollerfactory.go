@@ -83,9 +83,20 @@ func (s *sharedControllerFactory) Start(ctx context.Context, defaultWorkers int)
 		return err
 	}
 
-	s.sharedCacheFactory.WaitForCacheSync(ctx)
+	// copy so we can release the lock during cache wait
+	controllersCopy := map[schema.GroupVersionResource]*sharedController{}
+	for k, v := range s.controllers {
+		controllersCopy[k] = v
+	}
 
-	for gvr, controller := range s.controllers {
+	// Do not hold lock while waiting because this can cause a deadlock if
+	// one of the handlers you are waiting on tries to acquire this lock (by looking up
+	// shared controller)
+	s.controllerLock.Unlock()
+	s.sharedCacheFactory.WaitForCacheSync(ctx)
+	s.controllerLock.Lock()
+
+	for gvr, controller := range controllersCopy {
 		w, err := s.getWorkers(gvr, defaultWorkers)
 		if err != nil {
 			return err

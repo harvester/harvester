@@ -7,7 +7,7 @@ import (
 
 	devtypes "github.com/longhorn/go-iscsi-helper/types"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -25,8 +25,6 @@ const (
 
 	DefaultISCSIPort = "3260"
 	DefaultISCSILUN  = "1"
-
-	commonTimeout = 1 * time.Minute
 
 	// MaxPollCount, MinPollCount, PollInterval determines how often
 	// we sync with others
@@ -210,7 +208,7 @@ func ValidateReplicaURL(url string) error {
 
 func CheckCLICompatibilty(cliVersion, cliMinVersion int) error {
 	if MinCLIVersion > cliVersion || CurrentCLIVersion < cliMinVersion {
-		return fmt.Errorf("Manager current CLI version %v and min CLI version %v is not compatible with CLIVersion %v and CLIMinVersion %v", CurrentCLIVersion, MinCLIVersion, cliVersion, cliMinVersion)
+		return fmt.Errorf("manager current CLI version %v and min CLI version %v is not compatible with CLIVersion %v and CLIMinVersion %v", CurrentCLIVersion, MinCLIVersion, cliVersion, cliMinVersion)
 	}
 	return nil
 }

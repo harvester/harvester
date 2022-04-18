@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	clientset "k8s.io/client-go/kubernetes"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
 	"github.com/longhorn/longhorn-manager/meta"
 	"github.com/longhorn/longhorn-manager/types"
@@ -48,7 +48,7 @@ func MergeStringMaps(baseMap, overwriteMap map[string]string) map[string]string 
 }
 
 func GetCurrentLonghornVersion(namespace string, lhClient *lhclientset.Clientset) (string, error) {
-	currentLHVersionSetting, err := lhClient.LonghornV1beta1().Settings(namespace).Get(context.TODO(), string(types.SettingNameCurrentLonghornVersion), metav1.GetOptions{})
+	currentLHVersionSetting, err := lhClient.LonghornV1beta2().Settings(namespace).Get(context.TODO(), string(types.SettingNameCurrentLonghornVersion), metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return "", nil
@@ -60,7 +60,7 @@ func GetCurrentLonghornVersion(namespace string, lhClient *lhclientset.Clientset
 }
 
 func CreateOrUpdateLonghornVersionSetting(namespace string, lhClient *lhclientset.Clientset) error {
-	s, err := lhClient.LonghornV1beta1().Settings(namespace).Get(context.TODO(), string(types.SettingNameCurrentLonghornVersion), metav1.GetOptions{})
+	s, err := lhClient.LonghornV1beta2().Settings(namespace).Get(context.TODO(), string(types.SettingNameCurrentLonghornVersion), metav1.GetOptions{})
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
@@ -72,13 +72,13 @@ func CreateOrUpdateLonghornVersionSetting(namespace string, lhClient *lhclientse
 			},
 			Value: meta.Version,
 		}
-		_, err := lhClient.LonghornV1beta1().Settings(namespace).Create(context.TODO(), s, metav1.CreateOptions{})
+		_, err := lhClient.LonghornV1beta2().Settings(namespace).Create(context.TODO(), s, metav1.CreateOptions{})
 		return err
 	}
 
 	if s.Value != meta.Version {
 		s.Value = meta.Version
-		_, err = lhClient.LonghornV1beta1().Settings(namespace).Update(context.TODO(), s, metav1.UpdateOptions{})
+		_, err = lhClient.LonghornV1beta2().Settings(namespace).Update(context.TODO(), s, metav1.UpdateOptions{})
 		return err
 	}
 	return nil

@@ -25,9 +25,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/pkg/errors"
-	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 
 	v1 "k8s.io/api/core/v1"
@@ -122,7 +122,7 @@ func Backoff(maxDuration time.Duration, timeoutMessage string, f func() (bool, e
 	waitTime := 150 * time.Millisecond
 	maxWaitTime := 2 * time.Second
 	for {
-		if time.Now().Sub(startTime) > maxDuration {
+		if time.Since(startTime) > maxDuration {
 			return errors.New(timeoutMessage)
 		}
 
@@ -142,7 +142,7 @@ func Backoff(maxDuration time.Duration, timeoutMessage string, f func() (bool, e
 }
 
 func UUID() string {
-	return uuid.NewV4().String()
+	return uuid.New().String()
 }
 
 // WaitForDevice timeout in second
@@ -151,7 +151,7 @@ func WaitForDevice(dev string, timeout int) error {
 		st, err := os.Stat(dev)
 		if err == nil {
 			if st.Mode()&os.ModeDevice == 0 {
-				return fmt.Errorf("Invalid mode for %v: 0x%x", dev, st.Mode())
+				return fmt.Errorf("invalid mode for %v: 0x%x", dev, st.Mode())
 			}
 			return nil
 		}
@@ -230,12 +230,12 @@ func ExecuteWithTimeout(timeout time.Duration, envs []string, binary string, arg
 			}
 
 		}
-		return "", fmt.Errorf("Timeout executing: %v %v, output %s, stderr, %s, error %v",
+		return "", fmt.Errorf("timeout executing: %v %v, output %s, stderr, %s, error %v",
 			binary, args, output.String(), stderr.String(), err)
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %v",
+		return "", fmt.Errorf("failed to execute: %v %v, output %s, stderr, %s, error %v",
 			binary, args, output.String(), stderr.String(), err)
 	}
 	return output.String(), nil
@@ -296,7 +296,7 @@ func GetBackupID(backupURL string) (string, error) {
 	volumeName := v.Get("volume")
 	backupName := v.Get("backup")
 	if !ValidateName(volumeName) || !ValidateName(backupName) {
-		return "", fmt.Errorf("Invalid name parsed, got %v and %v", backupName, volumeName)
+		return "", fmt.Errorf("invalid name parsed, got %v and %v", backupName, volumeName)
 	}
 	return backupName, nil
 }

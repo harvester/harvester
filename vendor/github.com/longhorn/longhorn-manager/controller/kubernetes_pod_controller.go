@@ -8,15 +8,13 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
-	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/controller"
@@ -24,7 +22,7 @@ import (
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -42,22 +40,13 @@ type KubernetesPodController struct {
 
 	ds *datastore.DataStore
 
-	pLister   listerv1.PodLister
-	pvLister  listerv1.PersistentVolumeLister
-	pvcLister listerv1.PersistentVolumeClaimLister
-
-	pStoreSynced   cache.InformerSynced
-	pvStoreSynced  cache.InformerSynced
-	pvcStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewKubernetesPodController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	kubePodInformer coreinformers.PodInformer,
-	kubePersistentVolumeInformer coreinformers.PersistentVolumeInformer,
-	kubePersistentVolumeClaimInformer coreinformers.PersistentVolumeClaimInformer,
 	kubeClient clientset.Interface,
 	controllerID string) *KubernetesPodController {
 
@@ -77,21 +66,14 @@ func NewKubernetesPodController(
 
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-kubernetes-pod-controller"}),
-
-		pLister:   kubePodInformer.Lister(),
-		pvLister:  kubePersistentVolumeInformer.Lister(),
-		pvcLister: kubePersistentVolumeClaimInformer.Lister(),
-
-		pStoreSynced:   kubePodInformer.Informer().HasSynced,
-		pvStoreSynced:  kubePersistentVolumeInformer.Informer().HasSynced,
-		pvcStoreSynced: kubePersistentVolumeClaimInformer.Informer().HasSynced,
 	}
 
-	kubePodInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.PodInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    kc.enqueuePodChange,
 		UpdateFunc: func(old, cur interface{}) { kc.enqueuePodChange(cur) },
 		DeleteFunc: kc.enqueuePodChange,
 	})
+	kc.cacheSyncs = append(kc.cacheSyncs, ds.PodInformer.HasSynced)
 
 	return kc
 }
@@ -103,7 +85,7 @@ func (kc *KubernetesPodController) Run(workers int, stopCh <-chan struct{}) {
 	kc.logger.Infof("Start %v", controllerAgentName)
 	defer kc.logger.Infof("Shutting down %v", controllerAgentName)
 
-	if !cache.WaitForNamedCacheSync(controllerAgentName, stopCh, kc.pStoreSynced, kc.pvStoreSynced, kc.pvcStoreSynced) {
+	if !cache.WaitForNamedCacheSync(controllerAgentName, stopCh, kc.cacheSyncs...) {
 		return
 	}
 	for i := 0; i < workers; i++ {
@@ -154,7 +136,7 @@ func (kc *KubernetesPodController) syncHandler(key string) (err error) {
 		return err
 	}
 
-	pod, err := kc.pLister.Pods(namespace).Get(name)
+	pod, err := kc.ds.GetPodRO(namespace, name)
 	if err != nil {
 		if datastore.ErrorIsNotFound(err) {
 			return nil
@@ -315,7 +297,7 @@ func (kc *KubernetesPodController) enqueuePodChange(obj interface{}) {
 
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -334,7 +316,7 @@ func (kc *KubernetesPodController) enqueuePodChange(obj interface{}) {
 			continue
 		}
 
-		pvc, err := kc.pvcLister.PersistentVolumeClaims(pod.Namespace).Get(v.VolumeSource.PersistentVolumeClaim.ClaimName)
+		pvc, err := kc.ds.GetPersistentVolumeClaimRO(pod.Namespace, v.VolumeSource.PersistentVolumeClaim.ClaimName)
 		if datastore.ErrorIsNotFound(err) {
 			continue
 		}
@@ -361,7 +343,7 @@ func (kc *KubernetesPodController) enqueuePodChange(obj interface{}) {
 
 func (kc *KubernetesPodController) getAssociatedPersistentVolume(pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolume, error) {
 	pvName := pvc.Spec.VolumeName
-	return kc.pvLister.Get(pvName)
+	return kc.ds.GetPersistentVolumeRO(pvName)
 }
 
 func (kc *KubernetesPodController) getAssociatedVolumes(pod *v1.Pod) ([]*longhorn.Volume, error) {
@@ -371,7 +353,7 @@ func (kc *KubernetesPodController) getAssociatedVolumes(pod *v1.Pod) ([]*longhor
 			continue
 		}
 
-		pvc, err := kc.pvcLister.PersistentVolumeClaims(pod.Namespace).Get(v.VolumeSource.PersistentVolumeClaim.ClaimName)
+		pvc, err := kc.ds.GetPersistentVolumeClaimRO(pod.Namespace, v.VolumeSource.PersistentVolumeClaim.ClaimName)
 		if datastore.ErrorIsNotFound(err) {
 			continue
 		}

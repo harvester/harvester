@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"net"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ type TLSFactory interface {
 	AddCN(secret *v1.Secret, cn ...string) (*v1.Secret, bool, error)
 	Merge(target *v1.Secret, additional *v1.Secret) (*v1.Secret, bool, error)
 	Filter(cn ...string) []string
+	Regenerate(secret *v1.Secret) (*v1.Secret, error)
 }
 
 type SetFactory interface {
@@ -74,11 +76,18 @@ func NewListener(l net.Listener, storage TLSStorage, caCert *x509.Certificate, c
 		setter.SetFactory(dynamicListener.factory)
 	}
 
+	if config.RegenerateCerts != nil && config.RegenerateCerts() {
+		if err := dynamicListener.regenerateCerts(); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	if config.ExpirationDaysCheck == 0 {
 		config.ExpirationDaysCheck = 30
 	}
 
 	tlsListener := tls.NewListener(dynamicListener.WrapExpiration(config.ExpirationDaysCheck), dynamicListener.tlsConfig)
+
 	return tlsListener, dynamicListener.cacheHandler(), nil
 }
 
@@ -129,6 +138,7 @@ type Config struct {
 	MaxSANs               int
 	ExpirationDaysCheck   int
 	CloseConnOnCertChange bool
+	RegenerateCerts       func() bool
 	FilterCN              func(...string) []string
 }
 
@@ -153,7 +163,10 @@ type listener struct {
 func (l *listener) WrapExpiration(days int) net.Listener {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(30 * time.Second)
+		// busy-wait for certificate preload to complete
+		for l.cert == nil {
+			runtime.Gosched()
+		}
 
 		for {
 			wait := 6 * time.Hour
@@ -178,6 +191,30 @@ func (l *listener) WrapExpiration(days int) net.Listener {
 		cancel:   cancel,
 		Listener: l,
 	}
+}
+
+// regenerateCerts regenerates the used certificates and
+// updates the secret.
+func (l *listener) regenerateCerts() error {
+	l.Lock()
+	defer l.Unlock()
+
+	secret, err := l.storage.Get()
+	if err != nil {
+		return err
+	}
+
+	newSecret, err := l.factory.Regenerate(secret)
+	if err != nil {
+		return err
+	}
+	if err := l.storage.Update(newSecret); err != nil {
+		return err
+	}
+	// clear version to force cert reload
+	l.version = ""
+
+	return nil
 }
 
 func (l *listener) checkExpiration(days int) error {
@@ -225,7 +262,13 @@ func (l *listener) checkExpiration(days int) error {
 func (l *listener) Accept() (net.Conn, error) {
 	l.init.Do(func() {
 		if len(l.sans) > 0 {
-			l.updateCert(l.sans...)
+			if err := l.updateCert(l.sans...); err != nil {
+				logrus.Errorf("failed to update cert with configured SANs: %v", err)
+				return
+			}
+			if _, err := l.loadCert(nil); err != nil {
+				logrus.Errorf("failed to preload certificate: %v", err)
+			}
 		}
 	})
 
@@ -247,7 +290,7 @@ func (l *listener) Accept() (net.Conn, error) {
 
 	if !strings.Contains(host, ":") {
 		if err := l.updateCert(host); err != nil {
-			logrus.Infof("failed to create TLS cert for: %s, %v", host, err)
+			logrus.Errorf("failed to update cert with listener address: %v", err)
 		}
 	}
 
@@ -295,6 +338,7 @@ func (l *listener) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate,
 	newConn := hello.Conn
 	if hello.ServerName != "" {
 		if err := l.updateCert(hello.ServerName); err != nil {
+			logrus.Errorf("failed to update cert with TLS ServerName: %v", err)
 			return nil, err
 		}
 	}
@@ -316,7 +360,7 @@ func (l *listener) updateCert(cn ...string) error {
 		return err
 	}
 
-	if !factory.IsStatic(secret) && !factory.NeedsUpdate(l.maxSANs, secret, cn...) {
+	if factory.IsStatic(secret) || !factory.NeedsUpdate(l.maxSANs, secret, cn...) {
 		return nil
 	}
 
@@ -334,7 +378,9 @@ func (l *listener) updateCert(cn ...string) error {
 		if err := l.storage.Update(secret); err != nil {
 			return err
 		}
-		// clear version to force cert reload
+		// Clear version to force cert reload next time loadCert is called by TLSConfig's
+		// GetCertificate hook to provide a certificate for a new connection. Note that this
+		// means the old certificate stays in l.cert until a new connection is made.
 		l.version = ""
 	}
 
@@ -372,7 +418,7 @@ func (l *listener) loadCert(currentConn net.Conn) (*tls.Certificate, error) {
 	}
 
 	// cert has changed, close closeWrapper wrapped connections if this isn't the first load
-	if l.conns != nil && l.cert != nil {
+	if currentConn != nil && l.conns != nil && l.cert != nil {
 		l.connLock.Lock()
 		for _, conn := range l.conns {
 			// Don't close a connection that's in the middle of completing a TLS handshake
@@ -405,7 +451,9 @@ func (l *listener) cacheHandler() http.Handler {
 				}
 			}
 
-			l.updateCert(h)
+			if err := l.updateCert(h); err != nil {
+				logrus.Errorf("failed to update cert with HTTP request Host header: %v", err)
+			}
 		}
 	})
 }

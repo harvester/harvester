@@ -3,9 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
@@ -20,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -34,8 +31,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 var (
@@ -54,9 +50,7 @@ type InstanceManagerController struct {
 
 	ds *datastore.DataStore
 
-	imStoreSynced cache.InformerSynced
-	pStoreSynced  cache.InformerSynced
-	knStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	instanceManagerMonitorMutex *sync.Mutex
 	instanceManagerMonitorMap   map[string]chan struct{}
@@ -107,9 +101,6 @@ func NewInstanceManagerController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	imInformer lhinformers.InstanceManagerInformer,
-	pInformer coreinformers.PodInformer,
-	kubeNodeInformer coreinformers.NodeInformer,
 	kubeClient clientset.Interface,
 	namespace, controllerID, serviceAccount string) *InstanceManagerController {
 
@@ -129,23 +120,20 @@ func NewInstanceManagerController(
 
 		ds: ds,
 
-		imStoreSynced: imInformer.Informer().HasSynced,
-		pStoreSynced:  pInformer.Informer().HasSynced,
-		knStoreSynced: kubeNodeInformer.Informer().HasSynced,
-
 		instanceManagerMonitorMutex: &sync.Mutex{},
 		instanceManagerMonitorMap:   map[string]chan struct{}{},
 
 		versionUpdater: updateInstanceManagerVersion,
 	}
 
-	imInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.InstanceManagerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    imc.enqueueInstanceManager,
 		UpdateFunc: func(old, cur interface{}) { imc.enqueueInstanceManager(cur) },
 		DeleteFunc: imc.enqueueInstanceManager,
 	})
+	imc.cacheSyncs = append(imc.cacheSyncs, ds.InstanceManagerInformer.HasSynced)
 
-	pInformer.Informer().AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
+	ds.PodInformer.AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
 		FilterFunc: isInstanceManagerPod,
 		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc:    imc.enqueueInstanceManagerPod,
@@ -153,11 +141,13 @@ func NewInstanceManagerController(
 			DeleteFunc: imc.enqueueInstanceManagerPod,
 		},
 	}, 0)
+	imc.cacheSyncs = append(imc.cacheSyncs, ds.PodInformer.HasSynced)
 
-	kubeNodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.KubeNodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, cur interface{}) { imc.enqueueKubernetesNode(cur) },
 		DeleteFunc: imc.enqueueKubernetesNode,
 	}, 0)
+	imc.cacheSyncs = append(imc.cacheSyncs, ds.KubeNodeInformer.HasSynced)
 
 	return imc
 }
@@ -165,7 +155,7 @@ func NewInstanceManagerController(
 func isInstanceManagerPod(obj interface{}) bool {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			return false
 		}
@@ -192,7 +182,7 @@ func (imc *InstanceManagerController) Run(workers int, stopCh <-chan struct{}) {
 	logrus.Infof("Starting Longhorn instance manager controller")
 	defer logrus.Infof("Shutting down Longhorn instance manager controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn instance manager", stopCh, imc.imStoreSynced, imc.pStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn instance manager", stopCh, imc.cacheSyncs...) {
 		return
 	}
 
@@ -700,7 +690,7 @@ func (imc *InstanceManagerController) enqueueInstanceManager(instanceManager int
 func (imc *InstanceManagerController) enqueueInstanceManagerPod(obj interface{}) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -729,7 +719,7 @@ func (imc *InstanceManagerController) enqueueInstanceManagerPod(obj interface{})
 func (imc *InstanceManagerController) enqueueKubernetesNode(obj interface{}) {
 	kubernetesNode, ok := obj.(*v1.Node)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -750,7 +740,7 @@ func (imc *InstanceManagerController) enqueueKubernetesNode(obj interface{}) {
 			// node (e.g. controller/etcd node). Skip it
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("Couldn't get node %v: %v ", kubernetesNode.Name, err))
+		utilruntime.HandleError(fmt.Errorf("couldn't get node %v: %v ", kubernetesNode.Name, err))
 		return
 	}
 
@@ -987,19 +977,6 @@ func (imc *InstanceManagerController) createReplicaManagerPodSpec(im *longhorn.I
 			},
 		},
 	}
-
-	service, err := net.LookupCNAME("longhorn-backend")
-
-	if err == nil {
-		podSpec.Spec.Containers[0].Env = []v1.EnvVar{
-			{
-				Name:  "HOST_SUFFIX",
-				Value: strings.TrimPrefix(service, "longhorn-backend"),
-			},
-		}
-	} else {
-		logrus.Errorf("error getting fully qualified domain name for longhorn services: %v", err)
-	}
 	return podSpec, nil
 }
 
@@ -1038,7 +1015,6 @@ func (notifier *InstanceManagerNotifier) Recv() (struct{}, error) {
 
 func (notifier *InstanceManagerNotifier) Close() {
 	notifier.stream.Close()
-	return
 }
 
 func (imc *InstanceManagerController) startMonitoring(im *longhorn.InstanceManager) {
@@ -1101,7 +1077,6 @@ func (imc *InstanceManagerController) stopMonitoring(imName string) {
 		close(stopCh)
 	}
 
-	return
 }
 
 func (m *InstanceManagerMonitor) Run() {

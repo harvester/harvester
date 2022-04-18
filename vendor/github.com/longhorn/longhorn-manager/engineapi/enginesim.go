@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type EngineSimulatorRequest struct {

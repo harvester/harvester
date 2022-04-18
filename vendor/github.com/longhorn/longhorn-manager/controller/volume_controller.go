@@ -34,8 +34,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 var (
@@ -61,21 +60,14 @@ type VolumeController struct {
 	// which namespace controller is running with
 	namespace string
 	// use as the OwnerID of the controller
-	controllerID   string
-	ManagerImage   string
-	ServiceAccount string
+	controllerID string
 
 	kubeClient    clientset.Interface
 	eventRecorder record.EventRecorder
 
 	ds *datastore.DataStore
 
-	vStoreSynced    cache.InformerSynced
-	eStoreSynced    cache.InformerSynced
-	rStoreSynced    cache.InformerSynced
-	smStoreSynced   cache.InformerSynced
-	bvStoreSynced   cache.InformerSynced
-	bidsStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	scheduler *scheduler.ReplicaScheduler
 
@@ -89,15 +81,10 @@ func NewVolumeController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	volumeInformer lhinformers.VolumeInformer,
-	engineInformer lhinformers.EngineInformer,
-	replicaInformer lhinformers.ReplicaInformer,
-	shareManagerInformer lhinformers.ShareManagerInformer,
-	backupVolumeInformer lhinformers.BackupVolumeInformer,
-	bidsInformer lhinformers.BackingImageDataSourceInformer,
 	kubeClient clientset.Interface,
-	namespace, controllerID, serviceAccount string,
-	managerImage string) *VolumeController {
+	namespace,
+	controllerID string,
+) *VolumeController {
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(logrus.Infof)
@@ -107,21 +94,12 @@ func NewVolumeController(
 	vc := &VolumeController{
 		baseController: newBaseController("longhorn-volume", logger),
 
-		ds:             ds,
-		namespace:      namespace,
-		controllerID:   controllerID,
-		ManagerImage:   managerImage,
-		ServiceAccount: serviceAccount,
+		ds:           ds,
+		namespace:    namespace,
+		controllerID: controllerID,
 
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-volume-controller"}),
-
-		vStoreSynced:    volumeInformer.Informer().HasSynced,
-		eStoreSynced:    engineInformer.Informer().HasSynced,
-		rStoreSynced:    replicaInformer.Informer().HasSynced,
-		smStoreSynced:   shareManagerInformer.Informer().HasSynced,
-		bvStoreSynced:   backupVolumeInformer.Informer().HasSynced,
-		bidsStoreSynced: bidsInformer.Informer().HasSynced,
 
 		backoff: flowcontrol.NewBackOff(time.Minute, time.Minute*3),
 
@@ -130,35 +108,54 @@ func NewVolumeController(
 
 	vc.scheduler = scheduler.NewReplicaScheduler(ds)
 
-	volumeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.VolumeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    vc.enqueueVolume,
 		UpdateFunc: func(old, cur interface{}) { vc.enqueueVolume(cur) },
 		DeleteFunc: vc.enqueueVolume,
 	})
-	engineInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	vc.cacheSyncs = append(vc.cacheSyncs, ds.VolumeInformer.HasSynced)
+
+	ds.EngineInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    vc.enqueueControlleeChange,
 		UpdateFunc: func(old, cur interface{}) { vc.enqueueControlleeChange(cur) },
 		DeleteFunc: vc.enqueueControlleeChange,
 	}, 0)
-	replicaInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	vc.cacheSyncs = append(vc.cacheSyncs, ds.EngineInformer.HasSynced)
+
+	ds.ReplicaInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    vc.enqueueControlleeChange,
 		UpdateFunc: func(old, cur interface{}) { vc.enqueueControlleeChange(cur) },
 		DeleteFunc: vc.enqueueControlleeChange,
 	}, 0)
-	shareManagerInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	vc.cacheSyncs = append(vc.cacheSyncs, ds.ReplicaInformer.HasSynced)
+
+	ds.ShareManagerInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    vc.enqueueVolumesForShareManager,
 		UpdateFunc: func(old, cur interface{}) { vc.enqueueVolumesForShareManager(cur) },
 		DeleteFunc: vc.enqueueVolumesForShareManager,
 	}, 0)
-	backupVolumeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	vc.cacheSyncs = append(vc.cacheSyncs, ds.ShareManagerInformer.HasSynced)
+
+	ds.BackupVolumeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(old, cur interface{}) { vc.enqueueVolumesForBackupVolume(cur) },
 		DeleteFunc: vc.enqueueVolumesForBackupVolume,
 	}, 0)
-	bidsInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	vc.cacheSyncs = append(vc.cacheSyncs, ds.BackupVolumeInformer.HasSynced)
+
+	ds.BackingImageDataSourceInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    vc.enqueueVolumesForBackingImageDataSource,
 		UpdateFunc: func(old, cur interface{}) { vc.enqueueVolumesForBackingImageDataSource(cur) },
 		DeleteFunc: vc.enqueueVolumesForBackingImageDataSource,
 	}, 0)
+	vc.cacheSyncs = append(vc.cacheSyncs, ds.BackingImageDataSourceInformer.HasSynced)
+
+	ds.NodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+		AddFunc:    vc.enqueueNodeChange,
+		UpdateFunc: func(old, cur interface{}) { vc.enqueueNodeChange(cur) },
+		DeleteFunc: vc.enqueueNodeChange,
+	}, 0)
+	vc.cacheSyncs = append(vc.cacheSyncs, ds.NodeInformer.HasSynced)
+
 	return vc
 }
 
@@ -169,7 +166,7 @@ func (vc *VolumeController) Run(workers int, stopCh <-chan struct{}) {
 	vc.logger.Infof("Start Longhorn volume controller")
 	defer vc.logger.Infof("Shutting down Longhorn volume controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn engines", stopCh, vc.vStoreSynced, vc.eStoreSynced, vc.rStoreSynced, vc.smStoreSynced, vc.bvStoreSynced, vc.bidsStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn engines", stopCh, vc.cacheSyncs...) {
 		return
 	}
 
@@ -450,13 +447,14 @@ func (vc *VolumeController) syncVolume(key string) (err error) {
 
 // handleConditionLastTransitionTime rollback to the existing condition object if condition's values hasn't changed
 func handleConditionLastTransitionTime(existingStatus, newStatus *longhorn.VolumeStatus) {
-	for conditionType, condition := range newStatus.Conditions {
-		existingCondition, ok := existingStatus.Conditions[conditionType]
-		if ok &&
-			existingCondition.Status == condition.Status &&
-			existingCondition.Reason == condition.Reason &&
-			existingCondition.Message == condition.Message {
-			newStatus.Conditions[conditionType] = existingCondition
+	for i, newCondition := range newStatus.Conditions {
+		for _, existingCondition := range existingStatus.Conditions {
+			if existingCondition.Type == newCondition.Type &&
+				existingCondition.Status == newCondition.Status &&
+				existingCondition.Reason == newCondition.Reason &&
+				existingCondition.Message == newCondition.Message {
+				newStatus.Conditions[i] = existingCondition
+			}
 		}
 	}
 }
@@ -467,7 +465,7 @@ func (vc *VolumeController) EvictReplicas(v *longhorn.Volume,
 	log := getLoggerForVolume(vc.logger, v)
 
 	for _, replica := range rs {
-		if replica.Status.EvictionRequested == true &&
+		if replica.Status.EvictionRequested &&
 			healthyCount == v.Spec.NumberOfReplicas {
 			if err := vc.replenishReplicas(v, e, rs, ""); err != nil {
 				log.WithError(err).Error("Failed to create new replica for replica eviction")
@@ -690,7 +688,7 @@ func getFailedReplicaCount(rs map[string]*longhorn.Replica) int {
 
 func (vc *VolumeController) hasReplicaEvictionRequested(rs map[string]*longhorn.Replica) bool {
 	for _, r := range rs {
-		if r.Status.EvictionRequested == true {
+		if r.Status.EvictionRequested {
 			return true
 		}
 	}
@@ -1064,6 +1062,8 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 					longhorn.VolumeConditionReasonLocalReplicaSchedulingFailure, "")
 			}
 			scheduled = false
+			// requeue the volume to retry to schedule the replica after 30s
+			vc.enqueueVolumeAfter(v, 30*time.Second)
 		} else {
 			rs[r.Name] = scheduledReplica
 		}
@@ -1632,11 +1632,16 @@ func (vc *VolumeController) replenishReplicas(v *longhorn.Volume, e *longhorn.En
 			}
 			log.Debugf("Cannot reuse failed replica %v immediately, backoff period is %v now",
 				reusableFailedReplica.Name, vc.backoff.Get(reusableFailedReplica.Name).Seconds())
+			// Couldn't reuse the replica. Add the volume back to the workqueue to check it later
+			vc.enqueueVolumeAfter(v, vc.backoff.Get(reusableFailedReplica.Name))
 		}
-		if vc.scheduler.RequireNewReplica(rs, v, hardNodeAffinity) {
+		if checkBackDuration := vc.scheduler.RequireNewReplica(rs, v, hardNodeAffinity); checkBackDuration == 0 {
 			if err := vc.createReplica(v, e, rs, hardNodeAffinity, !newVolume); err != nil {
 				return err
 			}
+		} else {
+			// Couldn't create new replica. Add the volume back to the workqueue to check it later
+			vc.enqueueVolumeAfter(v, checkBackDuration)
 		}
 	}
 	return nil
@@ -2781,8 +2786,18 @@ func (vc *VolumeController) enqueueVolume(obj interface{}) {
 	vc.queue.Add(key)
 }
 
+func (vc *VolumeController) enqueueVolumeAfter(obj interface{}, duration time.Duration) {
+	key, err := controller.KeyFunc(obj)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("enqueueVolumeAfter: couldn't get key for object %#v: %v", obj, err))
+		return
+	}
+
+	vc.queue.AddAfter(key, duration)
+}
+
 func (vc *VolumeController) enqueueControlleeChange(obj interface{}) {
-	if deletedState, ok := obj.(*cache.DeletedFinalStateUnknown); ok {
+	if deletedState, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = deletedState.Obj
 	}
 
@@ -3307,7 +3322,7 @@ func (vc *VolumeController) deleteEngine(e *longhorn.Engine, es map[string]*long
 func (vc *VolumeController) enqueueVolumesForShareManager(obj interface{}) {
 	sm, isShareManager := obj.(*longhorn.ShareManager)
 	if !isShareManager {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -3406,7 +3421,7 @@ func (vc *VolumeController) createShareManagerForVolume(volume *longhorn.Volume,
 func (vc *VolumeController) enqueueVolumesForBackupVolume(obj interface{}) {
 	bv, isBackupVolume := obj.(*longhorn.BackupVolume)
 	if !isBackupVolume {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -3448,7 +3463,7 @@ func (vc *VolumeController) enqueueVolumesForBackupVolume(obj interface{}) {
 func (vc *VolumeController) enqueueVolumesForBackingImageDataSource(obj interface{}) {
 	bids, isBackingImageDataSource := obj.(*longhorn.BackingImageDataSource)
 	if !isBackingImageDataSource {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -3465,6 +3480,44 @@ func (vc *VolumeController) enqueueVolumesForBackingImageDataSource(obj interfac
 	if volumeName := bids.Labels[types.GetLonghornLabelKey(types.LonghornLabelExportFromVolume)]; volumeName != "" {
 		key := bids.Namespace + "/" + volumeName
 		vc.queue.Add(key)
+	}
+}
+
+func (vc *VolumeController) enqueueNodeChange(obj interface{}) {
+	node, ok := obj.(*longhorn.Node)
+	if !ok {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
+			return
+		}
+
+		// use the last known state, to enqueue, dependent objects
+		node, ok = deletedState.Obj.(*longhorn.Node)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("DeletedFinalStateUnknown contained invalid object: %#v", deletedState.Obj))
+			return
+		}
+	}
+
+	replicas, err := vc.ds.ListReplicasRO()
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("failed to list replicas when enqueuing node %v: %v", node.Name, err))
+		return
+	}
+	for _, r := range replicas {
+		vol, err := vc.ds.GetVolumeRO(r.Spec.VolumeName)
+		if err != nil {
+			utilruntime.HandleError(fmt.Errorf("failed to get volume %v of replica %v when enqueuing node %v: %v", r.Spec.VolumeName, r.Name, node.Name, err))
+			continue
+		}
+		replicaAutoBalance, err := vc.getAutoBalancedReplicasSetting(vol)
+		if err != nil {
+			vc.logger.Warnf(err.Error())
+		}
+		if r.Spec.NodeID == "" || r.Spec.FailedAt != "" || replicaAutoBalance != longhorn.ReplicaAutoBalanceDisabled {
+			vc.enqueueVolume(vol)
+		}
 	}
 }
 

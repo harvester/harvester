@@ -10,14 +10,13 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -33,8 +32,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -53,10 +51,7 @@ type BackingImageManagerController struct {
 
 	ds *datastore.DataStore
 
-	bimStoreSynced cache.InformerSynced
-	biStoreSynced  cache.InformerSynced
-	nStoreSynced   cache.InformerSynced
-	pStoreSynced   cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	lock       *sync.RWMutex
 	monitorMap map[string]chan struct{}
@@ -103,10 +98,6 @@ func NewBackingImageManagerController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	bimInformer lhinformers.BackingImageManagerInformer,
-	biInformer lhinformers.BackingImageInformer,
-	nodeInformer lhinformers.NodeInformer,
-	pInformer coreinformers.PodInformer,
 	kubeClient clientset.Interface,
 	namespace, controllerID, serviceAccount string) *BackingImageManagerController {
 
@@ -128,35 +119,33 @@ func NewBackingImageManagerController(
 
 		backoffMap: sync.Map{},
 
-		bimStoreSynced: bimInformer.Informer().HasSynced,
-		biStoreSynced:  biInformer.Informer().HasSynced,
-		nStoreSynced:   nodeInformer.Informer().HasSynced,
-		pStoreSynced:   pInformer.Informer().HasSynced,
-
 		lock:       &sync.RWMutex{},
 		monitorMap: map[string]chan struct{}{},
 
 		versionUpdater: updateBackingImageManagerVersion,
 	}
 
-	bimInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageManagerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueBackingImageManager,
 		UpdateFunc: func(old, cur interface{}) { c.enqueueBackingImageManager(cur) },
 		DeleteFunc: c.enqueueBackingImageManager,
 	})
+	c.cacheSyncs = append(c.cacheSyncs, ds.BackingImageManagerInformer.HasSynced)
 
-	biInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueForBackingImage,
 		UpdateFunc: func(old, cur interface{}) { c.enqueueForBackingImage(cur) },
 		DeleteFunc: c.enqueueForBackingImage,
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.BackingImageInformer.HasSynced)
 
-	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.NodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, cur interface{}) { c.enqueueForLonghornNode(cur) },
 		DeleteFunc: c.enqueueForLonghornNode,
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.NodeInformer.HasSynced)
 
-	pInformer.Informer().AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
+	ds.PodInformer.AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
 		FilterFunc: isBackingImageManagerPod,
 		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.enqueueForBackingImageManagerPod,
@@ -164,6 +153,7 @@ func NewBackingImageManagerController(
 			DeleteFunc: c.enqueueForBackingImageManagerPod,
 		},
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.PodInformer.HasSynced)
 
 	return c
 }
@@ -175,7 +165,7 @@ func (c *BackingImageManagerController) Run(workers int, stopCh <-chan struct{})
 	logrus.Infof("Starting Longhorn backing image manager controller")
 	defer logrus.Infof("Shutting down Longhorn backing image manager controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn backing image manager", stopCh, c.bimStoreSynced, c.biStoreSynced, c.nStoreSynced, c.pStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn backing image manager", stopCh, c.cacheSyncs...) {
 		return
 	}
 
@@ -404,7 +394,6 @@ func (c *BackingImageManagerController) updateForUnknownBackingImageManager(bim 
 		bim.Status.BackingImageFileMap[biName] = info
 	}
 
-	return
 }
 
 func (c *BackingImageManagerController) syncBackingImageManagerPod(bim *longhorn.BackingImageManager, backoff *flowcontrol.Backoff) (err error) {
@@ -866,7 +855,7 @@ func (c *BackingImageManagerController) enqueueBackingImageManager(backingImageM
 func isBackingImageManagerPod(obj interface{}) bool {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			return false
 		}
@@ -887,7 +876,7 @@ func isBackingImageManagerPod(obj interface{}) bool {
 func (c *BackingImageManagerController) enqueueForBackingImage(obj interface{}) {
 	backingImage, ok := obj.(*longhorn.BackingImage)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -906,7 +895,7 @@ func (c *BackingImageManagerController) enqueueForBackingImage(obj interface{}) 
 		if apierrors.IsNotFound(err) {
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("Couldn't get backing image %v: %v ", backingImage.Name, err))
+		utilruntime.HandleError(fmt.Errorf("couldn't get backing image %v: %v ", backingImage.Name, err))
 		return
 	}
 
@@ -930,7 +919,7 @@ func (c *BackingImageManagerController) enqueueForBackingImage(obj interface{}) 
 func (c *BackingImageManagerController) enqueueForLonghornNode(obj interface{}) {
 	node, ok := obj.(*longhorn.Node)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -973,7 +962,7 @@ func (c *BackingImageManagerController) enqueueForLonghornNode(obj interface{}) 
 func (c *BackingImageManagerController) enqueueForBackingImageManagerPod(obj interface{}) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -1069,7 +1058,6 @@ func (c *BackingImageManagerController) stopMonitoring(bimName string) {
 	delete(c.monitorMap, bimName)
 	log.Infof("Stopped monitoring")
 
-	return
 }
 
 func (c *BackingImageManagerController) isMonitoring(bimName string) bool {

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -15,8 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	appsv1 "k8s.io/client-go/informers/apps/v1"
-	storagev1 "k8s.io/client-go/informers/storage/v1"
+	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -24,8 +24,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/upgrade"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -44,7 +43,7 @@ const (
 	CRDBackupName                 = "backups.longhorn.io"
 	CRDRecurringJobName           = "recurringjobs.longhorn.io"
 
-	LonghornNamespace = "longhorn-system"
+	EnvLonghornNamespace = "LONGHORN_NAMESPACE"
 )
 
 var (
@@ -58,6 +57,8 @@ type UninstallController struct {
 	ds        *datastore.DataStore
 	stopCh    chan struct{}
 
+	kubeClient clientset.Interface
+
 	cacheSyncs []cache.InformerSynced
 }
 
@@ -67,24 +68,8 @@ func NewUninstallController(
 	force bool,
 	ds *datastore.DataStore,
 	stopCh chan struct{},
+	kubeClient clientset.Interface,
 	extensionsClient apiextension.Interface,
-	volumeInformer lhinformers.VolumeInformer,
-	engineInformer lhinformers.EngineInformer,
-	replicaInformer lhinformers.ReplicaInformer,
-	engineImageInformer lhinformers.EngineImageInformer,
-	nodeInformer lhinformers.NodeInformer,
-	imInformer lhinformers.InstanceManagerInformer,
-	smInformer lhinformers.ShareManagerInformer,
-	backingImageInformer lhinformers.BackingImageInformer,
-	backingImageManagerInformer lhinformers.BackingImageManagerInformer,
-	backingImageDataSourceInformer lhinformers.BackingImageDataSourceInformer,
-	backupTargetInformer lhinformers.BackupTargetInformer,
-	backupVolumeInformer lhinformers.BackupVolumeInformer,
-	backupInformer lhinformers.BackupInformer,
-	recurringJobInformer lhinformers.RecurringJobInformer,
-	daemonSetInformer appsv1.DaemonSetInformer,
-	deploymentInformer appsv1.DeploymentInformer,
-	csiDriverInformer storagev1.CSIDriverInformer,
 ) *UninstallController {
 	c := &UninstallController{
 		baseController: newBaseControllerWithQueue("longhorn-uninstall", logger,
@@ -97,72 +82,74 @@ func NewUninstallController(
 		force:     force,
 		ds:        ds,
 		stopCh:    stopCh,
+
+		kubeClient: kubeClient,
 	}
 
-	csiDriverInformer.Informer().AddEventHandler(c.controlleeHandler())
-	daemonSetInformer.Informer().AddEventHandler(c.namespacedControlleeHandler())
-	deploymentInformer.Informer().AddEventHandler(c.namespacedControlleeHandler())
+	ds.CSIDriverInformer.AddEventHandler(c.controlleeHandler())
+	ds.DaemonSetInformer.AddEventHandler(c.namespacedControlleeHandler())
+	ds.DeploymentInformer.AddEventHandler(c.namespacedControlleeHandler())
 	cacheSyncs := []cache.InformerSynced{
-		csiDriverInformer.Informer().HasSynced,
-		daemonSetInformer.Informer().HasSynced,
-		deploymentInformer.Informer().HasSynced,
+		ds.CSIDriverInformer.HasSynced,
+		ds.DaemonSetInformer.HasSynced,
+		ds.DeploymentInformer.HasSynced,
 	}
 
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDEngineName, metav1.GetOptions{}); err == nil {
-		engineInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, engineInformer.Informer().HasSynced)
+		ds.EngineInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.EngineInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDReplicaName, metav1.GetOptions{}); err == nil {
-		replicaInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, replicaInformer.Informer().HasSynced)
+		ds.ReplicaInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.ReplicaInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDVolumeName, metav1.GetOptions{}); err == nil {
-		volumeInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, volumeInformer.Informer().HasSynced)
+		ds.VolumeInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.VolumeInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDEngineImageName, metav1.GetOptions{}); err == nil {
-		engineImageInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, engineImageInformer.Informer().HasSynced)
+		ds.EngineImageInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.EngineImageInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDNodeName, metav1.GetOptions{}); err == nil {
-		nodeInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, nodeInformer.Informer().HasSynced)
+		ds.NodeInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.NodeInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDInstanceManagerName, metav1.GetOptions{}); err == nil {
-		imInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, imInformer.Informer().HasSynced)
+		ds.InstanceManagerInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.InstanceManagerInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDShareManagerName, metav1.GetOptions{}); err == nil {
-		smInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, smInformer.Informer().HasSynced)
+		ds.ShareManagerInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.ShareManagerInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDBackingImageName, metav1.GetOptions{}); err == nil {
-		backingImageInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, backingImageInformer.Informer().HasSynced)
+		ds.BackingImageInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.BackingImageInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDBackingImageManagerName, metav1.GetOptions{}); err == nil {
-		backingImageManagerInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, backingImageManagerInformer.Informer().HasSynced)
+		ds.BackingImageManagerInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.BackingImageManagerInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDBackingImageDataSourceName, metav1.GetOptions{}); err == nil {
-		backingImageDataSourceInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, backingImageDataSourceInformer.Informer().HasSynced)
+		ds.BackingImageDataSourceInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.BackingImageDataSourceInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDBackupTargetName, metav1.GetOptions{}); err == nil {
-		backupTargetInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, backupTargetInformer.Informer().HasSynced)
+		ds.BackupTargetInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.BackupTargetInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDBackupVolumeName, metav1.GetOptions{}); err == nil {
-		backupVolumeInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, backupVolumeInformer.Informer().HasSynced)
+		ds.BackupVolumeInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.BackupVolumeInformer.HasSynced)
 	}
 	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDBackupName, metav1.GetOptions{}); err == nil {
-		backupInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, backupInformer.Informer().HasSynced)
+		ds.BackupInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.BackupInformer.HasSynced)
 	}
-	if _, err := extensionsClient.ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), CRDRecurringJobName, metav1.GetOptions{}); err == nil {
-		recurringJobInformer.Informer().AddEventHandler(c.controlleeHandler())
-		cacheSyncs = append(cacheSyncs, recurringJobInformer.Informer().HasSynced)
+	if _, err := extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), CRDRecurringJobName, metav1.GetOptions{}); err == nil {
+		ds.RecurringJobInformer.AddEventHandler(c.controlleeHandler())
+		cacheSyncs = append(cacheSyncs, ds.RecurringJobInformer.HasSynced)
 	}
 
 	c.cacheSyncs = cacheSyncs
@@ -197,7 +184,7 @@ func (c *UninstallController) enqueueNamespacedControlleeChange(obj interface{})
 		return
 	}
 
-	if metadata.GetNamespace() == LonghornNamespace {
+	if metadata.GetNamespace() == os.Getenv(EnvLonghornNamespace) {
 		c.enqueueControlleeChange()
 	}
 }
@@ -207,7 +194,7 @@ func (c *UninstallController) Run() error {
 	defer c.queue.ShutDown()
 
 	if !cache.WaitForNamedCacheSync("longhorn uninstall", c.stopCh, c.cacheSyncs...) {
-		return fmt.Errorf("Failed to sync informers")
+		return fmt.Errorf("failed to sync informers")
 	}
 
 	if err := c.checkPreconditions(); err != nil {
@@ -218,7 +205,7 @@ func (c *UninstallController) Run() error {
 	startTime := time.Now()
 	c.logger.Info("Uninstalling...")
 	defer func() {
-		log := c.logger.WithField("runtime", time.Now().Sub(startTime))
+		log := c.logger.WithField("runtime", time.Since(startTime))
 		log.Info("Uninstallation completed")
 	}()
 	go wait.Until(c.worker, time.Second, c.stopCh)
@@ -296,6 +283,18 @@ func (c *UninstallController) uninstall() error {
 	// cleanup without a running manager.
 	gracePeriod = 0 * time.Second
 	if waitForUpdate, err := c.deleteCRDs(); err != nil || waitForUpdate {
+		return err
+	}
+
+	if waitForUpdate, err := c.deleteWebhookDeployment(types.LonghornAdmissionWebhookDeploymentName); err != nil || waitForUpdate {
+		return err
+	}
+
+	if waitForUpdate, err := c.deleteWebhookDeployment(types.LonghornConversionWebhookDeploymentName); err != nil || waitForUpdate {
+		return err
+	}
+
+	if err := c.deleteWebhookConfiguration(); err != nil {
 		return err
 	}
 
@@ -789,6 +788,51 @@ func (c *UninstallController) deleteManager() (bool, error) {
 	}
 	log.Info("Already marked for deletion")
 	return true, nil
+}
+
+func (c *UninstallController) deleteWebhookDeployment(deployment string) (bool, error) {
+	log := getLoggerForUninstallDeployment(c.logger, deployment)
+
+	if ds, err := c.ds.GetDeployment(deployment); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return true, err
+	} else if ds.DeletionTimestamp == nil {
+		if err := c.ds.DeleteDeployment(deployment); err != nil {
+			log.Warn("failed to mark for deletion")
+			return true, err
+		}
+		log.Info("Marked for deletion")
+		return true, nil
+	}
+	log.Info("Already marked for deletion")
+	return true, nil
+}
+
+func (c *UninstallController) deleteWebhookConfiguration() error {
+	validatingCfg, err := c.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), types.ValidatingWebhookName, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	if validatingCfg != nil {
+		if err := c.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(context.TODO(), types.ValidatingWebhookName, metav1.DeleteOptions{}); err != nil {
+			return err
+		}
+		c.logger.Infof("Successfully clean up the validating webhook configuration %s", types.ValidatingWebhookName)
+	}
+
+	mutatingCfg, err := c.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.TODO(), types.MutatingWebhookName, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	if mutatingCfg != nil {
+		if err := c.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(context.TODO(), types.MutatingWebhookName, metav1.DeleteOptions{}); err != nil {
+			return err
+		}
+		c.logger.Infof("Successfully clean up the mutating webhook configuration %s", types.MutatingWebhookName)
+	}
+	return nil
 }
 
 func (c *UninstallController) managerReady() (bool, error) {

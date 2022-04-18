@@ -19,12 +19,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 
-	"github.com/longhorn/backupstore"
-
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -73,12 +71,12 @@ func (s *DataStore) InitSettings() error {
 // namespace
 func (s *DataStore) CreateSetting(setting *longhorn.Setting) (*longhorn.Setting, error) {
 	// GetSetting automatically create default entry, so no need to double check
-	return s.lhClient.LonghornV1beta1().Settings(s.namespace).Create(context.TODO(), setting, metav1.CreateOptions{})
+	return s.lhClient.LonghornV1beta2().Settings(s.namespace).Create(context.TODO(), setting, metav1.CreateOptions{})
 }
 
 // UpdateSetting updates the given Longhorn Settings and verifies update
 func (s *DataStore) UpdateSetting(setting *longhorn.Setting) (*longhorn.Setting, error) {
-	obj, err := s.lhClient.LonghornV1beta1().Settings(s.namespace).Update(context.TODO(), setting, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Settings(s.namespace).Update(context.TODO(), setting, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +93,7 @@ func (s *DataStore) ValidateSetting(name, value string) (err error) {
 	}()
 	sName := types.SettingName(name)
 
-	if err := types.ValidateInitSetting(name, value); err != nil {
+	if err := types.ValidateSetting(name, value); err != nil {
 		return err
 	}
 
@@ -294,7 +292,7 @@ func (s *DataStore) GetCredentialFromSecret(secretName string) (map[string]strin
 	return credentialSecret, nil
 }
 
-func checkVolume(v *longhorn.Volume) error {
+func CheckVolume(v *longhorn.Volume) error {
 	size, err := util.ConvertSize(v.Spec.Size)
 	if err != nil {
 		return err
@@ -304,10 +302,10 @@ func checkVolume(v *longhorn.Volume) error {
 	}
 	errs := validation.IsDNS1123Label(v.Name)
 	if len(errs) != 0 {
-		return fmt.Errorf("Invalid volume name: %+v", errs)
+		return fmt.Errorf("invalid volume name: %+v", errs)
 	}
 	if len(v.Name) > NameMaximumLength {
-		return fmt.Errorf("Volume name is too long %v, must be less than %v characters",
+		return fmt.Errorf("volume name is too long %v, must be less than %v characters",
 			v.Name, NameMaximumLength)
 	}
 	return nil
@@ -375,9 +373,6 @@ func GetOwnerReferencesForRecurringJob(recurringJob *longhorn.RecurringJob) []me
 
 // CreateVolume creates a Longhorn Volume resource and verifies creation
 func (s *DataStore) CreateVolume(v *longhorn.Volume) (*longhorn.Volume, error) {
-	if err := checkVolume(v); err != nil {
-		return nil, err
-	}
 	if err := fixupMetadata(v.Name, v); err != nil {
 		return nil, err
 	}
@@ -385,17 +380,7 @@ func (s *DataStore) CreateVolume(v *longhorn.Volume) (*longhorn.Volume, error) {
 		return nil, err
 	}
 
-	// Add backup volume name label to the restore/DR volume
-	if v.Spec.FromBackup != "" {
-		_, backupVolumeName, _, err := backupstore.DecodeBackupURL(v.Spec.FromBackup)
-		if err != nil {
-			return nil, fmt.Errorf("cannot decode backup URL %v: %v", v.Spec.FromBackup, err)
-		}
-		if err := tagBackupVolumeLabel(backupVolumeName, v); err != nil {
-			return nil, err
-		}
-	}
-	ret, err := s.lhClient.LonghornV1beta1().Volumes(s.namespace).Create(context.TODO(), v, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().Volumes(s.namespace).Create(context.TODO(), v, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -404,7 +389,7 @@ func (s *DataStore) CreateVolume(v *longhorn.Volume) (*longhorn.Volume, error) {
 	}
 
 	obj, err := verifyCreation(v.Name, "volume", func(name string) (runtime.Object, error) {
-		return s.getVolumeRO(name)
+		return s.GetVolumeRO(name)
 	})
 	if err != nil {
 		return nil, err
@@ -419,9 +404,6 @@ func (s *DataStore) CreateVolume(v *longhorn.Volume) (*longhorn.Volume, error) {
 
 // UpdateVolume updates Longhorn Volume and verifies update
 func (s *DataStore) UpdateVolume(v *longhorn.Volume) (*longhorn.Volume, error) {
-	if err := checkVolume(v); err != nil {
-		return nil, err
-	}
 	if err := fixupMetadata(v.Name, v); err != nil {
 		return nil, err
 	}
@@ -429,24 +411,24 @@ func (s *DataStore) UpdateVolume(v *longhorn.Volume) (*longhorn.Volume, error) {
 		return nil, err
 	}
 
-	obj, err := s.lhClient.LonghornV1beta1().Volumes(s.namespace).Update(context.TODO(), v, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Volumes(s.namespace).Update(context.TODO(), v, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
 	verifyUpdate(v.Name, obj, func(name string) (runtime.Object, error) {
-		return s.getVolumeRO(name)
+		return s.GetVolumeRO(name)
 	})
 	return obj, nil
 }
 
 // UpdateVolumeStatus updates Longhorn Volume status and verifies update
 func (s *DataStore) UpdateVolumeStatus(v *longhorn.Volume) (*longhorn.Volume, error) {
-	obj, err := s.lhClient.LonghornV1beta1().Volumes(s.namespace).UpdateStatus(context.TODO(), v, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Volumes(s.namespace).UpdateStatus(context.TODO(), v, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
 	verifyUpdate(v.Name, obj, func(name string) (runtime.Object, error) {
-		return s.getVolumeRO(name)
+		return s.GetVolumeRO(name)
 	})
 	return obj, nil
 }
@@ -454,7 +436,7 @@ func (s *DataStore) UpdateVolumeStatus(v *longhorn.Volume) (*longhorn.Volume, er
 // DeleteVolume won't result in immediately deletion since finalizer was set by
 // default
 func (s *DataStore) DeleteVolume(name string) error {
-	return s.lhClient.LonghornV1beta1().Volumes(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	return s.lhClient.LonghornV1beta2().Volumes(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
 // RemoveFinalizerForVolume will result in deletion if DeletionTimestamp was set
@@ -466,7 +448,7 @@ func (s *DataStore) RemoveFinalizerForVolume(obj *longhorn.Volume) error {
 	if err := util.RemoveFinalizer(longhornFinalizerKey, obj); err != nil {
 		return err
 	}
-	_, err := s.lhClient.LonghornV1beta1().Volumes(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+	_, err := s.lhClient.LonghornV1beta2().Volumes(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
 	if err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if obj.DeletionTimestamp != nil {
@@ -475,10 +457,6 @@ func (s *DataStore) RemoveFinalizerForVolume(obj *longhorn.Volume) error {
 		return errors.Wrapf(err, "unable to remove finalizer for volume %v", obj.Name)
 	}
 	return nil
-}
-
-func (s *DataStore) getVolumeRO(name string) (*longhorn.Volume, error) {
-	return s.vLister.Volumes(s.namespace).Get(name)
 }
 
 func (s *DataStore) GetVolumeRO(name string) (*longhorn.Volume, error) {
@@ -705,7 +683,7 @@ func (s *DataStore) GetVolumeCurrentEngine(volumeName string) (*longhorn.Engine,
 	if err != nil {
 		return nil, err
 	}
-	v, err := s.getVolumeRO(volumeName)
+	v, err := s.GetVolumeRO(volumeName)
 	if err != nil {
 		return nil, err
 	}
@@ -724,7 +702,7 @@ func (s *DataStore) CreateEngine(e *longhorn.Engine) (*longhorn.Engine, error) {
 		return nil, err
 	}
 
-	ret, err := s.lhClient.LonghornV1beta1().Engines(s.namespace).Create(context.TODO(), e, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().Engines(s.namespace).Create(context.TODO(), e, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -758,7 +736,7 @@ func (s *DataStore) UpdateEngine(e *longhorn.Engine) (*longhorn.Engine, error) {
 		return nil, err
 	}
 
-	obj, err := s.lhClient.LonghornV1beta1().Engines(s.namespace).Update(context.TODO(), e, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Engines(s.namespace).Update(context.TODO(), e, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -770,7 +748,7 @@ func (s *DataStore) UpdateEngine(e *longhorn.Engine) (*longhorn.Engine, error) {
 
 // UpdateEngineStatus updates Longhorn Engine status and verifies update
 func (s *DataStore) UpdateEngineStatus(e *longhorn.Engine) (*longhorn.Engine, error) {
-	obj, err := s.lhClient.LonghornV1beta1().Engines(s.namespace).UpdateStatus(context.TODO(), e, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Engines(s.namespace).UpdateStatus(context.TODO(), e, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -783,7 +761,7 @@ func (s *DataStore) UpdateEngineStatus(e *longhorn.Engine) (*longhorn.Engine, er
 // DeleteEngine won't result in immediately deletion since finalizer was set by
 // default
 func (s *DataStore) DeleteEngine(name string) error {
-	return s.lhClient.LonghornV1beta1().Engines(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	return s.lhClient.LonghornV1beta2().Engines(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
 // RemoveFinalizerForEngine will result in deletion if DeletionTimestamp was set
@@ -795,7 +773,7 @@ func (s *DataStore) RemoveFinalizerForEngine(obj *longhorn.Engine) error {
 	if err := util.RemoveFinalizer(longhornFinalizerKey, obj); err != nil {
 		return err
 	}
-	_, err := s.lhClient.LonghornV1beta1().Engines(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+	_, err := s.lhClient.LonghornV1beta2().Engines(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
 	if err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if obj.DeletionTimestamp != nil {
@@ -882,7 +860,7 @@ func (s *DataStore) CreateReplica(r *longhorn.Replica) (*longhorn.Replica, error
 		return nil, err
 	}
 
-	ret, err := s.lhClient.LonghornV1beta1().Replicas(s.namespace).Create(context.TODO(), r, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().Replicas(s.namespace).Create(context.TODO(), r, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -922,7 +900,7 @@ func (s *DataStore) UpdateReplica(r *longhorn.Replica) (*longhorn.Replica, error
 		return nil, err
 	}
 
-	obj, err := s.lhClient.LonghornV1beta1().Replicas(s.namespace).Update(context.TODO(), r, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Replicas(s.namespace).Update(context.TODO(), r, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -938,7 +916,7 @@ func (s *DataStore) UpdateReplicaStatus(r *longhorn.Replica) (*longhorn.Replica,
 		return nil, err
 	}
 
-	obj, err := s.lhClient.LonghornV1beta1().Replicas(s.namespace).UpdateStatus(context.TODO(), r, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Replicas(s.namespace).UpdateStatus(context.TODO(), r, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -951,7 +929,7 @@ func (s *DataStore) UpdateReplicaStatus(r *longhorn.Replica) (*longhorn.Replica,
 // DeleteReplica won't result in immediately deletion since finalizer was set
 // by default
 func (s *DataStore) DeleteReplica(name string) error {
-	return s.lhClient.LonghornV1beta1().Replicas(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	return s.lhClient.LonghornV1beta2().Replicas(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
 // RemoveFinalizerForReplica will result in deletion if DeletionTimestamp was set
@@ -963,7 +941,7 @@ func (s *DataStore) RemoveFinalizerForReplica(obj *longhorn.Replica) error {
 	if err := util.RemoveFinalizer(longhornFinalizerKey, obj); err != nil {
 		return err
 	}
-	_, err := s.lhClient.LonghornV1beta1().Replicas(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+	_, err := s.lhClient.LonghornV1beta2().Replicas(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
 	if err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if obj.DeletionTimestamp != nil {
@@ -1006,6 +984,11 @@ func (s *DataStore) listReplicas(selector labels.Selector) (map[string]*longhorn
 // ListReplicas returns an object contains all Replicas for the given namespace
 func (s *DataStore) ListReplicas() (map[string]*longhorn.Replica, error) {
 	return s.listReplicas(labels.Everything())
+}
+
+// ListReplicasRO returns a list of all replicas for the given namespace
+func (s *DataStore) ListReplicasRO() ([]*longhorn.Replica, error) {
+	return s.rLister.Replicas(s.namespace).List(labels.Everything())
 }
 
 // ListVolumeReplicas returns an object contains all Replica with the given
@@ -1056,7 +1039,7 @@ func (s *DataStore) CreateEngineImage(img *longhorn.EngineImage) (*longhorn.Engi
 	if err := util.AddFinalizer(longhornFinalizerKey, img); err != nil {
 		return nil, err
 	}
-	ret, err := s.lhClient.LonghornV1beta1().EngineImages(s.namespace).Create(context.TODO(), img, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().EngineImages(s.namespace).Create(context.TODO(), img, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1084,7 +1067,7 @@ func (s *DataStore) UpdateEngineImage(img *longhorn.EngineImage) (*longhorn.Engi
 		return nil, err
 	}
 
-	obj, err := s.lhClient.LonghornV1beta1().EngineImages(s.namespace).Update(context.TODO(), img, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().EngineImages(s.namespace).Update(context.TODO(), img, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1097,7 +1080,7 @@ func (s *DataStore) UpdateEngineImage(img *longhorn.EngineImage) (*longhorn.Engi
 // UpdateEngineImageStatus updates Longhorn EngineImage resource status and
 // verifies update
 func (s *DataStore) UpdateEngineImageStatus(img *longhorn.EngineImage) (*longhorn.EngineImage, error) {
-	obj, err := s.lhClient.LonghornV1beta1().EngineImages(s.namespace).UpdateStatus(context.TODO(), img, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().EngineImages(s.namespace).UpdateStatus(context.TODO(), img, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1111,7 +1094,7 @@ func (s *DataStore) UpdateEngineImageStatus(img *longhorn.EngineImage) (*longhor
 // set by default
 func (s *DataStore) DeleteEngineImage(name string) error {
 	propagation := metav1.DeletePropagationForeground
-	return s.lhClient.LonghornV1beta1().EngineImages(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{PropagationPolicy: &propagation})
+	return s.lhClient.LonghornV1beta2().EngineImages(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{PropagationPolicy: &propagation})
 }
 
 // RemoveFinalizerForEngineImage will result in deletion if DeletionTimestamp was set
@@ -1123,7 +1106,7 @@ func (s *DataStore) RemoveFinalizerForEngineImage(obj *longhorn.EngineImage) err
 	if err := util.RemoveFinalizer(longhornFinalizerKey, obj); err != nil {
 		return err
 	}
-	_, err := s.lhClient.LonghornV1beta1().EngineImages(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+	_, err := s.lhClient.LonghornV1beta2().EngineImages(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
 	if err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if obj.DeletionTimestamp != nil {
@@ -1238,7 +1221,7 @@ func (s *DataStore) CreateBackingImage(backingImage *longhorn.BackingImage) (*lo
 	if err := util.AddFinalizer(longhornFinalizerKey, backingImage); err != nil {
 		return nil, err
 	}
-	ret, err := s.lhClient.LonghornV1beta1().BackingImages(s.namespace).Create(context.TODO(), backingImage, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().BackingImages(s.namespace).Create(context.TODO(), backingImage, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1265,8 +1248,7 @@ func (s *DataStore) UpdateBackingImage(backingImage *longhorn.BackingImage) (*lo
 	if err := util.AddFinalizer(longhornFinalizerKey, backingImage); err != nil {
 		return nil, err
 	}
-
-	obj, err := s.lhClient.LonghornV1beta1().BackingImages(s.namespace).Update(context.TODO(), backingImage, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().BackingImages(s.namespace).Update(context.TODO(), backingImage, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1279,7 +1261,7 @@ func (s *DataStore) UpdateBackingImage(backingImage *longhorn.BackingImage) (*lo
 // UpdateBackingImageStatus updates Longhorn BackingImage resource status and
 // verifies update
 func (s *DataStore) UpdateBackingImageStatus(backingImage *longhorn.BackingImage) (*longhorn.BackingImage, error) {
-	obj, err := s.lhClient.LonghornV1beta1().BackingImages(s.namespace).UpdateStatus(context.TODO(), backingImage, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().BackingImages(s.namespace).UpdateStatus(context.TODO(), backingImage, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1293,7 +1275,7 @@ func (s *DataStore) UpdateBackingImageStatus(backingImage *longhorn.BackingImage
 // set by default
 func (s *DataStore) DeleteBackingImage(name string) error {
 	propagation := metav1.DeletePropagationForeground
-	return s.lhClient.LonghornV1beta1().BackingImages(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{PropagationPolicy: &propagation})
+	return s.lhClient.LonghornV1beta2().BackingImages(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{PropagationPolicy: &propagation})
 }
 
 // RemoveFinalizerForBackingImage will result in deletion if DeletionTimestamp was set
@@ -1305,7 +1287,7 @@ func (s *DataStore) RemoveFinalizerForBackingImage(obj *longhorn.BackingImage) e
 	if err := util.RemoveFinalizer(longhornFinalizerKey, obj); err != nil {
 		return err
 	}
-	_, err := s.lhClient.LonghornV1beta1().BackingImages(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+	_, err := s.lhClient.LonghornV1beta2().BackingImages(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
 	if err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if obj.DeletionTimestamp != nil {
@@ -1367,6 +1349,9 @@ func GetOwnerReferencesForBackingImage(backingImage *longhorn.BackingImage) []me
 // CreateBackingImageManager creates a Longhorn BackingImageManager resource and verifies
 // creation
 func (s *DataStore) CreateBackingImageManager(backingImageManager *longhorn.BackingImageManager) (*longhorn.BackingImageManager, error) {
+	if err := initBackingImageManager(backingImageManager); err != nil {
+		return nil, err
+	}
 	if err := util.AddFinalizer(longhornFinalizerKey, backingImageManager); err != nil {
 		return nil, err
 	}
@@ -1377,7 +1362,7 @@ func (s *DataStore) CreateBackingImageManager(backingImageManager *longhorn.Back
 		return nil, err
 	}
 
-	ret, err := s.lhClient.LonghornV1beta1().BackingImageManagers(s.namespace).Create(context.TODO(), backingImageManager, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().BackingImageManagers(s.namespace).Create(context.TODO(), backingImageManager, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1399,6 +1384,13 @@ func (s *DataStore) CreateBackingImageManager(backingImageManager *longhorn.Back
 	return ret.DeepCopy(), nil
 }
 
+func initBackingImageManager(backingImageManager *longhorn.BackingImageManager) error {
+	if backingImageManager.Spec.BackingImages == nil {
+		backingImageManager.Spec.BackingImages = make(map[string]string, 0)
+	}
+	return nil
+}
+
 // UpdateBackingImageManager updates Longhorn BackingImageManager and verifies update
 func (s *DataStore) UpdateBackingImageManager(backingImageManager *longhorn.BackingImageManager) (*longhorn.BackingImageManager, error) {
 	if err := util.AddFinalizer(longhornFinalizerKey, backingImageManager); err != nil {
@@ -1411,7 +1403,7 @@ func (s *DataStore) UpdateBackingImageManager(backingImageManager *longhorn.Back
 		return nil, err
 	}
 
-	obj, err := s.lhClient.LonghornV1beta1().BackingImageManagers(s.namespace).Update(context.TODO(), backingImageManager, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().BackingImageManagers(s.namespace).Update(context.TODO(), backingImageManager, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1424,7 +1416,7 @@ func (s *DataStore) UpdateBackingImageManager(backingImageManager *longhorn.Back
 // UpdateBackingImageManagerStatus updates Longhorn BackingImageManager resource status and
 // verifies update
 func (s *DataStore) UpdateBackingImageManagerStatus(backingImageManager *longhorn.BackingImageManager) (*longhorn.BackingImageManager, error) {
-	obj, err := s.lhClient.LonghornV1beta1().BackingImageManagers(s.namespace).UpdateStatus(context.TODO(), backingImageManager, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().BackingImageManagers(s.namespace).UpdateStatus(context.TODO(), backingImageManager, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1438,7 +1430,7 @@ func (s *DataStore) UpdateBackingImageManagerStatus(backingImageManager *longhor
 // set by default
 func (s *DataStore) DeleteBackingImageManager(name string) error {
 	propagation := metav1.DeletePropagationForeground
-	return s.lhClient.LonghornV1beta1().BackingImageManagers(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{PropagationPolicy: &propagation})
+	return s.lhClient.LonghornV1beta2().BackingImageManagers(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{PropagationPolicy: &propagation})
 }
 
 // RemoveFinalizerForBackingImageManager will result in deletion if DeletionTimestamp was set
@@ -1450,7 +1442,7 @@ func (s *DataStore) RemoveFinalizerForBackingImageManager(obj *longhorn.BackingI
 	if err := util.RemoveFinalizer(longhornFinalizerKey, obj); err != nil {
 		return err
 	}
-	_, err := s.lhClient.LonghornV1beta1().BackingImageManagers(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+	_, err := s.lhClient.LonghornV1beta2().BackingImageManagers(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
 	if err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if obj.DeletionTimestamp != nil {
@@ -1564,10 +1556,13 @@ func GetOwnerReferencesForBackingImageManager(backingImageManager *longhorn.Back
 // CreateBackingImageDataSource creates a Longhorn BackingImageDataSource resource and verifies
 // creation
 func (s *DataStore) CreateBackingImageDataSource(backingImageDataSource *longhorn.BackingImageDataSource) (*longhorn.BackingImageDataSource, error) {
+	if err := initBackingImageDataSource(backingImageDataSource); err != nil {
+		return nil, err
+	}
 	if err := util.AddFinalizer(longhornFinalizerKey, backingImageDataSource); err != nil {
 		return nil, err
 	}
-	ret, err := s.lhClient.LonghornV1beta1().BackingImageDataSources(s.namespace).Create(context.TODO(), backingImageDataSource, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().BackingImageDataSources(s.namespace).Create(context.TODO(), backingImageDataSource, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1589,13 +1584,20 @@ func (s *DataStore) CreateBackingImageDataSource(backingImageDataSource *longhor
 	return ret.DeepCopy(), nil
 }
 
+func initBackingImageDataSource(backingImageDataSource *longhorn.BackingImageDataSource) error {
+	if backingImageDataSource.Spec.Parameters == nil {
+		backingImageDataSource.Spec.Parameters = make(map[string]string, 0)
+	}
+	return nil
+}
+
 // UpdateBackingImageDataSource updates Longhorn BackingImageDataSource and verifies update
 func (s *DataStore) UpdateBackingImageDataSource(backingImageDataSource *longhorn.BackingImageDataSource) (*longhorn.BackingImageDataSource, error) {
 	if err := util.AddFinalizer(longhornFinalizerKey, backingImageDataSource); err != nil {
 		return nil, err
 	}
 
-	obj, err := s.lhClient.LonghornV1beta1().BackingImageDataSources(s.namespace).Update(context.TODO(), backingImageDataSource, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().BackingImageDataSources(s.namespace).Update(context.TODO(), backingImageDataSource, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1608,7 +1610,7 @@ func (s *DataStore) UpdateBackingImageDataSource(backingImageDataSource *longhor
 // UpdateBackingImageDataSourceStatus updates Longhorn BackingImageDataSource resource status and
 // verifies update
 func (s *DataStore) UpdateBackingImageDataSourceStatus(backingImageDataSource *longhorn.BackingImageDataSource) (*longhorn.BackingImageDataSource, error) {
-	obj, err := s.lhClient.LonghornV1beta1().BackingImageDataSources(s.namespace).UpdateStatus(context.TODO(), backingImageDataSource, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().BackingImageDataSources(s.namespace).UpdateStatus(context.TODO(), backingImageDataSource, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1622,7 +1624,7 @@ func (s *DataStore) UpdateBackingImageDataSourceStatus(backingImageDataSource *l
 // set by default
 func (s *DataStore) DeleteBackingImageDataSource(name string) error {
 	propagation := metav1.DeletePropagationForeground
-	return s.lhClient.LonghornV1beta1().BackingImageDataSources(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{PropagationPolicy: &propagation})
+	return s.lhClient.LonghornV1beta2().BackingImageDataSources(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{PropagationPolicy: &propagation})
 }
 
 // RemoveFinalizerForBackingImageDataSource will result in deletion if DeletionTimestamp was set
@@ -1634,7 +1636,7 @@ func (s *DataStore) RemoveFinalizerForBackingImageDataSource(obj *longhorn.Backi
 	if err := util.RemoveFinalizer(longhornFinalizerKey, obj); err != nil {
 		return err
 	}
-	_, err := s.lhClient.LonghornV1beta1().BackingImageDataSources(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+	_, err := s.lhClient.LonghornV1beta2().BackingImageDataSources(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
 	if err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if obj.DeletionTimestamp != nil {
@@ -1737,7 +1739,7 @@ func (s *DataStore) CreateNode(node *longhorn.Node) (*longhorn.Node, error) {
 	if err := util.AddFinalizer(longhornFinalizerKey, node); err != nil {
 		return nil, err
 	}
-	ret, err := s.lhClient.LonghornV1beta1().Nodes(s.namespace).Create(context.TODO(), node, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().Nodes(s.namespace).Create(context.TODO(), node, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1826,7 +1828,8 @@ func (s *DataStore) GetReadyDiskNode(diskUUID string) (*longhorn.Node, string, e
 	for _, node := range nodes {
 		for diskName, diskStatus := range node.Status.DiskStatus {
 			if diskStatus.DiskUUID == diskUUID {
-				if types.GetCondition(diskStatus.Conditions, longhorn.DiskConditionTypeReady).Status == longhorn.ConditionStatusTrue {
+				condition := types.GetCondition(diskStatus.Conditions, longhorn.DiskConditionTypeReady)
+				if condition.Status == longhorn.ConditionStatusTrue {
 					if _, exists := node.Spec.Disks[diskName]; exists {
 						return node, diskName, nil
 					}
@@ -1840,7 +1843,7 @@ func (s *DataStore) GetReadyDiskNode(diskUUID string) (*longhorn.Node, string, e
 
 // UpdateNode updates Longhorn Node resource and verifies update
 func (s *DataStore) UpdateNode(node *longhorn.Node) (*longhorn.Node, error) {
-	obj, err := s.lhClient.LonghornV1beta1().Nodes(s.namespace).Update(context.TODO(), node, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Nodes(s.namespace).Update(context.TODO(), node, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1852,7 +1855,7 @@ func (s *DataStore) UpdateNode(node *longhorn.Node) (*longhorn.Node, error) {
 
 // UpdateNodeStatus updates Longhorn Node status and verifies update
 func (s *DataStore) UpdateNodeStatus(node *longhorn.Node) (*longhorn.Node, error) {
-	obj, err := s.lhClient.LonghornV1beta1().Nodes(s.namespace).UpdateStatus(context.TODO(), node, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Nodes(s.namespace).UpdateStatus(context.TODO(), node, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1976,20 +1979,6 @@ func (s *DataStore) ListReadyNodesWithReadyEngineImage(image string) (map[string
 	return readyNodes, nil
 }
 
-// ListKubeNodesRO returns a list of all Kubernetes Nodes for the given namespace,
-// the list contains direct references to the internal cache objects and should not be mutated.
-// Consider using this function when you can guarantee read only access and don't want the overhead of deep copies
-func (s *DataStore) ListKubeNodesRO() ([]*corev1.Node, error) {
-	return s.knLister.List(labels.Everything())
-}
-
-// ListPodsRO returns a list of all Pods for the given namespace,
-// the list contains direct references to the internal cache objects and should not be mutated.
-// Consider using this function when you can guarantee read only access and don't want the overhead of deep copies
-func (s *DataStore) ListPodsRO() ([]*corev1.Pod, error) {
-	return s.pLister.Pods(s.namespace).List(labels.Everything())
-}
-
 // GetRandomReadyNode gets a list of all Node in the given namespace and
 // returns the first Node marked with condition ready and allow scheduling
 func (s *DataStore) GetRandomReadyNode() (*longhorn.Node, error) {
@@ -2001,7 +1990,7 @@ func (s *DataStore) GetRandomReadyNode() (*longhorn.Node, error) {
 
 	for _, node := range nodesRO {
 		readyCondition := types.GetCondition(node.Status.Conditions, longhorn.NodeConditionTypeReady)
-		if readyCondition.Status == longhorn.ConditionStatusTrue && node.Spec.AllowScheduling == true {
+		if readyCondition.Status == longhorn.ConditionStatusTrue && node.Spec.AllowScheduling {
 			return node.DeepCopy(), nil
 		}
 	}
@@ -2018,7 +2007,7 @@ func (s *DataStore) RemoveFinalizerForNode(obj *longhorn.Node) error {
 	if err := util.RemoveFinalizer(longhornFinalizerKey, obj); err != nil {
 		return err
 	}
-	_, err := s.lhClient.LonghornV1beta1().Nodes(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+	_, err := s.lhClient.LonghornV1beta2().Nodes(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
 	if err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if obj.DeletionTimestamp != nil {
@@ -2314,7 +2303,7 @@ func (s *DataStore) GetSettingAsInt(settingName types.SettingName) (int64, error
 		return result, nil
 	}
 
-	return -1, fmt.Errorf("The %v setting value couldn't change to integer, value is %v ", string(settingName), value)
+	return -1, fmt.Errorf("the %v setting value couldn't change to integer, value is %v ", string(settingName), value)
 }
 
 // GetSettingAsBool gets the setting for the given name, returns as boolean
@@ -2338,7 +2327,7 @@ func (s *DataStore) GetSettingAsBool(settingName types.SettingName) (bool, error
 		return result, nil
 	}
 
-	return false, fmt.Errorf("The %v setting value couldn't be converted to bool, value is %v ", string(settingName), value)
+	return false, fmt.Errorf("the %v setting value couldn't be converted to bool, value is %v ", string(settingName), value)
 }
 
 // GetSettingImagePullPolicy get the setting and return one of Kubernetes ImagePullPolicy definition
@@ -2400,7 +2389,7 @@ func (s *DataStore) ResetMonitoringEngineStatus(e *longhorn.Engine) (*longhorn.E
 
 // DeleteNode deletes Node for the given name and namespace
 func (s *DataStore) DeleteNode(name string) error {
-	return s.lhClient.LonghornV1beta1().Nodes(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	return s.lhClient.LonghornV1beta2().Nodes(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
 // ListEnginesByNodeRO returns a list of all Engines on node Name for the given namespace,
@@ -2437,7 +2426,7 @@ func GetOwnerReferencesForInstanceManager(im *longhorn.InstanceManager) []metav1
 // CreateInstanceManager creates a Longhorn InstanceManager resource and
 // verifies creation
 func (s *DataStore) CreateInstanceManager(im *longhorn.InstanceManager) (*longhorn.InstanceManager, error) {
-	ret, err := s.lhClient.LonghornV1beta1().InstanceManagers(s.namespace).Create(context.TODO(), im, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().InstanceManagers(s.namespace).Create(context.TODO(), im, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2463,7 +2452,7 @@ func (s *DataStore) CreateInstanceManager(im *longhorn.InstanceManager) (*longho
 // The dependents will be deleted in the foreground
 func (s *DataStore) DeleteInstanceManager(name string) error {
 	propagation := metav1.DeletePropagationForeground
-	return s.lhClient.LonghornV1beta1().InstanceManagers(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{PropagationPolicy: &propagation})
+	return s.lhClient.LonghornV1beta2().InstanceManagers(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{PropagationPolicy: &propagation})
 }
 
 func (s *DataStore) getInstanceManagerRO(name string) (*longhorn.InstanceManager, error) {
@@ -2591,7 +2580,7 @@ func (s *DataStore) ListInstanceManagers() (map[string]*longhorn.InstanceManager
 
 // UpdateInstanceManager updates Longhorn InstanceManager resource and verifies update
 func (s *DataStore) UpdateInstanceManager(im *longhorn.InstanceManager) (*longhorn.InstanceManager, error) {
-	obj, err := s.lhClient.LonghornV1beta1().InstanceManagers(s.namespace).Update(context.TODO(), im, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().InstanceManagers(s.namespace).Update(context.TODO(), im, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2604,7 +2593,7 @@ func (s *DataStore) UpdateInstanceManager(im *longhorn.InstanceManager) (*longho
 // UpdateInstanceManagerStatus updates Longhorn InstanceManager resource status
 // and verifies update
 func (s *DataStore) UpdateInstanceManagerStatus(im *longhorn.InstanceManager) (*longhorn.InstanceManager, error) {
-	obj, err := s.lhClient.LonghornV1beta1().InstanceManagers(s.namespace).UpdateStatus(context.TODO(), im, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().InstanceManagers(s.namespace).UpdateStatus(context.TODO(), im, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2631,7 +2620,7 @@ func verifyCreation(name, kind string, getMethod func(name string) (runtime.Obje
 		time.Sleep(VerificationRetryInterval)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Unable to verify the existence of newly created %s %s: %v", kind, name, err)
+		return nil, fmt.Errorf("unable to verify the existence of newly created %s %s: %v", kind, name, err)
 	}
 	return ret, nil
 }
@@ -2733,7 +2722,7 @@ func (s *DataStore) CreateShareManager(sm *longhorn.ShareManager) (*longhorn.Sha
 	if err := util.AddFinalizer(longhornFinalizerKey, sm); err != nil {
 		return nil, err
 	}
-	ret, err := s.lhClient.LonghornV1beta1().ShareManagers(s.namespace).Create(context.TODO(), sm, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().ShareManagers(s.namespace).Create(context.TODO(), sm, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2761,7 +2750,7 @@ func (s *DataStore) UpdateShareManager(sm *longhorn.ShareManager) (*longhorn.Sha
 		return nil, err
 	}
 
-	obj, err := s.lhClient.LonghornV1beta1().ShareManagers(s.namespace).Update(context.TODO(), sm, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().ShareManagers(s.namespace).Update(context.TODO(), sm, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2773,7 +2762,7 @@ func (s *DataStore) UpdateShareManager(sm *longhorn.ShareManager) (*longhorn.Sha
 
 // UpdateShareManagerStatus updates Longhorn ShareManager resource status and verifies update
 func (s *DataStore) UpdateShareManagerStatus(sm *longhorn.ShareManager) (*longhorn.ShareManager, error) {
-	obj, err := s.lhClient.LonghornV1beta1().ShareManagers(s.namespace).UpdateStatus(context.TODO(), sm, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().ShareManagers(s.namespace).UpdateStatus(context.TODO(), sm, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2785,7 +2774,7 @@ func (s *DataStore) UpdateShareManagerStatus(sm *longhorn.ShareManager) (*longho
 
 // DeleteShareManager won't result in immediately deletion since finalizer was set by default
 func (s *DataStore) DeleteShareManager(name string) error {
-	return s.lhClient.LonghornV1beta1().ShareManagers(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	return s.lhClient.LonghornV1beta2().ShareManagers(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
 // RemoveFinalizerForShareManager will result in deletion if DeletionTimestamp was set
@@ -2797,7 +2786,7 @@ func (s *DataStore) RemoveFinalizerForShareManager(obj *longhorn.ShareManager) e
 	if err := util.RemoveFinalizer(longhornFinalizerKey, obj); err != nil {
 		return err
 	}
-	if _, err := s.lhClient.LonghornV1beta1().ShareManagers(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{}); err != nil {
+	if _, err := s.lhClient.LonghornV1beta2().ShareManagers(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{}); err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if obj.DeletionTimestamp != nil {
 			return nil
@@ -2839,7 +2828,7 @@ func (s *DataStore) ListShareManagers() (map[string]*longhorn.ShareManager, erro
 
 // CreateBackupTarget creates a Longhorn BackupTargets CR and verifies creation
 func (s *DataStore) CreateBackupTarget(backupTarget *longhorn.BackupTarget) (*longhorn.BackupTarget, error) {
-	ret, err := s.lhClient.LonghornV1beta1().BackupTargets(s.namespace).Create(context.TODO(), backupTarget, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().BackupTargets(s.namespace).Create(context.TODO(), backupTarget, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2891,7 +2880,7 @@ func (s *DataStore) GetBackupTarget(name string) (*longhorn.BackupTarget, error)
 
 // UpdateBackupTarget updates the given Longhorn backup target in the cluster BackupTargets CR and verifies update
 func (s *DataStore) UpdateBackupTarget(backupTarget *longhorn.BackupTarget) (*longhorn.BackupTarget, error) {
-	obj, err := s.lhClient.LonghornV1beta1().BackupTargets(s.namespace).Update(context.TODO(), backupTarget, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().BackupTargets(s.namespace).Update(context.TODO(), backupTarget, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2903,7 +2892,7 @@ func (s *DataStore) UpdateBackupTarget(backupTarget *longhorn.BackupTarget) (*lo
 
 // UpdateBackupTargetStatus updates the given Longhorn backup target in the cluster BackupTargets CR status and verifies update
 func (s *DataStore) UpdateBackupTargetStatus(backupTarget *longhorn.BackupTarget) (*longhorn.BackupTarget, error) {
-	obj, err := s.lhClient.LonghornV1beta1().BackupTargets(s.namespace).UpdateStatus(context.TODO(), backupTarget, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().BackupTargets(s.namespace).UpdateStatus(context.TODO(), backupTarget, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2915,7 +2904,7 @@ func (s *DataStore) UpdateBackupTargetStatus(backupTarget *longhorn.BackupTarget
 
 // DeleteBackupTarget won't result in immediately deletion since finalizer was set by default
 func (s *DataStore) DeleteBackupTarget(backupTargetName string) error {
-	return s.lhClient.LonghornV1beta1().BackupTargets(s.namespace).Delete(context.TODO(), backupTargetName, metav1.DeleteOptions{})
+	return s.lhClient.LonghornV1beta2().BackupTargets(s.namespace).Delete(context.TODO(), backupTargetName, metav1.DeleteOptions{})
 }
 
 // CreateBackupVolume creates a Longhorn BackupVolumes CR and verifies creation
@@ -2923,7 +2912,7 @@ func (s *DataStore) CreateBackupVolume(backupVolume *longhorn.BackupVolume) (*lo
 	if err := util.AddFinalizer(longhornFinalizerKey, backupVolume); err != nil {
 		return nil, err
 	}
-	ret, err := s.lhClient.LonghornV1beta1().BackupVolumes(s.namespace).Create(context.TODO(), backupVolume, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().BackupVolumes(s.namespace).Create(context.TODO(), backupVolume, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2981,7 +2970,7 @@ func (s *DataStore) GetBackupVolume(name string) (*longhorn.BackupVolume, error)
 
 // UpdateBackupVolume updates the given Longhorn backup volume in the cluster BackupVolume CR and verifies update
 func (s *DataStore) UpdateBackupVolume(backupVolume *longhorn.BackupVolume) (*longhorn.BackupVolume, error) {
-	obj, err := s.lhClient.LonghornV1beta1().BackupVolumes(s.namespace).Update(context.TODO(), backupVolume, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().BackupVolumes(s.namespace).Update(context.TODO(), backupVolume, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -2993,7 +2982,7 @@ func (s *DataStore) UpdateBackupVolume(backupVolume *longhorn.BackupVolume) (*lo
 
 // UpdateBackupVolumeStatus updates the given Longhorn backup volume in the cluster BackupVolumes CR status and verifies update
 func (s *DataStore) UpdateBackupVolumeStatus(backupVolume *longhorn.BackupVolume) (*longhorn.BackupVolume, error) {
-	obj, err := s.lhClient.LonghornV1beta1().BackupVolumes(s.namespace).UpdateStatus(context.TODO(), backupVolume, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().BackupVolumes(s.namespace).UpdateStatus(context.TODO(), backupVolume, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -3005,7 +2994,7 @@ func (s *DataStore) UpdateBackupVolumeStatus(backupVolume *longhorn.BackupVolume
 
 // DeleteBackupVolume won't result in immediately deletion since finalizer was set by default
 func (s *DataStore) DeleteBackupVolume(backupVolumeName string) error {
-	return s.lhClient.LonghornV1beta1().BackupVolumes(s.namespace).Delete(context.TODO(), backupVolumeName, metav1.DeleteOptions{})
+	return s.lhClient.LonghornV1beta2().BackupVolumes(s.namespace).Delete(context.TODO(), backupVolumeName, metav1.DeleteOptions{})
 }
 
 // RemoveFinalizerForBackupVolume will result in deletion if DeletionTimestamp was set
@@ -3017,7 +3006,7 @@ func (s *DataStore) RemoveFinalizerForBackupVolume(backupVolume *longhorn.Backup
 	if err := util.RemoveFinalizer(longhornFinalizerKey, backupVolume); err != nil {
 		return err
 	}
-	_, err := s.lhClient.LonghornV1beta1().BackupVolumes(s.namespace).Update(context.TODO(), backupVolume, metav1.UpdateOptions{})
+	_, err := s.lhClient.LonghornV1beta2().BackupVolumes(s.namespace).Update(context.TODO(), backupVolume, metav1.UpdateOptions{})
 	if err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if backupVolume.DeletionTimestamp != nil {
@@ -3036,7 +3025,7 @@ func (s *DataStore) CreateBackup(backup *longhorn.Backup, backupVolumeName strin
 	if err := util.AddFinalizer(longhornFinalizerKey, backup); err != nil {
 		return nil, err
 	}
-	ret, err := s.lhClient.LonghornV1beta1().Backups(s.namespace).Create(context.TODO(), backup, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().Backups(s.namespace).Create(context.TODO(), backup, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -3077,6 +3066,11 @@ func (s *DataStore) ListBackupsWithBackupVolumeName(backupVolumeName string) (ma
 	return itemMap, nil
 }
 
+// ListBackupsRO returns a list of all Backups for the given namespace
+func (s *DataStore) ListBackupsRO() ([]*longhorn.Backup, error) {
+	return s.bLister.Backups(s.namespace).List(labels.Everything())
+}
+
 // ListBackups returns an object contains all backups in the cluster Backups CR
 func (s *DataStore) ListBackups() (map[string]*longhorn.Backup, error) {
 	list, err := s.bLister.Backups(s.namespace).List(labels.Everything())
@@ -3108,7 +3102,7 @@ func (s *DataStore) GetBackup(name string) (*longhorn.Backup, error) {
 
 // UpdateBackup updates the given Longhorn backup in the cluster Backup CR and verifies update
 func (s *DataStore) UpdateBackup(backup *longhorn.Backup) (*longhorn.Backup, error) {
-	obj, err := s.lhClient.LonghornV1beta1().Backups(s.namespace).Update(context.TODO(), backup, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Backups(s.namespace).Update(context.TODO(), backup, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -3120,7 +3114,7 @@ func (s *DataStore) UpdateBackup(backup *longhorn.Backup) (*longhorn.Backup, err
 
 // UpdateBackupStatus updates the given Longhorn backup status in the cluster Backups CR status and verifies update
 func (s *DataStore) UpdateBackupStatus(backup *longhorn.Backup) (*longhorn.Backup, error) {
-	obj, err := s.lhClient.LonghornV1beta1().Backups(s.namespace).UpdateStatus(context.TODO(), backup, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().Backups(s.namespace).UpdateStatus(context.TODO(), backup, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -3132,12 +3126,12 @@ func (s *DataStore) UpdateBackupStatus(backup *longhorn.Backup) (*longhorn.Backu
 
 // DeleteBackup won't result in immediately deletion since finalizer was set by default
 func (s *DataStore) DeleteBackup(backupName string) error {
-	return s.lhClient.LonghornV1beta1().Backups(s.namespace).Delete(context.TODO(), backupName, metav1.DeleteOptions{})
+	return s.lhClient.LonghornV1beta2().Backups(s.namespace).Delete(context.TODO(), backupName, metav1.DeleteOptions{})
 }
 
 // DeleteAllBackupsForBackupVolume won't result in immediately deletion since finalizer was set by default
 func (s *DataStore) DeleteAllBackupsForBackupVolume(backupVolumeName string) error {
-	return s.lhClient.LonghornV1beta1().Backups(s.namespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", types.LonghornLabelBackupVolume, backupVolumeName)})
+	return s.lhClient.LonghornV1beta2().Backups(s.namespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", types.LonghornLabelBackupVolume, backupVolumeName)})
 }
 
 // RemoveFinalizerForBackup will result in deletion if DeletionTimestamp was set
@@ -3149,7 +3143,7 @@ func (s *DataStore) RemoveFinalizerForBackup(backup *longhorn.Backup) error {
 	if err := util.RemoveFinalizer(longhornFinalizerKey, backup); err != nil {
 		return err
 	}
-	_, err := s.lhClient.LonghornV1beta1().Backups(s.namespace).Update(context.TODO(), backup, metav1.UpdateOptions{})
+	_, err := s.lhClient.LonghornV1beta2().Backups(s.namespace).Update(context.TODO(), backup, metav1.UpdateOptions{})
 	if err != nil {
 		// workaround `StorageError: invalid object, Code: 4` due to empty object
 		if backup.DeletionTimestamp != nil {
@@ -3163,7 +3157,7 @@ func (s *DataStore) RemoveFinalizerForBackup(backup *longhorn.Backup) error {
 // CreateRecurringJob creates a Longhorn RecurringJob resource and verifies
 // creation
 func (s *DataStore) CreateRecurringJob(recurringJob *longhorn.RecurringJob) (*longhorn.RecurringJob, error) {
-	ret, err := s.lhClient.LonghornV1beta1().RecurringJobs(s.namespace).Create(context.TODO(), recurringJob, metav1.CreateOptions{})
+	ret, err := s.lhClient.LonghornV1beta2().RecurringJobs(s.namespace).Create(context.TODO(), recurringJob, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -3221,7 +3215,7 @@ func (s *DataStore) getRecurringJob(name string) (*longhorn.RecurringJob, error)
 
 // UpdateRecurringJob updates Longhorn RecurringJob and verifies update
 func (s *DataStore) UpdateRecurringJob(recurringJob *longhorn.RecurringJob) (*longhorn.RecurringJob, error) {
-	obj, err := s.lhClient.LonghornV1beta1().RecurringJobs(s.namespace).Update(context.TODO(), recurringJob, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().RecurringJobs(s.namespace).Update(context.TODO(), recurringJob, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -3234,7 +3228,7 @@ func (s *DataStore) UpdateRecurringJob(recurringJob *longhorn.RecurringJob) (*lo
 // UpdateRecurringJobStatus updates Longhorn RecurringJob resource status and
 // verifies update
 func (s *DataStore) UpdateRecurringJobStatus(recurringJob *longhorn.RecurringJob) (*longhorn.RecurringJob, error) {
-	obj, err := s.lhClient.LonghornV1beta1().RecurringJobs(s.namespace).UpdateStatus(context.TODO(), recurringJob, metav1.UpdateOptions{})
+	obj, err := s.lhClient.LonghornV1beta2().RecurringJobs(s.namespace).UpdateStatus(context.TODO(), recurringJob, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -3248,7 +3242,7 @@ func (s *DataStore) UpdateRecurringJobStatus(recurringJob *longhorn.RecurringJob
 // The dependents will be deleted in the foreground
 func (s *DataStore) DeleteRecurringJob(name string) error {
 	propagation := metav1.DeletePropagationForeground
-	return s.lhClient.LonghornV1beta1().RecurringJobs(s.namespace).Delete(
+	return s.lhClient.LonghornV1beta2().RecurringJobs(s.namespace).Delete(
 		context.TODO(),
 		name,
 		metav1.DeleteOptions{PropagationPolicy: &propagation},
@@ -3298,7 +3292,7 @@ func ValidateRecurringJobs(jobs []longhorn.RecurringJobSpec) error {
 	}
 
 	if totalJobRetainCount > MaxRecurringJobRetain {
-		return fmt.Errorf("Job Can't retain more than %d snapshots", MaxRecurringJobRetain)
+		return fmt.Errorf("job Can't retain more than %d snapshots", MaxRecurringJobRetain)
 	}
 	return nil
 }

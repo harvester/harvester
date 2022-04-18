@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/longhorn/longhorn-manager/engineapi"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
 	"github.com/longhorn/longhorn-manager/types"
 )
@@ -36,7 +36,7 @@ func upgradeBackups(namespace string, lhClient *lhclientset.Clientset) (err erro
 	}()
 
 	// Copy backupStatus from engine CRs to backup CRs
-	backups, err := lhClient.LonghornV1beta1().Backups(namespace).List(context.TODO(), metav1.ListOptions{})
+	backups, err := lhClient.LonghornV1beta2().Backups(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func upgradeBackups(namespace string, lhClient *lhclientset.Clientset) (err erro
 		}
 
 		// Get the corresponding volume's engine
-		engines, err := lhClient.LonghornV1beta1().Engines(namespace).List(context.TODO(), metav1.ListOptions{
+		engines, err := lhClient.LonghornV1beta2().Engines(namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: types.LonghornLabelVolume + "=" + volumeName,
 		})
 		if err != nil {
@@ -66,7 +66,7 @@ func upgradeBackups(namespace string, lhClient *lhclientset.Clientset) (err erro
 			engine = engines.Items[0]
 		default:
 			// If more than 2 engines found, use the current volume's engine
-			v, err := lhClient.LonghornV1beta1().Volumes(namespace).Get(context.TODO(), volumeName, metav1.GetOptions{})
+			v, err := lhClient.LonghornV1beta2().Volumes(namespace).Get(context.TODO(), volumeName, metav1.GetOptions{})
 			if err != nil {
 				if apierrors.IsNotFound(err) {
 					// Cannot found the correspoding volume
@@ -103,7 +103,7 @@ func upgradeBackups(namespace string, lhClient *lhclientset.Clientset) (err erro
 		if reflect.DeepEqual(existingBackup.Status, backup.Status) {
 			continue
 		}
-		if _, err = lhClient.LonghornV1beta1().Backups(namespace).UpdateStatus(context.TODO(), &backup, metav1.UpdateOptions{}); err != nil && !apierrors.IsConflict(errors.Cause(err)) {
+		if _, err = lhClient.LonghornV1beta2().Backups(namespace).UpdateStatus(context.TODO(), &backup, metav1.UpdateOptions{}); err != nil && !apierrors.IsConflict(errors.Cause(err)) {
 			return err
 		}
 	}
@@ -129,7 +129,7 @@ func upgradeEngines(namespace string, lhClient *lhclientset.Clientset) (err erro
 }
 
 func checkAndRemoveEngineBackupStatus(namespace string, lhClient *lhclientset.Clientset) error {
-	engines, err := lhClient.LonghornV1beta1().Engines(namespace).List(context.TODO(), metav1.ListOptions{})
+	engines, err := lhClient.LonghornV1beta2().Engines(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func checkAndRemoveEngineBackupStatus(namespace string, lhClient *lhclientset.Cl
 		if reflect.DeepEqual(existingEngine.Status, engine.Status) {
 			continue
 		}
-		if _, err := lhClient.LonghornV1beta1().Engines(namespace).UpdateStatus(context.TODO(), &engine, metav1.UpdateOptions{}); err != nil && !apierrors.IsConflict(errors.Cause(err)) {
+		if _, err := lhClient.LonghornV1beta2().Engines(namespace).UpdateStatus(context.TODO(), &engine, metav1.UpdateOptions{}); err != nil && !apierrors.IsConflict(errors.Cause(err)) {
 			return err
 		}
 	}
@@ -151,7 +151,7 @@ func checkAndRemoveEngineBackupStatus(namespace string, lhClient *lhclientset.Cl
 }
 
 func checkAndUpdateEngineActiveState(namespace string, lhClient *lhclientset.Clientset) error {
-	engines, err := lhClient.LonghornV1beta1().Engines(namespace).List(context.TODO(), metav1.ListOptions{})
+	engines, err := lhClient.LonghornV1beta2().Engines(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func checkAndUpdateEngineActiveState(namespace string, lhClient *lhclientset.Cli
 		if len(engineList) == 1 {
 			currentEngine = engineList[0]
 		} else {
-			v, err := lhClient.LonghornV1beta1().Volumes(namespace).Get(context.TODO(), volumeName, metav1.GetOptions{})
+			v, err := lhClient.LonghornV1beta2().Volumes(namespace).Get(context.TODO(), volumeName, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
@@ -200,7 +200,7 @@ func checkAndUpdateEngineActiveState(namespace string, lhClient *lhclientset.Cli
 			continue
 		}
 		currentEngine.Spec.Active = true
-		if _, err := lhClient.LonghornV1beta1().Engines(namespace).Update(context.TODO(), currentEngine, metav1.UpdateOptions{}); err != nil {
+		if _, err := lhClient.LonghornV1beta2().Engines(namespace).Update(context.TODO(), currentEngine, metav1.UpdateOptions{}); err != nil {
 			return err
 		}
 	}

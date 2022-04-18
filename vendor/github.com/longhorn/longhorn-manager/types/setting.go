@@ -2,25 +2,17 @@ package types
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 
 	v1 "k8s.io/api/core/v1"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/meta"
 	"github.com/longhorn/longhorn-manager/util"
-)
-
-const (
-	EnvDefaultSettingPath = "DEFAULT_SETTING_PATH"
 )
 
 type SettingType string
@@ -65,7 +57,6 @@ const (
 	SettingNameRegistrySecret                               = SettingName("registry-secret")
 	SettingNameDisableSchedulingOnCordonedNode              = SettingName("disable-scheduling-on-cordoned-node")
 	SettingNameReplicaZoneSoftAntiAffinity                  = SettingName("replica-zone-soft-anti-affinity")
-	SettingNameVolumeAttachmentRecoveryPolicy               = SettingName("volume-attachment-recovery-policy")
 	SettingNameNodeDownPodDeletionPolicy                    = SettingName("node-down-pod-deletion-policy")
 	SettingNameAllowNodeDrainWithLastHealthyReplica         = SettingName("allow-node-drain-with-last-healthy-replica")
 	SettingNameMkfsExt4Parameters                           = SettingName("mkfs-ext4-parameters")
@@ -116,7 +107,6 @@ var (
 		SettingNameRegistrySecret,
 		SettingNameDisableSchedulingOnCordonedNode,
 		SettingNameReplicaZoneSoftAntiAffinity,
-		SettingNameVolumeAttachmentRecoveryPolicy,
 		SettingNameNodeDownPodDeletionPolicy,
 		SettingNameAllowNodeDrainWithLastHealthyReplica,
 		SettingNameMkfsExt4Parameters,
@@ -188,7 +178,6 @@ var (
 		SettingNameRegistrySecret:                               SettingDefinitionRegistrySecret,
 		SettingNameDisableSchedulingOnCordonedNode:              SettingDefinitionDisableSchedulingOnCordonedNode,
 		SettingNameReplicaZoneSoftAntiAffinity:                  SettingDefinitionReplicaZoneSoftAntiAffinity,
-		SettingNameVolumeAttachmentRecoveryPolicy:               SettingDefinitionVolumeAttachmentRecoveryPolicy,
 		SettingNameNodeDownPodDeletionPolicy:                    SettingDefinitionNodeDownPodDeletionPolicy,
 		SettingNameAllowNodeDrainWithLastHealthyReplica:         SettingDefinitionAllowNodeDrainWithLastHealthyReplica,
 		SettingNameMkfsExt4Parameters:                           SettingDefinitionMkfsExt4Parameters,
@@ -488,7 +477,7 @@ var (
 
 	SettingDefinitionCRDAPIVersion = SettingDefinition{
 		DisplayName: "Custom Resource API Version",
-		Description: "The current customer resource's API version, e.g. longhorn.io/v1beta1. Set by manager automatically",
+		Description: "The current customer resource's API version, e.g. longhorn.io/v1beta2. Set by manager automatically",
 		Category:    SettingCategoryGeneral,
 		Type:        SettingTypeString,
 		Required:    true,
@@ -544,23 +533,6 @@ var (
 		Required:    true,
 		ReadOnly:    false,
 		Default:     "true",
-	}
-	SettingDefinitionVolumeAttachmentRecoveryPolicy = SettingDefinition{
-		DisplayName: "Volume Attachment Recovery Policy",
-		Description: "Defines the Longhorn action when a Volume is stuck with a Deployment Pod on a failed node.\n" +
-			"- **wait** leads to the deletion of the volume attachment as soon as the pods deletion time has passed.\n" +
-			"- **never** is the default Kubernetes behavior of never deleting volume attachments on terminating pods.\n" +
-			"- **immediate** leads to the deletion of the volume attachment as soon as all workload pods are pending.\n",
-		Category: SettingCategoryGeneral,
-		Type:     SettingTypeDeprecated,
-		Required: true,
-		ReadOnly: false,
-		Default:  string(VolumeAttachmentRecoveryPolicyWait),
-		Choices: []string{
-			string(VolumeAttachmentRecoveryPolicyNever),
-			string(VolumeAttachmentRecoveryPolicyWait),
-			string(VolumeAttachmentRecoveryPolicyImmediate),
-		},
 	}
 	SettingDefinitionNodeDownPodDeletionPolicy = SettingDefinition{
 		DisplayName: "Pod Deletion Policy When Node is Down",
@@ -769,14 +741,6 @@ var (
 	}
 )
 
-type VolumeAttachmentRecoveryPolicy string
-
-const (
-	VolumeAttachmentRecoveryPolicyNever     = VolumeAttachmentRecoveryPolicy("never") // Kubernetes default behavior
-	VolumeAttachmentRecoveryPolicyWait      = VolumeAttachmentRecoveryPolicy("wait")  // Longhorn default behavior
-	VolumeAttachmentRecoveryPolicyImmediate = VolumeAttachmentRecoveryPolicy("immediate")
-)
-
 type NodeDownPodDeletionPolicy string
 
 const (
@@ -794,7 +758,7 @@ const (
 	SystemManagedPodsImagePullPolicyAlways       = SystemManagedPodsImagePullPolicy("always")
 )
 
-func ValidateInitSetting(name, value string) (err error) {
+func ValidateSetting(name, value string) (err error) {
 	defer func() {
 		err = errors.Wrapf(err, "value %v of settings %v is invalid", value, name)
 	}()
@@ -804,7 +768,7 @@ func ValidateInitSetting(name, value string) (err error) {
 	if !ok {
 		return fmt.Errorf("setting %v is not supported", sName)
 	}
-	if definition.Required == true && value == "" {
+	if definition.Required && value == "" {
 		return fmt.Errorf("required setting %v shouldn't be empty", sName)
 	}
 
@@ -904,8 +868,6 @@ func ValidateInitSetting(name, value string) (err error) {
 		}
 
 	// multi-choices
-	case SettingNameVolumeAttachmentRecoveryPolicy:
-		fallthrough
 	case SettingNameNodeDownPodDeletionPolicy:
 		fallthrough
 	case SettingNameDefaultDataLocality:
@@ -939,92 +901,6 @@ func isValidChoice(choices []string, value string) bool {
 		}
 	}
 	return len(choices) == 0
-}
-
-func GetCustomizedDefaultSettings() (map[string]string, error) {
-	settingPath := os.Getenv(EnvDefaultSettingPath)
-	defaultSettings := map[string]string{}
-	if settingPath != "" {
-		data, err := ioutil.ReadFile(settingPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read default setting file %v: %v", settingPath, err)
-		}
-
-		// `yaml.Unmarshal()` can return a partial result. We shouldn't allow it
-		if err := yaml.Unmarshal(data, &defaultSettings); err != nil {
-			logrus.Errorf("Failed to unmarshal customized default settings from yaml data %v, will give up using them: %v", string(data), err)
-			defaultSettings = map[string]string{}
-		}
-	}
-
-	// won't accept partially valid result
-	for name, value := range defaultSettings {
-		value = strings.Trim(value, " ")
-		definition, exist := SettingDefinitions[SettingName(name)]
-		if !exist {
-			logrus.Errorf("Customized settings are invalid, will give up using them: undefined setting %v", name)
-			defaultSettings = map[string]string{}
-			break
-		}
-		if value == "" {
-			continue
-		}
-		// Make sure the value of boolean setting is always "true" or "false" in Longhorn.
-		// Otherwise the Longhorn UI cannot display the boolean setting correctly.
-		if definition.Type == SettingTypeBool {
-			result, err := strconv.ParseBool(value)
-			if err != nil {
-				logrus.Errorf("Invalid value %v for the boolean setting %v: %v", value, name, err)
-				defaultSettings = map[string]string{}
-				break
-			}
-			value = strconv.FormatBool(result)
-		}
-		if err := ValidateInitSetting(name, value); err != nil {
-			logrus.Errorf("Customized settings are invalid, will give up using them: the value of customized setting %v is invalid: %v", name, err)
-			defaultSettings = map[string]string{}
-			break
-		}
-		defaultSettings[name] = value
-	}
-
-	guaranteedEngineManagerCPU := SettingDefinitionGuaranteedEngineManagerCPU.Default
-	if defaultSettings[string(SettingNameGuaranteedEngineManagerCPU)] != "" {
-		guaranteedEngineManagerCPU = defaultSettings[string(SettingNameGuaranteedEngineManagerCPU)]
-	}
-	guaranteedReplicaManagerCPU := SettingDefinitionGuaranteedReplicaManagerCPU.Default
-	if defaultSettings[string(SettingNameGuaranteedReplicaManagerCPU)] != "" {
-		guaranteedReplicaManagerCPU = defaultSettings[string(SettingNameGuaranteedReplicaManagerCPU)]
-	}
-	if err := ValidateCPUReservationValues(guaranteedEngineManagerCPU, guaranteedReplicaManagerCPU); err != nil {
-		logrus.Errorf("Customized settings GuaranteedEngineManagerCPU and GuaranteedReplicaManagerCPU are invalid, will give up using them: %v", err)
-		defaultSettings = map[string]string{}
-	}
-
-	return defaultSettings, nil
-}
-
-func OverwriteBuiltInSettingsWithCustomizedValues() error {
-	logrus.Infof("Start overwriting built-in settings with customized values")
-	customizedDefaultSettings, err := GetCustomizedDefaultSettings()
-	if err != nil {
-		return err
-	}
-
-	for _, sName := range SettingNameList {
-		definition, ok := SettingDefinitions[sName]
-		if !ok {
-			return fmt.Errorf("BUG: setting %v is not defined", sName)
-		}
-
-		value, exists := customizedDefaultSettings[string(sName)]
-		if exists && value != "" {
-			definition.Default = value
-			SettingDefinitions[sName] = definition
-		}
-	}
-
-	return nil
 }
 
 func ValidateAndUnmarshalToleration(s string) (*v1.Toleration, error) {

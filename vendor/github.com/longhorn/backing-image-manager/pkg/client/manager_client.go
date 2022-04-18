@@ -174,6 +174,7 @@ func (cli *BackingImageManagerClient) VersionGet() (*meta.VersionOutput, error) 
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect backing image manager service to %v: %v", cli.Address, err)
 	}
+	defer conn.Close()
 
 	client := rpc.NewBackingImageManagerServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)

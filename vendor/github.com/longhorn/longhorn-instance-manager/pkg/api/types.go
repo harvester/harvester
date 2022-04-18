@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
-	"github.com/longhorn/longhorn-instance-manager/pkg/rpc"
+	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
 type Process struct {

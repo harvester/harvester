@@ -26,8 +26,7 @@ import (
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type BackupVolumeController struct {
@@ -43,14 +42,13 @@ type BackupVolumeController struct {
 
 	ds *datastore.DataStore
 
-	bvStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewBackupVolumeController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	backupVolumeInformer lhinformers.BackupVolumeInformer,
 	kubeClient clientset.Interface,
 	controllerID string,
 	namespace string) *BackupVolumeController {
@@ -71,15 +69,14 @@ func NewBackupVolumeController(
 
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-backup-volume-controller"}),
-
-		bvStoreSynced: backupVolumeInformer.Informer().HasSynced,
 	}
 
-	backupVolumeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.BackupVolumeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bvc.enqueueBackupVolume,
 		UpdateFunc: func(old, cur interface{}) { bvc.enqueueBackupVolume(cur) },
 		DeleteFunc: bvc.enqueueBackupVolume,
 	})
+	bvc.cacheSyncs = append(bvc.cacheSyncs, ds.BackupVolumeInformer.HasSynced)
 
 	return bvc
 }
@@ -101,7 +98,7 @@ func (bvc *BackupVolumeController) Run(workers int, stopCh <-chan struct{}) {
 	bvc.logger.Infof("Start Longhorn Backup Volume controller")
 	defer bvc.logger.Infof("Shutting down Longhorn Backup Volume controller")
 
-	if !cache.WaitForNamedCacheSync(bvc.name, stopCh, bvc.bvStoreSynced) {
+	if !cache.WaitForNamedCacheSync(bvc.name, stopCh, bvc.cacheSyncs...) {
 		return
 	}
 	for i := 0; i < workers; i++ {

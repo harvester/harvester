@@ -154,12 +154,12 @@ func ExecuteWithTimeout(timeout time.Duration, binary string, args []string) (st
 			}
 
 		}
-		return "", fmt.Errorf("Timeout executing: %v %v, output %s, stderr, %s, error %v",
+		return "", fmt.Errorf("Timeout executing: %v %v, output %s, stderr, %s, error %w",
 			binary, args, output.String(), stderr.String(), err)
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %v",
+		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %w",
 			binary, args, output.String(), stderr.String(), err)
 	}
 	return output.String(), nil
@@ -176,7 +176,7 @@ func ExecuteWithoutTimeout(binary string, args []string) (string, error) {
 	cmd.Stderr = &stderr
 
 	if err = cmd.Run(); err != nil {
-		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %v",
+		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %w",
 			binary, args, output.String(), stderr.String(), err)
 	}
 	return output.String(), nil
@@ -228,12 +228,12 @@ func ExecuteWithStdin(binary string, args []string, stdinString string) (string,
 			}
 
 		}
-		return "", fmt.Errorf("Timeout executing: %v %v, output %s, stderr, %s, error %v",
+		return "", fmt.Errorf("Timeout executing: %v %v, output %s, stderr, %s, error %w",
 			binary, args, output.String(), stderr.String(), err)
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %v",
+		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %w",
 			binary, args, output.String(), stderr.String(), err)
 	}
 	return output.String(), nil
@@ -246,7 +246,7 @@ func RemoveFile(file string) error {
 	}
 
 	if err := remove(file); err != nil {
-		return fmt.Errorf("fail to remove file %v: %v", file, err)
+		return fmt.Errorf("fail to remove file %v: %w", file, err)
 	}
 
 	return nil
@@ -255,7 +255,7 @@ func RemoveFile(file string) error {
 func RemoveDevice(dev string) error {
 	if _, err := os.Stat(dev); err == nil {
 		if err := remove(dev); err != nil {
-			return fmt.Errorf("Failed to removing device %s, %v", dev, err)
+			return fmt.Errorf("Failed to removing device %s, %w", dev, err)
 		}
 	}
 	return nil
@@ -307,7 +307,7 @@ func DuplicateDevice(dev *KernelDevice, dest string) error {
 		return fmt.Errorf("Cannot create device node %s for device %s", dest, dev.Name)
 	}
 	if err := os.Chmod(dest, 0660); err != nil {
-		return fmt.Errorf("Couldn't change permission of the device %s: %s", dest, err)
+		return fmt.Errorf("Couldn't change permission of the device %s: %w", dest, err)
 	}
 	return nil
 }

@@ -28,9 +28,19 @@ import (
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/engineapi"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
 	"github.com/longhorn/longhorn-manager/types"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+)
+
+var (
+	// maxRetriesOnAcquireLockError should guarantee the cumulative retry time
+	// is larger than 150 seconds.
+	// With the current rate-limiter in use (5ms*2^(maxRetries-1)) the following numbers represent the times
+	// a deployment is going to be requeued:
+	//
+	// 5ms, 10ms, 20ms, ... , 81.92s, 163.84s
+	maxRetriesOnAcquireLockError = 16
 )
 
 type BackupController struct {
@@ -49,14 +59,13 @@ type BackupController struct {
 
 	ds *datastore.DataStore
 
-	bStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewBackupController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	backupInformer lhinformers.BackupInformer,
 	kubeClient clientset.Interface,
 	controllerID string,
 	namespace string) *BackupController {
@@ -80,15 +89,14 @@ func NewBackupController(
 
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-backup-controller"}),
-
-		bStoreSynced: backupInformer.Informer().HasSynced,
 	}
 
-	backupInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.BackupInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bc.enqueueBackup,
 		UpdateFunc: func(old, cur interface{}) { bc.enqueueBackup(cur) },
 		DeleteFunc: bc.enqueueBackup,
 	})
+	bc.cacheSyncs = append(bc.cacheSyncs, ds.BackupInformer.HasSynced)
 
 	return bc
 }
@@ -114,7 +122,7 @@ func (bc *BackupController) Run(workers int, stopCh <-chan struct{}) {
 	bc.logger.Infof("Start Longhorn Backup controller")
 	defer bc.logger.Infof("Shutting down Longhorn Backup controller")
 
-	if !cache.WaitForNamedCacheSync(bc.name, stopCh, bc.bStoreSynced) {
+	if !cache.WaitForNamedCacheSync(bc.name, stopCh, bc.cacheSyncs...) {
 		return
 	}
 	for i := 0; i < workers; i++ {
@@ -145,10 +153,23 @@ func (bc *BackupController) handleErr(err error, key interface{}) {
 		return
 	}
 
-	if bc.queue.NumRequeues(key) < maxRetries {
-		bc.logger.WithError(err).Warnf("Error syncing Longhorn backup %v", key)
-		bc.queue.AddRateLimited(key)
-		return
+	// The resync period of the backup is one hour and the maxRetries is 3.
+	// Thus, the deletion failure of the backup in error state is caused by the shutdown of the replica during backing up,
+	// if the lock hold by the backup job is not released.
+	// The workaround is to increase the maxRetries number and to retry the deletion until the lock acquisition
+	// of the backup is timeout after 150 seconds.
+	if strings.Contains(err.Error(), "failed lock") {
+		if bc.queue.NumRequeues(key) < maxRetriesOnAcquireLockError {
+			bc.logger.WithError(err).Warnf("Error syncing Longhorn backup %v because of the failure of lock acquisition", key)
+			bc.queue.AddRateLimited(key)
+			return
+		}
+	} else {
+		if bc.queue.NumRequeues(key) < maxRetries {
+			bc.logger.WithError(err).Warnf("Error syncing Longhorn backup %v", key)
+			bc.queue.AddRateLimited(key)
+			return
+		}
 	}
 
 	utilruntime.HandleError(err)
@@ -317,7 +338,7 @@ func (bc *BackupController) reconcile(backupName string) (err error) {
 		}
 
 		switch backup.Status.State {
-		case longhorn.BackupStateNew, longhorn.BackupStateInProgress:
+		case longhorn.BackupStateNew, longhorn.BackupStatePending, longhorn.BackupStateInProgress:
 			return nil
 		case longhorn.BackupStateCompleted:
 			bc.disableBackupMonitor(backup.Name)
@@ -484,6 +505,7 @@ func (bc *BackupController) checkMonitor(backup *longhorn.Backup, volume *longho
 	if err != nil {
 		backup.Status.Error = err.Error()
 		backup.Status.State = longhorn.BackupStateError
+		backup.Status.LastSyncedAt = metav1.Time{Time: time.Now().UTC()}
 		return nil, err
 	}
 	return monitor, nil

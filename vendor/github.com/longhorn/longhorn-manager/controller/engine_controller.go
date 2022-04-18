@@ -33,8 +33,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -65,8 +64,7 @@ type EngineController struct {
 
 	ds *datastore.DataStore
 
-	eStoreSynced  cache.InformerSynced
-	imStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	backoff *flowcontrol.Backoff
 
@@ -98,8 +96,6 @@ func NewEngineController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	engineInformer lhinformers.EngineInformer,
-	instanceManagerInformer lhinformers.InstanceManagerInformer,
 	kubeClient clientset.Interface,
 	engines engineapi.EngineClientCollection,
 	namespace string, controllerID string) *EngineController {
@@ -118,8 +114,6 @@ func NewEngineController(
 		controllerID:  controllerID,
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-engine-controller"}),
-		eStoreSynced:  engineInformer.Informer().HasSynced,
-		imStoreSynced: instanceManagerInformer.Informer().HasSynced,
 
 		backoff: flowcontrol.NewBackOff(time.Second*10, time.Minute*5),
 
@@ -129,16 +123,19 @@ func NewEngineController(
 	}
 	ec.instanceHandler = NewInstanceHandler(ds, ec, ec.eventRecorder)
 
-	engineInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.EngineInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    ec.enqueueEngine,
 		UpdateFunc: func(old, cur interface{}) { ec.enqueueEngine(cur) },
 		DeleteFunc: ec.enqueueEngine,
 	})
-	instanceManagerInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ec.cacheSyncs = append(ec.cacheSyncs, ds.EngineInformer.HasSynced)
+
+	ds.InstanceManagerInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    ec.enqueueInstanceManagerChange,
 		UpdateFunc: func(old, cur interface{}) { ec.enqueueInstanceManagerChange(cur) },
 		DeleteFunc: ec.enqueueInstanceManagerChange,
 	}, 0)
+	ec.cacheSyncs = append(ec.cacheSyncs, ds.InstanceManagerInformer.HasSynced)
 
 	return ec
 }
@@ -150,7 +147,7 @@ func (ec *EngineController) Run(workers int, stopCh <-chan struct{}) {
 	ec.logger.Info("Start Longhorn engine controller")
 	defer ec.logger.Info("Shutting down Longhorn engine controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn engines", stopCh, ec.eStoreSynced, ec.imStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn engines", stopCh, ec.cacheSyncs...) {
 		return
 	}
 
@@ -339,7 +336,7 @@ func (ec *EngineController) enqueueEngine(obj interface{}) {
 func (ec *EngineController) enqueueInstanceManagerChange(obj interface{}) {
 	im, isInstanceManager := obj.(*longhorn.InstanceManager)
 	if !isInstanceManager {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -375,7 +372,7 @@ func (ec *EngineController) enqueueInstanceManagerChange(obj interface{}) {
 	for _, e := range engineMap {
 		ec.enqueueEngine(e)
 	}
-	return
+
 }
 
 func (ec *EngineController) CreateInstance(obj interface{}) (*longhorn.InstanceProcess, error) {
@@ -631,7 +628,6 @@ func (ec *EngineController) resetAndStopMonitoring(e *longhorn.Engine) {
 
 	ec.stopMonitoring(e.Name)
 
-	return
 }
 
 func (ec *EngineController) stopMonitoring(engineName string) {
@@ -651,7 +647,6 @@ func (ec *EngineController) stopMonitoring(engineName string) {
 		close(stopCh)
 	}
 
-	return
 }
 
 func (m *EngineMonitor) Run() {

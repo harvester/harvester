@@ -248,7 +248,7 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.0
 ## explicit
 github.com/gorilla/mux
-# github.com/gorilla/websocket v1.4.2
+# github.com/gorilla/websocket v1.5.0
 github.com/gorilla/websocket
 # github.com/gosuri/uitable v0.0.4
 github.com/gosuri/uitable
@@ -329,7 +329,7 @@ github.com/lib/pq/oid
 github.com/lib/pq/scram
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 github.com/liggitt/tabwriter
-# github.com/longhorn/backing-image-manager v0.0.0-20210809125601-48e29abcd637
+# github.com/longhorn/backing-image-manager v0.0.0-20220414053138-691e27b07b7e
 github.com/longhorn/backing-image-manager/api
 github.com/longhorn/backing-image-manager/pkg/client
 github.com/longhorn/backing-image-manager/pkg/meta
@@ -344,31 +344,35 @@ github.com/longhorn/backupstore/logging
 github.com/longhorn/backupstore/nfs
 github.com/longhorn/backupstore/s3
 github.com/longhorn/backupstore/util
-# github.com/longhorn/go-iscsi-helper v0.0.0-20201111045018-ee87992ec536
+# github.com/longhorn/go-iscsi-helper v0.0.0-20210330030558-49a327fb024e
 github.com/longhorn/go-iscsi-helper/types
 github.com/longhorn/go-iscsi-helper/util
-# github.com/longhorn/longhorn-instance-manager v0.0.0-20210729081215-50c310f97378
+# github.com/longhorn/longhorn-instance-manager v0.0.0-20220412150124-6cc9d60a9c8e
 github.com/longhorn/longhorn-instance-manager/pkg/api
 github.com/longhorn/longhorn-instance-manager/pkg/client
+github.com/longhorn/longhorn-instance-manager/pkg/imrpc
 github.com/longhorn/longhorn-instance-manager/pkg/meta
-github.com/longhorn/longhorn-instance-manager/pkg/rpc
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.2.4
+# github.com/longhorn/longhorn-manager v1.2.1-0.20220414093907-1c261cab5944
 ## explicit
 github.com/longhorn/longhorn-manager/controller
 github.com/longhorn/longhorn-manager/datastore
 github.com/longhorn/longhorn-manager/engineapi
 github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn
 github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1
+github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2
 github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned
 github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned/scheme
 github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned/typed/longhorn/v1beta1
+github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned/typed/longhorn/v1beta2
 github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions
 github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/internalinterfaces
 github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn
 github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1
+github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta2
 github.com/longhorn/longhorn-manager/k8s/pkg/client/listers/longhorn/v1beta1
+github.com/longhorn/longhorn-manager/k8s/pkg/client/listers/longhorn/v1beta2
 github.com/longhorn/longhorn-manager/manager
 github.com/longhorn/longhorn-manager/meta
 github.com/longhorn/longhorn-manager/scheduler
@@ -383,13 +387,7 @@ github.com/longhorn/longhorn-manager/upgrade/v110to120
 github.com/longhorn/longhorn-manager/upgrade/v111to120
 github.com/longhorn/longhorn-manager/upgrade/v120to121
 github.com/longhorn/longhorn-manager/upgrade/v122to123
-github.com/longhorn/longhorn-manager/upgrade/v1alpha1
-github.com/longhorn/longhorn-manager/upgrade/v1alpha1/k8s/pkg/apis/longhorn
-github.com/longhorn/longhorn-manager/upgrade/v1alpha1/k8s/pkg/apis/longhorn/v1alpha1
-github.com/longhorn/longhorn-manager/upgrade/v1alpha1/k8s/pkg/client/clientset/versioned
-github.com/longhorn/longhorn-manager/upgrade/v1alpha1/k8s/pkg/client/clientset/versioned/scheme
-github.com/longhorn/longhorn-manager/upgrade/v1alpha1/k8s/pkg/client/clientset/versioned/typed/longhorn/v1alpha1
-github.com/longhorn/longhorn-manager/upgrade/v1alpha1/types
+github.com/longhorn/longhorn-manager/upgrade/v1beta1
 github.com/longhorn/longhorn-manager/util
 # github.com/mailru/easyjson v0.7.6
 github.com/mailru/easyjson/buffer
@@ -407,14 +405,14 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 # github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 ## explicit
 github.com/mcuadros/go-version
-# github.com/mitchellh/copystructure v1.1.1
+# github.com/mitchellh/copystructure v1.2.0
 github.com/mitchellh/copystructure
 # github.com/mitchellh/go-wordwrap v1.0.0
 github.com/mitchellh/go-wordwrap
 # github.com/mitchellh/mapstructure v1.4.2
 ## explicit
 github.com/mitchellh/mapstructure
-# github.com/mitchellh/reflectwalk v1.0.1
+# github.com/mitchellh/reflectwalk v1.0.2
 github.com/mitchellh/reflectwalk
 # github.com/moby/locker v1.0.1
 github.com/moby/locker
@@ -499,7 +497,7 @@ github.com/philhofer/fwd
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
-# github.com/prometheus/client_golang v1.11.0
+# github.com/prometheus/client_golang v1.11.1
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/collectors
 github.com/prometheus/client_golang/prometheus/internal
@@ -532,7 +530,7 @@ github.com/rancher/apiserver/pkg/subscribe
 github.com/rancher/apiserver/pkg/types
 github.com/rancher/apiserver/pkg/urlbuilder
 github.com/rancher/apiserver/pkg/writer
-# github.com/rancher/dynamiclistener v0.3.1-0.20211104200948-cd5d71f2fe95
+# github.com/rancher/dynamiclistener v0.3.1
 ## explicit
 github.com/rancher/dynamiclistener
 github.com/rancher/dynamiclistener/cert
@@ -553,7 +551,7 @@ github.com/rancher/gke-operator/pkg/apis/gke.cattle.io/v1
 # github.com/rancher/kubernetes-provider-detector v0.1.5
 github.com/rancher/kubernetes-provider-detector
 github.com/rancher/kubernetes-provider-detector/providers
-# github.com/rancher/lasso v0.0.0-20210709145333-6c6cd7fd6607
+# github.com/rancher/lasso v0.0.0-20211217013041-3c6118a30611
 ## explicit
 github.com/rancher/lasso/pkg/cache
 github.com/rancher/lasso/pkg/client

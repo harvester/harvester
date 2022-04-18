@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -22,12 +21,13 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/longhorn/longhorn-manager/datastore"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/scheduler"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 )
+
+var nodeControllerResyncPeriod = 30 * time.Second
 
 type NodeController struct {
 	*baseController
@@ -41,11 +41,7 @@ type NodeController struct {
 
 	ds *datastore.DataStore
 
-	nStoreSynced  cache.InformerSynced
-	pStoreSynced  cache.InformerSynced
-	sStoreSynced  cache.InformerSynced
-	rStoreSynced  cache.InformerSynced
-	knStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	getDiskInfoHandler    GetDiskInfoHandler
 	topologyLabelsChecker TopologyLabelsChecker
@@ -65,11 +61,6 @@ func NewNodeController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	nodeInformer lhinformers.NodeInformer,
-	settingInformer lhinformers.SettingInformer,
-	podInformer coreinformers.PodInformer,
-	replicaInformer lhinformers.ReplicaInformer,
-	kubeNodeInformer coreinformers.NodeInformer,
 	kubeClient clientset.Interface,
 	namespace, controllerID string) *NodeController {
 
@@ -89,12 +80,6 @@ func NewNodeController(
 
 		ds: ds,
 
-		nStoreSynced:  nodeInformer.Informer().HasSynced,
-		pStoreSynced:  podInformer.Informer().HasSynced,
-		sStoreSynced:  settingInformer.Informer().HasSynced,
-		rStoreSynced:  replicaInformer.Informer().HasSynced,
-		knStoreSynced: kubeNodeInformer.Informer().HasSynced,
-
 		getDiskInfoHandler:    util.GetDiskInfo,
 		topologyLabelsChecker: util.IsKubernetesVersionAtLeast,
 		getDiskConfig:         util.GetDiskConfig,
@@ -103,13 +88,17 @@ func NewNodeController(
 
 	nc.scheduler = scheduler.NewReplicaScheduler(ds)
 
-	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	// We want to check the real time usage of disk on nodes.
+	// Therefore, we add a small resync for the NodeInformer here
+	ds.NodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    nc.enqueueNode,
 		UpdateFunc: func(old, cur interface{}) { nc.enqueueNode(cur) },
 		DeleteFunc: nc.enqueueNode,
-	})
+	}, nodeControllerResyncPeriod)
 
-	settingInformer.Informer().AddEventHandlerWithResyncPeriod(
+	nc.cacheSyncs = append(nc.cacheSyncs, ds.NodeInformer.HasSynced)
+
+	ds.SettingInformer.AddEventHandlerWithResyncPeriod(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: nc.isResponsibleForSetting,
 			Handler: cache.ResourceEventHandlerFuncs{
@@ -117,8 +106,9 @@ func NewNodeController(
 				UpdateFunc: func(old, cur interface{}) { nc.enqueueSetting(cur) },
 			},
 		}, 0)
+	nc.cacheSyncs = append(nc.cacheSyncs, ds.SettingInformer.HasSynced)
 
-	replicaInformer.Informer().AddEventHandlerWithResyncPeriod(
+	ds.ReplicaInformer.AddEventHandlerWithResyncPeriod(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: nc.isResponsibleForReplica,
 			Handler: cache.ResourceEventHandlerFuncs{
@@ -127,8 +117,9 @@ func NewNodeController(
 				DeleteFunc: nc.enqueueReplica,
 			},
 		}, 0)
+	nc.cacheSyncs = append(nc.cacheSyncs, ds.ReplicaInformer.HasSynced)
 
-	podInformer.Informer().AddEventHandlerWithResyncPeriod(
+	ds.PodInformer.AddEventHandlerWithResyncPeriod(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: isManagerPod,
 			Handler: cache.ResourceEventHandlerFuncs{
@@ -137,11 +128,13 @@ func NewNodeController(
 				DeleteFunc: nc.enqueueManagerPod,
 			},
 		}, 0)
+	nc.cacheSyncs = append(nc.cacheSyncs, ds.PodInformer.HasSynced)
 
-	kubeNodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.KubeNodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(old, cur interface{}) { nc.enqueueKubernetesNode(cur) },
 		DeleteFunc: nc.enqueueKubernetesNode,
 	}, 0)
+	nc.cacheSyncs = append(nc.cacheSyncs, ds.KubeNodeInformer.HasSynced)
 
 	return nc
 }
@@ -149,7 +142,7 @@ func NewNodeController(
 func (nc *NodeController) isResponsibleForSetting(obj interface{}) bool {
 	setting, ok := obj.(*longhorn.Setting)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			return false
 		}
@@ -168,7 +161,7 @@ func (nc *NodeController) isResponsibleForSetting(obj interface{}) bool {
 func (nc *NodeController) isResponsibleForReplica(obj interface{}) bool {
 	replica, ok := obj.(*longhorn.Replica)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			return false
 		}
@@ -186,7 +179,7 @@ func (nc *NodeController) isResponsibleForReplica(obj interface{}) bool {
 func isManagerPod(obj interface{}) bool {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			return false
 		}
@@ -213,8 +206,7 @@ func (nc *NodeController) Run(workers int, stopCh <-chan struct{}) {
 	logrus.Infof("Start Longhorn node controller")
 	defer logrus.Infof("Shutting down Longhorn node controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn node", stopCh,
-		nc.nStoreSynced, nc.pStoreSynced, nc.sStoreSynced, nc.rStoreSynced, nc.knStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn node", stopCh, nc.cacheSyncs...) {
 		return
 	}
 
@@ -388,7 +380,7 @@ func (nc *NodeController) syncNode(key string) (err error) {
 				if con.Status == v1.ConditionTrue {
 					nc.eventRecorder.Eventf(node, v1.EventTypeWarning, longhorn.NodeConditionReasonUnknownNodeConditionTrue, "Unknown condition true of kubernetes node %v: condition type is %v, reason is %v, message is %v", node.Name, con.Type, con.Reason, con.Message)
 				}
-				break
+
 			}
 		}
 
@@ -404,7 +396,7 @@ func (nc *NodeController) syncNode(key string) (err error) {
 		// k8s node status
 		kubeSpec := kubeNode.Spec
 		if DisableSchedulingOnCordonedNode &&
-			kubeSpec.Unschedulable == true {
+			kubeSpec.Unschedulable {
 			node.Status.Conditions =
 				types.SetConditionAndRecord(node.Status.Conditions,
 					longhorn.NodeConditionTypeSchedulable,
@@ -481,7 +473,7 @@ func (nc *NodeController) enqueueSetting(obj interface{}) {
 func (nc *NodeController) enqueueReplica(obj interface{}) {
 	replica, ok := obj.(*longhorn.Replica)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -520,7 +512,7 @@ func (nc *NodeController) enqueueManagerPod(obj interface{}) {
 func (nc *NodeController) enqueueKubernetesNode(obj interface{}) {
 	kubernetesNode, ok := obj.(*v1.Node)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -593,7 +585,7 @@ func (nc *NodeController) syncDiskStatus(node *longhorn.Node) error {
 		}
 		diskStatus := node.Status.DiskStatus[id]
 		if diskStatus.Conditions == nil {
-			diskStatus.Conditions = map[string]longhorn.Condition{}
+			diskStatus.Conditions = []longhorn.Condition{}
 		}
 		if diskStatus.ScheduledReplica == nil {
 			diskStatus.ScheduledReplica = map[string]int64{}

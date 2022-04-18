@@ -6,14 +6,14 @@ import (
 	bimapi "github.com/longhorn/backing-image-manager/api"
 	bimclient "github.com/longhorn/backing-image-manager/pkg/client"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
 	BackingImageManagerDefaultPort = 8000
 
-	CurrentBackingImageManagerAPIVersion = 2
-	MinBackingImageManagerAPIVersion     = 2
+	CurrentBackingImageManagerAPIVersion = 3
+	MinBackingImageManagerAPIVersion     = 3
 	UnknownBackingImageManagerAPIVersion = 0
 )
 

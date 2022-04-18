@@ -79,6 +79,7 @@ type InstanceProcessStatus struct {
 	ResourceVersion int64         `json:"resourceVersion"`
 }
 
+// InstanceManagerSpec defines the desired state of the Longhorn instancer manager
 type InstanceManagerSpec struct {
 	Image  string              `json:"image"`
 	NodeID string              `json:"nodeID"`
@@ -88,6 +89,7 @@ type InstanceManagerSpec struct {
 	EngineImage string `json:"engineImage"`
 }
 
+// InstanceManagerStatus defines the observed state of the Longhorn instance manager
 type InstanceManagerStatus struct {
 	OwnerID       string                     `json:"ownerID"`
 	CurrentState  InstanceManagerState       `json:"currentState"`
@@ -99,18 +101,31 @@ type InstanceManagerStatus struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:shortName=lhim
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.currentState`,description="The state of the instance manager"
+// +kubebuilder:printcolumn:name="Type",type=string,JSONPath=`.spec.type`,description="The type of the instance manager (engine or replica)"
+// +kubebuilder:printcolumn:name="Node",type=string,JSONPath=`.spec.nodeID`,description="The node that the instance manager is running on"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
+// InstanceManager is where Longhorn stores instance manager object.
 type InstanceManager struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
-	Spec              InstanceManagerSpec   `json:"spec"`
-	Status            InstanceManagerStatus `json:"status"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Spec InstanceManagerSpec `json:"spec,omitempty"`
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Status InstanceManagerStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// InstanceManagerList is a list of InstanceManagers.
 type InstanceManagerList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []InstanceManager `json:"items"`
 }
