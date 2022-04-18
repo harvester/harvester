@@ -96,7 +96,7 @@ The following commands are executed by root account or `sudo`.
 ip link add link br0 address 11:22:33:44:55:66 type bridge vlan_filtering 1
 ip link add harvester-mgmt master br0
 # inherit from br0 directly.
-ip link add link br0.100 vlan id 100
+ip link add link br0.100 type vlan id 100
 
 for i in {2..4094}; do bridge vlan add vid $i dev harvester-mgmt; done
 bridge vlan add vid 100 dev br0 self
