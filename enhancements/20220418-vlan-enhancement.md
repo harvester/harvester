@@ -8,7 +8,7 @@ IT usually configures the switch with VLAN trunk mode rather than VLAN access mo
 
 - https://github.com/harvester/harvester/issues/1390
 
-### Terminology
+## Terminology
 
 | Term | Short Term | Description |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ IT usually configures the switch with VLAN trunk mode rather than VLAN access mo
 
 ### Goals
 
-- Migrate node IP from `harvester-mgmt` to the new management interface to allow VLAN tagged packet for managetment traffic.
+- Migrate node IP from `harvester-mgmt` to the new management interface to allow VLAN tagged packet for management traffic.
 - Allow multiple Linux bridges to be configured by Harvester
 - Allow the same name Linux bridge with different uplinks
 
@@ -75,11 +75,13 @@ In Web UI, we will need an advanced network configuration page to configure addi
 - Network attached definition can't attach to `br0`.
 - Harvester Network Controller will create a veth pair to connect `br0` and user defined `br<X>` for uplink if users want to use same interface of `harvester-mgmt` or management interface to provide VM VLAN networks.
 - `br0` and vlan interface need to inherit first MAC address from physical network interfaces of `harvester-mgmt`.
-    - `wicked` need to set a fixed MAC address for `br0` and vlan itnerface.
+    - `wicked` need to set a fixed MAC address for `br0` and vlan interface.
 - The uplink of `br0` and `br<X>` is always a `bond`.
 - VLAN filtering in `br0` and `br<X>` is always enable.
     - PVID is always 1.
     - Always use VLAN 1 as untagged network.
+- Harvester Network controller don't need to copy IP address and route from `harvester-mgmt` to bridge anymore
+    - In installation statge, we will generate DHCP or Static IP configuration on `br0` or vlan interface.
 
 > **NOTE**: We could consider to migrate all Linux bridges' name to `br<X>` where `<X>` is a decimal number. In original design, The name `harvester-br0` is too long to have a VLAN interface with same naming rule of `eth0.100`.
 
