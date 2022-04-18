@@ -235,12 +235,6 @@ wait_rke2_upgrade() {
   done
 }
 
-rebrand_grub () {
-  mount -o remount,rw $HOST_DIR/run/initramfs/cos-state/
-  chroot $HOST_DIR grub2-editenv /run/initramfs/cos-state/grub_oem_env set "default_menu_entry=$REPO_OS_PRETTY_NAME"
-  mount -o remount,ro $HOST_DIR/host/run/initramfs/cos-state/
-}
-
 clean_rke2_archives() {
   yq -e -o=json e ".images.rke2" "$CACHED_BUNDLE_METADATA" | jq -r '.[] | [.list, .archive] | @tsv' |
     while IFS=$'\t' read -r list archive; do
@@ -256,7 +250,7 @@ upgrade_os() {
     echo "Skip upgrading OS. The OS version is already \"$CURRENT_OS_VERSION\"."
     return
   fi
-  
+
   # upgrade OS image and reboot
   mount --rbind $HOST_DIR/dev /dev
   mount --rbind $HOST_DIR/run /run
@@ -268,17 +262,14 @@ upgrade_os() {
     curl -fL $UPGRADE_REPO_SQUASHFS_IMAGE -o $tmp_rootfs_squashfs
   fi
 
-  tmp_rootfs_mount=$(mktemp -d) 
+  tmp_rootfs_mount=$(mktemp -d -p $HOST_DIR/tmp)
   mount $tmp_rootfs_squashfs $tmp_rootfs_mount
 
-  bash -x $HOST_DIR/usr/sbin/cos upgrade --directory $tmp_rootfs_mount
+  chroot $HOST_DIR elemental upgrade --directory ${tmp_rootfs_mount#"$HOST_DIR"}
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
   umount -R /run
-
-  # https://github.com/rancher-sandbox/cOS-toolkit/issues/928
-  rebrand_grub || true
 
   reboot_if_job_succeed
 }
