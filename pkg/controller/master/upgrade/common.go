@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
+	"github.com/rancher/wrangler/pkg/name"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -197,7 +198,7 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo, nodeN
 	privileged := true
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%s-%s", upgrade.Name, jobType, nodeName),
+			Name:      name.SafeConcatName(upgrade.Name, jobType, nodeName),
 			Namespace: upgrade.Namespace,
 			Labels: map[string]string{
 				harvesterUpgradeLabel:          upgrade.Name,
@@ -300,7 +301,7 @@ func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo) 
 	imageVersion := repoInfo.Release.Harvester
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-apply-manifests", upgrade.Name),
+			Name:      name.SafeConcatName(upgrade.Name, "apply-manifests"),
 			Namespace: upgrade.Namespace,
 			Labels: map[string]string{
 				harvesterUpgradeLabel:          upgrade.Name,
