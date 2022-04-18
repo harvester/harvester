@@ -66,7 +66,7 @@ require (
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20210908163358-43c9d3298665
-	github.com/longhorn/longhorn-manager v1.2.4
+	github.com/longhorn/longhorn-manager v1.2.1-0.20220414093907-1c261cab5944
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.4.2
@@ -75,8 +75,8 @@ require (
 	github.com/openshift/api v0.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/apiserver v0.0.0-20211025232108-df28932a5627
-	github.com/rancher/dynamiclistener v0.3.1-0.20211104200948-cd5d71f2fe95
-	github.com/rancher/lasso v0.0.0-20210709145333-6c6cd7fd6607
+	github.com/rancher/dynamiclistener v0.3.1
+	github.com/rancher/lasso v0.0.0-20211217013041-3c6118a30611
 	github.com/rancher/norman v0.0.0-20211201154850-abe17976423e
 	github.com/rancher/rancher v0.0.0-20211208233239-77392a65423d
 	github.com/rancher/rancher/pkg/apis v0.0.0
