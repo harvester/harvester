@@ -268,10 +268,10 @@ upgrade_os() {
     curl -fL $UPGRADE_REPO_SQUASHFS_IMAGE -o $tmp_rootfs_squashfs
   fi
 
-  tmp_rootfs_mount=$(mktemp -d) 
+  tmp_rootfs_mount=$(mktemp -d -p $HOST_DIR/tmp)
   mount $tmp_rootfs_squashfs $tmp_rootfs_mount
 
-  bash -x $HOST_DIR/usr/sbin/cos upgrade --directory $tmp_rootfs_mount
+  chroot $HOST_DIR cos upgrade --directory ${tmp_rootfs_mount#"$HOST_DIR"}
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
