@@ -265,7 +265,7 @@ upgrade_os() {
   tmp_rootfs_mount=$(mktemp -d -p $HOST_DIR/tmp)
   mount $tmp_rootfs_squashfs $tmp_rootfs_mount
 
-  chroot $HOST_DIR cos upgrade --directory ${tmp_rootfs_mount#"$HOST_DIR"}
+  chroot $HOST_DIR elemental upgrade --directory ${tmp_rootfs_mount#"$HOST_DIR"}
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
