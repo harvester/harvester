@@ -444,3 +444,9 @@ support-bundle-kit:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
     tag: master-head
+
+loop-device-cleaner:
+  image:
+    imagePullPolicy: IfNotPresent
+    repository: alpine
+    tag: 3.12
