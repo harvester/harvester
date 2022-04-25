@@ -1,9 +1,9 @@
 #!/bin/bash -ex
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-UPGRADE_TMP_DIR=$HOST_DIR/usr/local/upgrade_tmp
 
 source $SCRIPT_DIR/lib.sh
+UPGRADE_TMP_DIR=$HOST_DIR/usr/local/upgrade_tmp
 
 # Create a systemd service on host to reboot the host if this running pod succeeds.
 # This prevents job become from entering `Error`.
