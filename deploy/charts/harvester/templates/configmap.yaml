@@ -25,6 +25,12 @@ data:
       $KUBECTL get node $HARVESTER_PROMOTE_NODE_NAME -o jsonpath='{.metadata.annotations.cluster\.x-k8s\.io/machine}'
     }
 
+    # Wait for rancher-webhook ready. It's default to one replica.
+    # Otherwise lebeling capi resources later might fail.
+    $KUBECTL rollout status --watch=true deployment rancher-webhook -n cattle-system
+    # https://github.com/rancher/webhook/blob/436e359b136b633cb1a6fa7cdedbed4d74821bdb/pkg/server/server.go#L114
+    sleep 20
+
     CUSTOM_MACHINE=$(get_machine_from_node)
     until [ -n "$CUSTOM_MACHINE" ]
     do
