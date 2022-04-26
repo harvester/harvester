@@ -118,12 +118,6 @@ spec:
     stp: on or off
     ageing_time: 300
     ...
-  ip: 192.168.0.1/24
-  vlan_interface:
-    vlan1:
-      ip: 192.168.1.1/24
-    vlan100:
-      ip: 192.168.100.1/24
 ```
 
 ```
