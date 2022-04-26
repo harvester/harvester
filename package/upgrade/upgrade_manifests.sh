@@ -334,8 +334,7 @@ EOF
   pause_managed_chart rancher-monitoring "false"
   pause_managed_chart rancher-monitoring-crd "false"
 
-  # XXX The eventual state of rancher-monitoring would be "modified", not "ready"!
-  wait_managed_chart fleet-local rancher-monitoring $REPO_MONITORING_CHART_VERSION $pre_generation_monitoring modified
+  wait_managed_chart fleet-local rancher-monitoring $REPO_MONITORING_CHART_VERSION $pre_generation_monitoring ready
   wait_managed_chart fleet-local rancher-monitoring-crd $REPO_MONITORING_CHART_VERSION $pre_generation_monitoring_crd ready
 
   wait_rollout cattle-monitoring-system daemonset rancher-monitoring-prometheus-node-exporter
