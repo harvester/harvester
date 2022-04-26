@@ -106,6 +106,45 @@ In Web UI, we will need an advanced network configuration page to configure addi
 
 > **NOTE**: Need to consider about one ClusterNetwork for all Linux bridges or one resource with one bridge only
 
+#### CRD design
+
+```
+Kind: LinuxBridge
+metadata:
+  name: br<X>
+spec:
+  bridge_options:
+    vlan_filtering: 1 or 0
+    stp: on or off
+    ageing_time: 300
+    ...
+  ip: 192.168.0.1/24
+  vlan_interface:
+    vlan1:
+      ip: 192.168.1.1/24
+    vlan100:
+      ip: 192.168.100.1/24
+```
+
+```
+Kind: LinuxBridgeUplink
+metadata:
+  name: <node-name>-br<X>-uplink
+spec:
+  no_uplink: true or false
+  use_mgmt_port: true or false
+  uplinks:
+    - eth0
+    - eth1
+  bond_options:
+    mode: balance_tlb
+    miimon: 100
+    updelay: 0
+    downdelay: 0
+    xmit_hash_policy: layer3+4
+    ...
+```
+
 #### Proof of Concept
 
 The following commands are executed by root account or `sudo`.
