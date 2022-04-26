@@ -76,6 +76,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/apiserver v0.0.0-20211025232108-df28932a5627
 	github.com/rancher/dynamiclistener v0.3.1-0.20211104200948-cd5d71f2fe95
+	github.com/rancher/fleet/pkg/apis v0.0.0-20210918015053-5a141a6b18f0
 	github.com/rancher/lasso v0.0.0-20210709145333-6c6cd7fd6607
 	github.com/rancher/norman v0.0.0-20211201154850-abe17976423e
 	github.com/rancher/rancher v0.0.0-20211208233239-77392a65423d
