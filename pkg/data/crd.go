@@ -4,6 +4,7 @@ import (
 	"context"
 
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	"k8s.io/client-go/rest"
@@ -47,6 +48,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Volume", longhornv1.Volume{}),
 			crd.FromGV(longhornv1.SchemeGroupVersion, "Setting", longhornv1.Setting{}),
 			crd.FromGV(provisioningv1.SchemeGroupVersion, "Cluster", provisioningv1.Cluster{}),
+			crd.FromGV(fleetv1alpha1.SchemeGroupVersion, "Cluster", fleetv1alpha1.Cluster{}),
 		).
 		BatchWait()
 }
