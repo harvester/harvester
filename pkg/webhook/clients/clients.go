@@ -3,6 +3,7 @@ package clients
 import (
 	"context"
 
+	ctlfleetv1 "github.com/rancher/rancher/pkg/generated/controllers/fleet.cattle.io"
 	"github.com/rancher/wrangler/pkg/clients"
 	"github.com/rancher/wrangler/pkg/schemes"
 	v1 "k8s.io/api/admissionregistration/v1"
@@ -21,6 +22,7 @@ type Clients struct {
 	KubevirtFactory  *ctlkubevirtv1.Factory
 	CNIFactory       *ctlcniv1.Factory
 	SnapshotFactory  *ctlsnapshotv1.Factory
+	FleetFactory     *ctlfleetv1.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
@@ -69,11 +71,21 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
+	fleetFactory, err := ctlfleetv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = fleetFactory.Start(ctx, threadiness); err != nil {
+		return nil, err
+	}
+
 	return &Clients{
 		Clients:          *clients,
 		HarvesterFactory: harvesterFactory,
 		KubevirtFactory:  kubevirtFactory,
 		CNIFactory:       cniFactory,
 		SnapshotFactory:  snapshotFactory,
+		FleetFactory:     fleetFactory,
 	}, nil
 }
