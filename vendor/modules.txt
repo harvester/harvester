@@ -545,6 +545,7 @@ github.com/rancher/dynamiclistener/storage/memory
 github.com/rancher/eks-operator/pkg/apis/eks.cattle.io
 github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1
 # github.com/rancher/fleet/pkg/apis v0.0.0-20210918015053-5a141a6b18f0
+## explicit
 github.com/rancher/fleet/pkg/apis/fleet.cattle.io
 github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1
 # github.com/rancher/gke-operator v1.1.1
@@ -580,6 +581,8 @@ github.com/rancher/rancher/pkg/auth/settings
 github.com/rancher/rancher/pkg/fleet
 github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io
 github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1
+github.com/rancher/rancher/pkg/generated/controllers/fleet.cattle.io
+github.com/rancher/rancher/pkg/generated/controllers/fleet.cattle.io/v1alpha1
 github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io
 github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3
 github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io
