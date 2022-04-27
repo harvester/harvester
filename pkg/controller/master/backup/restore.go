@@ -509,7 +509,10 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 		return nil, err
 	}
 
-	defaultRunStrategy := kubevirtv1.RunStrategyManual
+	defaultRunStrategy := kubevirtv1.RunStrategyRerunOnFailure
+	if backup.Status.SourceSpec.Spec.RunStrategy != nil {
+		defaultRunStrategy = *backup.Status.SourceSpec.Spec.RunStrategy
+	}
 
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
@@ -755,13 +758,16 @@ func (h *RestoreHandler) deleteOldPVC(vmRestore *harvesterv1.VirtualMachineResto
 }
 
 func (h *RestoreHandler) startVM(vm *kubevirtv1.VirtualMachine) error {
-	runStrategy, _ := vm.RunStrategy()
-	logrus.Infof("starting the vm %s, current state running:%v", vm.Name, runStrategy)
+	runStrategy, err := vm.RunStrategy()
+	if err != nil {
+		return err
+	}
 
+	logrus.Infof("starting the vm %s, current state running:%v", vm.Name, runStrategy)
 	switch runStrategy {
-	case kubevirtv1.RunStrategyAlways:
+	case kubevirtv1.RunStrategyAlways, kubevirtv1.RunStrategyRerunOnFailure:
 		return nil
-	case kubevirtv1.RunStrategyManual, kubevirtv1.RunStrategyRerunOnFailure:
+	case kubevirtv1.RunStrategyManual:
 		if vmi, err := h.vmiCache.Get(vm.Namespace, vm.Name); err == nil {
 			if vmi != nil && !vmi.IsFinal() && vmi.Status.Phase != kubevirtv1.Unknown && vmi.Status.Phase != kubevirtv1.VmPhaseUnset {
 				// vm is already running

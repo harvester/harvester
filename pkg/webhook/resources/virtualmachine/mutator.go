@@ -66,7 +66,43 @@ func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj
 	if err != nil {
 		return patchOps, err
 	}
+
+	needUpdateRunStrategy, err := needUpdateRunStrategy(oldVm, newVm)
+	if err != nil {
+		return patchOps, err
+	}
+
+	if needUpdateRunStrategy {
+		patchOps = patchRunStrategy(newVm, patchOps)
+	}
 	return patchOps, nil
+}
+
+func needUpdateRunStrategy(oldVm, newVm *kubevirtv1.VirtualMachine) (bool, error) {
+	newRunStrategy, err := newVm.RunStrategy()
+	if err != nil {
+		return false, err
+	}
+
+	oldRunStrategy, err := oldVm.RunStrategy()
+	if err != nil {
+		return false, err
+	}
+
+	if oldRunStrategy == kubevirtv1.RunStrategyHalted && newRunStrategy != kubevirtv1.RunStrategyHalted {
+		return true, nil
+	}
+	return false, nil
+}
+
+// add workaround for the issue https://github.com/kubevirt/kubevirt/issues/7295
+func patchRunStrategy(newVm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) types.PatchOps {
+	runStrategy := newVm.Annotations[util.AnnotationRunStrategy]
+	if string(runStrategy) == "" {
+		runStrategy = string(kubevirtv1.RunStrategyRerunOnFailure)
+	}
+	patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/runStrategy", "value": "%s"}`, runStrategy))
+	return patchOps
 }
 
 func needUpdateResourceOvercommit(oldVm, newVm *kubevirtv1.VirtualMachine) bool {
