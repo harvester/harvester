@@ -7,12 +7,14 @@ import (
 
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/slice"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
@@ -21,6 +23,8 @@ import (
 type VMController struct {
 	pvcClient v1.PersistentVolumeClaimClient
 	pvcCache  v1.PersistentVolumeClaimCache
+	vmClient  ctlkubevirtv1.VirtualMachineClient
+	vmCache   ctlkubevirtv1.VirtualMachineCache
 }
 
 // createPVCsFromAnnotation creates PVCs defined in the volumeClaimTemplates annotation if they don't exist.
@@ -132,6 +136,33 @@ func (h *VMController) SetOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine) (
 		if err != nil {
 			return vm, fmt.Errorf("failed to grant VitrualMachine(%s/%s) as PVC(%s/%s)'s owner: %w",
 				vm.Namespace, vm.Name, pvcNamespace, pvcName, err)
+		}
+	}
+
+	return vm, nil
+}
+
+// StoreRunStrategy stores the last running strategy into the annotation before the VM is stopped.
+// As a workaround for the issue https://github.com/kubevirt/kubevirt/issues/7295
+func (h *VMController) StoreRunStrategy(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
+		return vm, nil
+	}
+
+	runStrategy, err := vm.RunStrategy()
+	if err != nil {
+		logrus.Warnf("Skip store run strategy to the annotation, error: %s", err)
+		return vm, nil
+	}
+
+	if runStrategy != kubevirtv1.RunStrategyHalted && vm.Annotations[util.AnnotationRunStrategy] != string(runStrategy) {
+		toUpdate := vm.DeepCopy()
+		if toUpdate.Annotations == nil {
+			toUpdate.Annotations = make(map[string]string)
+		}
+		toUpdate.Annotations[util.AnnotationRunStrategy] = string(runStrategy)
+		if _, err := h.vmClient.Update(toUpdate); err != nil {
+			return vm, err
 		}
 	}
 
