@@ -179,7 +179,7 @@ func (vf *vmformatter) canStop(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.Vi
 			return false
 		case kubevirtv1.RunStrategyManual, kubevirtv1.RunStrategyRerunOnFailure:
 			// need to check VMI status
-			if vmi == nil || vmi.Status.Phase != kubevirtv1.Running {
+			if vmi == nil {
 				return false
 			}
 			return true
@@ -223,7 +223,11 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 		return false
 	}
 
-	if vmi != nil && vmi.Status.Phase != kubevirtv1.Running {
+	if vm.DeletionTimestamp != nil || (vmi != nil && vmi.DeletionTimestamp != nil) {
+		return false
+	}
+
+	if vmi.Status.Phase != kubevirtv1.Running && vmi.Status.Phase != kubevirtv1.Succeeded {
 		return false
 	}
 	return true
@@ -246,7 +250,10 @@ func (vf *vmformatter) isVMStarting(vm *kubevirtv1.VirtualMachine) bool {
 }
 
 func (vf *vmformatter) canCreateTemplate(vmi *kubevirtv1.VirtualMachineInstance) bool {
-	if vmi != nil && vmi.Status.Phase != kubevirtv1.Running {
+	if vmi != nil && vmi.DeletionTimestamp != nil {
+		return false
+	}
+	if vmi.Status.Phase != kubevirtv1.Running && vmi.Status.Phase != kubevirtv1.Succeeded {
 		return false
 	}
 	return true
