@@ -366,7 +366,7 @@ harvester-node-disk-manager:
     repository: rancher/harvester-node-disk-manager
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.4.1
+    tag: v0.4.3
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter
@@ -445,7 +445,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: v0.0.7
+    tag: v0.0.8
 
 loop-device-cleaner:
   image:
