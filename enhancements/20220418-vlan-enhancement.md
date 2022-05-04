@@ -109,19 +109,29 @@ In Web UI, we will need an advanced network configuration page to configure addi
 #### CRD design
 
 ```
-Kind: LinuxBridge
+Kind: Bridge
 metadata:
   name: br<X>
 spec:
-  bridge_options:
-    vlan_filtering: 1 or 0
-    stp: on or off
-    ageing_time: 300
-    ...
+  default_uplink:
+    no_uplink: true or false
+    use_mgmt_port: true or false
+    uplinks:
+      - eth0
+      - eth1
+    bond_options:
+      mode: balance_tlb
+      miimon: 100
+      updelay: 0
+      downdelay: 0
+      xmit_hash_policy: layer3+4
+      ...
+    bridge_options:
+      # reserved as map
 ```
 
 ```
-Kind: LinuxBridgeUplink
+Kind: BridgeUplink
 metadata:
   name: <node-name>-br<X>-uplink
 spec:
