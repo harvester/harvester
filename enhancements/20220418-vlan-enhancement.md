@@ -321,6 +321,96 @@ ip link set veth-out master br2
 bridge vlan add vid 101 dev veth-out pvid untagged master
 ```
 
+##### Wicked ifcfg (without VLAN)
+
+/etc/wicked/script/setup_bridge.sh
+```
+#!/bin/sh
+
+ACTION=$1
+INTERFACE=$2
+
+case $ACTION in
+    pre-up)
+        ip link set $INTERFACE type bridge vlan_filtering 1
+        bridge vlan add vid 2-4094 dev $INTERFACE self
+        bridge vlan add vid 2-4094 dev bond-br-mgmt
+        ;;
+esac
+```
+
+/etc/sysconfig/network/ifcfg-br-mgmt
+```
+STARTMODE='onboot'
+BOOTPROTO='dhcp'
+BRIDGE='yes'
+BRIDGE_STP='off'
+BRIDGE_FORWARDDELAY='0'
+BRIDGE_PORTS='bond-br-mgmt'
+PRE_UP_SCRIPT="wicked:setup_bridge.sh"
+LLADDR=<FIRST ETHERNET MAC>
+```
+
+/etc/sysconfig/network/ifcfg-bond-br-mgmt
+```
+STARTMODE='onboot'
+BOOTPROTO='none'
+BONDING_MASTER='yes'
+BONDING_SLAVE_0='eth0'
+BONDING_MODULE_OPTS='mode=balance-tlb miimon=100'
+LLADDR=<FIRST ETHERNET MAC>
+```
+
+##### Wicked ifcfg (with VLAN)
+
+/etc/wicked/script/setup_bridge.sh
+```
+#!/bin/sh
+
+ACTION=$1
+INTERFACE=$2
+
+case $ACTION in
+    pre-up)
+        ip link set $INTERFACE type bridge vlan_filtering 1
+        bridge vlan add vid 2-4094 dev $INTERFACE self
+        bridge vlan add vid 2-4094 dev bond-br-mgmt
+        ;;
+esac
+```
+
+/etc/sysconfig/network/ifcfg-br-mgmt
+```
+STARTMODE='onboot'
+BOOTPROTO='none'
+BRIDGE='yes'
+BRIDGE_STP='off'
+BRIDGE_FORWARDDELAY='0'
+BRIDGE_PORTS='bond-br-mgmt'
+PRE_UP_SCRIPT="wicked:setup_bridge.sh"
+LLADDR=<FIRST ETHERNET MAC>
+```
+
+/etc/sysconfig/network/ifcfg-bond-br-mgmt
+```
+STARTMODE='onboot'
+BOOTPROTO='none'
+BONDING_MASTER='yes'
+BONDING_SLAVE_0='eth0'
+BONDING_MODULE_OPTS='mode=balance-tlb miimon=100'
+LLADDR=<FIRST ETHERNET MAC>
+```
+
+/etc/sysconfig/network/ifcfg-br-mgmt.<VLAN_ID>
+```
+STARTMODE='onboot'
+ETHERDEVICE='br-mgmt'
+VLAN_PROTOCOL='ieee802-1Q'
+VLAN_ID=<VLAN_ID>
+
+BOOTPROTO='dhcp'
+```
+
 #### Upgrade
 
 > **TODO**: Huge migratation script need.
