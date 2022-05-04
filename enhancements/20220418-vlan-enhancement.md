@@ -192,10 +192,9 @@ ip link set br-mgmt up
 ip link add link br-mgmt name br-mgmt.101 type vlan id 101
 ip link set br-mgmt.101 up
 
-for i in {2..4094}; do
-	bridge vlan add vid $i dev br-mgmt self
-	bridge vlan add vid $i dev bond-br-mgmt
-done
+bridge vlan add vid 2-4094 dev br-mgmt self
+bridge vlan add vid 2-4094 dev bond-br-mgmt
+bridge -c vlan show
 
 # check everything is correct
 # check MAC address
@@ -284,10 +283,9 @@ ip link add veth-x type veth peer name veth-y
 ip link set veth-x master br-mgmt
 ip link set veth-y master br1
 
-for i in {2..4094}; do
-	bridge vlan add vid $i dev veth-x
-	bridge vlan add vid $i dev veth-y
-done
+bridge vlan add vid 2-4094 dev veth-x
+bridge vlan add vid 2-4094 dev veth-y
+bridge -c vlan show
 
 ip link set br1 up
 ip link set veth-x up
@@ -319,7 +317,8 @@ ip link add bond-br2 type bond mode balance-tlb
 ip link set eth2 master bond-br2
 ip link set bond-br2 master br2
 
-for i in {2..4094}; do bridge vlan add vid $i dev bond-br2; done
+bridge vlan add vid 2-4094 dev bond-br2
+bridge -c vlan show
 
 ip link set eth2 up
 ip link set bond-br2 up
