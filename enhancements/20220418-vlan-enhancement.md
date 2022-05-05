@@ -108,6 +108,7 @@ In Web UI, we will need an advanced network configuration page to configure addi
 
 #### CRD design
 
+Bridge Controller needs to add/remove bridge to all nodes.
 ```
 Kind: Bridge
 metadata:
@@ -117,6 +118,9 @@ spec:
     # reserved as map
 ```
 
+BridgeUplink Controller needs to do:
+1. create/remove bond-brX and attach/detach physical interface to this bond
+2. set/unset bond-brX's master as brX
 ```
 Kind: BridgeUplink
 metadata:
@@ -135,6 +139,12 @@ spec:
     xmit_hash_policy: layer3+4
     ...
 ```
+
+##### User Experience
+
+1. Create Bridge on their own before BridgeUplink
+2. Create BridgeUplink for each nodes on their own
+3. Create BridgeUplink for new nodes on their own
 
 #### Proof of Concept
 
