@@ -87,7 +87,7 @@ In Web UI, we will need an advanced network configuration page to configure addi
 
 #### Architecture figures
 
-![](assets/20220418-vlan-enhancement.png)
+![](20220418-vlan-enhancement/20220418-vlan-enhancement.png)
 
 #### CRD roles
 
