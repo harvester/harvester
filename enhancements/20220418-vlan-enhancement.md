@@ -113,21 +113,8 @@ Kind: Bridge
 metadata:
   name: br<X>
 spec:
-  default_uplink:
-    no_uplink: true or false
-    use_mgmt_port: true or false
-    uplinks:
-      - eth0
-      - eth1
-    bond_options:
-      mode: balance_tlb
-      miimon: 100
-      updelay: 0
-      downdelay: 0
-      xmit_hash_policy: layer3+4
-      ...
-    bridge_options:
-      # reserved as map
+  bridge_options:
+    # reserved as map
 ```
 
 ```
