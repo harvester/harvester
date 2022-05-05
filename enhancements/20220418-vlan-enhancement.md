@@ -70,8 +70,8 @@ In Web UI, we will need an advanced network configuration page to configure addi
 ### Implementation Overview
 
 - In the installer, we will create a Linux bridge named `br-mgmt` by default and attach `bond-br-mgmt` to it by default. The management interface is `br-mgmt` here.
-- In the installer, if users configure VLAN ID for the management interface, we will create another VLAN interface named `br0.<VLAN ID>` and configure node IP on it.
-- `br0` is always available and fixed.
+- In the installer, if users configure VLAN ID for the management interface, we will create another VLAN interface named `br-mgmt.<VLAN ID>` and configure node IP on it.
+- `br-mgmt` is always available and fixed.
 - Network attached definition can't attach to `br-mgmt`.
 - Harvester Network Controller will create a veth pair to connect `br-mgmt` and user defined `br<X>` for uplink if users want to use same interface of `bond-br-mgmt` or management interface to provide VM VLAN networks.
 - `br-mgmt` and vlan interface need to inherit first MAC address from physical network interfaces of `bond-br-mgmt`.
