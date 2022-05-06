@@ -3,8 +3,10 @@ package api_test
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -79,13 +81,16 @@ var _ = Describe("verify vm APIs", func() {
 
 			// create
 			By("create a virtual machine should fail if name missing")
-			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name("").
-				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
-				PVCDisk(testVMBlankDiskName, testVMDefaultDiskBus, false, false, 1, testVMDiskSize, "", nil).
-				VM()
-			MustNotError(err)
-			respCode, respBody, err := helper.PostObject(vmsAPI, vm)
-			MustRespCodeIs(http.StatusUnprocessableEntity, "create vm", err, respCode, respBody)
+			MustFinallyBeTrue(func() bool {
+				vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name("").
+					NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
+					PVCDisk(testVMBlankDiskName, testVMDefaultDiskBus, false, false, 1, testVMDiskSize, "", nil).
+					VM()
+				MustNotError(err)
+				respCode, _, err := helper.PostObject(vmsAPI, vm)
+				Expect(respCode).To(BeElementOf([]int{http.StatusUnprocessableEntity, http.StatusNotFound}))
+				return respCode == http.StatusUnprocessableEntity
+			}, 1*time.Minute, 3*time.Second)
 
 			By("when create a virtual machine with cloud-init")
 			vmName := testVMGenerateName + fuzz.String(5)
@@ -98,7 +103,7 @@ var _ = Describe("verify vm APIs", func() {
 			}
 			userData := fmt.Sprintf(testVMCloudInitUserDataTemplate, vmCloudInit.UserName, vmCloudInit.Password)
 			networkData := fmt.Sprintf(testVMCloudInitNetworkDataTemplate, vmCloudInit.Address, vmCloudInit.Gateway)
-			vm, err = NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
+			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
 				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
 				ContainerDisk(testVMContainerDiskName, testVMDefaultDiskBus, false, 1, testVMContainerDiskImageName, testVMContainerDiskImagePullPolicy).
 				CloudInitDisk(testVMCloudInitDiskName, testVMDefaultDiskBus, false, 0, builder.CloudInitSource{
@@ -107,7 +112,7 @@ var _ = Describe("verify vm APIs", func() {
 					NetworkData:   networkData,
 				}).Run(true).VM()
 			MustNotError(err)
-			respCode, respBody, err = helper.PostObject(vmsAPI, vm)
+			respCode, respBody, err := helper.PostObject(vmsAPI, vm)
 			MustRespCodeIs(http.StatusCreated, "create vm", err, respCode, respBody)
 
 			By("then the virtual machine is created and running")
