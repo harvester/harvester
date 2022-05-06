@@ -87,7 +87,7 @@ var _ = Describe("verify vm APIs", func() {
 					PVCDisk(testVMBlankDiskName, testVMDefaultDiskBus, false, false, 1, testVMDiskSize, "", nil).
 					VM()
 				MustNotError(err)
-				respCode, _, err := helper.PostObject(vmsAPI, vm)
+				respCode, _, _ := helper.PostObject(vmsAPI, vm)
 				Expect(respCode).To(BeElementOf([]int{http.StatusUnprocessableEntity, http.StatusNotFound}))
 				return respCode == http.StatusUnprocessableEntity
 			}, 1*time.Minute, 3*time.Second)
