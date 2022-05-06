@@ -205,6 +205,11 @@ func (v *VMBuilder) Run(start bool) *VMBuilder {
 	return v
 }
 
+func (v *VMBuilder) RunStrategy(runStrategy kubevirtv1.VirtualMachineRunStrategy) *VMBuilder {
+	v.VirtualMachine.Spec.RunStrategy = &runStrategy
+	return v
+}
+
 func (v *VMBuilder) VM() (*kubevirtv1.VirtualMachine, error) {
 	if v.VirtualMachine.Spec.Template.ObjectMeta.Annotations == nil {
 		v.VirtualMachine.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
