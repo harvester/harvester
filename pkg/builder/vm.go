@@ -199,7 +199,7 @@ func (v *VMBuilder) PodAntiAffinity(podAffinityTerm corev1.PodAffinityTerm, soft
 func (v *VMBuilder) Run(start bool) *VMBuilder {
 	runStrategy := kubevirtv1.RunStrategyHalted
 	if start {
-		runStrategy = kubevirtv1.RunStrategyAlways
+		runStrategy = kubevirtv1.RunStrategyRerunOnFailure
 	}
 	v.VirtualMachine.Spec.RunStrategy = &runStrategy
 	return v
