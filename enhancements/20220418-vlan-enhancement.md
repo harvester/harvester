@@ -117,7 +117,7 @@ spec:
 ```
 
 ```
-Kind: BridgeStatus
+Kind: NodeBridge
 metadata:
   name: <node-name>-br<X>
 status:
