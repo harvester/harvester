@@ -108,25 +108,27 @@ In Web UI, we will need an advanced network configuration page to configure addi
 
 #### CRD design
 
-Bridge Controller needs to add/remove bridge to all nodes.
 ```
 Kind: Bridge
 metadata:
   name: br<X>
 spec:
-  bridge_options:
-    # reserved as map
+  default_uplink: <template_name>
 ```
 
-BridgeUplink Controller needs to do:
-1. create/remove bond-brX and attach/detach physical interface to this bond
-2. set/unset bond-brX's master as brX
+```
+Kind: BridgeStatus
+metadata:
+  name: <node-name>-br<X>
+status:
+  attach bridge success or failed msg // BridgeUplink Controller provide status
+```
+
 ```
 Kind: BridgeUplink
 metadata:
-  name: <node-name>-br<X>-uplink
+  name: <node-name>-br<X>
 spec:
-  no_uplink: true or false
   use_mgmt_port: true or false
   uplinks:
     - eth0
@@ -139,6 +141,38 @@ spec:
     xmit_hash_policy: layer3+4
     ...
 ```
+
+```
+Kind: BridgeUplinkTemplate
+metadata:
+  name: <template-name>
+spec:
+  use_mgmt_port: true or false
+  uplinks:
+    - eth0
+    - eth1
+  bond_options:
+    mode: balance_tlb
+    miimon: 100
+    updelay: 0
+    downdelay: 0
+    xmit_hash_policy: layer3+4
+    ...
+```
+
+##### Controller
+
+- Bridge Controller:
+
+1. needs to add/remove bridge to all nodes.
+2. needs to add/remove BridgeStatus to all nodes.
+
+- BridgeUplink Controller:
+
+1. create/remove bond-brX and attach/detach physical interface to this bond
+2. set/unset bond-brX's master as brX
+3. copy default uplink settings to node level BridgeUplink CR
+4. update status to BridgeUplink and BridgeStatus
 
 ##### User Experience
 
