@@ -227,9 +227,10 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 		return false
 	}
 
-	if vmi.Status.Phase != kubevirtv1.Running && vmi.Status.Phase != kubevirtv1.Succeeded {
+	if vmi != nil && vmi.Status.Phase != kubevirtv1.Running && vmi.Status.Phase != kubevirtv1.Succeeded {
 		return false
 	}
+
 	return true
 }
 
@@ -253,9 +254,11 @@ func (vf *vmformatter) canCreateTemplate(vmi *kubevirtv1.VirtualMachineInstance)
 	if vmi != nil && vmi.DeletionTimestamp != nil {
 		return false
 	}
-	if vmi.Status.Phase != kubevirtv1.Running && vmi.Status.Phase != kubevirtv1.Succeeded {
+
+	if vmi != nil && vmi.Status.Phase != kubevirtv1.Running && vmi.Status.Phase != kubevirtv1.Succeeded {
 		return false
 	}
+
 	return true
 }
 
