@@ -148,7 +148,7 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 
 func (h *vmImageHandler) createStorageClass(image *harvesterv1.VirtualMachineImage) error {
 	recliamPolicy := corev1.PersistentVolumeReclaimDelete
-	volumeBindingMode := storagev1.VolumeBindingImmediate
+	volumeBindingMode := storagev1.VolumeBindingWaitForFirstConsumer
 	sc := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: getImageStorageClassName(image.Name),

@@ -19,7 +19,7 @@ data:
     provisioner: driver.longhorn.io
     allowVolumeExpansion: true
     reclaimPolicy: "{{ .Values.longhorn.persistence.reclaimPolicy }}"
-    volumeBindingMode: Immediate
+    volumeBindingMode: WaitForFirstConsumer
     parameters:
       numberOfReplicas: "{{ .Values.longhorn.persistence.defaultClassReplicaCount }}"
       staleReplicaTimeout: "30"
