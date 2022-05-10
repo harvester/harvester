@@ -78,27 +78,21 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 		return nil, nil
 	}
 
-	for key, syncer := range syncers {
-		if setting.Name != key {
-			continue
-		}
-
+	if syncer, ok := syncers[setting.Name]; ok {
 		if err := syncer(setting); err != nil {
 			if updateErr := h.setConfiguredCondition(setting.DeepCopy(), err); updateErr != nil {
 				return setting, updateErr
 			}
 			return setting, err
 		}
-
-		toUpdate := setting.DeepCopy()
-		if toUpdate.Annotations == nil {
-			toUpdate.Annotations = make(map[string]string)
-		}
-		toUpdate.Annotations[util.AnnotationHash] = currentHash
-		return setting, h.setConfiguredCondition(toUpdate, nil)
 	}
 
-	return nil, nil
+	toUpdate := setting.DeepCopy()
+	if toUpdate.Annotations == nil {
+		toUpdate.Annotations = make(map[string]string)
+	}
+	toUpdate.Annotations[util.AnnotationHash] = currentHash
+	return setting, h.setConfiguredCondition(toUpdate, nil)
 }
 
 func (h *Handler) setConfiguredCondition(settingCopy *harvesterv1.Setting, err error) error {
