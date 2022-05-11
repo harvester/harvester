@@ -11,6 +11,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -58,6 +59,10 @@ func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) erro
 	}
 
 	if err := v.checkVMSpec(vm); err != nil {
+		return err
+	}
+
+	if err := v.checkClonedPVC(vm); err != nil {
 		return err
 	}
 	return nil
@@ -197,6 +202,46 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 	}
 	if reservedMemory.CmpInt64(0) == -1 {
 		return werror.NewInvalidError("reservedMemory cannot be less than 0", field)
+	}
+	return nil
+}
+
+func (v *vmValidator) checkClonedPVC(vm *kubevirtv1.VirtualMachine) error {
+	volumeClaimTemplates, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplates == "" {
+		return nil
+	}
+	var pvcs []*corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs); err != nil {
+		return err
+	}
+
+	fldPath := field.NewPath("metadata", "annotation", util.AnnotationVolumeClaimTemplates)
+	for _, pvc := range pvcs {
+		if pvc.Spec.DataSource != nil {
+			if pvc.Spec.DataSource.Name == "" {
+				return werror.NewInvalidError(fmt.Sprintf("dataSource.name in %s pvc should not be empty", pvc.Name), fldPath.String())
+			}
+			if pvc.Spec.DataSource.APIGroup != nil && *pvc.Spec.DataSource.APIGroup != "" {
+				return werror.NewInvalidError(fmt.Sprintf("dataSource.apiGroup in %s pvc should be empty", pvc.Name), fldPath.String())
+			}
+			if pvc.Spec.DataSource.Kind != "PersistentVolumeClaim" {
+				return werror.NewInvalidError(fmt.Sprintf("dataSource.kind in %s pvc should be PersistentVolumeClaim", pvc.Name), fldPath.String())
+			}
+
+			sourcePVC, err := v.pvcCache.Get(vm.Namespace, pvc.Spec.DataSource.Name)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return werror.NewBadRequest(fmt.Sprintf("cannot found dataSource %s in pvc %s", pvc.Spec.DataSource.Name, pvc.Name))
+				}
+				return werror.NewInternalError(err.Error())
+			}
+
+			// cloned pvc's storage request should be the same as source pvc
+			if pvc.Spec.Resources.Requests.Storage().Cmp(*sourcePVC.Spec.Resources.Requests.Storage()) != 0 {
+				return werror.NewInvalidError(fmt.Sprintf("pvc %s requests.storage should be equal to dataSource %s", pvc.Name, pvc.Spec.DataSource.Name), fldPath.String())
+			}
+		}
 	}
 	return nil
 }
