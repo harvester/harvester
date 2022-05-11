@@ -79,6 +79,11 @@ func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj
 }
 
 func needUpdateRunStrategy(oldVm, newVm *kubevirtv1.VirtualMachine) (bool, error) {
+	// no need to patch the run strategy if user uses the spec.running filed.
+	if newVm.Spec.Running != nil {
+		return false, nil
+	}
+
 	newRunStrategy, err := newVm.RunStrategy()
 	if err != nil {
 		return false, err
