@@ -168,10 +168,6 @@ func (vf *vmformatter) canRestart(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1
 }
 
 func (vf *vmformatter) canStop(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
-	if vm.Spec.Running != nil && !*vm.Spec.Running {
-		return false
-	}
-
 	runStrategy, err := vm.RunStrategy()
 	if err == nil {
 		switch runStrategy {
