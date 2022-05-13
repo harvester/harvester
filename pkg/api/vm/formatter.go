@@ -177,7 +177,13 @@ func (vf *vmformatter) canStop(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.Vi
 			if vmi == nil {
 				return false
 			}
-			return true
+
+			switch vmi.Status.Phase {
+			case kubevirtv1.Pending, kubevirtv1.Scheduling, kubevirtv1.Scheduled, kubevirtv1.Running:
+				return true
+			default:
+				return false
+			}
 		case kubevirtv1.RunStrategyAlways:
 			return true
 		default:
