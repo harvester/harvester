@@ -30,7 +30,7 @@ The user can select a new Harvester version from GUI to perform cluster upgrades
 
 #### 2. 2-nodes Harvester deployments
 
-The user can select a new Harvester version from GUI to perform cluster upgrades. During an upgrade, VMs are live-migrated between nodes to avoid guest service downtime. Because there is only one server node, upgrading the server node brings downtime to Harvester API endpoints, components, VIP, and VMs' connectivity (depends on the network configuration).
+The user can select a new Harvester version from GUI to perform cluster upgrades. During an upgrade, VMs are live-migrated between nodes to avoid guest service downtime. Because there is only one management node, upgrading the management node brings downtime to Harvester API endpoints, components, VIP, and VMs' connectivity (depends on the network configuration).
 
 #### 3. Single node Harvester deployments
 
