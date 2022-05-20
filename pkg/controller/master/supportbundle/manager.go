@@ -136,6 +136,8 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy
 func (m *Manager) getCollectNamespaces() string {
 	namespaces := []string{
 		"cattle-dashboards",
+		"cattle-fleet-local-system",
+		"cattle-fleet-system",
 		"cattle-fleet-clusters-system",
 		"cattle-monitoring-system",
 		"fleet-local",
