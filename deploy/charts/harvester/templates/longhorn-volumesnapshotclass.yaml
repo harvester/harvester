@@ -1,0 +1,12 @@
+{{ if .Values.longhorn.enabled -}}
+apiVersion: snapshot.storage.k8s.io/v1beta1
+kind: VolumeSnapshotClass
+metadata:
+  name: longhorn-snapshot
+  namespace: {{ .Values.longhorn.namespaceOverride }}
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+driver: driver.longhorn.io
+deletionPolicy: Delete
+parameters:
+  type: snap
+{{- end -}}
