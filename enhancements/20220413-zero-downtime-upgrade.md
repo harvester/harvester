@@ -122,7 +122,7 @@ The upgrade repository is a VM that boots from a Harvester ISO.
 *Note*: Starts from this phase, the upgrade controller uses `harvester-upgrade:<new_version>` image since it's already preloaded in the previous step. This also allows us to fix things in the newer version.
 
 The upgrade controller runs a job with `harvester-upgrade:<new_version>` image to upgrade system services, including:
-- Rancher and its dependencies.
+- Embedded Rancher and its dependencies.
 - Harvester cluster-repo.
 - Harvester chart.
 - Monitoring chart.
@@ -130,20 +130,20 @@ The upgrade controller runs a job with `harvester-upgrade:<new_version>` image t
 
 **Phase 4**: Upgrade nodes
 
-The upgrade controller informs Rancher to upgrade the RKE2 runtimes on each node. We use the [pre-drain and post-drain hooks feature](https://github.com/rancher/rancher/issues/35464) to perform additional works. The following is what happens when upgrading a node.
-- Rancher starts to upgrade a node and notifies Harvester to run the pre-drain job.
+The upgrade controller informs the Embedded Rancher to upgrade the RKE2 runtimes on each node. We use the [pre-drain and post-drain hooks feature](https://github.com/rancher/rancher/issues/35464) to perform additional works. The following is what happens when upgrading a node.
+- The Embedded Rancher starts to upgrade a node and notifies Harvester to run the pre-drain job.
 - The Harvester upgrade controller creates a pre-drain job with `harvester-upgrade:<new_version>` image to:
   - Live-migrates VMs out of the node.
   - Shutdown non-migratable VMs.
-- The Harvester controller notifies Rancher that the pre-drain job is done.
-- Rancher starts to upgrade RKE2 server or agent on the node.
-- Rancher notifies Harvester to run the post-drain job.
+- The Harvester controller notifies the Embedded Rancher that the pre-drain job is done.
+- The Embedded Rancher starts to upgrade RKE2 server or agent on the node.
+- The Embeded Rancher notifies Harvester to run the post-drain job.
 - The Harvester controller creates a post-drain job with `harvester-upgrade:<new_version>` image to:
   - Wait for RKE2 runtime to upgrade.
   - Upgrade the node's OS with `cos` script.
   - Clean up unused images.
   - Reboot the node.
-- When the node is back, the Harvester controller notifies Rancher that the post-hook is done. Rancher starts to upgrade the next node.
+- When the node is back, the Harvester controller notifies the Embedded Rancher that the post-hook is done. The Embedded Rancher starts to upgrade the next node.
 
 **Phase 5**: Clean-up
 
