@@ -31,7 +31,7 @@ func run(ctx context.Context, namespace, name string, client kubernetes.Interfac
 		return err
 	}
 
-	rl, err := resourcelock.New(resourcelock.ConfigMapsResourceLock,
+	rl, err := resourcelock.New(resourcelock.ConfigMapsLeasesResourceLock,
 		namespace,
 		name,
 		client.CoreV1(),
