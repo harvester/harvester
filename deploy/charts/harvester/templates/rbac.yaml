@@ -133,6 +133,7 @@ rules:
       - ""
     resources:
       - pods
+      - nodes
     verbs:
       - get
       - list
