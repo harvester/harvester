@@ -3,7 +3,9 @@ package virtualmachine
 import (
 	"fmt"
 
-	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -12,10 +14,37 @@ import (
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
+const (
+	AnnotationTopologyRegion = "topology.harvesterhci.io/region"
+	AnnotationtopologyZone   = "topology.harvesterhci.io/zone"
+	AnnotationTopologyHost   = "topology.harvesterhci.io/host"
+)
+
+// hostLabelsReconcileMapping defines the mapping for reconciliation of node labels to virtual machine instance annotations
+var hostLabelsReconcileMapping = []struct {
+	nodeLabel     string
+	vmiAnnotation string
+}{
+	{
+		nodeLabel:     v1.LabelTopologyZone,
+		vmiAnnotation: AnnotationTopologyRegion,
+	},
+	{
+		nodeLabel:     v1.LabelTopologyRegion,
+		vmiAnnotation: AnnotationtopologyZone,
+	},
+	{
+		nodeLabel:     v1.LabelHostname,
+		vmiAnnotation: AnnotationTopologyHost,
+	},
+}
+
 type VMIController struct {
 	virtualMachineCache kubevirtctrl.VirtualMachineCache
-	pvcClient           v1.PersistentVolumeClaimClient
-	pvcCache            v1.PersistentVolumeClaimCache
+	vmiClient           kubevirtctrl.VirtualMachineInstanceClient
+	nodeCache           ctlcorev1.NodeCache
+	pvcClient           ctlcorev1.PersistentVolumeClaimClient
+	pvcCache            ctlcorev1.PersistentVolumeClaimCache
 }
 
 // UnsetOwnerOfPVCs erases the target VirtualMachine from the owner of the PVCs in annotation.
@@ -90,4 +119,39 @@ func (h *VMIController) UnsetOwnerOfPVCs(_ string, vmi *kubevirtv1.VirtualMachin
 	}
 
 	return vmi, nil
+}
+
+// ReconcileFromHostLabels handles the propagation of metadata from node labels to VirtualMachineInstance annotations.
+func (h *VMIController) ReconcileFromHostLabels(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
+	if vmi == nil || vmi.DeletionTimestamp != nil {
+		return vmi, nil
+	}
+
+	node, err := h.nodeCache.Get(vmi.Status.NodeName)
+	if err != nil {
+		return vmi, fmt.Errorf("failed to get node %s for VirtualMachineInstance %s: %v", vmi.Status.NodeName, vmi.Name, err)
+	}
+
+	annotationsToUpdate := map[string]string{}
+	for _, mapping := range hostLabelsReconcileMapping {
+		srcValue, srcExists := node.Labels[mapping.nodeLabel]
+		dstValue, dstExists := vmi.Annotations[mapping.vmiAnnotation]
+		if !srcExists {
+			continue
+		}
+		if (dstExists && srcValue != dstValue) || !dstExists {
+			annotationsToUpdate[mapping.vmiAnnotation] = srcValue
+		}
+	}
+	if len(annotationsToUpdate) == 0 {
+		return vmi, nil
+	}
+
+	toUpdate := vmi.DeepCopy()
+	for k, v := range annotationsToUpdate {
+		logrus.Debugf("setting annotation of VirtualMachineInstance %s: %s=%s", vmi.Name, k, v)
+		toUpdate.Annotations[k] = v
+	}
+
+	return h.vmiClient.Update(toUpdate)
 }
