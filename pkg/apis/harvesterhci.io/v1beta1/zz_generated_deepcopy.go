@@ -805,6 +805,13 @@ func (in *VirtualMachineBackupStatus) DeepCopyInto(out *VirtualMachineBackupStat
 		*out = new(BackupTarget)
 		**out = **in
 	}
+	if in.CSIDriverVolumeSnapshotClassNameMap != nil {
+		in, out := &in.CSIDriverVolumeSnapshotClassNameMap, &out.CSIDriverVolumeSnapshotClassNameMap
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.SourceSpec != nil {
 		in, out := &in.SourceSpec, &out.SourceSpec
 		*out = new(VirtualMachineSourceSpec)

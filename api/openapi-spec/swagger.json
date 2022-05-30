@@ -6683,12 +6683,17 @@
     "harvesterhci.io.v1beta1.VirtualMachineBackupSpec": {
       "type": "object",
       "required": [
-        "source"
+        "source",
+        "type"
       ],
       "properties": {
         "source": {
           "default": {},
           "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
+        },
+        "type": {
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -6708,6 +6713,13 @@
         },
         "creationTime": {
           "$ref": "#/definitions/k8s.io.v1.Time"
+        },
+        "csiDriverVolumeSnapshotClassNameMap": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "default": ""
+          }
         },
         "error": {
           "$ref": "#/definitions/harvesterhci.io.v1beta1.Error"
@@ -7196,11 +7208,16 @@
       "type": "object",
       "required": [
         "volumeName",
+        "csiDriverName",
         "persistentVolumeClaim"
       ],
       "properties": {
         "creationTime": {
           "$ref": "#/definitions/k8s.io.v1.Time"
+        },
+        "csiDriverName": {
+          "type": "string",
+          "default": ""
         },
         "error": {
           "$ref": "#/definitions/harvesterhci.io.v1beta1.Error"

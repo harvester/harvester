@@ -31,11 +31,19 @@ const (
 	VirtualMachineRestoreRetain DeletionPolicy = "retain"
 )
 
+type BackupType string
+
+const (
+	Backup   BackupType = "backup"
+	Snapshot BackupType = "snapshot"
+)
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:shortName=vmbackup;vmbackups,scope=Namespaced
 // +kubebuilder:printcolumn:name="SOURCE_KIND",type=string,JSONPath=`.spec.source.kind`
 // +kubebuilder:printcolumn:name="SOURCE_NAME",type=string,JSONPath=`.spec.source.name`
+// +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.spec.type`
 // +kubebuilder:printcolumn:name="READY_TO_USE",type=boolean,JSONPath=`.status.readyToUse`
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:printcolumn:name="ERROR",type=date,JSONPath=`.status.error.message`
@@ -47,11 +55,15 @@ type VirtualMachineBackup struct {
 	Spec VirtualMachineBackupSpec `json:"spec"`
 
 	// +optional
-	Status *VirtualMachineBackupStatus `json:"status,omitempty"`
+	Status *VirtualMachineBackupStatus `json:"status,omitempty" default:""`
 }
 
 type VirtualMachineBackupSpec struct {
 	Source corev1.TypedLocalObjectReference `json:"source"`
+
+	// +kubebuilder:default:="backup"
+	// +kubebuilder:validation:Enum=backup;snapshot
+	Type BackupType `json:"type"`
 }
 
 // VirtualMachineBackupStatus is the status for a VirtualMachineBackup resource
@@ -64,6 +76,9 @@ type VirtualMachineBackupStatus struct {
 
 	// +optional
 	BackupTarget *BackupTarget `json:"backupTarget,omitempty"`
+
+	// +optional
+	CSIDriverVolumeSnapshotClassNameMap map[string]string `json:"csiDriverVolumeSnapshotClassNameMap,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// SourceSpec contains the vm spec source of the backup target
@@ -108,6 +123,10 @@ type VolumeBackup struct {
 
 	// +kubebuilder:validation:Required
 	VolumeName string `json:"volumeName"`
+
+	// +kubebuilder:default:="driver.longhorn.io"
+	// +kubebuilder:validation:Required
+	CSIDriverName string `json:"csiDriverName"`
 
 	// +optional
 	CreationTime *metav1.Time `json:"creationTime,omitempty"`
