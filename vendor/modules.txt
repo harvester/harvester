@@ -638,7 +638,7 @@ github.com/rancher/steve/pkg/summarycache
 github.com/rancher/system-upgrade-controller/pkg/apis/condition
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1
-# github.com/rancher/wrangler v0.8.11-0.20211214201934-f5aa5d9f2e81
+# github.com/rancher/wrangler v0.8.11-0.20220221080819-215394c784fd
 ## explicit
 github.com/rancher/wrangler/pkg/apply
 github.com/rancher/wrangler/pkg/apply/injectors
