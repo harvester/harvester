@@ -485,7 +485,7 @@ func (h *RestoreHandler) getVMBackup(vmRestore *harvesterv1.VirtualMachineRestor
 		return nil, err
 	}
 
-	if !isBackupReady(backup) {
+	if !IsBackupReady(backup) {
 		return nil, fmt.Errorf("VMBackup %s is not ready", backup.Name)
 	}
 

@@ -22,7 +22,7 @@ const (
 	dynamicSSHKeyNamesAnnotation = "harvesterhci.io/dynamic-ssh-key-names"
 )
 
-func isBackupReady(backup *harvesterv1.VirtualMachineBackup) bool {
+func IsBackupReady(backup *harvesterv1.VirtualMachineBackup) bool {
 	return backup.Status != nil && backup.Status.ReadyToUse != nil && *backup.Status.ReadyToUse
 }
 
@@ -32,7 +32,7 @@ func IsBackupProgressing(backup *harvesterv1.VirtualMachineBackup) bool {
 }
 
 func isBackupMissingStatus(backup *harvesterv1.VirtualMachineBackup) bool {
-	return backup.Status == nil || backup.Status.SourceSpec == nil || backup.Status.VolumeBackups == nil || backup.Status.BackupTarget == nil
+	return backup.Status == nil || backup.Status.SourceSpec == nil || backup.Status.VolumeBackups == nil
 }
 
 func IsBackupTargetSame(vmBackupTarget *harvesterv1.BackupTarget, target *settings.BackupTarget) bool {
