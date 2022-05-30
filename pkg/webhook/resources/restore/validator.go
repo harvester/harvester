@@ -1,7 +1,6 @@
 package restore
 
 import (
-	"errors"
 	"fmt"
 
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -12,6 +11,7 @@ import (
 	ctlbackup "github.com/harvester/harvester/pkg/controller/master/backup"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -27,20 +27,23 @@ func NewValidator(
 	vms ctlkubevirtv1.VirtualMachineCache,
 	setting ctlharvesterv1.SettingCache,
 	vmBackup ctlharvesterv1.VirtualMachineBackupCache,
+	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache,
 ) types.Validator {
 	return &restoreValidator{
-		vms:      vms,
-		setting:  setting,
-		vmBackup: vmBackup,
+		vms:           vms,
+		setting:       setting,
+		vmBackup:      vmBackup,
+		snapshotClass: snapshotClass,
 	}
 }
 
 type restoreValidator struct {
 	types.DefaultValidator
 
-	vms      ctlkubevirtv1.VirtualMachineCache
-	setting  ctlharvesterv1.SettingCache
-	vmBackup ctlharvesterv1.VirtualMachineBackupCache
+	vms           ctlkubevirtv1.VirtualMachineCache
+	setting       ctlharvesterv1.SettingCache
+	vmBackup      ctlharvesterv1.VirtualMachineBackupCache
+	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache
 }
 
 func (v *restoreValidator) Resource() types.Resource {
@@ -60,17 +63,22 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	newRestore := newObj.(*v1beta1.VirtualMachineRestore)
 
 	targetVM := newRestore.Spec.Target.Name
-	backupName := newRestore.Spec.VirtualMachineBackupName
 	newVM := newRestore.Spec.NewVM
 
 	if targetVM == "" {
 		return werror.NewInvalidError("target VM name is empty", fieldTargetName)
 	}
-	if backupName == "" {
-		return werror.NewInvalidError("backup name is empty", fieldVirtualMachineBackupName)
+
+	vmBackup, err := v.getVmBackup(newRestore)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
 	}
 
-	if err := v.checkBackupTarget(newRestore); err != nil {
+	if err := v.checkBackupTarget(vmBackup); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
+	}
+
+	if err := v.checkVolumeSnapshotClass(vmBackup); err != nil {
 		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
 	}
 
@@ -95,31 +103,54 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	return nil
 }
 
-func (v *restoreValidator) checkBackupTarget(vmRestore *v1beta1.VirtualMachineRestore) error {
-	// get backup target
+func (v *restoreValidator) getVmBackup(vmRestore *v1beta1.VirtualMachineRestore) (*v1beta1.VirtualMachineBackup, error) {
+	vmBackup, err := v.vmBackup.Get(vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName)
+	if err != nil {
+		return nil, fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName, err)
+	}
+
+	if vmBackup.DeletionTimestamp != nil {
+		return nil, fmt.Errorf("vmbackup %s/%s is deleted", vmBackup.Namespace, vmBackup.Name)
+	}
+
+	if !ctlbackup.IsBackupReady(vmBackup) {
+		return nil, fmt.Errorf("VMBackup %s/%s is not ready", vmBackup.Namespace, vmBackup.Name)
+	}
+
+	return vmBackup, nil
+}
+
+func (v *restoreValidator) checkBackupTarget(vmBackup *v1beta1.VirtualMachineBackup) error {
+	if vmBackup.Spec.Type == v1beta1.Snapshot {
+		return nil
+	}
+
 	backupTargetSetting, err := v.setting.Get(settings.BackupTargetSettingName)
 	if err != nil {
 		return fmt.Errorf("can't get backup target setting, err: %w", err)
 	}
-
 	backupTarget, err := settings.DecodeBackupTarget(backupTargetSetting.Value)
 	if err != nil {
 		return fmt.Errorf("unmarshal backup target failed, value: %s, err: %w", backupTargetSetting.Value, err)
 	}
 
 	if backupTarget.IsDefaultBackupTarget() {
-		return fmt.Errorf("backup target is invalid")
+		return fmt.Errorf("backup target is not set")
 	}
 
-	// get vmbackup
-	vmBackup, err := v.vmBackup.Get(vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName)
-	if err != nil {
-		return fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName, err)
+	if !ctlbackup.IsBackupTargetSame(vmBackup.Status.BackupTarget, backupTarget) {
+		return fmt.Errorf("backup target %+v is not matched in vmBackup %s/%s", backupTarget, vmBackup.Namespace, vmBackup.Name)
 	}
 
-	if vmBackup.Status == nil || vmBackup.Status.BackupTarget == nil || !ctlbackup.IsBackupTargetSame(vmBackup.Status.BackupTarget, backupTarget) {
-		return errors.New("VM Backup is not matched with Backup Target")
-	}
+	return nil
+}
 
+func (v *restoreValidator) checkVolumeSnapshotClass(vmBackup *v1beta1.VirtualMachineBackup) error {
+	for csiDriverName, volumeSnapshotClassName := range vmBackup.Status.CSIDriverVolumeSnapshotClassNameMap {
+		_, err := v.snapshotClass.Get(volumeSnapshotClassName)
+		if err != nil {
+			return fmt.Errorf("can't get volumeSnapshotClass %s for driver %s", volumeSnapshotClassName, csiDriverName)
+		}
+	}
 	return nil
 }
