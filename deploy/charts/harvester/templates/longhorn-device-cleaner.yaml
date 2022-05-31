@@ -50,8 +50,8 @@ spec:
                 echo "INFO: sleeping for ${sleepingTime}s"
                 sleep $sleepingTime
             done
-        image: {{ index .Values "loop-device-cleaner" "image" "repository" }}:{{ index .Values "loop-device-cleaner" "image" "tag" }}
-        imagePullPolicy: {{ index .Values "loop-device-cleaner" "image" "imagePullPolicy" }}
+        image: {{ .Values.generalJob.image.repository }}:{{ .Values.generalJob.image.tag }}
+        imagePullPolicy: {{ .Values.generalJob.image.imagePullPolicy }}
         securityContext:
           privileged: true
   updateStrategy:
