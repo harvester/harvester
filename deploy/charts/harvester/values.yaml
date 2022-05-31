@@ -445,8 +445,8 @@ support-bundle-kit:
     repository: rancher/support-bundle-kit
     tag: master-head
 
-loop-device-cleaner:
+generalJob:
   image:
     imagePullPolicy: IfNotPresent
-    repository: alpine
-    tag: 3.12
+    repository: registry.suse.com/bci/bci-base
+    tag: 15.3

@@ -17,6 +17,7 @@ const (
 	testCRDChartDir         = "../../../deploy/charts/harvester-crd"
 	testHarvesterNamespace  = "harvester-system"
 	testLonghornNamespace   = "longhorn-system"
+	testCattleNamespace     = "cattle-system"
 	testChartReleaseName    = "harvester"
 	testCRDChartReleaseName = "harvester-crd"
 )
