@@ -14,6 +14,7 @@ const (
 	vmiControllerReconcileFromHostLabelsControllerName = "VMIController.ReconcileFromHostLabels"
 	vmControllerSetDefaultManagementNetworkMac         = "VMController.SetDefaultManagementNetworkMacAddress"
 	vmControllerStoreRunStrategyControllerName         = "VMController.StoreRunStrategyToAnnotation"
+	vmControllerSyncLabelsToVmi                        = "VMController.SyncLabelsToVmi"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -24,6 +25,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmCache    = vmClient.Cache()
 		nodeClient = management.CoreFactory.Core().V1().Node()
 		nodeCache  = nodeClient.Cache()
+		vmiClient  = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
+		vmiCache   = vmiClient.Cache()
 	)
 
 	// registers the vm controller
@@ -32,11 +35,14 @@ func Register(ctx context.Context, management *config.Management, options config
 		pvcCache:  pvcCache,
 		vmClient:  vmClient,
 		vmCache:   vmCache,
+		vmiClient: vmiClient,
+		vmiCache:  vmiCache,
 	}
 	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	virtualMachineClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
 	virtualMachineClient.OnChange(ctx, vmControllerSetOwnerOfPVCsControllerName, vmCtrl.SetOwnerOfPVCs)
 	virtualMachineClient.OnChange(ctx, vmControllerStoreRunStrategyControllerName, vmCtrl.StoreRunStrategy)
+	virtualMachineClient.OnChange(ctx, vmControllerSyncLabelsToVmi, vmCtrl.SyncLabelsToVmi)
 	virtualMachineClient.OnRemove(ctx, vmControllerUnsetOwnerOfPVCsControllerName, vmCtrl.UnsetOwnerOfPVCs)
 
 	// registers the vmi controller
