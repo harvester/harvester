@@ -3,6 +3,7 @@ package virtualmachine
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -12,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	kubevirt "kubevirt.io/api/core"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -25,6 +27,8 @@ type VMController struct {
 	pvcCache  v1.PersistentVolumeClaimCache
 	vmClient  ctlkubevirtv1.VirtualMachineClient
 	vmCache   ctlkubevirtv1.VirtualMachineCache
+	vmiCache  ctlkubevirtv1.VirtualMachineInstanceCache
+	vmiClient ctlkubevirtv1.VirtualMachineInstanceClient
 }
 
 // createPVCsFromAnnotation creates PVCs defined in the volumeClaimTemplates annotation if they don't exist.
@@ -140,6 +144,55 @@ func (h *VMController) SetOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine) (
 	}
 
 	return vm, nil
+}
+
+// SyncLabelsToVmi synchronizes the labels in the VM spec to the existing VMI without re-deployment
+func (h *VMController) SyncLabelsToVmi(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
+		return vm, nil
+	}
+
+	vmi, err := h.vmiCache.Get(vm.Namespace, vm.Name)
+	if err != nil && apierrors.IsNotFound(err) {
+		return vm, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("get vmi %s/%s failed, error: %w", vm.Namespace, vm.Name, err)
+	}
+
+	if err := h.syncLabels(vm, vmi); err != nil {
+		return nil, err
+	}
+
+	return vm, nil
+}
+
+func (h *VMController) syncLabels(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) error {
+	vmiCopy := vmi.DeepCopy()
+	// Modification of the following reserved kubevirt.io/ labels on a VMI object is prohibited by the admission webhook
+	// "virtualmachineinstances-update-validator.kubevirt.io", so ignore those labels during synchronization.
+	// Add or update the labels of VMI
+	for k, v := range vm.Spec.Template.ObjectMeta.Labels {
+		if !strings.HasPrefix(k, kubevirt.GroupName) && vmi.Labels[k] != v {
+			if len(vmiCopy.Labels) == 0 {
+				vmiCopy.Labels = make(map[string]string)
+			}
+			vmiCopy.Labels[k] = v
+		}
+	}
+	// delete the labels exist in the `vmi.Labels` but not in the `vm.spec.template.objectMeta.Labels`
+	for k := range vmi.Labels {
+		if _, ok := vm.Spec.Template.ObjectMeta.Labels[k]; !strings.HasPrefix(k, kubevirt.GroupName) && !ok {
+			delete(vmiCopy.Labels, k)
+		}
+	}
+
+	if !reflect.DeepEqual(vmi, vmiCopy) {
+		if _, err := h.vmiClient.Update(vmiCopy); err != nil {
+			return fmt.Errorf("sync labels of vm %s/%s to vmi failed, error: %w", vm.Namespace, vm.Name, err)
+		}
+	}
+
+	return nil
 }
 
 // StoreRunStrategy stores the last running strategy into the annotation before the VM is stopped.
