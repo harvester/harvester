@@ -22,6 +22,12 @@ func Init(ctx context.Context, mgmtCtx *config.Management, options config.Option
 		return err
 	}
 
-	// Not applying the built-in templates in case users have edited them.
-	return createTemplates(mgmtCtx, publicNamespace)
+	// Not applying the built-in templates and secrets in case users have edited them.
+	if err := createTemplates(mgmtCtx, publicNamespace); err != nil {
+		return err
+	}
+	if err := createSecrets(mgmtCtx); err != nil {
+		return err
+	}
+	return nil
 }

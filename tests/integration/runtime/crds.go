@@ -7,6 +7,7 @@ import (
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	wcrd "github.com/rancher/wrangler/pkg/crd"
 	"k8s.io/client-go/rest"
 
@@ -25,6 +26,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			createNetworkAttachmentDefinitionCRD(),
 			createManagedChartCRD(),
 			createAppCRD(),
+			createPlanCRD(),
 		).
 		BatchWait()
 }
@@ -55,4 +57,11 @@ func createAppCRD() wcrd.CRD {
 	app.PluralName = "apps"
 	app.SingularName = "app"
 	return app
+}
+
+func createPlanCRD() wcrd.CRD {
+	plan := crd.FromGV(upgradev1.SchemeGroupVersion, "Plan", upgradev1.Plan{})
+	plan.PluralName = "plans"
+	plan.SingularName = "plan"
+	return plan
 }
