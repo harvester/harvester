@@ -10,6 +10,7 @@ import (
 	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
+	"github.com/rancher/wrangler/pkg/slice"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -246,53 +247,67 @@ func (h *PromoteHandler) setPromoteResult(job *batchv1.Job, node *corev1.Node, s
 // If the cluster doesn't need to be promoted, return nil
 func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	var (
-		managementNumber     int
-		managementRoleNumber int
-		canPromoteNumber     int
-		promoteNode          *corev1.Node
+		managementNumber               int
+		promoteNode                    *corev1.Node
+		managementNodeTopologyZoneList []string
 	)
+
+	for _, node := range nodeList {
+		if isPromoteStatusIn(node, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown) {
+			// wait until the node promotion is completed or the failed or unknown status is cleared
+			return nil
+		} else if !isManagementRole(node) && isPromoteStatusIn(node, PromoteStatusComplete) {
+			// worker promotion is complete but node is not yet labeled as a management node
+			return nil
+		} else if isManagementRole(node) {
+			managementNumber++
+
+			if topologyZone := node.Labels[corev1.LabelTopologyZone]; topologyZone != "" {
+				managementNodeTopologyZoneList = append(managementNodeTopologyZoneList, topologyZone)
+			}
+		}
+
+		// return if there are already enough management nodes
+		if managementNumber == defaultSpecManagementNumber {
+			return nil
+		}
+	}
+
+	// return if the management node count is equal to the total amount of nodes (there are no more nodes left to promote)
+	nodeCount := len(nodeList)
+	if managementNumber == nodeCount {
+		return nil
+	}
 
 	promoteNode = nil
 	for _, node := range nodeList {
-		if isManagementRole(node) {
-			managementNumber++
-			managementRoleNumber++
-		} else if hasPromoteStatus(node) {
-			managementNumber++
-		} else if isHarvesterNode(node) && isHealthyNode(node) {
-			canPromoteNumber++
-			if promoteNode == nil || node.CreationTimestamp.Before(&promoteNode.CreationTimestamp) {
-				promoteNode = node
+		if !isHealthyNode(node) {
+			// decrease the nodeCount if a node is not healthy
+			nodeCount--
+		}
+
+		// return if the nodeCount is below the defaultSpecManagementNumber
+		if nodeCount < defaultSpecManagementNumber {
+			return nil
+		}
+
+		if !isManagementRole(node) && isHarvesterNode(node) && isHealthyNode(node) {
+			if len(managementNodeTopologyZoneList) > 0 {
+				// only promote the node if the label is set to a new zone
+				if topologyZone := node.Labels[corev1.LabelTopologyZone]; topologyZone != "" &&
+					!slice.ContainsString(managementNodeTopologyZoneList, topologyZone) {
+					return node
+				}
+			} else {
+				if promoteNode == nil || node.CreationTimestamp.Before(&promoteNode.CreationTimestamp) {
+					promoteNode = node
+				}
 			}
 		}
 	}
 
-	// waiting for the other node completed
-	if managementRoleNumber != managementNumber {
-		return nil
-	}
-
-	// there is no need to promote if the spec number has been reached
-	specManagementNumber := getSpecManagementNumber(len(nodeList))
-	promoteNodeNumber := specManagementNumber - managementNumber
-	if promoteNodeNumber <= 0 {
-		return nil
-	}
-
-	// make sure have enough nodes can be promote
-	if canPromoteNumber < promoteNodeNumber {
-		return nil
-	}
-
+	// promote the oldest node
 	return promoteNode
-}
-
-// getSpecMasterNumber get spec management number by all node number
-func getSpecManagementNumber(nodeNumber int) int {
-	if nodeNumber < 3 {
-		return 1
-	}
-	return defaultSpecManagementNumber
 }
 
 // isHealthyNode determine whether it's an healthy node
