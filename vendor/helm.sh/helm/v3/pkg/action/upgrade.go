@@ -45,6 +45,7 @@ type Upgrade struct {
 
 	ChartPathOptions
 
+	Adopt bool
 	// Install is a purely informative flag that indicates whether this upgrade was done in "install" mode.
 	//
 	// Applications may use this to determine whether this Upgrade operation was done as part of a
@@ -112,18 +113,21 @@ type resultMessage struct {
 
 // NewUpgrade creates a new Upgrade object with the given configuration.
 func NewUpgrade(cfg *Configuration) *Upgrade {
-	return &Upgrade{
+	up := &Upgrade{
 		cfg: cfg,
 	}
+	up.ChartPathOptions.registryClient = cfg.RegistryClient
+
+	return up
 }
 
-// Run executes the upgrade on the given release
+// Run executes the upgrade on the given release.
 func (u *Upgrade) Run(name string, chart *chart.Chart, vals map[string]interface{}) (*release.Release, error) {
 	ctx := context.Background()
 	return u.RunWithContext(ctx, name, chart, vals)
 }
 
-// Run executes the upgrade on the given release with context.
+// RunWithContext executes the upgrade on the given release with context.
 func (u *Upgrade) RunWithContext(ctx context.Context, name string, chart *chart.Chart, vals map[string]interface{}) (*release.Release, error) {
 	if err := u.cfg.KubeClient.IsReachable(); err != nil {
 		return nil, err
@@ -293,7 +297,7 @@ func (u *Upgrade) performUpgrade(ctx context.Context, originalRelease, upgradedR
 		}
 	}
 
-	toBeUpdated, err := existingResourceConflict(toBeCreated, upgradedRelease.Name, upgradedRelease.Namespace)
+	toBeUpdated, err := existingResourceConflict(toBeCreated, upgradedRelease.Name, upgradedRelease.Namespace, u.Adopt)
 	if err != nil {
 		return nil, errors.Wrap(err, "rendered manifests contain a resource that already exists. Unable to continue with update")
 	}
@@ -321,11 +325,17 @@ func (u *Upgrade) performUpgrade(ctx context.Context, originalRelease, upgradedR
 		return nil, err
 	}
 	rChan := make(chan resultMessage)
+	ctxChan := make(chan resultMessage)
+	doneChan := make(chan interface{})
 	go u.releasingUpgrade(rChan, upgradedRelease, current, target, originalRelease)
-	go u.handleContext(ctx, rChan, upgradedRelease)
-	result := <-rChan
-
-	return result.r, result.e
+	go u.handleContext(ctx, doneChan, ctxChan, upgradedRelease)
+	select {
+	case result := <-rChan:
+		doneChan <- true
+		return result.r, result.e
+	case result := <-ctxChan:
+		return result.r, result.e
+	}
 }
 
 // Function used to lock the Mutex, this is important for the case when the atomic flag is set.
@@ -341,13 +351,17 @@ func (u *Upgrade) reportToPerformUpgrade(c chan<- resultMessage, rel *release.Re
 }
 
 // Setup listener for SIGINT and SIGTERM
-func (u *Upgrade) handleContext(ctx context.Context, c chan<- resultMessage, upgradedRelease *release.Release) {
-
+func (u *Upgrade) handleContext(ctx context.Context, done chan interface{}, c chan<- resultMessage, upgradedRelease *release.Release) {
 	go func() {
-		<-ctx.Done()
-		err := ctx.Err()
-		// when the atomic flag is set the ongoing release finish first and doesn't give time for the rollback happens.
-		u.reportToPerformUpgrade(c, upgradedRelease, kube.ResourceList{}, err)
+		select {
+		case <-ctx.Done():
+			err := ctx.Err()
+
+			// when the atomic flag is set the ongoing release finish first and doesn't give time for the rollback happens.
+			u.reportToPerformUpgrade(c, upgradedRelease, kube.ResourceList{}, err)
+		case <-done:
+			return
+		}
 	}()
 }
 func (u *Upgrade) releasingUpgrade(c chan<- resultMessage, upgradedRelease *release.Release, current kube.ResourceList, target kube.ResourceList, originalRelease *release.Release) {
