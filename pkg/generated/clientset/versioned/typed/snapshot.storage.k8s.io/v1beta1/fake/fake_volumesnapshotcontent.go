@@ -110,7 +110,7 @@ func (c *FakeVolumeSnapshotContents) UpdateStatus(ctx context.Context, volumeSna
 // Delete takes name of the volumeSnapshotContent and deletes it. Returns an error if one occurs.
 func (c *FakeVolumeSnapshotContents) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(volumesnapshotcontentsResource, name), &v1beta1.VolumeSnapshotContent{})
+		Invokes(testing.NewRootDeleteActionWithOptions(volumesnapshotcontentsResource, name, opts), &v1beta1.VolumeSnapshotContent{})
 	return err
 }
 

@@ -105,7 +105,7 @@ func (c *FakeNetworkAttachmentDefinitions) Update(ctx context.Context, networkAt
 // Delete takes name of the networkAttachmentDefinition and deletes it. Returns an error if one occurs.
 func (c *FakeNetworkAttachmentDefinitions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(networkattachmentdefinitionsResource, c.ns, name), &k8scnicncfiov1.NetworkAttachmentDefinition{})
+		Invokes(testing.NewDeleteActionWithOptions(networkattachmentdefinitionsResource, c.ns, name, opts), &k8scnicncfiov1.NetworkAttachmentDefinition{})
 
 	return err
 }

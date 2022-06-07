@@ -117,7 +117,7 @@ func (c *FakeBackingImageManagers) UpdateStatus(ctx context.Context, backingImag
 // Delete takes name of the backingImageManager and deletes it. Returns an error if one occurs.
 func (c *FakeBackingImageManagers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(backingimagemanagersResource, c.ns, name), &v1beta1.BackingImageManager{})
+		Invokes(testing.NewDeleteActionWithOptions(backingimagemanagersResource, c.ns, name, opts), &v1beta1.BackingImageManager{})
 
 	return err
 }

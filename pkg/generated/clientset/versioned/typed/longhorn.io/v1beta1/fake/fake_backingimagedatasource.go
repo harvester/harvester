@@ -117,7 +117,7 @@ func (c *FakeBackingImageDataSources) UpdateStatus(ctx context.Context, backingI
 // Delete takes name of the backingImageDataSource and deletes it. Returns an error if one occurs.
 func (c *FakeBackingImageDataSources) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(backingimagedatasourcesResource, c.ns, name), &v1beta1.BackingImageDataSource{})
+		Invokes(testing.NewDeleteActionWithOptions(backingimagedatasourcesResource, c.ns, name, opts), &v1beta1.BackingImageDataSource{})
 
 	return err
 }

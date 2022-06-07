@@ -105,7 +105,7 @@ func (c *FakePreferences) Update(ctx context.Context, preference *v1beta1.Prefer
 // Delete takes name of the preference and deletes it. Returns an error if one occurs.
 func (c *FakePreferences) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(preferencesResource, c.ns, name), &v1beta1.Preference{})
+		Invokes(testing.NewDeleteActionWithOptions(preferencesResource, c.ns, name, opts), &v1beta1.Preference{})
 
 	return err
 }

@@ -117,7 +117,7 @@ func (c *FakeVirtualMachineRestores) UpdateStatus(ctx context.Context, virtualMa
 // Delete takes name of the virtualMachineRestore and deletes it. Returns an error if one occurs.
 func (c *FakeVirtualMachineRestores) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(virtualmachinerestoresResource, c.ns, name), &v1beta1.VirtualMachineRestore{})
+		Invokes(testing.NewDeleteActionWithOptions(virtualmachinerestoresResource, c.ns, name, opts), &v1beta1.VirtualMachineRestore{})
 
 	return err
 }

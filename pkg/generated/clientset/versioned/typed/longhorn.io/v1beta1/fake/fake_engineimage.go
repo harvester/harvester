@@ -117,7 +117,7 @@ func (c *FakeEngineImages) UpdateStatus(ctx context.Context, engineImage *v1beta
 // Delete takes name of the engineImage and deletes it. Returns an error if one occurs.
 func (c *FakeEngineImages) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(engineimagesResource, c.ns, name), &v1beta1.EngineImage{})
+		Invokes(testing.NewDeleteActionWithOptions(engineimagesResource, c.ns, name, opts), &v1beta1.EngineImage{})
 
 	return err
 }

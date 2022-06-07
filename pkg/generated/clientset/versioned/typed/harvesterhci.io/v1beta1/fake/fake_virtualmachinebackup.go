@@ -117,7 +117,7 @@ func (c *FakeVirtualMachineBackups) UpdateStatus(ctx context.Context, virtualMac
 // Delete takes name of the virtualMachineBackup and deletes it. Returns an error if one occurs.
 func (c *FakeVirtualMachineBackups) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(virtualmachinebackupsResource, c.ns, name), &v1beta1.VirtualMachineBackup{})
+		Invokes(testing.NewDeleteActionWithOptions(virtualmachinebackupsResource, c.ns, name, opts), &v1beta1.VirtualMachineBackup{})
 
 	return err
 }

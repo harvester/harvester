@@ -117,7 +117,7 @@ func (c *FakeShareManagers) UpdateStatus(ctx context.Context, shareManager *v1be
 // Delete takes name of the shareManager and deletes it. Returns an error if one occurs.
 func (c *FakeShareManagers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(sharemanagersResource, c.ns, name), &v1beta1.ShareManager{})
+		Invokes(testing.NewDeleteActionWithOptions(sharemanagersResource, c.ns, name, opts), &v1beta1.ShareManager{})
 
 	return err
 }
