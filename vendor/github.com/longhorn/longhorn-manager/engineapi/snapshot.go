@@ -8,14 +8,16 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
 	VolumeHeadName = "volume-head"
 )
 
-func (e *Engine) SnapshotCreate(name string, labels map[string]string) (string, error) {
+// SnapshotCreate calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string) (string, error) {
 	args := []string{"snapshot", "create"}
 	for k, v := range labels {
 		args = append(args, "--label", k+"="+v)
@@ -29,27 +31,33 @@ func (e *Engine) SnapshotCreate(name string, labels map[string]string) (string, 
 	return strings.TrimSpace(output), nil
 }
 
-func (e *Engine) SnapshotList() (map[string]*longhorn.Snapshot, error) {
+// SnapshotList calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotList(*longhorn.Engine) (map[string]*longhorn.SnapshotInfo, error) {
 	output, err := e.ExecuteEngineBinary("snapshot", "info")
 	if err != nil {
 		return nil, errors.Wrapf(err, "error listing snapshot")
 	}
-	data := map[string]*longhorn.Snapshot{}
+	data := map[string]*longhorn.SnapshotInfo{}
 	if err := json.Unmarshal([]byte(output), &data); err != nil {
 		return nil, errors.Wrapf(err, "error parsing snapshot list")
 	}
 	return data, nil
 }
 
-func (e *Engine) SnapshotGet(name string) (*longhorn.Snapshot, error) {
-	data, err := e.SnapshotList()
+// SnapshotGet calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotGet(engine *longhorn.Engine, name string) (*longhorn.SnapshotInfo, error) {
+	data, err := e.SnapshotList(nil)
 	if err != nil {
 		return nil, err
 	}
 	return data[name], nil
 }
 
-func (e *Engine) SnapshotDelete(name string) error {
+// SnapshotDelete calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotDelete(engine *longhorn.Engine, name string) error {
 	if name == VolumeHeadName {
 		return fmt.Errorf("invalid operation: cannot remove %v", VolumeHeadName)
 	}
@@ -59,7 +67,9 @@ func (e *Engine) SnapshotDelete(name string) error {
 	return nil
 }
 
-func (e *Engine) SnapshotRevert(name string) error {
+// SnapshotRevert calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotRevert(engine *longhorn.Engine, name string) error {
 	if name == VolumeHeadName {
 		return fmt.Errorf("invalid operation: cannot revert to %v", VolumeHeadName)
 	}
@@ -69,7 +79,9 @@ func (e *Engine) SnapshotRevert(name string) error {
 	return nil
 }
 
-func (e *Engine) SnapshotPurge() error {
+// SnapshotPurge calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotPurge(*longhorn.Engine) error {
 	if _, err := e.ExecuteEngineBinaryWithoutTimeout([]string{}, "snapshot", "purge", "--skip-if-in-progress"); err != nil {
 		return errors.Wrapf(err, "error starting snapshot purge")
 	}
@@ -77,7 +89,9 @@ func (e *Engine) SnapshotPurge() error {
 	return nil
 }
 
-func (e *Engine) SnapshotPurgeStatus() (map[string]*longhorn.PurgeStatus, error) {
+// SnapshotPurgeStatus calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotPurgeStatus(*longhorn.Engine) (map[string]*longhorn.PurgeStatus, error) {
 	output, err := e.ExecuteEngineBinary("snapshot", "purge-status")
 	if err != nil {
 		return nil, errors.Wrapf(err, "error getting snapshot purge status")
@@ -91,7 +105,9 @@ func (e *Engine) SnapshotPurgeStatus() (map[string]*longhorn.PurgeStatus, error)
 	return data, nil
 }
 
-func (e *Engine) SnapshotClone(snapshotName, fromControllerAddress string) error {
+// SnapshotClone calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotClone(engine *longhorn.Engine, snapshotName, fromControllerAddress string) error {
 	args := []string{"snapshot", "clone", "--snapshot-name", snapshotName, "--from-controller-address", fromControllerAddress}
 	if _, err := e.ExecuteEngineBinaryWithoutTimeout([]string{}, args...); err != nil {
 		return errors.Wrapf(err, "error starting snapshot clone")
@@ -100,7 +116,9 @@ func (e *Engine) SnapshotClone(snapshotName, fromControllerAddress string) error
 	return nil
 }
 
-func (e *Engine) SnapshotCloneStatus() (map[string]*longhorn.SnapshotCloneStatus, error) {
+// SnapshotCloneStatus calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotCloneStatus(*longhorn.Engine) (map[string]*longhorn.SnapshotCloneStatus, error) {
 	args := []string{"snapshot", "clone-status"}
 	output, err := e.ExecuteEngineBinary(args...)
 	if err != nil {

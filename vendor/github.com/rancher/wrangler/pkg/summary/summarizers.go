@@ -45,6 +45,7 @@ var (
 		"Pending":                     "pending",
 		"PodScheduled":                "scheduling",
 		"Provisioned":                 "provisioning",
+		"Reconciled":                  "reconciling",
 		"Refreshed":                   "refreshed",
 		"Registered":                  "registering",
 		"Removed":                     "removing",

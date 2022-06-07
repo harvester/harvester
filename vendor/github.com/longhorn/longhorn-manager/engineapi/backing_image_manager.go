@@ -6,14 +6,12 @@ import (
 	bimapi "github.com/longhorn/backing-image-manager/api"
 	bimclient "github.com/longhorn/backing-image-manager/pkg/client"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
-	BackingImageManagerDefaultPort = 8000
-
-	CurrentBackingImageManagerAPIVersion = 2
-	MinBackingImageManagerAPIVersion     = 2
+	CurrentBackingImageManagerAPIVersion = 3
+	MinBackingImageManagerAPIVersion     = 3
 	UnknownBackingImageManagerAPIVersion = 0
 )
 
@@ -69,40 +67,47 @@ func (c *BackingImageManagerClient) parseBackingImageFileInfo(bi *bimapi.Backing
 	}
 }
 
-func (c *BackingImageManagerClient) Fetch(name, uuid, fileName, checksum string, size int64) (*longhorn.BackingImageFileInfo, error) {
+func (c *BackingImageManagerClient) Fetch(name, uuid, checksum, dataSourceAddress string, size int64) (*longhorn.BackingImageFileInfo, error) {
 	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
-	resp, err := c.grpcClient.Fetch(name, uuid, fileName, checksum, size)
+	resp, err := c.grpcClient.Fetch(name, uuid, checksum, dataSourceAddress, size)
 	if err != nil {
 		return nil, err
 	}
 	return c.parseBackingImageFileInfo(resp), nil
 }
 
-func (c *BackingImageManagerClient) Sync(name, uuid, checksum, fromHost, toHost string, size int64) (*longhorn.BackingImageFileInfo, error) {
+func (c *BackingImageManagerClient) Sync(name, uuid, checksum, fromHost string, size int64) (*longhorn.BackingImageFileInfo, error) {
 	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
-	resp, err := c.grpcClient.Sync(name, uuid, checksum, fromHost, toHost, size)
+	resp, err := c.grpcClient.Sync(name, uuid, checksum, fmt.Sprintf("%s:%d", fromHost, BackingImageManagerDefaultPort), size)
 	if err != nil {
 		return nil, err
 	}
 	return c.parseBackingImageFileInfo(resp), nil
 }
 
-func (c *BackingImageManagerClient) Delete(name string) error {
+func (c *BackingImageManagerClient) PrepareDownload(name, uuid string) (string, string, error) {
+	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
+		return "", "", err
+	}
+	return c.grpcClient.PrepareDownload(name, uuid)
+}
+
+func (c *BackingImageManagerClient) Delete(name, uuid string) error {
 	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
 		return err
 	}
-	return c.grpcClient.Delete(name)
+	return c.grpcClient.Delete(name, uuid)
 }
 
-func (c *BackingImageManagerClient) Get(name string) (*longhorn.BackingImageFileInfo, error) {
+func (c *BackingImageManagerClient) Get(name, uuid string) (*longhorn.BackingImageFileInfo, error) {
 	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
-	backingImage, err := c.grpcClient.Get(name)
+	backingImage, err := c.grpcClient.Get(name, uuid)
 	if err != nil {
 		return nil, err
 	}

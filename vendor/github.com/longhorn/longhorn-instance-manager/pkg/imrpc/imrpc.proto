@@ -1,0 +1,80 @@
+syntax="proto3";
+
+import "google/protobuf/empty.proto";
+
+service ProcessManagerService {
+	rpc ProcessCreate(ProcessCreateRequest) returns (ProcessResponse) {}
+	rpc ProcessDelete(ProcessDeleteRequest) returns (ProcessResponse) {}
+	rpc ProcessGet(ProcessGetRequest) returns (ProcessResponse) {}
+	rpc ProcessList(ProcessListRequest) returns (ProcessListResponse) {}
+	rpc ProcessLog(LogRequest) returns (stream LogResponse) {}
+	rpc ProcessWatch(google.protobuf.Empty) returns (stream ProcessResponse) {}
+	rpc ProcessReplace(ProcessReplaceRequest) returns (ProcessResponse) {}
+
+	rpc VersionGet(google.protobuf.Empty) returns(VersionResponse);
+}
+
+message ProcessSpec {
+	string name = 1;
+	string binary = 2;
+	repeated string args = 3;
+	int32 port_count = 4;
+	repeated string port_args = 5;
+}
+
+message ProcessStatus {
+	string state = 1;
+	string error_msg = 2;
+	int32 port_start = 3;
+	int32 port_end = 4;
+}
+
+message ProcessCreateRequest {
+	ProcessSpec spec = 1;
+}
+
+message ProcessDeleteRequest {
+	string name = 1;
+}
+
+message ProcessGetRequest {
+	string name = 1;
+}
+
+message ProcessResponse {
+	ProcessSpec spec = 1;
+	ProcessStatus status = 2;
+	bool deleted = 3;
+}
+
+message ProcessListRequest{
+}
+
+message ProcessListResponse{
+	map<string, ProcessResponse> processes = 1;
+}
+
+message LogRequest {
+	string name = 1;
+}
+
+message LogResponse{
+	string line = 2;
+}
+
+message ProcessReplaceRequest {
+	ProcessSpec spec = 1;
+	string terminate_signal = 2;
+}
+
+message VersionResponse {
+    string version = 1;
+    string gitCommit = 2;
+    string buildDate = 3;
+
+    int64 instanceManagerAPIVersion = 4;
+    int64 instanceManagerAPIMinVersion = 5;
+
+    int64 instanceManagerProxyAPIVersion = 6;
+    int64 instanceManagerProxyAPIMinVersion = 7;
+}

@@ -28,9 +28,19 @@ import (
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/engineapi"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
 	"github.com/longhorn/longhorn-manager/types"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+)
+
+var (
+	// maxRetriesOnAcquireLockError should guarantee the cumulative retry time
+	// is larger than 150 seconds.
+	// With the current rate-limiter in use (5ms*2^(maxRetries-1)) the following numbers represent the times
+	// a deployment is going to be requeued:
+	//
+	// 5ms, 10ms, 20ms, ... , 81.92s, 163.84s
+	maxRetriesOnAcquireLockError = 16
 )
 
 type BackupController struct {
@@ -49,17 +59,17 @@ type BackupController struct {
 
 	ds *datastore.DataStore
 
-	bStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewBackupController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	backupInformer lhinformers.BackupInformer,
 	kubeClient clientset.Interface,
 	controllerID string,
-	namespace string) *BackupController {
+	namespace string,
+) *BackupController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(logrus.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -80,15 +90,14 @@ func NewBackupController(
 
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-backup-controller"}),
-
-		bStoreSynced: backupInformer.Informer().HasSynced,
 	}
 
-	backupInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.BackupInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bc.enqueueBackup,
 		UpdateFunc: func(old, cur interface{}) { bc.enqueueBackup(cur) },
 		DeleteFunc: bc.enqueueBackup,
 	})
+	bc.cacheSyncs = append(bc.cacheSyncs, ds.BackupInformer.HasSynced)
 
 	return bc
 }
@@ -114,7 +123,7 @@ func (bc *BackupController) Run(workers int, stopCh <-chan struct{}) {
 	bc.logger.Infof("Start Longhorn Backup controller")
 	defer bc.logger.Infof("Shutting down Longhorn Backup controller")
 
-	if !cache.WaitForNamedCacheSync(bc.name, stopCh, bc.bStoreSynced) {
+	if !cache.WaitForNamedCacheSync(bc.name, stopCh, bc.cacheSyncs...) {
 		return
 	}
 	for i := 0; i < workers; i++ {
@@ -145,10 +154,23 @@ func (bc *BackupController) handleErr(err error, key interface{}) {
 		return
 	}
 
-	if bc.queue.NumRequeues(key) < maxRetries {
-		bc.logger.WithError(err).Warnf("Error syncing Longhorn backup %v", key)
-		bc.queue.AddRateLimited(key)
-		return
+	// The resync period of the backup is one hour and the maxRetries is 3.
+	// Thus, the deletion failure of the backup in error state is caused by the shutdown of the replica during backing up,
+	// if the lock hold by the backup job is not released.
+	// The workaround is to increase the maxRetries number and to retry the deletion until the lock acquisition
+	// of the backup is timeout after 150 seconds.
+	if strings.Contains(err.Error(), "failed lock") {
+		if bc.queue.NumRequeues(key) < maxRetriesOnAcquireLockError {
+			bc.logger.WithError(err).Warnf("Error syncing Longhorn backup %v because of the failure of lock acquisition", key)
+			bc.queue.AddRateLimited(key)
+			return
+		}
+	} else {
+		if bc.queue.NumRequeues(key) < maxRetries {
+			bc.logger.WithError(err).Warnf("Error syncing Longhorn backup %v", key)
+			bc.queue.AddRateLimited(key)
+			return
+		}
 	}
 
 	utilruntime.HandleError(err)
@@ -244,15 +266,15 @@ func (bc *BackupController) reconcile(backupName string) (err error) {
 
 		if backupTarget.Spec.BackupTargetURL != "" &&
 			backupVolume != nil && backupVolume.DeletionTimestamp == nil {
-			// Initialize a backup target client
-			backupTargetClient, err := getBackupTargetClient(bc.ds, backupTarget)
+			engineClientProxy, backupTargetConfig, err := getBackupTarget(bc.controllerID, backupTarget, bc.ds, log)
 			if err != nil {
-				log.WithError(err).Error("Error init backup target client")
+				log.WithError(err).Error("Error init backup target clients")
 				return nil // Ignore error to prevent enqueue
 			}
+			defer engineClientProxy.Close()
 
-			backupURL := backupstore.EncodeBackupURL(backup.Name, backupVolumeName, backupTargetClient.URL)
-			if err := backupTargetClient.DeleteBackup(backupURL); err != nil {
+			backupURL := backupstore.EncodeBackupURL(backup.Name, backupVolumeName, backupTargetConfig.URL)
+			if err := engineClientProxy.BackupDelete(backupURL, backupTargetConfig.Credential); err != nil {
 				log.WithError(err).Error("Error deleting remote backup")
 				return err
 			}
@@ -317,7 +339,7 @@ func (bc *BackupController) reconcile(backupName string) (err error) {
 		}
 
 		switch backup.Status.State {
-		case longhorn.BackupStateNew, longhorn.BackupStateInProgress:
+		case longhorn.BackupStateNew, longhorn.BackupStatePending, longhorn.BackupStateInProgress:
 			return nil
 		case longhorn.BackupStateCompleted:
 			bc.disableBackupMonitor(backup.Name)
@@ -335,15 +357,15 @@ func (bc *BackupController) reconcile(backupName string) (err error) {
 	}
 
 	// The backup creation is complete, then the source of truth becomes the remote backup target
-	// Initialize a backup target client
-	backupTargetClient, err := getBackupTargetClient(bc.ds, backupTarget)
+	engineClientProxy, backupTargetConfig, err := getBackupTarget(bc.controllerID, backupTarget, bc.ds, log)
 	if err != nil {
-		log.WithError(err).Error("Error init a backup target client")
+		log.WithError(err).Error("Error init backup target clients")
 		return nil // Ignore error to prevent enqueue
 	}
+	defer engineClientProxy.Close()
 
-	backupURL := backupstore.EncodeBackupURL(backup.Name, backupVolumeName, backupTargetClient.URL)
-	backupInfo, err := backupTargetClient.InspectBackupConfig(backupURL)
+	backupURL := backupstore.EncodeBackupURL(backup.Name, backupVolumeName, backupTargetConfig.URL)
+	backupInfo, err := engineClientProxy.BackupGet(backupURL, backupTargetConfig.Credential)
 	if err != nil {
 		if !strings.Contains(err.Error(), "in progress") {
 			log.WithError(err).Error("Error inspecting backup config")
@@ -413,7 +435,7 @@ func (bc *BackupController) getBackupVolumeName(backup *longhorn.Backup) (string
 	return backupVolumeName, nil
 }
 
-func (bc *BackupController) getEngineClient(volumeName string) (engineapi.EngineClient, error) {
+func (bc *BackupController) getEngineBinaryClient(volumeName string) (*engineapi.EngineBinary, error) {
 	engine, err := bc.ds.GetVolumeCurrentEngine(volumeName)
 	if err != nil {
 		return nil, err
@@ -421,7 +443,7 @@ func (bc *BackupController) getEngineClient(volumeName string) (engineapi.Engine
 	if engine == nil {
 		return nil, fmt.Errorf("cannot get the client since the engine is nil")
 	}
-	return GetClientForEngine(engine, &engineapi.EngineCollection{}, engine.Status.CurrentImage)
+	return GetBinaryClientForEngine(engine, &engineapi.EngineCollection{}, engine.Status.CurrentImage)
 }
 
 // validateBackingImageChecksum validates backing image checksum
@@ -467,23 +489,17 @@ func (bc *BackupController) checkMonitor(backup *longhorn.Backup, volume *longho
 		return nil, err
 	}
 
-	// Initialize a backup target client
-	backupTargetClient, err := getBackupTargetClient(bc.ds, backupTarget)
-	if err != nil {
-		return nil, err
-	}
-
-	// Find the corresponding engine client
-	engineClient, err := bc.getEngineClient(volume.Name)
+	engineClientProxy, backupTargetConfig, err := getBackupTarget(bc.controllerID, backupTarget, bc.ds, bc.logger)
 	if err != nil {
 		return nil, err
 	}
 
 	// Enable the backup monitor
-	monitor, err := bc.enableBackupMonitor(backup, volume, backupTargetClient, biChecksum, engineClient)
+	monitor, err := bc.enableBackupMonitor(backup, volume, backupTargetConfig, biChecksum, engineClientProxy)
 	if err != nil {
 		backup.Status.Error = err.Error()
 		backup.Status.State = longhorn.BackupStateError
+		backup.Status.LastSyncedAt = metav1.Time{Time: time.Now().UTC()}
 		return nil, err
 	}
 	return monitor, nil
@@ -555,7 +571,7 @@ func (bc *BackupController) hasMonitor(backupName string) *engineapi.BackupMonit
 	return bc.monitors[backupName]
 }
 
-func (bc *BackupController) enableBackupMonitor(backup *longhorn.Backup, volume *longhorn.Volume, backupTargetClient *engineapi.BackupTargetClient, biChecksum string, engineClient engineapi.EngineClient) (*engineapi.BackupMonitor, error) {
+func (bc *BackupController) enableBackupMonitor(backup *longhorn.Backup, volume *longhorn.Volume, backupTargetConfig *engineapi.BackupTargetConfig, biChecksum string, engineClientProxy engineapi.EngineClientProxy) (*engineapi.BackupMonitor, error) {
 	monitor := bc.hasMonitor(backup.Name)
 	if monitor != nil {
 		return monitor, nil
@@ -563,7 +579,13 @@ func (bc *BackupController) enableBackupMonitor(backup *longhorn.Backup, volume 
 
 	bc.monitorLock.Lock()
 	defer bc.monitorLock.Unlock()
-	monitor, err := engineapi.NewBackupMonitor(bc.logger, backup, volume, backupTargetClient, biChecksum, engineClient, bc.enqueueBackupForMonitor)
+
+	engine, err := bc.ds.GetVolumeCurrentEngine(volume.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	monitor, err = engineapi.NewBackupMonitor(bc.logger, backup, volume, backupTargetConfig, biChecksum, engine, engineClientProxy, bc.enqueueBackupForMonitor)
 	if err != nil {
 		return nil, err
 	}
@@ -585,19 +607,35 @@ func (bc *BackupController) disableBackupMonitor(backupName string) {
 
 func (bc *BackupController) syncBackupStatusWithSnapshotCreationTimeAndVolumeSize(volume *longhorn.Volume, backup *longhorn.Backup) {
 	backup.Status.VolumeSize = strconv.FormatInt(volume.Spec.Size, 10)
-	engineClient, err := bc.getEngineClient(volume.Name)
+	engineCliClient, err := bc.getEngineBinaryClient(volume.Name)
 	if err != nil {
 		bc.logger.Warnf("syncBackupStatusWithSnapshotCreationTimeAndVolumeSize: failed to get engine client: %v", err)
 		return
 	}
-	snap, err := engineClient.SnapshotGet(backup.Spec.SnapshotName)
+
+	e, err := bc.ds.GetVolumeCurrentEngine(volume.Name)
+	if err != nil {
+		bc.logger.Warnf("syncBackupStatusWithSnapshotCreationTimeAndVolumeSize: failed to get engine: %v", err)
+		return
+	}
+
+	engineClientProxy, err := engineapi.GetCompatibleClient(e, engineCliClient, bc.ds, bc.logger)
+	if err != nil {
+		bc.logger.Warnf("syncBackupStatusWithSnapshotCreationTimeAndVolumeSize: failed to get proxy: %v", err)
+		return
+	}
+	defer engineClientProxy.Close()
+
+	snap, err := engineClientProxy.SnapshotGet(e, backup.Spec.SnapshotName)
 	if err != nil {
 		bc.logger.Warnf("syncBackupStatusWithSnapshotCreationTimeAndVolumeSize: failed to get snapshot %v: %v", backup.Spec.SnapshotName, err)
 		return
 	}
+
 	if snap == nil {
 		bc.logger.Warnf("syncBackupStatusWithSnapshotCreationTimeAndVolumeSize: couldn't find the snapshot %v in volume %v ", backup.Spec.SnapshotName, volume.Name)
 		return
 	}
+
 	backup.Status.SnapshotCreatedAt = snap.Created
 }

@@ -2,11 +2,10 @@ package types
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -14,13 +13,13 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/meta"
 	"github.com/longhorn/longhorn-manager/util"
 )
 
 const (
-	EnvDefaultSettingPath = "DEFAULT_SETTING_PATH"
+	DefaultSettingYAMLFileName = "default-setting.yaml"
 )
 
 type SettingType string
@@ -65,7 +64,6 @@ const (
 	SettingNameRegistrySecret                               = SettingName("registry-secret")
 	SettingNameDisableSchedulingOnCordonedNode              = SettingName("disable-scheduling-on-cordoned-node")
 	SettingNameReplicaZoneSoftAntiAffinity                  = SettingName("replica-zone-soft-anti-affinity")
-	SettingNameVolumeAttachmentRecoveryPolicy               = SettingName("volume-attachment-recovery-policy")
 	SettingNameNodeDownPodDeletionPolicy                    = SettingName("node-down-pod-deletion-policy")
 	SettingNameAllowNodeDrainWithLastHealthyReplica         = SettingName("allow-node-drain-with-last-healthy-replica")
 	SettingNameMkfsExt4Parameters                           = SettingName("mkfs-ext4-parameters")
@@ -82,6 +80,9 @@ const (
 	SettingNameBackingImageRecoveryWaitInterval             = SettingName("backing-image-recovery-wait-interval")
 	SettingNameGuaranteedEngineManagerCPU                   = SettingName("guaranteed-engine-manager-cpu")
 	SettingNameGuaranteedReplicaManagerCPU                  = SettingName("guaranteed-replica-manager-cpu")
+	SettingNameKubernetesClusterAutoscalerEnabled           = SettingName("kubernetes-cluster-autoscaler-enabled")
+	SettingNameOrphanAutoDeletion                           = SettingName("orphan-auto-deletion")
+	SettingNameStorageNetwork                               = SettingName("storage-network")
 )
 
 var (
@@ -116,7 +117,6 @@ var (
 		SettingNameRegistrySecret,
 		SettingNameDisableSchedulingOnCordonedNode,
 		SettingNameReplicaZoneSoftAntiAffinity,
-		SettingNameVolumeAttachmentRecoveryPolicy,
 		SettingNameNodeDownPodDeletionPolicy,
 		SettingNameAllowNodeDrainWithLastHealthyReplica,
 		SettingNameMkfsExt4Parameters,
@@ -133,6 +133,9 @@ var (
 		SettingNameBackingImageRecoveryWaitInterval,
 		SettingNameGuaranteedEngineManagerCPU,
 		SettingNameGuaranteedReplicaManagerCPU,
+		SettingNameKubernetesClusterAutoscalerEnabled,
+		SettingNameOrphanAutoDeletion,
+		SettingNameStorageNetwork,
 	}
 )
 
@@ -141,6 +144,7 @@ type SettingCategory string
 const (
 	SettingCategoryGeneral    = SettingCategory("general")
 	SettingCategoryBackup     = SettingCategory("backup")
+	SettingCategoryOrphan     = SettingCategory("orphan")
 	SettingCategoryScheduling = SettingCategory("scheduling")
 	SettingCategoryDangerZone = SettingCategory("danger Zone")
 )
@@ -156,8 +160,10 @@ type SettingDefinition struct {
 	Choices     []string        `json:"options,omitempty"` // +optional
 }
 
+var settingDefinitionsLock sync.RWMutex
+
 var (
-	SettingDefinitions = map[SettingName]SettingDefinition{
+	settingDefinitions = map[SettingName]SettingDefinition{
 		SettingNameBackupTarget:                                 SettingDefinitionBackupTarget,
 		SettingNameBackupTargetCredentialSecret:                 SettingDefinitionBackupTargetCredentialSecret,
 		SettingNameAllowRecurringJobWhileVolumeDetached:         SettingDefinitionAllowRecurringJobWhileVolumeDetached,
@@ -188,7 +194,6 @@ var (
 		SettingNameRegistrySecret:                               SettingDefinitionRegistrySecret,
 		SettingNameDisableSchedulingOnCordonedNode:              SettingDefinitionDisableSchedulingOnCordonedNode,
 		SettingNameReplicaZoneSoftAntiAffinity:                  SettingDefinitionReplicaZoneSoftAntiAffinity,
-		SettingNameVolumeAttachmentRecoveryPolicy:               SettingDefinitionVolumeAttachmentRecoveryPolicy,
 		SettingNameNodeDownPodDeletionPolicy:                    SettingDefinitionNodeDownPodDeletionPolicy,
 		SettingNameAllowNodeDrainWithLastHealthyReplica:         SettingDefinitionAllowNodeDrainWithLastHealthyReplica,
 		SettingNameMkfsExt4Parameters:                           SettingDefinitionMkfsExt4Parameters,
@@ -205,6 +210,9 @@ var (
 		SettingNameBackingImageRecoveryWaitInterval:             SettingDefinitionBackingImageRecoveryWaitInterval,
 		SettingNameGuaranteedEngineManagerCPU:                   SettingDefinitionGuaranteedEngineManagerCPU,
 		SettingNameGuaranteedReplicaManagerCPU:                  SettingDefinitionGuaranteedReplicaManagerCPU,
+		SettingNameKubernetesClusterAutoscalerEnabled:           SettingDefinitionKubernetesClusterAutoscalerEnabled,
+		SettingNameOrphanAutoDeletion:                           SettingDefinitionOrphanAutoDeletion,
+		SettingNameStorageNetwork:                               SettingDefinitionStorageNetwork,
 	}
 
 	SettingDefinitionBackupTarget = SettingDefinition{
@@ -488,7 +496,7 @@ var (
 
 	SettingDefinitionCRDAPIVersion = SettingDefinition{
 		DisplayName: "Custom Resource API Version",
-		Description: "The current customer resource's API version, e.g. longhorn.io/v1beta1. Set by manager automatically",
+		Description: "The current customer resource's API version, e.g. longhorn.io/v1beta2. Set by manager automatically",
 		Category:    SettingCategoryGeneral,
 		Type:        SettingTypeString,
 		Required:    true,
@@ -544,23 +552,6 @@ var (
 		Required:    true,
 		ReadOnly:    false,
 		Default:     "true",
-	}
-	SettingDefinitionVolumeAttachmentRecoveryPolicy = SettingDefinition{
-		DisplayName: "Volume Attachment Recovery Policy",
-		Description: "Defines the Longhorn action when a Volume is stuck with a Deployment Pod on a failed node.\n" +
-			"- **wait** leads to the deletion of the volume attachment as soon as the pods deletion time has passed.\n" +
-			"- **never** is the default Kubernetes behavior of never deleting volume attachments on terminating pods.\n" +
-			"- **immediate** leads to the deletion of the volume attachment as soon as all workload pods are pending.\n",
-		Category: SettingCategoryGeneral,
-		Type:     SettingTypeDeprecated,
-		Required: true,
-		ReadOnly: false,
-		Default:  string(VolumeAttachmentRecoveryPolicyWait),
-		Choices: []string{
-			string(VolumeAttachmentRecoveryPolicyNever),
-			string(VolumeAttachmentRecoveryPolicyWait),
-			string(VolumeAttachmentRecoveryPolicyImmediate),
-		},
 	}
 	SettingDefinitionNodeDownPodDeletionPolicy = SettingDefinition{
 		DisplayName: "Pod Deletion Policy When Node is Down",
@@ -767,14 +758,47 @@ var (
 		ReadOnly: false,
 		Default:  "12",
 	}
-)
 
-type VolumeAttachmentRecoveryPolicy string
+	SettingDefinitionKubernetesClusterAutoscalerEnabled = SettingDefinition{
+		DisplayName: "Kubernetes Cluster Autoscaler Enabled (Experimental)",
+		Description: "Enabling this setting will notify Longhorn that the cluster is using Kubernetes Cluster Autoscaler. \n\n" +
+			"Longhorn prevents data loss by only allowing the Cluster Autoscaler to scale down a node that met all conditions: \n\n" +
+			"  - No volume attached to the node \n\n" +
+			"  - Is not the last node containing the replica of any volume. \n\n" +
+			"  - Is not running backing image components pod. \n\n" +
+			"  - Is not running share manager components pod. \n\n",
+		Category: SettingCategoryGeneral,
+		Type:     SettingTypeBool,
+		Required: true,
+		ReadOnly: false,
+		Default:  "false",
+	}
 
-const (
-	VolumeAttachmentRecoveryPolicyNever     = VolumeAttachmentRecoveryPolicy("never") // Kubernetes default behavior
-	VolumeAttachmentRecoveryPolicyWait      = VolumeAttachmentRecoveryPolicy("wait")  // Longhorn default behavior
-	VolumeAttachmentRecoveryPolicyImmediate = VolumeAttachmentRecoveryPolicy("immediate")
+	SettingDefinitionOrphanAutoDeletion = SettingDefinition{
+		DisplayName: "Orphan Auto-Deletion",
+		Description: "This setting allows Longhorn to delete the orphan resource and its corresponding orphaned data automatically. \n\n" +
+			"Orphan resources on down or unknown nodes will not be cleaned up automatically. \n\n",
+		Category: SettingCategoryOrphan,
+		Type:     SettingTypeBool,
+		Required: true,
+		ReadOnly: false,
+		Default:  "false",
+	}
+
+	SettingDefinitionStorageNetwork = SettingDefinition{
+		DisplayName: "Storage Network",
+		Description: "Longhorn uses the storage network for in-cluster data traffic. Leave this blank to use the Kubernetes cluster network. \n\n" +
+			"To segregate the storage network, input the pre-existing NetworkAttachmentDefinition in **<namespace>/<name>** format. \n\n" +
+			"WARNING: \n\n" +
+			"  - The cluster must have pre-existing Multus installed, and NetworkAttachmentDefinition IPs are reachable between nodes. \n\n" +
+			"  - DO NOT CHANGE THIS SETTING WITH ATTACHED VOLUMES. Longhorn will try to block this setting update when there are attached volumes. \n\n" +
+			"  - When applying the setting, Longhorn will restart all instance-manager, and backing-image-manager pods. \n\n",
+		Category: SettingCategoryDangerZone,
+		Type:     SettingTypeString,
+		Required: false,
+		ReadOnly: false,
+		Default:  CniNetworkNone,
+	}
 )
 
 type NodeDownPodDeletionPolicy string
@@ -794,17 +818,24 @@ const (
 	SystemManagedPodsImagePullPolicyAlways       = SystemManagedPodsImagePullPolicy("always")
 )
 
-func ValidateInitSetting(name, value string) (err error) {
+type CNIAnnotation string
+
+const (
+	CNIAnnotationNetworks      = CNIAnnotation("k8s.v1.cni.cncf.io/networks")
+	CNIAnnotationNetworkStatus = CNIAnnotation("k8s.v1.cni.cncf.io/networks-status")
+)
+
+func ValidateSetting(name, value string) (err error) {
 	defer func() {
 		err = errors.Wrapf(err, "value %v of settings %v is invalid", value, name)
 	}()
 	sName := SettingName(name)
 
-	definition, ok := SettingDefinitions[sName]
+	definition, ok := GetSettingDefinition(sName)
 	if !ok {
 		return fmt.Errorf("setting %v is not supported", sName)
 	}
-	if definition.Required == true && value == "" {
+	if definition.Required && value == "" {
 		return fmt.Errorf("required setting %v shouldn't be empty", sName)
 	}
 
@@ -836,6 +867,10 @@ func ValidateInitSetting(name, value string) (err error) {
 	case SettingNameAutoCleanupSystemGeneratedSnapshot:
 		fallthrough
 	case SettingNameAutoDeletePodWhenVolumeDetachedUnexpectedly:
+		fallthrough
+	case SettingNameKubernetesClusterAutoscalerEnabled:
+		fallthrough
+	case SettingNameOrphanAutoDeletion:
 		fallthrough
 	case SettingNameUpgradeChecker:
 		if value != "true" && value != "false" {
@@ -902,16 +937,19 @@ func ValidateInitSetting(name, value string) (err error) {
 		if _, err = UnmarshalNodeSelector(value); err != nil {
 			return fmt.Errorf("the value of %v is invalid: %v", sName, err)
 		}
+	case SettingNameStorageNetwork:
+		if err = ValidateStorageNetwork(value); err != nil {
+			return fmt.Errorf("the value of %v is invalid: %v", sName, err)
+		}
 
 	// multi-choices
-	case SettingNameVolumeAttachmentRecoveryPolicy:
-		fallthrough
 	case SettingNameNodeDownPodDeletionPolicy:
 		fallthrough
 	case SettingNameDefaultDataLocality:
 		fallthrough
 	case SettingNameSystemManagedPodsImagePullPolicy:
-		choices := SettingDefinitions[sName].Choices
+		definition, _ := GetSettingDefinition(sName)
+		choices := definition.Choices
 		if !isValidChoice(choices, value) {
 			return fmt.Errorf("value %v is not a valid choice, available choices %v", value, choices)
 		}
@@ -926,7 +964,6 @@ func ValidateInitSetting(name, value string) (err error) {
 			return fmt.Errorf("guaranteed engine/replica cpu value %v should be between 0 to 40", value)
 		}
 	}
-
 	return nil
 }
 
@@ -941,26 +978,18 @@ func isValidChoice(choices []string, value string) bool {
 	return len(choices) == 0
 }
 
-func GetCustomizedDefaultSettings() (map[string]string, error) {
-	settingPath := os.Getenv(EnvDefaultSettingPath)
-	defaultSettings := map[string]string{}
-	if settingPath != "" {
-		data, err := ioutil.ReadFile(settingPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read default setting file %v: %v", settingPath, err)
-		}
+func GetCustomizedDefaultSettings(defaultSettingCM *v1.ConfigMap) (defaultSettings map[string]string, err error) {
+	defaultSettingYAMLData := []byte(defaultSettingCM.Data[DefaultSettingYAMLFileName])
 
-		// `yaml.Unmarshal()` can return a partial result. We shouldn't allow it
-		if err := yaml.Unmarshal(data, &defaultSettings); err != nil {
-			logrus.Errorf("Failed to unmarshal customized default settings from yaml data %v, will give up using them: %v", string(data), err)
-			defaultSettings = map[string]string{}
-		}
+	defaultSettings, err = getDefaultSettingFromYAML(defaultSettingYAMLData)
+	if err != nil {
+		return nil, err
 	}
 
 	// won't accept partially valid result
 	for name, value := range defaultSettings {
 		value = strings.Trim(value, " ")
-		definition, exist := SettingDefinitions[SettingName(name)]
+		definition, exist := GetSettingDefinition(SettingName(name))
 		if !exist {
 			logrus.Errorf("Customized settings are invalid, will give up using them: undefined setting %v", name)
 			defaultSettings = map[string]string{}
@@ -980,7 +1009,7 @@ func GetCustomizedDefaultSettings() (map[string]string, error) {
 			}
 			value = strconv.FormatBool(result)
 		}
-		if err := ValidateInitSetting(name, value); err != nil {
+		if err := ValidateSetting(name, value); err != nil {
 			logrus.Errorf("Customized settings are invalid, will give up using them: the value of customized setting %v is invalid: %v", name, err)
 			defaultSettings = map[string]string{}
 			break
@@ -1004,27 +1033,16 @@ func GetCustomizedDefaultSettings() (map[string]string, error) {
 	return defaultSettings, nil
 }
 
-func OverwriteBuiltInSettingsWithCustomizedValues() error {
-	logrus.Infof("Start overwriting built-in settings with customized values")
-	customizedDefaultSettings, err := GetCustomizedDefaultSettings()
-	if err != nil {
-		return err
+func getDefaultSettingFromYAML(defaultSettingYAMLData []byte) (map[string]string, error) {
+	defaultSettings := map[string]string{}
+
+	if err := yaml.Unmarshal(defaultSettingYAMLData, &defaultSettings); err != nil {
+		logrus.Errorf("Failed to unmarshal customized default settings from yaml data %v, will give up using them: %v",
+			string(defaultSettingYAMLData), err)
+		defaultSettings = map[string]string{}
 	}
 
-	for _, sName := range SettingNameList {
-		definition, ok := SettingDefinitions[sName]
-		if !ok {
-			return fmt.Errorf("BUG: setting %v is not defined", sName)
-		}
-
-		value, exists := customizedDefaultSettings[string(sName)]
-		if exists && value != "" {
-			definition.Default = value
-			SettingDefinitions[sName] = definition
-		}
-	}
-
-	return nil
+	return defaultSettings, nil
 }
 
 func ValidateAndUnmarshalToleration(s string) (*v1.Toleration, error) {
@@ -1101,4 +1119,17 @@ func UnmarshalNodeSelector(nodeSelectorSetting string) (map[string]string, error
 		}
 	}
 	return nodeSelector, nil
+}
+
+func GetSettingDefinition(name SettingName) (SettingDefinition, bool) {
+	settingDefinitionsLock.RLock()
+	defer settingDefinitionsLock.RUnlock()
+	setting, ok := settingDefinitions[name]
+	return setting, ok
+}
+
+func SetSettingDefinition(name SettingName, definition SettingDefinition) {
+	settingDefinitionsLock.Lock()
+	defer settingDefinitionsLock.Unlock()
+	settingDefinitions[name] = definition
 }

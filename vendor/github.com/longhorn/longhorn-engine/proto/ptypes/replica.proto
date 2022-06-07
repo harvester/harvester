@@ -1,0 +1,164 @@
+syntax="proto3";
+
+package ptypes;
+
+import "google/protobuf/empty.proto";
+
+service ReplicaService {
+  rpc ReplicaCreate(ReplicaCreateRequest) returns (ReplicaCreateResponse) {}
+  rpc ReplicaDelete(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc ReplicaGet(google.protobuf.Empty) returns (ReplicaGetResponse) {}
+  rpc ReplicaOpen(google.protobuf.Empty) returns (ReplicaOpenResponse) {}
+  rpc ReplicaClose(google.protobuf.Empty) returns (ReplicaCloseResponse) {}
+  rpc ReplicaReload(google.protobuf.Empty) returns (ReplicaReloadResponse) {}
+  rpc ReplicaRevert(ReplicaRevertRequest) returns (ReplicaRevertResponse) {}
+  rpc ReplicaSnapshot(ReplicaSnapshotRequest) returns
+    (ReplicaSnapshotResponse) {}
+  rpc ReplicaExpand(ReplicaExpandRequest) returns (ReplicaExpandResponse) {}
+  rpc DiskRemove(DiskRemoveRequest) returns (DiskRemoveResponse) {}
+  rpc DiskReplace(DiskReplaceRequest) returns (DiskReplaceResponse) {}
+  rpc DiskPrepareRemove(DiskPrepareRemoveRequest) returns
+    (DiskPrepareRemoveResponse) {}
+  rpc DiskMarkAsRemoved(DiskMarkAsRemovedRequest) returns
+    (DiskMarkAsRemovedResponse) {}
+  rpc RebuildingSet(RebuildingSetRequest) returns (RebuildingSetResponse) {}
+  rpc RevisionCounterSet(RevisionCounterSetRequest) returns
+    (RevisionCounterSetResponse) {}
+}
+
+message ReplicaCreateRequest {
+  string size = 1;
+}
+
+message ReplicaCreateResponse {
+  Replica replica = 1;
+}
+
+message ReplicaGetResponse {
+  Replica replica = 1;
+}
+
+message ReplicaOpenResponse {
+  Replica replica = 1;
+}
+
+message ReplicaCloseResponse {
+  Replica replica = 1;
+}
+
+message ReplicaReloadResponse {
+  Replica replica = 1;
+}
+
+message ReplicaRevertRequest {
+  string name = 1;
+  string created = 2;
+}
+
+message ReplicaRevertResponse {
+  Replica replica = 1;
+}
+
+message ReplicaSnapshotRequest {
+  string name = 1;
+  bool user_created = 2;
+  string created = 3;
+  map<string, string> labels = 4;
+}
+
+message ReplicaSnapshotResponse {
+  Replica replica = 1;
+}
+
+message ReplicaExpandRequest {
+  int64 size = 1;
+}
+
+message ReplicaExpandResponse {
+  Replica replica = 1;
+}
+
+message DiskRemoveRequest {
+  string name = 1;
+  bool force = 2;
+}
+
+message DiskRemoveResponse {
+  Replica replica = 1;
+}
+
+message DiskReplaceRequest {
+  string target = 1;
+  string source = 2;
+}
+
+message DiskReplaceResponse {
+  Replica replica = 1;
+}
+
+message DiskPrepareRemoveRequest {
+  string name = 1;
+}
+
+message DiskPrepareRemoveResponse {
+  repeated PrepareRemoveAction operations = 1;
+}
+
+message DiskMarkAsRemovedRequest {
+  string name = 1;
+}
+
+message DiskMarkAsRemovedResponse {
+  Replica replica = 1;
+}
+
+message RebuildingSetRequest {
+  bool rebuilding = 1;
+}
+
+message RebuildingSetResponse {
+  Replica replica = 1;
+}
+
+message RevisionCounterSetRequest {
+  int64 counter = 1;
+}
+
+message RevisionCounterSetResponse {
+  Replica replica = 1;
+}
+
+message DiskInfo {
+  string name = 1;
+  string parent = 2;
+  map<string, bool> children = 3;
+  bool removed = 4;
+  bool user_created = 5;
+  string created = 6;
+  string size = 7;
+  map<string, string> labels = 8;
+}
+
+message Replica {
+  bool dirty = 1;
+  bool rebuilding = 2;
+  string head = 3;
+  string parent = 4;
+  string size = 5;
+  int64 sector_size = 6;
+  string backing_file = 7;
+  string state = 8;
+  repeated string chain = 9;
+  map<string, DiskInfo> disks = 10;
+  int32 remain_snapshots = 11;
+  int64 revision_counter = 12;
+  int64 last_modify_time = 13;
+  int64 head_file_size = 14;
+  bool revision_counter_disabled = 15;
+}
+
+message PrepareRemoveAction {
+  string action = 1;
+  string source = 2;
+  string target = 3;
+}

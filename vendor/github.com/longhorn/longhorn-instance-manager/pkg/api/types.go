@@ -1,12 +1,7 @@
 package api
 
 import (
-	"context"
-
-	"github.com/pkg/errors"
-	"google.golang.org/grpc"
-
-	"github.com/longhorn/longhorn-instance-manager/pkg/rpc"
+	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
 type Process struct {
@@ -57,25 +52,13 @@ func RPCToProcessStatus(obj *rpc.ProcessStatus) ProcessStatus {
 }
 
 type ProcessStream struct {
-	conn      *grpc.ClientConn
-	ctxCancel context.CancelFunc
-	stream    rpc.ProcessManagerService_ProcessWatchClient
+	stream rpc.ProcessManagerService_ProcessWatchClient
 }
 
-func NewProcessStream(conn *grpc.ClientConn, ctxCancel context.CancelFunc, stream rpc.ProcessManagerService_ProcessWatchClient) *ProcessStream {
+func NewProcessStream(stream rpc.ProcessManagerService_ProcessWatchClient) *ProcessStream {
 	return &ProcessStream{
-		conn,
-		ctxCancel,
 		stream,
 	}
-}
-
-func (s *ProcessStream) Close() error {
-	s.ctxCancel()
-	if err := s.conn.Close(); err != nil {
-		return errors.Wrapf(err, "error closing process watcher gRPC connection")
-	}
-	return nil
 }
 
 func (s *ProcessStream) Recv() (*Process, error) {
@@ -86,26 +69,14 @@ func (s *ProcessStream) Recv() (*Process, error) {
 	return RPCToProcess(resp), nil
 }
 
-func NewLogStream(conn *grpc.ClientConn, ctxCancel context.CancelFunc, stream rpc.ProcessManagerService_ProcessLogClient) *LogStream {
+func NewLogStream(stream rpc.ProcessManagerService_ProcessLogClient) *LogStream {
 	return &LogStream{
-		conn,
-		ctxCancel,
 		stream,
 	}
 }
 
 type LogStream struct {
-	conn      *grpc.ClientConn
-	ctxCancel context.CancelFunc
-	stream    rpc.ProcessManagerService_ProcessLogClient
-}
-
-func (s *LogStream) Close() error {
-	s.ctxCancel()
-	if err := s.conn.Close(); err != nil {
-		return errors.Wrapf(err, "error closing logs gRPC connection")
-	}
-	return nil
+	stream rpc.ProcessManagerService_ProcessLogClient
 }
 
 func (s *LogStream) Recv() (string, error) {

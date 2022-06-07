@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,8 +32,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -57,9 +57,7 @@ type SettingController struct {
 
 	ds *datastore.DataStore
 
-	sStoreSynced  cache.InformerSynced
-	nStoreSynced  cache.InformerSynced
-	btStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	// upgrade checker
 	lastUpgradeCheckedTimestamp time.Time
@@ -97,9 +95,6 @@ func NewSettingController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	settingInformer lhinformers.SettingInformer,
-	nodeInformer lhinformers.NodeInformer,
-	backupTargetInfomer lhinformers.BackupTargetInformer,
 	kubeClient clientset.Interface,
 	namespace, controllerID, version string) *SettingController {
 
@@ -119,28 +114,27 @@ func NewSettingController(
 
 		ds: ds,
 
-		sStoreSynced:  settingInformer.Informer().HasSynced,
-		nStoreSynced:  nodeInformer.Informer().HasSynced,
-		btStoreSynced: backupTargetInfomer.Informer().HasSynced,
-
 		version: version,
 	}
 
-	settingInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.SettingInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    sc.enqueueSetting,
 		UpdateFunc: func(old, cur interface{}) { sc.enqueueSetting(cur) },
 		DeleteFunc: sc.enqueueSetting,
 	}, settingControllerResyncPeriod)
+	sc.cacheSyncs = append(sc.cacheSyncs, ds.SettingInformer.HasSynced)
 
-	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.NodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    sc.enqueueSettingForNode,
 		UpdateFunc: func(old, cur interface{}) { sc.enqueueSettingForNode(cur) },
 		DeleteFunc: sc.enqueueSettingForNode,
 	}, 0)
+	sc.cacheSyncs = append(sc.cacheSyncs, ds.NodeInformer.HasSynced)
 
-	backupTargetInfomer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.BackupTargetInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		DeleteFunc: sc.enqueueSettingForBackupTarget,
 	}, 0)
+	sc.cacheSyncs = append(sc.cacheSyncs, ds.BackupTargetInformer.HasSynced)
 
 	return sc
 }
@@ -152,7 +146,7 @@ func (sc *SettingController) Run(stopCh <-chan struct{}) {
 	sc.logger.Info("Start Longhorn Setting controller")
 	defer sc.logger.Info("Shutting down Longhorn Setting controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn settings", stopCh, sc.sStoreSynced, sc.nStoreSynced, sc.btStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn settings", stopCh, sc.cacheSyncs...) {
 		return
 	}
 
@@ -231,6 +225,14 @@ func (sc *SettingController) syncSetting(key string) (err error) {
 		}
 	case string(types.SettingNamePriorityClass):
 		if err := sc.updatePriorityClass(); err != nil {
+			return err
+		}
+	case string(types.SettingNameKubernetesClusterAutoscalerEnabled):
+		if err := sc.updateKubernetesClusterAutoscalerEnabled(); err != nil {
+			return err
+		}
+	case string(types.SettingNameStorageNetwork):
+		if err := sc.updateCNI(); err != nil {
 			return err
 		}
 	default:
@@ -570,6 +572,100 @@ func (sc *SettingController) updatePriorityClass() error {
 	return nil
 }
 
+func (sc *SettingController) updateKubernetesClusterAutoscalerEnabled() error {
+	// IM pods annotation will be handled in the instance manager controller
+
+	clusterAutoscalerEnabled, err := sc.ds.GetSettingAsBool(types.SettingNameKubernetesClusterAutoscalerEnabled)
+	if err != nil {
+		return err
+	}
+
+	evictKey := types.KubernetesClusterAutoscalerSafeToEvictKey
+
+	longhornUI, err := sc.ds.GetDeployment(types.LonghornUIDeploymentName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return errors.Wrapf(err, "failed to get %v deployment", types.LonghornUIDeploymentName)
+	}
+
+	deploymentList, err := sc.ds.ListDeploymentWithLabels(types.GetBaseLabelsForSystemManagedComponent())
+	if err != nil {
+		return errors.Wrapf(err, "failed to list Longhorn deployments for %v annotation update", types.KubernetesClusterAutoscalerSafeToEvictKey)
+	}
+
+	deploymentList = append(deploymentList, longhornUI)
+	for _, dp := range deploymentList {
+		if !util.HasLocalStorageInDeployment(dp) {
+			continue
+		}
+
+		anno := dp.Spec.Template.Annotations
+		if anno == nil {
+			anno = map[string]string{}
+		}
+		if clusterAutoscalerEnabled {
+			if value, exists := anno[evictKey]; exists && value == strconv.FormatBool(clusterAutoscalerEnabled) {
+				continue
+			}
+
+			anno[evictKey] = strconv.FormatBool(clusterAutoscalerEnabled)
+			sc.logger.Infof("Update the %v annotation to %v for %v", types.KubernetesClusterAutoscalerSafeToEvictKey, clusterAutoscalerEnabled, dp.Name)
+		} else {
+			if _, exists := anno[evictKey]; !exists {
+				continue
+			}
+
+			delete(anno, evictKey)
+			sc.logger.Infof("Delete the %v annotation for %v", types.KubernetesClusterAutoscalerSafeToEvictKey, clusterAutoscalerEnabled, dp.Name)
+		}
+		dp.Spec.Template.Annotations = anno
+		if _, err := sc.ds.UpdateDeployment(dp); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (sc *SettingController) updateCNI() error {
+	storageNetwork, err := sc.ds.GetSetting(types.SettingNameStorageNetwork)
+	if err != nil {
+		return err
+	}
+
+	volumesDetached, err := sc.ds.AreAllVolumesDetached()
+	if err != nil {
+		return errors.Wrapf(err, "failed to check volume detachment for %v setting update", types.SettingNameStorageNetwork)
+	}
+
+	if !volumesDetached {
+		return errors.Errorf("cannot apply %v setting to Longhorn workloads when there are attached volumes", types.SettingNameStorageNetwork)
+	}
+
+	nadAnnot := string(types.CNIAnnotationNetworks)
+	imPodList, err := sc.ds.ListInstanceManagerPods()
+	if err != nil {
+		return errors.Wrapf(err, "failed to list instance manager Pods for %v setting update", types.SettingNameStorageNetwork)
+	}
+
+	bimPodList, err := sc.ds.ListBackingImageManagerPods()
+	if err != nil {
+		return errors.Wrapf(err, "failed to list backing image manager Pods for %v setting update", types.SettingNameStorageNetwork)
+	}
+
+	pods := append(imPodList, bimPodList...)
+	for _, pod := range pods {
+		if pod.Annotations[nadAnnot] == storageNetwork.Value {
+			continue
+		}
+
+		if err := sc.ds.DeletePod(pod.Name); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func getFinalTolerations(existingTolerations, lastAppliedTolerations, newTolerations map[string]v1.Toleration) []v1.Toleration {
 	resultMap := make(map[string]v1.Toleration)
 
@@ -722,7 +818,7 @@ func (sc *SettingController) syncUpgradeChecker() error {
 		return err
 	}
 
-	if upgradeCheckerEnabled == false {
+	if !upgradeCheckerEnabled {
 		if latestLonghornVersion.Value != "" {
 			latestLonghornVersion.Value = ""
 			if _, err := sc.ds.UpdateSetting(latestLonghornVersion); err != nil {

@@ -1,3 +1,7 @@
+/*
+Package controller contains interfaces, structs, and functions that can be used to create shared controllers for
+managing clients, caches, and handlers for multiple types aka GroupVersionKinds.
+*/
 package controller
 
 import (
@@ -8,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rancher/lasso/pkg/log"
+	"github.com/rancher/lasso/pkg/metrics"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,6 +26,10 @@ const maxTimeout2min = 2 * time.Minute
 
 type Handler interface {
 	OnChange(key string, obj runtime.Object) error
+}
+
+type ResourceVersionGetter interface {
+	GetResourceVersion() string
 }
 
 type HandlerFunc func(key string, obj runtime.Object) error
@@ -57,7 +66,8 @@ type startKey struct {
 }
 
 type Options struct {
-	RateLimiter workqueue.RateLimiter
+	RateLimiter            workqueue.RateLimiter
+	SyncOnlyChangedObjects bool
 }
 
 func New(name string, informer cache.SharedIndexInformer, startCache func(context.Context) error, handler Handler, opts *Options) Controller {
@@ -74,7 +84,11 @@ func New(name string, informer cache.SharedIndexInformer, startCache func(contex
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleObject,
 		UpdateFunc: func(old, new interface{}) {
-			controller.handleObject(new)
+			if !opts.SyncOnlyChangedObjects || old.(ResourceVersionGetter).GetResourceVersion() != new.(ResourceVersionGetter).GetResourceVersion() {
+				// If syncOnlyChangedObjects is disabled, objects will be handled regardless of whether an update actually took place.
+				// Otherwise, objects will only be handled if they have changed
+				controller.handleObject(new)
+			}
 		},
 		DeleteFunc: controller.handleObject,
 	})
@@ -135,6 +149,9 @@ func (c *controller) run(workers int, stopCh <-chan struct{}) {
 	}
 
 	<-stopCh
+	c.startLock.Lock()
+	defer c.startLock.Unlock()
+	c.started = false
 	log.Infof("Shutting down %s workers", c.name)
 }
 
@@ -206,6 +223,7 @@ func (c *controller) processSingleItem(obj interface{}) error {
 func (c *controller) syncHandler(key string) error {
 	obj, exists, err := c.informer.GetStore().GetByKey(key)
 	if err != nil {
+		metrics.IncTotalHandlerExecutions(c.name, "", true)
 		return err
 	}
 	if !exists {

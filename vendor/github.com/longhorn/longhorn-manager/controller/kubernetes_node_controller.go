@@ -9,12 +9,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -24,8 +23,7 @@ import (
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type KubernetesNodeController struct {
@@ -38,18 +36,13 @@ type KubernetesNodeController struct {
 
 	ds *datastore.DataStore
 
-	nStoreSynced  cache.InformerSynced
-	sStoreSynced  cache.InformerSynced
-	knStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewKubernetesNodeController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	nodeInformer lhinformers.NodeInformer,
-	settingInformer lhinformers.SettingInformer,
-	kubeNodeInformer coreinformers.NodeInformer,
 	kubeClient clientset.Interface,
 	controllerID string) *KubernetesNodeController {
 
@@ -67,24 +60,22 @@ func NewKubernetesNodeController(
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-kubernetes-node-controller"}),
 
 		ds: ds,
-
-		nStoreSynced:  nodeInformer.Informer().HasSynced,
-		sStoreSynced:  settingInformer.Informer().HasSynced,
-		knStoreSynced: kubeNodeInformer.Informer().HasSynced,
 	}
 
-	kubeNodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.KubeNodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(old, cur interface{}) { knc.enqueueNode(cur) },
 		DeleteFunc: knc.enqueueNode,
 	})
+	knc.cacheSyncs = append(knc.cacheSyncs, ds.KubeNodeInformer.HasSynced)
 
-	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.NodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    knc.enqueueLonghornNode,
 		UpdateFunc: func(old, cur interface{}) { knc.enqueueLonghornNode(cur) },
 		DeleteFunc: knc.enqueueLonghornNode,
 	}, 0)
+	knc.cacheSyncs = append(knc.cacheSyncs, ds.NodeInformer.HasSynced)
 
-	settingInformer.Informer().AddEventHandlerWithResyncPeriod(
+	ds.SettingInformer.AddEventHandlerWithResyncPeriod(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: isSettingCreateDefaultDiskLabeledNodes,
 			Handler: cache.ResourceEventHandlerFuncs{
@@ -92,6 +83,7 @@ func NewKubernetesNodeController(
 				UpdateFunc: func(old, cur interface{}) { knc.enqueueSetting(cur) },
 			},
 		}, 0)
+	knc.cacheSyncs = append(knc.cacheSyncs, ds.SettingInformer.HasSynced)
 
 	return knc
 }
@@ -99,7 +91,7 @@ func NewKubernetesNodeController(
 func isSettingCreateDefaultDiskLabeledNodes(obj interface{}) bool {
 	setting, ok := obj.(*longhorn.Setting)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			return false
 		}
@@ -121,8 +113,7 @@ func (knc *KubernetesNodeController) Run(workers int, stopCh <-chan struct{}) {
 	logrus.Infof("Start Longhorn Kubernetes node controller")
 	defer logrus.Infof("Shutting down Longhorn Kubernetes node controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn kubernetes node", stopCh,
-		knc.nStoreSynced, knc.sStoreSynced, knc.knStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn kubernetes node", stopCh, knc.cacheSyncs...) {
 		return
 	}
 
@@ -242,7 +233,7 @@ func (knc *KubernetesNodeController) enqueueSetting(obj interface{}) {
 func (knc *KubernetesNodeController) enqueueLonghornNode(obj interface{}) {
 	lhNode, ok := obj.(*longhorn.Node)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -262,7 +253,7 @@ func (knc *KubernetesNodeController) enqueueLonghornNode(obj interface{}) {
 func (knc *KubernetesNodeController) enqueueNode(node interface{}) {
 	key, err := controller.KeyFunc(node)
 	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", node, err))
+		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", node, err))
 		return
 	}
 

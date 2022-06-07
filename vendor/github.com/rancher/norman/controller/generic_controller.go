@@ -7,7 +7,6 @@ import (
 
 	errors2 "github.com/pkg/errors"
 	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/norman/metrics"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -58,12 +57,8 @@ func (g *genericController) AddHandler(ctx context.Context, name string, handler
 			return obj, nil
 		}
 		logrus.Tracef("%s calling handler %s %s", g.name, name, key)
-		metrics.IncTotalHandlerExecution(g.name, name)
 		result, err := handler(key, obj)
 		runtimeObject, _ := result.(runtime.Object)
-		if err != nil && !ignoreError(err, false) {
-			metrics.IncTotalHandlerFailure(g.name, name, key)
-		}
 		if _, ok := err.(*ForgetError); ok {
 			logrus.Tracef("%v %v completed with dropped err: %v", g.name, key, err)
 			return runtimeObject, controller.ErrIgnore

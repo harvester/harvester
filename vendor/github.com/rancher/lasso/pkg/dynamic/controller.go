@@ -111,7 +111,7 @@ func (c *Controller) OnChange(ctx context.Context, name string, matcher GVKMatch
 	})
 }
 
-func (c *Controller) GetCache(ctx context.Context, gvk schema.GroupVersionKind) (cache.SharedIndexInformer, bool, error) {
+func (c *Controller) getCache(ctx context.Context, gvk schema.GroupVersionKind) (cache.SharedIndexInformer, bool, error) {
 	if c.cacheFactory.WaitForCacheSync(ctx)[gvk] {
 		cache, err := c.cacheFactory.ForKind(gvk)
 		return cache, true, err
@@ -157,7 +157,7 @@ outer:
 			continue
 		}
 
-		informer, shared, err := c.GetCache(timeoutCtx, gvk)
+		informer, shared, err := c.getCache(timeoutCtx, gvk)
 		if err != nil {
 			errs = append(errs, err)
 			log.Errorf("Failed to get shared cache for %v: %v", gvk, err)
@@ -235,6 +235,14 @@ outer:
 	}
 
 	return nil
+}
+
+func (c *Controller) GetCache(_ context.Context, gvk schema.GroupVersionKind) (cache.SharedIndexInformer, bool, error) {
+	w, err := c.getWatcherForGVK(gvk)
+	if err != nil {
+		return nil, false, err
+	}
+	return w.informer, w.informer.HasSynced(), nil
 }
 
 func (c *Controller) getWatcherForGVK(gvk schema.GroupVersionKind) (*watcher, error) {

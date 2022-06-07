@@ -69,7 +69,6 @@ func SetDefaults_FeatureVendorID(obj *FeatureVendorID) {
 func SetDefaults_DiskDevice(obj *DiskDevice) {
 	if obj.Disk == nil &&
 		obj.CDRom == nil &&
-		obj.Floppy == nil &&
 		obj.LUN == nil {
 		obj.Disk = &DiskTarget{}
 	}
@@ -85,12 +84,6 @@ func SetDefaults_CDRomTarget(obj *CDRomTarget) {
 	if obj.ReadOnly == nil {
 		obj.ReadOnly = _true
 	}
-	if obj.Tray == "" {
-		obj.Tray = TrayStateClosed
-	}
-}
-
-func SetDefaults_FloppyTarget(obj *FloppyTarget) {
 	if obj.Tray == "" {
 		obj.Tray = TrayStateClosed
 	}
@@ -135,7 +128,7 @@ func setDefaults_Disk(obj *VirtualMachineInstance) {
 	// Setting SATA as the default bus since it is typically supported out of the box by
 	// guest operating systems (we support only q35 and therefore IDE is not supported)
 	// TODO: consider making this OS-specific (VIRTIO for linux, SATA for others)
-	bus := "sata"
+	bus := DiskBusSATA
 
 	for i := range obj.Spec.Domain.Devices.Disks {
 		disk := &obj.Spec.Domain.Devices.Disks[i].DiskDevice

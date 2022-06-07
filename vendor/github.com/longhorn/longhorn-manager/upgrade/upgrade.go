@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
 	"github.com/longhorn/longhorn-manager/types"
 	upgradeutil "github.com/longhorn/longhorn-manager/upgrade/util"
@@ -34,7 +34,7 @@ import (
 	"github.com/longhorn/longhorn-manager/upgrade/v111to120"
 	"github.com/longhorn/longhorn-manager/upgrade/v120to121"
 	"github.com/longhorn/longhorn-manager/upgrade/v122to123"
-	"github.com/longhorn/longhorn-manager/upgrade/v1alpha1"
+	"github.com/longhorn/longhorn-manager/upgrade/v1beta1"
 )
 
 const (
@@ -52,6 +52,11 @@ func Upgrade(kubeconfigPath, currentNodeID string) error {
 	if err != nil {
 		return errors.Wrap(err, "unable to get client config")
 	}
+
+	// There is only one leading Longhorn manager that is doing modification to the CRs.
+	// Increase this value so that leading Longhorn manager can finish upgrading faster
+	config.Burst = 1000
+	config.QPS = 1000
 
 	kubeClient, err := clientset.NewForConfig(config)
 	if err != nil {
@@ -152,31 +157,21 @@ func doAPIVersionUpgrade(namespace string, config *restclient.Config, lhClient *
 
 	crdAPIVersion := ""
 
-	crdAPIVersionSetting, err := lhClient.LonghornV1beta1().Settings(namespace).Get(context.TODO(), string(types.SettingNameCRDAPIVersion), metav1.GetOptions{})
+	crdAPIVersionSetting, err := lhClient.LonghornV1beta2().Settings(namespace).Get(context.TODO(), string(types.SettingNameCRDAPIVersion), metav1.GetOptions{})
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
-		}
-		// v1alpha1 doesn't have a setting entry for crd-api-version, need to create
-		crdAPIVersionSetting = &longhorn.Setting{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: string(types.SettingNameCRDAPIVersion),
-			},
-			Value: "",
-		}
-		crdAPIVersionSetting, err = lhClient.LonghornV1beta1().Settings(namespace).Create(context.TODO(), crdAPIVersionSetting, metav1.CreateOptions{})
-		if err != nil {
-			return errors.Wrap(err, "cannot create CRDAPIVersionSetting")
 		}
 	} else {
 		crdAPIVersion = crdAPIVersionSetting.Value
 	}
 
 	if crdAPIVersion != "" &&
-		crdAPIVersion != types.CRDAPIVersionV1alpha1 &&
-		crdAPIVersion != types.CRDAPIVersionV1beta1 {
+		crdAPIVersion != types.CRDAPIVersionV1beta1 &&
+		crdAPIVersion != types.CRDAPIVersionV1beta2 {
 		return fmt.Errorf("unrecognized CRD API version %v", crdAPIVersion)
 	}
+
 	if crdAPIVersion == types.CurrentCRDAPIVersion {
 		logrus.Info("No API version upgrade is needed")
 		return nil
@@ -184,29 +179,33 @@ func doAPIVersionUpgrade(namespace string, config *restclient.Config, lhClient *
 
 	switch crdAPIVersion {
 	case "":
-		// it can be a new installation or v1alpha1
-		isV1alpha1, err := v1alpha1.IsCRDVersionMatch(config, namespace)
+		// upgradable: new installation
+		// non-upgradable: error or non-supported version (v1alpha1 which cannot upgrade directly)
+		upgradable, err := v1beta1.CanUpgrade(config, namespace)
 		if err != nil {
-			logrus.Warnf("Cannot verify current CRD version, assume it's not v1alpha1: %v", err)
-		}
-		if !isV1alpha1 {
-			crdAPIVersionSetting.Value = types.CurrentCRDAPIVersion
-			if _, err := lhClient.LonghornV1beta1().Settings(namespace).Update(context.TODO(), crdAPIVersionSetting, metav1.UpdateOptions{}); err != nil {
-				return errors.Wrapf(err, "cannot finish CRD API upgrade by setting the CRDAPIVersionSetting to %v", types.CurrentCRDAPIVersion)
-			}
-			logrus.Infof("Initialized CRD API Version to %v", types.CurrentCRDAPIVersion)
-			break
-		}
-		fallthrough
-	case types.CRDAPIVersionV1alpha1:
-		if types.CurrentCRDAPIVersion != types.CRDAPIVersionV1beta1 {
-			return fmt.Errorf("cannot upgrade from %v to %v directly", types.CRDAPIVersionV1alpha1, types.CurrentCRDAPIVersion)
-		}
-		if err := v1alpha1.UpgradeFromV1alpha1ToV1beta1(config, namespace, lhClient); err != nil {
 			return err
 		}
-		crdAPIVersionSetting.Value = types.CRDAPIVersionV1beta1
-		if _, err := lhClient.LonghornV1beta1().Settings(namespace).Update(context.TODO(), crdAPIVersionSetting, metav1.UpdateOptions{}); err != nil {
+
+		if upgradable {
+			crdAPIVersionSetting = &longhorn.Setting{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: string(types.SettingNameCRDAPIVersion),
+				},
+				Value: types.CurrentCRDAPIVersion,
+			}
+			_, err = lhClient.LonghornV1beta2().Settings(namespace).Create(context.TODO(), crdAPIVersionSetting, metav1.CreateOptions{})
+			if err != nil && !apierrors.IsAlreadyExists(err) {
+				return errors.Wrap(err, "cannot create CRDAPIVersionSetting")
+			}
+			logrus.Infof("New %v installation", types.CurrentCRDAPIVersion)
+		}
+	case types.CRDAPIVersionV1beta1:
+		logrus.Infof("Upgrading from %v to %v", types.CRDAPIVersionV1beta1, types.CurrentCRDAPIVersion)
+		if err := v1beta1.FixupCRs(config, namespace, lhClient); err != nil {
+			return err
+		}
+		crdAPIVersionSetting.Value = types.CRDAPIVersionV1beta2
+		if _, err := lhClient.LonghornV1beta2().Settings(namespace).Update(context.TODO(), crdAPIVersionSetting, metav1.UpdateOptions{}); err != nil {
 			return errors.Wrapf(err, "cannot finish CRD API upgrade by setting the CRDAPIVersionSetting to %v", types.CurrentCRDAPIVersion)
 		}
 		logrus.Infof("CRD has been upgraded to %v", crdAPIVersionSetting.Value)

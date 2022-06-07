@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,7 +32,7 @@ func GenerateName(prefix string) string {
 }
 
 func NewUUID() string {
-	return uuid.NewV4().String()
+	return uuid.New().String()
 }
 
 func GetChecksum(data []byte) string {
