@@ -3,13 +3,21 @@ package cache
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/rancher/lasso/pkg/client"
+	"github.com/rancher/lasso/pkg/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
+)
+
+const (
+	// in minutes
+	resyncDefault = 600
 )
 
 type Options struct {
@@ -53,12 +61,25 @@ func applyDefaultCacheOptions(opts *Options) *Options {
 		newOpts = *opts
 	}
 	if newOpts.Resync == 0 {
-		newOpts.Resync = 10 * time.Hour
+		newOpts.Resync = getDefaultResyncInterval()
 	}
 	if newOpts.TweakList == nil {
 		newOpts.TweakList = func(*metav1.ListOptions) {}
 	}
 	return &newOpts
+}
+
+func getDefaultResyncInterval() time.Duration {
+	cattleResyncDefaultFromEnv := os.Getenv("CATTLE_RESYNC_DEFAULT")
+	if cattleResyncDefaultFromEnv == "" {
+		return resyncDefault * time.Minute
+	}
+	resyncDefaultFromEnv, err := strconv.Atoi(cattleResyncDefaultFromEnv)
+	if err != nil {
+		log.Errorf("Lasso: Unable to use resync interval value [%s] from CATTLE_RESYNC_DEFAULT environment variable. Using default [%d].", cattleResyncDefaultFromEnv, resyncDefault)
+		return resyncDefault * time.Minute
+	}
+	return time.Duration(resyncDefaultFromEnv) * time.Minute
 }
 
 type deferredCache struct {

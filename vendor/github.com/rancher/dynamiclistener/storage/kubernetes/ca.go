@@ -56,7 +56,7 @@ func createAndStoreClientCert(secrets v1controller.SecretClient, namespace strin
 		return nil, err
 	}
 
-	certPem, keyPem, err := factory.Marshal(cert, key)
+	keyPem, certPem, err := factory.MarshalChain(key, cert, caCert)
 	if err != nil {
 		return nil, err
 	}

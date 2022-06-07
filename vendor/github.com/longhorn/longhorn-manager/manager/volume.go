@@ -14,15 +14,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/longhorn/backupstore"
-
 	"github.com/longhorn/longhorn-manager/datastore"
-	"github.com/longhorn/longhorn-manager/engineapi"
 	"github.com/longhorn/longhorn-manager/scheduler"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type VolumeManager struct {
@@ -146,14 +143,6 @@ func (m *VolumeManager) GetReplicasSorted(vName string) ([]*longhorn.Replica, er
 	return replicas, nil
 }
 
-func (m *VolumeManager) getDefaultReplicaCount() (int, error) {
-	c, err := m.ds.GetSettingAsInt(types.SettingNameDefaultReplicaCount)
-	if err != nil {
-		return 0, err
-	}
-	return int(c), nil
-}
-
 func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurringJobSelector []longhorn.VolumeRecurringJob) (v *longhorn.Volume, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "unable to create volume %v", name)
@@ -161,118 +150,6 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 			logrus.Errorf("manager: unable to create volume %v: %+v: %v", name, spec, err)
 		}
 	}()
-
-	name = util.AutoCorrectName(name, datastore.NameMaximumLength)
-	if !util.ValidateName(name) {
-		return nil, fmt.Errorf("invalid name %v", name)
-	}
-
-	size := spec.Size
-	if spec.FromBackup != "" {
-		bName, bvName, _, err := backupstore.DecodeBackupURL(spec.FromBackup)
-		if err != nil {
-			return nil, fmt.Errorf("cannot get backup and volume name from backup URL %v: %v", spec.FromBackup, err)
-		}
-
-		bv, err := m.ds.GetBackupVolumeRO(bvName)
-		if err != nil {
-			return nil, fmt.Errorf("cannot get backup volume %s: %v", bvName, err)
-		}
-		if bv != nil && bv.Status.BackingImageName != "" {
-			if spec.BackingImage == "" {
-				spec.BackingImage = bv.Status.BackingImageName
-				logrus.Debugf("Since the backing image is not specified during the restore, "+
-					"the previous backing image %v used by backup volume %v will be set for volume %v creation",
-					bv.Status.BackingImageName, bvName, name)
-			}
-			bi, err := m.GetBackingImage(spec.BackingImage)
-			if err != nil {
-				return nil, err
-			}
-			// Validate the checksum only when the chosen backing image name is the same as the record in the backup volume.
-			// If user picks up a backing image different from `backupVolume.BackingImageName`, there is no need to do verification.
-			if spec.BackingImage == bv.Status.BackingImageName {
-				if bv.Status.BackingImageChecksum != "" && bi.Status.Checksum != "" &&
-					bv.Status.BackingImageChecksum != bi.Status.Checksum {
-					return nil, fmt.Errorf("backing image %v current checksum doesn't match the recoreded checksum in backup volume", spec.BackingImage)
-				}
-			}
-		}
-
-		backup, err := m.ds.GetBackupRO(bName)
-		if err != nil {
-			return nil, fmt.Errorf("cannot get backup %s: %v", bName, err)
-		}
-
-		logrus.Infof("Override size of volume %v to %v because it's from backup", name, backup.Status.VolumeSize)
-		// formalize the final size to the unit in bytes
-		size, err = util.ConvertSize(backup.Status.VolumeSize)
-		if err != nil {
-			return nil, fmt.Errorf("get invalid size for volume %v: %v", backup.Status.VolumeSize, err)
-		}
-	}
-
-	// make sure it's multiples of 4096
-	size = util.RoundUpSize(size)
-
-	if spec.NumberOfReplicas == 0 {
-		spec.NumberOfReplicas, err = m.getDefaultReplicaCount()
-		if err != nil {
-			return nil, errors.Wrap(err, "BUG: cannot get valid number for setting default replica count")
-		}
-		logrus.Infof("Use the default number of replicas %v", spec.NumberOfReplicas)
-	}
-
-	if string(spec.ReplicaAutoBalance) == "" {
-		spec.ReplicaAutoBalance = longhorn.ReplicaAutoBalanceIgnored
-		logrus.Infof("Use the %v to inherit global replicas auto-balance setting", spec.ReplicaAutoBalance)
-	}
-	if err := types.ValidateReplicaAutoBalance(spec.ReplicaAutoBalance); err != nil {
-		return nil, errors.Wrapf(err, "cannot create volume with replica auto-balance %v", spec.ReplicaAutoBalance)
-	}
-
-	if string(spec.DataLocality) == "" {
-		defaultDataLocality, err := m.GetSettingValueExisted(types.SettingNameDefaultDataLocality)
-		if err != nil {
-			return nil, errors.Wrapf(err, "cannot get valid mode for setting default data locality for volume: %v", name)
-		}
-		spec.DataLocality = longhorn.DataLocality(defaultDataLocality)
-	}
-	if err := types.ValidateDataLocality(spec.DataLocality); err != nil {
-		return nil, errors.Wrapf(err, "cannot create volume with data locality %v", spec.DataLocality)
-	}
-
-	if string(spec.AccessMode) == "" {
-		spec.AccessMode = longhorn.AccessModeReadWriteOnce
-	}
-
-	if spec.Migratable && spec.AccessMode != longhorn.AccessModeReadWriteMany {
-		return nil, fmt.Errorf("migratable volumes are only supported in ReadWriteMany (rwx) access mode")
-	}
-
-	defaultEngineImage, err := m.GetSettingValueExisted(types.SettingNameDefaultEngineImage)
-	if defaultEngineImage == "" {
-		return nil, fmt.Errorf("BUG: Invalid empty Setting.EngineImage")
-	}
-
-	// Check engine version before disable revision counter
-	if spec.RevisionCounterDisabled {
-		if ok, err := m.canDisableRevisionCounter(defaultEngineImage); !ok {
-			return nil, errors.Wrapf(err, "can not create volume with current engine image that doesn't support disable revision counter")
-		}
-	}
-
-	if !spec.Standby {
-		if spec.Frontend != longhorn.VolumeFrontendBlockDev && spec.Frontend != longhorn.VolumeFrontendISCSI {
-			return nil, fmt.Errorf("invalid volume frontend specified: %v", spec.Frontend)
-		}
-	}
-
-	if spec.BackingImage != "" {
-		if _, err := m.ds.GetBackingImage(spec.BackingImage); err != nil {
-			return nil, err
-		}
-	}
 
 	labels := map[string]string{}
 	for _, job := range recurringJobSelector {
@@ -285,7 +162,7 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 	}
 
 	if spec.DataSource != "" {
-		if err := m.verifyDataSourceForVolumeCreation(spec.DataSource, size); err != nil {
+		if err := m.verifyDataSourceForVolumeCreation(spec.DataSource, spec.Size); err != nil {
 			return nil, err
 		}
 	}
@@ -296,12 +173,12 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 			Labels: labels,
 		},
 		Spec: longhorn.VolumeSpec{
-			Size:                    size,
+			Size:                    spec.Size,
 			AccessMode:              spec.AccessMode,
 			Migratable:              spec.Migratable,
 			Encrypted:               spec.Encrypted,
 			Frontend:                spec.Frontend,
-			EngineImage:             defaultEngineImage,
+			EngineImage:             "",
 			FromBackup:              spec.FromBackup,
 			DataSource:              spec.DataSource,
 			NumberOfReplicas:        spec.NumberOfReplicas,
@@ -322,34 +199,6 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 	}
 	logrus.Debugf("Created volume %v: %+v", v.Name, v.Spec)
 	return v, nil
-}
-
-func (m *VolumeManager) verifyDataSourceForVolumeCreation(dataSource longhorn.VolumeDataSource, requestSize int64) (err error) {
-	defer func() {
-		err = errors.Wrapf(err, "failed to verify data source")
-	}()
-
-	if !types.IsValidVolumeDataSource(dataSource) {
-		return fmt.Errorf("in valid value for data source: %v", dataSource)
-	}
-
-	if types.IsDataFromVolume(dataSource) {
-		srcVolName := types.GetVolumeName(dataSource)
-		srcVol, err := m.ds.GetVolume(srcVolName)
-		if err != nil {
-			return err
-		}
-		if requestSize != srcVol.Spec.Size {
-			return fmt.Errorf("size of target volume (%v bytes) is different than size of source volume (%v bytes)", requestSize, srcVol.Spec.Size)
-		}
-
-		if snapName := types.GetSnapshotName(dataSource); snapName != "" {
-			if _, err := m.GetSnapshot(snapName, srcVolName); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 func (m *VolumeManager) Delete(name string) error {
@@ -578,14 +427,14 @@ func (m *VolumeManager) Salvage(volumeName string, replicaNames []string) (v *lo
 		}
 		isDownOrDeleted, err := m.ds.IsNodeDownOrDeleted(r.Spec.NodeID)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to check if the related node %v is still running for replica %v", r.Spec.NodeID, name)
+			return nil, fmt.Errorf("failed to check if the related node %v is still running for replica %v", r.Spec.NodeID, name)
 		}
 		if isDownOrDeleted {
-			return nil, fmt.Errorf("Unable to check if the related node %v is down or deleted for replica %v", r.Spec.NodeID, name)
+			return nil, fmt.Errorf("unable to check if the related node %v is down or deleted for replica %v", r.Spec.NodeID, name)
 		}
 		node, err := m.ds.GetNode(r.Spec.NodeID)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get the related node %v for replica %v", r.Spec.NodeID, name)
+			return nil, fmt.Errorf("failed to get the related node %v for replica %v", r.Spec.NodeID, name)
 		}
 		diskSchedulable := false
 		for _, diskStatus := range node.Status.DiskStatus {
@@ -597,7 +446,7 @@ func (m *VolumeManager) Salvage(volumeName string, replicaNames []string) (v *lo
 			}
 		}
 		if !diskSchedulable {
-			return nil, fmt.Errorf("Disk with UUID %v on node %v is unschedulable for replica %v", r.Spec.DiskID, r.Spec.NodeID, name)
+			return nil, fmt.Errorf("disk with UUID %v on node %v is unschedulable for replica %v", r.Spec.DiskID, r.Spec.NodeID, name)
 		}
 		if r.Spec.FailedAt == "" {
 			// already updated, ignore it for idempotency
@@ -1004,10 +853,6 @@ func (m *VolumeManager) UpdateReplicaCount(name string, count int) (v *longhorn.
 		err = errors.Wrapf(err, "unable to update replica count for volume %v", name)
 	}()
 
-	if err := types.ValidateReplicaCount(count); err != nil {
-		return nil, err
-	}
-
 	v, err = m.ds.GetVolume(name)
 	if err != nil {
 		return nil, err
@@ -1039,10 +884,6 @@ func (m *VolumeManager) UpdateReplicaAutoBalance(name string, inputSpec longhorn
 		err = errors.Wrapf(err, "unable to update replica auto-balance for volume %v", name)
 	}()
 
-	if err = types.ValidateReplicaAutoBalance(inputSpec); err != nil {
-		return nil, err
-	}
-
 	v, err = m.ds.GetVolume(name)
 	if err != nil {
 		return nil, err
@@ -1068,10 +909,6 @@ func (m *VolumeManager) UpdateDataLocality(name string, dataLocality longhorn.Da
 	defer func() {
 		err = errors.Wrapf(err, "unable to update data locality for volume %v", name)
 	}()
-
-	if err := types.ValidateDataLocality(dataLocality); err != nil {
-		return nil, err
-	}
 
 	v, err = m.ds.GetVolume(name)
 	if err != nil {
@@ -1099,10 +936,6 @@ func (m *VolumeManager) UpdateAccessMode(name string, accessMode longhorn.Access
 		err = errors.Wrapf(err, "unable to update access mode for volume %v", name)
 	}()
 
-	if err := types.ValidateAccessMode(accessMode); err != nil {
-		return nil, err
-	}
-
 	v, err = m.ds.GetVolume(name)
 	if err != nil {
 		return nil, err
@@ -1128,14 +961,30 @@ func (m *VolumeManager) UpdateAccessMode(name string, accessMode longhorn.Access
 	return v, nil
 }
 
-func (m *VolumeManager) canDisableRevisionCounter(engineImage string) (bool, error) {
-	cliAPIVersion, err := m.ds.GetEngineImageCLIAPIVersion(engineImage)
-	if err != nil {
-		return false, err
-	}
-	if cliAPIVersion < engineapi.CLIVersionFour {
-		return false, fmt.Errorf("current engine image version %v doesn't support disable revision counter", cliAPIVersion)
+func (m *VolumeManager) verifyDataSourceForVolumeCreation(dataSource longhorn.VolumeDataSource, requestSize int64) (err error) {
+	defer func() {
+		err = errors.Wrapf(err, "failed to verify data source")
+	}()
+
+	if !types.IsValidVolumeDataSource(dataSource) {
+		return fmt.Errorf("invalid value for data source: %v", dataSource)
 	}
 
-	return true, nil
+	if types.IsDataFromVolume(dataSource) {
+		srcVolName := types.GetVolumeName(dataSource)
+		srcVol, err := m.ds.GetVolume(srcVolName)
+		if err != nil {
+			return err
+		}
+		if requestSize != srcVol.Spec.Size {
+			return fmt.Errorf("size of target volume (%v bytes) is different than size of source volume (%v bytes)", requestSize, srcVol.Spec.Size)
+		}
+
+		if snapName := types.GetSnapshotName(dataSource); snapName != "" {
+			if _, err := m.GetSnapshot(snapName, srcVolName); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

@@ -67,10 +67,6 @@ func (s *Summary) DeepCopyInto(v *Summary) {
 }
 
 func dedupMessage(messages []string) []string {
-	if len(messages) <= 1 {
-		return messages
-	}
-
 	seen := map[string]bool{}
 	var result []string
 

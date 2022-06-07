@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/rancher/lasso/pkg/client"
-
+	"github.com/rancher/lasso/pkg/metrics"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -116,6 +116,7 @@ func (f *sharedCacheFactory) WaitForCacheSync(ctx context.Context) map[schema.Gr
 
 		informers := map[schema.GroupVersionKind]cache.SharedIndexInformer{}
 		for informerType, informer := range f.caches {
+			metrics.IncTotalCachedObjects(informerType.Group, informerType.Version, informerType.Kind, float64(len(informer.GetStore().List())))
 			if f.startedCaches[informerType] {
 				informers[informerType] = informer
 			}

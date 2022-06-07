@@ -15,7 +15,7 @@ import (
 // Direct retrieval from the API server should only be used for one-shot tasks.
 // For example, support bundle creation
 func (s *DataStore) GetLonghornEventList() (*corev1.EventList, error) {
-	return s.kubeClient.CoreV1().Events(s.namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: "involvedObject.apiVersion=longhorn.io/v1beta1"})
+	return s.kubeClient.CoreV1().Events(s.namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: "involvedObject.apiVersion=longhorn.io/v1beta2"})
 }
 
 // GetAllPodsList returns an uncached list of pods for the given namespace

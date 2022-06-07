@@ -54,7 +54,7 @@ type SnapshotCloneStatus struct {
 	SnapshotName       string `json:"snapshotName"`
 }
 
-type Snapshot struct {
+type SnapshotInfo struct {
 	Name        string            `json:"name"`
 	Parent      string            `json:"parent"`
 	Children    map[string]bool   `json:"children"`
@@ -65,8 +65,9 @@ type Snapshot struct {
 	Labels      map[string]string `json:"labels"`
 }
 
+// EngineSpec defines the desired state of the Longhorn engine
 type EngineSpec struct {
-	InstanceSpec
+	InstanceSpec              `json:""`
 	Frontend                  VolumeFrontend    `json:"frontend"`
 	ReplicaAddressMap         map[string]string `json:"replicaAddressMap"`
 	UpgradedReplicaAddressMap map[string]string `json:"upgradedReplicaAddressMap"`
@@ -78,6 +79,7 @@ type EngineSpec struct {
 	Active                    bool              `json:"active"`
 }
 
+// EngineStatus defines the observed state of the Longhorn engine
 type EngineStatus struct {
 	InstanceStatus           `json:""`
 	CurrentSize              int64                           `json:"currentSize,string"`
@@ -90,7 +92,7 @@ type EngineStatus struct {
 	PurgeStatus              map[string]*PurgeStatus         `json:"purgeStatus"`
 	RebuildStatus            map[string]*RebuildStatus       `json:"rebuildStatus"`
 	CloneStatus              map[string]*SnapshotCloneStatus `json:"cloneStatus"`
-	Snapshots                map[string]*Snapshot            `json:"snapshots"`
+	Snapshots                map[string]*SnapshotInfo        `json:"snapshots"`
 	SnapshotsError           string                          `json:"snapshotsError"`
 	IsExpanding              bool                            `json:"isExpanding"`
 	LastExpansionError       string                          `json:"lastExpansionError"`
@@ -99,18 +101,32 @@ type EngineStatus struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:shortName=lhe
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.currentState`,description="The current state of the engine"
+// +kubebuilder:printcolumn:name="Node",type=string,JSONPath=`.spec.nodeID`,description="The node that the engine is on"
+// +kubebuilder:printcolumn:name="InstanceManager",type=string,JSONPath=`.status.instanceManagerName`,description="The instance manager of the engine"
+// +kubebuilder:printcolumn:name="Image",type=string,JSONPath=`.status.currentImage`,description="The current image of the engine"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
+// Engine is where Longhorn stores engine object.
 type Engine struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
-	Spec              EngineSpec   `json:"spec"`
-	Status            EngineStatus `json:"status"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Spec EngineSpec `json:"spec,omitempty"`
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Status EngineStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// EngineList is a list of Engines.
 type EngineList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Engine `json:"items"`
 }

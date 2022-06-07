@@ -26,8 +26,7 @@ import (
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type BackupVolumeController struct {
@@ -43,17 +42,17 @@ type BackupVolumeController struct {
 
 	ds *datastore.DataStore
 
-	bvStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewBackupVolumeController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	backupVolumeInformer lhinformers.BackupVolumeInformer,
 	kubeClient clientset.Interface,
 	controllerID string,
-	namespace string) *BackupVolumeController {
+	namespace string,
+) *BackupVolumeController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(logrus.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -71,15 +70,14 @@ func NewBackupVolumeController(
 
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-backup-volume-controller"}),
-
-		bvStoreSynced: backupVolumeInformer.Informer().HasSynced,
 	}
 
-	backupVolumeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.BackupVolumeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bvc.enqueueBackupVolume,
 		UpdateFunc: func(old, cur interface{}) { bvc.enqueueBackupVolume(cur) },
 		DeleteFunc: bvc.enqueueBackupVolume,
 	})
+	bvc.cacheSyncs = append(bvc.cacheSyncs, ds.BackupVolumeInformer.HasSynced)
 
 	return bvc
 }
@@ -101,7 +99,7 @@ func (bvc *BackupVolumeController) Run(workers int, stopCh <-chan struct{}) {
 	bvc.logger.Infof("Start Longhorn Backup Volume controller")
 	defer bvc.logger.Infof("Shutting down Longhorn Backup Volume controller")
 
-	if !cache.WaitForNamedCacheSync(bvc.name, stopCh, bvc.bvStoreSynced) {
+	if !cache.WaitForNamedCacheSync(bvc.name, stopCh, bvc.cacheSyncs...) {
 		return
 	}
 	for i := 0; i < workers; i++ {
@@ -222,14 +220,14 @@ func (bvc *BackupVolumeController) reconcile(backupVolumeName string) (err error
 
 		// Delete the backup volume from the remote backup target
 		if backupTarget.Spec.BackupTargetURL != "" {
-			// Initialize a backup target client
-			backupTargetClient, err := getBackupTargetClient(bvc.ds, backupTarget)
-			if err != nil {
-				log.WithError(err).Error("Error init backup target client")
+			engineClientProxy, backupTargetConfig, err := getBackupTarget(bvc.controllerID, backupTarget, bvc.ds, log)
+			if err != nil || engineClientProxy == nil {
+				log.WithError(err).Error("Error init backup target clients")
 				return nil // Ignore error to prevent enqueue
 			}
+			defer engineClientProxy.Close()
 
-			if err := backupTargetClient.DeleteBackupVolume(backupVolumeName); err != nil {
+			if err := engineClientProxy.BackupVolumeDelete(backupTargetConfig.URL, backupVolumeName, backupTargetConfig.Credential); err != nil {
 				log.WithError(err).Error("Error clean up remote backup volume")
 				return err
 			}
@@ -258,15 +256,15 @@ func (bvc *BackupVolumeController) reconcile(backupVolumeName string) (err error
 		return nil
 	}
 
-	// Initialize a backup target client
-	backupTargetClient, err := getBackupTargetClient(bvc.ds, backupTarget)
+	engineClientProxy, backupTargetConfig, err := getBackupTarget(bvc.controllerID, backupTarget, bvc.ds, log)
 	if err != nil {
-		log.WithError(err).Error("Error init backup target client")
+		log.WithError(err).Error("Error init backup target clients")
 		return nil // Ignore error to prevent enqueue
 	}
+	defer engineClientProxy.Close()
 
 	// Get a list of all the backups that are stored in the backup target
-	res, err := backupTargetClient.ListBackupNames(backupVolumeName)
+	res, err := engineClientProxy.BackupNameList(backupTargetConfig.URL, backupVolumeName, backupTargetConfig.Credential)
 	if err != nil {
 		log.WithError(err).Error("Error listing backups from backup target")
 		return nil // Ignore error to prevent enqueue
@@ -321,8 +319,8 @@ func (bvc *BackupVolumeController) reconcile(backupVolumeName string) (err error
 		}
 	}
 
-	backupVolumeMetadataURL := backupstore.EncodeBackupURL("", backupVolumeName, backupTargetClient.URL)
-	configMetadata, err := backupTargetClient.GetConfigMetadata(backupVolumeMetadataURL)
+	backupVolumeMetadataURL := backupstore.EncodeBackupURL("", backupVolumeName, backupTargetConfig.URL)
+	configMetadata, err := engineClientProxy.BackupConfigMetaGet(backupVolumeMetadataURL, backupTargetConfig.Credential)
 	if err != nil {
 		log.WithError(err).Error("Error getting backup volume config metadata from backup target")
 		return nil // Ignore error to prevent enqueue
@@ -339,7 +337,7 @@ func (bvc *BackupVolumeController) reconcile(backupVolumeName string) (err error
 		return nil
 	}
 
-	backupVolumeInfo, err := backupTargetClient.InspectBackupVolumeConfig(backupVolumeMetadataURL)
+	backupVolumeInfo, err := engineClientProxy.BackupVolumeGet(backupVolumeMetadataURL, backupTargetConfig.Credential)
 	if err != nil {
 		log.WithError(err).Error("Error getting backup volume config from backup target")
 		return nil // Ignore error to prevent enqueue

@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	longhornv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned/typed/longhorn/v1beta1"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned/typed/longhorn/v1beta2"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -30,6 +31,7 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface
+	LonghornV1beta2() longhornv1beta2.LonghornV1beta2Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -37,11 +39,17 @@ type Interface interface {
 type Clientset struct {
 	*discovery.DiscoveryClient
 	longhornV1beta1 *longhornv1beta1.LonghornV1beta1Client
+	longhornV1beta2 *longhornv1beta2.LonghornV1beta2Client
 }
 
 // LonghornV1beta1 retrieves the LonghornV1beta1Client
 func (c *Clientset) LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface {
 	return c.longhornV1beta1
+}
+
+// LonghornV1beta2 retrieves the LonghornV1beta2Client
+func (c *Clientset) LonghornV1beta2() longhornv1beta2.LonghornV1beta2Interface {
+	return c.longhornV1beta2
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -69,6 +77,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
+	cs.longhornV1beta2, err = longhornv1beta2.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 
 	cs.DiscoveryClient, err = discovery.NewDiscoveryClientForConfig(&configShallowCopy)
 	if err != nil {
@@ -82,6 +94,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.longhornV1beta1 = longhornv1beta1.NewForConfigOrDie(c)
+	cs.longhornV1beta2 = longhornv1beta2.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -91,6 +104,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.longhornV1beta1 = longhornv1beta1.New(c)
+	cs.longhornV1beta2 = longhornv1beta2.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

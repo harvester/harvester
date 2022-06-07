@@ -12,14 +12,13 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -34,8 +33,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -61,11 +59,7 @@ type BackingImageDataSourceController struct {
 
 	backoff *flowcontrol.Backoff
 
-	bidsStoreSynced cache.InformerSynced
-	biStoreSynced   cache.InformerSynced
-	vStoreSynced    cache.InformerSynced
-	nStoreSynced    cache.InformerSynced
-	pStoreSynced    cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	lock       *sync.RWMutex
 	monitorMap map[string]chan struct{}
@@ -87,13 +81,9 @@ func NewBackingImageDataSourceController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	bidsInformer lhinformers.BackingImageDataSourceInformer,
-	biInformer lhinformers.BackingImageInformer,
-	volumeInformer lhinformers.VolumeInformer,
-	nodeInformer lhinformers.NodeInformer,
-	pInformer coreinformers.PodInformer,
 	kubeClient clientset.Interface,
-	namespace, controllerID, serviceAccount string) *BackingImageDataSourceController {
+	namespace, controllerID, serviceAccount string,
+) *BackingImageDataSourceController {
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(logrus.Infof)
@@ -113,38 +103,36 @@ func NewBackingImageDataSourceController(
 
 		backoff: flowcontrol.NewBackOff(time.Minute, time.Minute*5),
 
-		bidsStoreSynced: bidsInformer.Informer().HasSynced,
-		biStoreSynced:   biInformer.Informer().HasSynced,
-		vStoreSynced:    volumeInformer.Informer().HasSynced,
-		nStoreSynced:    nodeInformer.Informer().HasSynced,
-		pStoreSynced:    pInformer.Informer().HasSynced,
-
 		lock:       &sync.RWMutex{},
 		monitorMap: map[string]chan struct{}{},
 	}
 
-	bidsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageDataSourceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueBackingImageDataSource,
 		UpdateFunc: func(old, cur interface{}) { c.enqueueBackingImageDataSource(cur) },
 		DeleteFunc: c.enqueueBackingImageDataSource,
 	})
+	c.cacheSyncs = append(c.cacheSyncs, ds.BackingImageDataSourceInformer.HasSynced)
 
-	biInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueForBackingImage,
 		UpdateFunc: func(old, cur interface{}) { c.enqueueForBackingImage(cur) },
 		DeleteFunc: c.enqueueForBackingImage,
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.BackingImageInformer.HasSynced)
 
-	volumeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.VolumeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(old, cur interface{}) { c.enqueueForVolume(cur) },
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.VolumeInformer.HasSynced)
 
-	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.NodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, cur interface{}) { c.enqueueForLonghornNode(cur) },
 		DeleteFunc: c.enqueueForLonghornNode,
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.NodeInformer.HasSynced)
 
-	pInformer.Informer().AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
+	ds.PodInformer.AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
 		FilterFunc: isBackingImageDataSourcePod,
 		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.enqueueForBackingImageDataSourcePod,
@@ -152,6 +140,7 @@ func NewBackingImageDataSourceController(
 			DeleteFunc: c.enqueueForBackingImageDataSourcePod,
 		},
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.PodInformer.HasSynced)
 
 	return c
 }
@@ -163,7 +152,7 @@ func (c *BackingImageDataSourceController) Run(workers int, stopCh <-chan struct
 	logrus.Infof("Starting Longhorn backing image data source controller")
 	defer logrus.Infof("Shutting down Longhorn backing image data source controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn backing image data source", stopCh, c.bidsStoreSynced, c.biStoreSynced, c.vStoreSynced, c.nStoreSynced, c.pStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn backing image data source", stopCh, c.cacheSyncs...) {
 		return
 	}
 
@@ -220,6 +209,21 @@ func getLoggerForBackingImageDataSource(logger logrus.FieldLogger, bids *longhor
 			"parameters":             bids.Spec.Parameters,
 		},
 	)
+}
+
+func (c *BackingImageDataSourceController) getEngineClientProxy(e *longhorn.Engine) (engineapi.EngineClientProxy, error) {
+	engineCollection := &engineapi.EngineCollection{}
+	engineCliClient, err := engineCollection.NewEngineClient(&engineapi.EngineClientRequest{
+		EngineImage: e.Status.CurrentImage,
+		VolumeName:  e.Spec.VolumeName,
+		IP:          e.Status.IP,
+		Port:        e.Status.Port,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return engineapi.GetCompatibleClient(e, engineCliClient, c.ds, c.logger)
 }
 
 func (c *BackingImageDataSourceController) syncBackingImageDataSource(key string) (err error) {
@@ -332,6 +336,9 @@ func (c *BackingImageDataSourceController) cleanup(bids *longhorn.BackingImageDa
 		}
 	}
 
+	bids.Status.StorageIP = ""
+	bids.Status.IP = ""
+
 	return nil
 }
 
@@ -352,12 +359,12 @@ func (c *BackingImageDataSourceController) syncBackingImage(bids *longhorn.Backi
 	}()
 
 	if bi.Spec.Disks == nil {
-		bi.Spec.Disks = map[string]struct{}{}
+		bi.Spec.Disks = map[string]string{}
 	}
 
 	if !bids.Spec.FileTransferred {
 		if _, exists := bi.Spec.Disks[bids.Spec.DiskUUID]; !exists {
-			bi.Spec.Disks[bids.Spec.DiskUUID] = struct{}{}
+			bi.Spec.Disks[bids.Spec.DiskUUID] = ""
 		}
 	}
 
@@ -381,11 +388,11 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 	podFailed := false
 	podNotReadyMessage := ""
 	if pod == nil {
-		podNotReadyMessage = fmt.Sprintf("cannot find the pod dedicated to prepare the first backing image file")
+		podNotReadyMessage = "cannot find the pod dedicated to prepare the first backing image file"
 	} else if pod.Spec.NodeName != bids.Spec.NodeID {
 		podNotReadyMessage = fmt.Sprintf("pod spec node ID %v doesn't match the desired node ID %v", pod.Spec.NodeName, bids.Spec.NodeID)
 	} else if pod.DeletionTimestamp != nil {
-		podNotReadyMessage = fmt.Sprintf("the pod dedicated to prepare the first backing image file is being deleted")
+		podNotReadyMessage = "the pod dedicated to prepare the first backing image file is being deleted"
 	} else {
 		switch pod.Status.Phase {
 		case v1.PodRunning:
@@ -405,10 +412,19 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 	}
 
 	if podReady {
+		storageIP := c.ds.GetStorageIPFromPod(pod)
+		if bids.Status.StorageIP != storageIP {
+			bids.Status.StorageIP = storageIP
+		}
+		if bids.Status.IP != pod.Status.PodIP {
+			bids.Status.IP = pod.Status.PodIP
+		}
 		if !c.isMonitoring(bids.Name) {
 			c.startMonitoring(bids)
 		}
 	} else {
+		bids.Status.StorageIP = ""
+		bids.Status.IP = ""
 		if bids.Status.CurrentState != longhorn.BackingImageStateFailed {
 			if podFailed {
 				podLog := ""
@@ -450,7 +466,7 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 	}
 	if pod == nil {
 		// To avoid restarting backing image data source pod (for file preparation) too quickly or too frequently,
-		// Longhorn will leave failed backing image data source alone if the it is still in the backoff period.
+		// Longhorn will leave failed backing image data source alone if it is still in the backoff period.
 		// If the backoff period pass, Longhorn will recreate the pod and increase the Backoff period for the next possible failure.
 		isValidTypeForRetry := bids.Spec.SourceType == longhorn.BackingImageDataSourceTypeDownload || bids.Spec.SourceType == longhorn.BackingImageDataSourceTypeExportFromVolume
 		isInBackoffWindow := true
@@ -467,7 +483,7 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 			(isValidTypeForRetry && !isInBackoffWindow) {
 			// For recovering the backing image exported from volumes, the controller needs to update the state regardless of the pod being created immediately.
 			// Otherwise, the backing image data source will stay in state failed/unknown then the volume controller won't do auto attachment.
-			bids.Status.CurrentState = longhorn.BackingImageStatePending
+			bids.Status.CurrentState = ""
 			bids.Status.Message = ""
 			bids.Status.Progress = 0
 			bids.Status.Checksum = ""
@@ -546,7 +562,9 @@ func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodMani
 		"backing-image-manager", "--debug",
 		"data-source",
 		"--listen", fmt.Sprintf("%s:%d", "0.0.0.0", engineapi.BackingImageDataSourceDefaultPort),
-		"--file-name", engineapi.GetBackingImageDataSourceFileName(bids.Name, bi.Status.UUID),
+		"--sync-listen", fmt.Sprintf("%s:%d", "0.0.0.0", engineapi.BackingImageSyncServerDefaultPort),
+		"--name", bids.Name,
+		"--uuid", bids.Spec.UUID,
 		"--source-type", string(bids.Spec.SourceType),
 	}
 
@@ -580,7 +598,7 @@ func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodMani
 					ImagePullPolicy: imagePullPolicy,
 					Command:         cmd,
 					ReadinessProbe: &v1.Probe{
-						Handler: v1.Handler{
+						ProbeHandler: v1.ProbeHandler{
 							TCPSocket: &v1.TCPSocketAction{
 								Port: intstr.FromInt(engineapi.BackingImageDataSourceDefaultPort),
 							},
@@ -634,6 +652,16 @@ func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodMani
 		}
 	}
 
+	storageNetwork, err := c.ds.GetSetting(types.SettingNameStorageNetwork)
+	if err != nil {
+		return nil, err
+	}
+
+	nadAnnot := string(types.CNIAnnotationNetworks)
+	if storageNetwork.Value != types.CniNetworkNone {
+		podSpec.Annotations[nadAnnot] = types.CreateCniAnnotationFromSetting(storageNetwork)
+	}
+
 	return podSpec, nil
 }
 
@@ -671,18 +699,14 @@ func (c *BackingImageDataSourceController) prepareRunningParameters(bids *longho
 		}
 	}
 	if newSnapshotRequired {
-		engineCollection := &engineapi.EngineCollection{}
-		client, err := engineCollection.NewEngineClient(&engineapi.EngineClientRequest{
-			EngineImage: e.Status.CurrentImage,
-			VolumeName:  volumeName,
-			IP:          e.Status.IP,
-			Port:        e.Status.Port,
-		})
+		engineClientProxy, err := c.getEngineClientProxy(e)
 		if err != nil {
 			return err
 		}
+		defer engineClientProxy.Close()
+
 		snapLabels := map[string]string{types.GetLonghornLabelKey(types.LonghornLabelSnapshotForExportingBackingImage): bids.Name}
-		snapshotName, err := client.SnapshotCreate(bids.Name+"-"+util.RandomID(), snapLabels)
+		snapshotName, err := engineClientProxy.SnapshotCreate(e, bids.Name+"-"+util.RandomID(), snapLabels)
 		if err != nil {
 			return err
 		}
@@ -701,7 +725,7 @@ func (c *BackingImageDataSourceController) prepareRunningParameters(bids *longho
 			continue
 		}
 		rAddress := e.Status.CurrentReplicaAddressMap[rName]
-		if rAddress == "" || rAddress != fmt.Sprintf("%s:%d", r.Status.IP, r.Status.Port) {
+		if rAddress == "" || rAddress != fmt.Sprintf("%s:%d", r.Status.StorageIP, r.Status.Port) {
 			continue
 		}
 		bids.Status.RunningParameters[DataSourceTypeExportFromVolumeParameterSenderAddress] = rAddress
@@ -726,7 +750,7 @@ func (c *BackingImageDataSourceController) enqueueBackingImageDataSource(backing
 func isBackingImageDataSourcePod(obj interface{}) bool {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			return false
 		}
@@ -744,7 +768,7 @@ func isBackingImageDataSourcePod(obj interface{}) bool {
 func (c *BackingImageDataSourceController) enqueueForBackingImage(obj interface{}) {
 	backingImage, ok := obj.(*longhorn.BackingImage)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -763,7 +787,7 @@ func (c *BackingImageDataSourceController) enqueueForBackingImage(obj interface{
 		if apierrors.IsNotFound(err) {
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("Couldn't get backing image data source %v: %v ", backingImage.Name, err))
+		utilruntime.HandleError(fmt.Errorf("couldn't get backing image data source %v: %v ", backingImage.Name, err))
 		return
 	}
 	c.enqueueBackingImageDataSource(backingImageDataSource)
@@ -772,7 +796,7 @@ func (c *BackingImageDataSourceController) enqueueForBackingImage(obj interface{
 func (c *BackingImageDataSourceController) enqueueForVolume(obj interface{}) {
 	volume, ok := obj.(*longhorn.Volume)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -788,7 +812,7 @@ func (c *BackingImageDataSourceController) enqueueForVolume(obj interface{}) {
 
 	bidsMap, err := c.ds.ListBackingImageDataSourcesExportingFromVolume(volume.Name)
 	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't list backing image data source based on volume %v: %v ", volume.Name, err))
+		utilruntime.HandleError(fmt.Errorf("couldn't list backing image data source based on volume %v: %v ", volume.Name, err))
 		return
 	}
 	for _, bids := range bidsMap {
@@ -799,7 +823,7 @@ func (c *BackingImageDataSourceController) enqueueForVolume(obj interface{}) {
 func (c *BackingImageDataSourceController) enqueueForLonghornNode(obj interface{}) {
 	node, ok := obj.(*longhorn.Node)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -820,7 +844,7 @@ func (c *BackingImageDataSourceController) enqueueForLonghornNode(obj interface{
 			// node (e.g. controller/etcd node). Skip it
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("Couldn't get node %v: %v ", node.Name, err))
+		utilruntime.HandleError(fmt.Errorf("couldn't get node %v: %v ", node.Name, err))
 		return
 	}
 
@@ -842,7 +866,7 @@ func (c *BackingImageDataSourceController) enqueueForLonghornNode(obj interface{
 func (c *BackingImageDataSourceController) enqueueForBackingImageDataSourcePod(obj interface{}) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -895,7 +919,6 @@ func (c *BackingImageDataSourceController) stopMonitoring(bidsName string) {
 	delete(c.monitorMap, bidsName)
 	log.Infof("Stopped monitoring")
 
-	return
 }
 
 func (c *BackingImageDataSourceController) startMonitoring(bids *longhorn.BackingImageDataSource) {
@@ -909,20 +932,15 @@ func (c *BackingImageDataSourceController) startMonitoring(bids *longhorn.Backin
 		return
 	}
 
-	pod, err := c.ds.GetPod(types.GetBackingImageDataSourcePodName(bids.Name))
-	if err != nil {
-		log.Errorf("Failed to get pod before launching the monitor: %v", err)
-		return
-	}
-	if pod == nil {
-		log.Errorf("Can not find pod before launching the monitor")
+	if bids.Status.IP == "" {
+		log.Errorf("No backing image data source pod IP before launching the monitor")
 		return
 	}
 
 	stopCh := make(chan struct{}, 1)
 	m := &BackingImageDataSourceMonitor{
 		Name:         bids.Name,
-		client:       engineapi.NewBackingImageDataSourceClient(pod.Status.PodIP),
+		client:       engineapi.NewBackingImageDataSourceClient(bids.Status.IP),
 		stopCh:       stopCh,
 		controllerID: c.controllerID,
 		log:          log,
@@ -971,6 +989,10 @@ func (m *BackingImageDataSourceMonitor) sync() {
 	if bids.Status.OwnerID != m.controllerID {
 		close(m.stopCh)
 		m.log.Warnf("Stop monitoring since backing image data source %v owner %v is not the same as monitor current controller %v", m.Name, bids.Status.OwnerID, m.controllerID)
+		return
+	}
+	if bids.Status.IP == "" {
+		m.log.Warnf("Stop monitoring since backing image data source %v current IP is empty", m.Name)
 		return
 	}
 

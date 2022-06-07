@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rancher/dynamiclistener"
+	"github.com/rancher/dynamiclistener/cert"
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
 	v1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/start"
@@ -13,6 +14,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 )
 
 type CoreGetter func() *core.Factory
@@ -39,10 +41,9 @@ func New(ctx context.Context, core CoreGetter, namespace, name string, backing d
 	// lazy init
 	go func() {
 		for {
-			core := core()
-			if core != nil {
-				storage.init(core.Core().V1().Secret())
-				start.All(ctx, 5, core)
+			if coreFactory := core(); coreFactory != nil {
+				storage.init(coreFactory.Core().V1().Secret())
+				_ = start.All(ctx, 5, coreFactory)
 				return
 			}
 
@@ -58,16 +59,18 @@ func New(ctx context.Context, core CoreGetter, namespace, name string, backing d
 }
 
 type storage struct {
-	sync.Mutex
+	sync.RWMutex
 
 	namespace, name string
 	storage         dynamiclistener.TLSStorage
-	secrets         v1controller.SecretClient
+	secrets         v1controller.SecretController
 	ctx             context.Context
 	tls             dynamiclistener.TLSFactory
 }
 
 func (s *storage) SetFactory(tls dynamiclistener.TLSFactory) {
+	s.Lock()
+	defer s.Unlock()
 	s.tls = tls
 }
 
@@ -89,30 +92,48 @@ func (s *storage) init(secrets v1controller.SecretController) {
 	})
 	s.secrets = secrets
 
-	if secret, err := s.storage.Get(); err == nil && secret != nil && len(secret.Data) > 0 {
-		// just ensure there is a secret in k3s
-		if _, err := s.secrets.Get(s.namespace, s.name, metav1.GetOptions{}); errors.IsNotFound(err) {
-			_, _ = s.secrets.Create(&v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        s.name,
-					Namespace:   s.namespace,
-					Annotations: secret.Annotations,
-				},
-				Type: v1.SecretTypeTLS,
-				Data: secret.Data,
-			})
+	secret, err := s.storage.Get()
+	if err == nil && cert.IsValidTLSSecret(secret) {
+		// local storage had a cached secret, ensure that it exists in Kubernetes
+		_, err := s.secrets.Create(&v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        s.name,
+				Namespace:   s.namespace,
+				Annotations: secret.Annotations,
+			},
+			Type: v1.SecretTypeTLS,
+			Data: secret.Data,
+		})
+		if err != nil && !errors.IsAlreadyExists(err) {
+			logrus.Warnf("Failed to create Kubernetes secret: %v", err)
+		}
+	} else {
+		// local storage was empty, try to populate it
+		secret, err := s.secrets.Get(s.namespace, s.name, metav1.GetOptions{})
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				logrus.Warnf("Failed to init Kubernetes secret: %v", err)
+			}
+			return
+		}
+
+		if err := s.storage.Update(secret); err != nil {
+			logrus.Warnf("Failed to init backing storage secret: %v", err)
 		}
 	}
 }
 
 func (s *storage) Get() (*v1.Secret, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return s.storage.Get()
 }
 
 func (s *storage) targetSecret() (*v1.Secret, error) {
+	s.RLock()
+	defer s.RUnlock()
+
 	existingSecret, err := s.secrets.Get(s.namespace, s.name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		return &v1.Secret{
@@ -120,13 +141,14 @@ func (s *storage) targetSecret() (*v1.Secret, error) {
 				Name:      s.name,
 				Namespace: s.namespace,
 			},
+			Type: v1.SecretTypeTLS,
 		}, nil
 	}
 	return existingSecret, err
 }
 
 func (s *storage) saveInK8s(secret *v1.Secret) (*v1.Secret, error) {
-	if s.secrets == nil {
+	if !s.initComplete() {
 		return secret, nil
 	}
 
@@ -135,20 +157,32 @@ func (s *storage) saveInK8s(secret *v1.Secret) (*v1.Secret, error) {
 		return nil, err
 	}
 
+	// if we don't have a TLS factory we can't create certs, so don't bother trying to merge anything,
+	// in favor of just blindly replacing the fields on the Kubernetes secret.
 	if s.tls != nil {
-		if existing, err := s.storage.Get(); err == nil {
+		// merge new secret with secret from backing storage, if one exists
+		if existing, err := s.Get(); err == nil && cert.IsValidTLSSecret(existing) {
 			if newSecret, updated, err := s.tls.Merge(existing, secret); err == nil && updated {
 				secret = newSecret
 			}
 		}
 
-		if newSecret, updated, err := s.tls.Merge(targetSecret, secret); err != nil {
-			return nil, err
-		} else if !updated {
-			return newSecret, nil
-		} else {
-			secret = newSecret
+		// merge new secret with existing secret from Kubernetes, if one exists
+		if cert.IsValidTLSSecret(targetSecret) {
+			if newSecret, updated, err := s.tls.Merge(targetSecret, secret); err != nil {
+				return nil, err
+			} else if !updated {
+				return newSecret, nil
+			} else {
+				secret = newSecret
+			}
 		}
+	}
+
+	// ensure that the merged secret actually contains data before overwriting the existing fields
+	if !cert.IsValidTLSSecret(secret) {
+		logrus.Warnf("Skipping save of TLS secret for %s/%s due to missing certificate data", secret.Namespace, secret.Name)
+		return targetSecret, nil
 	}
 
 	targetSecret.Annotations = secret.Annotations
@@ -156,31 +190,49 @@ func (s *storage) saveInK8s(secret *v1.Secret) (*v1.Secret, error) {
 	targetSecret.Data = secret.Data
 
 	if targetSecret.UID == "" {
-		logrus.Infof("Creating new TLS secret for %v (count: %d): %v", targetSecret.Name, len(targetSecret.Annotations)-1, targetSecret.Annotations)
+		logrus.Infof("Creating new TLS secret for %s/%s (count: %d): %v", targetSecret.Namespace, targetSecret.Name, len(targetSecret.Annotations)-1, targetSecret.Annotations)
 		return s.secrets.Create(targetSecret)
 	}
-	logrus.Infof("Updating TLS secret for %v (count: %d): %v", targetSecret.Name, len(targetSecret.Annotations)-1, targetSecret.Annotations)
+	logrus.Infof("Updating TLS secret for %s/%s (count: %d): %v", targetSecret.Namespace, targetSecret.Name, len(targetSecret.Annotations)-1, targetSecret.Annotations)
 	return s.secrets.Update(targetSecret)
 }
 
-func (s *storage) Update(secret *v1.Secret) (err error) {
-	s.Lock()
-	defer s.Unlock()
-
-	for i := 0; i < 3; i++ {
-		secret, err = s.saveInK8s(secret)
-		if errors.IsConflict(err) {
-			continue
-		} else if err != nil {
-			return err
+func (s *storage) Update(secret *v1.Secret) error {
+	// Asynchronously update the Kubernetes secret, as doing so inline may block the listener from
+	// accepting new connections if the apiserver becomes unavailable after the Secrets controller
+	// has been initialized. We're not passing around any contexts here, nor does the controller
+	// accept any, so there's no good way to soft-fail with a reasonable timeout.
+	go func() {
+		if err := s.update(secret); err != nil {
+			logrus.Errorf("Failed to save TLS secret for %s/%s: %v", secret.Namespace, secret.Name, err)
 		}
-		break
-	}
+	}()
+	return nil
+}
+
+func isConflictOrAlreadyExists(err error) bool {
+	return errors.IsConflict(err) || errors.IsAlreadyExists(err)
+}
+
+func (s *storage) update(secret *v1.Secret) (err error) {
+	var newSecret *v1.Secret
+	err = retry.OnError(retry.DefaultRetry, isConflictOrAlreadyExists, func() error {
+		newSecret, err = s.saveInK8s(secret)
+		return err
+	})
 
 	if err != nil {
 		return err
 	}
 
-	// update underlying storage
-	return s.storage.Update(secret)
+	// Only hold the lock while updating underlying storage
+	s.Lock()
+	defer s.Unlock()
+	return s.storage.Update(newSecret)
+}
+
+func (s *storage) initComplete() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.secrets != nil
 }

@@ -179,7 +179,7 @@ func deploymentConditions(u *unstructured.Unstructured) (*Result, error) {
 
 	for _, c := range objc.Status.Conditions {
 		switch c.Type {
-		case "Progressing": //appsv1.DeploymentProgressing:
+		case "Progressing": // appsv1.DeploymentProgressing:
 			// https://github.com/kubernetes/kubernetes/blob/a3ccea9d8743f2ff82e41b6c2af6dc2c41dc7b10/pkg/controller/deployment/progress.go#L52
 			if c.Reason == "ProgressDeadlineExceeded" {
 				return &Result{
@@ -191,7 +191,7 @@ func deploymentConditions(u *unstructured.Unstructured) (*Result, error) {
 			if c.Status == corev1.ConditionTrue && c.Reason == "NewReplicaSetAvailable" {
 				progressing = true
 			}
-		case "Available": //appsv1.DeploymentAvailable:
+		case "Available": // appsv1.DeploymentAvailable:
 			if c.Status == corev1.ConditionTrue {
 				available = true
 			}

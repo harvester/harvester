@@ -2,12 +2,7 @@ package datastore
 
 import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	appsinformers "k8s.io/client-go/informers/apps/v1"
-	batchinformers_v1beta1 "k8s.io/client-go/informers/batch/v1beta1"
-	coreinformers "k8s.io/client-go/informers/core/v1"
-	policyinformers "k8s.io/client-go/informers/policy/v1beta1"
-	schedulinginformers "k8s.io/client-go/informers/scheduling/v1"
-	storageinformers_v1 "k8s.io/client-go/informers/storage/v1"
+	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	batchlisters_v1beta1 "k8s.io/client-go/listers/batch/v1beta1"
@@ -18,8 +13,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
-	lhlisters "github.com/longhorn/longhorn-manager/k8s/pkg/client/listers/longhorn/v1beta1"
+	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions"
+	lhlisters "github.com/longhorn/longhorn-manager/k8s/pkg/client/listers/longhorn/v1beta2"
 )
 
 var (
@@ -31,186 +26,225 @@ var (
 type DataStore struct {
 	namespace string
 
-	lhClient        lhclientset.Interface
-	vLister         lhlisters.VolumeLister
-	vStoreSynced    cache.InformerSynced
-	eLister         lhlisters.EngineLister
-	eStoreSynced    cache.InformerSynced
-	rLister         lhlisters.ReplicaLister
-	rStoreSynced    cache.InformerSynced
-	iLister         lhlisters.EngineImageLister
-	iStoreSynced    cache.InformerSynced
-	nLister         lhlisters.NodeLister
-	nStoreSynced    cache.InformerSynced
-	sLister         lhlisters.SettingLister
-	sStoreSynced    cache.InformerSynced
-	imLister        lhlisters.InstanceManagerLister
-	imStoreSynced   cache.InformerSynced
-	smLister        lhlisters.ShareManagerLister
-	smStoreSynced   cache.InformerSynced
-	biLister        lhlisters.BackingImageLister
-	biStoreSynced   cache.InformerSynced
-	bimLister       lhlisters.BackingImageManagerLister
-	bimStoreSynced  cache.InformerSynced
-	bidsLister      lhlisters.BackingImageDataSourceLister
-	bidsStoreSynced cache.InformerSynced
-	btLister        lhlisters.BackupTargetLister
-	btStoreSynced   cache.InformerSynced
-	bvLister        lhlisters.BackupVolumeLister
-	bvStoreSynced   cache.InformerSynced
-	bLister         lhlisters.BackupLister
-	bStoreSynced    cache.InformerSynced
-	rjLister        lhlisters.RecurringJobLister
-	rjStoreSynced   cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
-	kubeClient         clientset.Interface
-	pLister            corelisters.PodLister
-	pStoreSynced       cache.InformerSynced
-	cjLister           batchlisters_v1beta1.CronJobLister
-	cjStoreSynced      cache.InformerSynced
-	dsLister           appslisters.DaemonSetLister
-	dsStoreSynced      cache.InformerSynced
-	dpLister           appslisters.DeploymentLister
-	dpStoreSynced      cache.InformerSynced
-	pvLister           corelisters.PersistentVolumeLister
-	pvStoreSynced      cache.InformerSynced
-	pvcLister          corelisters.PersistentVolumeClaimLister
-	pvcStoreSynced     cache.InformerSynced
-	cfmLister          corelisters.ConfigMapLister
-	cfmStoreSynced     cache.InformerSynced
-	secretLister       corelisters.SecretLister
-	secretStoreSynced  cache.InformerSynced
-	knLister           corelisters.NodeLister
-	knStoreSynced      cache.InformerSynced
-	pcLister           schedulinglisters.PriorityClassLister
-	pcStoreSynced      cache.InformerSynced
-	csiDriverLister    storagelisters_v1.CSIDriverLister
-	csiDriverSynced    cache.InformerSynced
-	storageclassLister storagelisters_v1.StorageClassLister
-	storageclassSynced cache.InformerSynced
-	pdbLister          policylisters.PodDisruptionBudgetLister
-	pdbStoreSynced     cache.InformerSynced
-	svLister           corelisters.ServiceLister
-	svStoreSynced      cache.InformerSynced
+	lhClient                       lhclientset.Interface
+	vLister                        lhlisters.VolumeLister
+	VolumeInformer                 cache.SharedInformer
+	eLister                        lhlisters.EngineLister
+	EngineInformer                 cache.SharedInformer
+	rLister                        lhlisters.ReplicaLister
+	ReplicaInformer                cache.SharedInformer
+	iLister                        lhlisters.EngineImageLister
+	EngineImageInformer            cache.SharedInformer
+	nLister                        lhlisters.NodeLister
+	NodeInformer                   cache.SharedInformer
+	sLister                        lhlisters.SettingLister
+	SettingInformer                cache.SharedInformer
+	imLister                       lhlisters.InstanceManagerLister
+	InstanceManagerInformer        cache.SharedInformer
+	smLister                       lhlisters.ShareManagerLister
+	ShareManagerInformer           cache.SharedInformer
+	biLister                       lhlisters.BackingImageLister
+	BackingImageInformer           cache.SharedInformer
+	bimLister                      lhlisters.BackingImageManagerLister
+	BackingImageManagerInformer    cache.SharedInformer
+	bidsLister                     lhlisters.BackingImageDataSourceLister
+	BackingImageDataSourceInformer cache.SharedInformer
+	btLister                       lhlisters.BackupTargetLister
+	BackupTargetInformer           cache.SharedInformer
+	bvLister                       lhlisters.BackupVolumeLister
+	BackupVolumeInformer           cache.SharedInformer
+	bLister                        lhlisters.BackupLister
+	BackupInformer                 cache.SharedInformer
+	rjLister                       lhlisters.RecurringJobLister
+	RecurringJobInformer           cache.SharedInformer
+	oLister                        lhlisters.OrphanLister
+	OrphanInformer                 cache.SharedInformer
+	snapLister                     lhlisters.SnapshotLister
+	SnapshotInformer               cache.SharedInformer
+
+	kubeClient                    clientset.Interface
+	pLister                       corelisters.PodLister
+	PodInformer                   cache.SharedInformer
+	cjLister                      batchlisters_v1beta1.CronJobLister
+	CronJobInformer               cache.SharedInformer
+	dsLister                      appslisters.DaemonSetLister
+	DaemonSetInformer             cache.SharedInformer
+	dpLister                      appslisters.DeploymentLister
+	DeploymentInformer            cache.SharedInformer
+	pvLister                      corelisters.PersistentVolumeLister
+	PersistentVolumeInformer      cache.SharedInformer
+	pvcLister                     corelisters.PersistentVolumeClaimLister
+	PersistentVolumeClaimInformer cache.SharedInformer
+	cfmLister                     corelisters.ConfigMapLister
+	ConfigMapInformer             cache.SharedInformer
+	secretLister                  corelisters.SecretLister
+	SecretInformer                cache.SharedInformer
+	knLister                      corelisters.NodeLister
+	KubeNodeInformer              cache.SharedInformer
+	pcLister                      schedulinglisters.PriorityClassLister
+	PriorityClassInformer         cache.SharedInformer
+	csiDriverLister               storagelisters_v1.CSIDriverLister
+	CSIDriverInformer             cache.SharedInformer
+	storageclassLister            storagelisters_v1.StorageClassLister
+	StorageClassInformer          cache.SharedInformer
+	pdbLister                     policylisters.PodDisruptionBudgetLister
+	PodDistrptionBudgetInformer   cache.SharedInformer
+	svLister                      corelisters.ServiceLister
+	ServiceInformer               cache.SharedInformer
 }
 
 // NewDataStore creates new DataStore object
 func NewDataStore(
-	volumeInformer lhinformers.VolumeInformer,
-	engineInformer lhinformers.EngineInformer,
-	replicaInformer lhinformers.ReplicaInformer,
-	engineImageInformer lhinformers.EngineImageInformer,
-	nodeInformer lhinformers.NodeInformer,
-	settingInformer lhinformers.SettingInformer,
-	imInformer lhinformers.InstanceManagerInformer,
-	smInformer lhinformers.ShareManagerInformer,
-	biInformer lhinformers.BackingImageInformer,
-	bimInformer lhinformers.BackingImageManagerInformer,
-	bidsInformer lhinformers.BackingImageDataSourceInformer,
-	btInformer lhinformers.BackupTargetInformer,
-	bvInformer lhinformers.BackupVolumeInformer,
-	bInformer lhinformers.BackupInformer,
-	rjInformer lhinformers.RecurringJobInformer,
+	lhInformerFactory lhinformers.SharedInformerFactory,
 	lhClient lhclientset.Interface,
-
-	podInformer coreinformers.PodInformer,
-	cronJobInformer batchinformers_v1beta1.CronJobInformer,
-	daemonSetInformer appsinformers.DaemonSetInformer,
-	deploymentInformer appsinformers.DeploymentInformer,
-	persistentVolumeInformer coreinformers.PersistentVolumeInformer,
-	persistentVolumeClaimInformer coreinformers.PersistentVolumeClaimInformer,
-	configMapInformer coreinformers.ConfigMapInformer,
-	secretInformer coreinformers.SecretInformer,
-	kubeNodeInformer coreinformers.NodeInformer,
-	priorityClassInformer schedulinginformers.PriorityClassInformer,
-	csiDriverInformer storageinformers_v1.CSIDriverInformer,
-	storageclassInformer storageinformers_v1.StorageClassInformer,
-	pdbInformer policyinformers.PodDisruptionBudgetInformer,
-	serviceInformer coreinformers.ServiceInformer,
-
+	kubeInformerFactory informers.SharedInformerFactory,
 	kubeClient clientset.Interface,
 	namespace string) *DataStore {
+
+	cacheSyncs := []cache.InformerSynced{}
+
+	replicaInformer := lhInformerFactory.Longhorn().V1beta2().Replicas()
+	cacheSyncs = append(cacheSyncs, replicaInformer.Informer().HasSynced)
+	engineInformer := lhInformerFactory.Longhorn().V1beta2().Engines()
+	cacheSyncs = append(cacheSyncs, engineInformer.Informer().HasSynced)
+	volumeInformer := lhInformerFactory.Longhorn().V1beta2().Volumes()
+	cacheSyncs = append(cacheSyncs, volumeInformer.Informer().HasSynced)
+	engineImageInformer := lhInformerFactory.Longhorn().V1beta2().EngineImages()
+	cacheSyncs = append(cacheSyncs, engineImageInformer.Informer().HasSynced)
+	nodeInformer := lhInformerFactory.Longhorn().V1beta2().Nodes()
+	cacheSyncs = append(cacheSyncs, nodeInformer.Informer().HasSynced)
+	settingInformer := lhInformerFactory.Longhorn().V1beta2().Settings()
+	cacheSyncs = append(cacheSyncs, settingInformer.Informer().HasSynced)
+	imInformer := lhInformerFactory.Longhorn().V1beta2().InstanceManagers()
+	cacheSyncs = append(cacheSyncs, imInformer.Informer().HasSynced)
+	smInformer := lhInformerFactory.Longhorn().V1beta2().ShareManagers()
+	cacheSyncs = append(cacheSyncs, smInformer.Informer().HasSynced)
+	biInformer := lhInformerFactory.Longhorn().V1beta2().BackingImages()
+	cacheSyncs = append(cacheSyncs, biInformer.Informer().HasSynced)
+	bimInformer := lhInformerFactory.Longhorn().V1beta2().BackingImageManagers()
+	cacheSyncs = append(cacheSyncs, bimInformer.Informer().HasSynced)
+	bidsInformer := lhInformerFactory.Longhorn().V1beta2().BackingImageDataSources()
+	cacheSyncs = append(cacheSyncs, bidsInformer.Informer().HasSynced)
+	btInformer := lhInformerFactory.Longhorn().V1beta2().BackupTargets()
+	cacheSyncs = append(cacheSyncs, btInformer.Informer().HasSynced)
+	bvInformer := lhInformerFactory.Longhorn().V1beta2().BackupVolumes()
+	cacheSyncs = append(cacheSyncs, bvInformer.Informer().HasSynced)
+	bInformer := lhInformerFactory.Longhorn().V1beta2().Backups()
+	cacheSyncs = append(cacheSyncs, bInformer.Informer().HasSynced)
+	rjInformer := lhInformerFactory.Longhorn().V1beta2().RecurringJobs()
+	cacheSyncs = append(cacheSyncs, rjInformer.Informer().HasSynced)
+	oInformer := lhInformerFactory.Longhorn().V1beta2().Orphans()
+	cacheSyncs = append(cacheSyncs, oInformer.Informer().HasSynced)
+	snapInformer := lhInformerFactory.Longhorn().V1beta2().Snapshots()
+	cacheSyncs = append(cacheSyncs, snapInformer.Informer().HasSynced)
+
+	podInformer := kubeInformerFactory.Core().V1().Pods()
+	cacheSyncs = append(cacheSyncs, podInformer.Informer().HasSynced)
+	kubeNodeInformer := kubeInformerFactory.Core().V1().Nodes()
+	cacheSyncs = append(cacheSyncs, kubeNodeInformer.Informer().HasSynced)
+	persistentVolumeInformer := kubeInformerFactory.Core().V1().PersistentVolumes()
+	cacheSyncs = append(cacheSyncs, persistentVolumeInformer.Informer().HasSynced)
+	persistentVolumeClaimInformer := kubeInformerFactory.Core().V1().PersistentVolumeClaims()
+	cacheSyncs = append(cacheSyncs, persistentVolumeClaimInformer.Informer().HasSynced)
+	configMapInformer := kubeInformerFactory.Core().V1().ConfigMaps()
+	cacheSyncs = append(cacheSyncs, configMapInformer.Informer().HasSynced)
+	secretInformer := kubeInformerFactory.Core().V1().Secrets()
+	cacheSyncs = append(cacheSyncs, secretInformer.Informer().HasSynced)
+	cronJobInformer := kubeInformerFactory.Batch().V1beta1().CronJobs()
+	cacheSyncs = append(cacheSyncs, cronJobInformer.Informer().HasSynced)
+	daemonSetInformer := kubeInformerFactory.Apps().V1().DaemonSets()
+	cacheSyncs = append(cacheSyncs, daemonSetInformer.Informer().HasSynced)
+	deploymentInformer := kubeInformerFactory.Apps().V1().Deployments()
+	cacheSyncs = append(cacheSyncs, deploymentInformer.Informer().HasSynced)
+	priorityClassInformer := kubeInformerFactory.Scheduling().V1().PriorityClasses()
+	cacheSyncs = append(cacheSyncs, priorityClassInformer.Informer().HasSynced)
+	csiDriverInformer := kubeInformerFactory.Storage().V1().CSIDrivers()
+	cacheSyncs = append(cacheSyncs, csiDriverInformer.Informer().HasSynced)
+	storageclassInformer := kubeInformerFactory.Storage().V1().StorageClasses()
+	cacheSyncs = append(cacheSyncs, storageclassInformer.Informer().HasSynced)
+	pdbInformer := kubeInformerFactory.Policy().V1beta1().PodDisruptionBudgets()
+	cacheSyncs = append(cacheSyncs, pdbInformer.Informer().HasSynced)
+	serviceInformer := kubeInformerFactory.Core().V1().Services()
+	cacheSyncs = append(cacheSyncs, serviceInformer.Informer().HasSynced)
 
 	return &DataStore{
 		namespace: namespace,
 
-		lhClient:        lhClient,
-		vLister:         volumeInformer.Lister(),
-		vStoreSynced:    volumeInformer.Informer().HasSynced,
-		eLister:         engineInformer.Lister(),
-		eStoreSynced:    engineInformer.Informer().HasSynced,
-		rLister:         replicaInformer.Lister(),
-		rStoreSynced:    replicaInformer.Informer().HasSynced,
-		iLister:         engineImageInformer.Lister(),
-		iStoreSynced:    engineImageInformer.Informer().HasSynced,
-		nLister:         nodeInformer.Lister(),
-		nStoreSynced:    nodeInformer.Informer().HasSynced,
-		sLister:         settingInformer.Lister(),
-		sStoreSynced:    settingInformer.Informer().HasSynced,
-		imLister:        imInformer.Lister(),
-		imStoreSynced:   imInformer.Informer().HasSynced,
-		smLister:        smInformer.Lister(),
-		smStoreSynced:   smInformer.Informer().HasSynced,
-		biLister:        biInformer.Lister(),
-		biStoreSynced:   biInformer.Informer().HasSynced,
-		bimLister:       bimInformer.Lister(),
-		bimStoreSynced:  bimInformer.Informer().HasSynced,
-		bidsLister:      bidsInformer.Lister(),
-		bidsStoreSynced: bidsInformer.Informer().HasSynced,
-		btLister:        btInformer.Lister(),
-		btStoreSynced:   btInformer.Informer().HasSynced,
-		bvLister:        bvInformer.Lister(),
-		bvStoreSynced:   bvInformer.Informer().HasSynced,
-		bLister:         bInformer.Lister(),
-		bStoreSynced:    bInformer.Informer().HasSynced,
-		rjLister:        rjInformer.Lister(),
-		rjStoreSynced:   rjInformer.Informer().HasSynced,
+		cacheSyncs: cacheSyncs,
 
-		kubeClient:         kubeClient,
-		pLister:            podInformer.Lister(),
-		pStoreSynced:       podInformer.Informer().HasSynced,
-		cjLister:           cronJobInformer.Lister(),
-		cjStoreSynced:      cronJobInformer.Informer().HasSynced,
-		dsLister:           daemonSetInformer.Lister(),
-		dsStoreSynced:      daemonSetInformer.Informer().HasSynced,
-		dpLister:           deploymentInformer.Lister(),
-		dpStoreSynced:      deploymentInformer.Informer().HasSynced,
-		pvLister:           persistentVolumeInformer.Lister(),
-		pvStoreSynced:      persistentVolumeInformer.Informer().HasSynced,
-		pvcLister:          persistentVolumeClaimInformer.Lister(),
-		pvcStoreSynced:     persistentVolumeClaimInformer.Informer().HasSynced,
-		cfmLister:          configMapInformer.Lister(),
-		cfmStoreSynced:     configMapInformer.Informer().HasSynced,
-		secretLister:       secretInformer.Lister(),
-		secretStoreSynced:  secretInformer.Informer().HasSynced,
-		knLister:           kubeNodeInformer.Lister(),
-		knStoreSynced:      kubeNodeInformer.Informer().HasSynced,
-		pcLister:           priorityClassInformer.Lister(),
-		pcStoreSynced:      priorityClassInformer.Informer().HasSynced,
-		csiDriverLister:    csiDriverInformer.Lister(),
-		csiDriverSynced:    csiDriverInformer.Informer().HasSynced,
-		storageclassLister: storageclassInformer.Lister(),
-		storageclassSynced: storageclassInformer.Informer().HasSynced,
-		pdbLister:          pdbInformer.Lister(),
-		pdbStoreSynced:     pdbInformer.Informer().HasSynced,
-		svLister:           serviceInformer.Lister(),
-		svStoreSynced:      serviceInformer.Informer().HasSynced,
+		lhClient:                       lhClient,
+		vLister:                        volumeInformer.Lister(),
+		VolumeInformer:                 volumeInformer.Informer(),
+		eLister:                        engineInformer.Lister(),
+		EngineInformer:                 engineInformer.Informer(),
+		rLister:                        replicaInformer.Lister(),
+		ReplicaInformer:                replicaInformer.Informer(),
+		iLister:                        engineImageInformer.Lister(),
+		EngineImageInformer:            engineImageInformer.Informer(),
+		nLister:                        nodeInformer.Lister(),
+		NodeInformer:                   nodeInformer.Informer(),
+		sLister:                        settingInformer.Lister(),
+		SettingInformer:                settingInformer.Informer(),
+		imLister:                       imInformer.Lister(),
+		InstanceManagerInformer:        imInformer.Informer(),
+		smLister:                       smInformer.Lister(),
+		ShareManagerInformer:           smInformer.Informer(),
+		biLister:                       biInformer.Lister(),
+		BackingImageInformer:           biInformer.Informer(),
+		bimLister:                      bimInformer.Lister(),
+		BackingImageManagerInformer:    bimInformer.Informer(),
+		bidsLister:                     bidsInformer.Lister(),
+		BackingImageDataSourceInformer: bidsInformer.Informer(),
+		btLister:                       btInformer.Lister(),
+		BackupTargetInformer:           btInformer.Informer(),
+		bvLister:                       bvInformer.Lister(),
+		BackupVolumeInformer:           bvInformer.Informer(),
+		bLister:                        bInformer.Lister(),
+		BackupInformer:                 bInformer.Informer(),
+		rjLister:                       rjInformer.Lister(),
+		RecurringJobInformer:           rjInformer.Informer(),
+		oLister:                        oInformer.Lister(),
+		OrphanInformer:                 oInformer.Informer(),
+		snapLister:                     snapInformer.Lister(),
+		SnapshotInformer:               snapInformer.Informer(),
+
+		kubeClient:                    kubeClient,
+		pLister:                       podInformer.Lister(),
+		PodInformer:                   podInformer.Informer(),
+		cjLister:                      cronJobInformer.Lister(),
+		CronJobInformer:               cronJobInformer.Informer(),
+		dsLister:                      daemonSetInformer.Lister(),
+		DaemonSetInformer:             daemonSetInformer.Informer(),
+		dpLister:                      deploymentInformer.Lister(),
+		DeploymentInformer:            deploymentInformer.Informer(),
+		pvLister:                      persistentVolumeInformer.Lister(),
+		PersistentVolumeInformer:      persistentVolumeInformer.Informer(),
+		pvcLister:                     persistentVolumeClaimInformer.Lister(),
+		PersistentVolumeClaimInformer: persistentVolumeClaimInformer.Informer(),
+		cfmLister:                     configMapInformer.Lister(),
+		ConfigMapInformer:             configMapInformer.Informer(),
+		secretLister:                  secretInformer.Lister(),
+		SecretInformer:                secretInformer.Informer(),
+		knLister:                      kubeNodeInformer.Lister(),
+		KubeNodeInformer:              kubeNodeInformer.Informer(),
+		pcLister:                      priorityClassInformer.Lister(),
+		PriorityClassInformer:         priorityClassInformer.Informer(),
+		csiDriverLister:               csiDriverInformer.Lister(),
+		CSIDriverInformer:             csiDriverInformer.Informer(),
+		storageclassLister:            storageclassInformer.Lister(),
+		StorageClassInformer:          storageclassInformer.Informer(),
+		pdbLister:                     pdbInformer.Lister(),
+		PodDistrptionBudgetInformer:   pdbInformer.Informer(),
+		svLister:                      serviceInformer.Lister(),
+		ServiceInformer:               serviceInformer.Informer(),
 	}
 }
 
 // Sync returns WaitForCacheSync for Longhorn DataStore
 func (s *DataStore) Sync(stopCh <-chan struct{}) bool {
-	return cache.WaitForNamedCacheSync("longhorn datastore", stopCh,
-		s.vStoreSynced, s.eStoreSynced, s.rStoreSynced,
-		s.iStoreSynced, s.nStoreSynced, s.sStoreSynced,
-		s.pStoreSynced, s.cjStoreSynced, s.dsStoreSynced,
-		s.pvStoreSynced, s.pvcStoreSynced, s.cfmStoreSynced,
-		s.imStoreSynced, s.dpStoreSynced, s.knStoreSynced,
-		s.pcStoreSynced, s.csiDriverSynced, s.storageclassSynced,
-		s.pdbStoreSynced, s.smStoreSynced, s.svStoreSynced,
-		s.biStoreSynced, s.bimStoreSynced, s.bidsStoreSynced,
-		s.btStoreSynced, s.bvStoreSynced, s.bStoreSynced,
-	)
+	return cache.WaitForNamedCacheSync("longhorn datastore", stopCh, s.cacheSyncs...)
 }
 
 // ErrorIsNotFound checks if given error match

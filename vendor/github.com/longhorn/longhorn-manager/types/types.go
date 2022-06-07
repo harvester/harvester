@@ -12,7 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/util"
 )
 
@@ -30,11 +30,19 @@ const (
 
 	CRDAPIVersionV1alpha1 = "longhorn.rancher.io/v1alpha1"
 	CRDAPIVersionV1beta1  = "longhorn.io/v1beta1"
-	CurrentCRDAPIVersion  = CRDAPIVersionV1beta1
+	CRDAPIVersionV1beta2  = "longhorn.io/v1beta2"
+	CurrentCRDAPIVersion  = CRDAPIVersionV1beta2
 )
 
 const (
-	DefaultAPIPort = 9500
+	DefaultAPIPort           = 9500
+	DefaultWebhookServerPort = 9443
+
+	WebhookTypeConversion = "conversion"
+	WebhookTypeAdmission  = "admission"
+
+	ValidatingWebhookName = "longhorn-webhook-validator"
+	MutatingWebhookName   = "longhorn-webhook-mutator"
 
 	EngineBinaryDirectoryInContainer = "/engine-binaries/"
 	EngineBinaryDirectoryOnHost      = "/var/lib/longhorn/engine-binaries/"
@@ -43,6 +51,12 @@ const (
 
 	BackingImageManagerDirectory = "/backing-images/"
 	BackingImageFileName         = "backing"
+
+	TLSDirectoryInContainer = "/tls-files/"
+	TLSSecretName           = "longhorn-grpc-tls"
+	TLSCAFile               = "ca.crt"
+	TLSCertFile             = "tls.crt"
+	TLSKeyFile              = "tls.key"
 
 	DefaultBackupTargetName = "default"
 
@@ -56,6 +70,8 @@ const (
 	KubeNodeDefaultNodeTagConfigAnnotationKey = "node.longhorn.io/default-node-tags"
 
 	LastAppliedTolerationAnnotationKeySuffix = "last-applied-tolerations"
+
+	ConfigMapResourceVersionKey = "configmap-resource-version"
 
 	KubernetesStatusLabel = "KubernetesStatus"
 	KubernetesReplicaSet  = "ReplicaSet"
@@ -83,6 +99,9 @@ const (
 	LonghornLabelBackupVolume             = "backup-volume"
 	LonghornLabelRecurringJob             = "job"
 	LonghornLabelRecurringJobGroup        = "job-group"
+	LonghornLabelOrphan                   = "orphan"
+	LonghornLabelOrphanType               = "orphan-type"
+	LonghornLabelCRDAPIVersion            = "crd-api-version"
 
 	LonghornLabelValueEnabled = "enabled"
 
@@ -94,17 +113,25 @@ const (
 	KubernetesTopologyRegionLabelKey      = "topology.kubernetes.io/region"
 	KubernetesTopologyZoneLabelKey        = "topology.kubernetes.io/zone"
 
+	KubernetesClusterAutoscalerSafeToEvictKey = "cluster-autoscaler.kubernetes.io/safe-to-evict"
+
 	LonghornDriverName = "driver.longhorn.io"
 
 	DefaultDiskPrefix = "default-disk-"
 
-	DeprecatedProvisionerName        = "rancher.io/longhorn"
-	DepracatedDriverName             = "io.rancher.longhorn"
-	DefaultStorageClassConfigMapName = "longhorn-storageclass"
-	DefaultStorageClassName          = "longhorn"
-	ControlPlaneName                 = "longhorn-manager"
+	DeprecatedProvisionerName          = "rancher.io/longhorn"
+	DepracatedDriverName               = "io.rancher.longhorn"
+	DefaultStorageClassConfigMapName   = "longhorn-storageclass"
+	DefaultDefaultSettingConfigMapName = "longhorn-default-setting"
+	DefaultStorageClassName            = "longhorn"
+	ControlPlaneName                   = "longhorn-manager"
 
 	DefaultRecurringJobConcurrency = 10
+
+	PVAnnotationLonghornVolumeSchedulingError = "longhorn.io/volume-scheduling-error"
+
+	CniNetworkNone          = ""
+	StorageNetworkInterface = "lhnet1"
 )
 
 const (
@@ -162,6 +189,7 @@ const (
 	engineImagePrefix          = "ei-"
 	instanceManagerImagePrefix = "imi-"
 	shareManagerImagePrefix    = "smi-"
+	orphanPrefix               = "orphan-"
 
 	BackingImageDataSourcePodNamePrefix = "backing-image-ds-"
 
@@ -253,6 +281,10 @@ func GetBaseLabelsForSystemManagedComponent() map[string]string {
 
 func GetLonghornLabelComponentKey() string {
 	return GetLonghornLabelKey("component")
+}
+
+func GetLonghornLabelCRDAPIVersionKey() string {
+	return GetLonghornLabelKey(LonghornLabelCRDAPIVersion)
 }
 
 func GetEngineImageLabels(engineImageName string) map[string]string {
@@ -384,6 +416,15 @@ func GetRecurringJobLabelValueMap(labelType, recurringJobName string) map[string
 		GetRecurringJobLabelKey(labelType, recurringJobName): LonghornLabelValueEnabled,
 	}
 }
+
+func GetOrphanLabelsForOrphanedDirectory(nodeID, diskUUID string) map[string]string {
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelOrphan
+	labels[LonghornNodeKey] = nodeID
+	labels[GetLonghornLabelKey(LonghornLabelOrphanType)] = string(longhorn.OrphanTypeReplica)
+	return labels
+}
+
 func GetRegionAndZone(labels map[string]string) (string, string) {
 	region := ""
 	zone := ""
@@ -408,12 +449,16 @@ func GetShareManagerImageChecksumName(image string) string {
 	return shareManagerImagePrefix + util.GetStringChecksum(strings.TrimSpace(image))[:ImageChecksumNameLength]
 }
 
+func GetOrphanChecksumNameForOrphanedDirectory(nodeID, diskName, diskPath, diskUUID, dirName string) string {
+	return orphanPrefix + util.GetStringChecksumSHA256(strings.TrimSpace(fmt.Sprintf("%s-%s-%s-%s-%s", nodeID, diskName, diskPath, diskUUID, dirName)))
+}
+
 func GetShareManagerPodNameFromShareManagerName(smName string) string {
-	return LonghornLabelShareManager + "-" + smName
+	return shareManagerPrefix + smName
 }
 
 func GetShareManagerNameFromShareManagerPodName(podName string) string {
-	return strings.TrimPrefix(podName, LonghornLabelShareManager+"-")
+	return strings.TrimPrefix(podName, shareManagerPrefix)
 }
 
 func ValidateEngineImageChecksumName(name string) bool {
@@ -497,6 +542,18 @@ func ValidateAccessMode(mode longhorn.AccessMode) error {
 	return nil
 }
 
+func ValidateStorageNetwork(value string) (err error) {
+	if value == CniNetworkNone {
+		return nil
+	}
+
+	parts := strings.Split(value, "/")
+	if len(parts) != 2 {
+		return errors.Errorf("storage network must be in <NAMESPACE>/<NETWORK-ATTACHMENT-DEFINITION> format: %v", value)
+	}
+	return nil
+}
+
 func GetDaemonSetNameFromEngineImageName(engineImageName string) string {
 	return "engine-image-" + engineImageName
 }
@@ -526,7 +583,7 @@ func CreateDisksFromAnnotation(annotation string) (map[string]longhorn.DiskSpec,
 		if disk.Path == "" {
 			return nil, fmt.Errorf("invalid disk %+v", disk)
 		}
-		diskInfo, err := util.GetDiskInfo(disk.Path)
+		diskStat, err := util.GetDiskStat(disk.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -538,20 +595,20 @@ func CreateDisksFromAnnotation(annotation string) (map[string]longhorn.DiskSpec,
 
 		// Set to default disk name
 		if disk.Name == "" {
-			disk.Name = DefaultDiskPrefix + diskInfo.Fsid
+			disk.Name = DefaultDiskPrefix + diskStat.Fsid
 		}
 
-		if _, exist := existFsid[diskInfo.Fsid]; exist {
+		if _, exist := existFsid[diskStat.Fsid]; exist {
 			return nil, fmt.Errorf(
 				"the disk %v is the same"+
 					"file system with %v, fsid %v",
-				disk.Path, existFsid[diskInfo.Fsid],
-				diskInfo.Fsid)
+				disk.Path, existFsid[diskStat.Fsid],
+				diskStat.Fsid)
 		}
 
-		existFsid[diskInfo.Fsid] = disk.Path
+		existFsid[diskStat.Fsid] = disk.Path
 
-		if disk.StorageReserved < 0 || disk.StorageReserved > diskInfo.StorageMaximum {
+		if disk.StorageReserved < 0 || disk.StorageReserved > diskStat.StorageMaximum {
 			return nil, fmt.Errorf("the storageReserved setting of disk %v is not valid, should be positive and no more than storageMaximum and storageAvailable", disk.Path)
 		}
 		tags, err := util.ValidateTags(disk.Tags)
@@ -611,16 +668,17 @@ func CreateDefaultDisk(dataPath string) (map[string]longhorn.DiskSpec, error) {
 	if err := util.CreateDiskPathReplicaSubdirectory(dataPath); err != nil {
 		return nil, err
 	}
-	diskInfo, err := util.GetDiskInfo(dataPath)
+	diskStat, err := util.GetDiskStat(dataPath)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]longhorn.DiskSpec{
-		DefaultDiskPrefix + diskInfo.Fsid: {
-			Path:              diskInfo.Path,
+		DefaultDiskPrefix + diskStat.Fsid: {
+			Path:              diskStat.Path,
 			AllowScheduling:   true,
 			EvictionRequested: false,
-			StorageReserved:   diskInfo.StorageMaximum * 30 / 100,
+			StorageReserved:   diskStat.StorageMaximum * 30 / 100,
+			Tags:              []string{},
 		},
 	}, nil
 }
@@ -638,4 +696,18 @@ func ValidateCPUReservationValues(engineManagerCPUStr, replicaManagerCPUStr stri
 		return fmt.Errorf("the requested engine manager CPU and replica manager CPU are %v%% and %v%% of a node total CPU, respectively. The sum should not be smaller than 0%% or greater than 40%%", engineManagerCPU, replicaManagerCPU)
 	}
 	return nil
+}
+
+type CniNetwork struct {
+	Name string   `json:"name"`
+	IPs  []string `json:"ips,omitempty"`
+}
+
+func CreateCniAnnotationFromSetting(storageNetwork *longhorn.Setting) string {
+	if storageNetwork.Value == "" {
+		return ""
+	}
+
+	storageNetworkSplit := strings.Split(storageNetwork.Value, "/")
+	return fmt.Sprintf("[{\"namespace\": \"%s\", \"name\": \"%s\", \"interface\": \"%s\"}]", storageNetworkSplit[0], storageNetworkSplit[1], StorageNetworkInterface)
 }

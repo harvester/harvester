@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 	SnapshotNameKey = "snapshotName"
 )
 
-func NewVolumeDataSource(volumeDataSourceType string, parameters map[string]string) (dataSource longhorn.VolumeDataSource, err error) {
+func NewVolumeDataSource(volumeDataSourceType longhorn.VolumeDataSourceType, parameters map[string]string) (dataSource longhorn.VolumeDataSource, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "cannot create new longhorn.VolumeDataSource of type %v with parameters %v", volumeDataSourceType, parameters)
 	}()
@@ -71,7 +71,7 @@ func IsValidVolumeDataSource(vds longhorn.VolumeDataSource) bool {
 	}
 }
 
-func getType(vds longhorn.VolumeDataSource) string {
+func getType(vds longhorn.VolumeDataSource) longhorn.VolumeDataSourceType {
 	split := strings.Split(string(vds), "://")
 	if len(split) != 2 {
 		return ""

@@ -15,7 +15,7 @@ import (
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
 )
 
@@ -42,11 +42,11 @@ func upgradeBackingImages(namespace string, lhClient *lhclientset.Clientset) (er
 	defer func() {
 		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade backing images failed")
 	}()
-	biList, err := lhClient.LonghornV1beta1().BackingImages(namespace).List(context.TODO(), metav1.ListOptions{})
+	biList, err := lhClient.LonghornV1beta2().BackingImages(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
-	nodeList, err := lhClient.LonghornV1beta1().Nodes(namespace).List(context.TODO(), metav1.ListOptions{})
+	nodeList, err := lhClient.LonghornV1beta2().Nodes(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -79,13 +79,13 @@ func upgradeBackingImages(namespace string, lhClient *lhclientset.Clientset) (er
 		bi.Status.DiskDownloadProgressMap = map[string]int{}
 
 		if !reflect.DeepEqual(bi.Status, existingBI.Status) {
-			if _, err := lhClient.LonghornV1beta1().BackingImages(namespace).UpdateStatus(context.TODO(), &bi, metav1.UpdateOptions{}); err != nil {
+			if _, err := lhClient.LonghornV1beta2().BackingImages(namespace).UpdateStatus(context.TODO(), &bi, metav1.UpdateOptions{}); err != nil {
 				return err
 			}
 		}
 
 		if bi.Spec.ImageURL != "" || bi.Spec.SourceType == "" {
-			bi, err := lhClient.LonghornV1beta1().BackingImages(namespace).Get(context.TODO(), bi.Name, metav1.GetOptions{})
+			bi, err := lhClient.LonghornV1beta2().BackingImages(namespace).Get(context.TODO(), bi.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
@@ -95,7 +95,7 @@ func upgradeBackingImages(namespace string, lhClient *lhclientset.Clientset) (er
 			bi.Spec.ImageURL = ""
 			bi.Spec.SourceType = longhorn.BackingImageDataSourceTypeDownload
 			bi.Spec.SourceParameters = map[string]string{longhorn.DataSourceTypeDownloadParameterURL: bi.Spec.ImageURL}
-			if _, err := lhClient.LonghornV1beta1().BackingImages(namespace).Update(context.TODO(), bi, metav1.UpdateOptions{}); err != nil {
+			if _, err := lhClient.LonghornV1beta2().BackingImages(namespace).Update(context.TODO(), bi, metav1.UpdateOptions{}); err != nil {
 				return err
 			}
 		}
@@ -104,7 +104,7 @@ func upgradeBackingImages(namespace string, lhClient *lhclientset.Clientset) (er
 }
 
 func checkAndCreateBackingImageDataSource(namespace string, lhClient *lhclientset.Clientset, bi *longhorn.BackingImage, nodeList *longhorn.NodeList) (err error) {
-	bids, err := lhClient.LonghornV1beta1().BackingImageDataSources(namespace).Get(context.TODO(), bi.Name, metav1.GetOptions{})
+	bids, err := lhClient.LonghornV1beta2().BackingImageDataSources(namespace).Get(context.TODO(), bi.Name, metav1.GetOptions{})
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
@@ -149,7 +149,7 @@ func checkAndCreateBackingImageDataSource(namespace string, lhClient *lhclientse
 				FileTransferred: true,
 			},
 		}
-		if bids, err = lhClient.LonghornV1beta1().BackingImageDataSources(namespace).Create(context.TODO(), bids, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		if bids, err = lhClient.LonghornV1beta2().BackingImageDataSources(namespace).Create(context.TODO(), bids, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
 		}
 	}
@@ -158,7 +158,7 @@ func checkAndCreateBackingImageDataSource(namespace string, lhClient *lhclientse
 	bids.Status.OwnerID = bids.Spec.NodeID
 	bids.Status.Size = bi.Status.Size
 	bids.Status.Progress = 100
-	if bids, err = lhClient.LonghornV1beta1().BackingImageDataSources(namespace).UpdateStatus(context.TODO(), bids, metav1.UpdateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+	if bids, err = lhClient.LonghornV1beta2().BackingImageDataSources(namespace).UpdateStatus(context.TODO(), bids, metav1.UpdateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
@@ -170,7 +170,7 @@ func upgradeVolumes(namespace string, lhClient *lhclientset.Clientset) (err erro
 		err = errors.Wrapf(err, upgradeLogPrefix+"upgrade volume failed")
 	}()
 
-	volumeList, err := lhClient.LonghornV1beta1().Volumes(namespace).List(context.TODO(), metav1.ListOptions{})
+	volumeList, err := lhClient.LonghornV1beta2().Volumes(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func upgradeLabelsForVolume(v *longhorn.Volume, lhClient *lhclientset.Clientset,
 	labels[types.LonghornLabelBackupVolume] = backupVolumeName
 	metadata.SetLabels(labels)
 
-	if _, err := lhClient.LonghornV1beta1().Volumes(namespace).Update(context.TODO(), v, metav1.UpdateOptions{}); err != nil {
+	if _, err := lhClient.LonghornV1beta2().Volumes(namespace).Update(context.TODO(), v, metav1.UpdateOptions{}); err != nil {
 		return errors.Wrapf(err, "failed to add label for volume %s during upgrade", v.Name)
 	}
 	return nil

@@ -39,7 +39,7 @@ func (m *memory) Update(secret *v1.Secret) error {
 			}
 		}
 
-		logrus.Infof("Active TLS secret %s (ver=%s) (count %d): %v", secret.Name, secret.ResourceVersion, len(secret.Annotations)-1, secret.Annotations)
+		logrus.Infof("Active TLS secret %s/%s (ver=%s) (count %d): %v", secret.Namespace, secret.Name, secret.ResourceVersion, len(secret.Annotations)-1, secret.Annotations)
 		m.secret = secret
 	}
 	return nil

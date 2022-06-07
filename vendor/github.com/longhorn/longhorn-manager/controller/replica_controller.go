@@ -25,25 +25,13 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 
 	imapi "github.com/longhorn/longhorn-instance-manager/pkg/api"
-	imclient "github.com/longhorn/longhorn-instance-manager/pkg/client"
-	imutil "github.com/longhorn/longhorn-instance-manager/pkg/util"
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/engineapi"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
-)
-
-var (
-	// maxRetries is the number of times a deployment will be retried before it is dropped out of the queue.
-	// With the current rate-limiter in use (5ms*2^(maxRetries-1)) the following numbers represent the times
-	// a deployment is going to be requeued:
-	//
-	// 5ms, 10ms, 20ms
-	maxRetries = 3
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type ReplicaController struct {
@@ -59,11 +47,7 @@ type ReplicaController struct {
 
 	ds *datastore.DataStore
 
-	nStoreSynced  cache.InformerSynced
-	rStoreSynced  cache.InformerSynced
-	imStoreSynced cache.InformerSynced
-	biStoreSynced cache.InformerSynced
-	sStoreSynced  cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	instanceHandler *InstanceHandler
 
@@ -75,11 +59,6 @@ func NewReplicaController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	nodeInformer lhinformers.NodeInformer,
-	replicaInformer lhinformers.ReplicaInformer,
-	instanceManagerInformer lhinformers.InstanceManagerInformer,
-	backingImageInformer lhinformers.BackingImageInformer,
-	settingInformer lhinformers.SettingInformer,
 	kubeClient clientset.Interface,
 	namespace string, controllerID string) *ReplicaController {
 
@@ -101,16 +80,10 @@ func NewReplicaController(
 
 		rebuildingLock:          &sync.Mutex{},
 		inProgressRebuildingMap: map[string]struct{}{},
-
-		nStoreSynced:  nodeInformer.Informer().HasSynced,
-		rStoreSynced:  replicaInformer.Informer().HasSynced,
-		imStoreSynced: instanceManagerInformer.Informer().HasSynced,
-		biStoreSynced: backingImageInformer.Informer().HasSynced,
-		sStoreSynced:  settingInformer.Informer().HasSynced,
 	}
 	rc.instanceHandler = NewInstanceHandler(ds, rc, rc.eventRecorder)
 
-	replicaInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.ReplicaInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: rc.enqueueReplica,
 		UpdateFunc: func(old, cur interface{}) {
 			rc.enqueueReplica(cur)
@@ -123,28 +96,33 @@ func NewReplicaController(
 		},
 		DeleteFunc: rc.enqueueReplica,
 	})
+	rc.cacheSyncs = append(rc.cacheSyncs, ds.ReplicaInformer.HasSynced)
 
-	instanceManagerInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.InstanceManagerInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    rc.enqueueInstanceManagerChange,
 		UpdateFunc: func(old, cur interface{}) { rc.enqueueInstanceManagerChange(cur) },
 		DeleteFunc: rc.enqueueInstanceManagerChange,
 	}, 0)
+	rc.cacheSyncs = append(rc.cacheSyncs, ds.InstanceManagerInformer.HasSynced)
 
-	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
-		AddFunc:    rc.enqueueNodeChange,
-		UpdateFunc: func(old, cur interface{}) { rc.enqueueNodeChange(cur) },
-		DeleteFunc: rc.enqueueNodeChange,
+	ds.NodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+		AddFunc:    rc.enqueueNodeAddOrDelete,
+		UpdateFunc: rc.enqueueNodeChange,
+		DeleteFunc: rc.enqueueNodeAddOrDelete,
 	}, 0)
+	rc.cacheSyncs = append(rc.cacheSyncs, ds.NodeInformer.HasSynced)
 
-	backingImageInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    rc.enqueueBackingImageChange,
 		UpdateFunc: func(old, cur interface{}) { rc.enqueueBackingImageChange(cur) },
 		DeleteFunc: rc.enqueueBackingImageChange,
 	}, 0)
+	rc.cacheSyncs = append(rc.cacheSyncs, ds.BackingImageInformer.HasSynced)
 
-	settingInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.SettingInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(old, cur interface{}) { rc.enqueueSettingChange(cur) },
 	}, 0)
+	rc.cacheSyncs = append(rc.cacheSyncs, ds.SettingInformer.HasSynced)
 
 	return rc
 }
@@ -156,7 +134,7 @@ func (rc *ReplicaController) Run(workers int, stopCh <-chan struct{}) {
 	rc.logger.Info("Start Longhorn replica controller")
 	defer rc.logger.Info("Shutting down Longhorn replica controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn replicas", stopCh, rc.nStoreSynced, rc.rStoreSynced, rc.imStoreSynced, rc.biStoreSynced, rc.sStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn replicas", stopCh, rc.cacheSyncs...) {
 		return
 	}
 
@@ -238,7 +216,7 @@ func (rc *ReplicaController) isEvictionRequested(replica *longhorn.Replica) bool
 	}
 
 	// Check if node has been request eviction.
-	if node.Spec.EvictionRequested == true {
+	if node.Spec.EvictionRequested {
 		return true
 	}
 
@@ -263,19 +241,18 @@ func (rc *ReplicaController) UpdateReplicaEvictionStatus(replica *longhorn.Repli
 
 	// Check if eviction has been requested on this replica
 	if rc.isEvictionRequested(replica) &&
-		(replica.Status.EvictionRequested == false) {
+		!replica.Status.EvictionRequested {
 		replica.Status.EvictionRequested = true
 		log.Debug("Replica has requested eviction")
 	}
 
 	// Check if eviction has been cancelled on this replica
 	if !rc.isEvictionRequested(replica) &&
-		(replica.Status.EvictionRequested == true) {
+		replica.Status.EvictionRequested {
 		replica.Status.EvictionRequested = false
 		log.Debug("Replica has cancelled eviction")
 	}
 
-	return
 }
 
 func (rc *ReplicaController) syncReplica(key string) (err error) {
@@ -377,18 +354,6 @@ func (rc *ReplicaController) enqueueReplica(obj interface{}) {
 	rc.queue.Add(key)
 }
 
-func (rc *ReplicaController) getProcessManagerClient(instanceManagerName string) (*imclient.ProcessManagerClient, error) {
-	im, err := rc.ds.GetInstanceManager(instanceManagerName)
-	if err != nil {
-		return nil, fmt.Errorf("cannot find Instance Manager %v", instanceManagerName)
-	}
-	if im.Status.CurrentState != longhorn.InstanceManagerStateRunning || im.Status.IP == "" {
-		return nil, fmt.Errorf("invalid Instance Manager %v", instanceManagerName)
-	}
-
-	return imclient.NewProcessManagerClient(imutil.GetURL(im.Status.IP, engineapi.InstanceManagerDefaultPort)), nil
-}
-
 func (rc *ReplicaController) CreateInstance(obj interface{}) (*longhorn.InstanceProcess, error) {
 	r, ok := obj.(*longhorn.Replica)
 	if !ok {
@@ -429,6 +394,7 @@ func (rc *ReplicaController) CreateInstance(obj interface{}) (*longhorn.Instance
 	if err != nil {
 		return nil, err
 	}
+	defer c.Close()
 
 	return c.ReplicaProcessCreate(r.Name, r.Spec.EngineImage, dataPath, backingImagePath, r.Spec.VolumeSize, r.Spec.RevisionCounterDisabled)
 }
@@ -449,7 +415,7 @@ func (rc *ReplicaController) GetBackingImagePathForReplicaStarting(r *longhorn.R
 		return "", nil
 	}
 	if _, exists := bi.Spec.Disks[r.Spec.DiskID]; !exists {
-		bi.Spec.Disks[r.Spec.DiskID] = struct{}{}
+		bi.Spec.Disks[r.Spec.DiskID] = ""
 		log.Debugf("Replica %v will ask backing image %v to download file to node %v disk %v",
 			r.Name, bi.Name, r.Spec.NodeID, r.Spec.DiskID)
 		if _, err := rc.ds.UpdateBackingImage(bi); err != nil {
@@ -583,6 +549,7 @@ func (rc *ReplicaController) DeleteInstance(obj interface{}) error {
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 	if err := c.ProcessDelete(r.Name); err != nil && !types.ErrorIsNotFound(err) {
 		return err
 	}
@@ -683,32 +650,35 @@ func (rc *ReplicaController) GetInstance(obj interface{}) (*longhorn.InstancePro
 	if err != nil {
 		return nil, err
 	}
+	defer c.Close()
 
 	return c.ProcessGet(r.Name)
 }
 
-func (rc *ReplicaController) LogInstance(obj interface{}) (*imapi.LogStream, error) {
+func (rc *ReplicaController) LogInstance(ctx context.Context, obj interface{}) (*engineapi.InstanceManagerClient, *imapi.LogStream, error) {
 	r, ok := obj.(*longhorn.Replica)
 	if !ok {
-		return nil, fmt.Errorf("BUG: invalid object for replica process log: %v", obj)
+		return nil, nil, fmt.Errorf("BUG: invalid object for replica process log: %v", obj)
 	}
 
 	im, err := rc.ds.GetInstanceManager(r.Status.InstanceManagerName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	c, err := engineapi.NewInstanceManagerClient(im)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return c.ProcessLog(r.Name)
+	// TODO: #2441 refactor this when we do the resource monitoring refactor
+	stream, err := c.ProcessLog(ctx, r.Name)
+	return c, stream, err
 }
 
 func (rc *ReplicaController) enqueueInstanceManagerChange(obj interface{}) {
 	im, isInstanceManager := obj.(*longhorn.InstanceManager)
 	if !isInstanceManager {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -737,13 +707,13 @@ func (rc *ReplicaController) enqueueInstanceManagerChange(obj interface{}) {
 	for _, r := range replicasRO {
 		rc.enqueueReplica(r)
 	}
-	return
+
 }
 
-func (rc *ReplicaController) enqueueNodeChange(obj interface{}) {
+func (rc *ReplicaController) enqueueNodeAddOrDelete(obj interface{}) {
 	node, ok := obj.(*longhorn.Node)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -757,10 +727,8 @@ func (rc *ReplicaController) enqueueNodeChange(obj interface{}) {
 		}
 	}
 
-	// Add eviction requested replicas to the workqueue
-	for diskName, diskSpec := range node.Spec.Disks {
-		evictionRequested := node.Spec.EvictionRequested || diskSpec.EvictionRequested
-		if diskStatus, existed := node.Status.DiskStatus[diskName]; existed && evictionRequested {
+	for diskName := range node.Spec.Disks {
+		if diskStatus, existed := node.Status.DiskStatus[diskName]; existed {
 			for replicaName := range diskStatus.ScheduledReplica {
 				if replica, err := rc.ds.GetReplica(replicaName); err == nil {
 					rc.enqueueReplica(replica)
@@ -769,18 +737,65 @@ func (rc *ReplicaController) enqueueNodeChange(obj interface{}) {
 		}
 	}
 
-	return
+}
+
+func (rc *ReplicaController) enqueueNodeChange(oldObj, currObj interface{}) {
+	oldNode, ok := oldObj.(*longhorn.Node)
+	if !ok {
+		deletedState, ok := oldObj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", oldObj))
+			return
+		}
+
+		// use the last known state, to enqueue, dependent objects
+		oldNode, ok = deletedState.Obj.(*longhorn.Node)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("DeletedFinalStateUnknown contained invalid object: %#v", deletedState.Obj))
+			return
+		}
+	}
+
+	currNode, ok := currObj.(*longhorn.Node)
+	if !ok {
+		deletedState, ok := currObj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", currObj))
+			return
+		}
+
+		// use the last known state, to enqueue, dependent objects
+		currNode, ok = deletedState.Obj.(*longhorn.Node)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("DeletedFinalStateUnknown contained invalid object: %#v", deletedState.Obj))
+			return
+		}
+	}
+
+	// if a node or disk changes its EvictionRequested, enqueue all replicas on that node/disk
+	evictionRequestedChangeOnNodeLevel := currNode.Spec.EvictionRequested != oldNode.Spec.EvictionRequested
+	for diskName, newDiskSpec := range currNode.Spec.Disks {
+		oldDiskSpec, ok := oldNode.Spec.Disks[diskName]
+		evictionRequestedChangeOnDiskLevel := !ok || (newDiskSpec.EvictionRequested != oldDiskSpec.EvictionRequested)
+		if diskStatus, existed := currNode.Status.DiskStatus[diskName]; existed && (evictionRequestedChangeOnNodeLevel || evictionRequestedChangeOnDiskLevel) {
+			for replicaName := range diskStatus.ScheduledReplica {
+				if replica, err := rc.ds.GetReplica(replicaName); err == nil {
+					rc.enqueueReplica(replica)
+				}
+			}
+		}
+	}
+
 }
 
 func (rc *ReplicaController) enqueueBackingImageChange(obj interface{}) {
 	backingImage, ok := obj.(*longhorn.BackingImage)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
 		}
-
 		// use the last known state, to enqueue, dependent objects
 		backingImage, ok = deletedState.Obj.(*longhorn.BackingImage)
 		if !ok {
@@ -802,13 +817,12 @@ func (rc *ReplicaController) enqueueBackingImageChange(obj interface{}) {
 		}
 	}
 
-	return
 }
 
 func (rc *ReplicaController) enqueueSettingChange(obj interface{}) {
 	setting, ok := obj.(*longhorn.Setting)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -828,7 +842,6 @@ func (rc *ReplicaController) enqueueSettingChange(obj interface{}) {
 
 	rc.enqueueAllRebuildingReplicaOnCurrentNode()
 
-	return
 }
 
 func (rc *ReplicaController) enqueueAllRebuildingReplicaOnCurrentNode() {
