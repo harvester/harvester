@@ -44,7 +44,7 @@ var (
 	OvercommitConfig        = NewSetting(OvercommitConfigSettingName, `{"cpu":1600,"memory":150,"storage":200}`)
 	VipPools                = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths  = NewSetting("auto-disk-provision-paths", "")
-	CSIDriverConfig         = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn","supportClone": true,"supportExpand": true,"supportExport": true}}`)
+	CSIDriverConfig         = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn"}}`)
 )
 
 const (
@@ -259,7 +259,4 @@ type Image struct {
 type CSIDriverInfo struct {
 	VolumeSnapshotClassName       string `json:"volumeSnapshotClassName"`
 	BackupVolumeSnapshotClassName string `json:"backupVolumeSnapshotClassName"`
-	SupportClone                  bool   `json:"supportClone"`
-	SupportExpand                 bool   `json:"supportExpand"`
-	SupportExport                 bool   `json:"supportExport"`
 }
