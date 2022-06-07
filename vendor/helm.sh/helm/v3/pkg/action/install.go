@@ -38,7 +38,6 @@ import (
 	"k8s.io/cli-runtime/pkg/resource"
 	"sigs.k8s.io/yaml"
 
-	"helm.sh/helm/v3/internal/experimental/registry"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
@@ -47,19 +46,13 @@ import (
 	"helm.sh/helm/v3/pkg/kube"
 	kubefake "helm.sh/helm/v3/pkg/kube/fake"
 	"helm.sh/helm/v3/pkg/postrender"
+	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/repo"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
 )
-
-// releaseNameMaxLen is the maximum length of a release name.
-//
-// As of Kubernetes 1.4, the max limit on a name is 63 chars. We reserve 10 for
-// charts to add data. Effectively, that gives us 53 chars.
-// See https://github.com/helm/helm/issues/1528
-const releaseNameMaxLen = 53
 
 // NOTESFILE_SUFFIX that we want to treat special. It goes through the templating engine
 // but it's not a yaml file (resource) hence can't have hooks, etc. And the user actually
@@ -76,6 +69,7 @@ type Install struct {
 	ChartPathOptions
 
 	ClientOnly               bool
+	ForceAdopt               bool
 	CreateNamespace          bool
 	DryRun                   bool
 	DisableHooks             bool
@@ -124,13 +118,20 @@ type ChartPathOptions struct {
 	Username              string // --username
 	Verify                bool   // --verify
 	Version               string // --version
+
+	// registryClient provides a registry client but is not added with
+	// options from a flag
+	registryClient *registry.Client
 }
 
 // NewInstall creates a new Install object with the given configuration.
 func NewInstall(cfg *Configuration) *Install {
-	return &Install{
+	in := &Install{
 		cfg: cfg,
 	}
+	in.ChartPathOptions.registryClient = cfg.RegistryClient
+
+	return in
 }
 
 func (i *Install) installCRDs(crds []chart.CRD) error {
@@ -198,6 +199,10 @@ func (i *Install) RunWithContext(ctx context.Context, chrt *chart.Chart, vals ma
 		return nil, err
 	}
 
+	if err := chartutil.ProcessDependencies(chrt, vals); err != nil {
+		return nil, err
+	}
+
 	// Pre-install anything in the crd/ directory. We do this before Helm
 	// contacts the upstream server and builds the capabilities object.
 	if crds := chrt.CRDObjects(); !i.ClientOnly && !i.SkipCRDs && len(crds) > 0 {
@@ -224,10 +229,6 @@ func (i *Install) RunWithContext(ctx context.Context, chrt *chart.Chart, vals ma
 		i.cfg.Releases = storage.Init(mem)
 	} else if !i.ClientOnly && len(i.APIVersions) > 0 {
 		i.cfg.Log("API Version list given outside of client only mode, this list will be ignored")
-	}
-
-	if err := chartutil.ProcessDependencies(chrt, vals); err != nil {
-		return nil, err
 	}
 
 	// Make sure if Atomic is set, that wait is set as well. This makes it so
@@ -290,7 +291,7 @@ func (i *Install) RunWithContext(ctx context.Context, chrt *chart.Chart, vals ma
 	// deleting the release because the manifest will be pointing at that
 	// resource
 	if !i.ClientOnly && !isUpgrade && len(resources) > 0 {
-		toBeAdopted, err = existingResourceConflict(resources, rel.Name, rel.Namespace)
+		toBeAdopted, err = existingResourceConflict(resources, rel.Name, rel.Namespace, i.ForceAdopt)
 		if err != nil {
 			return nil, errors.Wrap(err, "rendered manifests contain a resource that already exists. Unable to continue with install")
 		}
@@ -458,14 +459,10 @@ func (i *Install) failRelease(rel *release.Release, err error) (*release.Release
 //	- used by a deleted release, and i.Replace is false
 func (i *Install) availableName() error {
 	start := i.ReleaseName
-	if start == "" {
-		return errors.New("name is required")
-	}
 
-	if len(start) > releaseNameMaxLen {
-		return errors.Errorf("release name %q exceeds max length of %d", start, releaseNameMaxLen)
+	if err := chartutil.ValidateReleaseName(start); err != nil {
+		return errors.Wrapf(err, "release name %q", start)
 	}
-
 	if i.DryRun {
 		return nil
 	}
@@ -477,7 +474,7 @@ func (i *Install) availableName() error {
 	releaseutil.Reverse(h, releaseutil.SortByRevision)
 	rel := h[0]
 
-	if st := rel.Info.Status; i.Replace && (st == release.StatusUninstalled || st == release.StatusFailed) {
+	if st := rel.Info.Status; i.Replace && (st == release.StatusUninstalled || st == release.StatusFailed || st == release.StatusPendingInstall) {
 		return nil
 	}
 	return errors.New("cannot re-use a name that is still in use")
@@ -673,6 +670,12 @@ OUTER:
 //
 // If 'verify' was set on ChartPathOptions, this will attempt to also verify the chart.
 func (c *ChartPathOptions) LocateChart(name string, settings *cli.EnvSettings) (string, error) {
+	// If there is no registry client and the name is in an OCI registry return
+	// an error and a lookup will not occur.
+	if registry.IsOCI(name) && c.registryClient == nil {
+		return "", fmt.Errorf("unable to lookup chart %q, missing registry client", name)
+	}
+
 	name = strings.TrimSpace(name)
 	version := strings.TrimSpace(c.Version)
 
@@ -703,13 +706,7 @@ func (c *ChartPathOptions) LocateChart(name string, settings *cli.EnvSettings) (
 		},
 		RepositoryConfig: settings.RepositoryConfig,
 		RepositoryCache:  settings.RepositoryCache,
-	}
-
-	if registry.IsOCI(name) {
-		if version == "" {
-			return "", errors.New("version is explicitly required for OCI registries")
-		}
-		dl.Options = append(dl.Options, getter.WithTagName(version))
+		RegistryClient:   c.registryClient,
 	}
 
 	if c.Verify {
