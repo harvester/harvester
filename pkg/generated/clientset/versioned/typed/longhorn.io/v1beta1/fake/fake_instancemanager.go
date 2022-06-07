@@ -117,7 +117,7 @@ func (c *FakeInstanceManagers) UpdateStatus(ctx context.Context, instanceManager
 // Delete takes name of the instanceManager and deletes it. Returns an error if one occurs.
 func (c *FakeInstanceManagers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(instancemanagersResource, c.ns, name), &v1beta1.InstanceManager{})
+		Invokes(testing.NewDeleteActionWithOptions(instancemanagersResource, c.ns, name, opts), &v1beta1.InstanceManager{})
 
 	return err
 }

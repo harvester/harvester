@@ -117,7 +117,7 @@ func (c *FakeVirtualMachineTemplates) UpdateStatus(ctx context.Context, virtualM
 // Delete takes name of the virtualMachineTemplate and deletes it. Returns an error if one occurs.
 func (c *FakeVirtualMachineTemplates) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(virtualmachinetemplatesResource, c.ns, name), &v1beta1.VirtualMachineTemplate{})
+		Invokes(testing.NewDeleteActionWithOptions(virtualmachinetemplatesResource, c.ns, name, opts), &v1beta1.VirtualMachineTemplate{})
 
 	return err
 }

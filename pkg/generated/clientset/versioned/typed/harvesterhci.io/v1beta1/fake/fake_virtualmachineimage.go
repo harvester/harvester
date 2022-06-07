@@ -117,7 +117,7 @@ func (c *FakeVirtualMachineImages) UpdateStatus(ctx context.Context, virtualMach
 // Delete takes name of the virtualMachineImage and deletes it. Returns an error if one occurs.
 func (c *FakeVirtualMachineImages) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(virtualmachineimagesResource, c.ns, name), &v1beta1.VirtualMachineImage{})
+		Invokes(testing.NewDeleteActionWithOptions(virtualmachineimagesResource, c.ns, name, opts), &v1beta1.VirtualMachineImage{})
 
 	return err
 }

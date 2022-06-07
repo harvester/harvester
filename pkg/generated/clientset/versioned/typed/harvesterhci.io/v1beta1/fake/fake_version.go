@@ -105,7 +105,7 @@ func (c *FakeVersions) Update(ctx context.Context, version *v1beta1.Version, opt
 // Delete takes name of the version and deletes it. Returns an error if one occurs.
 func (c *FakeVersions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(versionsResource, c.ns, name), &v1beta1.Version{})
+		Invokes(testing.NewDeleteActionWithOptions(versionsResource, c.ns, name, opts), &v1beta1.Version{})
 
 	return err
 }

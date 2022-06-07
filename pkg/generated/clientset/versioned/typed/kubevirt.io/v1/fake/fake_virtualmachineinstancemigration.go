@@ -117,7 +117,7 @@ func (c *FakeVirtualMachineInstanceMigrations) UpdateStatus(ctx context.Context,
 // Delete takes name of the virtualMachineInstanceMigration and deletes it. Returns an error if one occurs.
 func (c *FakeVirtualMachineInstanceMigrations) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(virtualmachineinstancemigrationsResource, c.ns, name), &corev1.VirtualMachineInstanceMigration{})
+		Invokes(testing.NewDeleteActionWithOptions(virtualmachineinstancemigrationsResource, c.ns, name, opts), &corev1.VirtualMachineInstanceMigration{})
 
 	return err
 }

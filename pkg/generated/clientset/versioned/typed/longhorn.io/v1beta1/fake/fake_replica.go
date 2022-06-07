@@ -117,7 +117,7 @@ func (c *FakeReplicas) UpdateStatus(ctx context.Context, replica *v1beta1.Replic
 // Delete takes name of the replica and deletes it. Returns an error if one occurs.
 func (c *FakeReplicas) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(replicasResource, c.ns, name), &v1beta1.Replica{})
+		Invokes(testing.NewDeleteActionWithOptions(replicasResource, c.ns, name, opts), &v1beta1.Replica{})
 
 	return err
 }

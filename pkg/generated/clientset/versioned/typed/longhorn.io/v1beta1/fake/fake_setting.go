@@ -105,7 +105,7 @@ func (c *FakeSettings) Update(ctx context.Context, setting *v1beta1.Setting, opt
 // Delete takes name of the setting and deletes it. Returns an error if one occurs.
 func (c *FakeSettings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(settingsResource, c.ns, name), &v1beta1.Setting{})
+		Invokes(testing.NewDeleteActionWithOptions(settingsResource, c.ns, name, opts), &v1beta1.Setting{})
 
 	return err
 }
