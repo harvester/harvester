@@ -1,6 +1,6 @@
 # Title
 
-VXLAN HEP
+VxLAN HEP
 
 ## Summary
 
@@ -24,17 +24,17 @@ For clarity, this HEP defines and lists the following terms:
 
 `VM Group`: A group of VM provisioned by Host Harvester Cluster, those VMs can communicate with each other by default. Different VM Groups are isolated by default. Guest Kubernetes Cluster is also kind of VM Group.
 
-`Tenant/Project`: A Tenanat/Project is using a VM Group, some advanced features like L3 VXLAN Gateway, NAT may also be included.
+`Tenant/Project`: A Tenanat/Project is using a VM Group, some advanced features like L3 VxLAN Gateway, NAT may also be included.
 
 `Service`: A Kubernetes Service that identifies a set of Pods using label selectors. Unless mentioned otherwise, Services are assumed to have virtual IPs only routable within the cluster network.
 
-`VXLAN`:    Virtual eXtensible Local Area Network
+`VxLAN`:    Virtual eXtensible Local Area Network
 
-`VTEP`:    VXLAN Tunnel End Point.  An entity that originates and/or terminates VXLAN tunnels source interface
+`VTEP`:    VxLAN Tunnel End Point.  An entity that originates and/or terminates VxLAN tunnels source interface
 
 `VN`:   Virtual Network
 
-`VNI`:  VXLAN Network Identifier, an VNI represents an `VN`
+`VNI`:  VxLAN Network Identifier, an VNI represents an `VN`
 
 `L2 VNI (L2 overlay)`: emulate a LAN segment, single subnet mobility
 
@@ -42,13 +42,13 @@ For clarity, this HEP defines and lists the following terms:
 
 `BUM`: broadcast, unknown unicast, multicast
 
-`VXLAN Gateway`: an entity that forwards traffic between VXLANs
+`VxLAN Gateway`: an entity that forwards traffic between VxLANs
 
-`Layer 2 VXLAN gateway`: connects terminals to a VxLan network and enables intra-subnet communication on the same VXLAN network.
+`Layer 2 VxLAN gateway`: connects terminals to a VxLan network and enables intra-subnet communication on the same VxLAN network.
 
-`Layer 3 VXLAN gateway`: enables inter-subnet communication on a VXLAN network and external network access.
+`Layer 3 VxLAN gateway`: enables inter-subnet communication on a VxLAN network and external network access.
 
-`NVE`: Network Virtualization Edge, Host Harvester Cluster may have multi VXLAN network, each VXLAN has related NVE in each node.
+`NVE`: Network Virtualization Edge, Host Harvester Cluster may have multi VxLAN network, each VxLAN has related NVE in each node.
 
 `FDB`: Forwarding Database
 
@@ -68,7 +68,7 @@ With the enhancement of Harvester VLAN network, user can deploy up to 4K isolate
 
 ### Goals
 
-Add VXLAN network with adding the following advanced features:
+Add VxLAN network with adding the following advanced features:
 
   (3) Support up to 16M isolated `VM Group` in one `Host Harvester Cluster`, VM in different group can not communicate with each other direclty.
 
@@ -76,7 +76,7 @@ Add VXLAN network with adding the following advanced features:
 
   (3) Eliminate the requirements of VLAN in physical network, as few as one VLAN id . 
 
-  (3) Support automatically establishing of VXLAN tunnel, all NODEs in a dedicated VLAN physical network, should be able to build full mesh VXLAN tunnel connection.
+  (3) Support automatically establishing of VxLAN tunnel, all NODEs in a dedicated VLAN physical network, should be able to build full mesh VxLAN tunnel connection.
 
   (1) Support pure L3 IP network in physical network ? (is not supported yet, in future, it is possible)
 
@@ -86,14 +86,14 @@ Add VXLAN network with adding the following advanced features:
 
   TBD: Support network policies for micro-segmentation of workloads [FEATURE] Support network policies for micro-segmentation of workloads #2260 .
 
-  (2) Support multiple VXLANs with separated physical NICs.
+  (2) Support multiple VxLANs with separated physical NICs.
 
   (3) Integrate with kube-vip to provide load balancer service for VMs based on vxlan network.
 
 
 NOTE: (3) is priority, bigger one is more important.
 
-[quck view of VXLAN user operation](#an-example-of-vxlan-user-operation)
+[quck view of VxLAN user operation](#an-example-of-vxlan-user-operation)
 
 ### Non-goals [optional]
 
@@ -108,13 +108,13 @@ NOTE: (3) is priority, bigger one is more important.
 
 #### Story 1
 
-VXLAN tunnel establishment
+VxLAN tunnel establishment
 
 ![](./20220530-vxlan-enhancement/vxlan-vtep-1.png)
 
-For VXLAN network, it is trivial to add/remove peers in each node manually, even with kind of centralized registry, the HA will still be a challenge.
+For VxLAN network, it is trivial to add/remove peers in each node manually, even with kind of centralized registry, the HA will still be a challenge.
 
-But at the view of Harvester, those drawbacks are not here, each NODE has all the required information to establish VXLAN tunnels.
+But at the view of Harvester, those drawbacks are not here, each NODE has all the required information to establish VxLAN tunnels.
 
 #### Story 2
 
@@ -122,7 +122,7 @@ Adding Virtual Network
 
 ![](./20220530-vxlan-enhancement/vxlan-vni-1.png)
 
-User defines (cluster level) VN and the related CIDR, then the VNI, VXLAN tunnel are created automatically.
+User defines (cluster level) VN and the related CIDR, then the VNI, VxLAN tunnel are created automatically.
 
 #### Story 3
 
@@ -134,7 +134,9 @@ Again, Harvester Host Cluster has knowledge of all the existing VMs, it can conv
 
 #### Story 4
 
-VM-VM communication inside a VM Group
+VM-VM communication inside a VM Group. 
+
+The VM-VM communication inside a VM Group means the packages between the VMs have the same VNI and are forwarded inside a VxLan broadcast domain. 
 
 Follow previous story, when all VM's info are added to MAC table in each node, the communication is ready.
 
@@ -154,7 +156,7 @@ VM migration
 
 ![](./20220530-vxlan-enhancement/vxlan-vm-migration.png)
 
-When an VM is migrated/moved to another NODE, `Host Harvester Cluster` updates its info in VXLAN FDB and/or related Gateway/NAT/...
+When an VM is migrated/moved to another NODE, `Host Harvester Cluster` updates its info in VxLAN FDB and/or related Gateway/NAT/...
 
 VM does not need send gratuitous ARP of its (NODE) IP/MAC. VIP is discussed in [VIP](#vip-floating-in-vxlan)
 
@@ -162,13 +164,15 @@ VM does not need send gratuitous ARP of its (NODE) IP/MAC. VIP is discussed in [
 
 VM-VM communication in different Guest Kubernetes Cluster/ VM Group (different VNI)
 
-General speaking, different Guest Kubernetes Cluster / VM Group does not communicate with each directly. But that's still possible. In such case, a L3 VXLAN Gateway is needed.
+The VM-VM communication in different VM Group requires the ability to forward the packages with different VNI across VxLan broadcast domain.
+
+General speaking, different Guest Kubernetes Cluster / VM Group does not communicate with each directly. But that's still possible. In such case, a L3 VxLAN Gateway is needed.
 
 ##### Centralized Gateway
 
 ![](./20220530-vxlan-enhancement/vxlan-centralized-l3-gateway.png)
 
-Centralized VXLAN gateway deployment has the following advantages and disadvantages:
+Centralized VxLAN gateway deployment has the following advantages and disadvantages:
 
 Advantage:
   
@@ -194,7 +198,7 @@ VM-internet communication
 
 For VM Group or Guest Kubernetes Cluster, they need to communicate with internet and vice versa.
 
-It is described together in story 9.
+A mainstream implementation is to provide a VIP for the VM and leverage a NAT service. It is described together in story 9.
 
 #### Story 8
 
@@ -253,9 +257,9 @@ The step 8, gratuitous ARP, which is a key step for kube-vip to float the VIP.
 
 ##### Centralized NAT
 
-VXLAN provides overlay network, namely, the Guest Kubernetes Cluster IPs in not reachable from provider network by default.
+VxLAN provides overlay network, namely, the Guest Kubernetes Cluster IPs in not reachable from provider network by default.
 
-One way is to have NAT in L3 VXLAN Gateway.
+One way is to have NAT in L3 VxLAN Gateway.
 
 ###### NAT 1:1 IP mapping
 
@@ -290,9 +294,9 @@ Guest Cluster VIP   port    type     Mapped public IP    port    type
 ...
 ```
 
-##### VIP floating in VXLAN
+##### VIP floating in VxLAN
 
-At the view of kube-vip, VLAN / VXLAN network are same. When kube-vip is in ARP mode, it will send gratuitous ARP to float the IP.
+At the view of kube-vip, VLAN / VxLAN network are same. When kube-vip is in ARP mode, it will send gratuitous ARP to float the IP.
 
 With following static added entries, the gratuitous ARP (Broadcast) is head-end replicated to all VTEPs. Normally all BUM frame will be duplicated to all these destinations.
 
@@ -314,32 +318,32 @@ bridge fdb append 00:00:00:00:00:00 dev vxlan100 dst 192.168.5.3
 
 #### Story 10
 
-Multi-instances of VXLAN
+Multi-instances of VxLAN
 
-As Host Harvester Cluster can have multi isolated VLAN network, it is possible to have multi-instances of VXLAN on top of those isolated VLAN Network.
+As Host Harvester Cluster can have multi isolated VLAN network, it is possible to have multi-instances of VxLAN on top of those isolated VLAN Network.
 
 Challenges:
 
 1. Overlay IP allocation, can they overlap ?
 
-2. Is it allowed of cross VXLAN instance communication ?
+2. Is it allowed of cross VxLAN instance communication ?
 
 
 ### User Experience In Detail
 
-#### An example of VXLAN user operation
+#### An example of VxLAN user operation
 
-To now, the user will be able to use Harvester VXLAN network to create isolated Guest Kubernetes Cluster with following steps.
+To now, the user will be able to use Harvester VxLAN network to create isolated Guest Kubernetes Cluster with following steps.
 
 ```
 (1) Install Host Harvester Cluster, wait for it's ready
 (2) Create VLAN network on second NIC, say VLAN 5, IP DHCP from provider network, CIDR e.g. 192.168.5.0/24
-(3) Create VXLAN network on top of VLAN, say VXLAN 1, based on VLAN 5,  set CIDR, e.g. 10.0.0.0/8
-     VXLAN Local IP and remote peers in each NODE are fetched from APIServer.
-     Related VXLAN L3 Gateway and NAT are also deployed.
+(3) Create VxLAN network on top of VLAN, say VxLAN 1, based on VLAN 5,  set CIDR, e.g. 10.0.0.0/8
+     VxLAN Local IP and remote peers in each NODE are fetched from APIServer.
+     Related VxLAN L3 Gateway and NAT are also deployed.
 
 (4) Create a VNI, say 100, set CIDR, e.g. 10.99.100.0/24
-     VXLAN 1, VNI 100, the VXLAN tunnel in each NODE are established, each node has a VTEP instance, say vxlan_1_100
+     VxLAN 1, VNI 100, the VxLAN tunnel in each NODE are established, each node has a VTEP instance, say vxlan_1_100
 (5) Create a group of VMs, say vmg_1, the CNI is binded to VNI 100
      each vxlan_1_100 will have related forwarding db (MAC address of VM, local port/remote VTEP IP)
      selecting head end replication
@@ -370,15 +374,15 @@ A proposal, for discussion.
 
 Overview on how the enhancement will be implemented.
 
-An analysis of Linux VXLAN implementation.
+An analysis of Linux VxLAN implementation.
 
-Noteablely, at the view of VXLAN, the linux bridge instance is a part of it's functionality, it should be automatically created/deleted with VXLAN.
+Noteablely, at the view of VxLAN, the linux bridge instance is a part of it's functionality, it should be automatically created/deleted with VxLAN.
 
 Each VNI has 2 levels of fdb:
 
 A bridge fdb for inside VTEP local forwarding.
 
-A VXLAN fdb for cross VTEP forwarding.
+A VxLAN fdb for cross VTEP forwarding.
 
 ![](./20220530-vxlan-enhancement/linux-vxlan-1.png)
 
@@ -417,8 +421,8 @@ Anything that requires if user want to upgrade to this enhancement
 ip2 command
 
 ```
-       VXLAN Type Support
-              For a link of type VXLAN the following additional
+       VxLAN Type Support
+              For a link of type VxLAN the following additional
               arguments are supported:
 
               ip link add DEVICE type vxlan id VNI [ dev PHYS_DEV  ] [ {
@@ -453,7 +457,7 @@ add bridge & fdb
 # bridge fdb del <mac address> dev <port> master
 ```
 
-vxlan fdb is a bit different
+VxLAN fdb is a bit different
 
 ```
 bridge fdb append 50:54:33:00:00:09 dev vxlan100 dst 2001:db8:2::1
@@ -463,8 +467,8 @@ https://www.kernel.org/doc/Documentation/networking/vxlan.txt
 
 ```
 The management of vxlan is done in a manner similar to its two closest
-neighbors GRE and VLAN. Configuring VXLAN requires the version of
-iproute2 that matches the kernel release where VXLAN was first merged
+neighbors GRE and VLAN. Configuring VxLAN requires the version of
+iproute2 that matches the kernel release where VxLAN was first merged
 upstream.
 
 1. Create vxlan device
@@ -473,7 +477,7 @@ upstream.
 This creates a new device named vxlan0.  The device uses the multicast
 group 239.1.1.1 over eth1 to handle traffic for which there is no
 entry in the forwarding table.  The destination port number is set to
-the IANA-assigned value of 4789.  The Linux implementation of VXLAN
+the IANA-assigned value of 4789.  The Linux implementation of VxLAN
 pre-dates the IANA's selection of a standard destination port number
 and uses the Linux-selected value by default to maintain backwards
 compatibility.
@@ -502,7 +506,7 @@ forwarding table using the new bridge command.
 (NOTE: it may not be fully accurate, just FYI)
 
 ..
-The realization of flannel VXLAN mode has gone through three iterations
+The realization of flannel VxLAN mode has gone through three iterations
 
 The first version of flannel, L3Miss learning, was done by looking up the ARP table Mac. L2Miss learning, achieved by obtaining the external IP address on the VTEP
 
@@ -510,12 +514,12 @@ The second version of flannel removes L3Miss learning. When the host is online, 
 
 The latest version of flannel removes L2Miss learning and L3Miss learning, and its working mode is as follows:
 
-1) Create a VXLAN device and no longer listen to L2Miss and L3Miss events. 
+1) Create a VxLAN device and no longer listen to L2Miss and L3Miss events. 
 
 2) Create a static ARP entry for the remote host.
 
 3) Create an FDB forwarding table entry, including the external IP of VTEP Mac and remote flannel.
 
-The latest version of flannel completely removed the L2Miss and L3Miss methods, and changed it to a method of actively adding remote host routes to the subnet. At the same time, the VTEP and the bridge each assign a Layer 3 IP address. When the data packet reaches the destination host, it performs three-layer addressing internally, and the number of routes is linearly related to the number of hosts (not the number of containers). It is officially claimed that each host under the same VXLAN subnet corresponds to one routing table entry, one ARP table entry and one FDB table entry.
+The latest version of flannel completely removed the L2Miss and L3Miss methods, and changed it to a method of actively adding remote host routes to the subnet. At the same time, the VTEP and the bridge each assign a Layer 3 IP address. When the data packet reaches the destination host, it performs three-layer addressing internally, and the number of routes is linearly related to the number of hosts (not the number of containers). It is officially claimed that each host under the same VxLAN subnet corresponds to one routing table entry, one ARP table entry and one FDB table entry.
 
 
