@@ -70,7 +70,7 @@ With the enhancement of Harvester VLAN network, user can deploy up to 4K isolate
 
 Add VXLAN network with adding the following advanced features:
 
-  (3) Support up to 16K isolated `VM Group` in one `Host Harvester Cluster`, VM in different group can not communicate with each other direclty.
+  (3) Support up to 16M isolated `VM Group` in one `Host Harvester Cluster`, VM in different group can not communicate with each other direclty.
 
   (3) Support VM live migration and persistent IP address, VM can freely migrate/move in the cluster without change of IP address. 
 
@@ -233,7 +233,7 @@ https://rancher.com/docs/rancher/v2.6/en/cluster-admin/cluster-access/kubectl/
 
 #### Story 9
 
-Guest Kubernetes Cluster VIP/LP and communication with outside
+Guest Kubernetes Cluster VIP/LB and communication with outside
 
 
 ##### How VLAN network handle
