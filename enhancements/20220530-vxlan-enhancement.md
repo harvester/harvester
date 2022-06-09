@@ -26,31 +26,39 @@ For clarity, this HEP defines and lists the following terms:
 
 `Tenant/Project`: A Tenanat/Project is using a VM Group, some advanced features like L3 VxLAN Gateway, NAT may also be included.
 
+`Management Network` / `Default Network`: The default network used by kubernetes management. Both `Host Harvester Cluster` and `Guest Kubernetes Cluster` have such a network.
+
+`Second Network` / `Additional Network`: A dedicated network in `Host Harvester Cluster`, it is provisioned to `Guest Kubernetes Cluster` / `VM Group`. There may be multi `Second Network` in  `Host Harvester Cluster`.
+
 `Service`: A Kubernetes Service that identifies a set of Pods using label selectors. Unless mentioned otherwise, Services are assumed to have virtual IPs only routable within the cluster network.
 
-`VxLAN`:    Virtual eXtensible Local Area Network
 
-`VTEP`:    VxLAN Tunnel End Point.  An entity that originates and/or terminates VxLAN tunnels source interface
+`VxLAN`: Virtual eXtensible Local Area Network.
 
-`VN`:   Virtual Network
+`VTEP`: VxLAN Tunnel End Point.  An entity that originates and/or terminates VxLAN tunnels source interface
 
-`VNI`:  VxLAN Network Identifier, an VNI represents an `VN`
+`VN`: Virtual Network
 
-`L2 VNI (L2 overlay)`: emulate a LAN segment, single subnet mobility
+`VNI`: VxLAN Network Identifier, an VNI represents an `VN`
 
-`L3 VNI (L3 overlay)`: abstract IP based connectivity, full mobility regardless of subnets
+`L2 VNI (L2 overlay)`: Emulate a LAN segment, single subnet mobility.
 
-`BUM`: broadcast, unknown unicast, multicast
+`L3 VNI (L3 overlay)`: Abstract IP based connectivity, full mobility regardless of subnets.
 
-`VxLAN Gateway`: an entity that forwards traffic between VxLANs
+`BUM`: broadcast, unknown unicast, multicast.
 
-`Layer 2 VxLAN gateway`: connects terminals to a VxLan network and enables intra-subnet communication on the same VxLAN network.
+`VxLAN Gateway`: An entity that forwards traffic between VxLANs.
 
-`Layer 3 VxLAN gateway`: enables inter-subnet communication on a VxLAN network and external network access.
+`Layer 2 VxLAN gateway`: Connects terminals to a VxLan network and enables intra-subnet communication on the same VxLAN network.
+
+`Layer 3 VxLAN gateway`: Enables inter-subnet communication on a VxLAN network and external network access.
 
 `NVE`: Network Virtualization Edge, Host Harvester Cluster may have multi VxLAN network, each VxLAN has related NVE in each node.
 
-`FDB`: Forwarding Database
+`FDB`: Forwarding Database.
+
+`VIP`/`EIP`: Virtual IP/Elastic IP.
+
 
 ## Motivation
 
@@ -70,28 +78,33 @@ With the enhancement of Harvester VLAN network, user can deploy up to 4K isolate
 
 Add VxLAN network with adding the following advanced features:
 
-  (3) Support up to 16M isolated `VM Group` in one `Host Harvester Cluster`, VM in different group can not communicate with each other direclty.
+  Support VxLAN overlay network on top of a dedicated `Second Network` (3)
 
-  (3) Support VM live migration and persistent IP address, VM can freely migrate/move in the cluster without change of IP address. 
+  Support pure IP network in `Second Network` (1)
 
-  (3) Eliminate the requirements of VLAN in physical network, as few as one VLAN id . 
+  Support automatically establishing of VxLAN tunnel, all host NODEs in the specific `Second Network` are member of VxLAN network and should be able to build full mesh VxLAN tunnel connection (3)
 
-  (3) Support automatically establishing of VxLAN tunnel, all NODEs in a dedicated VLAN physical network, should be able to build full mesh VxLAN tunnel connection.
+  Support up to 16M isolated `Virtual Network` in one `Host Harvester Cluster`, different `Virtual Network` can not communicate with each other direclty by default (3)
 
-  (1) Support pure L3 IP network in physical network ? (is not supported yet, in future, it is possible)
+  Support each `Virtual Network` has a dedicated subnet (3)
 
-  (3) Support VM communicate with VM in same host NODE, in different host NODE
+  Support `Virtual Network` has overlapped subnet (1)
 
-  (3) Support VM communicate with outside (e.g. internet)
+  Support each `Virtual Network` is used for one `VM Group` (3)
 
-  TBD: Support network policies for micro-segmentation of workloads [FEATURE] Support network policies for micro-segmentation of workloads #2260 .
+  Support VM live migration and persistent IP address, VM can freely migrate/move in the `Host Harvester Cluster` without change of IP address (3)
 
-  (2) Support multiple VxLANs with separated physical NICs.
+  Support `VM Group` use `VIP` to communicate with outside (e.g. internet) (3)
 
-  (3) Integrate with kube-vip to provide load balancer service for VMs based on vxlan network.
+  Support `VM Group` use `VIP` to communicate with another `VM Group`'s `VIP`, it must be configured explicitly (3)
 
+  Support kube-vip in `Guest Kubernetes Cluster`, when it is deployed in Host Harvester Cluster VxLAN overlay network (Integrate with kube-vip to provide load balancer service for VMs based on vxlan network) (3)
 
-NOTE: (3) is priority, bigger one is more important.
+  TBD: Support network policies for micro-segmentation of workloads [FEATURE] Support network policies for micro-segmentation of workloads #2260
+
+  Support multiple VxLANs in multi isolated `Second Network` (2)
+
+note: (3)(2)(1) is priority, bigger one is more important
 
 [quck view of VxLAN user operation](#an-example-of-vxlan-user-operation)
 
@@ -104,7 +117,11 @@ NOTE: (3) is priority, bigger one is more important.
 
 ### User Stories
 
-.
+note:
+
+Following user stories describe the Harvester VxLAN network which is built on top of a dedicated second network in Host Harvester Cluster. The second network can be pure IP based (IP addresses may be in different subnet) or VLAN based (IP addresses are in same subnet). What VxLAN depends on is that those IPs are reachable to each other in the provider network.
+
+In Harvester v1.0.1, the second network supports VLAN network, pure IP network will come in future.
 
 #### Story 1
 
@@ -174,7 +191,7 @@ General speaking, different Guest Kubernetes Cluster / VM Group does not communi
 
 Centralized VxLAN gateway deployment has the following advantages and disadvantages:
 
-Advantage:
+Advantages:
   
   Inter-subnet traffic can be centrally managed.
   
@@ -240,7 +257,7 @@ https://rancher.com/docs/rancher/v2.6/en/cluster-admin/cluster-access/kubectl/
 Guest Kubernetes Cluster VIP/LB and communication with outside
 
 
-##### How VLAN network handle
+##### How VLAN network handle VIP
 
 It is well described here.
 
@@ -337,20 +354,21 @@ To now, the user will be able to use Harvester VxLAN network to create isolated 
 
 ```
 (1) Install Host Harvester Cluster, wait for it's ready
-(2) Create VLAN network on second NIC, say VLAN 5, IP DHCP from provider network, CIDR e.g. 192.168.5.0/24
-(3) Create VxLAN network on top of VLAN, say VxLAN 1, based on VLAN 5,  set CIDR, e.g. 10.0.0.0/8
+(2) Create one second network on a dedicated NIC/a group of bonded NICs (different from the management NIC), IP addresses are static set/dynamic provisioned by DHCP from provider network, CIDR e.g. 192.168.5.0/24
+
+(3) Create one VxLAN overlay network on top of the second network, say VxLAN 1, the overlay network CIDR, e.g. 10.0.0.0/8
      VxLAN Local IP and remote peers in each NODE are fetched from APIServer.
      Related VxLAN L3 Gateway and NAT are also deployed.
 
-(4) Create a VNI, say 100, set CIDR, e.g. 10.99.100.0/24
+(4) Create one VNI, say 100, CIDR e.g. 10.99.100.0/24
      VxLAN 1, VNI 100, the VxLAN tunnel in each NODE are established, each node has a VTEP instance, say vxlan_1_100
-(5) Create a group of VMs, say vmg_1, the CNI is binded to VNI 100
+(5) Create one group of VMs, say vmg_1, the CNI is binded to VNI 100
      each vxlan_1_100 will have related forwarding db (MAC address of VM, local port/remote VTEP IP)
      selecting head end replication
      add MAC 00.00.00.00.00.00 for each remote peer, for BUM packet processing
      VM--VM communication is ready
-(6) Provision a guest k8s cluster, cluster_1 in vmg_1
-(7) Add a LB/VIP for cluster_1 (10.99.100.99), a corresponding VIP is allocated in provider network, 192.168.5.99
+(6) Provision one guest k8s cluster, cluster_1 in vmg_1
+(7) Add one LB/VIP for cluster_1 (10.99.100.99), a corresponding VIP is allocated in provider network, 192.168.5.99
      cluster_1 is able to communicate with provider network
 
 
@@ -503,7 +521,7 @@ forwarding table using the new bridge command.
 
 ### flannel
 
-(NOTE: it may not be fully accurate, just FYI)
+(note: it may not be fully accurate, just FYI)
 
 ..
 The realization of flannel VxLAN mode has gone through three iterations
