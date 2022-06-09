@@ -24,7 +24,7 @@ For clarity, this HEP defines and lists the following terms:
 
 `VM Group`: A group of VM provisioned by Host Harvester Cluster, those VMs can communicate with each other by default. Different VM Groups are isolated by default. Guest Kubernetes Cluster is also kind of VM Group.
 
-`Tenant/Project`: A Tenanat/Project is using a VM Group, some advanced features like L3 VxLAN Gateway, NAT may also be included.
+`Tenant/Project`: A Tenant/Project is using a VM Group, some advanced features like L3 VxLAN Gateway, NAT may also be included.
 
 `Management Network` / `Default Network`: The default network used by kubernetes management. Both `Host Harvester Cluster` and `Guest Kubernetes Cluster` have such a network.
 
@@ -282,7 +282,7 @@ One way is to have NAT in L3 VxLAN Gateway.
 
 To hide the details of overlay network, the VIP/LB of Guest Kubernetes Cluster, have a 1:1 mapping public IP/Host Cluster IP.
 
-Continue with previous story, the communication between Rancher and Guest Kubernetes Cluster are illustrated.
+Continue with previous story, the communication between `Rancher` and `Guest Kubernetes Cluster` are illustrated.
 
 Traffic from Rancher to cluster1.
 
@@ -345,6 +345,38 @@ Challenges:
 
 2. Is it allowed of cross VxLAN instance communication ?
 
+
+#### Story 11
+
+Network policy/Security group/... (a proper name is needed)
+
+##### Network policy in `Guest Kubernetes Cluster`
+
+Per kubernetes document, it is done by `Guest Kubernetes Cluster`, out of scope of this HEP.
+
+https://kubernetes.io/docs/concepts/services-networking/network-policies/
+
+note, cite from previous link:
+```
+(Kubernetes) NetworkPolicies are an application-centric construct which allow you to specify how a pod is allowed to communicate with various network "entities"
+ (we use the word "entity" here to avoid overloading the more common terms such as "endpoints" and "services",
+ which have specific Kubernetes connotations) over the network.
+ NetworkPolicies apply to a connection with a pod on one or both ends, and are not relevant to other connections.
+```
+
+##### Network policy in `Host Kubernetes Cluster`
+
+General speaking, the main task of `Host Kubernetes Cluster` is to provision VM for `Guest Kubernetes Cluster`/`VM Group`. We will try to define kind of concept to control `VM Group` with `VM Group`.
+
+##### TBD: VxLAN overlay network policy
+
+TBD: define control concepts to be used in story 7, 8, 9.
+
+#### Security
+
+TBD: Extend following kubernetes's concept. and more.
+
+https://kubernetes.io/docs/concepts/security/overview/
 
 ### User Experience In Detail
 
