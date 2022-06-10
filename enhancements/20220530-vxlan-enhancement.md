@@ -59,6 +59,7 @@ For clarity, this HEP defines and lists the following terms:
 
 `VIP`/`EIP`: Virtual IP/Elastic IP.
 
+`Broadcast Domain`: In a bridged network, the broadcast domain corresponds to a Virtual LAN (VLAN), where a VLAN is typically represented by a single VLAN ID (VID) but can be represented by several VIDs where Shared VLAN Learning (SVL) is used per [802.1Q]. (from https://datatracker.ietf.org/doc/html/rfc7432)
 
 ## Motivation
 
@@ -254,7 +255,7 @@ https://rancher.com/docs/rancher/v2.6/en/cluster-admin/cluster-access/kubectl/
 
 #### Story 9
 
-Guest Kubernetes Cluster VIP/LB and communication with outside
+Guest Kubernetes Cluster VIP/LB and communication with outside world
 
 
 ##### How VLAN network handle VIP
@@ -377,6 +378,242 @@ TBD: define control concepts to be used in story 7, 8, 9.
 TBD: Extend following kubernetes's concept. and more.
 
 https://kubernetes.io/docs/concepts/security/overview/
+
+#### Story 12
+
+Use BGP EVPN as VxLAN control plane
+
+##### Standardization
+
+To enhance the flood-and-learn based VxLAN, the BGP EVPN is extended and used as control plane of VxLAN.
+
+https://datatracker.ietf.org/doc/html/rfc7432  BGP MPLS-Based Ethernet VPN
+
+https://datatracker.ietf.org/doc/html/rfc8365  A Network Virtualization Overlay Solution Using Ethernet VPN (EVPN)
+
+```
+rfc7432
+
+...
+7.  BGP EVPN Routes
+
+   This document defines a new BGP Network Layer Reachability
+   Information (NLRI) called the EVPN NLRI.
+
+   The format of the EVPN NLRI is as follows:
+
+                 +-----------------------------------+
+                 |    Route Type (1 octet)           |
+                 +-----------------------------------+
+                 |     Length (1 octet)              |
+                 +-----------------------------------+
+                 | Route Type specific (variable)    |
+                 +-----------------------------------+
+
+   The Route Type field defines the encoding of the rest of the EVPN
+   NLRI (Route Type specific EVPN NLRI).
+
+   The Length field indicates the length in octets of the Route Type
+   specific field of the EVPN NLRI.
+
+   This document defines the following Route Types:
+
+      + 1 - Ethernet Auto-Discovery (A-D) route
+      + 2 - MAC/IP Advertisement route
+      + 3 - Inclusive Multicast Ethernet Tag route
+      + 4 - Ethernet Segment route
+
+
+   The EVPN NLRI is carried in BGP [RFC4271] using BGP Multiprotocol
+   Extensions [RFC4760] with an Address Family Identifier (AFI) of 25
+   (L2VPN) and a Subsequent Address Family Identifier (SAFI) of 70
+   (EVPN).  The NLRI field in the MP_REACH_NLRI/MP_UNREACH_NLRI
+   attribute contains the EVPN NLRI (encoded as specified above).
+
+   In order for two BGP speakers to exchange labeled EVPN NLRI, they
+   must use BGP Capabilities Advertisements to ensure that they both are
+   capable of properly processing such NLRI.  This is done as specified
+   in [RFC4760], by using capability code 1 (multiprotocol BGP) with an
+   AFI of 25 (L2VPN) and a SAFI of 70 (EVPN).
+
+7.1.  Ethernet Auto-discovery Route
+
+   An Ethernet A-D route type specific EVPN NLRI consists of the
+   following:
+
+                +---------------------------------------+
+                |  Route Distinguisher (RD) (8 octets)  |
+                +---------------------------------------+
+                |Ethernet Segment Identifier (10 octets)|
+                +---------------------------------------+
+                |  Ethernet Tag ID (4 octets)           |
+                +---------------------------------------+
+                |  MPLS Label (3 octets)                |
+                +---------------------------------------+
+
+   For the purpose of BGP route key processing, only the Ethernet
+   Segment Identifier and the Ethernet Tag ID are considered to be part
+   of the prefix in the NLRI.  The MPLS Label field is to be treated as
+   a route attribute as opposed to being part of the route.
+
+
+   For procedures and usage of this route, please see Sections 8.2
+   ("Fast Convergence") and 8.4 ("Aliasing and Backup Path").
+
+..
+
+7.2.  MAC/IP Advertisement Route
+
+   A MAC/IP Advertisement route type specific EVPN NLRI consists of the
+   following:
+
+                +---------------------------------------+
+                |  RD (8 octets)                        |
+                +---------------------------------------+
+                |Ethernet Segment Identifier (10 octets)|
+                +---------------------------------------+
+                |  Ethernet Tag ID (4 octets)           |
+                +---------------------------------------+
+                |  MAC Address Length (1 octet)         |
+                +---------------------------------------+
+                |  MAC Address (6 octets)               |
+                +---------------------------------------+
+                |  IP Address Length (1 octet)          |
+                +---------------------------------------+
+                |  IP Address (0, 4, or 16 octets)      |
+                +---------------------------------------+
+                |  MPLS Label1 (3 octets)               |
+                +---------------------------------------+
+                |  MPLS Label2 (0 or 3 octets)          |
+                +---------------------------------------+
+
+..
+
+   For the purpose of BGP route key processing, only the Ethernet Tag  --------------------
+   ID, MAC Address Length, MAC Address, IP Address Length, and IP
+   Address fields are considered to be part of the prefix in the NLRI.
+
+   The Ethernet Segment Identifier, MPLS Label1, and MPLS Label2 fields ------
+   are to be treated as route attributes as opposed to being part of the
+   "route".  Both the IP and MAC address lengths are in bits.
+
+   For procedures and usage of this route, please see Sections 9
+   ("Determining Reachability to Unicast MAC Addresses") and 14 ("Load
+   Balancing of Unicast Packets").
+
+7.3.  Inclusive Multicast Ethernet Tag Route
+
+   An Inclusive Multicast Ethernet Tag route type specific EVPN NLRI
+   consists of the following:
+
+               +---------------------------------------+
+               |  RD (8 octets)                        |
+               +---------------------------------------+
+               |  Ethernet Tag ID (4 octets)           |
+               +---------------------------------------+
+               |  IP Address Length (1 octet)          |
+               +---------------------------------------+
+               |  Originating Router's IP Address      |
+               |          (4 or 16 octets)             |
+               +---------------------------------------+
+
+   For procedures and usage of this route, please see Sections 11
+   ("Handling of Multi-destination Traffic"), 12 ("Processing of Unknown
+   Unicast Packets"), and 16 ("Multicast and Broadcast").  The IP
+   address length is in bits.  For the purpose of BGP route key
+   processing, only the Ethernet Tag ID, IP Address Length, and
+   Originating Router's IP Address fields are considered to be part of
+   the prefix in the NLRI.
+
+```
+
+There are two kinds of reachability information a VTEP sends through BGP EVPN:
+
+for each VNI, the local MAC addresses (type 2 routes), and the VNIs they have interest in (type 3 routes).
+
+Compared to manually deploy VXLAN, BGP EVPN has three main advantages:
+```
+proven scalability (a typical BGP routers handle several millions of routes); and
+
+possibility to enforce fine-grained policies.
+
+interoperability with other vendors (not important here)
+```
+
+###### Comparing with k8s controller
+
+For route type 2, 3, Host Harvester Cluster has all the information in API Server, a k8s controller can build the topoloty, can update the VXLAN related route info.
+
+
+##### BGP route reflector
+
+![](./20220530-vxlan-enhancement/vxlan-bgp-rr-1.png)
+
+Before configuring each VTEP, we need to configure two or more route reflectors. e.g.
+
+	using FRR (https://github.com/FRRouting/frr, integrated in https://www.nvidia.com/en-us/networking/ethernet-switching/cumulus-linux/)
+
+	using GoBGP, an implementation of BGP in Go; 
+
+	using Juniper Junos / Cisco ...
+
+Sample of config BGP reflector with FRR:
+```
+router bgp 65000
+  bgp router-id 192.168.5.253.254
+  bgp cluster-id 192.168.5.253.254
+  bgp log-neighbor-changes
+  no bgp default ipv4-unicast
+  neighbor fabric peer-group
+  neighbor fabric remote-as 65000
+  neighbor fabric capability extended-nexthop
+  neighbor fabric update-source 192.168.5.254
+  bgp listen range 192.168.5.0/24 peer-group fabric
+  !
+  address-family l2vpn evpn
+   neighbor fabric activate
+   neighbor fabric route-reflector-client
+  exit-address-family
+  !
+!
+```
+
+Sample of config BGP in each VTEP (each Host Harvester Cluster Node)
+```
+router bgp 65000
+  bgp router-id 192.168.5.2
+  no bgp default ipv4-unicast
+  neighbor fabric peer-group
+  neighbor fabric remote-as 65000
+  neighbor fabric capability extended-nexthop
+  ! BGP sessions with route reflectors
+  neighbor 192.168.5.254 peer-group fabric
+  neighbor 192.168.5.253 peer-group fabric  (backup reflector)
+  !
+  address-family l2vpn evpn
+   neighbor fabric activate
+   advertise-all-vni
+  exit-address-family
+  !
+!
+```
+
+###### Disadvantages
+
+It is not difficult to raise doubt: where and who in Host Harvester Cluster will act as `route reflector` ? out-of-tree ?
+
+
+##### Without BGP route reflector
+
+When no BGP route reflector is deployed, then each VTEP needs to start BGP connection with all it's peers, it is full meshed. And each BGP node will sync route to all peers.
+
+Then, k8s API Server looks to be a better solution.
+
+
+##### Distributed gateway
+
+TBD
+
 
 ### User Experience In Detail
 
