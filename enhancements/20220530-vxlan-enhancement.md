@@ -59,7 +59,13 @@ For clarity, this HEP defines and lists the following terms:
 
 `VIP`/`EIP`: Virtual IP/Elastic IP.
 
-`Broadcast Domain`: In a bridged network, the broadcast domain corresponds to a Virtual LAN (VLAN), where a VLAN is typically represented by a single VLAN ID (VID) but can be represented by several VIDs where Shared VLAN Learning (SVL) is used per [802.1Q]. (from https://datatracker.ietf.org/doc/html/rfc7432)
+`Broadcast Domain` / `BD`: In a bridged network, the broadcast domain corresponds to a Virtual LAN (VLAN), where a VLAN is typically represented by a single VLAN ID (VID) but can be represented by several VIDs where Shared VLAN Learning (SVL) is used per [802.1Q]. (from https://datatracker.ietf.org/doc/html/rfc7432)
+
+`IRB`: Integrated Routing and Bridging
+
+`BT`: Bridge Table.  The instantiation of a BD in a MAC-VRF, as per [RFC7432].
+
+`TS`: Tenant System
 
 ## Motivation
 
@@ -527,11 +533,18 @@ rfc7432
 
 ```
 
-There are two kinds of reachability information a VTEP sends through BGP EVPN:
+##### BGP EVPN Routes in VxLAN
 
-for each VNI, the local MAC addresses (type 2 routes), and the VNIs they have interest in (type 3 routes).
+There are two kinds of reachability information one VTEP sends through BGP EVPN:
 
-Compared to manually deploy VXLAN, BGP EVPN has three main advantages:
+For each VNI, the local MAC addresses (previous Chapter 7, type 2 routes), and the VNIs they have interest in (type 3 routes).
+
+At the view of an VM's MAC/IP, it includes not only `VM-MAC`, `VM-IP`, but also `VTEP-IP`, `VNI`. Namely, it is kind of 4-tuple `VM-MAC VM-IP VTEP-IP VNI` to identify an VM.
+
+The 4-tuple must be synced into all VTEPs.
+
+Compared to manually deploy VxLAN, BGP EVPN VxLAN has three main advantages:
+
 ```
 proven scalability (a typical BGP routers handle several millions of routes); and
 
@@ -540,20 +553,17 @@ possibility to enforce fine-grained policies.
 interoperability with other vendors (not important here)
 ```
 
-###### Comparing with k8s controller
-
-For route type 2, 3, Host Harvester Cluster has all the information in API Server, a k8s controller can build the topoloty, can update the VXLAN related route info.
-
-
 ##### BGP route reflector
 
 ![](./20220530-vxlan-enhancement/vxlan-bgp-rr-1.png)
 
-Before configuring each VTEP, we need to configure two or more route reflectors. e.g.
+When deploying BGP, one widely adpoted solution is to deploy a pair of `BGP Route Reflector`, all BGP nodes only need to establish two BGP connections with the reflector pair. Those two reflectors have fixed IP address.
+
+In VxLAN context, before configuring each VTEP, we need to configure two or more route reflectors. e.g.
 
 	using FRR (https://github.com/FRRouting/frr, integrated in https://www.nvidia.com/en-us/networking/ethernet-switching/cumulus-linux/)
 
-	using GoBGP, an implementation of BGP in Go; 
+	using GoBGP, an implementation of BGP in Go
 
 	using Juniper Junos / Cisco ...
 
@@ -598,21 +608,259 @@ router bgp 65000
 !
 ```
 
-###### Disadvantages
+###### BGP route reflector disadvantages
 
-It is not difficult to raise doubt: where and who in Host Harvester Cluster will act as `route reflector` ? out-of-tree ?
+It is not difficult to raise doubt: where and who in Host Harvester Cluster will act as `BGP route reflector` ? out-of-tree ?
+
+When `BGP route reflector` is sitting outside of the cluster, the life cycle management of it is a challenge.
+
+When `BGP route reflector` is sitting inside of the cluster. Suppose:
+
+2 new service call `BGP route reflector` are deployed with 1 replica, and each has one VIP.
+
+All NODEs will run a `BGP` daemonset, which establishs two TCP based BGP connections with those two `BGP route reflector` serivce.
+
+##### BGP without route reflector
+
+When no `BGP route reflector` is deployed, then each VTEP needs to establish BGP connections with all it's peers, it is fullmeshed.
+
+Each NODE establish BGP peer with all other NODEs, and sync (type 2 routes, type 3 routes) local information to peers.
+
+##### Replace BGP with Kubernetes Controller
+
+On the other hand, `Host Harvester Cluster` has all the informaton (type 2 routes, type 3 routes), some kind of kubernetes controller may fulfill those tasks.
+
+4-tuple `VM-MAC VM-IP VTEP-IP VNI` becomes a kind of (virtual) CRD in APIServer, the information could be fetched from NODE, VM, VxLAN.
+
+note: The precondition is: Harvester VxLAN is transparent to outside world, no additional VTEP will join this VxLAN network. Otherwise, BGP EVPN is used for interoperability with other vendors.
+
+#### Story 13
+
+VxLAN Distributed gateway - Integrated Routing and Bridging in Ethernet VPN (EVPN)
+
+Target: each `Host Harvester Cluster` NODE is a gateway of inter-VN communication
+
+##### Standardization
+
+https://datatracker.ietf.org/doc/rfc9135/
+
+```
+...
+   Ethernet VPN (EVPN) provides an extensible and flexible multihoming
+   VPN solution over an MPLS/IP network for intra-subnet connectivity
+   among Tenant Systems and end devices that can be physical or virtual.
+   However, there are scenarios for which there is a need for a dynamic  ----------
+   and efficient inter-subnet connectivity among these Tenant Systems
+   and end devices while maintaining the multihoming capabilities of
+   EVPN.  This document describes an Integrated Routing and Bridging
+   (IRB) solution based on EVPN to address such requirements.
+...
+
+4.  Symmetric and Asymmetric IRB
+
+   This document defines and describes two types of IRB solutions --
+   namely, symmetric and asymmetric IRB.  The description of symmetric
+   and asymmetric IRB procedures relating to data path operations and
+   tables in this document is a logical view of data path lookups and
+   related tables.  Actual implementations, while following this logical
+   view, may not strictly adhere to it for performance trade-offs.
+   Specifically,
+
+   *  References to an ARP table in the context of asymmetric IRB is a
+      logical view of a forwarding table that maintains an IP-to-MAC
+      binding entry on a Layer 3 interface for both IPv4 and IPv6.
+      These entries are not subject to ARP or ND protocols.  For IP-to-
+      MAC bindings learned via EVPN, an implementation may choose to
+      import these bindings directly to the respective forwarding table
+      (such as an adjacency/next-hop table) as opposed to importing them
+      to ARP or ND protocol tables.
+
+   *  References to a host IP lookup followed by a host MAC lookup in
+      the context of asymmetric IRB MAY be collapsed into a single IP
+      lookup in a hardware implementation.
+
+   In symmetric IRB, as its name implies, the lookup operation is
+   symmetric at both the ingress and egress PEs -- i.e., both ingress
+   and egress PEs perform lookups on both MAC and IP addresses.  The
+   ingress PE performs a MAC lookup followed by an IP lookup, and the
+   egress PE performs an IP lookup followed by a MAC lookup, as depicted
+   in the following figure.
+
+                  Ingress PE                   Egress PE
+            +-------------------+        +------------------+
+            |                   |        |                  |
+            |    +-> IP-VRF ----|---->---|-----> IP-VRF -+  |
+            |    |              |        |               |  |
+            |   BT1        BT2  |        |  BT3         BT2 |
+            |    |              |        |               |  |
+            |    ^              |        |               v  |
+            |    |              |        |               |  |
+            +-------------------+        +------------------+
+                 ^                                       |
+                 |                                       |
+           TS1->-+                                       +->-TS2
+
+                          Figure 2: Symmetric IRB
+
+   In symmetric IRB, as shown in Figure 2, the inter-subnet forwarding
+   between two PEs is done between their associated IP-VRFs.  Therefore,
+   the tunnel connecting these IP-VRFs can be either an IP-only tunnel
+   (e.g., in the case of MPLS or GPE encapsulation) or an Ethernet NVO
+   tunnel (e.g., in the case of VXLAN encapsulation).  If it is an
+   Ethernet NVO tunnel, the TS1's IP packet is encapsulated in an
+   Ethernet header consisting of ingress and egress PE MAC addresses --
+   i.e., there is no need for the ingress PE to use the destination
+   TS2's MAC address.  Therefore, in symmetric IRB, there is no need for
+   the ingress PE to maintain ARP entries for the association of the
+   destination TS2's IP and MAC addresses in its ARP table.  Each PE
+   participating in symmetric IRB only maintains ARP entries for locally
+   connected hosts and MAC-VRFs/BTs for only locally configured subnets.
+
+   In asymmetric IRB, the lookup operation is asymmetric and the ingress
+   PE performs three lookups, whereas the egress PE performs a single
+   lookup -- i.e., the ingress PE performs a MAC lookup, followed by an
+   IP lookup, followed by a MAC lookup again.  The egress PE performs
+   just a single MAC lookup as depicted in Figure 3 below.
+
+               Ingress PE                       Egress PE
+            +-------------------+        +------------------+
+            |                   |        |                  |
+            |    +-> IP-VRF ->  |        |      IP-VRF      |
+            |    |           |  |        |                  |
+            |   BT1        BT2  |        |  BT3         BT2 |
+            |    |           |  |        |              | | |
+            |    |           +--|--->----|--------------+ | |
+            |    |              |        |                v |
+            +-------------------+        +----------------|-+
+                 ^                                        |
+                 |                                        |
+           TS1->-+                                        +->-TS2
+
+                          Figure 3: Asymmetric IRB
+
+   In asymmetric IRB, as shown in Figure 3, the inter-subnet forwarding
+   between two PEs is done between their associated MAC-VRFs/BTs.
+   Therefore, the MPLS or NVO tunnel used for inter-subnet forwarding
+   MUST be of type Ethernet.  Since only MAC lookup is performed at the
+   egress PE (e.g., no IP lookup), the TS1's IP packets need to be
+   encapsulated with the destination TS2's MAC address.  In order for
+   the ingress PE to perform such encapsulation, it needs to maintain
+   TS2's IP and MAC address association in its ARP table.  Furthermore,
+   it needs to maintain destination TS2's MAC address in the
+   corresponding bridge table even though it may not have any TSs of the
+   corresponding subnet locally attached.  In other words, each PE
+   participating in asymmetric IRB MUST maintain ARP entries for remote
+   hosts (hosts connected to other PEs) as well as maintain MAC-VRFs/BTs
+   and IRB interfaces for ALL subnets in an IP-VRF, including subnets
+   that may not be locally attached.  Therefore, careful consideration
+   of the PE scale aspects for its ARP table size, its IRB interfaces,
+   and the number and size of its bridge tables should be given for the
+   application of asymmetric IRB.
 
 
-##### Without BGP route reflector
+4.1.  IRB Interface and Its MAC and IP Addresses
 
-When no BGP route reflector is deployed, then each VTEP needs to start BGP connection with all it's peers, it is full meshed. And each BGP node will sync route to all peers.
+   To support inter-subnet forwarding on a PE, the PE acts as an IP
+   default gateway from the perspective of the attached Tenant Systems
+   where default gateway MAC and IP addresses are configured on each IRB
+   interface associated with its subnet and fall into one of the
+   following two options:
 
-Then, k8s API Server looks to be a better solution.
+   1.  All the PEs for a given tenant subnet use the same anycast ------------------------
+       default gateway IP and MAC addresses.  On each PE, these default
+       gateway IP and MAC addresses correspond to the IRB interface
+       connecting the bridge table associated with the tenant's VLAN to
+       the corresponding tenant's IP-VRF.
+
+   2.  Each PE for a given tenant subnet uses the same anycast default
+       gateway IP address but its own MAC address.  These MAC addresses ------------------
+       are aliased to the same anycast default gateway IP address
+       through the use of the Default Gateway extended community as
+       specified in [RFC7432], which is carried in the EVPN MAC/IP
+       Advertisement routes.  On each PE, this default gateway IP
+       address, along with its associated MAC addresses, correspond to
+       the IRB interface connecting the bridge table associated with the
+       tenant's VLAN to the corresponding tenant's IP-VRF.
+
+   It is worth noting that if the applications that are running on the
+   TSs are employing or relying on any form of MAC security, then the
+   first option (i.e., using an anycast MAC address) should be used to
+   ensure that the applications receive traffic from the same IRB
+   interface MAC address to which they are sending.  If the second
+   option is used, then the IRB interface MAC address MUST be the one
+   used in the initial ARP reply or ND Neighbor Advertisement (NA) for
+   that TS.
+
+   Although both of these options are applicable to both symmetric and
+   asymmetric IRB, option 1 is recommended because of the ease of
+   anycast MAC address provisioning on not only the IRB interface
+   associated with a given subnet across all the PEs corresponding to
+   that VLAN but also on all IRB interfaces associated with all the
+   tenant's subnets across all the PEs corresponding to all the VLANs
+   for that tenant.  Furthermore, it simplifies the operation as there
+   is no need for Default Gateway extended community advertisement and
+   its associated MAC aliasing procedure.  Yet another advantage is that
+   following host mobility, the host does not need to refresh the
+   default GW ARP/ND entry.
+
+   If option 1 is used, an implementation MAY choose to auto-derive the
+   anycast MAC address.  If auto-derivation is used, the anycast MAC
+   MUST be auto-derived out of the following ranges (which are defined
+   in [RFC5798]):
+
+   *  Anycast IPv4 IRB case: 00-00-5E-00-01-{VRID}
+
+   *  Anycast IPv6 IRB case: 00-00-5E-00-02-{VRID}
+
+   Where the last octet is generated based on a configurable Virtual
+   Router ID (VRID) (range 1-255).  If not explicitly configured, the
+   default value for the VRID octet is '1'.  Auto-derivation of the -----------------
+   anycast MAC can only be used if there is certainty that the auto-
+   derived MAC does not collide with any customer MAC address.
+
+   In addition to IP anycast addresses, IRB interfaces can be configured
+   with non-anycast IP addresses for the purpose of OAM (such as sending
+   a traceroute/ping to these interfaces) for both symmetric and
+   asymmetric IRB.  These IP addresses need to be distributed as VPN
+   routes when PEs operate in symmetric IRB mode.  However, they don't
+   need to be distributed if the PEs are operating in asymmetric IRB
+   mode as the non-anycast IP addresses are configured along with their
+   individual MACs, and they get distributed via the EVPN route type 2
+   advertisement.
+
+   For option 1 -- irrespective of whether only the anycast MAC address
+   or both anycast and non-anycast MAC addresses (where the latter one
+   is used for the purpose of OAM) are used on the same IRB -- when a TS
+   sends an ARP request or ND Neighbor Solicitation (NS) to the PE to
+   which it is attached, the request is sent for the anycast IP address
+   of the IRB interface associated with the TS's subnet.  The reply will
+   use an anycast MAC address (in both the source MAC in the Ethernet
+   header and sender hardware address in the payload).  For example, in
+   Figure 4, TS1 is configured with the anycast IPx address as its
+   default gateway IP address; thus, when it sends an ARP request for
+   IPx (anycast IP address of the IRB interface for BT1), the PE1 sends
+   an ARP reply with the MACx, which is the anycast MAC address of that
+   IRB interface.  Traffic routed from IP-VRF1 to TS1 uses the anycast
+   MAC address as the source MAC address.
 
 
-##### Distributed gateway
+```
 
-TBD
+```
+In MP-BGP EVPN, any VTEP in a VNI can be the distributed anycast gateway
+for end hosts in its IP subnet by supporting the same virtual gateway
+IP address and the virtual gateway MAC address. With the anycast gateway
+function in EVPN, end hosts in a VNI always can use their local VTEPs
+for this VNI as their default gateway to send traffic to outside of their
+IP subnet. This capability enables optimal forwarding for northbound traffic
+from end hosts in the VXLAN overlay network. A distributed anycast gateway
+also offers the benefit of seemless host mobility in the VXLAN overlay network.
+Because the gateway IP and virtual MAC address are identically provisioned on
+all VTEPs within a VNI, when an end host moves from one VTEP to another VTEP,
+it doesn’t need to send another ARP request to re-learn the gateway MAC address.
+
+
+```
 
 
 ### User Experience In Detail
@@ -701,6 +949,19 @@ Anything that requires if user want to upgrade to this enhancement
 
 ## reference
 
+https://www.kernel.org/doc/Documentation/networking/vxlan.txt
+
+https://datatracker.ietf.org/doc/html/rfc7432  BGP MPLS-Based Ethernet VPN
+
+https://datatracker.ietf.org/doc/html/rfc8365  A Network Virtualization Overlay Solution Using Ethernet VPN (EVPN)
+
+https://datatracker.ietf.org/doc/rfc9135/ Integrated Routing and Bridging in Ethernet VPN (EVPN)
+
+https://vincent.bernat.ch/en/blog/2017-vxlan-bgp-evpn
+
+https://vincent.bernat.ch/en/blog/2017-vxlan-linux
+
+https://www.cisco.com/c/en/us/products/collateral/switches/nexus-9000-series-switches/guide-c07-734107.html
 
 
 ### Linux related
