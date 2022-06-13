@@ -499,7 +499,7 @@ rfc7432
    ID, MAC Address Length, MAC Address, IP Address Length, and IP
    Address fields are considered to be part of the prefix in the NLRI.
 
-   The Ethernet Segment Identifier, MPLS Label1, and MPLS Label2 fields ------
+   The Ethernet Segment Identifier, MPLS Label1, and MPLS Label2 fields --------------------
    are to be treated as route attributes as opposed to being part of the
    "route".  Both the IP and MAC address lengths are in bits.
 
@@ -649,7 +649,7 @@ https://datatracker.ietf.org/doc/rfc9135/
    Ethernet VPN (EVPN) provides an extensible and flexible multihoming
    VPN solution over an MPLS/IP network for intra-subnet connectivity
    among Tenant Systems and end devices that can be physical or virtual.
-   However, there are scenarios for which there is a need for a dynamic  ----------
+   However, there are scenarios for which there is a need for a dynamic  --------------------
    and efficient inter-subnet connectivity among these Tenant Systems
    and end devices while maintaining the multihoming capabilities of
    EVPN.  This document describes an Integrated Routing and Bridging
@@ -710,7 +710,7 @@ https://datatracker.ietf.org/doc/rfc9135/
    Ethernet NVO tunnel, the TS1's IP packet is encapsulated in an
    Ethernet header consisting of ingress and egress PE MAC addresses --
    i.e., there is no need for the ingress PE to use the destination
-   TS2's MAC address.  Therefore, in symmetric IRB, there is no need for
+   TS2's MAC address.  Therefore, in symmetric IRB, there is no need for --------------------
    the ingress PE to maintain ARP entries for the association of the
    destination TS2's IP and MAC addresses in its ARP table.  Each PE
    participating in symmetric IRB only maintains ARP entries for locally
@@ -748,7 +748,7 @@ https://datatracker.ietf.org/doc/rfc9135/
    TS2's IP and MAC address association in its ARP table.  Furthermore,
    it needs to maintain destination TS2's MAC address in the
    corresponding bridge table even though it may not have any TSs of the
-   corresponding subnet locally attached.  In other words, each PE
+   corresponding subnet locally attached.  In other words, each PE --------------------
    participating in asymmetric IRB MUST maintain ARP entries for remote
    hosts (hosts connected to other PEs) as well as maintain MAC-VRFs/BTs
    and IRB interfaces for ALL subnets in an IP-VRF, including subnets
@@ -766,14 +766,14 @@ https://datatracker.ietf.org/doc/rfc9135/
    interface associated with its subnet and fall into one of the
    following two options:
 
-   1.  All the PEs for a given tenant subnet use the same anycast ------------------------
+   1.  All the PEs for a given tenant subnet use the same anycast --------------------
        default gateway IP and MAC addresses.  On each PE, these default
        gateway IP and MAC addresses correspond to the IRB interface
        connecting the bridge table associated with the tenant's VLAN to
        the corresponding tenant's IP-VRF.
 
    2.  Each PE for a given tenant subnet uses the same anycast default
-       gateway IP address but its own MAC address.  These MAC addresses ------------------
+       gateway IP address but its own MAC address.  These MAC addresses --------------------
        are aliased to the same anycast default gateway IP address
        through the use of the Default Gateway extended community as
        specified in [RFC7432], which is carried in the EVPN MAC/IP
@@ -814,7 +814,7 @@ https://datatracker.ietf.org/doc/rfc9135/
 
    Where the last octet is generated based on a configurable Virtual
    Router ID (VRID) (range 1-255).  If not explicitly configured, the
-   default value for the VRID octet is '1'.  Auto-derivation of the -----------------
+   default value for the VRID octet is '1'.  Auto-derivation of the --------------------
    anycast MAC can only be used if there is certainty that the auto-
    derived MAC does not collide with any customer MAC address.
 
@@ -846,6 +846,9 @@ https://datatracker.ietf.org/doc/rfc9135/
 
 ```
 
+
+
+
 ```
 In MP-BGP EVPN, any VTEP in a VNI can be the distributed anycast gateway
 for end hosts in its IP subnet by supporting the same virtual gateway
@@ -862,6 +865,132 @@ it doesn’t need to send another ARP request to re-learn the gateway MAC addres
 
 ```
 
+https://datatracker.ietf.org/doc/rfc9136/ IP Prefix Advertisement in Ethernet VPN (EVPN)
+
+```
+   This document defines an additional route type (RT-5) in the IANA
+   "EVPN Route Types" registry [EVPNRouteTypes] to be used for the
+   advertisement of EVPN routes using IP prefixes:
+
+      Value:  5
+      Description:  IP Prefix
+
+   According to Section 5.4 of [RFC7606], a node that doesn't recognize
+   the route type 5 (RT-5) will ignore it.  Therefore, an NVE following
+   this document can still be attached to a BD where an NVE ignoring RT-
+   5s is attached.  Regular procedures described in [RFC7432] would
+   apply in that case for both NVEs.  In case two or more NVEs are
+   attached to different BDs of the same tenant, they MUST support the
+   RT-5 for the proper inter-subnet forwarding operation of the tenant.
+
+   The detailed encoding of this route and associated procedures are
+   described in the following sections.
+
+3.1.  IP Prefix Route Encoding
+
+   An IP Prefix route type for IPv4 has the Length field set to 34 and
+   consists of the following fields:
+
+       +---------------------------------------+
+       |      RD (8 octets)                    |
+       +---------------------------------------+
+       |Ethernet Segment Identifier (10 octets)|
+       +---------------------------------------+
+       |  Ethernet Tag ID (4 octets)           |
+       +---------------------------------------+
+       |  IP Prefix Length (1 octet, 0 to 32)  |
+       +---------------------------------------+
+       |  IP Prefix (4 octets)                 |
+       +---------------------------------------+
+       |  GW IP Address (4 octets)             |
+       +---------------------------------------+
+       |  MPLS Label (3 octets)                |
+       +---------------------------------------+
+
+                Figure 3: EVPN IP Prefix Route NLRI for IPv4
+
+   An IP Prefix route type for IPv6 has the Length field set to 58 and
+   consists of the following fields:
+
+       +---------------------------------------+
+       |      RD (8 octets)                    |
+       +---------------------------------------+
+       |Ethernet Segment Identifier (10 octets)|
+       +---------------------------------------+
+       |  Ethernet Tag ID (4 octets)           |
+       +---------------------------------------+
+       |  IP Prefix Length (1 octet, 0 to 128) |
+       +---------------------------------------+
+       |  IP Prefix (16 octets)                |
+       +---------------------------------------+
+       |  GW IP Address (16 octets)            |
+       +---------------------------------------+
+       |  MPLS Label (3 octets)                |
+       +---------------------------------------+
+
+                Figure 4: EVPN IP Prefix Route NLRI for IPv6
+
+   Where:
+
+   *  The Length field of the BGP EVPN NLRI for an EVPN IP Prefix route
+      MUST be either 34 (if IPv4 addresses are carried) or 58 (if IPv6
+      addresses are carried).  The IP prefix and gateway IP address MUST
+      be from the same IP address family.
+
+   *  The Route Distinguisher (RD) and Ethernet Tag ID MUST be used as
+      defined in [RFC7432] and [RFC8365].  In particular, the RD is
+      unique per MAC-VRF (or IP-VRF).  The MPLS Label field is set to
+      either an MPLS label or a VNI, as described in [RFC8365] for other
+      EVPN route types.
+
+   *  The Ethernet Segment Identifier MUST be a non-zero 10-octet
+      identifier if the ESI is used as an Overlay Index (see the
+      definition of "Overlay Index" in Section 3.2).  It MUST be all
+      bytes zero otherwise.  The ESI format is described in [RFC7432].
+
+   *  The IP prefix length can be set to a value between 0 and 32 (bits)
+      for IPv4 and between 0 and 128 for IPv6, and it specifies the
+      number of bits in the prefix.  The value MUST NOT be greater than
+      128.
+
+   *  The IP prefix is a 4- or 16-octet field (IPv4 or IPv6).
+
+   *  The GW IP Address field is a 4- or 16-octet field (IPv4 or IPv6)
+      and will encode a valid IP address as an Overlay Index for the IP
+      prefixes.  The GW IP field MUST be all bytes zero if it is not
+      used as an Overlay Index.  Refer to Section 3.2 for the definition
+      and use of the Overlay Index.
+
+   *  The MPLS Label field is encoded as 3 octets, where the high-order
+      20 bits contain the label value, as per [RFC7432].  When sending,
+      the label value SHOULD be zero if a recursive resolution based on
+      an Overlay Index is used.  If the received MPLS label value is
+      zero, the route MUST contain an Overlay Index, and the ingress
+      NVE/PE MUST perform a recursive resolution to find the egress NVE/
+      PE.  If the received label is zero and the route does not contain
+      an Overlay Index, it MUST be "treat as withdraw" [RFC7606].
+
+   The RD, Ethernet Tag ID, IP prefix length, and IP prefix are part of
+   the route key used by BGP to compare routes.  The rest of the fields
+   are not part of the route key.
+
+   An IP Prefix route MAY be sent along with an EVPN Router's MAC
+   Extended Community (defined in [RFC9135]) to carry the MAC address
+   that is used as the Overlay Index.  Note that the MAC address may be
+   that of a TS.
+```
+
+#### Story 14
+
+Harvester network scenario summarization
+
+![](./20220530-vxlan-enhancement/harvester-network-scenarios-1.png)
+
+When Harvester is used for IaaS (private cloud/hybrid-cloud ...), the reasonable solution is using VLAN network. The owner may establish VxLAN network, deploy BGP EVPN and more. But at the view of Harvester, it only sees the given VLAN network.
+
+When Harvester is used for guest k8s cluster, our main target now, a fully isolated VxLAN overlay network could be the main requirement.
+
+In case mixing those scenarios, the requirments will become fairly complex.
 
 ### User Experience In Detail
 
@@ -871,7 +1000,8 @@ To now, the user will be able to use Harvester VxLAN network to create isolated 
 
 ```
 (1) Install Host Harvester Cluster, wait for it's ready
-(2) Create one second network on a dedicated NIC/a group of bonded NICs (different from the management NIC), IP addresses are static set/dynamic provisioned by DHCP from provider network, CIDR e.g. 192.168.5.0/24
+(2) Create one second network on a dedicated NIC/a group of bonded NICs (different from the management NIC),
+     IP addresses are static set/dynamic provisioned by DHCP from provider network, CIDR e.g. 192.168.5.0/24
 
 (3) Create one VxLAN overlay network on top of the second network, say VxLAN 1, the overlay network CIDR, e.g. 10.0.0.0/8
      VxLAN Local IP and remote peers in each NODE are fetched from APIServer.
@@ -936,6 +1066,72 @@ note the `dst` field, it is a must of vxlan fdb, represents VTEP peer IP.
 # bridge fdb append 50:54:33:00:00:09 dev vxlan100 dst 2001:db8:2::1
 ```
 
+### Linux VRF
+
+https://docs.kernel.org/networking/vrf.html
+
+```
+Design
+A VRF device is created with an associated route table. Network interfaces are then enslaved to a VRF device:
+
++-----------------------------+
+|           vrf-blue          |  ===> route table 10
++-----------------------------+
+   |        |            |
++------+ +------+     +-------------+
+| eth1 | | eth2 | ... |    bond1    |
++------+ +------+     +-------------+
+                         |       |
+                     +------+ +------+
+                     | eth8 | | eth9 |
+                     +------+ +------+
+Packets received on an enslaved device and are switched to the VRF device in the IPv4 and IPv6 processing stacks
+giving the impression that packets flow through the VRF device. Similarly on egress routing rules are used to
+send packets to the VRF device driver before getting sent out the actual interface. This allows tcpdump on a VRF device
+to capture all packets into and out of the VRF as a whole1. Similarly, netfilter2 and tc rules can be applied using
+the VRF device to specify rules that apply to the VRF domain as a whole.
+
+
+Setup
+1. VRF device is created with an association to a FIB table. e.g,:
+
+ip link add vrf-blue type vrf table 10
+ip link set dev vrf-blue up
+
+2.An l3mdev FIB rule directs lookups to the table associated with the device. A single l3mdev rule is sufficient for all VRFs.
+The VRF device adds the l3mdev rule for IPv4 and IPv6 when the first device is created with a default preference of 1000.
+Users may delete the rule if desired and add with a different priority or install per-VRF rules.
+
+Prior to the v4.8 kernel iif and oif rules are needed for each VRF device:
+
+ip ru add oif vrf-blue table 10
+ip ru add iif vrf-blue table 10
+
+3.Set the default route for the table (and hence default route for the VRF):
+
+ip route add table 10 unreachable default metric 4278198272
+
+This high metric value ensures that the default unreachable route can be overridden by a routing protocol suite.
+FRRouting interprets kernel metrics as a combined admin distance (upper byte) and priority (lower 3 bytes).
+Thus the above metric translates to [255/8192].
+
+4.Enslave L3 interfaces to a VRF device:
+
+ip link set dev eth1 master vrf-blue
+
+Local and connected routes for enslaved devices are automatically moved to the table associated with VRF device.
+Any additional routes depending on the enslaved device are dropped and will need to be reinserted to the VRF FIB table following the enslavement.
+
+The IPv6 sysctl option keep_addr_on_down can be enabled to keep IPv6 global addresses as VRF enslavement changes:
+
+sysctl -w net.ipv6.conf.all.keep_addr_on_down=1
+
+5.Additional VRF routes are added to associated table:
+
+ip route add table 10 ...
+```
+
+
 ### Test plan
 
 Integration test plan.
@@ -956,6 +1152,8 @@ https://datatracker.ietf.org/doc/html/rfc7432  BGP MPLS-Based Ethernet VPN
 https://datatracker.ietf.org/doc/html/rfc8365  A Network Virtualization Overlay Solution Using Ethernet VPN (EVPN)
 
 https://datatracker.ietf.org/doc/rfc9135/ Integrated Routing and Bridging in Ethernet VPN (EVPN)
+
+https://datatracker.ietf.org/doc/rfc9136/ IP Prefix Advertisement in Ethernet VPN (EVPN)
 
 https://vincent.bernat.ch/en/blog/2017-vxlan-bgp-evpn
 
