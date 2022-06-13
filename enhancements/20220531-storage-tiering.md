@@ -100,6 +100,14 @@ Show diskSelector,nodeSelector, if it exits
 ### API changes
 
 Add a new field: `extraStorageClassParameters`, type `map[string]string`, to `harvesterhci.io.virtualmachineimages.spec`.
+
+If `extraStorageClassParameters` are allowed to be modified, the backend deletion and reconstruction of the storageClass being used may cause unpredictable consequences.
+And it is difficult to know from the storageClass information what the parameters were when the PVC was created.
+This makes displaying diskSelector and nodeSelector on the UI potentially inaccurate.
+Currently, the URL of image is also not allowed to be modified by the user on the UI
+So users should not be allowed to modify the `extraStorageClassParameters` contents.
+For different scheduling rules for the same image file, users need to create different images.
+
 ```yaml
 spec:
   checksum: ""
