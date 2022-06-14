@@ -1041,6 +1041,26 @@ At the view of `Host Harvester Cluster`, those different network types need to m
 
 ![](./20220530-vxlan-enhancement/guest-k8s-network-mapping-1.png)
 
+##### Flannel VxLAN
+
+Flannel uses Linux in-kernel VxLAN to encapsulate the packets.
+
+```
+Type and options:
+  Type (string): vxlan
+  VNI (number): VXLAN Identifier (VNI) to be used. On Linux, defaults to 1. On Windows should be greater than or equal to 4096.  flannel.1
+  Port (number): UDP port to use for sending encapsulated packets. On Linux, defaults to kernel default, currently 8472, but on Windows, must be 4789.
+  GBP (Boolean): Enable VXLAN Group Based Policy. Defaults to false. GBP is not supported on Windows
+  DirectRouting (Boolean): Enable direct routes (like host-gw) when the hosts are on the same subnet. VXLAN will only be used to encapsulate packets to hosts on different subnets. Defaults to false.   DirectRouting is not supported on Windows.
+  MacPrefix (String): Only use on Windows, set to the MAC prefix. Defaults to 0E-2A.
+
+```
+
+Why `Flannel` is not fit for Harvester VxLAN network?
+
+![](./20220530-vxlan-enhancement/flannel-vxlan-comparing-1.png)
+
+
 ### User Experience In Detail
 
 #### An example of VxLAN user operation
