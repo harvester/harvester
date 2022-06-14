@@ -7452,8 +7452,12 @@
           "$ref": "#/definitions/k8s.io.apimachinery.pkg.util.intstr.IntOrString"
         },
         "scheme": {
-          "description": "Scheme to use for connecting to the host. Defaults to HTTP.",
-          "type": "string"
+          "description": "Scheme to use for connecting to the host. Defaults to HTTP.\n\nPossible enum values:\n - `\"HTTP\"` means that the scheme used will be http://\n - `\"HTTPS\"` means that the scheme used will be https://",
+          "type": "string",
+          "enum": [
+            "HTTP",
+            "HTTPS"
+          ]
         }
       }
     },
@@ -7561,7 +7565,8 @@
           "description": "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
           "type": "string"
         }
-      }
+      },
+      "x-kubernetes-map-type": "atomic"
     },
     "k8s.io.v1.ManagedFieldsEntry": {
       "description": "ManagedFieldsEntry is a workflow-id, a FieldSet and the group version of the resource that the fieldset applies to.",
@@ -7585,6 +7590,10 @@
         },
         "operation": {
           "description": "Operation is the type of operation which lead to this ManagedFieldsEntry being created. The only valid values for this field are 'Apply' and 'Update'.",
+          "type": "string"
+        },
+        "subresource": {
+          "description": "Subresource is the name of the subresource used to update that object, or empty string if the object was updated through the main resource. The value of this field is used to distinguish between managers, even if they share the same name. For example, a status update will be distinct from a regular update using the same manager name. Note that the APIVersion field is not related to the Subresource field and it always corresponds to the version of the main resource.",
           "type": "string"
         },
         "time": {
@@ -7626,7 +7635,8 @@
             "$ref": "#/definitions/k8s.io.v1.NodeSelectorTerm"
           }
         }
-      }
+      },
+      "x-kubernetes-map-type": "atomic"
     },
     "k8s.io.v1.NodeSelectorRequirement": {
       "description": "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
@@ -7642,9 +7652,17 @@
           "default": ""
         },
         "operator": {
-          "description": "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+          "description": "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.\n\nPossible enum values:\n - `\"DoesNotExist\"`\n - `\"Exists\"`\n - `\"Gt\"`\n - `\"In\"`\n - `\"Lt\"`\n - `\"NotIn\"`",
           "type": "string",
-          "default": ""
+          "default": "",
+          "enum": [
+            "DoesNotExist",
+            "Exists",
+            "Gt",
+            "In",
+            "Lt",
+            "NotIn"
+          ]
         },
         "values": {
           "description": "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
@@ -7676,7 +7694,8 @@
             "$ref": "#/definitions/k8s.io.v1.NodeSelectorRequirement"
           }
         }
-      }
+      },
+      "x-kubernetes-map-type": "atomic"
     },
     "k8s.io.v1.ObjectFieldSelector": {
       "description": "ObjectFieldSelector selects an APIVersioned field of an object.",
@@ -7694,7 +7713,8 @@
           "type": "string",
           "default": ""
         }
-      }
+      },
+      "x-kubernetes-map-type": "atomic"
     },
     "k8s.io.v1.ObjectMeta": {
       "description": "ObjectMeta is metadata that all persisted resources must have, which includes all objects users must create.",
@@ -7835,7 +7855,8 @@
           "type": "string",
           "default": ""
         }
-      }
+      },
+      "x-kubernetes-map-type": "atomic"
     },
     "k8s.io.v1.Patch": {
       "description": "Patch is provided to give a concrete name and type to the Kubernetes PATCH request body.",
@@ -7955,11 +7976,15 @@
           }
         },
         "dataSource": {
-          "description": "This field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot) * An existing PVC (PersistentVolumeClaim) * An existing custom resource that implements data population (Alpha) In order to use custom resource types that implement data population, the AnyVolumeDataSource feature gate must be enabled. If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source.",
+          "description": "This field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot) * An existing PVC (PersistentVolumeClaim) If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source. If the AnyVolumeDataSource feature gate is enabled, this field will always have the same contents as the DataSourceRef field.",
+          "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
+        },
+        "dataSourceRef": {
+          "description": "Specifies the object from which to populate the volume with data, if a non-empty volume is desired. This may be any local object from a non-empty API group (non core object) or a PersistentVolumeClaim object. When this field is specified, volume binding will only succeed if the type of the specified object matches some installed volume populator or dynamic provisioner. This field will replace the functionality of the DataSource field and as such if both fields are non-empty, they must have the same value. For backwards compatibility, both fields (DataSource and DataSourceRef) will be set to the same value automatically if one of them is empty and the other is non-empty. There are two important differences between DataSource and DataSourceRef: * While DataSource only allows two specific types of objects, DataSourceRef\n  allows any non-core object, as well as PersistentVolumeClaim objects.\n* While DataSource ignores disallowed values (dropping them), DataSourceRef\n  preserves all values, and generates an error if a disallowed value is\n  specified.\n(Alpha) Using this field requires the AnyVolumeDataSource feature gate to be enabled.",
           "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
         },
         "resources": {
-          "description": "Resources represents the minimum resources the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources",
+          "description": "Resources represents the minimum resources the volume should have. If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements that are lower than previous value but must still be higher than capacity recorded in the status field of the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources",
           "default": {},
           "$ref": "#/definitions/k8s.io.v1.ResourceRequirements"
         },
@@ -7993,6 +8018,14 @@
             "default": ""
           }
         },
+        "allocatedResources": {
+          "description": "The storage resource within AllocatedResources tracks the capacity allocated to a PVC. It may be larger than the actual capacity when a volume expansion operation is requested. For storage quota, the larger value from allocatedResources and PVC.spec.resources is used. If allocatedResources is not set, PVC.spec.resources alone is used for quota calculation. If a volume expansion capacity request is lowered, allocatedResources is only lowered if there are no expansion operations in progress and if the actual volume capacity is equal or lower than the requested capacity. This is an alpha field and requires enabling RecoverVolumeExpansionFailure feature.",
+          "type": "object",
+          "additionalProperties": {
+            "default": {},
+            "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
+          }
+        },
         "capacity": {
           "description": "Represents the actual resources of the underlying volume.",
           "type": "object",
@@ -8012,7 +8045,16 @@
           "x-kubernetes-patch-strategy": "merge"
         },
         "phase": {
-          "description": "Phase represents the current phase of PersistentVolumeClaim.",
+          "description": "Phase represents the current phase of PersistentVolumeClaim.\n\nPossible enum values:\n - `\"Bound\"` used for PersistentVolumeClaims that are bound\n - `\"Lost\"` used for PersistentVolumeClaims that lost their underlying PersistentVolume. The claim was bound to a PersistentVolume and this volume does not exist any longer and all data on it was lost.\n - `\"Pending\"` used for PersistentVolumeClaims that are not yet bound",
+          "type": "string",
+          "enum": [
+            "Bound",
+            "Lost",
+            "Pending"
+          ]
+        },
+        "resizeStatus": {
+          "description": "ResizeStatus stores status of resize operation. ResizeStatus is not set by default but when expansion is complete resizeStatus is set to empty string by resize controller or kubelet. This is an alpha field and requires enabling RecoverVolumeExpansionFailure feature.",
           "type": "string"
         }
       }
@@ -8069,7 +8111,7 @@
           "$ref": "#/definitions/k8s.io.v1.LabelSelector"
         },
         "namespaceSelector": {
-          "description": "A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means \"this pod's namespace\". An empty selector ({}) matches all namespaces. This field is alpha-level and is only honored when PodAffinityNamespaceSelector feature is enabled.",
+          "description": "A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means \"this pod's namespace\". An empty selector ({}) matches all namespaces. This field is beta-level and is only honored when PodAffinityNamespaceSelector feature is enabled.",
           "$ref": "#/definitions/k8s.io.v1.LabelSelector"
         },
         "namespaces": {
@@ -8208,7 +8250,8 @@
           "type": "string",
           "default": ""
         }
-      }
+      },
+      "x-kubernetes-map-type": "atomic"
     },
     "k8s.io.v1.ResourceRequirements": {
       "description": "ResourceRequirements describes the compute resource requirements.",
@@ -8357,16 +8400,25 @@
       "type": "object",
       "properties": {
         "effect": {
-          "description": "Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.",
-          "type": "string"
+          "description": "Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.\n\nPossible enum values:\n - `\"NoExecute\"` Evict any already-running pods that do not tolerate the taint. Currently enforced by NodeController.\n - `\"NoSchedule\"` Do not allow new pods to schedule onto the node unless they tolerate the taint, but allow all pods submitted to Kubelet without going through the scheduler to start, and allow all already-running pods to continue running. Enforced by the scheduler.\n - `\"PreferNoSchedule\"` Like TaintEffectNoSchedule, but the scheduler tries not to schedule new pods onto the node, rather than prohibiting new pods from scheduling onto the node entirely. Enforced by the scheduler.",
+          "type": "string",
+          "enum": [
+            "NoExecute",
+            "NoSchedule",
+            "PreferNoSchedule"
+          ]
         },
         "key": {
           "description": "Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty, operator must be Exists; this combination means to match all values and all keys.",
           "type": "string"
         },
         "operator": {
-          "description": "Operator represents a key's relationship to the value. Valid operators are Exists and Equal. Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.",
-          "type": "string"
+          "description": "Operator represents a key's relationship to the value. Valid operators are Exists and Equal. Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.\n\nPossible enum values:\n - `\"Equal\"`\n - `\"Exists\"`",
+          "type": "string",
+          "enum": [
+            "Equal",
+            "Exists"
+          ]
         },
         "tolerationSeconds": {
           "description": "TolerationSeconds represents the period of time the toleration (which must be of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default, it is not set, which means tolerate the taint forever (do not evict). Zero and negative values will be treated as 0 (evict immediately) by the system.",
@@ -8401,7 +8453,8 @@
           "type": "string",
           "default": ""
         }
-      }
+      },
+      "x-kubernetes-map-type": "atomic"
     },
     "k8s.io.v1.WeightedPodAffinityTerm": {
       "description": "The weights of all of the matched WeightedPodAffinityTerm fields are added per-node to find the most preferred node(s)",
@@ -8752,8 +8805,13 @@
           "default": ""
         },
         "imagePullPolicy": {
-          "description": "Image pull policy. One of Always, Never, IfNotPresent. Defaults to Always if :latest tag is specified, or IfNotPresent otherwise. Cannot be updated. More info: https://kubernetes.io/docs/concepts/containers/images#updating-images",
-          "type": "string"
+          "description": "Image pull policy. One of Always, Never, IfNotPresent. Defaults to Always if :latest tag is specified, or IfNotPresent otherwise. Cannot be updated. More info: https://kubernetes.io/docs/concepts/containers/images#updating-images\n\nPossible enum values:\n - `\"Always\"` means that kubelet always attempts to pull the latest image. Container will fail If the pull fails.\n - `\"IfNotPresent\"` means that kubelet pulls if the image isn't present on disk. Container will fail if the image isn't present and the pull fails.\n - `\"Never\"` means that kubelet never pulls an image, but only uses a local image. Container will fail if the image isn't present",
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
         },
         "imagePullSecret": {
           "description": "ImagePullSecret is the name of the Docker registry secret required to pull the image. The secret must already exist.",
@@ -8919,7 +8977,7 @@
           "type": "boolean"
         },
         "disks": {
-          "description": "Disks describes disks, cdroms, floppy and luns which are connected to the vmi.",
+          "description": "Disks describes disks, cdroms and luns which are connected to the vmi.",
           "type": "array",
           "items": {
             "default": {},
@@ -8981,6 +9039,10 @@
           "description": "Whether to emulate a sound device.",
           "$ref": "#/definitions/kubevirt.io.api.core.v1.SoundDevice"
         },
+        "tpm": {
+          "description": "Whether to emulate a TPM device.",
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.TPMDevice"
+        },
         "useVirtioTransitional": {
           "description": "Fall back to legacy virtio 0.9 support if virtio bus is selected on devices. This is helpful for old machines like CentOS6 or RHEL6 which do not understand virtio_non_transitional (virtio 1.0).",
           "type": "boolean"
@@ -9022,10 +9084,6 @@
           "description": "Attach a volume as a disk to the vmi.",
           "$ref": "#/definitions/kubevirt.io.api.core.v1.DiskTarget"
         },
-        "floppy": {
-          "description": "Attach a volume as a floppy to the vmi.",
-          "$ref": "#/definitions/kubevirt.io.api.core.v1.FloppyTarget"
-        },
         "io": {
           "description": "IO specifies which QEMU disk IO mode should be used. Supported values are: native, default, threads.",
           "type": "string"
@@ -9042,6 +9100,10 @@
         "serial": {
           "description": "Serial provides the ability to specify a serial number for the disk device.",
           "type": "string"
+        },
+        "shareable": {
+          "description": "If specified the disk is made sharable and multiple write from different VMs are permitted",
+          "type": "boolean"
         },
         "tag": {
           "description": "If specified, disk address and its tag will be provided to the guest via config drive metadata",
@@ -9383,23 +9445,6 @@
           "description": "Name is the name of the VirtualMachineFlavor or VirtualMachineClusterFlavor",
           "type": "string",
           "default": ""
-        },
-        "profile": {
-          "description": "Profile is the name of a custom profile in the flavor. If left empty, the default profile is used.",
-          "type": "string"
-        }
-      }
-    },
-    "kubevirt.io.api.core.v1.FloppyTarget": {
-      "type": "object",
-      "properties": {
-        "readonly": {
-          "description": "ReadOnly. Defaults to false.",
-          "type": "boolean"
-        },
-        "tray": {
-          "description": "Tray indicates if the tray of the device is open or closed. Allowed values are \"open\" and \"closed\". Defaults to closed.",
-          "type": "string"
         }
       }
     },
@@ -9418,6 +9463,10 @@
           "description": "Name of the GPU device as exposed by a device plugin",
           "type": "string",
           "default": ""
+        },
+        "tag": {
+          "description": "If specified, the virtual network interface address and its tag will be provided to the guest via config drive",
+          "type": "string"
         },
         "virtualGPUOptions": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.VGPUOptions"
@@ -9456,6 +9505,10 @@
         "name": {
           "type": "string",
           "default": ""
+        },
+        "tag": {
+          "description": "If specified, the virtual network interface address and its tag will be provided to the guest via config drive",
+          "type": "string"
         }
       }
     },
@@ -9630,18 +9683,23 @@
       }
     },
     "kubevirt.io.api.core.v1.InterfaceBridge": {
+      "description": "InterfaceBridge connects to a given network via a linux bridge.",
       "type": "object"
     },
     "kubevirt.io.api.core.v1.InterfaceMacvtap": {
+      "description": "InterfaceMacvtap connects to a given network by extending the Kubernetes node's L2 networks via a macvtap interface.",
       "type": "object"
     },
     "kubevirt.io.api.core.v1.InterfaceMasquerade": {
+      "description": "InterfaceMasquerade connects to a given network using netfilter rules to nat the traffic.",
       "type": "object"
     },
     "kubevirt.io.api.core.v1.InterfaceSRIOV": {
+      "description": "InterfaceSRIOV connects to a given network by passing-through an SR-IOV PCI device via vfio.",
       "type": "object"
     },
     "kubevirt.io.api.core.v1.InterfaceSlirp": {
+      "description": "InterfaceSlirp connects to a given network using QEMU user networking mode.",
       "type": "object"
     },
     "kubevirt.io.api.core.v1.KVMTimer": {
@@ -9680,8 +9738,13 @@
           "default": ""
         },
         "imagePullPolicy": {
-          "description": "Image pull policy. One of Always, Never, IfNotPresent. Defaults to Always if :latest tag is specified, or IfNotPresent otherwise. Cannot be updated. More info: https://kubernetes.io/docs/concepts/containers/images#updating-images",
-          "type": "string"
+          "description": "Image pull policy. One of Always, Never, IfNotPresent. Defaults to Always if :latest tag is specified, or IfNotPresent otherwise. Cannot be updated. More info: https://kubernetes.io/docs/concepts/containers/images#updating-images\n\nPossible enum values:\n - `\"Always\"` means that kubelet always attempts to pull the latest image. Container will fail If the pull fails.\n - `\"IfNotPresent\"` means that kubelet pulls if the image isn't present on disk. Container will fail if the image isn't present and the pull fails.\n - `\"Never\"` means that kubelet never pulls an image, but only uses a local image. Container will fail if the image isn't present",
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
         },
         "imagePullSecret": {
           "description": "ImagePullSecret is the name of the Docker registry secret required to pull the image. The secret must already exist.",
@@ -9864,7 +9927,7 @@
           "x-kubernetes-list-type": "atomic"
         },
         "capacity": {
-          "description": "Capacity represents the capacity set on the corresponding PVC spec",
+          "description": "Capacity represents the capacity set on the corresponding PVC status",
           "type": "object",
           "additionalProperties": {
             "default": {},
@@ -9878,6 +9941,14 @@
         "preallocated": {
           "description": "Preallocated indicates if the PVC's storage is preallocated or not",
           "type": "boolean"
+        },
+        "requests": {
+          "description": "Requests represents the resources requested by the corresponding PVC spec",
+          "type": "object",
+          "additionalProperties": {
+            "default": {},
+            "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
+          }
         },
         "volumeMode": {
           "description": "VolumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
@@ -10207,6 +10278,9 @@
           "$ref": "#/definitions/k8s.io.v1.LocalObjectReference"
         }
       }
+    },
+    "kubevirt.io.api.core.v1.TPMDevice": {
+      "type": "object"
     },
     "kubevirt.io.api.core.v1.Timer": {
       "description": "Represents all available timers in a vmi.",
@@ -10652,6 +10726,16 @@
           "description": "The UID of the target attachment pod for hotplug volumes",
           "type": "string"
         },
+        "targetCPUSet": {
+          "description": "If the VMI requires dedicated CPUs, this field will hold the dedicated CPU set on the target node",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
         "targetDirectMigrationNodePorts": {
           "description": "The list of ports opened for live migration on the destination node",
           "type": "object",
@@ -10672,6 +10756,10 @@
         "targetNodeDomainDetected": {
           "description": "The Target Node has seen the Domain Start Event",
           "type": "boolean"
+        },
+        "targetNodeTopology": {
+          "description": "If the VMI requires dedicated CPUs, this field will hold the numa topology on the target node",
+          "type": "string"
         },
         "targetPod": {
           "description": "The target pod that the VMI is moving to",
@@ -10698,6 +10786,10 @@
     "kubevirt.io.api.core.v1.VirtualMachineInstanceNetworkInterface": {
       "type": "object",
       "properties": {
+        "infoSource": {
+          "description": "Specifies the origin of the interface data collected. values: domain, guest-agent, or both",
+          "type": "string"
+        },
         "interfaceName": {
           "description": "The interface name inside the Virtual Machine",
           "type": "string"
@@ -10764,8 +10856,14 @@
           "$ref": "#/definitions/k8s.io.v1.PodDNSConfig"
         },
         "dnsPolicy": {
-          "description": "Set DNS policy for the pod. Defaults to \"ClusterFirst\". Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'. DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy. To have DNS options set along with hostNetwork, you have to specify DNS policy explicitly to 'ClusterFirstWithHostNet'.",
-          "type": "string"
+          "description": "Set DNS policy for the pod. Defaults to \"ClusterFirst\". Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'. DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy. To have DNS options set along with hostNetwork, you have to specify DNS policy explicitly to 'ClusterFirstWithHostNet'.\n\nPossible enum values:\n - `\"ClusterFirst\"` indicates that the pod should use cluster DNS first unless hostNetwork is true, if it is available, then fall back on the default (as determined by kubelet) DNS settings.\n - `\"ClusterFirstWithHostNet\"` indicates that the pod should use cluster DNS first, if it is available, then fall back on the default (as determined by kubelet) DNS settings.\n - `\"Default\"` indicates that the pod should use the default (as determined by kubelet) DNS settings.\n - `\"None\"` indicates that the pod should use empty DNS settings. DNS parameters such as nameservers and search paths should be defined via DNSConfig.",
+          "type": "string",
+          "enum": [
+            "ClusterFirst",
+            "ClusterFirstWithHostNet",
+            "Default",
+            "None"
+          ]
         },
         "domain": {
           "description": "Specification of the desired behavior of the VirtualMachineInstance on the host.",
@@ -10924,6 +11022,12 @@
         "reason": {
           "description": "A brief CamelCase message indicating details about why the VMI is in this state. e.g. 'NodeUnresponsive'",
           "type": "string"
+        },
+        "runtimeUser": {
+          "description": "RuntimeUser is used to determine what user will be used in launcher",
+          "type": "integer",
+          "format": "int64",
+          "default": 0
         },
         "topologyHints": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.TopologyHints"
@@ -11358,6 +11462,22 @@
           "description": "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate",
           "type": "string"
         },
+        "extraHeaders": {
+          "description": "ExtraHeaders is a list of strings containing extra headers to include with HTTP transfer requests",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "secretExtraHeaders": {
+          "description": "SecretExtraHeaders is a list of Secret references, each containing an extra HTTP header that may include sensitive information",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          }
+        },
         "secretRef": {
           "description": "SecretRef A Secret reference, the secret should contain accessKeyId (user name) base64 encoded, and secretKey (password) also base64 encoded",
           "type": "string"
@@ -11499,6 +11619,10 @@
       "properties": {
         "backingFile": {
           "description": "BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi",
+          "type": "string"
+        },
+        "initImageURL": {
+          "description": "InitImageURL is an optional URL to an image containing an extracted VDDK library, overrides v2v-vmware config map",
           "type": "string"
         },
         "secretRef": {
