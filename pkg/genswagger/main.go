@@ -8,11 +8,11 @@ import (
 	"log"
 	"strings"
 
-	"github.com/emicklei/go-restful"
-	"github.com/go-openapi/spec"
 	_ "github.com/openshift/api/operator/v1"
 	"k8s.io/kube-openapi/pkg/builder"
 	"k8s.io/kube-openapi/pkg/common"
+	"k8s.io/kube-openapi/pkg/common/restfuladapter"
+	"k8s.io/kube-openapi/pkg/validation/spec"
 	_ "kubevirt.io/api/snapshot/v1alpha1"
 	_ "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
@@ -47,7 +47,7 @@ func main() {
 	flag.Parse()
 	config := createConfig()
 	webServices := rest.AggregatedWebServices()
-	swagger, err := builder.BuildOpenAPISpec(webServices, config)
+	swagger, err := builder.BuildOpenAPISpecFromRoutes(restfuladapter.AdaptWebServices(webServices), config)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -92,13 +92,13 @@ func createConfig() *common.Config {
 
 			return name, nil
 		},
-		GetOperationIDAndTags: func(r *restful.Route) (string, []string, error) {
+		GetOperationIDAndTagsFromRoute: func(r common.Route) (string, []string, error) {
 			var tag string
-			if _, ok := r.Metadata["kind"]; ok {
-				kind := fmt.Sprint(r.Metadata["kind"])
+			if _, ok := r.Metadata()["kind"]; ok {
+				kind := fmt.Sprint(r.Metadata()["kind"])
 				tag = kindToTagMappings[kind]
 			}
-			return r.Operation, []string{tag}, nil
+			return r.OperationName(), []string{tag}, nil
 		},
 	}
 }
