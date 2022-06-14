@@ -76,7 +76,7 @@ func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 		if input.Namespace == "" {
 			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `namespace` is required")
 		}
-		return h.exportVolume(r.Context(), input.Namespace, input.DisplayName, pvcNamespace, pvcName)
+		return h.exportVolume(r.Context(), input.Namespace, input.DisplayName, input.StorageClassName, pvcNamespace, pvcName)
 	case actionCancelExpand:
 		return h.cancelExpand(r.Context(), pvcNamespace, pvcName)
 	case actionClone:
@@ -102,11 +102,12 @@ func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 	}
 }
 
-func (h *ActionHandler) exportVolume(ctx context.Context, imageNamespace, imageDisplayName, pvcNamespace, pvcName string) error {
+func (h *ActionHandler) exportVolume(ctx context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) error {
 	vmImage := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "image-",
 			Namespace:    imageNamespace,
+			Annotations:  map[string]string{},
 		},
 		Spec: harvesterv1.VirtualMachineImageSpec{
 			DisplayName:  imageDisplayName,
@@ -114,6 +115,10 @@ func (h *ActionHandler) exportVolume(ctx context.Context, imageNamespace, imageD
 			PVCName:      pvcName,
 			PVCNamespace: pvcNamespace,
 		},
+	}
+
+	if imageStorageClassName != "" {
+		vmImage.Annotations[util.AnnotationStorageClassName] = imageStorageClassName
 	}
 
 	if _, err := h.images.Create(vmImage); err != nil {
