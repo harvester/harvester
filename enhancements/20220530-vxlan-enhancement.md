@@ -847,8 +847,6 @@ https://datatracker.ietf.org/doc/rfc9135/
 ```
 
 
-
-
 ```
 In MP-BGP EVPN, any VTEP in a VNI can be the distributed anycast gateway
 for end hosts in its IP subnet by supporting the same virtual gateway
@@ -978,6 +976,33 @@ https://datatracker.ietf.org/doc/rfc9136/ IP Prefix Advertisement in Ethernet VP
    Extended Community (defined in [RFC9135]) to carry the MAC address
    that is used as the Overlay Index.  Note that the MAC address may be
    that of a TS.
+```
+
+##### Map RFC9136 to Harvester
+
+Following diagram shows how to map Harvester VxLAN network to RFC9136.
+
+![](./20220530-vxlan-enhancement/vxlan-rfc-9136-1.png)
+
+To meet k8s network model, the VM's IP and guest k8s's VIP needs to be advertised, and make sure the IP is reachable.
+
+```
+3.2.  Overlay Indexes and Recursive Lookup Resolution
+
+   RT-5 routes support recursive lookup resolution through the use of
+   Overlay Indexes as follows:
+
+   *  An Overlay Index can be an ESI or IP address in the address space
+      of the tenant or MAC address, and it is used by an NVE as the next
+      hop for a given IP prefix.  An Overlay Index always needs a
+      recursive route resolution on the NVE/PE that installs the RT-5
+      into one of its IP-VRFs so that the NVE knows to which egress NVE/
+      PE it needs to forward the packets.  It is important to note that
+      recursive resolution of the Overlay Index applies upon
+      installation into an IP-VRF and not upon BGP propagation (for
+      instance, on an ASBR).  Also, as a result of the recursive
+      resolution, the egress NVE/PE is not necessarily the same NVE that
+      originated the RT-5.
 ```
 
 #### Story 14
