@@ -15,7 +15,7 @@ We need to be able to support exporting harvester system logs outside the cluste
 List the specific goals of the enhancement. How will we know that this has succeeded?
 
 - The user can aggregate harvester logs in a centralized location
-- The user can view the aggregated harvester logs outside the cluster (ex rancher)
+- The user can view the aggregated harvester logs outside the cluster
 
 ### Non-goals
 
@@ -48,7 +48,8 @@ None.
 
 ### Implementation Overview
 
-- Install a `harvester-logging` managed chart defining a `ClusterFlow` and `ClusterOutput`
+- Install a `harvester-logging` managed chart similar to what is done in rancher: [rancherd-13-monitoring.yaml](https://github.com/harvester/harvester-installer/blob/master/pkg/config/templates/rancherd-13-monitoring.yaml)
+- Definine a `ClusterFlow` and `ClusterOutput`
   - We can probably route logs to a simple Http or File output by default
 - Implement a setting controller to allow the user to configure log destination endpoints via harvester settings UI
 
@@ -61,4 +62,4 @@ None.
 
 ### Upgrade strategy
 
-No user intervention is required during the upgrade.
+Likely the simplest approach is to update the harvester [upgrade_manifests.sh](https://github.com/harvester/harvester/blob/master/package/upgrade/upgrade_manifests.sh) script to include the new managed chart. This is again similar to how the rancher monitoring is upgraded.
