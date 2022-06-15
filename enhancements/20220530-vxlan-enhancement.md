@@ -107,7 +107,22 @@ Add VxLAN network with adding the following advanced features:
 
   Support kube-vip in `Guest Kubernetes Cluster`, when it is deployed in Host Harvester Cluster VxLAN overlay network (Integrate with kube-vip to provide load balancer service for VMs based on vxlan network) (3)
 
-  TBD: Support network policies for micro-segmentation of workloads [FEATURE] Support network policies for micro-segmentation of workloads #2260
+
+  TBD: Support network policies for micro-segmentation of workloads [FEATURE] Support network policies for micro-segmentation of workloads https://github.com/harvester/harvester/issues/2260
+
+```
+This requirement is related to Harvester provisioned VM
+Example:
+Given two VMs attached to same VLAN
+  User can restrict communication between VM1 and VM2
+  User can restrict communication between VM1 and external hosts
+  based on native Kubernetes Network Policy framework
+
+It is from customers.
+  They are migrating from Openstack where they can define security policies for VM workloads.
+  They are deploying applications in those VMs and want to manage network access policies for the VMs/apps
+```
+
 
   Support multiple VxLANs in multi isolated `Second Network` (2)
 
