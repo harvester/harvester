@@ -79,6 +79,7 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 	}
 
 	if syncer, ok := syncers[setting.Name]; ok {
+		// this is where the sriovNetworkingChartManager is called
 		if err := syncer(setting); err != nil {
 			if updateErr := h.setConfiguredCondition(setting.DeepCopy(), err); updateErr != nil {
 				return setting, updateErr
