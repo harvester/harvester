@@ -26,7 +26,7 @@ const (
 )
 
 type CheckUpgradeRequest struct {
-	HarvesterVersion string `json:"harvesterVersion"`
+	AppVersion string `json:"appVersion"`
 }
 
 type CheckUpgradeResponse struct {
@@ -83,7 +83,7 @@ func (s *versionSyncer) sync() error {
 		return nil
 	}
 	req := &CheckUpgradeRequest{
-		HarvesterVersion: settings.ServerVersion.Get(),
+		AppVersion: settings.ServerVersion.Get(),
 	}
 	var requestBody bytes.Buffer
 	if err := json.NewEncoder(&requestBody).Encode(req); err != nil {
