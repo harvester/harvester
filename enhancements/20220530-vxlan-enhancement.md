@@ -384,11 +384,55 @@ note, cite from previous link:
  (we use the word "entity" here to avoid overloading the more common terms such as "endpoints" and "services",
  which have specific Kubernetes connotations) over the network.
  NetworkPolicies apply to a connection with a pod on one or both ends, and are not relevant to other connections.
+
+
+The entities that a Pod can communicate with are identified through a combination of the following 3 identifiers:
+
+  Other pods that are allowed (exception: a pod cannot block access to itself)
+  Namespaces that are allowed
+  IP blocks (exception: traffic to and from the node where a Pod is running is always allowed, regardless of the IP address of the Pod or the node)
+
+When defining a pod- or namespace- based NetworkPolicy, you use a selector to specify what traffic is allowed to and from the Pod(s) that match the selector.
+
+Meanwhile, when IP based NetworkPolicies are created, we define policies based on IP blocks (CIDR ranges).
+
 ```
+
+###### The two sorts of Pod isolation
+
+```
+There are two sorts of isolation for a pod: isolation for egress, and isolation for ingress. They concern what connections may be established.
+"Isolation" here is not absolute, rather it means "some restrictions apply".
+The alternative, "non-isolated for $direction", means that no restrictions apply in the stated direction.
+The two sorts of isolation (or not) are declared independently, and are both relevant for a connection from one pod to another.
+
+By default, a pod is non-isolated for egress.
+
+By default, a pod is non-isolated for ingress.
+
+Network policies do not conflict; they are additive.
+```
+
+###### A sample of network policy
+
+![](./20220530-vxlan-enhancement/k8s-network-policy-detail-1.png)
 
 ##### Network policy in `Host Kubernetes Cluster`
 
 General speaking, the main task of `Host Kubernetes Cluster` is to provision VM for `Guest Kubernetes Cluster`/`VM Group`. We will try to define kind of concept to control `VM Group` with `VM Group`.
+
+
+###### Harvester VM Network Policy based on Kubernetes Network Policy framework
+
+Map previous sample into `Harvester VM Network Policy`.
+
+![](./20220530-vxlan-enhancement/harvester-vm-network-policy-1.png)
+
+
+Definition
+
+![](./20220530-vxlan-enhancement/harvester-vm-network-policy-2.png)
+
 
 ##### TBD: VxLAN overlay network policy
 
