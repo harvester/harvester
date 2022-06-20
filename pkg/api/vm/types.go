@@ -37,3 +37,7 @@ type AddVolumeInput struct {
 type RemoveVolumeInput struct {
 	DiskName string `json:"diskName"`
 }
+
+type CloneInput struct {
+	TargetVM string `json:"targetVm"`
+}
