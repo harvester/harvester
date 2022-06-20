@@ -108,7 +108,7 @@ Network policies do not conflict; they are additive.
 
 ###### A sample of network policy
 
-![](./20220530-vxlan-enhancement/k8s-network-policy-detail-1.png)
+![](./20220616-network-policy-enhancement/k8s-network-policy-detail-1.png)
 
 ##### Network policy in `Host Kubernetes Cluster`
 
@@ -119,17 +119,33 @@ General speaking, the main task of `Host Kubernetes Cluster` is to provision VM 
 
 Map previous sample into `Harvester VM Network Policy`.
 
-![](./20220530-vxlan-enhancement/harvester-vm-network-policy-1.png)
+![](./20220616-network-policy-enhancement/harvester-vm-network-policy-1.png)
 
 
 Definition
 
-![](./20220530-vxlan-enhancement/harvester-vm-network-policy-2.png)
+![](./20220616-network-policy-enhancement/harvester-vm-network-policy-2.png)
 
 
 #### Story 2
 
-##### 
+##### Cilium network policy
+
+![](./20220616-network-policy-enhancement/cilium-network-policy-1.png)
+
+The `Cilium` network policy is based on `eBPF` .
+
+![](./20220616-network-policy-enhancement/cilium-high-level-design-1.png)
+
+##### Calico network policy
+
+The network policy is a combination of `Calico` and `Istio` .
+
+Besides supporting kubernetes network policy, is supports more.
+
+![](./20220616-network-policy-enhancement/calico-network-policy-1.png)
+
+![](./20220616-network-policy-enhancement/calico-cni-1.png)
 
 ### User Experience In Detail
 
