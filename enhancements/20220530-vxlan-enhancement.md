@@ -685,6 +685,14 @@ When no `BGP route reflector` is deployed, then each VTEP needs to establish BGP
 
 Each NODE establish BGP peer with all other NODEs, and sync (type 2 routes, type 3 routes) local information to peers.
 
+
+The link https://projectcalico.docs.tigera.io/networking/bgp mentioned:
+
+```
+Full-mesh works great for small and medium-size deployments of say 100 nodes or less, but at significantly larger scales
+full-mesh becomes less efficient, and we recommend using route reflectors.
+```
+
 ##### Replace BGP with Kubernetes Controller
 
 On the other hand, `Host Harvester Cluster` has all the informaton (type 2 routes, type 3 routes), some kind of kubernetes controller may fulfill those tasks.
