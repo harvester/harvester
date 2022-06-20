@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/guonaihong/gout"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/tidwall/gjson"
 	"golang.org/x/crypto/ssh"

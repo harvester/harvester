@@ -29,6 +29,21 @@ func BuildResourceURL(api, namespace, name string) string {
 	return fmt.Sprintf("%s/%s/%s", api, namespace, name)
 }
 
+func GetResponse(url string) (respCode int, respBody []byte, err error) {
+	err = NewHTTPClient().
+		GET(url).
+		BindBody(&respBody).
+		Code(&respCode).
+		Do()
+	if err != nil {
+		return
+	}
+	if respCode != http.StatusOK {
+		return
+	}
+	return
+}
+
 func GetCollection(url string) (collection *types.GenericCollection, respCode int, respBody []byte, err error) {
 	err = NewHTTPClient().
 		GET(url).

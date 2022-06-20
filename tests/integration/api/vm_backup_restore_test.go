@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -276,7 +276,7 @@ func createLonghornTestingNFS(svcController ctlcorev1.ServiceController, podCont
 					LivenessProbe: &corev1.Probe{
 						InitialDelaySeconds: 5,
 						PeriodSeconds:       5,
-						Handler: corev1.Handler{
+						ProbeHandler: corev1.ProbeHandler{
 							Exec: &corev1.ExecAction{
 								Command: []string{
 									"bash",

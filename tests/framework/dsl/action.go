@@ -3,7 +3,7 @@ package dsl
 import (
 	"fmt"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	"github.com/harvester/harvester/tests/framework/env"
@@ -20,12 +20,12 @@ const (
 )
 
 // Cleanup executes the target cleanup execution if "KEEP_TESTING_RESOURCE" isn't "true".
-func Cleanup(body interface{}, timeout ...float64) bool {
+func Cleanup(body interface{}) bool {
 	if env.IsKeepingTestingResource() {
 		return true
 	}
 
-	return ginkgo.AfterEach(body, timeout...)
+	return ginkgo.AfterEach(body)
 }
 
 func MustFinallyBeTrue(actual func() bool, intervals ...interface{}) bool {
