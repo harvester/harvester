@@ -94,6 +94,7 @@ require (
 	k8s.io/api v0.22.3
 	k8s.io/apiextensions-apiserver v0.22.3
 	k8s.io/apimachinery v0.22.3
+	k8s.io/apiserver v0.22.3
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
@@ -255,7 +256,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/apiserver v0.22.3 // indirect
 	k8s.io/cli-runtime v0.22.3 // indirect
 	k8s.io/code-generator v0.21.5 // indirect
 	k8s.io/component-base v0.21.5 // indirect
