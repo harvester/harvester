@@ -59,6 +59,7 @@ func SetConfig(kubeConfig *rest.Config, testCluster cluster.Cluster) (config.Opt
 	options.HTTPListenPort = ports[0]
 	options.HTTPSListenPort = ports[1]
 	options.Namespace = testHarvesterNamespace
+	options.RancherEmbedded = false
 
 	// inject the preset envs, this is used for testing setting.
 	err = os.Setenv(settings.GetEnvKey(settings.APIUIVersion.Name), settings.APIUIVersion.Default)

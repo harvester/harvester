@@ -1,7 +1,7 @@
 package dsl
 
 import (
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
