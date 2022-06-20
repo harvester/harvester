@@ -35,6 +35,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	server.BaseSchemas.MustImportAndCustomize(CreateTemplateInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(AddVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(RemoveVolumeInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(CloneInput{}, nil)
 
 	vms := scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
@@ -112,6 +113,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				createTemplate: &actionHandler,
 				addVolume:      &actionHandler,
 				removeVolume:   &actionHandler,
+				cloneVM:        &actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:    {},
@@ -141,6 +143,9 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				},
 				removeVolume: {
 					Input: "removeVolumeInput",
+				},
+				cloneVM: {
+					Input: "cloneInput",
 				},
 			}
 		},
