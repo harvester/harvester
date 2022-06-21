@@ -148,6 +148,16 @@ Suppose Harvester provisioned VM is using VLAN network. The network policy shoul
 
 ![](./20220616-network-policy-enhancement/harvester-vlan-network-policy-1.png)
 
+The Harvester VLAN network for VM.
+
+![](./20220616-network-policy-enhancement/harvester-vlan-network-policy-2.png)
+
+VM network policy sample.
+
+![](./20220616-network-policy-enhancement/harvester-vlan-network-policy-3.png)
+
+`ebtables` and `iptables` will be the tool for Harvester network policy in VLAN network.
+
 #### Story 4
 
 ##### Calico network policy
@@ -189,7 +199,101 @@ The `Cilium` network policy is based on `eBPF` .
 
 ### Implementation Overview
 
-.
+`ebtables` needs to be added into Harvester
+
+```
+  tools            Harvester NODE                    Harvester POD (for VM)
+
+  iptables         available, working                iptables v1.8.7 (legacy): can't initialize iptables table `filter': Permission denied (you must be root)
+  ebtables         command not found                 Problem getting a socket, you probably don't have the right permissions.
+
+
+harvester-node:~ # cat /proc/sys/net/bridge/bridge-nf-call-iptables
+0
+
+
+harvester-node:~ # lsmod | grep filter
+br_netfilter           28672  0
+bridge                225280  1 br_netfilter
+```
+
+ebtables/iptables interaction on a Linux-based bridge
+
+http://ebtables.netfilter.org/br_fw_ia/br_fw_ia.html
+
+
+
+```
+sudo ebtables --list
+
+Bridge table: filter
+
+Bridge chain: INPUT, entries: 0, policy: ACCEPT
+
+Bridge chain: FORWARD, entries: 0, policy: ACCEPT
+
+Bridge chain: OUTPUT, entries: 0, policy: ACCEPT
+```
+
+
+
+man ebtables
+
+Tables
+As stated earlier, there are three ebtables tables in the Linux kernel. The table names are filter, nat and broute. Of these three tables, the filter table is the default table that the command operates on. If you are working with the filter table, then you can drop the '-t filter' argument to the ebtables command. However, you will need to provide the -t argument for the other two tables. Moreover, the -t argument must be the first argument on the ebtables command line, if used.
+
+
+-p, --protocol [!] protocol
+The protocol that was responsible for creating the frame. This can be a hexadecimal number, above 0x0600, a name (e.g. ARP ) or LENGTH. The protocol field of the Ethernet frame can be used to denote the length of the header (802.2/802.3 networks). When the value of that field is below or equals 0x0600, the value equals the size of the header and shouldn't be used as a protocol number. Instead, all frames where the protocol field is used as the length field are assumed to be of the same 'protocol'. The protocol name used in ebtables for these frames is LENGTH.
+The file /etc/ethertypes can be used to show readable characters instead of hexadecimal numbers for the protocols. For example, 0x0800 will be represented by IPV4. The use of this file is not case sensitive. See that file for more information. The flag --proto is an alias for this option.
+
+-i, --in-interface [!] name
+The interface (bridge port) via which a frame is received (this option is useful in the INPUT, FORWARD, PREROUTING and BROUTING chains). If the interface name ends with '+', then any interface name that begins with this name (disregarding '+') will match. The flag --in-if is an alias for this option.
+
+--logical-in [!] name
+The (logical) bridge interface via which a frame is received (this option is useful in the INPUT, FORWARD, PREROUTING and BROUTING chains). If the interface name ends with '+', then any interface name that begins with this name (disregarding '+') will match.
+
+-o, --out-interface [!] name
+The interface (bridge port) via which a frame is going to be sent (this option is useful in the OUTPUT, FORWARD and POSTROUTING chains). If the interface name ends with '+', then any interface name that begins with this name (disregarding '+') will match. The flag --out-if is an alias for this option.
+
+--logical-out [!] name
+The (logical) bridge interface via which a frame is going to be sent (this option is useful in the OUTPUT, FORWARD and POSTROUTING chains). If the interface name ends with '+', then any interface name that begins with this name (disregarding '+') will match.
+
+
+
+-s, --source [!] address[/mask]
+The source MAC address. Both mask and address are written as 6 hexadecimal numbers separated by colons. Alternatively one can specify Unicast, Multicast, Broadcast or BGA (Bridge Group Address):
+Unicast=00:00:00:00:00:00/01:00:00:00:00:00, Multicast=01:00:00:00:00:00/01:00:00:00:00:00, Broadcast=ff:ff:ff:ff:ff:ff/ff:ff:ff:ff:ff:ff or BGA=01:80:c2:00:00:00/ff:ff:ff:ff:ff:ff. Note that a broadcast address will also match the multicast specification. The flag --src is an alias for this option.
+-d, --destination [!] address[/mask]
+The destination MAC address. See -s (above) for more details on MAC addresses. The flag --dst is an alias for this option.
+
+
+
+
+
+vlan
+Specify 802.1Q Tag Control Information fields. The protocol must be specified as 802_1Q (0x8100).
+--vlan-id [!] id
+The VLAN identifier field (VID). Decimal number from 0 to 4095.
+--vlan-prio [!] prio
+The user priority field, a decimal number from 0 to 7. The VID should be set to 0 ("null VID") or unspecified (in the latter case the VID is deliberately set to 0).
+--vlan-encap [!] type
+The encapsulated Ethernet frame type/length. Specified as a hexadecimal number from 0x0000 to 0xFFFF or as a symbolic name from /etc/ethertypes.
+
+ip
+Specify IPv4 fields. The protocol must be specified as IPv4.
+--ip-source [!] address[/mask]
+The source IP address. The flag --ip-src is an alias for this option.
+--ip-destination [!] address[/mask]
+The destination IP address. The flag --ip-dst is an alias for this option.
+--ip-tos [!] tos
+The IP type of service, in hexadecimal numbers. IPv4.
+--ip-protocol [!] protocol
+The IP protocol. The flag --ip-proto is an alias for this option.
+--ip-source-port [!] port1[:port2]
+The source port or port range for the IP protocols 6 (TCP), 17 (UDP), 33 (DCCP) or 132 (SCTP). The --ip-protocol option must be specified as TCP, UDP, DCCP or SCTP. If port1 is omitted, 0:port2 is used; if port2 is omitted but a colon is specified, port1:65535 is used. The flag --ip-sport is an alias for this option.
+--ip-destination-port [!] port1[:port2]
+The destination port or port range for ip protocols 6 (TCP), 17 (UDP), 33 (DCCP) or 132 (SCTP). The --ip-protocol option must be specified as TCP, UDP, DCCP or SCTP. If port1 is omitted, 0:port2 is used; if port2 is omitted but a colon is specified, port1:65535 is used. The flag --ip-dport is an alias for this option.
 
 
 ### Test plan
