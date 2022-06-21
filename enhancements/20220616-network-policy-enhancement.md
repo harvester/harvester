@@ -222,6 +222,8 @@ ebtables/iptables interaction on a Linux-based bridge
 http://ebtables.netfilter.org/br_fw_ia/br_fw_ia.html
 
 
+ebtables -A FORWARD -i vnet1 -s 52:54:00:f3:97:64 -j DROP
+
 
 ```
 sudo ebtables --list
@@ -236,6 +238,56 @@ Bridge chain: OUTPUT, entries: 0, policy: ACCEPT
 ```
 
 
+#### Example of block 2 VM's in same KVM
+
+There are 2 VMs in same KVM.
+
+```
+~$ sudo -i virsh net-dhcp-leases --network default
+ Expiry Time           MAC address         Protocol   IP address           Hostname   Client ID or DUID
+------------------------------------------------------------------------------------------------------------------------------------------------
+ 2022-06-21 22:17:36   52:54:00:aa:78:a9   ipv4       192.168.122.206/24   harv2      ff:00:aa:78:a9:00:01:00:01:2a:2a:2c:fd:52:54:00:aa:78:a9
+ 2022-06-21 22:17:08   52:54:00:f3:97:64   ipv4       192.168.122.195/24   harv1      ff:00:f3:97:64:00:01:00:01:2a:33:66:5d:52:54:00:f3:97:64
+```
+
+They are used as 2 NODEs of a Harvester cluster, from VM1 ping VM2 works.
+
+With following ebtables rule, ping fails, when remove this rule, the ping works again.
+
+```
+~$ sudo -i ebtables -A FORWARD -s 52:54:00:f3:97:64 -d 52:54:00:aa:78:a9 -j DROP
+```
+
+note: due to those 2 MACs are learned by `virbr0`, if we add `-i vnet0` or `-i vnet1`, it won't work.
+
+```
+$ ip neig
+
+192.168.122.206 dev virbr0 lladdr 52:54:00:aa:78:a9 STALE
+
+192.168.122.195 dev virbr0 lladdr 52:54:00:f3:97:64 REACHABLE
+
+$ ip link
+
+18: vnet0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel master virbr0 state UNKNOWN group default qlen 1000
+    link/ether fe:54:00:f3:97:64 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::fc54:ff:fef3:9764/64 scope link
+       valid_lft forever preferred_lft forever
+19: vnet1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel master virbr0 state UNKNOWN group default qlen 1000
+    link/ether fe:54:00:aa:78:a9 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::fc54:ff:feaa:78a9/64 scope link
+       valid_lft forever preferred_lft forever
+
+$ brctl show
+bridge name	bridge id		STP enabled	interfaces
+
+virbr0		8000.5254002b06ba	yes		virbr0-nic
+							vnet0
+							vnet1
+
+```
+
+#### related commands
 
 man ebtables
 
