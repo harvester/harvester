@@ -169,7 +169,6 @@ func ProviderWithPodman() ProviderOption {
 }
 
 // Create provisions and starts a kubernetes-in-docker cluster
-// TODO: move name to an option to override config
 func (p *Provider) Create(name string, options ...CreateOption) error {
 	// apply options
 	opts := &internalcreate.ClusterOptions{
@@ -204,8 +203,8 @@ func (p *Provider) KubeConfig(name string, internal bool) (string, error) {
 // it into the selected file, following the rules from
 // https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#config
 // where explicitPath is the --kubeconfig value.
-func (p *Provider) ExportKubeConfig(name string, explicitPath string) error {
-	return kubeconfig.Export(p.provider, defaultName(name), explicitPath)
+func (p *Provider) ExportKubeConfig(name string, explicitPath string, internal bool) error {
+	return kubeconfig.Export(p.provider, defaultName(name), explicitPath, !internal)
 }
 
 // ListNodes returns the list of container IDs for the "nodes" in the cluster
