@@ -129,6 +129,26 @@ Definition
 
 #### Story 2
 
+##### Harvester VM Network Policy - management network
+
+Harvester utilizes Calico + Falnnel as the default management network.
+
+With Calico, certain kubernetes network policy could be applied from POD perspective.
+
+![](./20220616-network-policy-enhancement/calico-in-harvester-1.png)
+
+
+Note: Harvester provisioned VM should use dedicated none-management network.
+
+#### Story 3
+
+##### Harvester VM Network Policy - VLAN network
+
+Suppose Harvester provisioned VM is using VLAN network. The network policy should apply to this network at the view of VM.
+
+
+#### Story 4
+
 ##### Cilium network policy
 
 ![](./20220616-network-policy-enhancement/cilium-network-policy-1.png)
@@ -139,11 +159,20 @@ The `Cilium` network policy is based on `eBPF` .
 
 ##### Calico network policy
 
-The network policy is a combination of `Calico` and `Istio` .
+From the official website, it says "The network policy is a combination of `Calico` and `Istio` " .
 
-Besides supporting kubernetes network policy, is supports more.
+Besides supporting kubernetes network policy, Calico supports more.
+
+General architecture:
+
+![](./20220616-network-policy-enhancement/calico-network-policy-2.png)
+
+
+Calico policy features:
 
 ![](./20220616-network-policy-enhancement/calico-network-policy-1.png)
+
+Calico as a kubernetes CNI:
 
 ![](./20220616-network-policy-enhancement/calico-cni-1.png)
 
