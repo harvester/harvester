@@ -146,16 +146,9 @@ Note: Harvester provisioned VM should use dedicated none-management network.
 
 Suppose Harvester provisioned VM is using VLAN network. The network policy should apply to this network at the view of VM.
 
+![](./20220616-network-policy-enhancement/harvester-vlan-network-policy-1.png)
 
 #### Story 4
-
-##### Cilium network policy
-
-![](./20220616-network-policy-enhancement/cilium-network-policy-1.png)
-
-The `Cilium` network policy is based on `eBPF` .
-
-![](./20220616-network-policy-enhancement/cilium-high-level-design-1.png)
 
 ##### Calico network policy
 
@@ -175,6 +168,15 @@ Calico policy features:
 Calico as a kubernetes CNI:
 
 ![](./20220616-network-policy-enhancement/calico-cni-1.png)
+
+
+##### Cilium network policy
+
+![](./20220616-network-policy-enhancement/cilium-network-policy-1.png)
+
+The `Cilium` network policy is based on `eBPF` .
+
+![](./20220616-network-policy-enhancement/cilium-high-level-design-1.png)
 
 ### User Experience In Detail
 
