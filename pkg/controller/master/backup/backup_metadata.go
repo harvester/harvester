@@ -29,7 +29,7 @@ import (
 
 const (
 	metadataFolderPath           = "harvester/vmbackups/"
-	backupMetadataControllerName = "harvester-backup-metadata-controller"
+	backupMetadataControllerName = "harvester-vmbackup-metadata-controller"
 )
 
 type VirtualMachineBackupMetadata struct {
