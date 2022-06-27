@@ -27,3 +27,7 @@ After they select the sriov option, the Node Policy tab appears:
 A note on the NIC Selector, the best way to understand these form values is to look at the type defition for [SriovNetworkNicSelector](https://github.com/openshift/sriov-network-operator/blob/dc0a8bda79f1405d09f2fe3619506f79bfe41f42/api/v1/sriovnetworknodepolicy_types.go#L59-L70). 
 
 After the node policy is created, the networks' `spec.resourceName` is set to the policy's `spec.resource`.
+
+# TODOs
+- [ ] Explore local cluster SR-IOV
+- [ ] Explore guest cluster SR-IOV with PCI passthrough
