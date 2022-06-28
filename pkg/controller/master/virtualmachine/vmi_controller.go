@@ -2,41 +2,26 @@ package virtualmachine
 
 import (
 	"fmt"
+	"reflect"
 
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	"github.com/harvester/harvester/pkg/builder"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 const (
-	AnnotationTopologyRegion = "topology.harvesterhci.io/region"
-	AnnotationtopologyZone   = "topology.harvesterhci.io/zone"
-	AnnotationTopologyHost   = "topology.harvesterhci.io/host"
+	VirtualMachineCreatorNodeDriver = "docker-machine-driver-harvester"
 )
 
 // hostLabelsReconcileMapping defines the mapping for reconciliation of node labels to virtual machine instance annotations
-var hostLabelsReconcileMapping = []struct {
-	nodeLabel     string
-	vmiAnnotation string
-}{
-	{
-		nodeLabel:     v1.LabelTopologyZone,
-		vmiAnnotation: AnnotationTopologyRegion,
-	},
-	{
-		nodeLabel:     v1.LabelTopologyRegion,
-		vmiAnnotation: AnnotationtopologyZone,
-	},
-	{
-		nodeLabel:     v1.LabelHostname,
-		vmiAnnotation: AnnotationTopologyHost,
-	},
+var hostLabelsReconcileMapping = []string{
+	v1.LabelTopologyZone, v1.LabelTopologyRegion, v1.LabelHostname,
 }
 
 type VMIController struct {
@@ -127,31 +112,34 @@ func (h *VMIController) ReconcileFromHostLabels(_ string, vmi *kubevirtv1.Virtua
 		return vmi, nil
 	}
 
-	node, err := h.nodeCache.Get(vmi.Status.NodeName)
-	if err != nil {
-		return vmi, fmt.Errorf("failed to get node %s for VirtualMachineInstance %s: %v", vmi.Status.NodeName, vmi.Name, err)
-	}
-
-	annotationsToUpdate := map[string]string{}
-	for _, mapping := range hostLabelsReconcileMapping {
-		srcValue, srcExists := node.Labels[mapping.nodeLabel]
-		dstValue, dstExists := vmi.Annotations[mapping.vmiAnnotation]
-		if !srcExists {
-			continue
-		}
-		if (dstExists && srcValue != dstValue) || !dstExists {
-			annotationsToUpdate[mapping.vmiAnnotation] = srcValue
-		}
-	}
-	if len(annotationsToUpdate) == 0 {
+	if creator := vmi.Labels[builder.LabelKeyVirtualMachineCreator]; creator != VirtualMachineCreatorNodeDriver {
 		return vmi, nil
 	}
 
-	toUpdate := vmi.DeepCopy()
-	for k, v := range annotationsToUpdate {
-		logrus.Debugf("setting annotation of VirtualMachineInstance %s: %s=%s", vmi.Name, k, v)
-		toUpdate.Annotations[k] = v
+	node, err := h.nodeCache.Get(vmi.Status.NodeName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return vmi, nil
+		}
+		return vmi, fmt.Errorf("failed to get node %s for VirtualMachineInstance %s: %v", vmi.Status.NodeName, vmi.Name, err)
 	}
 
-	return h.vmiClient.Update(toUpdate)
+	toUpdate := vmi.DeepCopy()
+	for _, label := range hostLabelsReconcileMapping {
+		srcValue, srcExists := node.Labels[label]
+		if srcExists {
+			if toUpdate.Annotations == nil {
+				toUpdate.Annotations = map[string]string{}
+			}
+			toUpdate.Annotations[label] = srcValue
+		} else if _, exist := toUpdate.Annotations[label]; exist {
+			delete(toUpdate.Annotations, label)
+		}
+	}
+
+	if !reflect.DeepEqual(toUpdate.Annotations, vmi.Annotations) {
+		return h.vmiClient.Update(toUpdate)
+	}
+
+	return vmi, nil
 }
