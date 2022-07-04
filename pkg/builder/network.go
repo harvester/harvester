@@ -68,3 +68,8 @@ func (v *VMBuilder) Interface(interfaceName, interfaceModel, interfaceMACAddress
 	v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Interfaces = interfaces
 	return v
 }
+
+func (v *VMBuilder) WaitForLease(interfaceName string) *VMBuilder {
+	v.WaitForLeaseInterfaceNames = append(v.WaitForLeaseInterfaceNames, interfaceName)
+	return v
+}
