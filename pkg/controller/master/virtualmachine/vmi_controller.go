@@ -17,11 +17,29 @@ import (
 
 const (
 	VirtualMachineCreatorNodeDriver = "docker-machine-driver-harvester"
+
+	AnnotationTopologyRegion = "topology." + builder.HarvesterAPIGroup + "/region"
+	AnnotationtopologyZone   = "topology." + builder.HarvesterAPIGroup + "/zone"
+	AnnotationTopologyHost   = "topology." + builder.HarvesterAPIGroup + "/host"
 )
 
 // hostLabelsReconcileMapping defines the mapping for reconciliation of node labels to virtual machine instance annotations
-var hostLabelsReconcileMapping = []string{
-	v1.LabelTopologyZone, v1.LabelTopologyRegion, v1.LabelHostname,
+var hostLabelsReconcileMapping = []struct {
+	nodeLabel     string
+	vmiAnnotation string
+}{
+	{
+		nodeLabel:     v1.LabelTopologyZone,
+		vmiAnnotation: AnnotationTopologyRegion,
+	},
+	{
+		nodeLabel:     v1.LabelTopologyRegion,
+		vmiAnnotation: AnnotationtopologyZone,
+	},
+	{
+		nodeLabel:     v1.LabelHostname,
+		vmiAnnotation: AnnotationTopologyHost,
+	},
 }
 
 type VMIController struct {
@@ -125,15 +143,15 @@ func (h *VMIController) ReconcileFromHostLabels(_ string, vmi *kubevirtv1.Virtua
 	}
 
 	toUpdate := vmi.DeepCopy()
-	for _, label := range hostLabelsReconcileMapping {
-		srcValue, srcExists := node.Labels[label]
+	for _, mapper := range hostLabelsReconcileMapping {
+		srcValue, srcExists := node.Labels[mapper.nodeLabel]
 		if srcExists {
 			if toUpdate.Annotations == nil {
 				toUpdate.Annotations = map[string]string{}
 			}
-			toUpdate.Annotations[label] = srcValue
-		} else if _, exist := toUpdate.Annotations[label]; exist {
-			delete(toUpdate.Annotations, label)
+			toUpdate.Annotations[mapper.vmiAnnotation] = srcValue
+		} else if _, exist := toUpdate.Annotations[mapper.vmiAnnotation]; exist {
+			delete(toUpdate.Annotations, mapper.vmiAnnotation)
 		}
 	}
 
