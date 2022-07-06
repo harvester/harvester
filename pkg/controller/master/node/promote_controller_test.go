@@ -182,7 +182,7 @@ func Test_selectPromoteNode(t *testing.T) {
 			args: args{
 				nodeList: []*corev1.Node{m1, wnr1, w1},
 			},
-			want: nil,
+			want: w1,
 		},
 		{
 			name: "one management and one not ready worker and two ready worker",
@@ -196,7 +196,7 @@ func Test_selectPromoteNode(t *testing.T) {
 			args: args{
 				nodeList: []*corev1.Node{m1, wnr1, wnr2, w1},
 			},
-			want: nil,
+			want: w1,
 		},
 		{
 			name: "one management and two not ready worker and two ready worker",

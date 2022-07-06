@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
-	"github.com/rancher/wrangler/pkg/slice"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -41,6 +41,7 @@ const (
 	PromoteStatusFailed   = "failed"
 
 	defaultSpecManagementNumber = 3
+	defaultNodeTopologyZone     = "default"
 
 	promoteImage         = "busybox:1.32.0"
 	promoteRootMountPath = "/host"
@@ -243,71 +244,101 @@ func (h *PromoteHandler) setPromoteResult(job *batchv1.Job, node *corev1.Node, s
 	return job, err
 }
 
-// selectPromoteNode select the oldest ready worker node to promote
+// selectPromoteNode selects a worker node to promote
 // If the cluster doesn't need to be promoted, return nil
 func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
-	var (
-		managementNumber               int
-		promoteNode                    *corev1.Node
-		managementNodeTopologyZoneList []string
-	)
-
-	for _, node := range nodeList {
-		if isPromoteStatusIn(node, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown) {
-			// wait until the node promotion is completed or the failed or unknown status is cleared
-			return nil
-		} else if !isManagementRole(node) && isPromoteStatusIn(node, PromoteStatusComplete) {
-			// worker promotion is complete but node is not yet labeled as a management node
-			return nil
-		} else if isManagementRole(node) {
-			managementNumber++
-
-			if topologyZone := node.Labels[corev1.LabelTopologyZone]; topologyZone != "" {
-				managementNodeTopologyZoneList = append(managementNodeTopologyZoneList, topologyZone)
-			}
-		}
-
-		// return if there are already enough management nodes
-		if managementNumber == defaultSpecManagementNumber {
-			return nil
-		}
-	}
-
-	// return if the management node count is equal to the total amount of nodes (there are no more nodes left to promote)
-	nodeCount := len(nodeList)
-	if managementNumber == nodeCount {
+	managementNodesPerZone := make(map[string]int)
+	candidateNodesToZoneMap := make(map[string][]*corev1.Node)
+	// Skip promotion if there are less than defaultSpecManagementNumber total nodes
+	if len(nodeList) < defaultSpecManagementNumber {
 		return nil
 	}
 
-	promoteNode = nil
+	var managementCount int
+	managementNodesPerZone[defaultNodeTopologyZone] = 0
 	for _, node := range nodeList {
-		if !isHealthyNode(node) {
-			// decrease the nodeCount if a node is not healthy
-			nodeCount--
+		isManagementNode := isManagementRole(node)
+		if isPromoteStatusIn(node, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown) {
+			// wait until the ongoing node promotion is completed or the failed or unknown status is cleared
+			return nil
 		}
-
-		// return if the nodeCount is below the defaultSpecManagementNumber
-		if nodeCount < defaultSpecManagementNumber {
+		if !isManagementNode && isPromoteStatusIn(node, PromoteStatusComplete) {
+			// worker promotion is complete but node is not yet labeled as a management node
 			return nil
 		}
 
-		if !isManagementRole(node) && isHarvesterNode(node) && isHealthyNode(node) {
-			if len(managementNodeTopologyZoneList) > 0 {
-				// only promote the node if the label is set to a new zone
-				if topologyZone := node.Labels[corev1.LabelTopologyZone]; topologyZone != "" &&
-					!slice.ContainsString(managementNodeTopologyZoneList, topologyZone) {
-					return node
-				}
-			} else {
-				if promoteNode == nil || node.CreationTimestamp.Before(&promoteNode.CreationTimestamp) {
-					promoteNode = node
-				}
+		// nodes without a 'topology.kubernetes.io/zone' label get assigned to the default zone
+		nodeTopologyZone := defaultNodeTopologyZone
+		if zone := node.Labels[corev1.LabelTopologyZone]; zone != "" {
+			nodeTopologyZone = zone
+		}
+		if isManagementNode {
+			managementNodesPerZone[nodeTopologyZone] += 1
+			managementCount++
+		} else if isHealthyNode(node) && isHarvesterNode(node) {
+			// consider all healthy worker nodes as candidates for promotion
+			candidateNodesToZoneMap[nodeTopologyZone] = append(candidateNodesToZoneMap[nodeTopologyZone], node)
+			// add new zones to the managementNodesPerZone map
+			if _, exists := managementNodesPerZone[nodeTopologyZone]; !exists {
+				managementNodesPerZone[nodeTopologyZone] = 0
 			}
 		}
 	}
 
-	// promote the oldest node
-	return promoteNode
+	// return nothing if there are already enough enough management nodes or no candidate nodes
+	if managementCount == defaultSpecManagementNumber || len(candidateNodesToZoneMap) == 0 {
+		return nil
+	}
+
+	// It there are less then 3 custom zones, then we wait for further promotion
+	customZonesNum := len(managementNodesPerZone) - 1
+	if customZonesNum >= 1 && customZonesNum < 3 {
+		return nil
+	}
+
+	return selectNodeFromCandidates(candidateNodesToZoneMap, managementNodesPerZone)
+}
+
+// selectNodeFromCandidates returns the oldest node from the list of candidate nodes, prioritizing
+// the nodes in topology zones that have the lowest number of management nodes
+func selectNodeFromCandidates(candidateNodesToZoneMap map[string][]*corev1.Node, managementNodesPerZone map[string]int) *corev1.Node {
+	type zoneSize struct {
+		name string
+		size int
+	}
+	var zoneList []zoneSize
+	for k, v := range managementNodesPerZone {
+		zoneList = append(zoneList, zoneSize{k, v})
+	}
+
+	// sort zones by number of management nodes in ascending order
+	sort.Slice(zoneList, func(i, j int) bool {
+		return zoneList[i].size < zoneList[j].size
+	})
+
+	// using the sorted slice, check if there are any candidate nodes
+	// with matching zone labels and return the oldest one
+	for _, zone := range zoneList {
+		if zone.name == defaultNodeTopologyZone {
+			continue
+		}
+		if nodes := candidateNodesToZoneMap[zone.name]; len(nodes) > 0 {
+			sort.Slice(nodes[:], func(i, j int) bool {
+				return nodes[i].CreationTimestamp.Before(&nodes[j].CreationTimestamp)
+			})
+			return nodes[0]
+		}
+	}
+
+	// if we didn't find any nodes with zone labels, return the oldest node from the default zone
+	if nodes := candidateNodesToZoneMap[defaultNodeTopologyZone]; len(nodes) > 0 {
+		sort.Slice(nodes[:], func(i, j int) bool {
+			return nodes[i].CreationTimestamp.Before(&nodes[j].CreationTimestamp)
+		})
+		return nodes[0]
+	}
+
+	return nil
 }
 
 // isHealthyNode determine whether it's an healthy node
