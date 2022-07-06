@@ -131,6 +131,7 @@ var (
 	w1z1 = NewDefaultNodeBuilder().Name("w-1-z1").Zone("zone1").Harvester().Worker()
 	w2z2 = NewDefaultNodeBuilder().Name("w-2-z2").Zone("zone2").Harvester().Worker()
 	w3z3 = NewDefaultNodeBuilder().Name("w-3-z3").Zone("zone3").Harvester().Worker()
+	w4z3 = NewDefaultNodeBuilder().Name("w-4-z3").Zone("zone3").Harvester().Worker()
 )
 
 func Test_selectPromoteNode(t *testing.T) {
@@ -433,6 +434,13 @@ func Test_selectPromoteNode(t *testing.T) {
 			name: "two management in zone1 and zone2 and one worker in zone3",
 			args: args{
 				nodeList: []*corev1.Node{m1z1, m2z2, w3z3},
+			},
+			want: w3z3,
+		},
+		{
+			name: "two management in zone1 and zone2 and two worker in zone3",
+			args: args{
+				nodeList: []*corev1.Node{m1z1, m2z2, w4z3, w3z3},
 			},
 			want: w3z3,
 		},
