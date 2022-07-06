@@ -243,70 +243,66 @@ func (h *PromoteHandler) setPromoteResult(job *batchv1.Job, node *corev1.Node, s
 	return job, err
 }
 
-// selectPromoteNode select the oldest ready worker node to promote
+// selectPromoteNode selects a worker node to promote
 // If the cluster doesn't need to be promoted, return nil
 func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	var (
 		managementNumber               int
-		promoteNode                    *corev1.Node
+		candidateNodes                 []*corev1.Node
 		managementNodeTopologyZoneList []string
 	)
 
-	for _, node := range nodeList {
-		if isPromoteStatusIn(node, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown) {
-			// wait until the node promotion is completed or the failed or unknown status is cleared
-			return nil
-		} else if !isManagementRole(node) && isPromoteStatusIn(node, PromoteStatusComplete) {
-			// worker promotion is complete but node is not yet labeled as a management node
-			return nil
-		} else if isManagementRole(node) {
-			managementNumber++
-
-			if topologyZone := node.Labels[corev1.LabelTopologyZone]; topologyZone != "" {
-				managementNodeTopologyZoneList = append(managementNodeTopologyZoneList, topologyZone)
-			}
-		}
-
-		// return if there are already enough management nodes
-		if managementNumber == defaultSpecManagementNumber {
-			return nil
-		}
-	}
-
-	// return if the management node count is equal to the total amount of nodes (there are no more nodes left to promote)
-	nodeCount := len(nodeList)
-	if managementNumber == nodeCount {
+	// Skip promotion if there are less than defaultSpecManagementNumber total nodes
+	if len(nodeList) < defaultSpecManagementNumber {
 		return nil
 	}
 
-	promoteNode = nil
 	for _, node := range nodeList {
-		if !isHealthyNode(node) {
-			// decrease the nodeCount if a node is not healthy
-			nodeCount--
-		}
-
-		// return if the nodeCount is below the defaultSpecManagementNumber
-		if nodeCount < defaultSpecManagementNumber {
+		isManagementNode := isManagementRole(node)
+		if isPromoteStatusIn(node, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown) {
+			// wait until the ongoing node promotion is completed or the failed or unknown status is cleared
 			return nil
 		}
-
-		if !isManagementRole(node) && isHarvesterNode(node) && isHealthyNode(node) {
-			if len(managementNodeTopologyZoneList) > 0 {
-				// only promote the node if the label is set to a new zone
-				if topologyZone := node.Labels[corev1.LabelTopologyZone]; topologyZone != "" &&
-					!slice.ContainsString(managementNodeTopologyZoneList, topologyZone) {
-					return node
-				}
-			} else {
-				if promoteNode == nil || node.CreationTimestamp.Before(&promoteNode.CreationTimestamp) {
-					promoteNode = node
-				}
+		if !isManagementNode && isPromoteStatusIn(node, PromoteStatusComplete) {
+			// worker promotion is complete but node is not yet labeled as a management node
+			return nil
+		}
+		if isManagementNode {
+			managementNumber++
+			if topologyZone := node.Labels[corev1.LabelTopologyZone]; topologyZone != "" {
+				managementNodeTopologyZoneList = append(managementNodeTopologyZoneList, topologyZone)
 			}
+		} else if isHealthyNode(node) && isHarvesterNode(node) {
+			// select all healthy worker nodes as candidates for promotion
+			candidateNodes = append(candidateNodes, node)
 		}
 	}
 
-	// promote the oldest node
+	// return if there are already enough enough management nodes or no candidate nodes left to promote
+	if managementNumber == defaultSpecManagementNumber || len(candidateNodes) == 0 {
+		return nil
+	}
+
+	return selectNodeFromCandidates(candidateNodes, managementNodeTopologyZoneList)
+}
+
+// selectNodeFromCandidates returns the oldest node that is not
+// labeled with a zone for which a management node already exists
+func selectNodeFromCandidates(candidateNodes []*corev1.Node, managementTopologyZoneList []string) *corev1.Node {
+	var promoteNode *corev1.Node
+	for _, node := range candidateNodes {
+		if len(managementTopologyZoneList) > 0 {
+			// only promote the node if the label is set to a new zone
+			if topologyZone := node.Labels[corev1.LabelTopologyZone]; topologyZone != "" &&
+				!slice.ContainsString(managementTopologyZoneList, topologyZone) {
+				return node
+			}
+		} else {
+			if promoteNode == nil || node.CreationTimestamp.Before(&promoteNode.CreationTimestamp) {
+				promoteNode = node
+			}
+		}
+	}
 	return promoteNode
 }
 
