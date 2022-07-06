@@ -708,10 +708,16 @@ func (h *vmActionHandler) cloneVolumes(newVM *kubevirtv1.VirtualMachine) ([]core
 			if err != nil {
 				return nil, nil, fmt.Errorf("cannot get pvc %s, err: %w", volume.PersistentVolumeClaim.ClaimName, err)
 			}
+
+			annotations := map[string]string{}
+			if imageId, ok := pvc.Annotations[util.AnnotationImageID]; ok {
+				annotations[util.AnnotationImageID] = imageId
+			}
 			newPVC := corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: newVM.Namespace,
-					Name:      names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s-", newVM.Name, volume.Name)),
+					Namespace:   newVM.Namespace,
+					Name:        names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s-", newVM.Name, volume.Name)),
+					Annotations: annotations,
 				},
 				Spec: *pvc.Spec.DeepCopy(),
 			}
