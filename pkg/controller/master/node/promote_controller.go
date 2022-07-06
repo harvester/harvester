@@ -292,13 +292,8 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 		}
 
 		if !isManagementRole(node) && isHarvesterNode(node) && isHealthyNode(node) {
-			if len(managementNodeTopologyZoneList) > 0 {
-				// only promote the node if the label is set to a new zone
-				if topologyZone := node.Labels[corev1.LabelTopologyZone]; topologyZone != "" &&
-					!slice.ContainsString(managementNodeTopologyZoneList, topologyZone) {
-					return node
-				}
-			} else {
+			topologyZone := node.Labels[corev1.LabelTopologyZone]
+			if len(managementNodeTopologyZoneList) > 0 && topologyZone != "" && !slice.ContainsString(managementNodeTopologyZoneList, topologyZone) || len(managementNodeTopologyZoneList) == 0 {
 				if promoteNode == nil || node.CreationTimestamp.Before(&promoteNode.CreationTimestamp) {
 					promoteNode = node
 				}
