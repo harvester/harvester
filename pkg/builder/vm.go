@@ -166,6 +166,15 @@ func (v *VMBuilder) EvictionStrategy(liveMigrate bool) *VMBuilder {
 	return v
 }
 
+func (v *VMBuilder) Affinity(affinity *corev1.Affinity) *VMBuilder {
+	if affinity == nil {
+		return v.DefaultPodAntiAffinity()
+	}
+
+	v.VirtualMachine.Spec.Template.Spec.Affinity = affinity
+	return v
+}
+
 func (v *VMBuilder) DefaultPodAntiAffinity() *VMBuilder {
 	podAffinityTerm := corev1.PodAffinityTerm{
 		LabelSelector: &metav1.LabelSelector{
