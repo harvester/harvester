@@ -45,6 +45,8 @@ type Handler struct {
 	Configmaps               ctlcorev1.ConfigMapClient
 	Secrets                  ctlcorev1.SecretClient
 	SecretCache              ctlcorev1.SecretCache
+	nodeController           ctlcorev1.NodeController
+	podCache                 ctlcorev1.PodCache
 	Namespace                string
 }
 
@@ -65,6 +67,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		secrets := management.CoreFactory.Core().V1().Secret()
 		services := management.CoreFactory.Core().V1().Service()
 		configmaps := management.CoreFactory.Core().V1().ConfigMap()
+		nodes := management.CoreFactory.Core().V1().Node()
+		pods := management.CoreFactory.Core().V1().Pod()
 		h := Handler{
 			RancherSettings:          rancherSettings,
 			RancherSettingController: rancherSettings,
@@ -75,9 +79,11 @@ func Register(ctx context.Context, management *config.Management, options config
 			Configmaps:               configmaps,
 			Secrets:                  secrets,
 			SecretCache:              secrets.Cache(),
+			nodeController:           nodes,
+			podCache:                 pods.Cache(),
 			Namespace:                options.Namespace,
 		}
-
+		nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
 		secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
 		if err := h.registerExposeService(); err != nil {
