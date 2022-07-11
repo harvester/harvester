@@ -13,10 +13,12 @@ import (
 func (h *Handler) sriovNetworkingChartManager(setting *harvesterv1.Setting) error {
 	if setting.Value == "true" {
 		logrus.Infof("sriov-networking-enabled is set to true")
-		return installChart(h)
+		//return installChart(h)
+		return nil
 	} else {
 		logrus.Infof("sriov-networking-enabled is set to false")
-		return uninstallChart(h)
+		//return uninstallChart(h)
+		return nil
 	}
 }
 

@@ -71,20 +71,17 @@ The Harvester cluster admin starts by installing Harvester. By default, the SR-I
 If the user wants to enable the feature, they need to set the `sriov-networking-enabled` setting to `true`
 
 Admin wants to create an SR-IOV Network. To do so, they navigate to the Harvester Dashboard UI. 
-Admin expands the Advanced menu on the left side and clicks "Networks".
-
-Admin clicks the "Create" button on the right side. The Network Create page has a dropdown for the network 
-type that includes sriov if any node in the cluster is capable.
-
-![UI -> Advanced -> Networking -> Create button](20220614-sriov-configuration/sriov-ui-dropdown1.png)
-
-After they select the sriov option, the Node Policy tab appears:
-
-![UI -> Create Network -> SR-IOV Node Policy](20220614-sriov-configuration/sriov-ui-nodepolicy.png)
-
-A note on the NIC Selector, the best way to understand these form values is to look at the type defition for
-[SriovNetworkNicSelector](https://github.com/openshift/sriov-network-operator/blob/dc0a8bda79f1405d09f2fe3619506f79bfe41f42/api/v1/sriovnetworknodepolicy_types.go#L59-L70). 
+Admin expands the Advanced menu on the left side and looks right below "Networks", to see the "SR-IOV"
+tab. This will show the form to create the SriovNetworkNodePolicy and the SriovNetwork.
 
 After the node policy is created, the networks' `spec.resourceName` is set to the policy's `spec.resource`.
 
 At this point, admin can attach VMs to the SriovNetwork and begin taking advantage of the direct-memory access I/O provided by their NIC.
+
+## Requirements
+1. SR-IOV nav item (under Advanced) is only visible when `sriov-networking-enabled` setting to `true`
+2. Clicking on the SR-IOV nav item will show a form to edit the fields for these two CRDs:
+   2a. [SriovNetwork](https://docs.openshift.com/container-platform/4.6/networking/hardware_networks/configuring-sriov-net-attach.html) and
+   2b. [SriovNetworkNodePolicy](https://docs.openshift.com/container-platform/4.6/networking/hardware_networks/configuring-sriov-device.html)
+3. When the SriovNetworkNodePolicy is created, the spec.resourceName should be the default value for the SriovNetwork's spec.resourceName
+4. the VLAN number iun the SriovNetwork must be unique from all the other VLAN numbers currently
