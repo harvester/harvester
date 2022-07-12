@@ -30,9 +30,32 @@ crd. The `ClusterOutput` can then be configured by settings from the harvester U
 
 ### User Stories
 
-#### Easily View Harvester Logs
+Currently, users need to manually check harvester for failing pods or services and manually check logs using `kubectl` or other cluster
+inspection tools.
 
-Currently, users need to manually check harvester for failing pods or services and manually check logs using `kubectl`. 
+#### Setup
+
+Logging will be available after the cluster is installed, or upgraded from a previous version.
+
+#### Configuration
+
+The logging behavior should be configuratble using the Harvester UI settings.
+
+##### Outputs
+
+There are a lot of supported [plugins](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/plugins/) so we probably want 
+to pick a few "supported" pluggins ([splunk](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/plugins/outputs
+/splunk_hec/), [Elasticsearch](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/plugins/outputs/elasticsearch/), etc) 
+to wrap in a clean UI (similar to VM provisioning), and allow users to manually enter yaml for greater control over the `ClusterOutput`.
+
+Banzai does not impose a limit on the amount of outputs, so barringto performance issues we should not need to enforce limits on the amount of outputs a user can configure.
+
+##### Log Level
+
+We can add a Flow [filter](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/plugins/filters/) to filter logs based on 
+entry level. When the love level changes we will need to path the current `ClusterFlow`.
+
+#### Viewing Harvester Logs
 
 This enhancement will allow users to view harvester system logs from a web based UI making it easier to diagnose
 problems and check the status of the harvester system.
