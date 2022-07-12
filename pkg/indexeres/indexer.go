@@ -16,6 +16,7 @@ const (
 	RbByRoleAndSubjectIndex = "auth.harvesterhci.io/crb-by-role-and-subject"
 	PVCByVMIndex            = "harvesterhci.io/pvc-by-vm-index"
 	VMByNetworkIndex        = "vm.harvesterhci.io/vm-by-network"
+	PodByNodeNameIndex      = "harvesterhci.io/pod-by-nodename"
 )
 
 func RegisterScaledIndexers(scaled *config.Scaled) {
@@ -28,6 +29,8 @@ func RegisterManagementIndexers(management *config.Management) {
 	crbInformer.AddIndexer(RbByRoleAndSubjectIndex, rbByRoleAndSubject)
 	pvcInformer := management.CoreFactory.Core().V1().PersistentVolumeClaim().Cache()
 	pvcInformer.AddIndexer(PVCByVMIndex, pvcByVM)
+	podInformer := management.CoreFactory.Core().V1().Pod().Cache()
+	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
 }
 
 func rbByRoleAndSubject(obj *rbacv1.ClusterRoleBinding) ([]string, error) {
@@ -60,4 +63,8 @@ func VMByNetwork(obj *kubevirtv1.VirtualMachine) ([]string, error) {
 		networkNameList = append(networkNameList, network.NetworkSource.Multus.NetworkName)
 	}
 	return networkNameList, nil
+}
+
+func PodByNodeName(obj *corev1.Pod) ([]string, error) {
+	return []string{obj.Spec.NodeName}, nil
 }
