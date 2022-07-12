@@ -24,8 +24,9 @@ List the specific goals of the enhancement. How will we know that this has succe
 ## Proposal
 
 We will deploy a new `ManagedChart` in the [Harvester Installer](https://github.com/harvester/harvester-installer) to
-install. The `ManagedChart` will deploy a `ClusterFlow` to select and aggregate interesting logs, which can be managed
-by a new `ClusterOutput` crd. The `ClusterOutput` can then be configured by settings from the harvester UI.
+install. The `ManagedChart` will deploy a [`ClusterFlow`](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/flow/) to select and 
+aggregate interesting logs, which can be managed by a new [`ClusterOutput`](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/output/) 
+crd. The `ClusterOutput` can then be configured by settings from the harvester UI.
 
 ### User Stories
 
