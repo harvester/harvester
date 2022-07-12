@@ -6,7 +6,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/harvester/harvester/pkg/indexeres"
 )
 
 // Since multi-cluster-management-agent is disabled in the Harvester embedded Rancher,
@@ -51,15 +52,13 @@ func (h *Handler) PodResourcesOnChanged(key string, node *corev1.Node) (*corev1.
 
 func (h *Handler) getNonTerminatedPods(node *corev1.Node) ([]*corev1.Pod, error) {
 	var pods []*corev1.Pod
-	fromCache, err := h.podCache.List("", labels.NewSelector())
+
+	fromCache, err := h.podCache.GetByIndex(indexeres.PodByNodeNameIndex, node.Name)
 	if err != nil {
 		return pods, err
 	}
 
 	for _, pod := range fromCache {
-		if pod.Spec.NodeName != node.Name {
-			continue
-		}
 		// kubectl uses this cache to filter out the pods
 		if pod.Status.Phase == "Succeeded" || pod.Status.Phase == "Failed" {
 			continue
