@@ -82,6 +82,44 @@ At this point, admin can attach VMs to the SriovNetwork and begin taking advanta
 1. SR-IOV nav item (under Advanced) is only visible when `sriov-networking-enabled` setting to `true`
 2. Clicking on the SR-IOV nav item will show a form to edit the fields for these two CRDs:
    2a. [SriovNetwork](https://docs.openshift.com/container-platform/4.6/networking/hardware_networks/configuring-sriov-net-attach.html) and
-   2b. [SriovNetworkNodePolicy](https://docs.openshift.com/container-platform/4.6/networking/hardware_networks/configuring-sriov-device.html)
+   2b. [SriovNetworkNodePolicy](https://docs.openshift.com/container-platform/4.6/networking/hardware_networks/configuring-sriov-device.html**
 3. When the SriovNetworkNodePolicy is created, the spec.resourceName should be the default value for the SriovNetwork's spec.resourceName
-4. the VLAN number iun the SriovNetwork must be unique from all the other VLAN numbers currently
+4. the VLAN number in the SriovNetwork must be unique from all the other VLAN numbers currently
+5. nodes UI needs checkbox for 'feature.node.kubernetes.io/network-sriov.capable=true' label
+
+## Technical Details
+To make use of the operator, we have a fork of the operator source code here. 
+Repo: https://github.com/harvester/sriov-network-operator
+
+### Installation
+When the `sriov-network-enabled` setting is changed to `true`, the settings controller will
+install the `sriov-network-operator` [Helm chart](https://github.com/harvester/sriov-network-operator/tree/master/deployment/sriov-network-operator).
+The chart is built with the operator sdk framework.
+
+To install the chart, we will use the helm.sh golang library, example:
+
+From this blogpost: https://manuelmazzuola.dev/2021/03/28/deploy-helm-chart-go
+
+```go
+import (
+  "helm.sh/helm/v3/pkg/action"
+  "helm.sh/helm/v3/pkg/chart/loader"
+)
+
+restClientGetter, err := server.GetConfig(kubeconfigContent, namespace)
+actionConfig := new(action.Configuration)
+
+err = actionConfig.Init(restClientGetter)
+client := action.NewInstall(actionConfig)
+
+client.Namespace = namespace
+client.ReleaseName = releaseName
+
+// load the chart
+cp, err := client.ChartPathOptions.LocateChart(chart, settings)
+chartReq, err := loader.Load(cp)
+
+// install the chart
+err := client.Run(chartReq, nil)
+
+```
