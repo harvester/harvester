@@ -48,7 +48,13 @@ to pick a few "supported" pluggins ([splunk](https://banzaicloud.com/docs/one-ey
 /splunk_hec/), [Elasticsearch](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/plugins/outputs/elasticsearch/), etc) 
 to wrap in a clean UI (similar to VM provisioning), and allow users to manually enter yaml for greater control over the `ClusterOutput`.
 
-Banzai does not impose a limit on the amount of outputs, so barringto performance issues we should not need to enforce limits on the amount of outputs a user can configure.
+Banzai does not impose a limit on the amount of outputs, so barringto performance issues we should not need to enforce limits on the amount of outputs a 
+user can configure.
+
+##### Local Storage
+
+To allow for querying logs via rancher UI, we will install a default `ClusterOutput` to store the logs on a local cluster volume reacheable by the UI 
+server.
 
 ##### Log Level
 
@@ -57,12 +63,15 @@ entry level. When the love level changes we will need to path the current `Clust
 
 #### Viewing Harvester Logs
 
-This enhancement will allow users to view harvester system logs from a web based UI making it easier to diagnose
-problems and check the status of the harvester system.
+This enhancement will allow users to view harvester system logs from a web based UI making it easier to diagnose problems and check the status of the
+harvester system. The user should at a minimum be able to filter logs based on pattern matching.
 
 ### User Experience In Detail
 
 The user should be able to view harvester logs via UI, and configure where the logs are sent.
+
+The user shuold be able to view and filter harvester cluster logs via UI. The user should be able to configure the cluster logging via the settings UI
+and create / modify `ClusterOutputs`.
 
 ### API changes
 
