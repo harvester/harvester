@@ -2,7 +2,7 @@
 
 ## Summary
 
-We need to be able to support exporting harvester system logs outside the cluster, to allow for collecting and analyzing those logs to aid in debugging and harvester management. 
+We need to be able to aggregate all cluster pod logs outside the cluster, to allow for collecting and analyzing those logs to aid in debugging and harvester management.
 
 ### Related Issues
 
