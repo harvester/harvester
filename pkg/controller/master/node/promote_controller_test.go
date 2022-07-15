@@ -382,9 +382,30 @@ func Test_selectPromoteNode(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "one management in zone1 and one worker in zone2",
+			name: "one management in zone1 and one worker in zone1",
 			args: args{
 				nodeList: []*corev1.Node{m1z1, w1z1},
+			},
+			want: nil,
+		},
+		{
+			name: "one management in zone1 and one worker in zone2",
+			args: args{
+				nodeList: []*corev1.Node{m1z1, w2z2, w3},
+			},
+			want: nil,
+		},
+		{
+			name: "one management in zone1 and two worker",
+			args: args{
+				nodeList: []*corev1.Node{m1z1, w1, w2},
+			},
+			want: nil,
+		},
+		{
+			name: "one management and one worker in zone1 and one worker in zone3",
+			args: args{
+				nodeList: []*corev1.Node{m1z1, w1z1, w3z3},
 			},
 			want: nil,
 		},
@@ -406,6 +427,13 @@ func Test_selectPromoteNode(t *testing.T) {
 			name: "one management in zone1 and one not ready worker in zone2 and one ready worker in zone3",
 			args: args{
 				nodeList: []*corev1.Node{m1z1, wnr1z2, w3z3},
+			},
+			want: nil,
+		},
+		{
+			name: "one management in zone1 and one not ready worker in zone2 and two ready worker in zone3",
+			args: args{
+				nodeList: []*corev1.Node{m1z1, wnr1z2, w3z3, w4z3},
 			},
 			want: nil,
 		},
