@@ -40,7 +40,6 @@ import (
 var (
 	restoreAnnotationsToDelete = []string{
 		"pv.kubernetes.io",
-		"volume.beta.kubernetes.io",
 		ref.AnnotationSchemaOwnerKeyName,
 	}
 )
