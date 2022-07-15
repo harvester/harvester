@@ -10,7 +10,6 @@ import (
 	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
-	"github.com/rancher/wrangler/pkg/slice"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -247,56 +246,77 @@ func (h *PromoteHandler) setPromoteResult(job *batchv1.Job, node *corev1.Node, s
 // If the cluster doesn't need to be promoted, return nil
 func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	var (
-		managementNumber               int
-		promoteNode                    *corev1.Node
-		managementNodeTopologyZoneList []string
+		promoteNode                             *corev1.Node
+		healthyHarvesterWorkers                 []*corev1.Node
+		managementOrHealthyHarvesterWorkerZones = make(map[string]bool)
+		managementZones                         = make(map[string]bool)
+		managementNumber                        int
 	)
 
+	nodeNumber := len(nodeList)
+	canBeManagementNodeCount := nodeNumber
 	for _, node := range nodeList {
-		if isPromoteStatusIn(node, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown) {
-			// wait until the node promotion is completed or the failed or unknown status is cleared
-			return nil
-		} else if !isManagementRole(node) && isPromoteStatusIn(node, PromoteStatusComplete) {
-			// worker promotion is complete but node is not yet labeled as a management node
-			return nil
-		} else if isManagementRole(node) {
-			managementNumber++
+		isManagement := isManagementRole(node)
 
-			if topologyZone := node.Labels[corev1.LabelTopologyZone]; topologyZone != "" {
-				managementNodeTopologyZoneList = append(managementNodeTopologyZoneList, topologyZone)
-			}
+		if isManagement {
+			managementNumber++
 		}
 
 		// return if there are already enough management nodes
 		if managementNumber == defaultSpecManagementNumber {
 			return nil
 		}
+
+		// return if the management node count is equal to the total amount of nodes (there are no more nodes left to promote)
+		if managementNumber == nodeNumber {
+			return nil
+		}
+
+		// worker promotion is complete but node is not yet labeled as a management node
+		if !isManagement && isPromoteStatusIn(node, PromoteStatusComplete) {
+			return nil
+		}
+
+		// wait until the node promotion is completed or the failed or unknown status is cleared
+		if isPromoteStatusIn(node, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown) {
+			return nil
+		}
+
+		zone := node.Labels[corev1.LabelTopologyZone]
+		if isManagement {
+			if zone != "" {
+				managementZones[zone] = true
+				managementOrHealthyHarvesterWorkerZones[zone] = true
+			}
+		} else if isHealthyNode(node) && isHarvesterNode(node) {
+			if zone != "" {
+				managementOrHealthyHarvesterWorkerZones[zone] = true
+			}
+			healthyHarvesterWorkers = append(healthyHarvesterWorkers, node)
+		} else {
+			canBeManagementNodeCount--
+		}
+
+		// return if there are no enough nodes can be management node
+		if canBeManagementNodeCount < defaultSpecManagementNumber {
+			return nil
+		}
 	}
 
-	// return if the management node count is equal to the total amount of nodes (there are no more nodes left to promote)
-	nodeCount := len(nodeList)
-	if managementNumber == nodeCount {
+	// return if there are no enough zones
+	hasZones := len(managementZones) > 0
+	hasEnoughZones := len(managementOrHealthyHarvesterWorkerZones) >= defaultSpecManagementNumber
+	if hasZones && !hasEnoughZones {
 		return nil
 	}
 
 	promoteNode = nil
-	for _, node := range nodeList {
-		if !isHealthyNode(node) {
-			// decrease the nodeCount if a node is not healthy
-			nodeCount--
-		}
-
-		// return if the nodeCount is below the defaultSpecManagementNumber
-		if nodeCount < defaultSpecManagementNumber {
-			return nil
-		}
-
-		if !isManagementRole(node) && isHarvesterNode(node) && isHealthyNode(node) {
-			topologyZone := node.Labels[corev1.LabelTopologyZone]
-			if len(managementNodeTopologyZoneList) > 0 && topologyZone != "" && !slice.ContainsString(managementNodeTopologyZoneList, topologyZone) || len(managementNodeTopologyZoneList) == 0 {
-				if promoteNode == nil || node.CreationTimestamp.Before(&promoteNode.CreationTimestamp) {
-					promoteNode = node
-				}
+	for _, node := range healthyHarvesterWorkers {
+		zone := node.Labels[corev1.LabelTopologyZone]
+		hasNewZone := zone != "" && !managementZones[zone]
+		if !hasZones || hasNewZone {
+			if promoteNode == nil || node.CreationTimestamp.Before(&promoteNode.CreationTimestamp) {
+				promoteNode = node
 			}
 		}
 	}
@@ -340,11 +360,6 @@ func isManagementRole(node *corev1.Node) bool {
 	}
 
 	return false
-}
-
-func hasPromoteStatus(node *corev1.Node) bool {
-	_, ok := node.Annotations[HarvesterPromoteStatusAnnotationKey]
-	return ok
 }
 
 func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
