@@ -190,14 +190,6 @@ upgrade_rancher()
   wait_capi_cluster fleet-local local 0
   pre_generation=$(kubectl get clusters.cluster.x-k8s.io local -n fleet-local -o=jsonpath="{.status.observedGeneration}")
 
-  # XXX Workaround for https://github.com/rancher/rancher/issues/36914
-  # Delete all rancher's clusterrepos so they will be updated by the new version rancher pods
-  # Note: The leader pod would create these cluster repos
-  kubectl delete clusterrepos.catalog.cattle.io rancher-charts
-  kubectl delete clusterrepos.catalog.cattle.io rancher-rke2-charts
-  kubectl delete clusterrepos.catalog.cattle.io rancher-partner-charts
-  kubectl delete settings.management.cattle.io chart-default-branch
-
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
   ./helm upgrade rancher ./*.tgz --namespace cattle-system -f values.yaml --wait
 
