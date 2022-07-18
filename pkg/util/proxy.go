@@ -11,6 +11,8 @@ var builtInNoProxy = []string{
 	"127.0.0.1",
 	"0.0.0.0",
 	"10.0.0.0/8",
+	"longhorn-system",
+	"cattle-system",
 	"cattle-system.svc",
 	".svc",
 	".cluster.local",
