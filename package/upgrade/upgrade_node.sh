@@ -228,7 +228,10 @@ EOF
 }
 
 wait_rke2_upgrade() {
-  until [ "$(get_node_rke2_version)" = "$REPO_RKE2_VERSION" ]
+  # RKE2 doesn't show '-rcX' in nodeInfo, so we remove '-rcX' in $REPO_RKE2_VERSION.
+  # Warning: we can't upgrade from a '-rcX' to another in the same minor version like v1.22.12-rc1+rke2r1 to v1.22.12-rc2+rke2r1.
+  REPO_RKE2_VERSION_WITHOUT_RC=$(echo -n $REPO_RKE2_VERSION | sed 's/-rc[[:digit:]]*//g') 
+  until [ "$(get_node_rke2_version)" = "$REPO_RKE2_VERSION_WITHOUT_RC" ]
   do
     echo "Waiting for RKE2 to be upgraded..."
     sleep 5
