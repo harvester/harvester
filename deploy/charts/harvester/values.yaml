@@ -405,7 +405,7 @@ webhook:
 
     ## Specify the repository of image.
     ##
-    repository: rancher/harvester-webhook
+    repository: joshmeranda/harvester-webhook
 
     ## Specify the tag of image.
     ##
@@ -415,7 +415,7 @@ webhook:
 
 upgrade:
   image:
-    repository: rancher/harvester-upgrade
+    repository: joshmeranda/harvester-upgrade
     tag: master-head
 
 harvester-load-balancer:

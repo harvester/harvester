@@ -1,0 +1,18 @@
+{{- if .Values.rbac.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "logging-operator.fullname" . }}
+  labels:
+{{ include "logging-operator.labels" . | indent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "logging-operator.fullname" . }}
+    namespace: {{ include "logging-operator.namespace" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "logging-operator.fullname" . }}
+
+  {{- end }}

@@ -1,0 +1,19 @@
+{{- define "logging-operator.logging.eks" -}}
+{{- $logPath := "/var/log/messages" -}}
+metadata:
+  name: {{ .Release.Name }}-eks
+spec:
+  fluentbit:
+    disableKubernetesFilter: true
+    extraVolumeMounts:
+      - source: {{ $logPath }}
+        destination: {{ $logPath }}
+        readOnly: true
+    inputTail:
+      Tag: "eks"
+      Path: {{ $logPath }}
+      Parser: "syslog"
+{{- end -}}
+{{- if .Values.additionalLoggingSources.eks.enabled }}
+{{- include "logging-operator.logging" (list . "logging-operator.logging.eks") -}}
+{{- end }}

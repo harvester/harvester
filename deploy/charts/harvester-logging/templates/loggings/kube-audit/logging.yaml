@@ -1,0 +1,24 @@
+{{- define "logging-operator.logging.kube-audit" -}}
+metadata:
+  name: {{ .Release.Name }}-kube-audit
+spec:
+  {{- if .Values.additionalLoggingSources.kubeAudit.loggingRef }}
+  loggingRef: {{ .Values.additionalLoggingSources.kubeAudit.loggingRef }}
+  {{- end }}
+  fluentbit:
+    disableKubernetesFilter: true
+    extraVolumeMounts:
+      - source: {{ template "kubeAuditPathPrefix" . }}
+        destination: "/kube-audit-logs"
+        readOnly: true
+    inputTail:
+      Tag: {{ .Values.additionalLoggingSources.kubeAudit.fluentbit.logTag }}
+      Path: /kube-audit-logs/{{ template "kubeAuditFilename" . }}
+      Parser: json
+    {{- with (concat (.Values.tolerations) (.Values.fluentbit.tolerations) (.Values.additionalLoggingSources.kubeAudit.fluentbit.tolerations)) }}
+    tolerations: {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end -}}
+{{- if .Values.additionalLoggingSources.kubeAudit.enabled }}
+{{- include "logging-operator.logging" (list . "logging-operator.logging.kube-audit") -}}
+{{- end }}

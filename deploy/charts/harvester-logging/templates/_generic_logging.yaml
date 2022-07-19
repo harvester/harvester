@@ -1,0 +1,116 @@
+{{- define "logging-operator.logging.tpl" -}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Logging
+metadata:
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "logging-operator.labels" . | indent 4 }}
+spec:
+  controlNamespace: {{ .Release.Namespace }}
+  fluentbit:
+    image:
+      repository: {{ template "logging-operator.fluentbitImageRepository" . }}
+      tag: {{ template "logging-operator.fluentbitImageTag" . }}
+    {{- if not .Values.disablePvc }}
+    {{- with .Values.fluentbit.bufferStorage }}
+    bufferStorage: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.fluentbit.bufferStorageVolume }}
+    bufferStorageVolume: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- end }}
+    {{- if or .Values.global.psp.enabled .Values.global.seLinux.enabled }}
+    security:
+    {{- end }}
+    {{- if .Values.global.psp.enabled }}
+      podSecurityPolicyCreate: true
+      roleBasedAccessControlCreate: true
+    {{- end }}
+    {{- if .Values.global.seLinux.enabled }}
+      securityContext:
+        seLinuxOptions:
+          type: rke_logreader_t
+    {{- end }}
+    {{- if or .Values.fluentbit.inputTail.Buffer_Chunk_Size .Values.fluentbit.inputTail.Buffer_Max_Size .Values.fluentbit.inputTail.Mem_Buf_Limit .Values.fluentbit.inputTail.Multiline_Flush .Values.fluentbit.inputTail.Skip_Long_Lines }}
+    inputTail:
+      {{- if .Values.fluentbit.inputTail.Buffer_Chunk_Size }}
+      Buffer_Chunk_Size: {{ .Values.fluentbit.inputTail.Buffer_Chunk_Size | toString }}
+      {{- end }}
+      {{- if .Values.fluentbit.inputTail.Buffer_Max_Size }}
+      Buffer_Max_Size: {{ .Values.fluentbit.inputTail.Buffer_Max_Size | toString }}
+      {{- end }}
+      {{- if .Values.fluentbit.inputTail.Mem_Buf_Limit }}
+      Mem_Buf_Limit: {{ .Values.fluentbit.inputTail.Mem_Buf_Limit | toString }}
+      {{- end }}
+      {{- if .Values.fluentbit.inputTail.Multiline_Flush }}
+      Multiline_Flush: {{ .Values.fluentbit.inputTail.Multiline_Flush | toString | quote }}
+      {{- end }}
+      {{- if .Values.fluentbit.inputTail.Skip_Long_Lines }}
+      Skip_Long_Lines: {{ .Values.fluentbit.inputTail.Skip_Long_Lines | toString | quote }}
+      {{- end }}
+    {{- end }}
+    {{- with (concat (.Values.tolerations) (.Values.fluentbit.tolerations)) }}
+    tolerations: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.nodeSelector }}
+    nodeSelector: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.fluentbit.resources }}
+    resources: {{- toYaml . | nindent 6 }}
+    {{- end }}
+  fluentd:
+    image:
+      repository: {{ template "system_default_registry" . }}{{ .Values.images.fluentd.repository }}
+      tag: {{ .Values.images.fluentd.tag }}
+    configReloaderImage:
+      repository: {{ template "system_default_registry" . }}{{ .Values.images.config_reloader.repository }}
+      tag: {{ .Values.images.config_reloader.tag }}
+    {{- with .Values.fluentd.bufferStorageVolume }}
+    bufferStorageVolume: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    disablePvc: {{ .Values.disablePvc }}
+    {{- if .Values.fluentd.replicas }}
+    scaling:
+      replicas: {{ .Values.fluentd.replicas }}
+    {{- end }}
+    {{- if .Values.global.psp.enabled }}
+    security:
+      podSecurityPolicyCreate: true
+      roleBasedAccessControlCreate: true
+    {{- end }}
+    {{- with (default .Values.tolerations .Values.fluentd.tolerations) }}
+    tolerations: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with (default .Values.nodeSelector .Values.fluentd.nodeSelector) }}
+    nodeSelector: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.fluentd.resources }}
+    resources: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.fluentd.livenessProbe }}
+    livenessProbe: {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end -}}
+
+{{- define "logging-operator.util.merge.logging" -}}
+{{/* Top context to expose fields like `.Release` and `.Values` */}}
+{{- $top := first . -}}
+
+{{/* tpl is the template specific to the logging implementation */}}
+{{- $tpl := fromYaml (include (index . 1) $top) | default (dict ) -}}
+
+{{/* Generic is the shared rancher logging setttings from `_generic_logging.yaml` */}}
+{{- $generic := fromYaml (include (index . 2) $top) | default (dict ) -}}
+
+{{/* values are from the values.yaml */}}
+{{- $values := $top.Values.loggingOverlay | default (dict ) -}}
+
+####### {{$generic}}
+
+{{/* the sources are merge right to left meaning tpl is the highest prcedence and values is the lowest */}}
+{{- toYaml (merge $tpl $values $generic) -}}
+{{- end -}}
+
+{{- define "logging-operator.logging" -}}
+{{- include "logging-operator.util.merge.logging" (append . "logging-operator.logging.tpl") -}}
+{{- end -}}

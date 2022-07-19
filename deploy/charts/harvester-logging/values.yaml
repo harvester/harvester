@@ -1,0 +1,244 @@
+# Default values for logging-operator.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: rancher/mirrored-banzaicloud-logging-operator
+  tag: 3.17.4
+  pullPolicy: IfNotPresent
+
+extraArgs:
+  - -enable-leader-election=true
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+namespaceOverride: ""
+
+## Pod custom labels
+##
+podLabels: {}
+
+annotations: {}
+
+## Deploy CRDs used by Logging Operator.
+##
+createCustomResource: false
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector:
+  kubernetes.io/os: linux
+
+tolerations:
+  - key: cattle.io/os
+    operator: "Equal"
+    value: "linux"
+    effect: NoSchedule
+
+affinity: {}
+
+http:
+  # http listen port number
+  port: 8080
+  # Service definition for query http service
+  service:
+    type: ClusterIP
+    clusterIP: None
+    # Annotations to query http service
+    annotations: {}
+    # Labels to query http service
+    labels: {}
+
+# These "rbac" settings match the upstream defaults. For only using psp in the overlay files, which
+# include the default Logging CRs created, see the "global.psp" setting. To enable psp for the entire
+# chart, enable both "rbac.psp" and "global.psp" (this may require further changes to the chart).
+rbac:
+  enabled: true
+  psp:
+    enabled: true
+    annotations:
+      seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'docker/default,runtime/default'
+      seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'
+    ## Specify pod annotations
+    ## Ref: https://kubernetes.io/docs/concepts/policy/pod-security-policy/#apparmor
+    ## Ref: https://kubernetes.io/docs/concepts/policy/pod-security-policy/#seccomp
+    ## Ref: https://kubernetes.io/docs/concepts/policy/pod-security-policy/#sysctl
+
+
+
+## SecurityContext holds pod-level security attributes and common container settings.
+## This defaults to non root user with uid 1000 and gid 2000.	*v1.PodSecurityContext	false
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+##
+podSecurityContext: {}
+#  runAsNonRoot: true
+#  runAsUser: 1000
+#  fsGroup: 2000
+securityContext: {}
+#  allowPrivilegeEscalation: false
+#  readOnlyRootFilesystem: true
+  # capabilities:
+  #   drop: ["ALL"]
+
+## Operator priorityClassName
+##
+priorityClassName: {}
+
+monitoring:
+  # Create a Prometheus Operator ServiceMonitor object
+  serviceMonitor:
+    enabled: false
+    additionalLabels: {}
+    metricRelabelings: []
+    relabelings: []
+
+###################################
+# Rancher Logging Operator Values #
+###################################
+
+# Enable debug to use fluent-bit images that allow exec
+debug: false
+
+# Disable persistent volumes for buffers
+disablePvc: true
+
+# If your additional logging sources collect logs from systemd configure the systemd log path here
+systemdLogPath: "/run/log/journal"
+
+global:
+  cattle:
+    systemDefaultRegistry: ""
+    # Uncomment the below two lines to either enable or disable Windows logging. If this chart is
+    # installed via the Rancher UI, it will set this value to "true" if the cluster is a Windows
+    # cluster. In that scenario, if you would like to disable Windows logging on Windows clusters,
+    # set the value below to "false".
+    # windows:
+    #   enabled: true
+
+  # Change the "dockerRootDirectory" if the default Docker directory has changed.
+  dockerRootDirectory: ""
+
+  # This psp setting differs from the upstream "rbac.psp" by only enabling psp settings for the
+  # overlay files, which include the Logging CRs created, whereas the upstream "rbac.psp" affects the
+  # logging operator.
+  psp:
+    enabled: true
+
+  rkeWindowsPathPrefix: "c:\\"
+
+  seLinux:
+    enabled: false
+
+images:
+  config_reloader:
+    repository: rancher/mirrored-jimmidyson-configmap-reload
+    tag: v0.4.0
+  fluentbit:
+    repository: rancher/mirrored-fluent-fluent-bit
+    tag: 1.8.15
+  nodeagent_fluentbit:
+    os: "windows"
+    repository: rancher/fluent-bit
+    tag: 1.8.15
+  fluentbit_debug:
+    repository: rancher/mirrored-fluent-fluent-bit
+    tag: 1.8.15-debug
+  fluentd:
+    repository: rancher/mirrored-banzaicloud-fluentd
+    tag: v1.14.5-alpine-1
+
+additionalLoggingSources:
+  rke:
+    enabled: false
+    fluentbit:
+      log_level: "info"
+      mem_buffer_limit: "5MB"
+  rke2:
+    enabled: false
+    stripUnderscores: false
+  k3s:
+    enabled: false
+    container_engine: "systemd"
+    stripUnderscores: false
+  aks:
+    enabled: false
+  eks:
+    enabled: false
+  gke:
+    enabled: false
+  kubeAudit:
+    auditFilename: ""
+    enabled: false
+    pathPrefix: ""
+    fluentbit:
+      logTag: kube-audit
+      tolerations:
+      - key: node-role.kubernetes.io/controlplane
+        value: "true"
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/etcd
+        value: "true"
+        effect: NoExecute
+
+# configures node agent options for windows node agents
+nodeAgents:
+  tls:
+    enabled: false
+
+# These settings apply to every Logging CR, including vendor Logging CRs enabled in "additionalLoggingSources".
+# Changing these affects every Logging CR installed.
+fluentd:
+  bufferStorageVolume: {}
+  livenessProbe:
+    tcpSocket:
+      port: 24240
+    initialDelaySeconds: 30
+    periodSeconds: 15
+  nodeSelector: {}
+  resources: {}
+  tolerations: {}
+fluentbit:
+  inputTail:
+    Buffer_Chunk_Size: ""
+    Buffer_Max_Size: ""
+    Mem_Buf_Limit: ""
+    Multiline_Flush: ""
+    Skip_Long_Lines: ""
+  resources: {}
+  tolerations:
+    - key: node-role.kubernetes.io/controlplane
+      value: "true"
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/etcd
+      value: "true"
+      effect: NoExecute
+  filterKubernetes:
+    Merge_Log: ""
+    Merge_Log_Key: ""
+    Merge_Log_Trim: ""
+    Merge_Parser: ""
+
+# DO NOT SET THIS UNLESS YOU KNOW WHAT YOU ARE DOING.
+# Setting fields on this object can break rancher logging or cause unexpected behavior. It is intended to be used if you
+# need to configure functionality not exposed by rancher logging. It is highly recommended you check the `app-readme.md`
+# for the functionality you need before modifying this object.
+
+# this object will be merged with every logging CR created by this chart. Any fields that collide with fields from the
+# settings above will be overridden. Any fields that collide with fields set in the files in `templates/loggings` will
+# be ignored.
+loggingOverlay: {}
+# spec:
+#   fluentbit: {}
+#   fluentd: {}

@@ -1,0 +1,19 @@
+{{- define "logging-operator.logging.k3s-openrc" -}}
+{{- $logPath := "/var/log/k3s.log" -}}
+metadata:
+  name: {{ .Release.Name }}-k3s
+spec:
+  fluentbit:
+    disableKubernetesFilter: true
+    extraVolumeMounts:
+      - source: {{ $logPath }}
+        destination: {{ $logPath }}
+        readOnly: true
+    inputTail:
+      Tag: "k3s"
+      Path: {{ $logPath }}
+      Path_Key: filename
+{{- end -}}
+{{- if and .Values.additionalLoggingSources.k3s.enabled (eq .Values.additionalLoggingSources.k3s.container_engine "openrc")}}
+{{- include "logging-operator.logging" (list . "logging-operator.logging.k3s-openrc") -}}
+{{- end }}

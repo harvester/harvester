@@ -1,0 +1,69 @@
+{{- if .Values.additionalLoggingSources.rke2.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-rke2
+  labels:
+{{ include "logging-operator.labels" . | indent 4 }}
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush             1
+        Grace             5
+        Daemon            Off
+        Log_Level         info
+        Coro_Stack_Size   24576
+        Parsers_File      parsers.conf
+
+    [INPUT]
+        Name              systemd
+        Tag               rke2
+        Path              {{ .Values.systemdLogPath }}
+        Systemd_Filter    _SYSTEMD_UNIT=rke2-server.service
+        Systemd_Filter    _SYSTEMD_UNIT=rke2-agent.service
+        {{- if .Values.additionalLoggingSources.rke2.stripUnderscores }}
+        Strip_Underscores On
+        {{- end }}
+
+    [INPUT]
+        Name              tail
+        Tag               rke2
+        Path              /var/lib/rancher/rke2/agent/logs/kubelet.log
+
+    [FILTER]
+        Name              parser
+        Match             *
+        Key_Name          log
+        Parser            klog
+        Reserve_Data      On
+
+    [FILTER]
+        Name              parser
+        Match             *
+        Key_Name          MESSAGE
+        Parser            klog
+        Reserve_Data      On
+
+    [FILTER]
+        Name              parser
+        Match             *
+        Key_Name          MESSAGE
+        Parser            rancher
+        Reserve_Data      On
+
+    [FILTER]
+        Name              parser
+        Match             *
+        Key_Name          MESSAGE
+        Parser            etcd
+        Reserve_Data      On
+
+    [OUTPUT]
+        Name              forward
+        Match             *
+        Host              {{ .Release.Name }}-root-fluentd.{{ .Release.Namespace }}.svc
+        Port              24240
+        Retry_Limit       False
+  parsers.conf: |
+{{ include "logging-operator.parsers" . | indent 4 }}
+{{- end }}

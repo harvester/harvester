@@ -1,0 +1,29 @@
+{{- if .Values.additionalLoggingSources.rke.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-rke
+  labels:
+{{ include "logging-operator.labels" . | indent 4 }}
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Log_Level         {{ .Values.additionalLoggingSources.rke.fluentbit.log_level }}
+        Parsers_File      parsers.conf
+
+    [INPUT]
+        Tag               rke
+        Name              tail
+        Path_Key          filename
+        Parser            docker
+        DB                /tail-db/tail-containers-state.db
+        Mem_Buf_Limit     {{ .Values.additionalLoggingSources.rke.fluentbit.mem_buffer_limit }}
+        Path              /var/lib/rancher/rke/log/*.log
+
+    [OUTPUT]
+        Name              forward
+        Match             *
+        Host              {{ .Release.Name }}-root-fluentd.{{ .Release.Namespace }}.svc
+        Port              24240
+        Retry_Limit       False
+{{- end }}

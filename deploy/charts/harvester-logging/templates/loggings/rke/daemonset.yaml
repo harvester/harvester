@@ -1,0 +1,122 @@
+{{- if .Values.additionalLoggingSources.rke.enabled }}
+{{- $containers := printf "%s/containers/" (default "/var/lib/docker" .Values.global.dockerRootDirectory) }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: "{{ .Release.Name }}-rke-aggregator"
+  namespace: "{{ .Release.Namespace }}"
+spec:
+  selector:
+    matchLabels:
+      name: {{ .Release.Name }}-rke-aggregator
+  template:
+    metadata:
+      name: "{{ .Release.Name }}-rke-aggregator"
+      namespace: "{{ .Release.Namespace }}"
+      labels:
+        name: {{ .Release.Name }}-rke-aggregator
+    spec:
+      containers:
+        - name: fluentbit
+          image: "{{ template "logging-operator.fluentbitImage" . }}"
+          volumeMounts:
+            - mountPath: /var/lib/rancher/rke/log/
+              name: indir
+            - mountPath: {{ $containers }}
+              name: containers
+            - mountPath: /tail-db
+              name: positiondb
+            - mountPath: /fluent-bit/etc/fluent-bit.conf
+              name: config
+              subPath: fluent-bit.conf
+          {{- if .Values.global.seLinux.enabled }}
+          securityContext:
+            seLinuxOptions:
+              type: rke_logreader_t
+          {{- end }}
+      volumes:
+        - name: indir
+          hostPath:
+            path: /var/lib/rancher/rke/log/
+            type: DirectoryOrCreate
+        - name: containers
+          hostPath:
+            path: {{ $containers }}
+            type: DirectoryOrCreate
+        - name: positiondb
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: "{{ .Release.Name }}-rke"
+      serviceAccountName: "{{ .Release.Name }}-rke-aggregator"
+      {{- $total_tolerations := concat (.Values.tolerations) (.Values.fluentbit.tolerations) }}
+      {{- with $total_tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "{{ .Release.Name }}-rke-aggregator"
+  namespace: "{{ .Release.Namespace }}"
+{{- if .Values.global.psp.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "{{ .Release.Name }}-rke-aggregator"
+rules:
+  - apiGroups:
+    - policy
+    resourceNames:
+    - "{{ .Release.Name }}-rke-aggregator"
+    resources:
+    - podsecuritypolicies
+    verbs:
+    - use
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "{{ .Release.Name }}-rke-aggregator"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: "{{ .Release.Name }}-rke-aggregator"
+subjects:
+  - kind: ServiceAccount
+    name: "{{ .Release.Name }}-rke-aggregator"
+---
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: "{{ .Release.Name }}-rke-aggregator"
+  namespace: "{{ .Release.Namespace }}"
+spec:
+  allowPrivilegeEscalation: false
+  allowedHostPaths:
+  - pathPrefix: {{ $containers }}
+    readOnly: false
+  - pathPrefix: /var/lib/rancher/rke/log/
+    readOnly: false
+  - pathPrefix: /var/lib/rancher/logging/
+    readOnly: false
+  fsGroup:
+    rule: RunAsAny
+  readOnlyRootFilesystem: true
+  runAsUser:
+    rule: RunAsAny
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  volumes:
+  - configMap
+  - emptyDir
+  - secret
+  - hostPath
+{{- end }}
+{{- end }}

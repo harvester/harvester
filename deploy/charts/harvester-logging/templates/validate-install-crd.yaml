@@ -1,0 +1,20 @@
+#{{- if gt (len (lookup "rbac.authorization.k8s.io/v1" "ClusterRole" "" "")) 0 -}}
+# {{- $found := dict -}}
+# {{- set $found "logging-extensions.banzaicloud.io/v1alpha1/EventTailer" false -}}
+# {{- set $found "logging-extensions.banzaicloud.io/v1alpha1/HostTailer" false -}}
+# {{- set $found "logging.banzaicloud.io/v1alpha1/ClusterFlow" false -}}
+# {{- set $found "logging.banzaicloud.io/v1alpha1/ClusterOutput" false -}}
+# {{- set $found "logging.banzaicloud.io/v1alpha1/Flow" false -}}
+# {{- set $found "logging.banzaicloud.io/v1alpha1/Logging" false -}}
+# {{- set $found "logging.banzaicloud.io/v1alpha1/Output" false -}}
+# {{- range .Capabilities.APIVersions -}}
+# {{- if hasKey $found (toString .) -}}
+# 	{{- set $found (toString .) true -}}
+# {{- end -}}
+# {{- end -}}
+# {{- range $_, $exists := $found -}}
+# {{- if (eq $exists false) -}}
+# 	{{- required "Required CRDs are missing. Please install the corresponding CRD chart before installing this chart." "" -}}
+# {{- end -}}
+# {{- end -}}
+#{{- end -}}

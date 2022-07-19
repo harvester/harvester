@@ -1,0 +1,57 @@
+{{- if and .Values.additionalLoggingSources.k3s.enabled (eq .Values.additionalLoggingSources.k3s.container_engine "systemd") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-k3s
+  labels:
+{{ include "logging-operator.labels" . | indent 4 }}
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush             1
+        Grace             5
+        Daemon            Off
+        Log_Level         info
+        Coro_Stack_Size   24576
+        Parsers_File      parsers.conf
+
+    [INPUT]
+        Name              systemd
+        Tag               k3s
+        Path              {{ .Values.systemdLogPath }}
+        Systemd_Filter    _SYSTEMD_UNIT=k3s.service
+        {{- if .Values.additionalLoggingSources.k3s.stripUnderscores }}
+        Strip_Underscores On
+        {{- end }}
+        Systemd_Filter    _SYSTEMD_UNIT=k3s-agent.service
+
+    [FILTER]
+        Name              parser
+        Match             *
+        Key_Name          MESSAGE
+        Parser            klog
+        Reserve_Data      On
+
+    [FILTER]
+        Name              parser
+        Match             *
+        Key_Name          MESSAGE
+        Parser            rancher
+        Reserve_Data      On
+
+    [FILTER]
+        Name              parser
+        Match             *
+        Key_Name          MESSAGE
+        Parser            etcd
+        Reserve_Data      On
+
+    [OUTPUT]
+        Name              forward
+        Match             *
+        Host              {{ .Release.Name }}-root-fluentd.{{ .Release.Namespace }}.svc
+        Port              24240
+        Retry_Limit       False
+  parsers.conf: |
+{{ include "logging-operator.parsers" . | indent 4 }}
+{{- end }}

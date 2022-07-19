@@ -1,0 +1,116 @@
+{{- if .Values.additionalLoggingSources.rke2.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: "{{ .Release.Name }}-rke2-journald-aggregator"
+  namespace: "{{ .Release.Namespace }}"
+spec:
+  selector:
+    matchLabels:
+      name: {{ .Release.Name }}-rke2-journald-aggregator
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/loggings/rke2/configmap.yaml") . | sha256sum }}
+      name: "{{ .Release.Name }}-rke2-journald-aggregator"
+      namespace: "{{ .Release.Namespace }}"
+      labels:
+        name: {{ .Release.Name }}-rke2-journald-aggregator
+    spec:
+      containers:
+        - name: fluentbit
+          image: "{{ template "logging-operator.fluentbitImage" . }}"
+          {{- if .Values.global.seLinux.enabled }}
+          securityContext:
+            seLinuxOptions:
+              type: rke_logreader_t
+          {{- end }}
+          volumeMounts:
+            - mountPath: /fluent-bit/etc/
+              name: config
+            - mountPath: {{ .Values.systemdLogPath | default "/var/log/journal" }}
+              name: journal
+              readOnly: true
+            - mountPath: "/var/lib/rancher/rke2/agent/logs/kubelet.log"
+              name: kubelet
+              readOnly: true
+            - mountPath: /etc/machine-id
+              name: machine-id
+              readOnly: true
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: "{{ .Release.Name }}-rke2-journald-aggregator"
+      volumes:
+        - name: config
+          configMap:
+            name: "{{ .Release.Name }}-rke2"
+        - name: journal
+          hostPath:
+            path: {{ .Values.systemdLogPath | default "/var/log/journal" }}
+        - name: kubelet
+          hostPath:
+            path: "/var/lib/rancher/rke2/agent/logs/kubelet.log"
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "{{ .Release.Name }}-rke2-journald-aggregator"
+  namespace: "{{ .Release.Namespace }}"
+{{- if .Values.global.psp.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "{{ .Release.Name }}-rke2-journald-aggregator"
+rules:
+  - apiGroups:
+    - policy
+    resourceNames:
+    - "{{ .Release.Name }}-rke2-journald-aggregator"
+    resources:
+    - podsecuritypolicies
+    verbs:
+    - use
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "{{ .Release.Name }}-rke2-journald-aggregator"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: "{{ .Release.Name }}-rke2-journald-aggregator"
+subjects:
+  - kind: ServiceAccount
+    name: "{{ .Release.Name }}-rke2-journald-aggregator"
+---
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: "{{ .Release.Name }}-rke2-journald-aggregator"
+  namespace: "{{ .Release.Namespace }}"
+spec:
+  allowPrivilegeEscalation: false
+  fsGroup:
+    rule: RunAsAny
+  readOnlyRootFilesystem: true
+  runAsUser:
+    rule: RunAsAny
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  volumes:
+  - configMap
+  - emptyDir
+  - secret
+  - hostPath
+{{- end }}
+{{- end }}

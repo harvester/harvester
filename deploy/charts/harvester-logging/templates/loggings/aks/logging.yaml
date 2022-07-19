@@ -1,0 +1,18 @@
+{{- define "logging-operator.logging.aks" -}}
+{{- $logPath := "/var/log/azure/kubelet-status.log" -}}
+metadata:
+  name: {{ .Release.Name }}-aks
+spec:
+  fluentbit:
+    disableKubernetesFilter: true
+    extraVolumeMounts:
+      - source: {{ $logPath }}
+        destination: {{ $logPath }}
+        readOnly: true
+    inputTail:
+      Tag: "aks"
+      Path: {{ $logPath }}
+{{- end -}}
+{{- if .Values.additionalLoggingSources.aks.enabled }}
+{{- include "logging-operator.logging" (list . "logging-operator.logging.aks") -}}
+{{- end }}

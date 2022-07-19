@@ -1,0 +1,5 @@
+#{{- if .Values.global.dockerRootDirectory }}
+#{{- if or (hasSuffix "/containers" .Values.global.dockerRootDirectory) (hasSuffix "/" .Values.global.dockerRootDirectory) }}
+#{{- required "global.dockerRootDirectory must not end with suffix: '/' or '/containers'" "" -}}
+#{{- end }}
+#{{- end }}
