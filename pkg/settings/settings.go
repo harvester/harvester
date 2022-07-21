@@ -57,7 +57,7 @@ const (
 	SSLParametersName               = "ssl-parameters"
 	VipPoolsConfigSettingName       = "vip-pools"
 	VolumeSnapshotClassSettingName  = "volume-snapshot-class"
-	DefaultDashboardUIURL           = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
+	DefaultDashboardUIURL           = "https://releases.rancher.com/harvester-ui/dashboard/release-harvester-v1.0/index.html"
 	SupportBundleImageName          = "support-bundle-image"
 )
 
