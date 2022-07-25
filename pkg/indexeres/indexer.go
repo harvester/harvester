@@ -3,6 +3,7 @@ package indexeres
 import (
 	"fmt"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -13,12 +14,13 @@ import (
 )
 
 const (
-	UserNameIndex              = "auth.harvesterhci.io/user-username-index"
-	RbByRoleAndSubjectIndex    = "auth.harvesterhci.io/crb-by-role-and-subject"
-	PVCByVMIndex               = "harvesterhci.io/pvc-by-vm-index"
-	VMByNetworkIndex           = "vm.harvesterhci.io/vm-by-network"
-	PodByNodeNameIndex         = "harvesterhci.io/pod-by-nodename"
-	VMBackupBySourceVMUIDIndex = "harvesterhci.io/vmbackup-by-source-vm-uid"
+	UserNameIndex                = "auth.harvesterhci.io/user-username-index"
+	RbByRoleAndSubjectIndex      = "auth.harvesterhci.io/crb-by-role-and-subject"
+	PVCByVMIndex                 = "harvesterhci.io/pvc-by-vm-index"
+	VMByNetworkIndex             = "vm.harvesterhci.io/vm-by-network"
+	PodByNodeNameIndex           = "harvesterhci.io/pod-by-nodename"
+	VMBackupBySourceVMUIDIndex   = "harvesterhci.io/vmbackup-by-source-vm-uid"
+	VolumeSnapshotByPVCNameIndex = "harvesterhci.io/volume-snapshot-by-pvc-name"
 )
 
 func RegisterScaledIndexers(scaled *config.Scaled) {
@@ -33,6 +35,8 @@ func RegisterManagementIndexers(management *config.Management) {
 	pvcInformer.AddIndexer(PVCByVMIndex, pvcByVM)
 	podInformer := management.CoreFactory.Core().V1().Pod().Cache()
 	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
+	volumeSnapshotInformer := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot().Cache()
+	volumeSnapshotInformer.AddIndexer(VolumeSnapshotByPVCNameIndex, volumeSnapshotByPVCName)
 }
 
 func RegisterAPIIndexers(scaled *config.Scaled) {
@@ -81,4 +85,11 @@ func VMBackupBySourceVMUID(obj *harvesterv1.VirtualMachineBackup) ([]string, err
 		return []string{}, nil
 	}
 	return []string{string(*obj.Status.SourceUID)}, nil
+}
+
+func volumeSnapshotByPVCName(obj *snapshotv1.VolumeSnapshot) ([]string, error) {
+	if obj.Spec.Source.PersistentVolumeClaimName != nil {
+		return []string{*obj.Spec.Source.PersistentVolumeClaimName}, nil
+	}
+	return []string{}, nil
 }

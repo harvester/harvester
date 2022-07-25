@@ -267,3 +267,15 @@ type CSIDriverInfo struct {
 	VolumeSnapshotClassName       string `json:"volumeSnapshotClassName"`
 	BackupVolumeSnapshotClassName string `json:"backupVolumeSnapshotClassName"`
 }
+
+func GetCSIDriverInfo(provisioner string) (*CSIDriverInfo, error) {
+	csiDriverConfig := make(map[string]*CSIDriverInfo)
+	if err := json.Unmarshal([]byte(CSIDriverConfig.Get()), &csiDriverConfig); err != nil {
+		return nil, err
+	}
+	csiDriverInfo, ok := csiDriverConfig[provisioner]
+	if !ok {
+		return nil, fmt.Errorf("can not find csi driver info for %s", provisioner)
+	}
+	return csiDriverInfo, nil
+}

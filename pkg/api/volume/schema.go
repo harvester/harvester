@@ -17,13 +17,17 @@ const (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
 	server.BaseSchemas.MustImportAndCustomize(ExportVolumeInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(CloneVolumeInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(SnapshotVolumeInput{}, nil)
 	actionHandler := ActionHandler{
-		images:   scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
-		pvcs:     scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
-		pvcCache: scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
-		pvs:      scaled.HarvesterCoreFactory.Core().V1().PersistentVolume(),
-		pvCache:  scaled.HarvesterCoreFactory.Core().V1().PersistentVolume().Cache(),
+		images:    scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
+		pvcs:      scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
+		pvcCache:  scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
+		pvs:       scaled.HarvesterCoreFactory.Core().V1().PersistentVolume(),
+		pvCache:   scaled.HarvesterCoreFactory.Core().V1().PersistentVolume().Cache(),
+		snapshots: scaled.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot(),
 	}
+
 	t := schema.Template{
 		ID: pvcSchemaID,
 		Customize: func(s *types.APISchema) {
@@ -32,10 +36,18 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 					Input: "exportVolumeInput",
 				},
 				actionCancelExpand: {},
+				actionClone: {
+					Input: "cloneVolumeInput",
+				},
+				actionSnapshot: {
+					Input: "snapshotVolumeInput",
+				},
 			}
 			s.ActionHandlers = map[string]http.Handler{
 				actionExport:       &actionHandler,
 				actionCancelExpand: &actionHandler,
+				actionClone:        &actionHandler,
+				actionSnapshot:     &actionHandler,
 			}
 		},
 		Formatter: Formatter,
