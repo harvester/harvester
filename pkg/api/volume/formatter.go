@@ -1,14 +1,22 @@
 package volume
 
 import (
+	"encoding/json"
+
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/data/convert"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
 	actionExport       = "export"
 	actionCancelExpand = "cancelExpand"
+	actionClone        = "clone"
+	actionSnapshot     = "snapshot"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -22,21 +30,34 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 		return
 	}
 
-	if canExport(pvc) {
+	if IsResizing(pvc) {
+		resource.AddAction(request, actionCancelExpand)
+		return
+	}
+
+	if pvc.Status.Phase != corev1.ClaimBound {
+		return
+	}
+
+	csiDriverConfig := make(map[string]settings.CSIDriverInfo)
+	if err := json.Unmarshal([]byte(settings.CSIDriverConfig.Get()), &csiDriverConfig); err != nil {
+		return
+	}
+	provisioner := util.GetProvisionedPVCProvisioner(pvc)
+	c, ok := csiDriverConfig[provisioner]
+	if !ok {
+		return
+	}
+
+	if provisioner == longhorntypes.LonghornDriverName {
 		resource.AddAction(request, actionExport)
 	}
 
-	if canCancelExpand(pvc) {
-		resource.AddAction(request, actionCancelExpand)
+	resource.AddAction(request, actionClone)
+
+	if c.VolumeSnapshotClassName != "" {
+		resource.AddAction(request, actionSnapshot)
 	}
-}
-
-func canExport(pvc *corev1.PersistentVolumeClaim) bool {
-	return !IsResizing(pvc)
-}
-
-func canCancelExpand(pvc *corev1.PersistentVolumeClaim) bool {
-	return IsResizing(pvc)
 }
 
 func IsResizing(pvc *corev1.PersistentVolumeClaim) bool {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
@@ -23,16 +24,19 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 type ActionHandler struct {
-	images   v1beta1.VirtualMachineImageClient
-	pvcs     ctlcorev1.PersistentVolumeClaimClient
-	pvcCache ctlcorev1.PersistentVolumeClaimCache
-	pvs      ctlharvcorev1.PersistentVolumeClient
-	pvCache  ctlharvcorev1.PersistentVolumeCache
+	images    v1beta1.VirtualMachineImageClient
+	pvcs      ctlcorev1.PersistentVolumeClaimClient
+	pvcCache  ctlcorev1.PersistentVolumeClaimCache
+	pvs       ctlharvcorev1.PersistentVolumeClient
+	pvCache   ctlharvcorev1.PersistentVolumeCache
+	snapshots ctlsnapshotv1.VolumeSnapshotClient
 }
 
 func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -69,6 +73,24 @@ func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 		return h.exportVolume(r.Context(), input.Namespace, input.DisplayName, pvcNamespace, pvcName)
 	case actionCancelExpand:
 		return h.cancelExpand(r.Context(), pvcNamespace, pvcName)
+	case actionClone:
+		var input CloneVolumeInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		if input.Name == "" {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
+		}
+		return h.clone(r.Context(), pvcNamespace, pvcName, input.Name)
+	case actionSnapshot:
+		var input SnapshotVolumeInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		if input.Name == "" {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
+		}
+		return h.snapshot(r.Context(), pvcNamespace, pvcName, input.Name)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -201,4 +223,90 @@ func (h *ActionHandler) tryUpdatePV(pvName string, update func(pv *corev1.Persis
 		_, err = h.pvs.Update(newPV)
 		return err
 	})
+}
+
+func (h *ActionHandler) clone(ctx context.Context, pvcNamespace, pvcName, newPVCName string) error {
+	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
+	if err != nil {
+		return err
+	}
+
+	newPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        newPVCName,
+			Namespace:   pvcNamespace,
+			Annotations: map[string]string{},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes:      pvc.Spec.AccessModes,
+			Resources:        pvc.Spec.Resources,
+			StorageClassName: pvc.Spec.StorageClassName,
+			VolumeMode:       pvc.Spec.VolumeMode,
+			DataSource: &corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: pvcName,
+			},
+		},
+	}
+
+	if imageID := pvc.Annotations[util.AnnotationImageID]; imageID != "" {
+		newPVC.Annotations[util.AnnotationImageID] = imageID
+	}
+
+	if _, err = h.pvcs.Create(newPVC); err != nil {
+		logrus.Errorf("failed to clone volume %s/%s to new pvc %s", pvcNamespace, pvcName, newPVCName)
+		return err
+	}
+
+	return nil
+}
+
+func (h *ActionHandler) snapshot(ctx context.Context, pvcNamespace, pvcName, snapshotName string) error {
+	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
+	if err != nil {
+		return err
+	}
+
+	provisioner := util.GetProvisionedPVCProvisioner(pvc)
+	csiDriverInfo, err := settings.GetCSIDriverInfo(provisioner)
+	if err != nil {
+		return err
+	}
+
+	volumeSnapshotClassName := csiDriverInfo.VolumeSnapshotClassName
+	snapshot := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      snapshotName,
+			Namespace: pvcNamespace,
+			Annotations: map[string]string{
+				util.AnnotationStorageClassName:   *pvc.Spec.StorageClassName,
+				util.AnnotationStorageProvisioner: provisioner,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: pvc.APIVersion,
+					Kind:       pvc.Kind,
+					Name:       pvc.Name,
+					UID:        pvc.UID,
+				},
+			},
+		},
+		Spec: snapshotv1.VolumeSnapshotSpec{
+			Source: snapshotv1.VolumeSnapshotSource{
+				PersistentVolumeClaimName: &pvcName,
+			},
+			VolumeSnapshotClassName: &volumeSnapshotClassName,
+		},
+	}
+
+	if imageID := pvc.Annotations[util.AnnotationImageID]; imageID != "" {
+		snapshot.Annotations[util.AnnotationImageID] = imageID
+	}
+
+	if _, err = h.snapshots.Create(snapshot); err != nil {
+		logrus.Errorf("failed to create volume snapshot %s from volume %s/%s", snapshotName, pvcNamespace, pvcName)
+		return err
+	}
+
+	return nil
 }
