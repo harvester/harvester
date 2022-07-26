@@ -15,6 +15,7 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	"github.com/harvester/harvester/pkg/webhook/util"
 )
 
 const (
@@ -27,20 +28,23 @@ func NewValidator(
 	vms ctlkubevirtv1.VirtualMachineCache,
 	setting ctlharvesterv1.SettingCache,
 	vmBackup ctlharvesterv1.VirtualMachineBackupCache,
+	vmRestore ctlharvesterv1.VirtualMachineRestoreCache,
 ) types.Validator {
 	return &restoreValidator{
-		vms:      vms,
-		setting:  setting,
-		vmBackup: vmBackup,
+		vms:       vms,
+		setting:   setting,
+		vmBackup:  vmBackup,
+		vmRestore: vmRestore,
 	}
 }
 
 type restoreValidator struct {
 	types.DefaultValidator
 
-	vms      ctlkubevirtv1.VirtualMachineCache
-	setting  ctlharvesterv1.SettingCache
-	vmBackup ctlharvesterv1.VirtualMachineBackupCache
+	vms       ctlkubevirtv1.VirtualMachineCache
+	setting   ctlharvesterv1.SettingCache
+	vmBackup  ctlharvesterv1.VirtualMachineBackupCache
+	vmRestore ctlharvesterv1.VirtualMachineRestoreCache
 }
 
 func (v *restoreValidator) Resource() types.Resource {
@@ -90,6 +94,12 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	// restore an existing vm but the vm is still running
 	if !newVM && vm.Status.Ready {
 		return werror.NewInvalidError(fmt.Sprintf("please stop the VM %q before doing a restore", vm.Name), fieldTargetName)
+	}
+
+	if result, err := util.HasInProgressingVMRestoreOnSameTarget(v.vmRestore, vm.Namespace, vm.Name); err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't check whether there is another in progressing vmrestore, err: %+v", err))
+	} else if result {
+		return werror.NewInvalidError(fmt.Sprintf("please wait for previous vmrestore complete on the same target %s/%s", vm.Namespace, vm.Name), fieldTargetName)
 	}
 
 	return nil
