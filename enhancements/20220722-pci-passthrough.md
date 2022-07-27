@@ -1,10 +1,12 @@
 # PCI Passthrough
 
-PCI Passthrough allows Virtual Machines to have direct access to a PCI device, without having to copy data through the hypervisor.
+PCI Passthrough allows Virtual Machines to have direct access to a PCI device, without 
+having to copy data through the hypervisor.
 
 ## Summary
 
-Users who want to use [SR-IOV](20220614-single-root-io-virtualization.md) in a virtualized "guest" cluster on Harvester must first enable PCI Passthrough, which we can call PCI-PT for short.
+Users who want to use [SR-IOV](20220614-single-root-io-virtualization.md) in a virtualized "guest" cluster 
+on Harvester must first enable PCI Passthrough, which we can call PCI-PT for short.
 
 ### Related Issues
 
@@ -22,16 +24,71 @@ The URL For the related enhancement issues in Harvester repo.
 ### User Stories
 
 #### Story 1
-Alice wants to run TensorFlow on her cluster. 
-Each node has an NVIDIA GeForce GTX 3080 and 
-she wants to train a large language model faster
-than CPU mode will allow.
+Alice wants to run a TensorFlow machine learning application on her cluster. 
 
-By enabling GPU support during Harvester installation, 
-the requisite NVIDIA drivers have been installed. Now 
-she has to enable 
-[PCI Passthrough](20220722-pci-passthrough.md) 
-so that the containers can talk to the GPU.
+She has three nodes in the cluster, with a mix of different GPUs. 
+
+List of nodes:
+- node1
+  - NVIDIA GeForce GTX 1660
+  - AMD Radeon RX 6800
+- node2
+  - NVIDIA GeForce GTX 2080
+  - NVIDIA Tesla V100
+- node3 
+  - NVIDIA GeForce GTX 1660
+  - NVIDIA Tesla V100
+  - AMD Radeon RX 6800
+  
+During installation, the harvester installer noticed these devices and installed the 
+necessary drivers.
+
+In order to expose these devices to the VMs, Alice goes to the Advanced menu and 
+selects "PCI Passthrough", and is presented with a list of devices, and all the nodes 
+they belong to:
+
+
+- NVIDIA GeForce GTX 1660
+  - node1
+  - node3
+- AMD Radeon RX 6800
+  - node1
+  - node3
+- NVIDIA GeForce GTX 2080
+  - node2
+- NVIDIA Tesla V100
+  - node2
+  - node3
+  
+Alice's TensorFlow application contains some CUDA-specific code, so she only enables 
+the three NVIDIA devices by checking the box next to them. By default, all the nodes 
+with that device are selected. Then she presses the "Pass devices through on selected nodes"
+button.
+
+Alice goes to create a VM, and in the form to create a VM, there is a "PCI devices" list.
+When she selects a PCI Device, the Node Scheduling section is automatically updated to 
+"Run VM on node(s) matching scheduling rules", where the scheduling rule is "node X has 
+device D". This will ensure that the VM only runs on nodes with the selected device.
+
+The UI for selecting PCI devices will automatically narrow down to the intersection of all 
+the PCI devices belonging to the nodes that contain the already-selected devices. To show this 
+with an example, suppose Alice selected "NVIDIA GeForce GTX 1660", then, since only 
+node1 and node3 have that device, only the devices on node1 and node3 would be included 
+in the list. 
+
+node1: $\{\text{geforce1660}, \text{radeon6800}\}$
+
+node3: $\{\text{geforce1660}, \text{teslaV100}, \text{radeon6800}\}$
+
+And their intersection is: 
+
+$\{\text{geforce1660}, \text{radeon6800}\} \cap \{\text{geforce1660}, \text{teslaV100}, \text{radeon6800}\} = \{\text{geforce1660}, \text{radeon6800} \}$
+
+So only those two devices would remain in the PCI Devices list. As soon as any are unselected, the list would expand again.
+
+Once the VM is created, it is scheduled to run on the nodes with those devices, and those devices have already been configured 
+for PCI-Passthrough.
+
 
 #### Story 2
 Alice wants to run a DPDK Application in her guest cluster and 
@@ -48,25 +105,55 @@ the underlying PF.
 ### User Experience In Detail
 
 #### Story 1 in detail
-Alice needs to have installed Harvester and checked the optional GPU drivers 
-box. This is a gocui UI element that appears in the 
-[harvester-installer](https://github.com/harvester/harvester-installer).
+Alice needs to have installed Harvester with the PCI devices plugged in. The installer detected
+the GPUs and installed the necessary drivers.
 
 After installing Harvester, it reboots. Since GPU drivers were installed, Harvester 
 also enabled the `iommu=on` kernel parameter. This protects the host memory 
 even though the guest has direct access to that memory.
 
-She enables PCI passthrough by setting the `pci-pt-enable` setting to `true`.
+She enables PCI Passthrough by visiting the Advanced &rarr; PCI Passthrough interface 
+described in [story 1](#story-1). That list of devices and their nodes is stored as a json 
+object in the setting `pci-passthrough-config`:
 
-Shen then enables the GPU by setting the `gpu-enable` setting to `true`.
+```json
+{
+    devices: [
+        {id: 1, name: "Intel Corporation Ethernet Connection (11) I219-LM"}
+    ],
+    nodes: [
+        {name: "node1", pciDevicesToPassThrough: [1]}
+    ]
+}
+```
 
-After that setting is updated, the settings controller then checks if the device is an 
-NVIDIA or an AMD GPU (run `nvidia-smi` binary and check the process exit status).
+After that setting is updated, the settings controller will loop through the devices and prepare them 
+for PCI Passthrough:
 
-Based on the return status, if it's 0 then it installs the Nvidia DevicePlugin. Otherwise 
-it installs the AMD DevicePlugin. Now checking the node with 
-`kubectl get node mynode -o yaml | yq .status.allocatable` , the GPU should appear 
-in the output, this is a sign that the GPU can be allocated to a pod.
+The preparation for passthrough consists of unbinding the driver, doing a driver override, then binding the 
+device to the `vfio-pci` driver:
+
+**Unbind the device from the driver**
+
+```
+echo 0000:02:00.3 > /sys/bus/pci/drivers/igb/unbind
+```
+
+**Driver override**
+```
+echo "vfio-pci" > /sys/bus/pci/devices/0000\:02\:00.3/driver_override
+```
+
+**Bind the device to the vfio-pci driver**
+```
+
+echo 0000:02:00.3 > /sys/bus/pci/drivers/vfio-pci/bind
+```
+
+Then, once all devices have been prepared for PCI Passthrough, the nodes are labeled with their 
+devices so that kubevirt knows where to schedule VMs that request those devices as resources.
+
+
 
 #### Story 2 in detail
 She enables PCI passthrough by setting the `pci-pt-enable` setting to `true`. The 

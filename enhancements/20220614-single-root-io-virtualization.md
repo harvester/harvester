@@ -62,7 +62,7 @@ flowchart TB
 ### Goals
 
 - Empower our customers to make full use of their SR-IOV hardware, speeding up their virtualized workloads
-  - For example, [this user](https://github.com/harvester/harvester/issues/993#issue-935351354) who wrote the issue can't get 10Gbps throughput. After we ship SR-IOV, if they can get 10Gbps in their VMs, then this enhancement will be considered a success.
+  - For example, [this user](https://github.com/harvester/harvester/issues/992#issue-935351354) who wrote the issue can't get 10Gbps throughput. After we ship SR-IOV, if they can get 10Gbps in their VMs, then this enhancement will be considered a success.
 
 ### Non-goals [optional]
 
@@ -137,11 +137,11 @@ the SR-IOV network operator's admission webhooks work.
 After the installation is complete, it then creates an SriovNetworkNodePolicy CR:
 
 ```yaml
-apiVersion: sriovnetwork.openshift.io/v1
+apiVersion: sriovnetwork.harvesterhci.io/v1alpha1
 kind: SriovNetworkNodePolicy
 metadata:
   name: sriov-policy-202207221730
-  namespace: openshift-sriov-network-operator 
+  namespace: harvester-sriov-network-operator
 spec:
   nodeSelector:
     feature.node.kubernetes.io/network-sriov.capable: "true"
@@ -227,3 +227,8 @@ Use that as a baseline to decide if test passed or not.
 
 TODO 
     
+# TODO List for PR
+## DONE Per-device SR-IOV device list, like the PCI-PT device list idea: https://github.com/harvester/harvester/pull/2555#discussion_r930913566
+## TODO VM usage example https://github.com/harvester/harvester/pull/2555#discussion_r930916119
+## DONE ns to us https://github.com/harvester/harvester/pull/2555#discussion_r930886942
+## DONE 992 
