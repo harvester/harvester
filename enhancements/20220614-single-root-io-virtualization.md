@@ -38,7 +38,7 @@ flowchart TB
     end
 ```
 
-With SR-IOV enabled, the driver exposes multiple VFs, each of which can be assigned to be exclusively owned by Pods or VMs. Further, SR-IOV gives the VM direct memory access (DMA) to the PF's driver memory.
+With SR-IOV enabled, the driver exposes multiple VFs, each of which can be assigned to be exclusively owned by Pods or VMs. Further, SR-IOV gives the VM direct memory access (DMA) to the PF's driver memory for better network performance.
 
 ```mermaid
 flowchart TB
