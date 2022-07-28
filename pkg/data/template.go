@@ -175,6 +175,7 @@ spec:
               interfaces:
               - name: default
                 masquerade: {}
+                model: virtio
             resources:
               limits:
                 memory: 2048Mi
@@ -238,6 +239,7 @@ spec:
               interfaces:
               - name: default
                 masquerade: {}
+                model: virtio
             resources:
               limits:
                 memory: 2048Mi
@@ -259,7 +261,10 @@ spec:
   templateId: {{ .Namespace }}/windows-iso-image-base-template
   vm:
     metadata:
+      labels:
+        harvesterhci.io/os: windows
       annotations:
+        harvesterhci.io/reservedMemory: 256Mi
         harvesterhci.io/volumeClaimTemplates: |-
           [{
             "metadata": {
