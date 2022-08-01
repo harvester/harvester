@@ -12,14 +12,6 @@ home: https://github.com/harvester/harvester
 sources:
   - https://github.com/harvester/harvester
 dependencies:
-#  - name: harvester-logging
-#    version: 100.1.2+up3.17.4
-#    repository: file://dependency_charts/harvester-logging
-#    condition: harvester-logging.enabled
-#  - name: harvester-logging-crd
-#    version: 100.1.2+up3.17.4
-#    repository: file://dependency_charts/harvester-logging-crd
-#    condition: harvester-logging-crd.enabled
   - name: kubevirt-operator
     version: 0.1.0
     repository: file://dependency_charts/kubevirt-operator

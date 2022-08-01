@@ -151,7 +151,7 @@ containers:
 
       ## Specify the repository of image.
       ##
-      repository: rancher/harvester
+      repository: joshmeranda/harvester
 
       ## Specify the tag of image.
       ##

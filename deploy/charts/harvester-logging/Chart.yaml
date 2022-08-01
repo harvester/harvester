@@ -7,7 +7,7 @@ annotations:
   catalog.cattle.io/namespace: cattle-logging-system
   catalog.cattle.io/permits-os: linux,windows
   catalog.cattle.io/provides-gvr: logging.banzaicloud.io.clusterflow/v1beta1
-  catalog.cattle.io/rancher-version: '> 2.6.0-0'
+#  catalog.cattle.io/rancher-version: '> 2.6.0-0'
   catalog.cattle.io/release-name: harvester-logging
   catalog.cattle.io/type: cluster-tool
   catalog.cattle.io/ui-component: logging
@@ -22,4 +22,5 @@ keywords:
 - monitoring
 - security
 name: harvester-logging
-version: 100.1.2+up3.17.4
+#version: 100.1.2+up3.17.4
+version: 100.1.0+up19.0.3

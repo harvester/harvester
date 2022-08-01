@@ -1,4 +1,4 @@
-# Rancher Logging
+# Harvester Logging
 
 This chart is based off of the upstream [Banzai Logging Operator](https://banzaicloud.com/docs/one-eye/logging-operator/) chart. The chart deploys a logging operator and CRDs, which allows users to configure complex logging pipelines with a few simple custom resources. There are two levels of logging, which allow you to collect all logs in a cluster or from a single namespace.
 
