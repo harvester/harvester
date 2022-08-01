@@ -237,6 +237,10 @@ func (h *RestoreHandler) initStatus(restore *harvesterv1.VirtualMachineRestore) 
 
 	restoreCpy.Status = &harvesterv1.VirtualMachineRestoreStatus{
 		Complete: pointer.BoolPtr(false),
+		Conditions: []harvesterv1.Condition{
+			newProgressingCondition(corev1.ConditionTrue, "", "Initializing VirtualMachineRestore"),
+			newReadyCondition(corev1.ConditionFalse, "", "Initializing VirtualMachineRestore"),
+		},
 	}
 
 	if _, err := h.restores.Update(restoreCpy); err != nil {
@@ -565,8 +569,6 @@ func (h *RestoreHandler) updateOwnerRefAndTargetUID(vmRestore *harvesterv1.Virtu
 
 	// set vmRestore owner reference to the target VM
 	restoreCpy.SetOwnerReferences(configVMOwner(vm))
-	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "", "Initializing VirtualMachineRestore"))
-	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "", "Initializing VirtualMachineRestore"))
 
 	if _, err := h.restores.Update(restoreCpy); err != nil {
 		return err
