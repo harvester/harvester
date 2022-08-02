@@ -8,7 +8,7 @@ const (
 	NetworkInterfaceTypeBridge     = "bridge"
 	NetworkInterfaceTypeMasquerade = "masquerade"
 
-	LabelKeyNetworkType = "networks.harvesterhci.io/type"
+	LabelKeyNetworkType = "network.harvesterhci.io/type"
 
 	NetworkTypeVLAN   = "L2VlanNetwork"
 	NetworkTypeCustom = "Custom"
