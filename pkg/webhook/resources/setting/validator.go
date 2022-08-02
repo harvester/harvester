@@ -58,11 +58,13 @@ func NewValidator(
 	settingCache ctlv1beta1.SettingCache,
 	vmBackupCache ctlv1beta1.VirtualMachineBackupCache,
 	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
+	vmRestoreCache ctlv1beta1.VirtualMachineRestoreCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
 		vmBackupCache:      vmBackupCache,
 		snapshotClassCache: snapshotClassCache,
+		vmRestoreCache:     vmRestoreCache,
 	}
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
 	validateSettingFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateVolumeSnapshotClass
@@ -75,6 +77,7 @@ type settingValidator struct {
 	settingCache       ctlv1beta1.SettingCache
 	vmBackupCache      ctlv1beta1.VirtualMachineBackupCache
 	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache
+	vmRestoreCache     ctlv1beta1.VirtualMachineRestoreCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -228,10 +231,18 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 
 	vmBackups, err := v.vmBackupCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
-		return werror.NewInternalError(err.Error())
+		return werror.NewInternalError(fmt.Sprintf("Can't list VM backups, err: %+v", err.Error()))
 	}
 	if hasVMBackupInCreatingOrDeletingProgress(vmBackups) {
 		return werror.NewBadRequest("There is VMBackup in creating or deleting progress")
+	}
+
+	vmRestores, err := v.vmRestoreCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("Failed to get the VM restore objects, err: %+v", err.Error()))
+	}
+	if hasVMRestoreInCreatingOrDeletingProgress(vmRestores) {
+		return werror.NewBadRequest("Can't update the backup target. There is a VM either in the process of creating or deleting")
 	}
 
 	// It is allowed to reset the current backup target setting to the default value
@@ -421,6 +432,15 @@ func getSystemCerts() *x509.CertPool {
 func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachineBackup) bool {
 	for _, vmBackup := range vmBackups {
 		if vmBackup.DeletionTimestamp != nil || vmBackup.Status == nil || !*vmBackup.Status.ReadyToUse {
+			return true
+		}
+	}
+	return false
+}
+
+func hasVMRestoreInCreatingOrDeletingProgress(vmRestores []*v1beta1.VirtualMachineRestore) bool {
+	for _, vmRestore := range vmRestores {
+		if vmRestore.DeletionTimestamp != nil || vmRestore.Status == nil || !*vmRestore.Status.Complete {
 			return true
 		}
 	}
