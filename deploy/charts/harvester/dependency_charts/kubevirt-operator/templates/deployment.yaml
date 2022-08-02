@@ -31,7 +31,7 @@ spec:
         app.kubernetes.io/name: virt-operator
         app.kubernetes.io/component: operator
         kubevirt.io: virt-operator
-        prometheus.kubevirt.io: ""
+        prometheus.kubevirt.io: "true"
     spec:
       priorityClassName: kubevirt-cluster-critical
       serviceAccountName: kubevirt-operator
