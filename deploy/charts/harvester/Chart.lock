@@ -10,7 +10,7 @@ dependencies:
   version: 0.2.9
 - name: harvester-node-disk-manager
   repository: https://charts.harvesterhci.io
-  version: 0.4.3
+  version: 0.4.5
 - name: csi-snapshotter
   repository: file://dependency_charts/csi-snapshotter
   version: 0.1.0
@@ -18,13 +18,13 @@ dependencies:
   repository: https://charts.longhorn.io
   version: 1.3.0
 - name: kube-vip
-  repository: https://kube-vip.io/helm-charts
+  repository: https://kube-vip.github.io/helm-charts
   version: 0.4.2
 - name: kube-vip-cloud-provider
-  repository: https://kube-vip.io/helm-charts
+  repository: https://kube-vip.github.io/helm-charts
   version: 0.2.1
 - name: harvester-load-balancer
   repository: https://charts.harvesterhci.io
   version: 0.1.3
-digest: sha256:0b56a37b183e4eacaebe1b412e1e5fbd3f40935ae1ea3e525db059bba2223603
-generated: "2022-06-20T14:15:40.078892+08:00"
+digest: sha256:a637b3897e25d376d052411b50cf5a79956a87b8b9e8965b93705714b42ae028
+generated: "2022-08-02T17:40:23.702048573+08:00"
