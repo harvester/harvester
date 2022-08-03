@@ -404,7 +404,7 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 		return err
 	}
 	apiGroup := kubevirtv1.SchemeGroupVersion.Group
-	backup := &harvesterv1.VirtualMachineRestore{
+	restore := &harvesterv1.VirtualMachineRestore{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      input.Name,
 			Namespace: vmNamespace,
@@ -415,11 +415,12 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 				Kind:     kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 				Name:     vmName,
 			},
-			VirtualMachineBackupName: input.BackupName,
-			NewVM:                    false,
+			VirtualMachineBackupNamespace: vmNamespace,
+			VirtualMachineBackupName:      input.BackupName,
+			NewVM:                         false,
 		},
 	}
-	_, err := h.restores.Create(backup)
+	_, err := h.restores.Create(restore)
 	if err != nil {
 		return fmt.Errorf("failed to create restore, error: %s", err.Error())
 	}
