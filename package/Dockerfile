@@ -10,7 +10,7 @@ RUN zypper -n rm container-suseconnect && \
 
 WORKDIR /var/lib/harvester/harvester
 
-ENV HARVESTER_UI_VERSION v1.0.3-rc1
+ENV HARVESTER_UI_VERSION v1.0.3-rc2
 ENV HARVESTER_UI_PATH /usr/share/harvester/harvester
 # Please update the api-ui-version in pkg/settings/settings.go when updating the version here.
 ENV HARVESTER_API_UI_VERSION 1.1.9
