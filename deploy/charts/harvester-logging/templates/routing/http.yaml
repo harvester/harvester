@@ -1,0 +1,24 @@
+{{ if .Values.loggingOutputsAndFlows.http.enabled }}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: ClusterFlow
+metadata:
+  name: harvester-http
+  namespace: cattle-monitoring-system
+spec:
+  match:
+    - select: {}
+  globalOutputRefs:
+    - harvester-http
+---
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: ClusterOutput
+metadata:
+  name: harvester-http
+  namespace: cattle-monitoring-system
+spec:
+  http:
+    endpoint: http://192.168.0.119:8080/logs
+    buffer:
+      tags: "[]"
+      flush_interval: 1s
+{{end}}

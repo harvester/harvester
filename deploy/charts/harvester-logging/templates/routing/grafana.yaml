@@ -1,0 +1,21 @@
+{{ if .Values.loggingOutputsAndFlows.grafana.enabled }}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: ClusterFlow
+metadata:
+  name: harvester-grafana
+  namespace: cattle-monitoring-system
+spec:
+  match:
+    - select: {}
+  globalOutputRefs:
+    - harvester-grafana
+---
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: ClusterOutput
+metadata:
+  name: harvester-grafana
+  namespace: cattle-monitoring-system
+spec:
+  loki:
+    url: http://rancher-monitoring-grafana.cattle-monitoring-system.svc:80
+{{end}}

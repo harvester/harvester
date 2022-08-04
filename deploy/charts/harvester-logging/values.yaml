@@ -159,6 +159,13 @@ images:
     repository: rancher/mirrored-banzaicloud-fluentd
     tag: v1.14.5-alpine-1
 
+loggingOutputsAndFlows:
+  http:
+    enabled: true
+
+  grafana:
+    enabled: true
+
 additionalLoggingSources:
   rke:
     enabled: false

@@ -1,0 +1,46 @@
+---
+{{- if .Values.monitoring.selfMonitoring.enabled }}
+{{- with .Values.monitoring.selfMonitoring.podLogs }}
+apiVersion: monitoring.grafana.com/v1alpha1
+kind: PodLogs
+metadata:
+  name: {{ include "loki.fullname" $ }}
+  namespace: {{ .namespace | default $.Release.Namespace }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    instance: primary
+    {{- include "loki.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  pipelineStages:
+    - cri: { }
+  relabelings:
+    - action: replace
+      replacement: $1
+      separator: /
+      sourceLabels:
+        - __meta_kubernetes_namespace
+        - __meta_kubernetes_pod_container_name
+      targetLabel: job
+    - action: replace
+      sourceLabels:
+        - __meta_kubernetes_pod_container_name
+      targetLabel: name
+    - replacement: "{{ include "loki.fullname" $ }}"
+      targetLabel: cluster
+    {{- with .relabelings }}
+    {{- toYaml . | nindent 8 }}
+    {{- end }}
+  namespaceSelector:
+    matchNames:
+      - {{ $.Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "loki.selectorLabels" $ | nindent 6 }}
+{{- end }}
+{{- end }}

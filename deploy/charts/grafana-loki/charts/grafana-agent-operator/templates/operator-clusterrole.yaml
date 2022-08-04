@@ -1,0 +1,55 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ga-operator.fullname" . }}
+  labels:
+{{ include "ga-operator.labels" . | indent 4 }}
+rules:
+- apiGroups: [monitoring.grafana.com]
+  resources:
+  - grafanaagents
+  - metricsinstances
+  - logsinstances
+  - podlogs
+  - integrations
+  verbs: [get, list, watch]
+- apiGroups: [monitoring.grafana.com]
+  resources:
+  - grafanaagents/finalizers
+  - metricsinstances/finalizers
+  - logsinstances/finalizers
+  - podlogs/finalizers
+  - integrations/finalizers
+  verbs: [get, list, watch, update]
+- apiGroups: [monitoring.coreos.com]
+  resources:
+  - podmonitors
+  - probes
+  - servicemonitors
+  verbs: [get, list, watch]
+- apiGroups: [monitoring.coreos.com]
+  resources:
+  - podmonitors/finalizers
+  - probes/finalizers
+  - servicemonitors/finalizers
+  verbs: [get, list, watch, update]
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - nodes
+  verbs: [get, list, watch]
+- apiGroups: [""]
+  resources:
+  - secrets
+  - services
+  - configmaps
+  - endpoints
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ["apps"]
+  resources:
+  - statefulsets
+  - daemonsets
+  - deployments
+  verbs: [get, list, watch, create, update, patch, delete]
+{{- end -}}
