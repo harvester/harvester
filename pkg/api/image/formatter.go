@@ -39,7 +39,7 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 	}
 }
 
-type UploadActionHandler struct {
+type ImageHandler struct {
 	httpClient                  http.Client
 	Images                      v1beta1.VirtualMachineImageClient
 	ImageCache                  v1beta1.VirtualMachineImageCache
@@ -47,7 +47,7 @@ type UploadActionHandler struct {
 	BackingImageDataSourceCache ctllhv1beta1.BackingImageDataSourceCache
 }
 
-func (h UploadActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (h ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err := h.do(rw, req); err != nil {
 		status := http.StatusInternalServerError
 		if e, ok := err.(*apierror.APIError); ok {
@@ -60,7 +60,7 @@ func (h UploadActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 	rw.WriteHeader(http.StatusOK)
 }
 
-func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
+func (h ImageHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	vars := mux.Vars(req)
 	action := vars["action"]
 	switch action {
@@ -71,7 +71,7 @@ func (h UploadActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	}
 }
 
-func (h UploadActionHandler) uploadImage(rw http.ResponseWriter, req *http.Request) error {
+func (h ImageHandler) uploadImage(rw http.ResponseWriter, req *http.Request) error {
 	vars := mux.Vars(req)
 	namespace := vars["namespace"]
 	name := vars["name"]
@@ -127,7 +127,7 @@ func (h UploadActionHandler) uploadImage(rw http.ResponseWriter, req *http.Reque
 	return nil
 }
 
-func (h UploadActionHandler) waitForBackingImageDataSourceReady(name string) error {
+func (h ImageHandler) waitForBackingImageDataSourceReady(name string) error {
 	retry := 30
 	for i := 0; i < retry; i++ {
 		ds, err := h.BackingImageDataSources.Get(util.LonghornSystemNamespaceName, name, metav1.GetOptions{})
@@ -147,7 +147,7 @@ func (h UploadActionHandler) waitForBackingImageDataSourceReady(name string) err
 	return errors.New("timeout waiting for backing image data source to be ready")
 }
 
-func (h UploadActionHandler) updateImportedConditionOnConflict(image *apisv1beta1.VirtualMachineImage,
+func (h ImageHandler) updateImportedConditionOnConflict(image *apisv1beta1.VirtualMachineImage,
 	status, reason, message string) error {
 	retry := 3
 	for i := 0; i < retry; i++ {

@@ -20,7 +20,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				actionUpload: {},
 			}
 			s.ActionHandlers = map[string]http.Handler{
-				actionUpload: UploadActionHandler{
+				actionUpload: ImageHandler{
 					httpClient:                  http.Client{},
 					Images:                      scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
 					ImageCache:                  scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
