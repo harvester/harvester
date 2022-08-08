@@ -2,6 +2,7 @@ package image
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -25,7 +26,8 @@ import (
 )
 
 const (
-	actionUpload = "upload"
+	actionUpload   = "upload"
+	actionDownload = "download"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -62,13 +64,71 @@ func (h ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func (h ImageHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	vars := mux.Vars(req)
-	action := vars["action"]
+	if req.Method == http.MethodGet {
+		return h.doGet(vars["link"], rw, req)
+	} else if req.Method == http.MethodPost {
+		return h.doPost(vars["action"], rw, req)
+	}
+
+	return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
+}
+
+func (h ImageHandler) doGet(link string, rw http.ResponseWriter, req *http.Request) error {
+	switch link {
+	case actionDownload:
+		return h.downloadImage(rw, req)
+	default:
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported GET action %s", link))
+	}
+}
+
+func (h ImageHandler) doPost(action string, rw http.ResponseWriter, req *http.Request) error {
 	switch action {
 	case actionUpload:
 		return h.uploadImage(rw, req)
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported POST action %s", action))
 	}
+}
+
+func (h ImageHandler) downloadImage(rw http.ResponseWriter, req *http.Request) error {
+	vars := mux.Vars(req)
+	namespace := vars["namespace"]
+	name := vars["name"]
+	vmImage, err := h.Images.Get(namespace, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("Failed to get VMImage with name(%s), ns(%s), error: %w", name, namespace, err)
+	}
+
+	targetFileName := vmImage.Spec.DisplayName
+	bkimgName := fmt.Sprintf("%s-%s", namespace, name)
+	downloadUrl := fmt.Sprintf("%s/backingimages/%s/download", util.LonghornDefaultManagerURL, bkimgName)
+	downloadReq, err := http.NewRequestWithContext(req.Context(), http.MethodGet, downloadUrl, nil)
+	if err != nil {
+		return fmt.Errorf("Failed to create the download request with backing Image(%s): %w", bkimgName, err)
+	}
+
+	downloadResp, err := h.httpClient.Do(downloadReq)
+	if err != nil {
+		return fmt.Errorf("Failed to send the download request with backing Image(%s): %w", bkimgName, err)
+	}
+	defer downloadResp.Body.Close()
+
+	if downloadResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Failed with unexpected http Status code %d.", downloadResp.StatusCode)
+	}
+
+	rw.Header().Set("Content-Disposition", "attachment; filename="+targetFileName)
+	contentType := downloadResp.Header.Get("Content-Type")
+	if contentType != "" {
+		rw.Header().Set("Content-Type", contentType)
+	}
+
+	if _, err := io.Copy(rw, downloadResp.Body); err != nil {
+		return fmt.Errorf("Failed to copy download content to target(%s), err: %w", targetFileName, err)
+	}
+
+	return nil
 }
 
 func (h ImageHandler) uploadImage(rw http.ResponseWriter, req *http.Request) error {
