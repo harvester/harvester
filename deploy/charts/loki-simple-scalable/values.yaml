@@ -8,7 +8,8 @@ global:
   # -- configures cluster domain ("cluster.local" by default)
   clusterDomain: "cluster.local"
   # -- configures DNS service name
-  dnsService: "kube-dns"
+#  dnsService: "kube-dns"
+  dnsService: "rke2-coredns-rke2-coredns"
   # -- configures DNS service namespace
   dnsNamespace: "kube-system"
 
