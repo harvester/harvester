@@ -18,6 +18,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/longhorn/backupstore"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -56,6 +57,7 @@ func RegisterBackup(ctx context.Context, management *config.Management, opts con
 	vmBackups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 	pvc := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	secrets := management.CoreFactory.Core().V1().Secret()
+	storageClasses := management.StorageFactory.Storage().V1().StorageClass()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	volumes := management.LonghornFactory.Longhorn().V1beta1().Volume()
 	lhbackups := management.LonghornFactory.Longhorn().V1beta1().Backup()
@@ -69,6 +71,7 @@ func RegisterBackup(ctx context.Context, management *config.Management, opts con
 		vmBackupCache:        vmBackups.Cache(),
 		pvcCache:             pvc.Cache(),
 		secretCache:          secrets.Cache(),
+		storageClassCache:    storageClasses.Cache(),
 		vms:                  vms,
 		vmsCache:             vms.Cache(),
 		volumeCache:          volumes.Cache(),
@@ -97,6 +100,7 @@ type Handler struct {
 	vmsCache             ctlkubevirtv1.VirtualMachineCache
 	pvcCache             ctlcorev1.PersistentVolumeClaimCache
 	secretCache          ctlcorev1.SecretCache
+	storageClassCache    ctlstoragev1.StorageClassCache
 	volumeCache          ctllonghornv1.VolumeCache
 	volumes              ctllonghornv1.VolumeClient
 	lhbackupCache        ctllonghornv1.BackupCache
@@ -417,27 +421,45 @@ func (h *Handler) getVolumeSnapshot(namespace, name string) (*snapshotv1.VolumeS
 
 func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBackup, volumeBackup harvesterv1.VolumeBackup) (*snapshotv1.VolumeSnapshot, error) {
 	logrus.Debugf("attempting to create VolumeSnapshot %s", *volumeBackup.Name)
-
-	sc, err := h.snapshotClassCache.Get(settings.VolumeSnapshotClass.Get())
+	sc, err := h.storageClassCache.Get(*volumeBackup.PersistentVolumeClaim.Spec.StorageClassName)
 	if err != nil {
 		return nil, fmt.Errorf("%s/%s VolumeSnapshot requested but no storage class, err: %s",
 			vmBackup.Namespace, volumeBackup.PersistentVolumeClaim.ObjectMeta.Name, err.Error())
 	}
+	csiDriverInfo, err := settings.GetCSIDriverInfo(sc.Provisioner)
+	if err != nil {
+		return nil, err
+	}
+	volumeSnapshotClassName := csiDriverInfo.BackupVolumeSnapshotClassName
+	ssc, err := h.snapshotClassCache.Get(volumeSnapshotClassName)
+	if err != nil {
+		return nil, fmt.Errorf("%s/%s VolumeSnapshot requested but no volumeSnapshot class, err: %s",
+			vmBackup.Namespace, volumeBackup.PersistentVolumeClaim.ObjectMeta.Name, err.Error())
+	}
+
+	var (
+		sourceStorageClassName string
+		sourceImageID          string
+		sourceProvisioner      string
+	)
 
 	volumeSnapshotSource := snapshotv1.VolumeSnapshotSource{}
 	// If LonghornBackupName exists, it means the VM Backup has associated LH Backup.
 	// In this case, we should create volume snapshot from LH Backup instead of from current PVC.
 	if volumeBackup.LonghornBackupName != nil {
-		volumeSnapshotContent, err := h.createVolumeSnapshotContent(vmBackup, volumeBackup, sc)
+		volumeSnapshotContent, err := h.createVolumeSnapshotContent(vmBackup, volumeBackup, ssc)
 		if err != nil {
 			return nil, err
 		}
 		volumeSnapshotSource.VolumeSnapshotContentName = &volumeSnapshotContent.Name
 	} else {
-		_, err := h.pvcCache.Get(volumeBackup.PersistentVolumeClaim.ObjectMeta.Namespace, volumeBackup.PersistentVolumeClaim.ObjectMeta.Name)
+		pvc, err := h.pvcCache.Get(volumeBackup.PersistentVolumeClaim.ObjectMeta.Namespace, volumeBackup.PersistentVolumeClaim.ObjectMeta.Name)
 		if err != nil {
 			return nil, err
 		}
+		sourceStorageClassName = *pvc.Spec.StorageClassName
+		sourceImageID = pvc.Annotations[util.AnnotationImageID]
+		sourceProvisioner = util.GetProvisionedPVCProvisioner(pvc)
 		volumeSnapshotSource.PersistentVolumeClaimName = &volumeBackup.PersistentVolumeClaim.ObjectMeta.Name
 	}
 
@@ -455,11 +477,22 @@ func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBacku
 					BlockOwnerDeletion: pointer.BoolPtr(true),
 				},
 			},
+			Annotations: map[string]string{},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source:                  volumeSnapshotSource,
-			VolumeSnapshotClassName: pointer.StringPtr(sc.Name),
+			VolumeSnapshotClassName: pointer.StringPtr(ssc.Name),
 		},
+	}
+
+	if sourceStorageClassName != "" {
+		snapshot.Annotations[util.AnnotationStorageClassName] = sourceStorageClassName
+	}
+	if sourceImageID != "" {
+		snapshot.Annotations[util.AnnotationImageID] = sourceImageID
+	}
+	if sourceProvisioner != "" {
+		snapshot.Annotations[util.AnnotationStorageProvisioner] = sourceProvisioner
 	}
 
 	logrus.Debugf("create VolumeSnapshot %s/%s", vmBackup.Namespace, *volumeBackup.Name)
