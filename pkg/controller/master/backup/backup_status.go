@@ -7,6 +7,7 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -115,6 +116,14 @@ func (h *Handler) mountLonghornVolumes(vm *kubevirtv1.VirtualMachine) error {
 		pvc, err := h.pvcCache.Get(vm.Namespace, name)
 		if err != nil {
 			return fmt.Errorf("failed to get pvc %s/%s, error: %s", name, vm.Namespace, err.Error())
+		}
+
+		sc, err := h.storageClassCache.Get(*pvc.Spec.StorageClassName)
+		if err != nil {
+			return err
+		}
+		if sc.Provisioner != longhorntypes.LonghornDriverName {
+			continue
 		}
 
 		volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
