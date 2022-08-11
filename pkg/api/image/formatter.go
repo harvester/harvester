@@ -94,7 +94,7 @@ func (h ImageHandler) uploadImage(rw http.ResponseWriter, req *http.Request) err
 		return err
 	}
 
-	uploadUrl := fmt.Sprintf("http://longhorn-backend.longhorn-system:9500/v1/backingimages/%s-%s", namespace, name)
+	uploadUrl := fmt.Sprintf("%s/backingimages/%s-%s", util.LonghornDefaultManagerURL, namespace, name)
 	uploadReq, err := http.NewRequestWithContext(req.Context(), http.MethodPost, uploadUrl, req.Body)
 	if err != nil {
 		return fmt.Errorf("failed to create the upload request: %w", err)
