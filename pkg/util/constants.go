@@ -21,6 +21,7 @@ const (
 	Rke2IngressNginxAppName     = "rke2-ingress-nginx"
 	CattleSystemNamespaceName   = "cattle-system"
 	LonghornSystemNamespaceName = "longhorn-system"
+	LonghornDefaultManagerURL   = "http://longhorn-backend.longhorn-system:9500/v1"
 	KubeSystemNamespace         = "kube-system"
 
 	HTTPProxyEnv  = "HTTP_PROXY"
