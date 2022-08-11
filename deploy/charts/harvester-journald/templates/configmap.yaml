@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}
   labels:
-    {{ include "harvester-journald.labels" . | indent 4}}
+{{ include "harvester-journald.labels" . | indent 4}}
 data:
   fluent-bit.conf: |
     [SERVICE]

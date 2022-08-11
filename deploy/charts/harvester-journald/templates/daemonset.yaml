@@ -10,7 +10,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/loggings/rke2/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       name: "{{ .Release.Name }}-aggregator"
       namespace: "{{ .Release.Namespace }}"
       labels:
@@ -46,7 +46,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: "{{ .Release.Name }}-rke2"
+            name: "{{ .Release.Name }}"
         - name: journal
           hostPath:
             path: {{ .Values.systemdLogPath | default "/var/log/journal" }}
