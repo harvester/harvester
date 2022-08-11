@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
@@ -24,6 +27,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
@@ -31,12 +35,14 @@ import (
 )
 
 type ActionHandler struct {
-	images    v1beta1.VirtualMachineImageClient
-	pvcs      ctlcorev1.PersistentVolumeClaimClient
-	pvcCache  ctlcorev1.PersistentVolumeClaimCache
-	pvs       ctlharvcorev1.PersistentVolumeClient
-	pvCache   ctlharvcorev1.PersistentVolumeCache
-	snapshots ctlsnapshotv1.VolumeSnapshotClient
+	images      v1beta1.VirtualMachineImageClient
+	pvcs        ctlcorev1.PersistentVolumeClaimClient
+	pvcCache    ctlcorev1.PersistentVolumeClaimCache
+	pvs         ctlharvcorev1.PersistentVolumeClient
+	pvCache     ctlharvcorev1.PersistentVolumeCache
+	snapshots   ctlsnapshotv1.VolumeSnapshotClient
+	volumes     ctllonghornv1.VolumeClient
+	volumeCache ctllonghornv1.VolumeCache
 }
 
 func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -271,6 +277,24 @@ func (h *ActionHandler) snapshot(ctx context.Context, pvcNamespace, pvcName, sna
 	csiDriverInfo, err := settings.GetCSIDriverInfo(provisioner)
 	if err != nil {
 		return err
+	}
+
+	if provisioner == longhorntypes.LonghornDriverName {
+		volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
+		if err != nil {
+			return fmt.Errorf("failed to get volume %s/%s, error: %s", pvc.Namespace, pvc.Spec.VolumeName, err.Error())
+		}
+		volCpy := volume.DeepCopy()
+		if volume.Status.State == lhv1beta1.VolumeStateDetached || volume.Status.State == lhv1beta1.VolumeStateDetaching {
+			volCpy.Spec.NodeID = volume.Status.OwnerID
+		}
+
+		if !reflect.DeepEqual(volCpy, volume) {
+			logrus.Infof("mount detached volume %s to the node %s", volCpy.Name, volCpy.Spec.NodeID)
+			if _, err = h.volumes.Update(volCpy); err != nil {
+				return err
+			}
+		}
 	}
 
 	volumeSnapshotClassName := csiDriverInfo.VolumeSnapshotClassName

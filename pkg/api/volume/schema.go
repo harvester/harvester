@@ -20,12 +20,14 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	server.BaseSchemas.MustImportAndCustomize(CloneVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(SnapshotVolumeInput{}, nil)
 	actionHandler := ActionHandler{
-		images:    scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
-		pvcs:      scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
-		pvcCache:  scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
-		pvs:       scaled.HarvesterCoreFactory.Core().V1().PersistentVolume(),
-		pvCache:   scaled.HarvesterCoreFactory.Core().V1().PersistentVolume().Cache(),
-		snapshots: scaled.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot(),
+		images:      scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
+		pvcs:        scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
+		pvcCache:    scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
+		pvs:         scaled.HarvesterCoreFactory.Core().V1().PersistentVolume(),
+		pvCache:     scaled.HarvesterCoreFactory.Core().V1().PersistentVolume().Cache(),
+		snapshots:   scaled.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot(),
+		volumes:     scaled.LonghornFactory.Longhorn().V1beta1().Volume(),
+		volumeCache: scaled.LonghornFactory.Longhorn().V1beta1().Volume().Cache(),
 	}
 
 	t := schema.Template{
