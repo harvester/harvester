@@ -18,7 +18,8 @@ spec:
     spec:
       containers:
         - name: fluentbit
-          image: "{{ template "harvester-journald.fluentbitImage" . }}"
+          image: "{{ template "harvester-journal.fluentbitImage" . }}"
+          command: ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit.conf"]
           {{- if .Values.global.seLinux.enabled }}
           securityContext:
             seLinuxOptions:

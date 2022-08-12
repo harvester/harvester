@@ -1,5 +1,5 @@
 apiVersion: v2
-name: harvester-journald
+name: harvester-journal
 description: A Helm chart to collect logs from all nodes in a cluster
 
 # A chart can be either an 'application' or a 'library' chart.

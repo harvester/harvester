@@ -1,30 +1,19 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}
+  name: "{{ .Release.Name }}"
+  namespace: "{{ .Release.Namespace }}"
   labels:
-{{ include "harvester-journald.labels" . | indent 4}}
+{{ include "harvester-journal.labels" . | indent 4}}
 data:
   fluent-bit.conf: |
-    [SERVICE]
-        Flush             1
-        Grace             5
-        Daemon            Off
-        Log_Level         info
-        Coro_Stack_Size   24576
-
     [INPUT]
         Name              systemd
-        Tag               journald-logs
+        Tag               systemd.*
         Path              {{ .Values.systemdLogPath }}
         {{- if .Values.stripUnderscores }}
         Strip_Underscores On
         {{- end }}
-
-    [INPUT]
-        Name              tail
-        Tag               rke2
-        Path              /var/lib/rancher/rke2/agent/logs/kubelet.log
 
     [OUTPUT]
         Name              forward
@@ -32,3 +21,6 @@ data:
         Host              {{ .Values.loggingOperatorServiceHost }}
         Port              24240
         Retry_Limit       False
+
+  parsers.conf: |
+{{ include "harvester-journal.parsers" . | indent 4 }}

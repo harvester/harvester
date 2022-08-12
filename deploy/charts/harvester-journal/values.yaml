@@ -8,8 +8,7 @@ namespaceOverride: ""
 nameOverride: ""
 fullnameOverride: ""
 
-debug: false
-
+debug: true
 
 nodeSelector:
   kubernetes.io/os: linux
@@ -36,14 +35,16 @@ images:
     tag: v0.4.0
   fluentbit:
     repository: rancher/mirrored-fluent-fluent-bit
-    tag: 1.8.15
-  nodeagent_fluentbit:
-    os: "windows"
-    repository: rancher/fluent-bit
-    tag: 1.8.15
+#    tag: 1.8.15
+    tag: 1.9.3
   fluentbit_debug:
     repository: rancher/mirrored-fluent-fluent-bit
-    tag: 1.8.15-debug
+#    tag: 1.8.15-debug
+    tag: 1.9.3-debug
+#  nodeagent_fluentbit:
+#    os: "windows"
+#    repository: rancher/fluent-bit
+#    tag: 1.8.15
   fluentd:
     repository: rancher/mirrored-banzaicloud-fluentd
     tag: v1.14.5-alpine-1
