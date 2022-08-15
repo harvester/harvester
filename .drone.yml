@@ -22,6 +22,9 @@ steps:
 
 - name: build
   image: rancher/dapper:v0.4.1
+  environment:
+    CODECOV_TOKEN:
+      from_secret: codecov_token
   commands:
   - dapper ci
   volumes:

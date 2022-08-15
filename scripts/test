@@ -13,5 +13,9 @@ unit_test_targets=($(find "${ROOT_DIR}/pkg" -maxdepth 1 -mindepth 1 -type d ! -p
 CGO_ENABLED=1 go test \
 	-tags=test \
 	-race \
-	-cover -coverprofile "${ROOT_DIR}/dist/coverage.out" \
+	-cover -covermode=atomic -coverprofile "${ROOT_DIR}/dist/coverage.out" \
 	"${unit_test_targets[@]}"
+
+if [[ -n ${CODECOV_TOKEN} ]]; then
+  codecov -t "${CODECOV_TOKEN}" -f "${ROOT_DIR}/dist/coverage.out"
+fi
