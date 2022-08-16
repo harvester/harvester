@@ -229,6 +229,8 @@ TODO
     
 # TODO List for PR
 ## DONE Per-device SR-IOV device list, like the PCI-PT device list idea: https://github.com/harvester/harvester/pull/2555#discussion_r930913566
-## TODO VM usage example https://github.com/harvester/harvester/pull/2555#discussion_r930916119
 ## DONE ns to us https://github.com/harvester/harvester/pull/2555#discussion_r930886942
 ## DONE 992 
+## TODO VM usage example https://github.com/harvester/harvester/pull/2555#discussion_r930916119
+## TODO Limit SR-IOV to non-management interfaces
+## TODO move implementation details out of user stories https://github.com/harvester/harvester/pull/2555#discussion_r930918127
