@@ -1,0 +1,94 @@
+{{ if .Values.longhorn.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: longhorn
+    role: alert-rules
+  name: prometheus-longhorn-rules
+  namespace: {{ .Values.longhorn.namespaceOverride }}
+spec:
+  groups:
+  - name: longhorn.rules
+    rules:
+    - alert: LonghornVolumeActualSpaceUsedWarning
+      annotations:
+        description: The actual space used by Longhorn volume on node is at 90% capacity for more than 5 minutes.
+        summary: The actual used space of Longhorn volume is over 90% of the capacity.
+        runbook_url: https://longhorn.io/docs/1.3.0/monitoring/metrics/
+      expr: (longhorn_volume_actual_size_bytes / longhorn_volume_capacity_bytes) * 100 > 90
+      for: 5m
+      labels:
+        issue: The actual used space of Longhorn volume on is high.
+        severity: warning
+    - alert: LonghornVolumeStatusCritical
+      annotations:
+        description: Longhorn volume on is Fault for more than 5 minutes.
+        summary: Longhorn volume is Fault
+        runbook_url: https://longhorn.io/docs/1.3.0/monitoring/metrics/
+      expr: longhorn_volume_robustness == 3
+      for: 5m
+      labels:
+        issue: Longhorn volume  is Fault.
+        severity: critical
+    - alert: LonghornVolumeStatusWarning
+      annotations:
+        description: Longhorn volume is Degraded for more than 5 minutes.
+        summary: Longhorn volume is Degraded
+        runbook_url: https://longhorn.io/docs/1.3.0/monitoring/metrics/
+      expr: longhorn_volume_robustness == 2
+      for: 5m
+      labels:
+        issue: Longhorn volume is Degraded.
+        severity: warning
+    - alert: LonghornNodeStorageWarning
+      annotations:
+        description: The used storage of node is at 70% capacity for more than 5 minutes.
+        summary:  The used storage of node is over 70% of the capacity.
+        runbook_url: https://longhorn.io/docs/1.3.0/monitoring/metrics/
+      expr: (longhorn_node_storage_usage_bytes / longhorn_node_storage_capacity_bytes) * 100 > 70
+      for: 5m
+      labels:
+        issue: The used storage of node is high.
+        severity: warning
+    - alert: LonghornDiskStorageWarning
+      annotations:
+        description: The used storage of disk is at 70% capacity for more than 5 minutes.
+        summary:  The used storage of disk is over 70% of the capacity.
+        runbook_url: https://longhorn.io/docs/1.3.0/monitoring/metrics/
+      expr: (longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes) * 100 > 70
+      for: 5m
+      labels:
+        issue: The used storage of disk on node is high.
+        severity: warning
+    - alert: LonghornNodeDown
+      annotations:
+        description: There are Longhorn nodes which have been offline for more than 5 minutes.
+        summary: Longhorn nodes is offline
+        runbook_url: https://longhorn.io/docs/1.3.0/monitoring/metrics/
+      expr: (avg(longhorn_node_count_total) or on() vector(0)) - (count(longhorn_node_status{condition="ready"} == 1) or on() vector(0)) > 0
+      for: 5m
+      labels:
+        issue: There are Longhorn nodes are offline
+        severity: critical
+    - alert: LonghornIntanceManagerCPUUsageWarning
+      annotations:
+        description: Longhorn instance manager has CPU Usage / CPU request is over 300% for more than 5 minutes.
+        summary: Longhorn instance manager has CPU Usage / CPU request is over 300%.
+        runbook_url: https://longhorn.io/docs/1.3.0/monitoring/metrics/
+      expr: (longhorn_instance_manager_cpu_usage_millicpu/longhorn_instance_manager_cpu_requests_millicpu) * 100 > 300
+      for: 5m
+      labels:
+        issue: Longhorn instance manager on consumes 3 times the CPU request.
+        severity: warning
+    - alert: LonghornNodeCPUUsageWarning
+      annotations:
+        description: Longhorn node has CPU Usage / CPU capacity is over 90% for more than 5 minutes.
+        summary: Longhorn node experiences high CPU pressure for more than 5m.
+        runbook_url: https://longhorn.io/docs/1.3.0/monitoring/metrics/
+      expr: (longhorn_node_cpu_usage_millicpu / longhorn_node_cpu_capacity_millicpu) * 100 > 90
+      for: 5m
+      labels:
+        issue: Longhorn node experiences high CPU pressure.
+        severity: warning
+{{- end -}}
