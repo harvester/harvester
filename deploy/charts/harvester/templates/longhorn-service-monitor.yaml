@@ -1,0 +1,18 @@
+{{ if .Values.longhorn.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: longhorn-prometheus-servicemonitor
+  namespace: {{ .Values.longhorn.namespaceOverride }}
+  labels:
+    name: longhorn-prometheus-servicemonitor
+spec:
+  selector:
+    matchLabels:
+      app: longhorn-manager
+  namespaceSelector:
+    matchNames:
+    - {{ .Values.longhorn.namespaceOverride }}
+  endpoints:
+  - port: manager
+{{- end -}}
