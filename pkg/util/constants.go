@@ -14,6 +14,7 @@ const (
 	AnnotationReservedMemory       = prefix + "/reservedMemory"
 	AnnotationHash                 = prefix + "/hash"
 	AnnotationRunStrategy          = prefix + "/vmRunStrategy"
+	LabelImageDisplayName          = prefix + "/imageDisplayName"
 
 	BackupTargetSecretName      = "harvester-backup-target-secret"
 	InternalTLSSecretName       = "tls-rancher-internal"
