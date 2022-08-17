@@ -14,6 +14,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -67,17 +68,17 @@ func (v *virtualMachineImageValidator) CheckImageDisplayNameAndURL(newImage *v1b
 		return werror.NewInvalidError("displayName is required", fieldDisplayName)
 	}
 
-	allImages, err := v.vmimages.List(newImage.Namespace, labels.Everything())
+	sameDisplayNameImages, err := v.vmimages.List(newImage.Namespace, labels.SelectorFromSet(map[string]string{
+		util.LabelImageDisplayName: newImage.Spec.DisplayName,
+	}))
 	if err != nil {
 		return err
 	}
-	for _, image := range allImages {
+	for _, image := range sameDisplayNameImages {
 		if newImage.Name == image.Name {
 			continue
 		}
-		if newImage.Spec.DisplayName == image.Spec.DisplayName {
-			return werror.NewConflict("A resource with the same name exists")
-		}
+		return werror.NewConflict("A resource with the same name exists")
 	}
 
 	if newImage.Spec.SourceType == v1beta1.VirtualMachineImageSourceTypeDownload && newImage.Spec.URL == "" {
