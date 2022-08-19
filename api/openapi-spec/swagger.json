@@ -6841,6 +6841,13 @@
           "type": "string",
           "default": ""
         },
+        "storageClassParameters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "default": ""
+          }
+        },
         "url": {
           "type": "string",
           "default": ""
