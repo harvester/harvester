@@ -63,6 +63,10 @@ spec:
                 - upload
                 - export-from-volume
                 type: string
+              storageClassParameters:
+                additionalProperties:
+                  type: string
+                type: object
               url:
                 type: string
             required:
