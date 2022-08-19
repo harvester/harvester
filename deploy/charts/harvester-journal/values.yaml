@@ -1,6 +1,6 @@
 systemdLogPath: "/var/log/journal"
 
-loggingOperatorServiceHost: rancher-logging-root-fluentd.cattle-monitoring-system.svc
+loggingOperatorServiceHost: rancher-logging-root-fluentd.cattle-logging-system.svc
 
 stripUnderscores: false
 

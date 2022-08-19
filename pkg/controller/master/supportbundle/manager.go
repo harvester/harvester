@@ -140,6 +140,7 @@ func (m *Manager) getCollectNamespaces() string {
 		"cattle-fleet-system",
 		"cattle-fleet-clusters-system",
 		"cattle-monitoring-system",
+		"cattle-logging-system",
 		"fleet-local",
 		"harvester-system",
 		"local",

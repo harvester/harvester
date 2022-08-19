@@ -62,6 +62,7 @@ func (h *Handler) initializeSystemNamespaces(setting *rancherv3api.Setting) (*ra
 		"cattle-dashboards",
 		"cattle-fleet-clusters-system",
 		"cattle-monitoring-system",
+		"cattle-logging-system",
 		"fleet-local",
 		"harvester-system",
 		"local",
