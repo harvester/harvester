@@ -643,7 +643,7 @@ github.com/rancher/apiserver/pkg/subscribe
 github.com/rancher/apiserver/pkg/types
 github.com/rancher/apiserver/pkg/urlbuilder
 github.com/rancher/apiserver/pkg/writer
-# github.com/rancher/dynamiclistener v0.3.3
+# github.com/rancher/dynamiclistener v0.3.4
 ## explicit; go 1.12
 github.com/rancher/dynamiclistener
 github.com/rancher/dynamiclistener/cert
