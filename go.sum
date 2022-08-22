@@ -1614,6 +1614,8 @@ github.com/rancher/dynamiclistener v0.2.1-0.20200910203214-85f32491cb09/go.mod h
 github.com/rancher/dynamiclistener v0.3.1-0.20211104200948-cd5d71f2fe95/go.mod h1:xbxyiF1/UaPrOrFUOZeYMQW82RPgZIe5UfiT9CyE3Ks=
 github.com/rancher/dynamiclistener v0.3.3 h1:pNwVc3vzuEHsbqAh1e76asq4aeDzHFV/5Ha/fMsk6EA=
 github.com/rancher/dynamiclistener v0.3.3/go.mod h1:QwTpy+drx4gvPMefrrUUKpVaWiy74O7vNvkwBXJ+s3E=
+github.com/rancher/dynamiclistener v0.3.4 h1:URGBzqGYD6zfFTy4WQ4w1zNm+B+1XVkwcSu61DXq5XY=
+github.com/rancher/dynamiclistener v0.3.4/go.mod h1:QwTpy+drx4gvPMefrrUUKpVaWiy74O7vNvkwBXJ+s3E=
 github.com/rancher/eks-operator v1.0.6/go.mod h1:GB2kyPtIN0r+DGlUcDgEUMsB4qRwZH7OKsraemZT+GA=
 github.com/rancher/eks-operator v1.1.1 h1:wuvztSSA78qmtngQap5dESNJGhhjUTlSbQYc+obj9rc=
 github.com/rancher/eks-operator v1.1.1/go.mod h1:MIgvBMHO0MqPuvehwAGxpg7Zcg20GhYO1dXjh9BAHqs=
