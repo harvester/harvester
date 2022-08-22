@@ -7,10 +7,9 @@ cd $(dirname $0)/..
 
 echo "Start building ISO image"
 
-HARVESTER_INSTALLER_VERSION=logging
+HARVESTER_INSTALLER_VERSION=master
 
-#git clone --branch ${HARVESTER_INSTALLER_VERSION} --single-branch --depth 1 https://github.com/harvester/harvester-installer.git ../harvester-installer
-git clone --branch ${HARVESTER_INSTALLER_VERSION} --single-branch --depth 1 https://github.com/joshmeranda/harvester-installer.git ../harvester-installer
+git clone --branch ${HARVESTER_INSTALLER_VERSION} --single-branch --depth 1 https://github.com/harvester/harvester-installer.git ../harvester-installer
 
 cd ../harvester-installer/scripts
 

@@ -405,7 +405,7 @@ webhook:
 
     ## Specify the repository of image.
     ##
-    repository: joshmeranda/harvester-webhook
+    repository: rancher/harvester-webhook
 
     ## Specify the tag of image.
     ##
