@@ -55,7 +55,7 @@ const (
 	lastRestoreAnnotation = "restore.harvesterhci.io/last-restore-uid"
 
 	vmCreatorLabel = "harvesterhci.io/creator"
-	vmNameLabel    = "harvesterhci.io/vm-name"
+	vmNameLabel    = "harvesterhci.io/vmName"
 
 	restoreErrorEvent    = "VirtualMachineRestoreError"
 	restoreCompleteEvent = "VirtualMachineRestoreComplete"
