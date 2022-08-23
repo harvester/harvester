@@ -143,7 +143,7 @@ steps:
     dockerfile: package/upgrade/Dockerfile
     password:
       from_secret: docker_password
-    repo: "joshmeranda/harvester-upgrade"
+    repo: "rancher/harvester-upgrade"
     tag: ${DRONE_BRANCH}-head-amd64
     username:
       from_secret: docker_username
@@ -166,7 +166,7 @@ steps:
     dockerfile: package/upgrade/Dockerfile
     password:
       from_secret: docker_password
-    repo: "joshmeranda/harvester-upgrade"
+    repo: "rancher/harvester-upgrade"
     tag: "${DRONE_TAG}-amd64"
     username:
       from_secret: docker_username
@@ -280,8 +280,8 @@ steps:
       from_secret: docker_password
     platforms:
     - linux/amd64
-    target: "joshmeranda/harvester-upgrade:${DRONE_BRANCH}-head"
-    template: "joshmeranda/harvester-upgrade:${DRONE_BRANCH}-head-ARCH"
+    target: "rancher/harvester-upgrade:${DRONE_BRANCH}-head"
+    template: "rancher/harvester-upgrade:${DRONE_BRANCH}-head-ARCH"
   when:
     ref:
       include:
@@ -299,8 +299,8 @@ steps:
       from_secret: docker_password
     platforms:
       - linux/amd64
-    target: "joshmeranda/harvester-upgrade:${DRONE_TAG}"
-    template: "joshmeranda/harvester-upgrade:${DRONE_TAG}-ARCH"
+    target: "rancher/harvester-upgrade:${DRONE_TAG}"
+    template: "rancher/harvester-upgrade:${DRONE_TAG}-ARCH"
   when:
     instance:
     - drone-publish.rancher.io

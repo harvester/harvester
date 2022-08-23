@@ -151,7 +151,7 @@ containers:
 
       ## Specify the repository of image.
       ##
-      repository: joshmeranda/harvester
+      repository: rancher/harvester
 
       ## Specify the tag of image.
       ##
@@ -415,7 +415,7 @@ webhook:
 
 upgrade:
   image:
-    repository: joshmeranda/harvester-upgrade
+    repository: rancher/harvester-upgrade
     tag: master-head
 
 harvester-load-balancer:
