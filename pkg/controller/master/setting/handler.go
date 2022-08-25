@@ -104,7 +104,11 @@ func (h *Handler) setConfiguredCondition(settingCopy *harvesterv1.Setting, err e
 			return err
 		}
 	} else if err == nil {
-		harvesterv1.SettingConfigured.True(settingCopy)
+		if settingCopy.Value == "" {
+			harvesterv1.SettingConfigured.False(settingCopy)
+		} else {
+			harvesterv1.SettingConfigured.True(settingCopy)
+		}
 		harvesterv1.SettingConfigured.Message(settingCopy, "")
 		if _, err := h.settings.Update(settingCopy); err != nil {
 			return err
