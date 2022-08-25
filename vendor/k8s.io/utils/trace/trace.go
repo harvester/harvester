@@ -165,9 +165,9 @@ func (t *Trace) Log() {
 	endTime := time.Now()
 	t.endTime = &endTime
 	// an explicit logging request should dump all the steps out at the higher level
-	if t.parentTrace == nil { // We don't start logging until Log or LogIfLong is called on the root trace
-		t.logTrace()
-	}
+	//if t.parentTrace == nil { // We don't start logging until Log or LogIfLong is called on the root trace
+	//	t.logTrace()
+	//}
 }
 
 // LogIfLong only logs the trace if the duration of the trace exceeds the threshold.
