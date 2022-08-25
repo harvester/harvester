@@ -40,7 +40,12 @@ func DetectHTTPServerAvailability(url string, waitIntervalInSecond int, shouldAv
 	for {
 		<-ticker.C
 
-		_, err := cli.Get(url)
+		resp, err := cli.Get(url)
+		if resp != nil && resp.Body != nil {
+			if err := resp.Body.Close(); err != nil {
+				logrus.WithError(err).Error("failed to close the response body during the HTTP server detection")
+			}
+		}
 		if err != nil && !shouldAvailable {
 			return true
 		}

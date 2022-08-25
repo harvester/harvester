@@ -413,7 +413,7 @@ github.com/lib/pq/scram
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 ## explicit
 github.com/liggitt/tabwriter
-# github.com/longhorn/backing-image-manager v0.0.0-20220531040914-2fada376e4b9
+# github.com/longhorn/backing-image-manager v0.0.0-20220609065820-a08f7f47442f
 ## explicit; go 1.13
 github.com/longhorn/backing-image-manager/api
 github.com/longhorn/backing-image-manager/pkg/client
@@ -430,17 +430,18 @@ github.com/longhorn/backupstore/logging
 github.com/longhorn/backupstore/nfs
 github.com/longhorn/backupstore/s3
 github.com/longhorn/backupstore/util
-# github.com/longhorn/go-iscsi-helper v0.0.0-20210330030558-49a327fb024e
+# github.com/longhorn/go-iscsi-helper v0.0.0-20220805034259-7b59e22574bb
 ## explicit; go 1.13
 github.com/longhorn/go-iscsi-helper/types
 github.com/longhorn/go-iscsi-helper/util
 # github.com/longhorn/longhorn-engine v1.3.0-preview1
 ## explicit; go 1.13
 github.com/longhorn/longhorn-engine/pkg/meta
+github.com/longhorn/longhorn-engine/pkg/replica/client
 github.com/longhorn/longhorn-engine/pkg/types
 github.com/longhorn/longhorn-engine/pkg/util
 github.com/longhorn/longhorn-engine/proto/ptypes
-# github.com/longhorn/longhorn-instance-manager v0.0.0-20220526023241-db66114501eb
+# github.com/longhorn/longhorn-instance-manager v0.0.0-20220801100457-421c284a3b85
 ## explicit; go 1.13
 github.com/longhorn/longhorn-instance-manager/pkg/api
 github.com/longhorn/longhorn-instance-manager/pkg/client
@@ -448,7 +449,7 @@ github.com/longhorn/longhorn-instance-manager/pkg/imrpc
 github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.3.0-rc2
+# github.com/longhorn/longhorn-manager v1.3.1
 ## explicit; go 1.17
 github.com/longhorn/longhorn-manager/controller
 github.com/longhorn/longhorn-manager/controller/monitor
@@ -482,6 +483,7 @@ github.com/longhorn/longhorn-manager/upgrade/v110to120
 github.com/longhorn/longhorn-manager/upgrade/v111to120
 github.com/longhorn/longhorn-manager/upgrade/v120to121
 github.com/longhorn/longhorn-manager/upgrade/v122to123
+github.com/longhorn/longhorn-manager/upgrade/v12xto130
 github.com/longhorn/longhorn-manager/upgrade/v1beta1
 github.com/longhorn/longhorn-manager/util
 # github.com/mailru/easyjson v0.7.7

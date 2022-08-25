@@ -16,6 +16,7 @@ import (
 	"github.com/longhorn/longhorn-instance-manager/pkg/util"
 
 	emeta "github.com/longhorn/longhorn-engine/pkg/meta"
+	eclient "github.com/longhorn/longhorn-engine/pkg/replica/client"
 )
 
 var (
@@ -85,7 +86,7 @@ func NewProxyClient(ctx context.Context, ctxCancel context.CancelFunc, address s
 	if err != nil {
 		return nil, err
 	}
-	logrus.Debugf("Connected to proxy service on %v", serviceURL)
+	logrus.Tracef("Connected to proxy service on %v", serviceURL)
 
 	return &ProxyClient{
 		ServiceURL:     serviceURL,
@@ -95,8 +96,19 @@ func NewProxyClient(ctx context.Context, ctxCancel context.CancelFunc, address s
 }
 
 const (
-	GRPCServiceTimeout = 3 * time.Minute
+	GRPCServiceTimeout     = eclient.GRPCServiceCommonTimeout * 2
+	GRPCServiceLongTimeout = eclient.GRPCServiceLongTimeout + GRPCServiceTimeout
 )
+
+func getContextWithGRPCTimeout(parent context.Context) context.Context {
+	ctx, _ := context.WithTimeout(parent, GRPCServiceTimeout)
+	return ctx
+}
+
+func getContextWithGRPCLongTimeout(parent context.Context) context.Context {
+	ctx, _ := context.WithTimeout(parent, GRPCServiceLongTimeout)
+	return ctx
+}
 
 func (c *ProxyClient) getProxyErrorPrefix(destination string) string {
 	return fmt.Sprintf("proxyServer=%v destination=%v:", c.ServiceURL, destination)
@@ -117,7 +129,7 @@ func (c *ProxyClient) ServerVersionGet(serviceAddress string) (version *emeta.Ve
 	req := &rpc.ProxyEngineRequest{
 		Address: serviceAddress,
 	}
-	resp, err := c.service.ServerVersionGet(c.ctx, req)
+	resp, err := c.service.ServerVersionGet(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return nil, err
 	}

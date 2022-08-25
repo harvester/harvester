@@ -26,6 +26,7 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 
 	imapi "github.com/longhorn/longhorn-instance-manager/pkg/api"
+	imclient "github.com/longhorn/longhorn-instance-manager/pkg/client"
 	imutil "github.com/longhorn/longhorn-instance-manager/pkg/util"
 
 	"github.com/longhorn/longhorn-manager/datastore"
@@ -45,6 +46,8 @@ var (
 	EnginePollTimeout  = 30 * time.Second
 
 	EngineMonitorConflictRetryCount = 5
+
+	purgeWaitIntervalInSecond = 24 * 60 * 60
 )
 
 const (
@@ -73,6 +76,8 @@ type EngineController struct {
 	engines            engineapi.EngineClientCollection
 	engineMonitorMutex *sync.RWMutex
 	engineMonitorMap   map[string]chan struct{}
+
+	proxyConnCounter util.Counter
 }
 
 type EngineMonitor struct {
@@ -90,6 +95,8 @@ type EngineMonitor struct {
 	controllerID string
 	// used to notify the controller that monitoring has stopped
 	monitorVoluntaryStopCh chan struct{}
+
+	proxyConnCounter util.Counter
 }
 
 func NewEngineController(
@@ -98,7 +105,8 @@ func NewEngineController(
 	scheme *runtime.Scheme,
 	kubeClient clientset.Interface,
 	engines engineapi.EngineClientCollection,
-	namespace string, controllerID string) *EngineController {
+	namespace string, controllerID string,
+	proxyConnCounter util.Counter) *EngineController {
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(logrus.Infof)
@@ -120,6 +128,8 @@ func NewEngineController(
 		engines:            engines,
 		engineMonitorMutex: &sync.RWMutex{},
 		engineMonitorMap:   map[string]chan struct{}{},
+
+		proxyConnCounter: proxyConnCounter,
 	}
 	ec.instanceHandler = NewInstanceHandler(ds, ec, ec.eventRecorder)
 
@@ -205,7 +215,7 @@ func (ec *EngineController) getEngineClientProxy(e *longhorn.Engine, image strin
 		return nil, err
 	}
 
-	return engineapi.GetCompatibleClient(e, engineCliClient, ec.ds, ec.logger)
+	return engineapi.GetCompatibleClient(e, engineCliClient, ec.ds, ec.logger, ec.proxyConnCounter)
 }
 
 func (ec *EngineController) syncEngine(key string) (err error) {
@@ -297,6 +307,7 @@ func (ec *EngineController) syncEngine(key string) (err error) {
 		syncReplicaAddressMap = true
 	}
 	if syncReplicaAddressMap && !reflect.DeepEqual(engine.Status.CurrentReplicaAddressMap, engine.Spec.ReplicaAddressMap) {
+		log.Debug("Updating engine current replica address map")
 		engine.Status.CurrentReplicaAddressMap = engine.Spec.ReplicaAddressMap
 		// Make sure the CurrentReplicaAddressMap persist in the etcd before continue
 		return nil
@@ -615,6 +626,7 @@ func (ec *EngineController) startMonitoring(e *longhorn.Engine) {
 		monitorVoluntaryStopCh: monitorVoluntaryStopCh,
 		expansionBackoff:       flowcontrol.NewBackOff(time.Second*10, time.Minute*5),
 		controllerID:           ec.controllerID,
+		proxyConnCounter:       ec.proxyConnCounter,
 	}
 
 	ec.engineMonitorMutex.Lock()
@@ -741,7 +753,7 @@ func (m *EngineMonitor) refresh(engine *longhorn.Engine) error {
 		return err
 	}
 
-	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, m.logger)
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, m.logger, m.proxyConnCounter)
 	if err != nil {
 		return err
 	}
@@ -759,7 +771,15 @@ func (m *EngineMonitor) refresh(engine *longhorn.Engine) error {
 		if !exists {
 			// we have a entry doesn't exist in our spec
 			replica = unknownReplicaPrefix + url
+
+			// The unknown replica will remove and record the event during
+			// ReconcileEngineState.
+			// https://github.com/longhorn/longhorn/issues/4120
+			currentReplicaModeMap[replica] = r.Mode
+			m.logger.Warnf("Found unknown replica %v in the Replica URL Mode Map", addr)
+			continue
 		}
+
 		currentReplicaModeMap[replica] = r.Mode
 
 		if engine.Status.ReplicaModeMap != nil {
@@ -843,13 +863,14 @@ func (m *EngineMonitor) refresh(engine *longhorn.Engine) error {
 		engine.Status.PurgeStatus = purgeStatus
 	}
 
+	removeInvalidEngineOpStatus(engine)
+
 	// Make sure the engine object is updated before engineapi calls.
 	if !reflect.DeepEqual(existingEngine.Status, engine.Status) {
-		engine, err = m.ds.UpdateEngineStatus(engine)
-		existingEngine = engine.DeepCopy()
-		if err != nil {
+		if engine, err = m.ds.UpdateEngineStatus(engine); err != nil {
 			return err
 		}
+		existingEngine = engine.DeepCopy()
 	}
 
 	if cliAPIVersion >= engineapi.MinCLIVersion {
@@ -895,7 +916,11 @@ func (m *EngineMonitor) refresh(engine *longhorn.Engine) error {
 			m.logger.Warn(err)
 			return
 		}
+
 		engine.Status.RestoreStatus = rsMap
+
+		removeInvalidEngineOpStatus(engine)
+
 		if !reflect.DeepEqual(existingEngine.Status, engine.Status) {
 			e, updateErr := m.ds.UpdateEngineStatus(engine)
 			if updateErr != nil {
@@ -1176,7 +1201,7 @@ func restoreBackup(log logrus.FieldLogger, engine *longhorn.Engine, rsMap map[st
 		return fmt.Errorf("cannot found the %s backup target", types.DefaultBackupTargetName)
 	}
 
-	backupTargetConfig, err := getBackupTargetConfig(ds, backupTarget)
+	backupTargetClient, err := getBackupTargetClient(ds, backupTarget)
 	if err != nil {
 		return errors.Wrapf(err, "cannot get backup target config for backup restoration of engine %v", engine.Name)
 	}
@@ -1184,16 +1209,16 @@ func restoreBackup(log logrus.FieldLogger, engine *longhorn.Engine, rsMap map[st
 	if cliAPIVersion < engineapi.CLIVersionFour {
 		// For compatible engines, `LastRestoredBackup` is required to indicate if the restore is incremental restore
 		log.Infof("Prepare to restore backup, backup target: %v, backup volume: %v, requested restored backup name: %v, last restored backup name: %v",
-			backupTargetConfig.URL, engine.Spec.BackupVolume, engine.Spec.RequestedBackupRestore, engine.Status.LastRestoredBackup)
-		if err = engineClientProxy.BackupRestore(engine, backupTargetConfig.URL, engine.Spec.RequestedBackupRestore, engine.Spec.BackupVolume, engine.Status.LastRestoredBackup, backupTargetConfig.Credential); err != nil {
+			backupTargetClient.URL, engine.Spec.BackupVolume, engine.Spec.RequestedBackupRestore, engine.Status.LastRestoredBackup)
+		if err = engineClientProxy.BackupRestore(engine, backupTargetClient.URL, engine.Spec.RequestedBackupRestore, engine.Spec.BackupVolume, engine.Status.LastRestoredBackup, backupTargetClient.Credential); err != nil {
 			if extraErr := handleRestoreErrorForCompatibleEngine(log, engine, rsMap, err); extraErr != nil {
 				return extraErr
 			}
 		}
 	} else {
-		if err = engineClientProxy.BackupRestore(engine, backupTargetConfig.URL, engine.Spec.RequestedBackupRestore, engine.Spec.BackupVolume, "", backupTargetConfig.Credential); err != nil {
+		if err = engineClientProxy.BackupRestore(engine, backupTargetClient.URL, engine.Spec.RequestedBackupRestore, engine.Spec.BackupVolume, "", backupTargetClient.Credential); err != nil {
 			log.Infof("Prepare to restore backup, backup target: %v, backup volume: %v, requested restored backup name: %v",
-				backupTargetConfig.URL, engine.Spec.BackupVolume, engine.Spec.RequestedBackupRestore)
+				backupTargetClient.URL, engine.Spec.BackupVolume, engine.Spec.RequestedBackupRestore)
 			if extraErr := handleRestoreError(log, engine, rsMap, err); extraErr != nil {
 				return extraErr
 			}
@@ -1204,7 +1229,7 @@ func restoreBackup(log logrus.FieldLogger, engine *longhorn.Engine, rsMap map[st
 }
 
 func handleRestoreError(log logrus.FieldLogger, engine *longhorn.Engine, rsMap map[string]*longhorn.RestoreStatus, err error) error {
-	taskErr, ok := err.(engineapi.TaskError)
+	taskErr, ok := err.(imclient.TaskError)
 	if !ok {
 		return errors.Wrapf(err, "failed to restore backup %v in engine monitor, will retry the restore later",
 			engine.Spec.RequestedBackupRestore)
@@ -1224,7 +1249,7 @@ func handleRestoreError(log logrus.FieldLogger, engine *longhorn.Engine, rsMap m
 }
 
 func handleRestoreErrorForCompatibleEngine(log logrus.FieldLogger, engine *longhorn.Engine, rsMap map[string]*longhorn.RestoreStatus, err error) error {
-	taskErr, ok := err.(engineapi.TaskError)
+	taskErr, ok := err.(imclient.TaskError)
 	if !ok {
 		return errors.Wrapf(err, "failed to restore backup %v with last restored backup %v in engine monitor",
 			engine.Spec.RequestedBackupRestore, engine.Status.LastRestoredBackup)
@@ -1318,30 +1343,31 @@ func GetBinaryClientForEngine(e *longhorn.Engine, engines engineapi.EngineClient
 }
 
 func (ec *EngineController) removeUnknownReplica(e *longhorn.Engine) error {
-	unknownReplicaURLs := []string{}
-	for replica := range e.Status.ReplicaModeMap {
+	unknownReplicaMap := map[string]longhorn.ReplicaMode{}
+	for replica, mode := range e.Status.ReplicaModeMap {
 		// unknown replicas have been named as `unknownReplicaPrefix-<replica URL>`
 		if strings.HasPrefix(replica, unknownReplicaPrefix) {
-			unknownReplicaURLs = append(unknownReplicaURLs, strings.TrimPrefix(replica, unknownReplicaPrefix))
+			unknownReplicaMap[strings.TrimPrefix(replica, unknownReplicaPrefix)] = mode
 		}
 	}
-	if len(unknownReplicaURLs) == 0 {
+	if len(unknownReplicaMap) == 0 {
 		return nil
 	}
 
-	for _, url := range unknownReplicaURLs {
+	for url := range unknownReplicaMap {
 		engineClientProxy, err := ec.getEngineClientProxy(e, e.Status.CurrentImage)
 		if err != nil {
-			return errors.Wrapf(err, "failed to remove unknown replica %v from engine", url)
+			return errors.Wrapf(err, "failed to get the engine client %v when removing unknown replica %v in mode %v from engine", e.Name, url, unknownReplicaMap[url])
 		}
 
 		go func(url string) {
 			defer engineClientProxy.Close()
 
+			ec.eventRecorder.Eventf(e, v1.EventTypeNormal, EventReasonDelete, "Removing unknown replica %v in mode %v from engine", url, unknownReplicaMap[url])
 			if err := engineClientProxy.ReplicaRemove(e, url); err != nil {
-				ec.eventRecorder.Eventf(e, v1.EventTypeWarning, EventReasonFailedDeleting, "Failed to remove unknown replica %v from engine: %v", url, err)
+				ec.eventRecorder.Eventf(e, v1.EventTypeWarning, EventReasonFailedDeleting, "Failed to remove unknown replica %v in mode %v from engine: %v", url, unknownReplicaMap[url], err)
 			} else {
-				ec.eventRecorder.Eventf(e, v1.EventTypeNormal, EventReasonDelete, "Removed unknown replica %v from engine", url)
+				ec.eventRecorder.Eventf(e, v1.EventTypeNormal, EventReasonDelete, "Removed unknown replica %v in mode %v from engine", url, unknownReplicaMap[url])
 			}
 		}(url)
 	}
@@ -1393,6 +1419,8 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replica, addr st
 		err = errors.Wrapf(err, "fail to start rebuild for %v of %v", replica, e.Name)
 	}()
 
+	log := ec.logger.WithFields(logrus.Fields{"volume": e.Spec.VolumeName, "engine": e.Name})
+
 	engineClientProxy, err := ec.getEngineClientProxy(e, e.Status.CurrentImage)
 	if err != nil {
 		return err
@@ -1413,7 +1441,11 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replica, addr st
 
 	replicaURL := engineapi.GetBackendReplicaURL(addr)
 	go func() {
-		log := ec.logger.WithField("volume", e.Spec.VolumeName)
+		autoCleanupSystemGeneratedSnapshot, err := ec.ds.GetSettingAsBool(types.SettingNameAutoCleanupSystemGeneratedSnapshot)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to get %v setting", types.SettingDefinitionAutoCleanupSystemGeneratedSnapshot)
+			return
+		}
 
 		engineClientProxy, err := ec.getEngineClientProxy(e, e.Status.CurrentImage)
 		if err != nil {
@@ -1423,14 +1455,60 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replica, addr st
 		}
 		defer engineClientProxy.Close()
 
+		// If enabled, call and wait for SnapshotPurge to clean up system generated snapshot before rebuilding.
+		if autoCleanupSystemGeneratedSnapshot {
+			if err := engineClientProxy.SnapshotPurge(e); err != nil {
+				log.WithError(err).Error("Failed to start snapshot purge before rebuilding")
+				ec.eventRecorder.Eventf(e, v1.EventTypeWarning, EventReasonFailedStartingSnapshotPurge, "Failed to start snapshot purge for engine %v and volume %v before rebuilding: %v", e.Name, e.Spec.VolumeName, err)
+				return
+			}
+			logrus.Debug("Started snapshot purge before rebuilding, will wait for the purge complete")
+
+			purgeDone := false
+			endTime := time.Now().Add(time.Duration(purgeWaitIntervalInSecond) * time.Second)
+			ticker := time.NewTicker(2 * EnginePollInterval)
+			defer ticker.Stop()
+			for !purgeDone && time.Now().Before(endTime) {
+				<-ticker.C
+
+				e, err := ec.ds.GetEngineRO(e.Name)
+				if err != nil {
+					if apierrors.IsNotFound(err) {
+						log.Warn("Cannot continue waiting for the purge before rebuilding since engine is not found")
+						return
+					}
+					log.WithError(err).Error("Failed to get engine and wait for the purge before rebuilding")
+					continue
+				}
+				if e.Status.CurrentState != longhorn.InstanceStateRunning {
+					log.Warnf("Cannot continue waiting for the purge before rebuilding since engine is state %v", e.Status.CurrentState)
+					return
+				}
+				// Wait for purge complete
+				purgeDone = true
+				for _, purgeStatus := range e.Status.PurgeStatus {
+					if purgeStatus.IsPurging {
+						purgeDone = false
+						break
+					}
+				}
+			}
+			if !purgeDone {
+				log.Errorf("Timeout waiting for snapshot purge done before rebuilding, wait interval %v second", purgeWaitIntervalInSecond)
+				ec.eventRecorder.Eventf(e, v1.EventTypeWarning, EventReasonTimeoutSnapshotPurge, "Timeout waiting for snapshot purge done before rebuilding volume %v, wait interval %v second", e.Spec.VolumeName, purgeWaitIntervalInSecond)
+				return
+			}
+			log.Debug("Finished snapshot purge, will start rebuilding then")
+		}
+
 		// start rebuild
 		if e.Spec.RequestedBackupRestore != "" {
 			if e.Spec.NodeID != "" {
-				ec.eventRecorder.Eventf(e, v1.EventTypeNormal, EventReasonRebuilding, "Start rebuilding replica %v with Address %v for restore engine %v", replica, addr, e.Spec.VolumeName)
+				ec.eventRecorder.Eventf(e, v1.EventTypeNormal, EventReasonRebuilding, "Start rebuilding replica %v with Address %v for restore engine %v and volume %v", replica, addr, e.Name, e.Spec.VolumeName)
 				err = engineClientProxy.ReplicaAdd(e, replicaURL, true)
 			}
 		} else {
-			ec.eventRecorder.Eventf(e, v1.EventTypeNormal, EventReasonRebuilding, "Start rebuilding replica %v with Address %v for normal engine %v", replica, addr, e.Spec.VolumeName)
+			ec.eventRecorder.Eventf(e, v1.EventTypeNormal, EventReasonRebuilding, "Start rebuilding replica %v with Address %v for normal engine %v and volume %v", replica, addr, e.Name, e.Spec.VolumeName)
 			err = engineClientProxy.ReplicaAdd(e, replicaURL, false)
 		}
 		if err != nil {
@@ -1444,7 +1522,7 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replica, addr st
 			if err := engineClientProxy.ReplicaRemove(e, replicaURL); err != nil {
 				log.WithError(err).Errorf("Failed to remove rebuilding replica %v", addr)
 				ec.eventRecorder.Eventf(e, v1.EventTypeWarning, EventReasonFailedDeleting,
-					"Failed to remove rebuilding replica %v with address %v for %v due to rebuilding failure: %v", replica, addr, e.Spec.VolumeName, err)
+					"Failed to remove rebuilding replica %v with address %v for engine %v and volume %v due to rebuilding failure: %v", replica, addr, e.Name, e.Spec.VolumeName, err)
 			} else {
 				log.Infof("Removed failed rebuilding replica %v", addr)
 			}
@@ -1478,22 +1556,18 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replica, addr st
 		ec.eventRecorder.Eventf(e, v1.EventTypeNormal, EventReasonRebuilt,
 			"Replica %v with Address %v has been rebuilt for volume %v", replica, addr, e.Spec.VolumeName)
 
-		autoCleanupSystemGeneratedSnapshot, err := ec.ds.GetSettingAsBool(types.SettingNameAutoCleanupSystemGeneratedSnapshot)
-		if err != nil {
-			log.WithError(err).Errorf("Failed to get %v setting", types.SettingDefinitionAutoCleanupSystemGeneratedSnapshot)
-			return
-		}
-		// If enabled, call SnapshotPurge to clean up system generated snapshot.
+		// If enabled, call SnapshotPurge to clean up system generated snapshot after rebuilding.
 		if autoCleanupSystemGeneratedSnapshot {
 			if err := engineClientProxy.SnapshotPurge(e); err != nil {
-				log.WithError(err).Errorf("Failed to start snapshot purge for volume %v", e.Spec.VolumeName)
-				ec.eventRecorder.Eventf(e, v1.EventTypeWarning, EventReasonFailedStartingSnapshotPurge, "Failed to start snapshot purge for volume %v: %v", e.Spec.VolumeName, err)
+				log.WithError(err).Error("Failed to start snapshot purge after rebuilding")
+				ec.eventRecorder.Eventf(e, v1.EventTypeWarning, EventReasonFailedStartingSnapshotPurge, "Failed to start snapshot purge for engine %v and volume %v after rebuilding: %v", e.Name, e.Spec.VolumeName, err)
 				return
 			}
-			logrus.Debugf("Started snapshot purge for volume %v after rebuild is done", e.Spec.VolumeName)
+			logrus.Debug("Started snapshot purge after rebuilding")
 		}
 	}()
-	//wait until engine confirmed that rebuild started
+
+	// Wait until engine confirmed that rebuild started
 	if err := wait.PollImmediate(EnginePollInterval, EnginePollTimeout, func() (bool, error) {
 		return doesAddressExistInEngine(e, addr, engineClientProxy)
 	}); err != nil {
@@ -1609,4 +1683,31 @@ func (ec *EngineController) isResponsibleFor(e *longhorn.Engine, defaultEngineIm
 	requiresNewOwner := currentNodeEngineAvailable && !preferredOwnerEngineAvailable && !currentOwnerEngineAvailable
 
 	return isPreferredOwner || continueToBeOwner || requiresNewOwner, nil
+}
+
+func removeInvalidEngineOpStatus(e *longhorn.Engine) {
+	tcpReplicaAddrMap := map[string]struct{}{}
+	for _, addr := range e.Status.CurrentReplicaAddressMap {
+		tcpReplicaAddrMap[engineapi.GetBackendReplicaURL(addr)] = struct{}{}
+	}
+	for tcpAddr := range e.Status.PurgeStatus {
+		if _, exists := tcpReplicaAddrMap[tcpAddr]; !exists {
+			delete(e.Status.PurgeStatus, tcpAddr)
+		}
+	}
+	for tcpAddr := range e.Status.RestoreStatus {
+		if _, exists := tcpReplicaAddrMap[tcpAddr]; !exists {
+			delete(e.Status.RestoreStatus, tcpAddr)
+		}
+	}
+	for tcpAddr := range e.Status.RebuildStatus {
+		if _, exists := tcpReplicaAddrMap[tcpAddr]; !exists {
+			delete(e.Status.RebuildStatus, tcpAddr)
+		}
+	}
+	for tcpAddr := range e.Status.CloneStatus {
+		if _, exists := tcpReplicaAddrMap[tcpAddr]; !exists {
+			delete(e.Status.CloneStatus, tcpAddr)
+		}
+	}
 }

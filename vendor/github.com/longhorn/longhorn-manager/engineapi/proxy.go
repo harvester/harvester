@@ -10,6 +10,7 @@ import (
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/longhorn/longhorn-manager/util"
 )
 
 func getLoggerForEngineProxyClient(logger logrus.FieldLogger, im *longhorn.InstanceManager) *logrus.Entry {
@@ -22,7 +23,7 @@ func getLoggerForEngineProxyClient(logger logrus.FieldLogger, im *longhorn.Insta
 	)
 }
 
-func GetCompatibleClient(e *longhorn.Engine, fallBack interface{}, ds *datastore.DataStore, logger logrus.FieldLogger) (c EngineClientProxy, err error) {
+func GetCompatibleClient(e *longhorn.Engine, fallBack interface{}, ds *datastore.DataStore, logger logrus.FieldLogger, proxyConnCounter util.Counter) (c EngineClientProxy, err error) {
 	if e == nil {
 		return nil, errors.Errorf("BUG: failed to get engine client proxy due to missing engine")
 	}
@@ -41,7 +42,7 @@ func GetCompatibleClient(e *longhorn.Engine, fallBack interface{}, ds *datastore
 
 	if im != nil {
 		if err := CheckInstanceManagerProxySupport(im); err != nil {
-			log.WithError(err).Warn("Use fallback client")
+			log.WithError(err).Trace("Use fallback client")
 			shouldFallBack = true
 		}
 	}
@@ -58,10 +59,10 @@ func GetCompatibleClient(e *longhorn.Engine, fallBack interface{}, ds *datastore
 		return nil, errors.Errorf("BUG: invalid engine client proxy fallback client: %v", fallBack)
 	}
 
-	return NewEngineClientProxy(im, log)
+	return NewEngineClientProxy(im, log, proxyConnCounter)
 }
 
-func NewEngineClientProxy(im *longhorn.InstanceManager, logger logrus.FieldLogger) (c EngineClientProxy, err error) {
+func NewEngineClientProxy(im *longhorn.InstanceManager, logger logrus.FieldLogger, proxyConnCounter util.Counter) (c EngineClientProxy, err error) {
 	defer func() {
 		err = errors.Wrap(err, "failed to get engine client proxy")
 	}()
@@ -84,32 +85,42 @@ func NewEngineClientProxy(im *longhorn.InstanceManager, logger logrus.FieldLogge
 		return nil, err
 	}
 
+	proxyConnCounter.IncreaseCount()
+
 	return &Proxy{
-		logger:     logger,
-		grpcClient: client,
+		logger:           logger,
+		grpcClient:       client,
+		proxyConnCounter: proxyConnCounter,
 	}, nil
 }
 
 type Proxy struct {
 	logger     logrus.FieldLogger
 	grpcClient *imclient.ProxyClient
+
+	proxyConnCounter util.Counter
 }
 
 type EngineClientProxy interface {
 	EngineClient
-	BackupTargetBinaryClient
 
 	Close()
 }
 
 func (p *Proxy) Close() {
 	if p.grpcClient == nil {
+		p.logger.WithError(errors.New("gRPC client not exist")).Debugf("cannot close engine client proxy")
 		return
 	}
 
 	if err := p.grpcClient.Close(); err != nil {
-		p.logger.Warn("failed to close engine client proxy")
+		p.logger.WithError(err).Warn("failed to close engine client proxy")
 	}
+
+	// The only potential returning error from Close() is
+	// "grpc: the client connection is closing". This means we should still
+	// decrease the connection count.
+	p.proxyConnCounter.DecreaseCount()
 }
 
 func (p *Proxy) DirectToURL(e *longhorn.Engine) string {

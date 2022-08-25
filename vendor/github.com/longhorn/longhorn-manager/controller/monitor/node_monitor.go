@@ -132,9 +132,10 @@ func (m *NodeMonitor) SyncCollectedData() error {
 func (m *NodeMonitor) collectDiskData(node *longhorn.Node) map[string]*CollectedDiskInfo {
 	diskInfoMap := make(map[string]*CollectedDiskInfo, 0)
 	orphanedReplicaDirectoryNames := map[string]string{}
-	nodeOrDiskEvicted := isNodeOrDiskEvicted(node)
 
 	for diskName, disk := range node.Spec.Disks {
+		nodeOrDiskEvicted := isNodeOrDiskEvicted(node, disk)
+
 		stat, err := m.getDiskStatHandler(disk.Path)
 		if err != nil {
 			diskInfoMap[diskName] = NewDiskInfo(disk.Path, "", nodeOrDiskEvicted, nil,
@@ -174,17 +175,8 @@ func (m *NodeMonitor) collectDiskData(node *longhorn.Node) map[string]*Collected
 	return diskInfoMap
 }
 
-func isNodeOrDiskEvicted(node *longhorn.Node) bool {
-	if node.Spec.EvictionRequested {
-		return true
-	}
-	for _, disk := range node.Spec.Disks {
-		if disk.EvictionRequested {
-			return true
-		}
-	}
-
-	return false
+func isNodeOrDiskEvicted(node *longhorn.Node, disk longhorn.DiskSpec) bool {
+	return node.Spec.EvictionRequested || disk.EvictionRequested
 }
 
 func getPossibleReplicaDirectoryNames(node *longhorn.Node, diskName, diskUUID, diskPath string) map[string]string {

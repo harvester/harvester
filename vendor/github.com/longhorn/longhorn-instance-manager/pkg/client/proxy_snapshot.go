@@ -14,7 +14,7 @@ const (
 	VolumeHeadName = "volume-head"
 )
 
-func (c *ProxyClient) VolumeSnapshot(serviceAddress, volumeName string, labels map[string]string) (snapshotName string, err error) {
+func (c *ProxyClient) VolumeSnapshot(serviceAddress, volumeSnapshotName string, labels map[string]string) (snapshotName string, err error) {
 	input := map[string]string{
 		"serviceAddress": serviceAddress,
 	}
@@ -45,11 +45,11 @@ func (c *ProxyClient) VolumeSnapshot(serviceAddress, volumeName string, labels m
 			Address: serviceAddress,
 		},
 		SnapshotVolume: &eptypes.VolumeSnapshotRequest{
-			Name:   volumeName,
+			Name:   volumeSnapshotName,
 			Labels: labels,
 		},
 	}
-	recv, err := c.service.VolumeSnapshot(c.ctx, req)
+	recv, err := c.service.VolumeSnapshot(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return "", err
 	}
@@ -72,7 +72,7 @@ func (c *ProxyClient) SnapshotList(serviceAddress string) (snapshotDiskInfo map[
 	req := &rpc.ProxyEngineRequest{
 		Address: serviceAddress,
 	}
-	resp, err := c.service.SnapshotList(c.ctx, req)
+	resp, err := c.service.SnapshotList(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (c *ProxyClient) SnapshotClone(serviceAddress, name, fromController string)
 		SnapshotName:              name,
 		ExportBackingImageIfExist: false,
 	}
-	_, err = c.service.SnapshotClone(c.ctx, req)
+	_, err = c.service.SnapshotClone(getContextWithGRPCLongTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func (c *ProxyClient) SnapshotCloneStatus(serviceAddress string) (status map[str
 	req := &rpc.ProxyEngineRequest{
 		Address: serviceAddress,
 	}
-	recv, err := c.service.SnapshotCloneStatus(c.ctx, req)
+	recv, err := c.service.SnapshotCloneStatus(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func (c *ProxyClient) SnapshotRevert(serviceAddress string, name string) (err er
 		},
 		Name: name,
 	}
-	_, err = c.service.SnapshotRevert(c.ctx, req)
+	_, err = c.service.SnapshotRevert(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}
@@ -213,7 +213,7 @@ func (c *ProxyClient) SnapshotPurge(serviceAddress string, skipIfInProgress bool
 		},
 		SkipIfInProgress: skipIfInProgress,
 	}
-	_, err = c.service.SnapshotPurge(c.ctx, req)
+	_, err = c.service.SnapshotPurge(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (c *ProxyClient) SnapshotPurgeStatus(serviceAddress string) (status map[str
 		Address: serviceAddress,
 	}
 
-	recv, err := c.service.SnapshotPurgeStatus(c.ctx, req)
+	recv, err := c.service.SnapshotPurgeStatus(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func (c *ProxyClient) SnapshotRemove(serviceAddress string, names []string) (err
 		},
 		Names: names,
 	}
-	_, err = c.service.SnapshotRemove(c.ctx, req)
+	_, err = c.service.SnapshotRemove(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}

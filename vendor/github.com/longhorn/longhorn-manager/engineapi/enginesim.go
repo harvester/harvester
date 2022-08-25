@@ -240,31 +240,3 @@ func (e *EngineSimulator) VolumeFrontendShutdown(*longhorn.Engine) error {
 func (e *EngineSimulator) ReplicaRebuildVerify(engine *longhorn.Engine, url string) error {
 	return fmt.Errorf(ErrNotImplement)
 }
-
-func (e *EngineSimulator) BackupGet(destURL string, credential map[string]string) (*Backup, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
-}
-
-func (e *EngineSimulator) BackupVolumeGet(destURL string, credential map[string]string) (volume *BackupVolume, err error) {
-	return nil, fmt.Errorf(ErrNotImplement)
-}
-
-func (e *EngineSimulator) BackupNameList(destURL, volumeName string, credential map[string]string) (names []string, err error) {
-	return nil, fmt.Errorf(ErrNotImplement)
-}
-
-func (e *EngineSimulator) BackupVolumeNameList(destURL string, credential map[string]string) (names []string, err error) {
-	return nil, fmt.Errorf(ErrNotImplement)
-}
-
-func (e *EngineSimulator) BackupDelete(destURL string, credential map[string]string) (err error) {
-	return fmt.Errorf(ErrNotImplement)
-}
-
-func (e *EngineSimulator) BackupVolumeDelete(destURL, volumeName string, credential map[string]string) (err error) {
-	return fmt.Errorf(ErrNotImplement)
-}
-
-func (e *EngineSimulator) BackupConfigMetaGet(destURL string, credential map[string]string) (*ConfigMetadata, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
-}

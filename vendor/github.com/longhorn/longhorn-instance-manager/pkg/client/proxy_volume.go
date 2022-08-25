@@ -24,7 +24,7 @@ func (c *ProxyClient) VolumeGet(serviceAddress string) (info *etypes.VolumeInfo,
 	req := &rpc.ProxyEngineRequest{
 		Address: serviceAddress,
 	}
-	resp, err := c.service.VolumeGet(c.ctx, req)
+	resp, err := c.service.VolumeGet(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (c *ProxyClient) VolumeExpand(serviceAddress string, size int64) (err error
 			Size: size,
 		},
 	}
-	_, err = c.service.VolumeExpand(c.ctx, req)
+	_, err = c.service.VolumeExpand(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (c *ProxyClient) VolumeFrontendStart(serviceAddress, frontendName string) (
 			Frontend: frontendName,
 		},
 	}
-	_, err = c.service.VolumeFrontendStart(c.ctx, req)
+	_, err = c.service.VolumeFrontendStart(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (c *ProxyClient) VolumeFrontendShutdown(serviceAddress string) (err error) 
 	req := &rpc.ProxyEngineRequest{
 		Address: serviceAddress,
 	}
-	_, err = c.service.VolumeFrontendShutdown(c.ctx, req)
+	_, err = c.service.VolumeFrontendShutdown(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}

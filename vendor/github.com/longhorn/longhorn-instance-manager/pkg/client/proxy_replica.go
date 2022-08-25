@@ -33,7 +33,7 @@ func (c *ProxyClient) ReplicaAdd(serviceAddress, replicaAddress string, restore 
 		ReplicaAddress: replicaAddress,
 		Restore:        restore,
 	}
-	_, err = c.service.ReplicaAdd(c.ctx, req)
+	_, err = c.service.ReplicaAdd(getContextWithGRPCLongTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (c *ProxyClient) ReplicaList(serviceAddress string) (rInfoList []*etypes.Co
 	req := &rpc.ProxyEngineRequest{
 		Address: serviceAddress,
 	}
-	resp, err := c.service.ReplicaList(c.ctx, req)
+	resp, err := c.service.ReplicaList(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (c *ProxyClient) ReplicaRebuildingStatus(serviceAddress string) (status map
 	req := &rpc.ProxyEngineRequest{
 		Address: serviceAddress,
 	}
-	recv, err := c.service.ReplicaRebuildingStatus(c.ctx, req)
+	recv, err := c.service.ReplicaRebuildingStatus(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return status, err
 	}
@@ -123,7 +123,7 @@ func (c *ProxyClient) ReplicaVerifyRebuild(serviceAddress, replicaAddress string
 		},
 		ReplicaAddress: replicaAddress,
 	}
-	_, err = c.service.ReplicaVerifyRebuild(c.ctx, req)
+	_, err = c.service.ReplicaVerifyRebuild(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func (c *ProxyClient) ReplicaRemove(serviceAddress, replicaAddress string) (err 
 		},
 		ReplicaAddress: replicaAddress,
 	}
-	_, err = c.service.ReplicaRemove(c.ctx, req)
+	_, err = c.service.ReplicaRemove(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}

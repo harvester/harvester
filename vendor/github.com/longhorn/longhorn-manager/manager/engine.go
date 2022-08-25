@@ -35,7 +35,7 @@ func (m *VolumeManager) ListSnapshots(volumeName string) (map[string]*longhorn.S
 		return nil, err
 	}
 
-	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil)
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil, m.proxyConnCounter)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (m *VolumeManager) GetSnapshot(snapshotName, volumeName string) (*longhorn.
 		return nil, err
 	}
 
-	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil)
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil, m.proxyConnCounter)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (m *VolumeManager) CreateSnapshot(snapshotName string, labels map[string]st
 		return nil, err
 	}
 
-	engineClientProxy, err := engineapi.GetCompatibleClient(e, engineCliClient, m.ds, nil)
+	engineClientProxy, err := engineapi.GetCompatibleClient(e, engineCliClient, m.ds, nil, m.proxyConnCounter)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (m *VolumeManager) DeleteSnapshot(snapshotName, volumeName string) error {
 		return err
 	}
 
-	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil)
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil, m.proxyConnCounter)
 	if err != nil {
 		return err
 	}
@@ -178,7 +178,7 @@ func (m *VolumeManager) RevertSnapshot(snapshotName, volumeName string) error {
 		return err
 	}
 
-	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil)
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil, m.proxyConnCounter)
 	if err != nil {
 		return err
 	}
@@ -224,7 +224,7 @@ func (m *VolumeManager) PurgeSnapshot(volumeName string) error {
 		return err
 	}
 
-	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil)
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil, m.proxyConnCounter)
 	if err != nil {
 		return err
 	}

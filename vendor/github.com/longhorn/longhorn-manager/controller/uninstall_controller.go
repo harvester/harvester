@@ -14,7 +14,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
@@ -378,7 +377,7 @@ func (c *UninstallController) deleteCRDs() (bool, error) {
 		return true, c.deleteVolumes(volumes)
 	}
 
-	if snapshots, err := c.ds.ListSnapshots(labels.Everything()); err != nil {
+	if snapshots, err := c.ds.ListSnapshots(); err != nil {
 		return true, err
 	} else if len(snapshots) > 0 {
 		// We deleted all volume CRs before deleting snapshot CRs in the above steps.

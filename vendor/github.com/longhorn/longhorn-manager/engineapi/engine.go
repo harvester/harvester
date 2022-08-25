@@ -254,31 +254,3 @@ func (e *EngineBinary) ReplicaRebuildVerify(engine *longhorn.Engine, url string)
 // Do not panic this method because this is could be called by the fallback client.
 func (e *EngineBinary) Close() {
 }
-
-func (e *EngineBinary) BackupGet(destURL string, credential map[string]string) (*Backup, error) {
-	panic(ErrNotImplement)
-}
-
-func (e *EngineBinary) BackupVolumeGet(destURL string, credential map[string]string) (volume *BackupVolume, err error) {
-	panic(ErrNotImplement)
-}
-
-func (e *EngineBinary) BackupNameList(destURL, volumeName string, credential map[string]string) (names []string, err error) {
-	panic(ErrNotImplement)
-}
-
-func (e *EngineBinary) BackupVolumeNameList(destURL string, credential map[string]string) (names []string, err error) {
-	panic(ErrNotImplement)
-}
-
-func (e *EngineBinary) BackupDelete(destURL string, credential map[string]string) (err error) {
-	panic(ErrNotImplement)
-}
-
-func (e *EngineBinary) BackupVolumeDelete(destURL, volumeName string, credential map[string]string) (err error) {
-	panic(ErrNotImplement)
-}
-
-func (e *EngineBinary) BackupConfigMetaGet(destURL string, credential map[string]string) (*ConfigMetadata, error) {
-	panic(ErrNotImplement)
-}
