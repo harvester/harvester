@@ -10,8 +10,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+)
 
-	"github.com/harvester/harvester/pkg/util"
+const (
+	prefix                         = "harvesterhci.io"
+	AnnotationVolumeClaimTemplates = prefix + "/volumeClaimTemplates"
 )
 
 const (
@@ -170,7 +173,7 @@ func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, hotpluggable b
 	}
 
 	var pvcs []*corev1.PersistentVolumeClaim
-	volumeClaimTemplates, ok := v.VirtualMachine.Annotations[util.AnnotationVolumeClaimTemplates]
+	volumeClaimTemplates, ok := v.VirtualMachine.Annotations[AnnotationVolumeClaimTemplates]
 	if ok && volumeClaimTemplates != "" {
 		if err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs); err != nil {
 			logrus.Warnf("failed to unmarshal the volumeClaimTemplates annotation: %v", err)
@@ -207,7 +210,7 @@ func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, hotpluggable b
 	if err != nil {
 		logrus.Warnf("failed to marshal the volumeClaimTemplates annotation: %v", err)
 	} else {
-		v.VirtualMachine.Annotations[util.AnnotationVolumeClaimTemplates] = string(toUpdateVolumeClaimTemplates)
+		v.VirtualMachine.Annotations[AnnotationVolumeClaimTemplates] = string(toUpdateVolumeClaimTemplates)
 	}
 
 	return v.ExistingPVCVolume(diskName, pvcName, hotpluggable)
