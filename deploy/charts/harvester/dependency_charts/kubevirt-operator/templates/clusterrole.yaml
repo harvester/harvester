@@ -206,6 +206,7 @@ rules:
       - virtualmachineinstances/freeze
       - virtualmachineinstances/unfreeze
       - virtualmachineinstances/softreboot
+      - virtualmachineinstances/portforward
     verbs:
       - update
       - get
@@ -238,6 +239,12 @@ rules:
       - watch
       - patch
       - update
+  - apiGroups:
+      - ""
+    resources:
+      - persistentvolumeclaims
+    verbs:
+      - get
   - apiGroups:
       - kubevirt.io
     resources:
@@ -314,6 +321,8 @@ rules:
     resources:
       - virtualmachineflavors
       - virtualmachineclusterflavors
+      - virtualmachinepreferences
+      - virtualmachineclusterpreferences
     verbs:
       - list
       - watch
@@ -515,6 +524,8 @@ rules:
     resources:
       - virtualmachineflavors
       - virtualmachineclusterflavors
+      - virtualmachinepreferences
+      - virtualmachineclusterpreferences
     verbs:
       - list
       - watch
@@ -600,6 +611,7 @@ rules:
       - subresources.kubevirt.io
     resources:
       - version
+      - guestfs
     verbs:
       - get
       - list
@@ -623,6 +635,7 @@ rules:
       - virtualmachineinstances/freeze
       - virtualmachineinstances/unfreeze
       - virtualmachineinstances/softreboot
+      - virtualmachineinstances/portforward
     verbs:
       - update
   - apiGroups:
@@ -631,6 +644,10 @@ rules:
       - virtualmachines/start
       - virtualmachines/stop
       - virtualmachines/restart
+      - virtualmachines/addvolume
+      - virtualmachines/removevolume
+      - virtualmachines/migrate
+      - virtualmachines/memorydump
     verbs:
       - update
   - apiGroups:
@@ -670,6 +687,8 @@ rules:
     resources:
       - virtualmachineflavors
       - virtualmachineclusterflavors
+      - virtualmachinepreferences
+      - virtualmachineclusterpreferences
     verbs:
       - get
       - delete
@@ -720,6 +739,7 @@ rules:
       - virtualmachineinstances/freeze
       - virtualmachineinstances/unfreeze
       - virtualmachineinstances/softreboot
+      - virtualmachineinstances/portforward
     verbs:
       - update
   - apiGroups:
@@ -728,6 +748,10 @@ rules:
       - virtualmachines/start
       - virtualmachines/stop
       - virtualmachines/restart
+      - virtualmachines/addvolume
+      - virtualmachines/removevolume
+      - virtualmachines/migrate
+      - virtualmachines/memorydump
     verbs:
       - update
   - apiGroups:
@@ -765,6 +789,8 @@ rules:
     resources:
       - virtualmachineflavors
       - virtualmachineclusterflavors
+      - virtualmachinepreferences
+      - virtualmachineclusterpreferences
     verbs:
       - get
       - delete
@@ -835,6 +861,8 @@ rules:
     resources:
       - virtualmachineflavors
       - virtualmachineclusterflavors
+      - virtualmachinepreferences
+      - virtualmachineclusterpreferences
     verbs:
       - get
       - list
