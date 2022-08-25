@@ -9,6 +9,8 @@ import (
 	"net/http"
 
 	"github.com/rancher/wrangler/pkg/objectset"
+	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -20,6 +22,9 @@ import (
 // registerCluster imports Harvester to Rancher by applying manifests from the registration URL.
 func (h *Handler) registerCluster(setting *harvesterv1.Setting) error {
 	url := setting.Value
+	if url == "" {
+		return h.cleanupClusterAgent()
+	}
 	resp, err := h.httpClient.Get(url)
 	if err != nil {
 		return err
@@ -64,4 +69,20 @@ func (h *Handler) registerCluster(setting *harvesterv1.Setting) error {
 		WithDynamicLookup().
 		WithSetID("cluster-registration").
 		Apply(objects)
+}
+
+func (h *Handler) cleanupClusterAgent() error {
+	// cleanup rancher related resources
+	// ref: https://rancher.com/docs/rancher/v2.6/en/cluster-provisioning/registered-clusters/#registering-a-cluster
+	// ref: https://rancher.com/docs/rancher/v2.6/en/cluster-provisioning/rke-clusters/rancher-agents/
+	if _, err := h.deploymentCache.Get("cattle-system", "cattle-cluster-agent"); err == nil {
+		if err = h.deployments.Delete("cattle-system", "cattle-cluster-agent", nil); err != nil {
+			logrus.Errorf("Can't delete cattle-system/cattle-cluster-agent deployment, err: %+v", err)
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		logrus.Errorf("Can't get cattle-system/cattle-cluster-agent deployment, err: %+v", err)
+		return err
+	}
+	return nil
 }
