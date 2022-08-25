@@ -16,7 +16,7 @@ dependencies:
   version: 0.1.0
 - name: longhorn
   repository: https://charts.longhorn.io
-  version: 1.3.0
+  version: 1.3.1
 - name: kube-vip
   repository: https://kube-vip.github.io/helm-charts
   version: 0.4.2
@@ -29,5 +29,5 @@ dependencies:
 - name: whereabouts
   repository: file://dependency_charts/whereabouts
   version: 0.1.1
-digest: sha256:d6ee06a6a8d2b209f86ac84043b6de60c07ecbabc4050b9dbf839b875e42631e
-generated: "2022-09-02T17:07:07.605814153+08:00"
+digest: sha256:55b5769c9dd6998252ca13d0cb76877ade68f31a8feebf8120e1e17ddf08a5db
+generated: "2022-09-05T15:48:45.139461+08:00"
