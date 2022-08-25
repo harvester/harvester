@@ -548,18 +548,81 @@ func updateEngineImageVersion(ei *longhorn.EngineImage) error {
 	return nil
 }
 
-func (ic *EngineImageController) updateEngineImageRefCount(ei *longhorn.EngineImage) error {
+func (ic *EngineImageController) countVolumesUsingEngineImage(image string) (int, error) {
 	volumes, err := ic.ds.ListVolumes()
 	if err != nil {
-		return errors.Wrap(err, "cannot list volumes when updateEngineImageRefCount")
+		return 0, err
 	}
-	image := ei.Spec.Image
-	refCount := 0
+
+	count := 0
 	for _, v := range volumes {
 		if v.Spec.EngineImage == image || v.Status.CurrentImage == image {
-			refCount++
+			count++
 		}
 	}
+	return count, nil
+}
+
+func (ic *EngineImageController) countEnginesUsingEngineImage(image string) (int, error) {
+	engines, err := ic.ds.ListEngines()
+	if err != nil {
+		return 0, err
+	}
+
+	count := 0
+	for _, e := range engines {
+		if e.Spec.EngineImage == image || e.Status.CurrentImage == image {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (ic *EngineImageController) countReplicasUsingEngineImage(image string) (int, error) {
+	replicas, err := ic.ds.ListReplicas()
+	if err != nil {
+		return 0, err
+	}
+
+	count := 0
+	for _, r := range replicas {
+		if r.Spec.EngineImage == image || r.Status.CurrentImage == image {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (ic *EngineImageController) countCRsUsingEngineImage(ei *longhorn.EngineImage) (int, error) {
+	refCount := 0
+
+	count, err := ic.countVolumesUsingEngineImage(ei.Spec.Image)
+	if err != nil {
+		return 0, errors.Wrapf(err, "failed to count volumes using engine image %v", ei.Spec.Image)
+	}
+	refCount += count
+
+	count, err = ic.countEnginesUsingEngineImage(ei.Spec.Image)
+	if err != nil {
+		return 0, errors.Wrapf(err, "failed to count engines using engine image %v", ei.Spec.Image)
+	}
+	refCount += count
+
+	count, err = ic.countReplicasUsingEngineImage(ei.Spec.Image)
+	if err != nil {
+		return 0, errors.Wrapf(err, "failed to count replicas using engine image %v", ei.Spec.Image)
+	}
+	refCount += count
+
+	return refCount, nil
+}
+
+func (ic *EngineImageController) updateEngineImageRefCount(ei *longhorn.EngineImage) error {
+	refCount, err := ic.countCRsUsingEngineImage(ei)
+	if err != nil {
+		return errors.Wrapf(err, "failed to count CRs using engine image %v", ei.Spec.Image)
+	}
+
 	ei.Status.RefCount = refCount
 	if ei.Status.RefCount == 0 {
 		if ei.Status.NoRefSince == "" {

@@ -20,6 +20,7 @@ const (
 	EventReasonVolumeCloneFailed    = "VolumeCloneFailed"
 
 	EventReasonFailedStartingSnapshotPurge = "FailedStartingSnapshotPurge"
+	EventReasonTimeoutSnapshotPurge        = "TimeoutSnapshotPurge"
 	EventReasonFailedSnapshotPurge         = "FailedSnapshotPurge"
 
 	EventReasonFailedRestore = "FailedRestore"

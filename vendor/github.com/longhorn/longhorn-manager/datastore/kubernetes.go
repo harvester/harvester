@@ -509,6 +509,13 @@ func (s *DataStore) GetPersistentVolumeClaim(namespace, pvcName string) (*corev1
 	return resultRO.DeepCopy(), nil
 }
 
+// ListVolumeAttachmentsRO gets a list of volumeattachments
+// This function returns direct reference to the internal cache object and should not be mutated.
+// Consider using this function when you can guarantee read only access and don't want the overhead of deep copies
+func (s *DataStore) ListVolumeAttachmentsRO() ([]*storagev1.VolumeAttachment, error) {
+	return s.vaLister.List(labels.Everything())
+}
+
 // GetConfigMapRO gets ConfigMap with the given name in s.namespace
 // This function returns direct reference to the internal cache object and should not be mutated.
 // Consider using this function when you can guarantee read only access and don't want the overhead of deep copies
@@ -704,7 +711,7 @@ func (s *DataStore) GetStorageIPFromPod(pod *corev1.Pod) string {
 	}
 
 	if storageNetwork.Value == types.CniNetworkNone {
-		logrus.Debugf("Found %v setting is empty, use %v pod IP %v", types.SettingNameStorageNetwork, pod.Name, pod.Status.PodIP)
+		logrus.Tracef("Found %v setting is empty, use %v pod IP %v", types.SettingNameStorageNetwork, pod.Name, pod.Status.PodIP)
 		return pod.Status.PodIP
 	}
 
@@ -727,7 +734,9 @@ func (s *DataStore) GetStorageIPFromPod(pod *corev1.Pod) string {
 		}
 
 		sort.Strings(net.IPs)
-		return net.IPs[0]
+		if net.IPs != nil {
+			return net.IPs[0]
+		}
 	}
 
 	logrus.Warnf("Failed to get storage IP from %v pod, use IP %v", pod.Name, pod.Status.PodIP)

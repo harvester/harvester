@@ -75,6 +75,8 @@ type VolumeController struct {
 
 	// for unit test
 	nowHandler func() string
+
+	proxyConnCounter util.Counter
 }
 
 func NewVolumeController(
@@ -84,6 +86,7 @@ func NewVolumeController(
 	kubeClient clientset.Interface,
 	namespace,
 	controllerID string,
+	proxyConnCounter util.Counter,
 ) *VolumeController {
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -104,6 +107,8 @@ func NewVolumeController(
 		backoff: flowcontrol.NewBackOff(time.Minute, time.Minute*3),
 
 		nowHandler: util.Now,
+
+		proxyConnCounter: proxyConnCounter,
 	}
 
 	vc.scheduler = scheduler.NewReplicaScheduler(ds)
@@ -356,11 +361,6 @@ func (vc *VolumeController) syncVolume(key string) (err error) {
 		}
 
 		// now snapshots, replicas, and engines have been marked for deletion
-		if snapshots, err := vc.ds.ListVolumeSnapshotsRO(volume.Name); err != nil {
-			return err
-		} else if len(snapshots) > 0 {
-			return nil
-		}
 		if engines, err := vc.ds.ListVolumeEngines(volume.Name); err != nil {
 			return err
 		} else if len(engines) > 0 {
@@ -479,19 +479,28 @@ func (vc *VolumeController) EvictReplicas(v *longhorn.Volume,
 	e *longhorn.Engine, rs map[string]*longhorn.Replica, healthyCount int) (err error) {
 	log := getLoggerForVolume(vc.logger, v)
 
+	hasNewReplica := false
+	healthyNonEvictingCount := healthyCount
 	for _, replica := range rs {
 		if replica.Status.EvictionRequested &&
-			healthyCount == v.Spec.NumberOfReplicas {
-			if err := vc.replenishReplicas(v, e, rs, ""); err != nil {
-				log.WithError(err).Error("Failed to create new replica for replica eviction")
-				vc.eventRecorder.Eventf(v, v1.EventTypeWarning,
-					EventReasonFailedEviction,
-					"volume %v failed to create one more replica", v.Name)
-				return err
-			}
-			log.Debug("Creating one more replica for eviction")
+			e.Status.ReplicaModeMap[replica.Name] == longhorn.ReplicaModeRW {
+			healthyNonEvictingCount--
+		}
+		if replica.Spec.HealthyAt == "" && replica.Spec.FailedAt == "" {
+			hasNewReplica = true
 			break
 		}
+	}
+
+	if healthyNonEvictingCount < v.Spec.NumberOfReplicas && !hasNewReplica {
+		if err := vc.replenishReplicas(v, e, rs, ""); err != nil {
+			log.WithError(err).Error("Failed to create new replica for replica eviction")
+			vc.eventRecorder.Eventf(v, v1.EventTypeWarning,
+				EventReasonFailedEviction,
+				"volume %v failed to create one more replica", v.Name)
+			return err
+		}
+		log.Debug("Creating one more replica for eviction")
 	}
 
 	return nil
@@ -525,6 +534,17 @@ func (vc *VolumeController) ReconcileEngineReplicaState(v *longhorn.Volume, es m
 		return nil
 	}
 	if e.Status.CurrentState != longhorn.InstanceStateRunning {
+		// If a replica failed at attaching stage before engine become running,
+		// there is no record in e.Status.ReplicaModeMap
+		for _, r := range rs {
+			if r.Spec.FailedAt == "" && r.Status.CurrentState == longhorn.InstanceStateError {
+				log.Warnf("Replica %v that not in the engine mode map is marked as failed, current state %v, engine name %v, active %v", r.Name, r.Status.CurrentState, r.Spec.EngineName, r.Spec.Active)
+				e.Spec.LogRequested = true
+				r.Spec.LogRequested = true
+				r.Spec.FailedAt = vc.nowHandler()
+				r.Spec.DesireState = longhorn.InstanceStateStopped
+			}
+		}
 		return nil
 	}
 
@@ -681,6 +701,33 @@ func (vc *VolumeController) ReconcileEngineReplicaState(v *longhorn.Volume, es m
 	return nil
 }
 
+func isAutoSalvageNeeded(rs map[string]*longhorn.Replica) bool {
+	if isFirstAttachment(rs) {
+		return areAllReplicasFailed(rs)
+	}
+	return getHealthyAndActiveReplicaCount(rs) == 0 && getFailedReplicaCount(rs) > 0
+}
+
+func areAllReplicasFailed(rs map[string]*longhorn.Replica) bool {
+	for _, r := range rs {
+		if r.Spec.FailedAt == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// isFirstAttachment returns true if this is the first time the volume is attached.
+// I.e., all replicas have empty Spec.HealthyAt
+func isFirstAttachment(rs map[string]*longhorn.Replica) bool {
+	for _, r := range rs {
+		if r.Spec.HealthyAt != "" {
+			return false
+		}
+	}
+	return true
+}
+
 func getHealthyAndActiveReplicaCount(rs map[string]*longhorn.Replica) int {
 	count := 0
 	for _, r := range rs {
@@ -795,7 +842,7 @@ func (vc *VolumeController) cleanupFailedToScheduledReplicas(v *longhorn.Volume,
 	if healthyCount >= v.Spec.NumberOfReplicas {
 		for _, r := range rs {
 			if !hasEvictionRequestedReplicas {
-				if r.Spec.HealthyAt == "" && r.Spec.FailedAt == "" && r.Spec.NodeID == "" &&
+				if r.Spec.HealthyAt == "" && r.Spec.NodeID == "" &&
 					(isDataLocalityDisabled(v) || r.Spec.HardNodeAffinity != v.Status.CurrentNodeID) {
 					logrus.Infof("Cleaning up failed to scheduled replica %v", r.Name)
 					if err := vc.deleteReplica(r, rs); err != nil {
@@ -832,18 +879,40 @@ func (vc *VolumeController) cleanupExtraHealthyReplicas(v *longhorn.Volume, e *l
 }
 
 func (vc *VolumeController) cleanupEvictionRequestedReplicas(v *longhorn.Volume, rs map[string]*longhorn.Replica) (bool, error) {
+	log := getLoggerForVolume(vc.logger, v)
+
+	// If there is no non-evicting healthy replica,
+	// Longhorn should retain one evicting healthy replica.
+	hasNonEvictingHealthyReplica := false
+	evictingHealthyReplica := ""
 	for _, r := range rs {
-		if r.Status.EvictionRequested {
-			if err := vc.deleteReplica(r, rs); err != nil {
-				vc.eventRecorder.Eventf(v, v1.EventTypeWarning,
-					EventReasonFailedEviction,
-					"volume %v failed to evict replica %v",
-					v.Name, r.Name)
-				return false, err
-			}
-			logrus.Debugf("Evicted replica %v", r.Name)
-			return true, nil
+		if !datastore.IsAvailableHealthyReplica(r) {
+			continue
 		}
+		if !r.Status.EvictionRequested {
+			hasNonEvictingHealthyReplica = true
+			break
+		}
+		evictingHealthyReplica = r.Name
+	}
+
+	for _, r := range rs {
+		if !r.Status.EvictionRequested {
+			continue
+		}
+		if !hasNonEvictingHealthyReplica && r.Name == evictingHealthyReplica {
+			log.Warnf("Cannot evicting replica %v for now since there is no other healthy replica", r.Name)
+			continue
+		}
+		if err := vc.deleteReplica(r, rs); err != nil {
+			vc.eventRecorder.Eventf(v, v1.EventTypeWarning,
+				EventReasonFailedEviction,
+				"volume %v failed to evict replica %v",
+				v.Name, r.Name)
+			return false, err
+		}
+		log.Debugf("Evicted replica %v in disk %v of node %v ", r.Name, r.Spec.DiskID, r.Spec.NodeID)
+		return true, nil
 	}
 	return false, nil
 }
@@ -1154,8 +1223,7 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 		e.Spec.SalvageRequested = false
 	}
 
-	isAutoSalvageNeeded := getHealthyAndActiveReplicaCount(rs) == 0 && getFailedReplicaCount(rs) > 0
-	if isAutoSalvageNeeded {
+	if isAutoSalvageNeeded(rs) {
 		v.Status.Robustness = longhorn.VolumeRobustnessFaulted
 		v.Status.CurrentNodeID = ""
 
@@ -1458,7 +1526,7 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 				continue
 			}
 			if r.Status.StorageIP == "" {
-				log.WithField("replica", r.Name).Error("BUG: replica is running but storage IP is empty")
+				log.WithField("replica", r.Name).Debug("Replica is running but storage IP is empty, need to wait for update")
 				continue
 			}
 			if r.Status.Port == 0 {
@@ -2330,7 +2398,7 @@ func (vc *VolumeController) upgradeEngineForVolume(v *longhorn.Volume, es map[st
 				continue
 			}
 			if r.Status.StorageIP == "" {
-				log.WithField("replica", r.Name).Error("BUG: replica is running but storage IP is empty")
+				log.WithField("replica", r.Name).Debug("Replica is running but storage IP is empty, need to wait for update")
 				continue
 			}
 			if r.Status.Port == 0 {
@@ -3635,7 +3703,7 @@ func (vc *VolumeController) createSnapshot(snapshotName string, labels map[strin
 		return nil, err
 	}
 
-	engineClientProxy, err := engineapi.GetCompatibleClient(e, engineCliClient, vc.ds, vc.logger)
+	engineClientProxy, err := engineapi.GetCompatibleClient(e, engineCliClient, vc.ds, vc.logger, vc.proxyConnCounter)
 	if err != nil {
 		return nil, err
 	}

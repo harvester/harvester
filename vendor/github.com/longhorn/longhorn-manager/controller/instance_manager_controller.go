@@ -548,12 +548,12 @@ func (imc *InstanceManagerController) syncInstanceManagerPDB(im *longhorn.Instan
 			return nil
 		}
 
-		isPDBRequired, err := imc.canDeleteInstanceManagerPDB(im)
+		canDeletePDB, err := imc.canDeleteInstanceManagerPDB(im)
 		if err != nil {
 			return err
 		}
 
-		if !isPDBRequired {
+		if !canDeletePDB {
 			return nil
 		}
 
@@ -576,12 +576,12 @@ func (imc *InstanceManagerController) syncInstanceManagerPDB(im *longhorn.Instan
 	}
 
 	if clusterAutoscalerEnabled {
-		isPDBRequired, err := imc.canDeleteInstanceManagerPDB(im)
+		canDeletePDB, err := imc.canDeleteInstanceManagerPDB(im)
 		if err != nil {
 			return err
 		}
 
-		if !isPDBRequired {
+		if !canDeletePDB {
 			if imPDB == nil {
 				return imc.createInstanceManagerPDB(im)
 			}
@@ -747,7 +747,7 @@ func (imc *InstanceManagerController) canDeleteInstanceManagerPDB(im *longhorn.I
 			// Hence Longhorn doesn't need to block the PDB removal for the replica.
 			// This case typically happens on a newly created volume that hasn't been attached to any node.
 			// https://github.com/longhorn/longhorn/issues/2673
-			isUnusedReplicaOnCurrentNode := r.Spec.HealthyAt == "" && r.Spec.FailedAt == "" && r.Spec.NodeID == imc.controllerID
+			isUnusedReplicaOnCurrentNode = r.Spec.HealthyAt == "" && r.Spec.FailedAt == "" && r.Spec.NodeID == imc.controllerID
 			if isUnusedReplicaOnCurrentNode {
 				break
 			}

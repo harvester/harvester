@@ -62,7 +62,7 @@ require (
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20211109055147-56ddc538b859
-	github.com/longhorn/longhorn-manager v1.3.0-rc2
+	github.com/longhorn/longhorn-manager v1.3.1
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.4.3
@@ -181,10 +181,10 @@ require (
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.4 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
-	github.com/longhorn/backing-image-manager v0.0.0-20220531040914-2fada376e4b9 // indirect
-	github.com/longhorn/go-iscsi-helper v0.0.0-20210330030558-49a327fb024e // indirect
+	github.com/longhorn/backing-image-manager v0.0.0-20220609065820-a08f7f47442f // indirect
+	github.com/longhorn/go-iscsi-helper v0.0.0-20220805034259-7b59e22574bb // indirect
 	github.com/longhorn/longhorn-engine v1.3.0-preview1 // indirect
-	github.com/longhorn/longhorn-instance-manager v0.0.0-20220526023241-db66114501eb // indirect
+	github.com/longhorn/longhorn-instance-manager v0.0.0-20220801100457-421c284a3b85 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect

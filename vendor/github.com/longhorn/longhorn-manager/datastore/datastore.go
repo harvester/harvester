@@ -77,6 +77,8 @@ type DataStore struct {
 	PersistentVolumeInformer      cache.SharedInformer
 	pvcLister                     corelisters.PersistentVolumeClaimLister
 	PersistentVolumeClaimInformer cache.SharedInformer
+	vaLister                      storagelisters_v1.VolumeAttachmentLister
+	VolumeAttachmentInformer      cache.SharedInformer
 	cfmLister                     corelisters.ConfigMapLister
 	ConfigMapInformer             cache.SharedInformer
 	secretLister                  corelisters.SecretLister
@@ -148,6 +150,8 @@ func NewDataStore(
 	cacheSyncs = append(cacheSyncs, persistentVolumeInformer.Informer().HasSynced)
 	persistentVolumeClaimInformer := kubeInformerFactory.Core().V1().PersistentVolumeClaims()
 	cacheSyncs = append(cacheSyncs, persistentVolumeClaimInformer.Informer().HasSynced)
+	volumeAttachmentInformer := kubeInformerFactory.Storage().V1().VolumeAttachments()
+	cacheSyncs = append(cacheSyncs, volumeAttachmentInformer.Informer().HasSynced)
 	configMapInformer := kubeInformerFactory.Core().V1().ConfigMaps()
 	cacheSyncs = append(cacheSyncs, configMapInformer.Informer().HasSynced)
 	secretInformer := kubeInformerFactory.Core().V1().Secrets()
@@ -223,6 +227,8 @@ func NewDataStore(
 		PersistentVolumeInformer:      persistentVolumeInformer.Informer(),
 		pvcLister:                     persistentVolumeClaimInformer.Lister(),
 		PersistentVolumeClaimInformer: persistentVolumeClaimInformer.Informer(),
+		vaLister:                      volumeAttachmentInformer.Lister(),
+		VolumeAttachmentInformer:      volumeAttachmentInformer.Informer(),
 		cfmLister:                     configMapInformer.Lister(),
 		ConfigMapInformer:             configMapInformer.Informer(),
 		secretLister:                  secretInformer.Lister(),

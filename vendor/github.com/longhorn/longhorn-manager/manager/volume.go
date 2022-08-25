@@ -28,14 +28,18 @@ type VolumeManager struct {
 
 	currentNodeID string
 	sb            *SupportBundle
+
+	proxyConnCounter util.Counter
 }
 
-func NewVolumeManager(currentNodeID string, ds *datastore.DataStore) *VolumeManager {
+func NewVolumeManager(currentNodeID string, ds *datastore.DataStore, proxyConnCounter util.Counter) *VolumeManager {
 	return &VolumeManager{
 		ds:        ds,
 		scheduler: scheduler.NewReplicaScheduler(ds),
 
 		currentNodeID: currentNodeID,
+
+		proxyConnCounter: proxyConnCounter,
 	}
 }
 
@@ -727,7 +731,7 @@ func (m *VolumeManager) DeleteVolumeRecurringJob(volumeName string, name string,
 }
 
 func (m *VolumeManager) DeleteReplica(volumeName, replicaName string) error {
-	hasHealthyReplicas := false
+	healthyReplica := ""
 	rs, err := m.ds.ListVolumeReplicas(volumeName)
 	if err != nil {
 		return err
@@ -739,18 +743,22 @@ func (m *VolumeManager) DeleteReplica(volumeName, replicaName string) error {
 		if r.Name == replicaName {
 			continue
 		}
-		if r.Spec.FailedAt == "" && r.Spec.HealthyAt != "" {
-			hasHealthyReplicas = true
-			break
+		if !datastore.IsAvailableHealthyReplica(r) {
+			continue
 		}
+		if r.Status.EvictionRequested {
+			continue
+		}
+		healthyReplica = r.Name
+		break
 	}
-	if !hasHealthyReplicas {
+	if healthyReplica == "" {
 		return fmt.Errorf("no other healthy replica available, cannot delete replica %v since it may still contain data for recovery", replicaName)
 	}
 	if err := m.ds.DeleteReplica(replicaName); err != nil {
 		return err
 	}
-	logrus.Debugf("Deleted replica %v of volume %v", replicaName, volumeName)
+	logrus.Debugf("Deleted replica %v of volume %v, there is still at least one available healthy replica %v", replicaName, volumeName, healthyReplica)
 	return nil
 }
 

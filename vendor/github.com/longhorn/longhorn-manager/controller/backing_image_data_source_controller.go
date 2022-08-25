@@ -63,6 +63,8 @@ type BackingImageDataSourceController struct {
 
 	lock       *sync.RWMutex
 	monitorMap map[string]chan struct{}
+
+	proxyConnCounter util.Counter
 }
 
 type BackingImageDataSourceMonitor struct {
@@ -83,6 +85,7 @@ func NewBackingImageDataSourceController(
 	scheme *runtime.Scheme,
 	kubeClient clientset.Interface,
 	namespace, controllerID, serviceAccount string,
+	proxyConnCounter util.Counter,
 ) *BackingImageDataSourceController {
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -105,6 +108,8 @@ func NewBackingImageDataSourceController(
 
 		lock:       &sync.RWMutex{},
 		monitorMap: map[string]chan struct{}{},
+
+		proxyConnCounter: proxyConnCounter,
 	}
 
 	ds.BackingImageDataSourceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -223,7 +228,7 @@ func (c *BackingImageDataSourceController) getEngineClientProxy(e *longhorn.Engi
 		return nil, err
 	}
 
-	return engineapi.GetCompatibleClient(e, engineCliClient, c.ds, c.logger)
+	return engineapi.GetCompatibleClient(e, engineCliClient, c.ds, c.logger, c.proxyConnCounter)
 }
 
 func (c *BackingImageDataSourceController) syncBackingImageDataSource(key string) (err error) {
@@ -377,6 +382,11 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 	}()
 	log := getLoggerForBackingImageDataSource(c.logger, bids)
 
+	defaultImage, err := c.ds.GetSettingValueExisted(types.SettingNameDefaultBackingImageManagerImage)
+	if err != nil {
+		return err
+	}
+
 	newBackingImageDataSource := bids.Status.CurrentState == ""
 
 	podName := types.GetBackingImageDataSourcePodName(bids.Name)
@@ -393,6 +403,8 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 		podNotReadyMessage = fmt.Sprintf("pod spec node ID %v doesn't match the desired node ID %v", pod.Spec.NodeName, bids.Spec.NodeID)
 	} else if pod.DeletionTimestamp != nil {
 		podNotReadyMessage = "the pod dedicated to prepare the first backing image file is being deleted"
+	} else if pod.Spec.Containers[0].Image != defaultImage {
+		podNotReadyMessage = "the pod image is not the default one"
 	} else {
 		switch pod.Status.Phase {
 		case v1.PodRunning:

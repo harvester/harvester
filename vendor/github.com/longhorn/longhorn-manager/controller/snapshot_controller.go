@@ -23,6 +23,7 @@ import (
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/engineapi"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/longhorn/longhorn-manager/util"
 )
 
 type SnapshotController struct {
@@ -39,6 +40,8 @@ type SnapshotController struct {
 	ds                     *datastore.DataStore
 	cacheSyncs             []cache.InformerSynced
 	engineClientCollection engineapi.EngineClientCollection
+
+	proxyConnCounter util.Counter
 }
 
 func NewSnapshotController(
@@ -49,6 +52,7 @@ func NewSnapshotController(
 	namespace string,
 	controllerID string,
 	engineClientCollection engineapi.EngineClientCollection,
+	proxyConnCounter util.Counter,
 ) *SnapshotController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(logrus.Infof)
@@ -66,6 +70,7 @@ func NewSnapshotController(
 		eventRecorder:          eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-snapshot-controller"}),
 		ds:                     ds,
 		engineClientCollection: engineClientCollection,
+		proxyConnCounter:       proxyConnCounter,
 	}
 
 	ds.SnapshotInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
@@ -77,6 +82,12 @@ func NewSnapshotController(
 	ds.EngineInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: sc.enqueueEngineChange,
 	}, 0)
+	sc.cacheSyncs = append(sc.cacheSyncs, ds.EngineInformer.HasSynced)
+
+	ds.VolumeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+		DeleteFunc: sc.enqueueVolumeChange,
+	}, 0)
+	sc.cacheSyncs = append(sc.cacheSyncs, ds.VolumeInformer.HasSynced)
 
 	return sc
 }
@@ -110,6 +121,7 @@ func (sc *SnapshotController) enqueueEngineChange(oldObj, curObj interface{}) {
 	vol, err := sc.ds.GetVolumeRO(curEngine.Spec.VolumeName)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("snapshot controller failed to get volume %v when enqueuing engine %v: %v", curEngine.Spec.VolumeName, curEngine.Name, err))
+		return
 	}
 
 	if vol.Status.OwnerID != sc.controllerID {
@@ -175,6 +187,35 @@ func filterSnapshotsForEngineEnqueuing(oldEngine, curEngine *longhorn.Engine, sn
 	}
 
 	return targetSnapshots
+}
+
+func (sc *SnapshotController) enqueueVolumeChange(obj interface{}) {
+	vol, ok := obj.(*longhorn.Volume)
+	if !ok {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
+			return
+		}
+		// use the last known state, to enqueue, dependent objects
+		vol, ok = deletedState.Obj.(*longhorn.Volume)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("DeletedFinalStateUnknown contained invalid object: %#v", deletedState.Obj))
+			return
+		}
+	}
+	if vol.DeletionTimestamp.IsZero() {
+		return
+	}
+
+	snapshots, err := sc.ds.ListVolumeSnapshotsRO(vol.Name)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("snapshot controller failed to list snapshots when enqueuing volume %v: %v", vol.Name, err))
+		return
+	}
+	for _, snap := range snapshots {
+		sc.enqueueSnapshot(snap)
+	}
 }
 
 func (sc *SnapshotController) Run(workers int, stopCh <-chan struct{}) {
@@ -434,7 +475,7 @@ func (sc *SnapshotController) handleSnapshotCreate(snapshot *longhorn.Snapshot, 
 		return err
 	}
 
-	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, sc.ds, sc.logger)
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, sc.ds, sc.logger, sc.proxyConnCounter)
 	if err != nil {
 		return err
 	}
@@ -460,7 +501,7 @@ func (sc *SnapshotController) handleSnapshotDeletion(snapshot *longhorn.Snapshot
 	if err != nil {
 		return err
 	}
-	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, sc.ds, sc.logger)
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, sc.ds, sc.logger, sc.proxyConnCounter)
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ package engineapi
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 
 	"github.com/pkg/errors"
@@ -21,19 +22,23 @@ const (
 	backupStateError      = "error"
 )
 
-type BackupTargetBinaryClient interface {
-	BackupGet(destURL string, credential map[string]string) (*Backup, error)
-	BackupVolumeGet(destURL string, credential map[string]string) (volume *BackupVolume, err error)
-	BackupNameList(destURL, volumeName string, credential map[string]string) (names []string, err error)
-	BackupVolumeNameList(destURL string, credential map[string]string) (names []string, err error)
-	BackupDelete(destURL string, credential map[string]string) (err error)
-	BackupVolumeDelete(destURL, volumeName string, credential map[string]string) (err error)
-	BackupConfigMetaGet(destURL string, credential map[string]string) (*ConfigMetadata, error)
-}
-
-type BackupTargetConfig struct {
+type BackupTargetClient struct {
+	Image      string
 	URL        string
 	Credential map[string]string
+}
+
+// NewBackupTargetClient returns the backup target client
+func NewBackupTargetClient(defaultEngineImage, url string, credential map[string]string) *BackupTargetClient {
+	return &BackupTargetClient{
+		Image:      defaultEngineImage,
+		URL:        url,
+		Credential: credential,
+	}
+}
+
+func (btc *BackupTargetClient) LonghornEngineBinary() string {
+	return filepath.Join(types.GetEngineBinaryDirectoryOnHostForImage(btc.Image), "longhorn")
 }
 
 // getBackupCredentialEnv returns the environment variables as KEY=VALUE in string slice
@@ -72,6 +77,22 @@ func getBackupCredentialEnv(backupTarget string, credential map[string]string) (
 	return envs, nil
 }
 
+func (btc *BackupTargetClient) ExecuteEngineBinary(args ...string) (string, error) {
+	envs, err := getBackupCredentialEnv(btc.URL, btc.Credential)
+	if err != nil {
+		return "", err
+	}
+	return util.Execute(envs, btc.LonghornEngineBinary(), args...)
+}
+
+func (btc *BackupTargetClient) ExecuteEngineBinaryWithoutTimeout(args ...string) (string, error) {
+	envs, err := getBackupCredentialEnv(btc.URL, btc.Credential)
+	if err != nil {
+		return "", err
+	}
+	return util.ExecuteWithoutTimeout(envs, btc.LonghornEngineBinary(), args...)
+}
+
 // parseBackupVolumeNamesList parses a list of backup volume names into a sorted string slice
 func parseBackupVolumeNamesList(output string) ([]string, error) {
 	data := map[string]struct{}{}
@@ -85,6 +106,18 @@ func parseBackupVolumeNamesList(output string) ([]string, error) {
 	}
 	sort.Strings(volumeNames)
 	return volumeNames, nil
+}
+
+// BackupVolumeNameList returns a list of backup volume names
+func (btc *BackupTargetClient) BackupVolumeNameList(destURL string, credential map[string]string) ([]string, error) {
+	output, err := btc.ExecuteEngineBinary("backup", "ls", "--volume-only", btc.URL)
+	if err != nil {
+		if types.ErrorIsNotFound(err) {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "error listing backup volume names")
+	}
+	return parseBackupVolumeNamesList(output)
 }
 
 // parseBackupNamesList parses a list of backup names into a sorted string slice
@@ -110,6 +143,34 @@ func parseBackupNamesList(output, volumeName string) ([]string, error) {
 	return backupNames, nil
 }
 
+// BackupNameList returns a list of backup names
+func (btc *BackupTargetClient) BackupNameList(destURL, volumeName string, credential map[string]string) ([]string, error) {
+	if volumeName == "" {
+		return nil, nil
+	}
+	output, err := btc.ExecuteEngineBinary("backup", "ls", "--volume", volumeName, btc.URL)
+	if err != nil {
+		if types.ErrorIsNotFound(err) {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "error listing volume %s backup", volumeName)
+	}
+	return parseBackupNamesList(output, volumeName)
+}
+
+// BackupVolumeDelete deletes the backup volume from the remote backup target
+func (btc *BackupTargetClient) BackupVolumeDelete(destURL, volumeName string, credential map[string]string) error {
+	_, err := btc.ExecuteEngineBinaryWithoutTimeout("backup", "rm", "--volume", volumeName, btc.URL)
+	if err != nil {
+		if types.ErrorIsNotFound(err) {
+			return nil
+		}
+		return errors.Wrapf(err, "error deleting backup volume")
+	}
+	logrus.Infof("Complete deleting backup volume %s", volumeName)
+	return nil
+}
+
 // parseBackupVolumeConfig parses a backup volume config
 func parseBackupVolumeConfig(output string) (*BackupVolume, error) {
 	backupVolume := new(BackupVolume)
@@ -117,6 +178,18 @@ func parseBackupVolumeConfig(output string) (*BackupVolume, error) {
 		return nil, errors.Wrapf(err, "error parsing one backup volume config: \n%s", output)
 	}
 	return backupVolume, nil
+}
+
+// BackupVolumeGet inspects a backup volume config with the given volume config URL
+func (btc *BackupTargetClient) BackupVolumeGet(backupVolumeURL string, credential map[string]string) (*BackupVolume, error) {
+	output, err := btc.ExecuteEngineBinary("backup", "inspect-volume", backupVolumeURL)
+	if err != nil {
+		if types.ErrorIsNotFound(err) {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "error getting backup volume config %s", backupVolumeURL)
+	}
+	return parseBackupVolumeConfig(output)
 }
 
 // parseBackupConfig parses a backup config
@@ -128,6 +201,18 @@ func parseBackupConfig(output string) (*Backup, error) {
 	return backup, nil
 }
 
+// BackupGet inspects a backup config with the given backup config URL
+func (btc *BackupTargetClient) BackupGet(backupConfigURL string, credential map[string]string) (*Backup, error) {
+	output, err := btc.ExecuteEngineBinary("backup", "inspect", backupConfigURL)
+	if err != nil {
+		if types.ErrorIsNotFound(err) {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "error getting backup config %s", backupConfigURL)
+	}
+	return parseBackupConfig(output)
+}
+
 // parseConfigMetadata parses the config metadata
 func parseConfigMetadata(output string) (*ConfigMetadata, error) {
 	metadata := new(ConfigMetadata)
@@ -135,6 +220,31 @@ func parseConfigMetadata(output string) (*ConfigMetadata, error) {
 		return nil, errors.Wrapf(err, "error parsing config metadata: \n%s", output)
 	}
 	return metadata, nil
+}
+
+// BackupConfigMetaGet returns the config metadata with the given URL
+func (btc *BackupTargetClient) BackupConfigMetaGet(url string, credential map[string]string) (*ConfigMetadata, error) {
+	output, err := btc.ExecuteEngineBinary("backup", "head", url)
+	if err != nil {
+		if types.ErrorIsNotFound(err) {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "error getting config metadata %s", url)
+	}
+	return parseConfigMetadata(output)
+}
+
+// BackupDelete deletes the backup from the remote backup target
+func (btc *BackupTargetClient) BackupDelete(backupURL string, credential map[string]string) error {
+	_, err := btc.ExecuteEngineBinaryWithoutTimeout("backup", "rm", backupURL)
+	if err != nil {
+		if types.ErrorIsNotFound(err) {
+			return nil
+		}
+		return errors.Wrapf(err, "error deleting backup %v", backupURL)
+	}
+	logrus.Infof("Complete deleting backup %s", backupURL)
+	return nil
 }
 
 // SnapshotBackup calls engine binary

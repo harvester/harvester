@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	v1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -195,7 +196,33 @@ func (kc *KubernetesPodController) handlePodDeletionIfNodeDown(pod *v1.Pod, node
 		return nil
 	}
 
-	if pod.DeletionTimestamp == nil || pod.DeletionTimestamp.After(time.Now()) {
+	if pod.DeletionTimestamp == nil {
+		return nil
+	}
+
+	// make sure the volumeattachments of the pods are gone first
+	// ref: https://github.com/longhorn/longhorn/issues/2947
+	vas, err := kc.getVolumeAttachmentsOfPod(pod)
+	if err != nil {
+		return err
+	}
+	for _, va := range vas {
+		if va.DeletionTimestamp == nil {
+			err := kc.kubeClient.StorageV1().VolumeAttachments().Delete(context.TODO(), va.Name, metav1.DeleteOptions{})
+			if err != nil {
+				if datastore.ErrorIsNotFound(err) {
+					continue
+				}
+				return err
+			}
+			kc.logger.Infof("%v: deleted volume attachment %v for pod %v on downed node %v", controllerAgentName, va.Name, pod.Name, nodeID)
+		}
+		// wait the volumeattachment object to be deleted
+		kc.logger.Infof("%v: wait for volume attachment %v for pod %v on downed node %v to be deleted", controllerAgentName, va.Name, pod.Name, nodeID)
+		return nil
+	}
+
+	if pod.DeletionTimestamp.After(time.Now()) {
 		return nil
 	}
 
@@ -209,6 +236,49 @@ func (kc *KubernetesPodController) handlePodDeletionIfNodeDown(pod *v1.Pod, node
 	kc.logger.Infof("%v: Forcefully deleted pod %v on downed node %v", controllerAgentName, pod.Name, nodeID)
 
 	return nil
+}
+
+func (kc *KubernetesPodController) getVolumeAttachmentsOfPod(pod *v1.Pod) ([]*storagev1.VolumeAttachment, error) {
+	res := []*storagev1.VolumeAttachment{}
+	vas, err := kc.ds.ListVolumeAttachmentsRO()
+	if err != nil {
+		return nil, err
+	}
+
+	pvs := make(map[string]bool)
+
+	for _, vol := range pod.Spec.Volumes {
+		if vol.VolumeSource.PersistentVolumeClaim == nil {
+			continue
+		}
+
+		pvc, err := kc.ds.GetPersistentVolumeClaimRO(pod.Namespace, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
+		if err != nil {
+			if datastore.ErrorIsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		pvs[pvc.Spec.VolumeName] = true
+	}
+
+	for _, va := range vas {
+		if va.Spec.NodeName != pod.Spec.NodeName {
+			continue
+		}
+		if va.Spec.Attacher != types.LonghornDriverName {
+			continue
+		}
+		if va.Spec.Source.PersistentVolumeName == nil {
+			continue
+		}
+		if _, ok := pvs[*va.Spec.Source.PersistentVolumeName]; !ok {
+			continue
+		}
+		res = append(res, va)
+	}
+
+	return res, nil
 }
 
 // handlePodDeletionIfVolumeRequestRemount will delete the pod which is using a volume that has requested remount.
@@ -243,6 +313,12 @@ func (kc *KubernetesPodController) handlePodDeletionIfVolumeRequestRemount(pod *
 	if pod.Status.StartTime == nil {
 		return nil
 	}
+
+	// Avoid repeat deletion
+	if pod.DeletionTimestamp != nil {
+		return nil
+	}
+
 	podStartTime := pod.Status.StartTime.Time
 	for _, vol := range volumeList {
 		if vol.Status.RemountRequestedAt == "" {

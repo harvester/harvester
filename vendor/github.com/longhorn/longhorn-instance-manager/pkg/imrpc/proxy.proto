@@ -3,7 +3,6 @@ syntax="proto3";
 package imrpc;
 
 import "google/protobuf/empty.proto";
-import "google/protobuf/timestamp.proto";
 import "github.com/longhorn/longhorn-engine/proto/ptypes/controller.proto";
 import "github.com/longhorn/longhorn-engine/proto/ptypes/syncagent.proto";
 
@@ -28,11 +27,6 @@ service ProxyEngineService {
 	rpc SnapshotBackupStatus(EngineSnapshotBackupStatusRequest) returns (EngineSnapshotBackupStatusProxyResponse);
 	rpc BackupRestore(EngineBackupRestoreRequest) returns (EngineBackupRestoreProxyResponse);
 	rpc BackupRestoreStatus(ProxyEngineRequest) returns (EngineBackupRestoreStatusProxyResponse);
-	rpc BackupVolumeList(EngineBackupVolumeListRequest) returns (EngineBackupVolumeListProxyResponse);
-	rpc BackupVolumeGet(EngineBackupVolumeGetRequest) returns (EngineBackupVolumeGetProxyResponse);
-	rpc BackupGet(EngineBackupGetRequest) returns (EngineBackupGetProxyResponse);
-	rpc BackupConfigMetaGet(EngineBackupConfigMetaGetRequest) returns (EngineBackupConfigMetaGetProxyResponse);
-	rpc BackupRemove(EngineBackupRemoveRequest) returns (google.protobuf.Empty);
 
 	rpc ReplicaAdd(EngineReplicaAddRequest) returns (google.protobuf.Empty);
 	rpc ReplicaList(ProxyEngineRequest) returns (EngineReplicaListProxyResponse);
@@ -187,96 +181,6 @@ message EngineBackupRestoreStatus {
 	string filename = 6;
 	string state = 7;
 	string backup_url = 8;
-}
-
-message EngineBackupVolumeGetRequest {
-	ProxyEngineRequest proxy_engine_request = 1;
-
-	repeated string envs = 2;
-
-	string dest_url = 3;
-}
-
-message EngineBackupVolumeGetProxyResponse {
-	EngineBackupVolumeInfo volume = 1;
-}
-
-message EngineBackupGetRequest {
-	ProxyEngineRequest proxy_engine_request = 1;
-
-	repeated string envs = 2;
-
-	string dest_url = 3;
-}
-
-message EngineBackupGetProxyResponse {
-	EngineBackupInfo backup = 1;
-}
-
-message EngineBackupConfigMetaGetRequest {
-	ProxyEngineRequest proxy_engine_request = 1;
-
-	repeated string envs = 2;
-
-	string dest_url = 3;
-}
-
-message EngineBackupConfigMetaGetProxyResponse {
-	google.protobuf.Timestamp modification_time = 1;
-}
-
-message EngineBackupVolumeListRequest {
-	repeated string envs = 1;
-
-	string dest_url = 2;
-	string volume_name = 3;
-	bool volume_only = 4;
-}
-
-message EngineBackupVolumeListProxyResponse {
-	map<string, EngineBackupVolumeInfo> volumes = 1;
-}
-
-message EngineBackupVolumeInfo {
-	string name = 1;
-	int64 size = 2;
-	map<string, string> labels = 3;
-	string created = 4;
-	string last_backup_name = 5;
-	string last_backup_at = 6;
-	int64 DataStored = 7;
-
-	map<string, string> messages = 8;
-
-	map<string, EngineBackupInfo> backups = 9;
-
-	string backing_image_name = 10;
-	string backing_image_checksum = 11;
-}
-
-message EngineBackupInfo {
-	string name = 1;
-	string url = 2;
-	string snapshot_name = 3;
-	string snapshot_created = 4;
-	string created = 5;
-	int64 size = 6;
-	map<string, string> labels = 7;
-	bool is_incremental = 8;
-
-	string volume_name = 9;
-	int64 volume_size = 10;
-	string volume_created = 11;
-	string volume_backing_image_name = 12; 
-
-	map<string, string> messages = 13;
-}
-
-message EngineBackupRemoveRequest {
-	repeated string envs = 1;
-
-	string dest_url = 2;
-	string volume_name = 3;
 }
 
 message EngineReplicaAddRequest {

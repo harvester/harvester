@@ -19,7 +19,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -70,6 +72,15 @@ func CopyFile(srcPath, dstPath string) (int64, error) {
 	defer dst.Close()
 
 	return io.Copy(dst, src)
+}
+
+func IsGRPCErrorNotFound(err error) bool {
+	return IsGRPCErrorMatchingCode(err, codes.NotFound)
+}
+
+func IsGRPCErrorMatchingCode(err error, errCode codes.Code) bool {
+	gRPCStatus, ok := status.FromError(err)
+	return ok && gRPCStatus.Code() == errCode
 }
 
 func DetectGRPCServerAvailability(address string, waitIntervalInSecond int, shouldAvailable bool) bool {
