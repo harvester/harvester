@@ -290,6 +290,24 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
+# github.com/google/go-containerregistry v0.7.0
+## explicit; go 1.14
+github.com/google/go-containerregistry/internal/and
+github.com/google/go-containerregistry/internal/gzip
+github.com/google/go-containerregistry/internal/redact
+github.com/google/go-containerregistry/internal/retry
+github.com/google/go-containerregistry/internal/retry/wait
+github.com/google/go-containerregistry/internal/verify
+github.com/google/go-containerregistry/pkg/authn
+github.com/google/go-containerregistry/pkg/logs
+github.com/google/go-containerregistry/pkg/name
+github.com/google/go-containerregistry/pkg/v1
+github.com/google/go-containerregistry/pkg/v1/match
+github.com/google/go-containerregistry/pkg/v1/partial
+github.com/google/go-containerregistry/pkg/v1/remote
+github.com/google/go-containerregistry/pkg/v1/remote/transport
+github.com/google/go-containerregistry/pkg/v1/stream
+github.com/google/go-containerregistry/pkg/v1/types
 # github.com/google/gofuzz v1.2.0
 ## explicit; go 1.12
 github.com/google/gofuzz
@@ -756,6 +774,9 @@ github.com/rancher/steve/pkg/summarycache
 github.com/rancher/system-upgrade-controller/pkg/apis/condition
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1
+# github.com/rancher/wharfie v0.5.3
+## explicit; go 1.16
+github.com/rancher/wharfie/pkg/registries
 # github.com/rancher/wrangler v1.0.1-0.20220520195731-8eeded9bae2a
 ## explicit; go 1.17
 github.com/rancher/wrangler/pkg/apply
@@ -861,7 +882,7 @@ github.com/tidwall/pretty
 # github.com/tinylib/msgp v1.1.1-0.20190612170807-0573788bc2a8
 ## explicit
 github.com/tinylib/msgp/msgp
-# github.com/urfave/cli v1.22.2
+# github.com/urfave/cli v1.22.4
 ## explicit; go 1.11
 github.com/urfave/cli
 # github.com/willf/bitset v1.1.11
@@ -952,6 +973,12 @@ go.starlark.net/resolve
 go.starlark.net/starlark
 go.starlark.net/starlarkstruct
 go.starlark.net/syntax
+# go.uber.org/atomic v1.7.0
+## explicit; go 1.13
+go.uber.org/atomic
+# go.uber.org/multierr v1.6.0
+## explicit; go 1.12
+go.uber.org/multierr
 # golang.org/x/crypto v0.0.0-20220321153916-2c7772ba3064
 ## explicit; go 1.17
 golang.org/x/crypto/acme
