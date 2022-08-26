@@ -782,6 +782,23 @@ spec:
                         required:
                         - name
                         type: object
+                      preference:
+                        description: PreferenceMatcher references a set of preference
+                          that is used to fill fields in Template
+                        properties:
+                          kind:
+                            description: 'Kind specifies which preference resource
+                              is referenced. Allowed values are: "VirtualMachinePreference"
+                              and "VirtualMachineClusterPreference". If not specified,
+                              "VirtualMachineClusterPreference" is used by default.'
+                            type: string
+                          name:
+                            description: Name is the name of the VirtualMachinePreference
+                              or VirtualMachineClusterPreference
+                            type: string
+                        required:
+                        - name
+                        type: object
                       runStrategy:
                         description: Running state indicates the requested running
                           state of the VirtualMachineInstance mutually exclusive with
@@ -3925,6 +3942,28 @@ spec:
                                       required:
                                       - path
                                       - type
+                                      type: object
+                                    memoryDump:
+                                      description: MemoryDump is attached to the virt
+                                        launcher and is populated with a memory dump
+                                        of the vmi
+                                      properties:
+                                        claimName:
+                                          description: 'ClaimName is the name of a
+                                            PersistentVolumeClaim in the same namespace
+                                            as the pod using this volume. More info:
+                                            https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims'
+                                          type: string
+                                        hotpluggable:
+                                          description: Hotpluggable indicates whether
+                                            the volume can be hotplugged and hotunplugged.
+                                          type: boolean
+                                        readOnly:
+                                          description: Will force the ReadOnly setting
+                                            in VolumeMounts. Default false.
+                                          type: boolean
+                                      required:
+                                      - claimName
                                       type: object
                                     name:
                                       description: 'Volume''s name. Must be a DNS_LABEL
