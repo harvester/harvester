@@ -142,8 +142,11 @@ func (h *PromoteHandler) OnJobChanged(key string, job *batchv1.Job) (*batchv1.Jo
 		return job, err
 	}
 
-	job, err = h.setPromoteResult(job, node, PromoteStatusComplete)
-	if err != nil {
+	if ConditionJobComplete.IsTrue(job) {
+		return h.setPromoteResult(job, node, PromoteStatusComplete)
+	}
+
+	if ConditionJobFailed.IsTrue(job) {
 		return h.setPromoteResult(job, node, PromoteStatusFailed)
 	}
 
@@ -220,7 +223,7 @@ func (h *PromoteHandler) setPromoteStart(node *corev1.Node) (*corev1.Node, error
 	h.logPromoteEvent(node, PromoteStatusRunning)
 	toUpdate := node.DeepCopy()
 	toUpdate.Annotations[HarvesterPromoteStatusAnnotationKey] = PromoteStatusRunning
-	toUpdate.Spec.Unschedulable = false
+	//toUpdate.Spec.Unschedulable = true
 	return h.nodes.Update(toUpdate)
 }
 
