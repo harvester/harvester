@@ -43,8 +43,8 @@ replace (
 	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.23.7
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.23.7
 
-	kubevirt.io/api => github.com/kubevirt/api v0.53.1
-	kubevirt.io/client-go => github.com/kubevirt/client-go v0.53.1
+	kubevirt.io/api => github.com/kubevirt/api v0.54.0
+	kubevirt.io/client-go => github.com/kubevirt/client-go v0.54.0
 	sigs.k8s.io/cluster-api => sigs.k8s.io/cluster-api v1.1.4
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2
 )
@@ -97,9 +97,9 @@ require (
 	k8s.io/gengo v0.0.0-20211129171323-c02415ce4185
 	k8s.io/kube-openapi v0.0.0-20220124234850-424119656bbf
 	k8s.io/utils v0.0.0-20211116205334-6203023598ed
-	kubevirt.io/api v0.0.0-20220430221853-33880526e414
+	kubevirt.io/api v0.54.0
 	kubevirt.io/containerized-data-importer-api v1.47.0
-	kubevirt.io/kubevirt v0.53.1
+	kubevirt.io/kubevirt v0.54.0
 	sigs.k8s.io/cluster-api v0.4.4
 	sigs.k8s.io/kind v0.14.0
 	sigs.k8s.io/yaml v1.3.0
@@ -273,7 +273,6 @@ require (
 	k8s.io/kube-aggregator v0.24.0 // indirect
 	k8s.io/kubectl v0.23.1 // indirect
 	k8s.io/kubernetes v1.23.6 // indirect
-	kubevirt.io/client-go v0.49.0 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	oras.land/oras-go v1.1.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect

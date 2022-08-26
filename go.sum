@@ -1162,10 +1162,10 @@ github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1/go.mod h1:dV5oB3U62KBdl
 github.com/kubernetes-sigs/kube-storage-version-migrator v0.0.0-20191127225502-51849bc15f17/go.mod h1:enH0BVV+4+DAgWdwSlMefG8bBzTfVMTr1lApzdLZ/cc=
 github.com/kubernetes/dashboard v1.10.1 h1:RsBRF5S8DBH7lqGDJ8LjNiRt0C6PIvVeBrmuqmi/i3c=
 github.com/kubernetes/dashboard v1.10.1/go.mod h1:SLnjPMuDgwsEIPHCsd3eeMLm3mOvZijuujWxS9yT8xE=
-github.com/kubevirt/api v0.53.1 h1:h/Laxi9/X7pkc18zOUKU8PBKMUm6oLqInfax8pxK2ow=
-github.com/kubevirt/api v0.53.1/go.mod h1:mK8ilpVLcZraqgo7hv2OSNQ5vdsA3G9Pxn8LY2/1+IY=
-github.com/kubevirt/client-go v0.53.1 h1:BIfA2o/itC0NcQ7/l/htnF2+Oh+wufpmnDYiSwWL4IU=
-github.com/kubevirt/client-go v0.53.1/go.mod h1:3FN4GQaV8iJEaRZgc63FVJ+ytk82s2pRumFUB9xs+MY=
+github.com/kubevirt/api v0.54.0 h1:LFGZ145MFwD2ErvfLhlDrUDxFEBkX+b3cvu3xepoSyM=
+github.com/kubevirt/api v0.54.0/go.mod h1:mK8ilpVLcZraqgo7hv2OSNQ5vdsA3G9Pxn8LY2/1+IY=
+github.com/kubevirt/client-go v0.54.0 h1:f4lwWcjrySKi/ILXQoRm6HU/6MYponnexqxPWWTyhoc=
+github.com/kubevirt/client-go v0.54.0/go.mod h1:g1p4OSfkmppfAxZkijf6nnVOqDVRhXUwvRefX9rnTCw=
 github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 h1:SOEGU9fKiNWd/HOJuq6+3iTQz8KNCLtVX6idSoTLdUw=
@@ -1612,8 +1612,6 @@ github.com/rancher/channelserver v0.5.1-0.20210618172430-5cbefd383369/go.mod h1:
 github.com/rancher/dynamiclistener v0.2.1-0.20200714201033-9c1939da3af9/go.mod h1:qr0QfhwzcVCR+Ao9WyfnE+jmOpfEAdRhXtNOZGJ3nCQ=
 github.com/rancher/dynamiclistener v0.2.1-0.20200910203214-85f32491cb09/go.mod h1:qr0QfhwzcVCR+Ao9WyfnE+jmOpfEAdRhXtNOZGJ3nCQ=
 github.com/rancher/dynamiclistener v0.3.1-0.20211104200948-cd5d71f2fe95/go.mod h1:xbxyiF1/UaPrOrFUOZeYMQW82RPgZIe5UfiT9CyE3Ks=
-github.com/rancher/dynamiclistener v0.3.3 h1:pNwVc3vzuEHsbqAh1e76asq4aeDzHFV/5Ha/fMsk6EA=
-github.com/rancher/dynamiclistener v0.3.3/go.mod h1:QwTpy+drx4gvPMefrrUUKpVaWiy74O7vNvkwBXJ+s3E=
 github.com/rancher/dynamiclistener v0.3.4 h1:URGBzqGYD6zfFTy4WQ4w1zNm+B+1XVkwcSu61DXq5XY=
 github.com/rancher/dynamiclistener v0.3.4/go.mod h1:QwTpy+drx4gvPMefrrUUKpVaWiy74O7vNvkwBXJ+s3E=
 github.com/rancher/eks-operator v1.0.6/go.mod h1:GB2kyPtIN0r+DGlUcDgEUMsB4qRwZH7OKsraemZT+GA=
@@ -2897,8 +2895,8 @@ kubevirt.io/controller-lifecycle-operator-sdk v0.1.2/go.mod h1:M+UuZsp90mmKUVGb5
 kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 h1:QMrd0nKP0BGbnxTqakhDZAUhGKxPiPiN5gSDqKUmGGc=
 kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90/go.mod h1:018lASpFYBsYN6XwmA2TIrPCx6e0gviTd/ZNtSitKgc=
 kubevirt.io/kubevirt v0.40.0/go.mod h1:ict4gmDJ/mOHvI8/pF3LIsOUMmJqaEo0/CHsbLLDj8w=
-kubevirt.io/kubevirt v0.53.1 h1:6ZFu+msiiqWmn9jHFPoqF1g7qsc0XJaYs4NexkBwF6M=
-kubevirt.io/kubevirt v0.53.1/go.mod h1:5bTNJ+dZcfUiCV9QToT38sK6R5VW+oiTqb4YSwCVi0g=
+kubevirt.io/kubevirt v0.54.0 h1:BKs0j+/ep4xGWcis3uIQzRZbFXuTy8ttUsX/r9mFBIE=
+kubevirt.io/kubevirt v0.54.0/go.mod h1:5bTNJ+dZcfUiCV9QToT38sK6R5VW+oiTqb4YSwCVi0g=
 kubevirt.io/qe-tools v0.1.6/go.mod h1:PJyH/YXC4W0AmxfheDmXWMbLNsMSboVGXKpMAwfKzVE=
 launchpad.net/gocheck v0.0.0-20140225173054-000000000087/go.mod h1:hj7XX3B/0A+80Vse0e+BUHsHMTEhd0O4cpUHr/e/BUM=
 libvirt.org/libvirt-go v6.5.0+incompatible/go.mod h1:CPoljLoiC2aEw+62g1rZXl2oXAJaNsrq4YCSmJOELek=
