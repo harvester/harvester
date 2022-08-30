@@ -72,15 +72,51 @@ flowchart TB
 ## Proposal
 ### User Stories
 #### Story 1
-SR-IOV in the host cluster, with VMs being assigned host VFs.
+SR-IOV in the host cluster. VMs running in a Harvester bare metal cluster are running inside host pods.
 
-Without SR-IOV, Alice's 8 VMs are bottlenecked on network I/O. 
-So if all 8 VMs are generating a stream of data, only one stream at a time is being copied into the PF's buffer. 
-This leads to sub-optimal streaming performance.
+![host cluster SR-IOV](20220614-single-root-io-virtualization/host-cluster-sriov.png)
 
-With SR-IOV enabled, Alice's 8 VMs are no longer bottlenecked when streaming, they can take full advantage of the 
-network card's true speed. The VMs each believe they have their own NIC, and then the SR-IOV-enabled driver in the host OS 
-will optimize the throughput based on it's physical hardware limits, not based on the software limits of the hypervisor.
+When the guest pod needs a VF, it makes an HTTP request to the host cluster's api-server. The request is `POST /apis/v1beta1/devices.harvesterhci.io/vfclaim` to create a VF claim for itself. If that host has free VFs, then the `vf-allocator` decrements the number of allocatable vfs on that node.
+
+The `vf-allocator` attaches the VF using a Multus CNI configuration and recreates the VMI pod.
+
+The `vf-allocator` then prepares the new VMI pod 
+
+
+## Diagram of how a guest pod requests a VF
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant h as Harvester host 1
+  participant vm1 as VM Guest Host 1
+  participant g as Guest pod 1
+  Note left of h: Starting a guest cluster
+  h ->> vm1: Create VM
+  vm1 ->> g: Create Guest pod 1
+  Note right of g: Guest cluster pod running.
+  Note right of g: pod needs a VF
+  g ->> h: POST (create VF claim)
+  h ->> h: Creates VF claim, decrement node.vfCount
+  h ->> h: Attach CNI Config to VM Guest Host 1 with new VF
+  h ->> vm1: Recreate vm1's kubevirt pod
+  Note right of vm1: When CNI config changes, pod needs restart
+  vm1 -->> vm1: Restart in new kubevirt pod
+
+  h ->> vm1: Prepare VF for PCI Passthrough
+  Note right of vm1: in kubevirt pod, the VF has a PCI Address
+  Note right of vm1: the PCI Address can be bound to vfio-pci
+  Note right of vm1: vfio-pci will allow the VM to own that VF directly
+  vm1 -->> vm1: bind VF's PCI Address to vfio-pci
+  h ->> vm1: If VF is bound to vfio-pci, then edit VM template
+  Note right of vm1: VM template has hostDevices set with vendorId and deviceId of VF
+  vm1 -->> vm1: Restart in new kubevirt pod
+  vm1 ->> g: Re-Create Guest pod 1
+  Note right of g: Guest pod 1 now has a VF
+```
+
+
+
 
 #### Story 2
 SR-IOV in the guest cluster, with [pci-passthrough](20220722-pci-passthrough.md) enabled. 
@@ -112,10 +148,10 @@ flowchart TB
 #### Story 1 in detail
 [Story 1 summary](#story-1)
 
-Alice has a baremetal Harvester cluster where each node has an Intel E800 
+Bob has a baremetal Harvester cluster where each node has an Intel E800 
 Series Ethernet controller that can support 8 VFs.
 
-Alice enables SR-IOV by changing the value of the `sriov-config` setting to:
+Bob enables SR-IOV by changing the value of the `sriov-config` setting to:
 ```json
 {
   "sriov_enabled": true,
@@ -159,21 +195,21 @@ Harvester checks the ``SriovNetworkNodeState`` object (automatically built by th
 The choice of `pfNames` with a range of NIC names assumes that all the machines in the cluster have the same hardware.
 This sets up a pool of VF resources that can be allocated to VM pods automatically by the `sriov-network-operator`'s CNI plugin.
 
-The `SriovNetworkNodePolicy` is an implementation detail that Alice doesn't have to directly work with. 
-She just sets the `sriov-config` object and Harvester instructs the sriov-network-operator what Alice intends to do.
+The `SriovNetworkNodePolicy` is an implementation detail that Bob doesn't have to directly work with. 
+She just sets the `sriov-config` object and Harvester instructs the sriov-network-operator what Bob intends to do.
 This was an explicit design choice to simplify the user experience.
 
 After the driver is reloaded with the desired number of VFs, and the operator and cert-manager are installed, the operator begins to search the nodes on the network tagged with `feature.node.kubernetes.io/network-sriov.capable: "true"`. The operator then finds all the SR-IOV PFs and VFs for that node, and then builds up the `SriovNetworkNodeState` for that node.
 
-Alice now has to create an `SriovNetwork`. 
+Bob now has to create an `SriovNetwork`. 
 The `SriovNetwork` is used to assign VFs to VMs.
 
-To create an `SriovNetwork`, Alice goes to the Advanced menu:
+To create an `SriovNetwork`, Bob goes to the Advanced menu:
 
 ![advanced sriov](20220614-single-root-io-virtualization/advanced-sriov-networks.png) 
 
 After creating the `SriovNetwork` object, the operator will create a corresponding `NetworkAttachmentDefinition` with the same name.
-This `NetworkAttachmentDefinition` will be visible from the Advanced Networks UI. When Alice attaches a VM to the `SriovNetwork`, 
+This `NetworkAttachmentDefinition` will be visible from the Advanced Networks UI. When Bob attaches a VM to the `SriovNetwork`, 
 the operator's network resources injector will add the `resource` field to the first container of the pod. This will give the VM access to a VF.
 
 #### Story 2 in detail
