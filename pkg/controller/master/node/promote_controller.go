@@ -246,53 +246,83 @@ func (h *PromoteHandler) setPromoteResult(job *batchv1.Job, node *corev1.Node, s
 // If the cluster doesn't need to be promoted, return nil
 func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	var (
-		managementNumber     int
-		managementRoleNumber int
-		canPromoteNumber     int
-		promoteNode          *corev1.Node
+		promoteNode                             *corev1.Node
+		healthyHarvesterWorkers                 []*corev1.Node
+		managementOrHealthyHarvesterWorkerZones = make(map[string]bool)
+		managementZones                         = make(map[string]bool)
+		managementNumber                        int
 	)
 
-	promoteNode = nil
+	nodeNumber := len(nodeList)
+	canBeManagementNodeCount := nodeNumber
 	for _, node := range nodeList {
-		if isManagementRole(node) {
+		isManagement := isManagementRole(node)
+
+		if isManagement {
 			managementNumber++
-			managementRoleNumber++
-		} else if hasPromoteStatus(node) {
-			managementNumber++
-		} else if isHarvesterNode(node) && isHealthyNode(node) {
-			canPromoteNumber++
+		}
+
+		// return if there are already enough management nodes
+		if managementNumber == defaultSpecManagementNumber {
+			return nil
+		}
+
+		// return if the management node count is equal to the total amount of nodes (there are no more nodes left to promote)
+		if managementNumber == nodeNumber {
+			return nil
+		}
+
+		// worker promotion is complete but node is not yet labeled as a management node
+		if !isManagement && isPromoteStatusIn(node, PromoteStatusComplete) {
+			return nil
+		}
+
+		// wait until the node promotion is completed or the failed or unknown status is cleared
+		if isPromoteStatusIn(node, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown) {
+			return nil
+		}
+
+		zone := node.Labels[corev1.LabelTopologyZone]
+		if isManagement {
+			if zone != "" {
+				managementZones[zone] = true
+				managementOrHealthyHarvesterWorkerZones[zone] = true
+			}
+		} else if isHealthyNode(node) && isHarvesterNode(node) {
+			if zone != "" {
+				managementOrHealthyHarvesterWorkerZones[zone] = true
+			}
+			healthyHarvesterWorkers = append(healthyHarvesterWorkers, node)
+		} else {
+			canBeManagementNodeCount--
+		}
+
+		// return if there are no enough nodes can be management node
+		if canBeManagementNodeCount < defaultSpecManagementNumber {
+			return nil
+		}
+	}
+
+	// return if there are no enough zones
+	hasZones := len(managementZones) > 0
+	hasEnoughZones := len(managementOrHealthyHarvesterWorkerZones) >= defaultSpecManagementNumber
+	if hasZones && !hasEnoughZones {
+		return nil
+	}
+
+	promoteNode = nil
+	for _, node := range healthyHarvesterWorkers {
+		zone := node.Labels[corev1.LabelTopologyZone]
+		hasNewZone := zone != "" && !managementZones[zone]
+		if !hasZones || hasNewZone {
 			if promoteNode == nil || node.CreationTimestamp.Before(&promoteNode.CreationTimestamp) {
 				promoteNode = node
 			}
 		}
 	}
 
-	// waiting for the other node completed
-	if managementRoleNumber != managementNumber {
-		return nil
-	}
-
-	// there is no need to promote if the spec number has been reached
-	specManagementNumber := getSpecManagementNumber(len(nodeList))
-	promoteNodeNumber := specManagementNumber - managementNumber
-	if promoteNodeNumber <= 0 {
-		return nil
-	}
-
-	// make sure have enough nodes can be promote
-	if canPromoteNumber < promoteNodeNumber {
-		return nil
-	}
-
+	// promote the oldest node
 	return promoteNode
-}
-
-// getSpecMasterNumber get spec management number by all node number
-func getSpecManagementNumber(nodeNumber int) int {
-	if nodeNumber < 3 {
-		return 1
-	}
-	return defaultSpecManagementNumber
 }
 
 // isHealthyNode determine whether it's an healthy node
@@ -330,11 +360,6 @@ func isManagementRole(node *corev1.Node) bool {
 	}
 
 	return false
-}
-
-func hasPromoteStatus(node *corev1.Node) bool {
-	_, ok := node.Annotations[HarvesterPromoteStatusAnnotationKey]
-	return ok
 }
 
 func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {

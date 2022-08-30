@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/satori/go.uuid"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -97,5 +97,5 @@ func Now() string {
 }
 
 func UUID() string {
-	return uuid.NewV4().String()
+	return uuid.New().String()
 }

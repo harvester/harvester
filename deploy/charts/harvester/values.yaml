@@ -316,17 +316,9 @@ jobs:
         ##
         image:
 
-          ## Specify the pull policy of image.
+          ## Note we use the harvester-upgrade image. It contains kubectl.
           ##
           imagePullPolicy: IfNotPresent
-
-          ## Specify the repository of image.
-          ##
-          repository: bitnami/kubectl
-
-          ## Specify the tag of image.
-          ##
-          tag: 1.18.6
 
         ## Specify the resources.
         ##
@@ -445,8 +437,8 @@ support-bundle-kit:
     repository: rancher/support-bundle-kit
     tag: master-head
 
-loop-device-cleaner:
+generalJob:
   image:
     imagePullPolicy: IfNotPresent
-    repository: alpine
-    tag: 3.12
+    repository: registry.suse.com/bci/bci-base
+    tag: 15.3

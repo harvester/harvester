@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	defaultVMTemplates        = 3
-	defaultVMTemplateVersions = 3
+	defaultVMTemplates        = 4
+	defaultVMTemplateVersions = 4
 )
 
 var _ = Describe("verify vm template APIs", func() {

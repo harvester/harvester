@@ -62,7 +62,7 @@ spec:
 {{- end }}
       containers:
         - name: pre-delete
-          image: {{ .Values.jobs.preDelete.containers.kubectl.image.repository }}:{{ .Values.jobs.preDelete.containers.kubectl.image.tag }}
+          image: {{ .Values.upgrade.image.repository }}:{{ .Values.upgrade.image.tag }}
           imagePullPolicy: {{ .Values.jobs.preDelete.containers.kubectl.image.imagePullPolicy }}
           command: ["/bin/bash", "-c"]
           args:

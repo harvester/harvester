@@ -11,13 +11,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -25,8 +24,7 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/longhorn/longhorn-manager/datastore"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 )
@@ -43,19 +41,13 @@ type ShareManagerController struct {
 
 	ds *datastore.DataStore
 
-	smStoreSynced cache.InformerSynced
-	vStoreSynced  cache.InformerSynced
-	pStoreSynced  cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewShareManagerController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-
-	shareManagerInformer lhinformers.ShareManagerInformer,
-	volumeInformer lhinformers.VolumeInformer,
-	podInformer coreinformers.PodInformer,
 
 	kubeClient clientset.Interface,
 	namespace, controllerID, serviceAccount string) *ShareManagerController {
@@ -79,28 +71,26 @@ func NewShareManagerController(
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-share-manager-controller"}),
 
 		ds: ds,
-
-		smStoreSynced: shareManagerInformer.Informer().HasSynced,
-		vStoreSynced:  volumeInformer.Informer().HasSynced,
-		pStoreSynced:  podInformer.Informer().HasSynced,
 	}
 
 	// need shared volume manager informer
-	shareManagerInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.ShareManagerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueShareManager,
 		UpdateFunc: func(old, cur interface{}) { c.enqueueShareManager(cur) },
 		DeleteFunc: c.enqueueShareManager,
 	})
+	c.cacheSyncs = append(c.cacheSyncs, ds.ShareManagerInformer.HasSynced)
 
 	// need information for volumes, to be able to claim them
-	volumeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.VolumeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueShareManagerForVolume,
 		UpdateFunc: func(old, cur interface{}) { c.enqueueShareManagerForVolume(cur) },
 		DeleteFunc: c.enqueueShareManagerForVolume,
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.VolumeInformer.HasSynced)
 
 	// we are only interested in pods for which we are responsible for managing
-	podInformer.Informer().AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
+	ds.PodInformer.AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
 		FilterFunc: isShareManagerPod,
 		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.enqueueShareManagerForPod,
@@ -108,6 +98,7 @@ func NewShareManagerController(
 			DeleteFunc: c.enqueueShareManagerForPod,
 		},
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.PodInformer.HasSynced)
 
 	return c
 }
@@ -136,7 +127,7 @@ func (c *ShareManagerController) enqueueShareManager(obj interface{}) {
 func (c *ShareManagerController) enqueueShareManagerForVolume(obj interface{}) {
 	volume, isVolume := obj.(*longhorn.Volume)
 	if !isVolume {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -163,7 +154,7 @@ func (c *ShareManagerController) enqueueShareManagerForVolume(obj interface{}) {
 func (c *ShareManagerController) enqueueShareManagerForPod(obj interface{}) {
 	pod, isPod := obj.(*v1.Pod)
 	if !isPod {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -183,13 +174,13 @@ func (c *ShareManagerController) enqueueShareManagerForPod(obj interface{}) {
 	c.logger.WithField("pod", pod.Name).WithField("shareManager", smName).Trace("Enqueuing share manager for pod")
 	key := pod.Namespace + "/" + smName
 	c.queue.Add(key)
-	return
+
 }
 
 func isShareManagerPod(obj interface{}) bool {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			return false
 		}
@@ -217,8 +208,7 @@ func (c *ShareManagerController) Run(workers int, stopCh <-chan struct{}) {
 	c.logger.Infof("Start Longhorn share manager controller")
 	defer c.logger.Infof("Shutting down Longhorn share manager controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn-share-manager-controller", stopCh,
-		c.smStoreSynced, c.vStoreSynced, c.pStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn-share-manager-controller", stopCh, c.cacheSyncs...) {
 		return
 	}
 	for i := 0; i < workers; i++ {
@@ -811,7 +801,7 @@ func (c *ShareManagerController) createPodManifest(sm *longhorn.ShareManager, an
 					// Command: []string{"longhorn-share-manager"},
 					Args: args,
 					ReadinessProbe: &v1.Probe{
-						Handler: v1.Handler{
+						ProbeHandler: v1.ProbeHandler{
 							Exec: &v1.ExecAction{
 								Command: []string{"cat", "/var/run/ganesha.pid"},
 							},

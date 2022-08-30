@@ -117,23 +117,35 @@ func reconcileService(oldObj, newObj runtime.Object) (bool, error) {
 }
 
 func reconcileJob(oldObj, newObj runtime.Object) (bool, error) {
-	oldSvc, ok := oldObj.(*batchv1.Job)
+	oldJob, ok := oldObj.(*batchv1.Job)
 	if !ok {
-		oldSvc = &batchv1.Job{}
-		if err := convertObj(oldObj, oldSvc); err != nil {
+		oldJob = &batchv1.Job{}
+		if err := convertObj(oldObj, oldJob); err != nil {
 			return false, err
 		}
 	}
 
-	newSvc, ok := newObj.(*batchv1.Job)
+	newJob, ok := newObj.(*batchv1.Job)
 	if !ok {
-		newSvc = &batchv1.Job{}
-		if err := convertObj(newObj, newSvc); err != nil {
+		newJob = &batchv1.Job{}
+		if err := convertObj(newObj, newJob); err != nil {
 			return false, err
 		}
 	}
 
-	if !equality.Semantic.DeepEqual(oldSvc.Spec.Template, newSvc.Spec.Template) {
+	// We round trip the object here because when serializing to the applied
+	// annotation values are truncated to 64 bytes.
+	prunedJob, err := getOriginalObject(newJob.GroupVersionKind(), newJob)
+	if err != nil {
+		return false, err
+	}
+
+	newPrunedJob := &batchv1.Job{}
+	if err := convertObj(prunedJob, newPrunedJob); err != nil {
+		return false, err
+	}
+
+	if !equality.Semantic.DeepEqual(oldJob.Spec.Template, newPrunedJob.Spec.Template) {
 		return false, ErrReplace
 	}
 

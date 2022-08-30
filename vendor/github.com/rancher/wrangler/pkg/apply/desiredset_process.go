@@ -346,9 +346,11 @@ func (o *desiredSet) list(namespaced bool, informer cache.SharedIndexInformer, c
 	)
 
 	if informer == nil {
-		// if a lister namespace is set assume all objects belong to the listerNamespace
-		// otherwise use distinct namespaces from the desired objects
-		// (even if not namespaced as we'll get a single empty namespace in this case which is working OK)
+		// If a lister namespace is set, assume all objects belong to the listerNamespace.  If the
+		// desiredSet has an owner but no lister namespace, list objects from all namespaces to ensure
+		// we're cleaning up any owned resources.  Otherwise, search only objects from the namespaces
+		// used by the objects.  Note: desiredSets without owners will never return objects to delete;
+		// deletion requires an owner to track object references across multiple apply runs.
 		var namespaces []string
 		if o.listerNamespace != "" {
 			namespaces = append(namespaces, o.listerNamespace)
@@ -356,13 +358,26 @@ func (o *desiredSet) list(namespaced bool, informer cache.SharedIndexInformer, c
 			namespaces = desiredObjects.Namespaces()
 		}
 
-		err := multiNamespaceList(o.ctx, namespaces, client, selector, func(obj unstructured.Unstructured) {
-			if err := addObjectToMap(objs, &obj); err != nil {
+		if o.owner != nil && o.listerNamespace == "" {
+			// owner set and unspecified lister namespace, search all namespaces
+			err := allNamespaceList(o.ctx, client, selector, func(obj unstructured.Unstructured) {
+				if err := addObjectToMap(objs, &obj); err != nil {
+					errs = append(errs, err)
+				}
+			})
+			if err != nil {
 				errs = append(errs, err)
 			}
-		})
-		if err != nil {
-			errs = append(errs, err)
+		} else {
+			// no owner or lister namespace intentionally restricted; only search in specified namespaces
+			err := multiNamespaceList(o.ctx, namespaces, client, selector, func(obj unstructured.Unstructured) {
+				if err := addObjectToMap(objs, &obj); err != nil {
+					errs = append(errs, err)
+				}
+			})
+			if err != nil {
+				errs = append(errs, err)
+			}
 		}
 
 		return objs, merr.NewErrors(errs...)
@@ -434,6 +449,20 @@ func addObjectToMap(objs objectset.ObjectByKey, obj interface{}) error {
 		Name:      metadata.GetName(),
 	}] = obj.(runtime.Object)
 
+	return nil
+}
+
+// allNamespaceList lists objects across all namespaces.
+func allNamespaceList(ctx context.Context, baseClient dynamic.NamespaceableResourceInterface, selector labels.Selector, appendFn func(obj unstructured.Unstructured)) error {
+	list, err := baseClient.List(ctx, v1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return err
+	}
+	for _, obj := range list.Items {
+		appendFn(obj)
+	}
 	return nil
 }
 

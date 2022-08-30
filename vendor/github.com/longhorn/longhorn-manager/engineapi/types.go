@@ -7,7 +7,7 @@ import (
 
 	devtypes "github.com/longhorn/go-iscsi-helper/types"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -21,15 +21,18 @@ const (
 	CLIVersionFour = 4
 	CLIVersionFive = 5
 
-	InstanceManagerDefaultPort = 8500
+	InstanceManagerDefaultPort      = 8500
+	InstanceManagerProxyDefaultPort = InstanceManagerDefaultPort + 1
+
+	BackingImageManagerDefaultPort    = 8000
+	BackingImageDataSourceDefaultPort = 8000
+	BackingImageSyncServerDefaultPort = 8001
 
 	DefaultISCSIPort = "3260"
 	DefaultISCSILUN  = "1"
 
-	commonTimeout = 1 * time.Minute
-
 	// MaxPollCount, MinPollCount, PollInterval determines how often
-	// we sync with others
+	// we sync with othersq
 
 	MaxPollCount = 60
 	MinPollCount = 1
@@ -51,35 +54,34 @@ type Controller struct {
 }
 
 type EngineClient interface {
-	Name() string
-	Version(clientOnly bool) (*EngineVersion, error)
+	VersionGet(engine *longhorn.Engine, clientOnly bool) (*EngineVersion, error)
 
-	Info() (*Volume, error)
-	Expand(size int64) error
+	VolumeGet(*longhorn.Engine) (*Volume, error)
+	VolumeExpand(*longhorn.Engine) error
 
-	FrontendStart(volumeFrontend longhorn.VolumeFrontend) error
-	FrontendShutdown() error
+	VolumeFrontendStart(*longhorn.Engine) error
+	VolumeFrontendShutdown(*longhorn.Engine) error
 
-	ReplicaList() (map[string]*Replica, error)
-	ReplicaAdd(url string, isRestoreVolume bool) error
-	ReplicaRemove(url string) error
-	ReplicaRebuildStatus() (map[string]*longhorn.RebuildStatus, error)
-	ReplicaRebuildVerify(url string) error
+	ReplicaList(*longhorn.Engine) (map[string]*Replica, error)
+	ReplicaAdd(engine *longhorn.Engine, url string, isRestoreVolume bool) error
+	ReplicaRemove(engine *longhorn.Engine, url string) error
+	ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longhorn.RebuildStatus, error)
+	ReplicaRebuildVerify(engine *longhorn.Engine, url string) error
 
-	SnapshotCreate(name string, labels map[string]string) (string, error)
-	SnapshotList() (map[string]*longhorn.Snapshot, error)
-	SnapshotGet(name string) (*longhorn.Snapshot, error)
-	SnapshotDelete(name string) error
-	SnapshotRevert(name string) error
-	SnapshotPurge() error
-	SnapshotPurgeStatus() (map[string]*longhorn.PurgeStatus, error)
-	SnapshotBackup(backupName, snapName, backupTarget, backingImageName, backingImageChecksum string, labels, credential map[string]string) (string, string, error)
-	SnapshotBackupStatus(backupName, replicaAddress string) (*longhorn.EngineBackupStatus, error)
-	SnapshotCloneStatus() (map[string]*longhorn.SnapshotCloneStatus, error)
-	SnapshotClone(snapshotName, fromControllerAddress string) error
+	SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string) (string, error)
+	SnapshotList(engine *longhorn.Engine) (map[string]*longhorn.SnapshotInfo, error)
+	SnapshotGet(engine *longhorn.Engine, name string) (*longhorn.SnapshotInfo, error)
+	SnapshotDelete(engine *longhorn.Engine, name string) error
+	SnapshotRevert(engine *longhorn.Engine, name string) error
+	SnapshotPurge(engine *longhorn.Engine) error
+	SnapshotPurgeStatus(engine *longhorn.Engine) (map[string]*longhorn.PurgeStatus, error)
+	SnapshotBackup(engine *longhorn.Engine, backupName, snapName, backupTarget, backingImageName, backingImageChecksum string, labels, credential map[string]string) (string, string, error)
+	SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress string) (*longhorn.EngineBackupStatus, error)
+	SnapshotCloneStatus(engine *longhorn.Engine) (map[string]*longhorn.SnapshotCloneStatus, error)
+	SnapshotClone(engine *longhorn.Engine, snapshotName, fromControllerAddress string) error
 
-	BackupRestore(backupTarget, backupName, backupVolume, lastRestored string, credential map[string]string) error
-	BackupRestoreStatus() (map[string]*longhorn.RestoreStatus, error)
+	BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolume, lastRestored string, credential map[string]string) error
+	BackupRestoreStatus(engine *longhorn.Engine) (map[string]*longhorn.RestoreStatus, error)
 }
 
 type EngineClientRequest struct {
@@ -90,7 +92,7 @@ type EngineClientRequest struct {
 }
 
 type EngineClientCollection interface {
-	NewEngineClient(request *EngineClientRequest) (EngineClient, error)
+	NewEngineClient(request *EngineClientRequest) (*EngineBinary, error)
 }
 
 type Volume struct {
@@ -210,7 +212,7 @@ func ValidateReplicaURL(url string) error {
 
 func CheckCLICompatibilty(cliVersion, cliMinVersion int) error {
 	if MinCLIVersion > cliVersion || CurrentCLIVersion < cliMinVersion {
-		return fmt.Errorf("Manager current CLI version %v and min CLI version %v is not compatible with CLIVersion %v and CLIMinVersion %v", CurrentCLIVersion, MinCLIVersion, cliVersion, cliMinVersion)
+		return fmt.Errorf("manager current CLI version %v and min CLI version %v is not compatible with CLIVersion %v and CLIMinVersion %v", CurrentCLIVersion, MinCLIVersion, cliVersion, cliMinVersion)
 	}
 	return nil
 }

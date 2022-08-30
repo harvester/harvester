@@ -105,7 +105,7 @@ func (c *FakeVirtualMachineInstancePresets) Update(ctx context.Context, virtualM
 // Delete takes name of the virtualMachineInstancePreset and deletes it. Returns an error if one occurs.
 func (c *FakeVirtualMachineInstancePresets) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(virtualmachineinstancepresetsResource, c.ns, name), &corev1.VirtualMachineInstancePreset{})
+		Invokes(testing.NewDeleteActionWithOptions(virtualmachineinstancepresetsResource, c.ns, name, opts), &corev1.VirtualMachineInstancePreset{})
 
 	return err
 }

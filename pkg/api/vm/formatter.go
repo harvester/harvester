@@ -3,11 +3,15 @@ package vm
 import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/pkg/data/convert"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/controller/master/migration"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -26,10 +30,12 @@ const (
 	createTemplate = "createTemplate"
 	addVolume      = "addVolume"
 	removeVolume   = "removeVolume"
+	cloneVM        = "clone"
 )
 
 type vmformatter struct {
-	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache
+	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
+	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 }
 
 func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -48,6 +54,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	resource.AddAction(request, addVolume)
 	resource.AddAction(request, removeVolume)
+	resource.AddAction(request, cloneVM)
 
 	if canEjectCdRom(vm) {
 		resource.AddAction(request, ejectCdRom)
@@ -177,7 +184,13 @@ func (vf *vmformatter) canStop(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.Vi
 			if vmi == nil {
 				return false
 			}
-			return true
+
+			switch vmi.Status.Phase {
+			case kubevirtv1.Pending, kubevirtv1.Scheduling, kubevirtv1.Scheduled, kubevirtv1.Running:
+				return true
+			default:
+				return false
+			}
 		case kubevirtv1.RunStrategyAlways:
 			return true
 		default:
@@ -233,7 +246,15 @@ func (vf *vmformatter) canDoRestore(vm *kubevirtv1.VirtualMachine, vmi *kubevirt
 	if vm.Status.Ready || vm.Status.SnapshotInProgress != nil || vmi != nil {
 		return false
 	}
-	return true
+	vmBackups, err := vf.vmBackupCache.GetByIndex(indexeres.VMBackupBySourceVMUIDIndex, string(vm.UID))
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false
+		}
+		logrus.Errorf("Can't list VM Backups by index %s, err: %+v", indexeres.VMBackupBySourceVMUIDIndex, err)
+		return false
+	}
+	return len(vmBackups) != 0
 }
 
 func (vf *vmformatter) isVMStarting(vm *kubevirtv1.VirtualMachine) bool {

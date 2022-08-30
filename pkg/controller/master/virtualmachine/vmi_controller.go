@@ -2,20 +2,34 @@ package virtualmachine
 
 import (
 	"fmt"
+	"reflect"
 
-	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	"github.com/harvester/harvester/pkg/builder"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
+const (
+	VirtualMachineCreatorNodeDriver = "docker-machine-driver-harvester"
+)
+
+// hostLabelsReconcileMapping defines the mapping for reconciliation of node labels to virtual machine instance annotations
+var hostLabelsReconcileMapping = []string{
+	v1.LabelTopologyZone, v1.LabelTopologyRegion, v1.LabelHostname,
+}
+
 type VMIController struct {
 	virtualMachineCache kubevirtctrl.VirtualMachineCache
-	pvcClient           v1.PersistentVolumeClaimClient
-	pvcCache            v1.PersistentVolumeClaimCache
+	vmiClient           kubevirtctrl.VirtualMachineInstanceClient
+	nodeCache           ctlcorev1.NodeCache
+	pvcClient           ctlcorev1.PersistentVolumeClaimClient
+	pvcCache            ctlcorev1.PersistentVolumeClaimCache
 }
 
 // UnsetOwnerOfPVCs erases the target VirtualMachine from the owner of the PVCs in annotation.
@@ -87,6 +101,44 @@ func (h *VMIController) UnsetOwnerOfPVCs(_ string, vmi *kubevirtv1.VirtualMachin
 			return vmi, fmt.Errorf("failed to revoke VitrualMachine(%s/%s) as PVC(%s/%s)'s owner: %w",
 				vm.Namespace, vm.Name, pvcNamespace, pvcName, err)
 		}
+	}
+
+	return vmi, nil
+}
+
+// ReconcileFromHostLabels handles the propagation of metadata from node labels to VirtualMachineInstance annotations.
+func (h *VMIController) ReconcileFromHostLabels(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
+	if vmi == nil || vmi.DeletionTimestamp != nil {
+		return vmi, nil
+	}
+
+	if creator := vmi.Labels[builder.LabelKeyVirtualMachineCreator]; creator != VirtualMachineCreatorNodeDriver {
+		return vmi, nil
+	}
+
+	node, err := h.nodeCache.Get(vmi.Status.NodeName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return vmi, nil
+		}
+		return vmi, fmt.Errorf("failed to get node %s for VirtualMachineInstance %s: %v", vmi.Status.NodeName, vmi.Name, err)
+	}
+
+	toUpdate := vmi.DeepCopy()
+	for _, label := range hostLabelsReconcileMapping {
+		srcValue, srcExists := node.Labels[label]
+		if srcExists {
+			if toUpdate.Annotations == nil {
+				toUpdate.Annotations = map[string]string{}
+			}
+			toUpdate.Annotations[label] = srcValue
+		} else if _, exist := toUpdate.Annotations[label]; exist {
+			delete(toUpdate.Annotations, label)
+		}
+	}
+
+	if !reflect.DeepEqual(toUpdate.Annotations, vmi.Annotations) {
+		return h.vmiClient.Update(toUpdate)
 	}
 
 	return vmi, nil

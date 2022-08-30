@@ -3,7 +3,6 @@ package engineapi
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"sort"
 
 	"github.com/pkg/errors"
@@ -11,7 +10,7 @@ import (
 
 	"github.com/longhorn/backupstore"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 )
@@ -22,23 +21,19 @@ const (
 	backupStateError      = "error"
 )
 
-type BackupTargetClient struct {
-	Image      string
+type BackupTargetBinaryClient interface {
+	BackupGet(destURL string, credential map[string]string) (*Backup, error)
+	BackupVolumeGet(destURL string, credential map[string]string) (volume *BackupVolume, err error)
+	BackupNameList(destURL, volumeName string, credential map[string]string) (names []string, err error)
+	BackupVolumeNameList(destURL string, credential map[string]string) (names []string, err error)
+	BackupDelete(destURL string, credential map[string]string) (err error)
+	BackupVolumeDelete(destURL, volumeName string, credential map[string]string) (err error)
+	BackupConfigMetaGet(destURL string, credential map[string]string) (*ConfigMetadata, error)
+}
+
+type BackupTargetConfig struct {
 	URL        string
 	Credential map[string]string
-}
-
-// NewBackupTargetClient returns the backup target client
-func NewBackupTargetClient(defaultEngineImage, url string, credential map[string]string) *BackupTargetClient {
-	return &BackupTargetClient{
-		Image:      defaultEngineImage,
-		URL:        url,
-		Credential: credential,
-	}
-}
-
-func (btc *BackupTargetClient) LonghornEngineBinary() string {
-	return filepath.Join(types.GetEngineBinaryDirectoryOnHostForImage(btc.Image), "longhorn")
 }
 
 // getBackupCredentialEnv returns the environment variables as KEY=VALUE in string slice
@@ -62,7 +57,7 @@ func getBackupCredentialEnv(backupTarget string, credential map[string]string) (
 	}
 	// If AWS IAM Role not present, then the AWS credentials must be exists
 	if credential[types.AWSIAMRoleArn] == "" && len(missingKeys) > 0 {
-		return nil, fmt.Errorf("Could not backup to %s, missing %v in the secret", backupType, missingKeys)
+		return nil, fmt.Errorf("could not backup to %s, missing %v in the secret", backupType, missingKeys)
 	}
 	if len(missingKeys) == 0 {
 		envs = append(envs, fmt.Sprintf("%s=%s", types.AWSAccessKey, credential[types.AWSAccessKey]))
@@ -75,22 +70,6 @@ func getBackupCredentialEnv(backupTarget string, credential map[string]string) (
 	envs = append(envs, fmt.Sprintf("%s=%s", types.NOProxy, credential[types.NOProxy]))
 	envs = append(envs, fmt.Sprintf("%s=%s", types.VirtualHostedStyle, credential[types.VirtualHostedStyle]))
 	return envs, nil
-}
-
-func (btc *BackupTargetClient) ExecuteEngineBinary(args ...string) (string, error) {
-	envs, err := getBackupCredentialEnv(btc.URL, btc.Credential)
-	if err != nil {
-		return "", err
-	}
-	return util.Execute(envs, btc.LonghornEngineBinary(), args...)
-}
-
-func (btc *BackupTargetClient) ExecuteEngineBinaryWithoutTimeout(args ...string) (string, error) {
-	envs, err := getBackupCredentialEnv(btc.URL, btc.Credential)
-	if err != nil {
-		return "", err
-	}
-	return util.ExecuteWithoutTimeout(envs, btc.LonghornEngineBinary(), args...)
 }
 
 // parseBackupVolumeNamesList parses a list of backup volume names into a sorted string slice
@@ -106,18 +85,6 @@ func parseBackupVolumeNamesList(output string) ([]string, error) {
 	}
 	sort.Strings(volumeNames)
 	return volumeNames, nil
-}
-
-// ListBackupVolumeNames returns a list of backup volume names
-func (btc *BackupTargetClient) ListBackupVolumeNames() ([]string, error) {
-	output, err := btc.ExecuteEngineBinary("backup", "ls", "--volume-only", btc.URL)
-	if err != nil {
-		if types.ErrorIsNotFound(err) {
-			return nil, nil
-		}
-		return nil, errors.Wrapf(err, "error listing backup volume names")
-	}
-	return parseBackupVolumeNamesList(output)
 }
 
 // parseBackupNamesList parses a list of backup names into a sorted string slice
@@ -143,34 +110,6 @@ func parseBackupNamesList(output, volumeName string) ([]string, error) {
 	return backupNames, nil
 }
 
-// ListBackupNames returns a list of backup names
-func (btc *BackupTargetClient) ListBackupNames(volumeName string) ([]string, error) {
-	if volumeName == "" {
-		return nil, nil
-	}
-	output, err := btc.ExecuteEngineBinary("backup", "ls", "--volume", volumeName, btc.URL)
-	if err != nil {
-		if types.ErrorIsNotFound(err) {
-			return nil, nil
-		}
-		return nil, errors.Wrapf(err, "error listing volume %s backup", volumeName)
-	}
-	return parseBackupNamesList(output, volumeName)
-}
-
-// DeleteBackupVolume deletes the backup volume from the remote backup target
-func (btc *BackupTargetClient) DeleteBackupVolume(volumeName string) error {
-	_, err := btc.ExecuteEngineBinaryWithoutTimeout("backup", "rm", "--volume", volumeName, btc.URL)
-	if err != nil {
-		if types.ErrorIsNotFound(err) {
-			return nil
-		}
-		return errors.Wrapf(err, "error deleting backup volume")
-	}
-	logrus.Infof("Complete deleting backup volume %s", volumeName)
-	return nil
-}
-
 // parseBackupVolumeConfig parses a backup volume config
 func parseBackupVolumeConfig(output string) (*BackupVolume, error) {
 	backupVolume := new(BackupVolume)
@@ -178,18 +117,6 @@ func parseBackupVolumeConfig(output string) (*BackupVolume, error) {
 		return nil, errors.Wrapf(err, "error parsing one backup volume config: \n%s", output)
 	}
 	return backupVolume, nil
-}
-
-// InspectBackupVolumeConfig inspects a backup volume config with the given volume config URL
-func (btc *BackupTargetClient) InspectBackupVolumeConfig(backupVolumeURL string) (*BackupVolume, error) {
-	output, err := btc.ExecuteEngineBinary("backup", "inspect-volume", backupVolumeURL)
-	if err != nil {
-		if types.ErrorIsNotFound(err) {
-			return nil, nil
-		}
-		return nil, errors.Wrapf(err, "error getting backup volume config %s", backupVolumeURL)
-	}
-	return parseBackupVolumeConfig(output)
 }
 
 // parseBackupConfig parses a backup config
@@ -201,18 +128,6 @@ func parseBackupConfig(output string) (*Backup, error) {
 	return backup, nil
 }
 
-// InspectBackupConfig inspects a backup config with the given backup config URL
-func (btc *BackupTargetClient) InspectBackupConfig(backupConfigURL string) (*Backup, error) {
-	output, err := btc.ExecuteEngineBinary("backup", "inspect", backupConfigURL)
-	if err != nil {
-		if types.ErrorIsNotFound(err) {
-			return nil, nil
-		}
-		return nil, errors.Wrapf(err, "error getting backup config %s", backupConfigURL)
-	}
-	return parseBackupConfig(output)
-}
-
 // parseConfigMetadata parses the config metadata
 func parseConfigMetadata(output string) (*ConfigMetadata, error) {
 	metadata := new(ConfigMetadata)
@@ -222,43 +137,24 @@ func parseConfigMetadata(output string) (*ConfigMetadata, error) {
 	return metadata, nil
 }
 
-// GetConfigMetadata returns the config metadata with the given URL
-func (btc *BackupTargetClient) GetConfigMetadata(url string) (*ConfigMetadata, error) {
-	output, err := btc.ExecuteEngineBinary("backup", "head", url)
-	if err != nil {
-		if types.ErrorIsNotFound(err) {
-			return nil, nil
-		}
-		return nil, errors.Wrapf(err, "error getting config metadata %s", url)
-	}
-	return parseConfigMetadata(output)
-}
-
-// DeleteBackup deletes the backup from the remote backup target
-func (btc *BackupTargetClient) DeleteBackup(backupURL string) error {
-	_, err := btc.ExecuteEngineBinaryWithoutTimeout("backup", "rm", backupURL)
-	if err != nil {
-		if types.ErrorIsNotFound(err) {
-			return nil
-		}
-		return errors.Wrapf(err, "error deleting backup %v", backupURL)
-	}
-	logrus.Infof("Complete deleting backup %s", backupURL)
-	return nil
-}
-
-func (e *Engine) SnapshotBackup(backupName, snapName, backupTarget, backingImageName, backingImageChecksum string, labels, credential map[string]string) (string, string, error) {
+// SnapshotBackup calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotBackup(engine *longhorn.Engine,
+	snapName, backupName, backupTarget,
+	backingImageName, backingImageChecksum string,
+	labels, credential map[string]string) (string, string, error) {
 	if snapName == VolumeHeadName {
 		return "", "", fmt.Errorf("invalid operation: cannot backup %v", VolumeHeadName)
 	}
-	snap, err := e.SnapshotGet(snapName)
+	// TODO: update when replacing this function
+	snap, err := e.SnapshotGet(nil, snapName)
 	if err != nil {
 		return "", "", errors.Wrapf(err, "error getting snapshot '%s', volume '%s'", snapName, e.name)
 	}
 	if snap == nil {
 		return "", "", errors.Errorf("could not find snapshot '%s' to backup, volume '%s'", snapName, e.name)
 	}
-	version, err := e.Version(true)
+	version, err := e.VersionGet(nil, true)
 	if err != nil {
 		return "", "", err
 	}
@@ -298,7 +194,9 @@ func (e *Engine) SnapshotBackup(backupName, snapName, backupTarget, backingImage
 	return backupCreateInfo.BackupID, backupCreateInfo.ReplicaAddress, nil
 }
 
-func (e *Engine) SnapshotBackupStatus(backupName, replicaAddress string) (*longhorn.EngineBackupStatus, error) {
+// SnapshotBackupStatus calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress string) (*longhorn.EngineBackupStatus, error) {
 	args := []string{"backup", "status", backupName}
 	if replicaAddress != "" {
 		args = append(args, "--replica", replicaAddress)
@@ -331,7 +229,9 @@ func ConvertEngineBackupState(state string) longhorn.BackupState {
 	}
 }
 
-func (e *Engine) BackupRestore(backupTarget, backupName, backupVolumeName, lastRestored string, credential map[string]string) error {
+// BackupRestore calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolumeName, lastRestored string, credential map[string]string) error {
 	backup := backupstore.EncodeBackupURL(backupName, backupVolumeName, backupTarget)
 
 	// get environment variables if backup for s3
@@ -360,7 +260,9 @@ func (e *Engine) BackupRestore(backupTarget, backupName, backupVolumeName, lastR
 	return nil
 }
 
-func (e *Engine) BackupRestoreStatus() (map[string]*longhorn.RestoreStatus, error) {
+// BackupRestoreStatus calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) BackupRestoreStatus(*longhorn.Engine) (map[string]*longhorn.RestoreStatus, error) {
 	args := []string{"backup", "restore-status"}
 	output, err := e.ExecuteEngineBinary(args...)
 	if err != nil {

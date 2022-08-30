@@ -117,7 +117,7 @@ func (c *FakeVirtualMachineInstanceReplicaSets) UpdateStatus(ctx context.Context
 // Delete takes name of the virtualMachineInstanceReplicaSet and deletes it. Returns an error if one occurs.
 func (c *FakeVirtualMachineInstanceReplicaSets) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(virtualmachineinstancereplicasetsResource, c.ns, name), &corev1.VirtualMachineInstanceReplicaSet{})
+		Invokes(testing.NewDeleteActionWithOptions(virtualmachineinstancereplicasetsResource, c.ns, name, opts), &corev1.VirtualMachineInstanceReplicaSet{})
 
 	return err
 }

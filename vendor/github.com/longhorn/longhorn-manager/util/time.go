@@ -75,5 +75,5 @@ func ParsePeriod(s string, loc *time.Location) ([2]time.Time, error) {
 		}
 	}
 
-	return r, fmt.Errorf("Error parsing time interval '%s'", s)
+	return r, fmt.Errorf("error parsing time interval '%s'", s)
 }

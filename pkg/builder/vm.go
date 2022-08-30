@@ -16,13 +16,14 @@ const (
 	defaultVMCPUCores = 1
 	defaultVMMemory   = "256Mi"
 
-	HarvesterAPIGroup                    = "harvesterhci.io"
-	LabelAnnotationPrefixHarvester       = HarvesterAPIGroup + "/"
-	LabelKeyVirtualMachineCreator        = LabelAnnotationPrefixHarvester + "creator"
-	LabelKeyVirtualMachineName           = LabelAnnotationPrefixHarvester + "vmName"
-	AnnotationKeyVirtualMachineSSHNames  = LabelAnnotationPrefixHarvester + "sshNames"
-	AnnotationKeyVirtualMachineDiskNames = LabelAnnotationPrefixHarvester + "diskNames"
-	AnnotationKeyImageID                 = LabelAnnotationPrefixHarvester + "imageId"
+	HarvesterAPIGroup                                     = "harvesterhci.io"
+	LabelAnnotationPrefixHarvester                        = HarvesterAPIGroup + "/"
+	LabelKeyVirtualMachineCreator                         = LabelAnnotationPrefixHarvester + "creator"
+	LabelKeyVirtualMachineName                            = LabelAnnotationPrefixHarvester + "vmName"
+	AnnotationKeyVirtualMachineSSHNames                   = LabelAnnotationPrefixHarvester + "sshNames"
+	AnnotationKeyVirtualMachineWaitForLeaseInterfaceNames = LabelAnnotationPrefixHarvester + "waitForLeaseInterfaceNames"
+	AnnotationKeyVirtualMachineDiskNames                  = LabelAnnotationPrefixHarvester + "diskNames"
+	AnnotationKeyImageID                                  = LabelAnnotationPrefixHarvester + "imageId"
 
 	AnnotationPrefixCattleField = "field.cattle.io/"
 	LabelPrefixHarvesterTag     = "tag.harvesterhci.io/"
@@ -30,9 +31,9 @@ const (
 )
 
 type VMBuilder struct {
-	VirtualMachine *kubevirtv1.VirtualMachine
-	SSHNames       []string
-	InterfaceNames []string
+	VirtualMachine             *kubevirtv1.VirtualMachine
+	SSHNames                   []string
+	WaitForLeaseInterfaceNames []string
 }
 
 func NewVMBuilder(creator string) *VMBuilder {
@@ -82,7 +83,9 @@ func NewVMBuilder(creator string) *VMBuilder {
 		},
 	}
 	return &VMBuilder{
-		VirtualMachine: vm,
+		VirtualMachine:             vm,
+		SSHNames:                   []string{},
+		WaitForLeaseInterfaceNames: []string{},
 	}
 }
 
@@ -163,6 +166,15 @@ func (v *VMBuilder) EvictionStrategy(liveMigrate bool) *VMBuilder {
 	return v
 }
 
+func (v *VMBuilder) Affinity(affinity *corev1.Affinity) *VMBuilder {
+	if affinity == nil {
+		return v.DefaultPodAntiAffinity()
+	}
+
+	v.VirtualMachine.Spec.Template.Spec.Affinity = affinity
+	return v
+}
+
 func (v *VMBuilder) DefaultPodAntiAffinity() *VMBuilder {
 	podAffinityTerm := corev1.PodAffinityTerm{
 		LabelSelector: &metav1.LabelSelector{
@@ -219,6 +231,12 @@ func (v *VMBuilder) VM() (*kubevirtv1.VirtualMachine, error) {
 		return nil, err
 	}
 	v.VirtualMachine.Spec.Template.ObjectMeta.Annotations[AnnotationKeyVirtualMachineSSHNames] = string(sshNames)
+
+	waitForLeaseInterfaceNames, err := json.Marshal(v.WaitForLeaseInterfaceNames)
+	if err != nil {
+		return nil, err
+	}
+	v.VirtualMachine.Spec.Template.ObjectMeta.Annotations[AnnotationKeyVirtualMachineWaitForLeaseInterfaceNames] = string(waitForLeaseInterfaceNames)
 
 	return v.VirtualMachine, nil
 }

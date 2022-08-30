@@ -23,7 +23,6 @@ import (
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=clusterclasses,shortName=cc,scope=Namespaced,categories=cluster-api
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of ClusterClass"
 
 // ClusterClass is a template which can be used to create managed topologies.

@@ -53,6 +53,17 @@ func (h *vmImageHandler) OnChanged(_ string, image *harvesterv1.VirtualMachineIm
 		}
 		return h.initialize(image)
 	}
+
+	// sync display_name to labels in order to list by labelSelector
+	if image.Spec.DisplayName != image.Labels[util.LabelImageDisplayName] {
+		toUpdate := image.DeepCopy()
+		if toUpdate.Labels == nil {
+			toUpdate.Labels = map[string]string{}
+		}
+		toUpdate.Labels[util.LabelImageDisplayName] = image.Spec.DisplayName
+		return h.images.Update(toUpdate)
+	}
+
 	return image, nil
 }
 

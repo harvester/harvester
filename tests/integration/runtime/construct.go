@@ -18,15 +18,14 @@ func Construct(ctx context.Context, kubeConfig *restclient.Config) error {
 		return nil
 	}
 
-	// create namespace
-	err := client.CreateNamespace(kubeConfig, testHarvesterNamespace)
-	if err != nil {
-		return fmt.Errorf("failed to create target namespace, %v", err)
-	}
-
-	err = client.CreateNamespace(kubeConfig, testLonghornNamespace)
-	if err != nil {
-		return fmt.Errorf("failed to create target namespace, %v", err)
+	// create namespaces
+	var err error
+	namespaces := []string{testHarvesterNamespace, testLonghornNamespace, testCattleNamespace}
+	for _, namespace := range namespaces {
+		err = client.CreateNamespace(kubeConfig, namespace)
+		if err != nil {
+			return fmt.Errorf("failed to create target namespace %s, %v", namespace, err)
+		}
 	}
 
 	err = createCRDs(ctx, kubeConfig)

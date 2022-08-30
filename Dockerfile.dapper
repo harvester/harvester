@@ -1,7 +1,7 @@
 FROM quay.io/costoolkit/releases-green:luet-toolchain-0.21.2 as luet
 FROM quay.io/costoolkit/releases-green:luet-makeiso-toolchain-0.4.0 as makeiso
 
-FROM golang:1.16.4-buster
+FROM golang:1.18.3-buster
 
 ARG DAPPER_HOST_ARCH
 ENV ARCH $DAPPER_HOST_ARCH
@@ -19,7 +19,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # install yq
-RUN GO111MODULE=on go get github.com/mikefarah/yq/v4@v4.6.0
+RUN GO111MODULE=on go install github.com/mikefarah/yq/v4@v4.6.0
 # set up helm
 ENV HELM_VERSION v3.5.4
 ENV HELM_URL=https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
@@ -48,17 +48,20 @@ RUN if [ "${ARCH}" = "amd64" ]; then \
     fi
 ## install controller-gen
 RUN if [ "${ARCH}" = "amd64" ]; then \
-        GO111MODULE=on go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1; \
+        GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1; \
     fi
 ## install ginkgo
 RUN if [ "${ARCH}" = "amd64" ]; then \
-        GO111MODULE=on go get github.com/onsi/ginkgo/ginkgo@v1.14.0; \
+        GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.4; \
     fi
 # install openapi-gen
-RUN  GO111MODULE=on go get k8s.io/code-generator/cmd/openapi-gen@v0.20.3
+RUN  GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.23.7
 
 # install kind
-RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 && chmod +x /usr/bin/kind
+RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.14.0/kind-linux-amd64 && chmod +x /usr/bin/kind
+
+# install codecov
+RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/latest/linux/codecov && chmod +x /usr/bin/codecov
 
 # luet & makeiso
 COPY --from=luet /usr/bin/luet /usr/bin/luet
@@ -69,7 +72,7 @@ COPY --from=makeiso /usr/bin/luet-makeiso /usr/bin/luet-makeiso
 # -- for dapper
 ENV DAPPER_RUN_ARGS --privileged --network host -v /run/containerd/containerd.sock:/run/containerd/containerd.sock
 ENV GO111MODULE off
-ENV DAPPER_ENV REPO TAG DRONE_TAG DRONE_BRANCH CROSS GOPROXY PUSH
+ENV DAPPER_ENV REPO TAG DRONE_TAG DRONE_BRANCH CROSS GOPROXY PUSH RKE2_IMAGE_REPO CODECOV_TOKEN
 ENV DAPPER_SOURCE /go/src/github.com/harvester/harvester/
 ENV DAPPER_OUTPUT ./bin ./dist ./package
 ENV DAPPER_DOCKER_SOCKET true

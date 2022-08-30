@@ -35,6 +35,7 @@ type Interface interface {
 	Event() EventController
 	Namespace() NamespaceController
 	Node() NodeController
+	PersistentVolume() PersistentVolumeController
 	PersistentVolumeClaim() PersistentVolumeClaimController
 	Pod() PodController
 	Secret() SecretController
@@ -66,6 +67,9 @@ func (c *version) Namespace() NamespaceController {
 }
 func (c *version) Node() NodeController {
 	return NewNodeController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"}, "nodes", false, c.controllerFactory)
+}
+func (c *version) PersistentVolume() PersistentVolumeController {
+	return NewPersistentVolumeController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolume"}, "persistentvolumes", false, c.controllerFactory)
 }
 func (c *version) PersistentVolumeClaim() PersistentVolumeClaimController {
 	return NewPersistentVolumeClaimController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolumeClaim"}, "persistentvolumeclaims", true, c.controllerFactory)

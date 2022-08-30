@@ -1,0 +1,140 @@
+syntax="proto3";
+
+package ptypes;
+
+import "google/protobuf/empty.proto";
+import "common.proto";
+
+service ControllerService {
+    rpc VolumeGet(google.protobuf.Empty) returns (Volume);
+    rpc VolumeStart(VolumeStartRequest) returns (Volume);
+    rpc VolumeShutdown(google.protobuf.Empty) returns (Volume);
+    rpc VolumeSnapshot(VolumeSnapshotRequest) returns (VolumeSnapshotReply);
+    rpc VolumeRevert(VolumeRevertRequest) returns (Volume);
+    rpc VolumeExpand(VolumeExpandRequest) returns (Volume);
+    rpc VolumeFrontendStart(VolumeFrontendStartRequest) returns (Volume);
+    rpc VolumeFrontendShutdown(google.protobuf.Empty) returns (Volume);
+
+    rpc ReplicaList(google.protobuf.Empty) returns (ReplicaListReply);
+    rpc ReplicaGet(ReplicaAddress) returns (ControllerReplica);
+    rpc ControllerReplicaCreate(ControllerReplicaCreateRequest) returns (ControllerReplica);
+    rpc ReplicaDelete(ReplicaAddress) returns (google.protobuf.Empty);
+    rpc ReplicaUpdate(ControllerReplica) returns (ControllerReplica);
+    rpc ReplicaPrepareRebuild(ReplicaAddress) returns (ReplicaPrepareRebuildReply);
+    rpc ReplicaVerifyRebuild(ReplicaAddress) returns (ControllerReplica);
+
+    rpc JournalList(JournalListRequest) returns (google.protobuf.Empty);
+
+    rpc VersionDetailGet(google.protobuf.Empty) returns(VersionDetailGetReply);
+
+    rpc MetricGet(google.protobuf.Empty) returns(stream MetricGetReply);
+}
+
+message Volume {
+    string name = 1;
+    int64 size = 2;
+    int32 replicaCount = 3;
+    string endpoint = 4;
+    string frontend = 5;
+    string frontendState = 6;
+    bool isExpanding = 7;
+
+    string last_expansion_error = 8;
+    string last_expansion_failed_at = 9;
+}
+
+message ReplicaAddress {
+    string address = 1;
+}
+
+enum ReplicaMode {
+    WO = 0;
+    RW = 1;
+    ERR = 2;
+}
+
+message ControllerReplica {
+    ReplicaAddress address = 1;
+    ReplicaMode mode = 2;
+}
+
+message VolumeStartRequest {
+    repeated string replicaAddresses = 1;
+}
+
+message VolumeSnapshotRequest {
+    string name = 1;
+    map<string, string> labels = 2;
+}
+
+message VolumeSnapshotReply {
+    string name = 1;
+}
+
+message VolumeRevertRequest {
+    string name = 1;
+}
+
+message VolumeExpandRequest {
+    int64 size = 1;
+}
+
+message VolumeFrontendStartRequest {
+    string frontend = 1;
+}
+
+message VolumePrepareRestoreRequest {
+    string lastRestored = 1;
+}
+
+message VolumeFinishRestoreRequest {
+    string currentRestored = 1;
+}
+
+message ReplicaListReply {
+    repeated ControllerReplica replicas = 1;
+}
+
+message ControllerReplicaCreateRequest {
+    string address = 1;
+    bool snapshot_required = 2;
+    ReplicaMode mode = 3;
+}
+
+message ReplicaPrepareRebuildReply {
+    ControllerReplica replica = 1;
+    repeated SyncFileInfo sync_file_info_list = 2;
+}
+
+message JournalListRequest {
+    int64 limit = 1;
+}
+
+message VersionOutput {
+    string version = 1;
+    string gitCommit = 2;
+    string buildDate = 3;
+
+    int64 cliAPIVersion = 4;
+    int64 cliAPIMinVersion = 5;
+    int64 controllerAPIVersion = 6;
+    int64 controllerAPIMinVersion = 7;
+    int64 dataFormatVersion = 8;
+    int64 dataFormatMinVersion = 9;
+}
+
+message VersionDetailGetReply {
+    VersionOutput version = 1;
+}
+
+message Metric {
+    uint64 readBandwidth = 1;
+    uint64 writeBandwidth = 2;
+    uint64 readLatency = 3;
+    uint64 writeLatency = 4;
+    uint64 iOPS = 5;
+}
+
+message MetricGetReply {
+    Metric metric = 1;
+}

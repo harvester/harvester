@@ -89,6 +89,10 @@ func (s *sharedController) Start(ctx context.Context, workers int) error {
 		return s.startError
 	}
 
+	if s.started {
+		return nil
+	}
+
 	if err := s.controller.Start(ctx, workers); err != nil {
 		return err
 	}

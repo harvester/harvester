@@ -135,7 +135,7 @@ func (h UploadActionHandler) waitForBackingImageDataSourceReady(name string) err
 			return fmt.Errorf("failed waiting for backing image data source to be ready: %w", err)
 		}
 		if err == nil {
-			if ds.Status.CurrentState == lhv1beta1.BackingImageStateStarting {
+			if ds.Status.CurrentState == lhv1beta1.BackingImageStatePending {
 				return nil
 			}
 			if ds.Status.CurrentState == lhv1beta1.BackingImageStateFailed {

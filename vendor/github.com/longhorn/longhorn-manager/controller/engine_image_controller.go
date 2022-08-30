@@ -11,7 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,7 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	appsinformers "k8s.io/client-go/informers/apps/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -31,8 +30,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 var (
@@ -55,9 +53,7 @@ type EngineImageController struct {
 
 	ds *datastore.DataStore
 
-	iStoreSynced  cache.InformerSynced
-	vStoreSynced  cache.InformerSynced
-	dsStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	// for unit test
 	nowHandler                func() string
@@ -69,9 +65,6 @@ func NewEngineImageController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	engineImageInformer lhinformers.EngineImageInformer,
-	volumeInformer lhinformers.VolumeInformer,
-	dsInformer appsinformers.DaemonSetInformer,
 	kubeClient clientset.Interface,
 	namespace string, controllerID, serviceAccount string) *EngineImageController {
 
@@ -92,32 +85,31 @@ func NewEngineImageController(
 
 		ds: ds,
 
-		iStoreSynced:  engineImageInformer.Informer().HasSynced,
-		vStoreSynced:  volumeInformer.Informer().HasSynced,
-		dsStoreSynced: dsInformer.Informer().HasSynced,
-
 		nowHandler:                util.Now,
 		engineBinaryChecker:       types.EngineBinaryExistOnHostForImage,
 		engineImageVersionUpdater: updateEngineImageVersion,
 	}
 
-	engineImageInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.EngineImageInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    ic.enqueueEngineImage,
 		UpdateFunc: func(old, cur interface{}) { ic.enqueueEngineImage(cur) },
 		DeleteFunc: ic.enqueueEngineImage,
 	})
+	ic.cacheSyncs = append(ic.cacheSyncs, ds.EngineImageInformer.HasSynced)
 
-	volumeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.VolumeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj interface{}) { ic.enqueueVolumes(obj) },
 		UpdateFunc: func(old, cur interface{}) { ic.enqueueVolumes(old, cur) },
 		DeleteFunc: func(obj interface{}) { ic.enqueueVolumes(obj) },
 	}, 0)
+	ic.cacheSyncs = append(ic.cacheSyncs, ds.VolumeInformer.HasSynced)
 
-	dsInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.DaemonSetInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    ic.enqueueControlleeChange,
 		UpdateFunc: func(old, cur interface{}) { ic.enqueueControlleeChange(cur) },
 		DeleteFunc: ic.enqueueControlleeChange,
 	}, 0)
+	ic.cacheSyncs = append(ic.cacheSyncs, ds.DaemonSetInformer.HasSynced)
 
 	return ic
 }
@@ -129,7 +121,7 @@ func (ic *EngineImageController) Run(workers int, stopCh <-chan struct{}) {
 	ic.logger.Info("Start Longhorn Engine Image controller")
 	defer ic.logger.Info("Shutting down Longhorn Engine Image controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn engine images", stopCh, ic.iStoreSynced, ic.vStoreSynced, ic.dsStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn engine images", stopCh, ic.cacheSyncs...) {
 		return
 	}
 
@@ -232,7 +224,7 @@ func (ic *EngineImageController) syncEngineImage(key string) (err error) {
 
 	checksumName := types.GetEngineImageChecksumName(engineImage.Spec.Image)
 	if engineImage.Name != checksumName {
-		return fmt.Errorf("Image %v checksum %v doesn't match engine image name %v", engineImage.Spec.Image, checksumName, engineImage.Name)
+		return fmt.Errorf("image %v checksum %v doesn't match engine image name %v", engineImage.Spec.Image, checksumName, engineImage.Name)
 	}
 
 	dsName := types.GetDaemonSetNameFromEngineImageName(engineImage.Name)
@@ -547,7 +539,7 @@ func updateEngineImageVersion(ei *longhorn.EngineImage) error {
 	if err != nil {
 		return errors.Wrapf(err, "cannot get engine client to check engine version")
 	}
-	version, err := client.Version(true)
+	version, err := client.VersionGet(nil, true)
 	if err != nil {
 		return errors.Wrapf(err, "cannot get engine version for %v (%v)", ei.Name, ei.Spec.Image)
 	}
@@ -630,7 +622,7 @@ func (ic *EngineImageController) enqueueVolumes(volumes ...interface{}) {
 	for _, obj := range volumes {
 		v, isVolume := obj.(*longhorn.Volume)
 		if !isVolume {
-			deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+			deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 			if !ok {
 				utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 				continue
@@ -664,7 +656,7 @@ func (ic *EngineImageController) enqueueVolumes(volumes ...interface{}) {
 }
 
 func (ic *EngineImageController) enqueueControlleeChange(obj interface{}) {
-	if deletedState, ok := obj.(*cache.DeletedFinalStateUnknown); ok {
+	if deletedState, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = deletedState.Obj
 	}
 
@@ -762,7 +754,7 @@ func (ic *EngineImageController) createEngineImageDaemonSetSpec(ei *longhorn.Eng
 								},
 							},
 							ReadinessProbe: &v1.Probe{
-								Handler: v1.Handler{
+								ProbeHandler: v1.ProbeHandler{
 									Exec: &v1.ExecAction{
 										Command: []string{
 											"sh", "-c",

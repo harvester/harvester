@@ -15,6 +15,7 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	"github.com/harvester/harvester/pkg/webhook/util"
 )
 
 const (
@@ -27,20 +28,23 @@ func NewValidator(
 	vms ctlkubevirtv1.VirtualMachineCache,
 	setting ctlharvesterv1.SettingCache,
 	vmBackup ctlharvesterv1.VirtualMachineBackupCache,
+	vmRestore ctlharvesterv1.VirtualMachineRestoreCache,
 ) types.Validator {
 	return &restoreValidator{
-		vms:      vms,
-		setting:  setting,
-		vmBackup: vmBackup,
+		vms:       vms,
+		setting:   setting,
+		vmBackup:  vmBackup,
+		vmRestore: vmRestore,
 	}
 }
 
 type restoreValidator struct {
 	types.DefaultValidator
 
-	vms      ctlkubevirtv1.VirtualMachineCache
-	setting  ctlharvesterv1.SettingCache
-	vmBackup ctlharvesterv1.VirtualMachineBackupCache
+	vms       ctlkubevirtv1.VirtualMachineCache
+	setting   ctlharvesterv1.SettingCache
+	vmBackup  ctlharvesterv1.VirtualMachineBackupCache
+	vmRestore ctlharvesterv1.VirtualMachineRestoreCache
 }
 
 func (v *restoreValidator) Resource() types.Resource {
@@ -64,10 +68,10 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	newVM := newRestore.Spec.NewVM
 
 	if targetVM == "" {
-		return werror.NewInvalidError("target VM name is empty", fieldTargetName)
+		return werror.NewInvalidError("Target VM name is empty", fieldTargetName)
 	}
 	if backupName == "" {
-		return werror.NewInvalidError("backup name is empty", fieldVirtualMachineBackupName)
+		return werror.NewInvalidError("Backup name is empty", fieldVirtualMachineBackupName)
 	}
 
 	if err := v.checkBackupTarget(newRestore); err != nil {
@@ -89,7 +93,13 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 
 	// restore an existing vm but the vm is still running
 	if !newVM && vm.Status.Ready {
-		return werror.NewInvalidError(fmt.Sprintf("please stop the VM %q before doing a restore", vm.Name), fieldTargetName)
+		return werror.NewInvalidError(fmt.Sprintf("Please stop the VM %q before doing a restore", vm.Name), fieldTargetName)
+	}
+
+	if result, err := util.HasInProgressingVMRestoreOnSameTarget(v.vmRestore, vm.Namespace, vm.Name); err != nil {
+		return werror.NewInternalError(fmt.Sprintf("Failed to get the VM-related restores, err: %+v", err))
+	} else if result {
+		return werror.NewInvalidError(fmt.Sprintf("Please wait for the previous VM restore on the %s/%s to be complete first.", vm.Namespace, vm.Name), fieldTargetName)
 	}
 
 	return nil
@@ -99,22 +109,22 @@ func (v *restoreValidator) checkBackupTarget(vmRestore *v1beta1.VirtualMachineRe
 	// get backup target
 	backupTargetSetting, err := v.setting.Get(settings.BackupTargetSettingName)
 	if err != nil {
-		return fmt.Errorf("can't get backup target setting, err: %w", err)
+		return fmt.Errorf("Can't get backup target setting, err: %w", err)
 	}
 
 	backupTarget, err := settings.DecodeBackupTarget(backupTargetSetting.Value)
 	if err != nil {
-		return fmt.Errorf("unmarshal backup target failed, value: %s, err: %w", backupTargetSetting.Value, err)
+		return fmt.Errorf("Unmarshal backup target failed, value: %s, err: %w", backupTargetSetting.Value, err)
 	}
 
 	if backupTarget.IsDefaultBackupTarget() {
-		return fmt.Errorf("backup target is invalid")
+		return fmt.Errorf("Backup target is invalid")
 	}
 
 	// get vmbackup
 	vmBackup, err := v.vmBackup.Get(vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName)
 	if err != nil {
-		return fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName, err)
+		return fmt.Errorf("Can't get vmbackup %s/%s, err: %w", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName, err)
 	}
 
 	if vmBackup.Status == nil || vmBackup.Status.BackupTarget == nil || !ctlbackup.IsBackupTargetSame(vmBackup.Status.BackupTarget, backupTarget) {

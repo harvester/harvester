@@ -1,0 +1,152 @@
+syntax="proto3";
+
+package ptypes;
+
+import "google/protobuf/empty.proto";
+import "common.proto";
+
+service SyncAgentService {
+  rpc FileRemove(FileRemoveRequest) returns (google.protobuf.Empty) {}
+  rpc FileRename(FileRenameRequest) returns (google.protobuf.Empty) {}
+  rpc FileSend(FileSendRequest) returns (google.protobuf.Empty) {}
+  rpc FilesSync(FilesSyncRequest) returns (google.protobuf.Empty) {}
+  rpc SnapshotClone(SnapshotCloneRequest) returns (google.protobuf.Empty) {}
+  rpc VolumeExport(VolumeExportRequest) returns (google.protobuf.Empty) {}
+  rpc ReceiverLaunch(ReceiverLaunchRequest) returns (ReceiverLaunchResponse) {}
+  rpc BackupCreate(BackupCreateRequest) returns (BackupCreateResponse) {}
+  rpc BackupRemove(BackupRemoveRequest) returns (google.protobuf.Empty) {}
+  rpc BackupRestore(BackupRestoreRequest) returns (google.protobuf.Empty) {}
+  rpc BackupStatus(BackupStatusRequest) returns (BackupStatusResponse) {}
+  rpc Reset(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc RestoreStatus(google.protobuf.Empty) returns (RestoreStatusResponse) {}
+  rpc SnapshotPurge(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc SnapshotPurgeStatus(google.protobuf.Empty) returns
+    (SnapshotPurgeStatusResponse) {}
+  rpc ReplicaRebuildStatus(google.protobuf.Empty) returns
+    (ReplicaRebuildStatusResponse) {}
+  rpc SnapshotCloneStatus(google.protobuf.Empty) returns (SnapshotCloneStatusResponse) {}
+}
+
+message FileRemoveRequest {
+  string file_name = 1;
+}
+
+message FileRenameRequest {
+  string old_file_name = 1;
+  string new_file_name = 2;
+}
+
+message ReceiverLaunchRequest {
+  string to_file_name = 1;
+}
+
+message ReceiverLaunchResponse {
+  int32 port = 1;
+}
+
+message FileSendRequest {
+  string from_file_name = 1;
+  string host = 2;
+  int32 port =3;
+}
+
+message FilesSyncRequest {
+  string from_address = 1;
+  string to_host = 2;
+  repeated SyncFileInfo sync_file_info_list = 3;
+}
+
+message SnapshotCloneRequest {
+    string from_address = 1;
+    string to_host = 2;
+    string snapshot_file_name = 3;
+    bool export_backing_image_if_exist = 4;
+}
+
+message VolumeExportRequest {
+  string snapshot_file_name = 1;
+  string host = 2;
+  int32 port = 3;
+  bool export_backing_image_if_exist = 4;
+}
+
+message BackupCreateRequest {
+  string snapshot_file_name = 1;
+  string backup_target = 2;
+  string volume_name = 3;
+  repeated string labels = 4;
+  map<string, string> credential = 5;
+  string backing_image_name = 6;
+  string backing_image_checksum = 7;
+  string backup_name = 8;
+}
+
+message BackupCreateResponse {
+  string backup = 1;
+  bool is_incremental = 2;
+}
+
+message BackupRemoveRequest {
+  string backup = 1;
+};
+
+message BackupStatusRequest {
+  string backup = 1;
+}
+
+message BackupStatusResponse {
+  int32 progress = 1;
+  string backup_url = 2;
+  string error = 3;
+  string snapshot_name = 4;
+  string state = 5;
+}
+
+message BackupRestoreRequest {
+  string backup = 1;
+  string snapshot_disk_name = 2;
+  map<string, string> credential = 3;
+}
+
+message BackupRestoreIncrementallyRequest {
+  string backup = 1;
+  string delta_file_name = 2;
+  string last_restored_backup_name = 3;
+  string snapshot_disk_name = 4;
+  map<string, string> credential = 5;
+}
+
+message RestoreStatusResponse {
+  bool is_restoring = 1;
+  string last_restored = 2;
+  int32 progress = 3;
+  string error = 4;
+  string dest_file_name = 5;
+  string state = 6;
+  string backup_url = 7;
+  string current_restoring_backup = 8;
+}
+
+message SnapshotPurgeStatusResponse {
+  bool is_purging = 1;
+  string error = 2;
+  int32 progress = 3;
+  string state = 4;
+}
+
+message ReplicaRebuildStatusResponse {
+  bool is_rebuilding = 1;
+  string error = 2;
+  int32 progress = 3;
+  string state = 4;
+  string from_replica_address = 5;
+}
+
+message SnapshotCloneStatusResponse {
+  bool is_cloning = 1;
+  string error = 2;
+  int32 progress = 3;
+  string state = 4;
+  string from_replica_address = 5;
+  string snapshot_name = 6;
+}

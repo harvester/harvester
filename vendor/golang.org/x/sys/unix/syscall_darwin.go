@@ -159,8 +159,10 @@ func Pipe(p []int) (err error) {
 	}
 	var x [2]int32
 	err = pipe(&x)
-	p[0] = int(x[0])
-	p[1] = int(x[1])
+	if err == nil {
+		p[0] = int(x[0])
+		p[1] = int(x[1])
+	}
 	return
 }
 
@@ -430,8 +432,25 @@ func GetsockoptXucred(fd, level, opt int) (*Xucred, error) {
 	return x, err
 }
 
-func SysctlKinfoProcSlice(name string) ([]KinfoProc, error) {
-	mib, err := sysctlmib(name)
+func SysctlKinfoProc(name string, args ...int) (*KinfoProc, error) {
+	mib, err := sysctlmib(name, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	var kinfo KinfoProc
+	n := uintptr(SizeofKinfoProc)
+	if err := sysctl(mib, (*byte)(unsafe.Pointer(&kinfo)), &n, nil, 0); err != nil {
+		return nil, err
+	}
+	if n != SizeofKinfoProc {
+		return nil, EIO
+	}
+	return &kinfo, nil
+}
+
+func SysctlKinfoProcSlice(name string, args ...int) ([]KinfoProc, error) {
+	mib, err := sysctlmib(name, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -527,8 +546,8 @@ func SysctlKinfoProcSlice(name string) ([]KinfoProc, error) {
 //sys	Open(path string, mode int, perm uint32) (fd int, err error)
 //sys	Openat(dirfd int, path string, mode int, perm uint32) (fd int, err error)
 //sys	Pathconf(path string, name int) (val int, err error)
-//sys	Pread(fd int, p []byte, offset int64) (n int, err error)
-//sys	Pwrite(fd int, p []byte, offset int64) (n int, err error)
+//sys	pread(fd int, p []byte, offset int64) (n int, err error)
+//sys	pwrite(fd int, p []byte, offset int64) (n int, err error)
 //sys	read(fd int, p []byte) (n int, err error)
 //sys	Readlink(path string, buf []byte) (n int, err error)
 //sys	Readlinkat(dirfd int, path string, buf []byte) (n int, err error)

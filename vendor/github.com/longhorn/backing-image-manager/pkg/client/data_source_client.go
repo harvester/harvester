@@ -9,13 +9,9 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/longhorn/backing-image-manager/api"
-)
-
-const (
-	HTTPClientTimeout = 10 * time.Second
+	"github.com/longhorn/backing-image-manager/pkg/util"
 )
 
 type DataSourceClient struct {
@@ -38,11 +34,11 @@ func (client *DataSourceClient) Get() (*api.DataSourceInfo, error) {
 	defer resp.Body.Close()
 
 	bodyContent, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%s, failed to read the response body: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), err)
+	}
 	if resp.StatusCode != http.StatusOK {
-		if err != nil {
-			return nil, fmt.Errorf("resp.StatusCode(%d) != http.StatusOK, err is unknown", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("resp.StatusCode(%d) != http.StatusOK, err: %v", resp.StatusCode, string(bodyContent))
+		return nil, fmt.Errorf("%s, response body content: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), string(bodyContent))
 	}
 
 	result := &api.DataSourceInfo{}
@@ -55,6 +51,35 @@ func (client *DataSourceClient) Get() (*api.DataSourceInfo, error) {
 	}
 
 	return result, nil
+}
+
+func (client *DataSourceClient) Transfer() error {
+	httpClient := &http.Client{Timeout: HTTPClientTimeout}
+
+	requestURL := fmt.Sprintf("http://%s/v1/file", client.Remote)
+	req, err := http.NewRequest("POST", requestURL, nil)
+	if err != nil {
+		return err
+	}
+	q := req.URL.Query()
+	q.Add("action", "transfer")
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("transfer failed, err: %s", err)
+	}
+	defer resp.Body.Close()
+
+	bodyContent, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("%s, failed to read the response body: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), err)
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("%s or http.StatusNotFound(%d), response body content: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), http.StatusNotFound, string(bodyContent))
+	}
+
+	return nil
 }
 
 func (client *DataSourceClient) Upload(filePath string) error {
@@ -103,11 +128,11 @@ func (client *DataSourceClient) Upload(filePath string) error {
 	defer resp.Body.Close()
 
 	bodyContent, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("%s, failed to read the response body: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), err)
+	}
 	if resp.StatusCode != http.StatusOK {
-		if err != nil {
-			return fmt.Errorf("resp.StatusCode(%d) != http.StatusOK, err is unknown", resp.StatusCode)
-		}
-		return fmt.Errorf("resp.StatusCode(%d) != http.StatusOK, err: %v", resp.StatusCode, string(bodyContent))
+		return fmt.Errorf("%s, response body content: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), string(bodyContent))
 	}
 
 	return nil

@@ -32,12 +32,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	"helm.sh/helm/v3/internal/experimental/registry"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/engine"
 	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/postrender"
+	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/storage"
@@ -364,7 +364,9 @@ func (cfg *Configuration) recordRelease(r *release.Release) {
 // Init initializes the action configuration
 func (cfg *Configuration) Init(getter genericclioptions.RESTClientGetter, namespace, helmDriver string, log DebugLog) error {
 	kc := kube.New(getter)
-	kc.Log = log
+	kc.Log = func(s string, i ...interface{}) {
+		fmt.Printf(s+"\n", i...)
+	}
 
 	lazyClient := &lazyClient{
 		namespace: namespace,

@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/longhorn/longhorn-manager/meta"
@@ -59,8 +59,8 @@ func (m *VolumeManager) GetSupportBundle(name string) (*SupportBundle, error) {
 }
 
 func (m *VolumeManager) DeleteSupportBundle() {
-	os.Remove(filepath.Join("/tmp", m.sb.Filename))
-	os.RemoveAll(filepath.Join("/tmp", m.sb.Name))
+	_ = os.Remove(filepath.Join("/tmp", m.sb.Filename))
+	_ = os.RemoveAll(filepath.Join("/tmp", m.sb.Name))
 	m.sb = nil
 }
 
@@ -267,21 +267,9 @@ func (m *VolumeManager) generateSupportBundleYAMLsForLonghorn(dir string, errLog
 	getObjectMapAndEncodeToYAML("recurringjobs", func() (interface{}, error) {
 		return m.ds.ListRecurringJobs()
 	}, dir, errLog)
-}
-
-func writeErrorToFile(path string, errorMessage error) error {
-	if err := os.MkdirAll(filepath.Dir(path), os.FileMode(0755)); err != nil {
-		return err
-	}
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	if _, err = f.WriteString(errorMessage.Error()); err != nil {
-		return err
-	}
-	return nil
+	getObjectMapAndEncodeToYAML("orphans", func() (interface{}, error) {
+		return m.ds.ListOrphans()
+	}, dir, errLog)
 }
 
 func getObjectMapAndEncodeToYAML(name string, getMapFunc GetObjectMapFunc, yamlsDir string, errLog io.Writer) {
@@ -355,7 +343,7 @@ func (m *VolumeManager) generateSupportBundleLogs(logsDir string, errLog io.Writ
 				continue
 			}
 			streamLogToFile(stream, logFileName, errLog)
-			stream.Close()
+			_ = stream.Close()
 		}
 
 		percentage := float64(index) / float64(len(podList.Items)) * BundleProgressPercentageLogs

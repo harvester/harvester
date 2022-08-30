@@ -19,11 +19,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	volumeapi "github.com/harvester/harvester/pkg/api/volume"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/builder"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -169,6 +171,20 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `volumeName` are required")
 		}
 		return h.removeVolume(r.Context(), namespace, name, input)
+	case cloneVM:
+		var input CloneInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+
+		if input.TargetVM == "" {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter targetVm are required")
+		}
+
+		if err := h.cloneVM(name, namespace, input); err != nil {
+			return err
+		}
+		return nil
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -388,7 +404,7 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 		return err
 	}
 	apiGroup := kubevirtv1.SchemeGroupVersion.Group
-	backup := &harvesterv1.VirtualMachineRestore{
+	restore := &harvesterv1.VirtualMachineRestore{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      input.Name,
 			Namespace: vmNamespace,
@@ -399,11 +415,12 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 				Kind:     kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 				Name:     vmName,
 			},
-			VirtualMachineBackupName: input.BackupName,
-			NewVM:                    false,
+			VirtualMachineBackupNamespace: vmNamespace,
+			VirtualMachineBackupName:      input.BackupName,
+			NewVM:                         false,
 		},
 	}
-	_, err := h.restores.Create(backup)
+	_, err := h.restores.Create(restore)
 	if err != nil {
 		return fmt.Errorf("failed to create restore, error: %s", err.Error())
 	}
@@ -626,6 +643,115 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		Error()
 }
 
+// cloneVM creates a VM which uses volume cloning from the source VM.
+func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return fmt.Errorf("cannot get vm %s/%s, err: %w", namespace, name, err)
+	}
+	newVM := getClonedVMYamlFromSourceVM(input.TargetVM, vm)
+
+	newPVCs, secretNameMap, err := h.cloneVolumes(newVM)
+	if err != nil {
+		return fmt.Errorf("clone volumes error for new vm %s/%s, err %w", newVM.Namespace, newVM.Name, err)
+	}
+	newPVCsString, err := json.Marshal(newPVCs)
+	if err != nil {
+		return fmt.Errorf("cannot marshal value %+v, err: %w", newPVCs, err)
+	}
+
+	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
+	if newVM, err = h.vms.Create(newVM); err != nil {
+		return fmt.Errorf("cannot create newVM %+v, err: %w", newVM, err)
+	}
+
+	for oldSecretName, newSecretName := range secretNameMap {
+		secret, err := h.secretCache.Get(namespace, oldSecretName)
+		if err != nil {
+			return fmt.Errorf("cannot get secret %s/%s, err: %w", namespace, oldSecretName, err)
+		}
+
+		newSecret := corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      newSecretName,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: newVM.APIVersion,
+						Kind:       newVM.Kind,
+						Name:       newVM.Name,
+						UID:        newVM.UID,
+					},
+				},
+			},
+			Data:       secret.Data,
+			StringData: secret.StringData,
+			Type:       secret.Type,
+		}
+		if _, err = h.secretClient.Create(&newSecret); err != nil {
+			return fmt.Errorf("cannot create a new secret from %s/%s, err: %w", namespace, oldSecretName, err)
+		}
+	}
+	return nil
+}
+
+func (h *vmActionHandler) cloneVolumes(newVM *kubevirtv1.VirtualMachine) ([]corev1.PersistentVolumeClaim, map[string]string, error) {
+	var (
+		err           error
+		newPVCs       []corev1.PersistentVolumeClaim
+		secretNameMap = map[string]string{} // sourceVM secret name to newVM secret name
+	)
+
+	for i, volume := range newVM.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			var pvc *corev1.PersistentVolumeClaim
+			pvc, err = h.pvcCache.Get(newVM.Namespace, volume.PersistentVolumeClaim.ClaimName)
+			if err != nil {
+				return nil, nil, fmt.Errorf("cannot get pvc %s, err: %w", volume.PersistentVolumeClaim.ClaimName, err)
+			}
+
+			annotations := map[string]string{}
+			if imageId, ok := pvc.Annotations[util.AnnotationImageID]; ok {
+				annotations[util.AnnotationImageID] = imageId
+			}
+			newPVC := corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   newVM.Namespace,
+					Name:        names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s-", newVM.Name, volume.Name)),
+					Annotations: annotations,
+				},
+				Spec: *pvc.Spec.DeepCopy(),
+			}
+			newPVC.Spec.VolumeName = ""
+			newPVC.Spec.DataSource = &corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: pvc.Name,
+			}
+			newPVCs = append(newPVCs, newPVC)
+			volume.PersistentVolumeClaim.ClaimName = newPVC.Name
+		} else if volume.CloudInitNoCloud != nil {
+			if volume.CloudInitNoCloud.UserDataSecretRef != nil {
+				if _, ok := secretNameMap[volume.CloudInitNoCloud.UserDataSecretRef.Name]; !ok {
+					secretNameMap[volume.CloudInitNoCloud.UserDataSecretRef.Name] = names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-", newVM.Name))
+				}
+				volume.CloudInitNoCloud.UserDataSecretRef.Name = secretNameMap[volume.CloudInitNoCloud.UserDataSecretRef.Name]
+			}
+			if volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
+				if _, ok := secretNameMap[volume.CloudInitNoCloud.NetworkDataSecretRef.Name]; !ok {
+					secretNameMap[volume.CloudInitNoCloud.NetworkDataSecretRef.Name] = names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-", newVM.Name))
+				}
+				volume.CloudInitNoCloud.NetworkDataSecretRef.Name = secretNameMap[volume.CloudInitNoCloud.NetworkDataSecretRef.Name]
+			}
+		} else if volume.ContainerDisk != nil {
+			continue
+		} else {
+			return nil, nil, fmt.Errorf("invalid volume %s, only support PersistentVolumeClaim, CloudInitNoCloud, and ContainerDisk", volume.Name)
+		}
+		newVM.Spec.Template.Spec.Volumes[i] = volume
+	}
+	return newPVCs, secretNameMap, nil
+}
+
 func sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kubevirtv1.VirtualMachine) harvesterv1.VirtualMachineSourceSpec {
 	sanitizedVm := removeMacAddresses(vm)
 	sanitizedVm = replaceSecrets(templateVersionName, sanitizedVm)
@@ -702,4 +828,22 @@ func getTemplateVersionSSHPublicKeySecretName(templateVersionName string, creden
 
 func getTemplateVersionUserPasswordSecretName(templateVersionName string, credentialIndex int) string {
 	return wranglername.SafeConcatName("templateversion", templateVersionName, fmt.Sprintf("credential-%d", credentialIndex), "userpassword")
+}
+
+func getClonedVMYamlFromSourceVM(newVMName string, sourceVM *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
+	newVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        newVMName,
+			Namespace:   sourceVM.Namespace,
+			Annotations: map[string]string{},
+			Labels:      sourceVM.Labels,
+		},
+		Spec: *sourceVM.Spec.DeepCopy(),
+	}
+	newVM.Spec.Template.Spec.Hostname = newVM.Name
+	newVM.Spec.Template.ObjectMeta.Labels[builder.LabelKeyVirtualMachineName] = newVM.Name
+	for i := range newVM.Spec.Template.Spec.Domain.Devices.Interfaces {
+		newVM.Spec.Template.Spec.Domain.Devices.Interfaces[i].MacAddress = ""
+	}
+	return newVM
 }

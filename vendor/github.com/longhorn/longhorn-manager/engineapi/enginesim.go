@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"sync"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	"github.com/sirupsen/logrus"
+
+	"github.com/longhorn/longhorn-manager/datastore"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type EngineSimulatorRequest struct {
@@ -42,7 +45,7 @@ func (c *EngineSimulatorCollection) CreateEngineSimulator(request *EngineSimulat
 		mutex:          &sync.RWMutex{},
 	}
 	for _, addr := range request.ReplicaAddrs {
-		if err := s.ReplicaAdd(addr, false); err != nil {
+		if err := s.ReplicaAdd(&longhorn.Engine{}, addr, false); err != nil {
 			return err
 		}
 	}
@@ -94,7 +97,19 @@ func (e *EngineSimulator) Name() string {
 	return e.volumeName
 }
 
-func (e *EngineSimulator) ReplicaList() (map[string]*Replica, error) {
+func (e *EngineSimulator) IsGRPC() bool {
+	return false
+}
+
+func (e *EngineSimulator) Start(*longhorn.InstanceManager, logrus.FieldLogger, *datastore.DataStore) error {
+	return fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) Stop(*longhorn.InstanceManager) error {
+	return fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) ReplicaList(*longhorn.Engine) (map[string]*Replica, error) {
 	e.mutex.RLock()
 	defer e.mutex.RUnlock()
 
@@ -106,7 +121,7 @@ func (e *EngineSimulator) ReplicaList() (map[string]*Replica, error) {
 	return ret, nil
 }
 
-func (e *EngineSimulator) ReplicaAdd(url string, isRestoreVolume bool) error {
+func (e *EngineSimulator) ReplicaAdd(engine *longhorn.Engine, url string, isRestoreVolume bool) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 
@@ -125,7 +140,7 @@ func (e *EngineSimulator) ReplicaAdd(url string, isRestoreVolume bool) error {
 	return nil
 }
 
-func (e *EngineSimulator) ReplicaRemove(addr string) error {
+func (e *EngineSimulator) ReplicaRemove(engine *longhorn.Engine, addr string) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 
@@ -147,81 +162,109 @@ func (e *EngineSimulator) SimulateStopReplica(addr string) error {
 	return nil
 }
 
-func (e *EngineSimulator) SnapshotCreate(name string, labels map[string]string) (string, error) {
-	return "", fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string) (string, error) {
+	return "", fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotList() (map[string]*longhorn.Snapshot, error) {
-	return nil, fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotList(engine *longhorn.Engine) (map[string]*longhorn.SnapshotInfo, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotGet(name string) (*longhorn.Snapshot, error) {
-	return nil, fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotGet(engine *longhorn.Engine, name string) (*longhorn.SnapshotInfo, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotDelete(name string) error {
-	return fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotDelete(engine *longhorn.Engine, name string) error {
+	return fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotRevert(name string) error {
-	return fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotRevert(engine *longhorn.Engine, name string) error {
+	return fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotPurge() error {
-	return fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotPurge(*longhorn.Engine) error {
+	return fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotPurgeStatus() (map[string]*longhorn.PurgeStatus, error) {
-	return nil, fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotPurgeStatus(*longhorn.Engine) (map[string]*longhorn.PurgeStatus, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotBackup(backupName, snapName, backupTarget, backingImageName, backingImageChecksum string, labels, credential map[string]string) (string, string, error) {
-	return "", "", fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotBackup(engine *longhorn.Engine, backupName, snapName, backupTarget, backingImageName, backingImageChecksum string, labels, credential map[string]string) (string, string, error) {
+	return "", "", fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotBackupStatus(backupName, replicaAddress string) (*longhorn.EngineBackupStatus, error) {
-	return nil, fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress string) (*longhorn.EngineBackupStatus, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) Version(clientOnly bool) (*EngineVersion, error) {
-	return nil, fmt.Errorf("not implemented")
+func (e *EngineSimulator) VersionGet(engine *longhorn.Engine, clientOnly bool) (*EngineVersion, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) Info() (*Volume, error) {
-	return nil, fmt.Errorf("not implemented")
+func (e *EngineSimulator) VolumeGet(*longhorn.Engine) (*Volume, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) Expand(size int64) error {
-	return fmt.Errorf("not implemented")
+func (e *EngineSimulator) VolumeExpand(*longhorn.Engine) error {
+	return fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) BackupRestore(backupTarget, backupName, backupVolume, lastRestored string, credential map[string]string) error {
-	return fmt.Errorf("not implemented")
+func (e *EngineSimulator) BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolume, lastRestored string, credential map[string]string) error {
+	return fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotClone(snapshotName, fromControllerAddress string) error {
-	return fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotClone(engine *longhorn.Engine, snapshotName, fromControllerAddress string) error {
+	return fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) BackupRestoreStatus() (map[string]*longhorn.RestoreStatus, error) {
-	return nil, fmt.Errorf("not implemented")
+func (e *EngineSimulator) BackupRestoreStatus(*longhorn.Engine) (map[string]*longhorn.RestoreStatus, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotCloneStatus() (map[string]*longhorn.SnapshotCloneStatus, error) {
-	return nil, fmt.Errorf("not implemented")
+func (e *EngineSimulator) SnapshotCloneStatus(*longhorn.Engine) (map[string]*longhorn.SnapshotCloneStatus, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) ReplicaRebuildStatus() (map[string]*longhorn.RebuildStatus, error) {
-	return nil, fmt.Errorf("not implemented")
+func (e *EngineSimulator) ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longhorn.RebuildStatus, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) FrontendStart(volumeFrontend longhorn.VolumeFrontend) error {
-	return fmt.Errorf("not implemented")
+func (e *EngineSimulator) VolumeFrontendStart(*longhorn.Engine) error {
+	return fmt.Errorf(ErrNotImplement)
 }
-func (e *EngineSimulator) FrontendShutdown() error {
-	return fmt.Errorf("not implemented")
+func (e *EngineSimulator) VolumeFrontendShutdown(*longhorn.Engine) error {
+	return fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) ReplicaRebuildVerify(url string) error {
-	return fmt.Errorf("not implemented")
+func (e *EngineSimulator) ReplicaRebuildVerify(engine *longhorn.Engine, url string) error {
+	return fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) BackupGet(destURL string, credential map[string]string) (*Backup, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) BackupVolumeGet(destURL string, credential map[string]string) (volume *BackupVolume, err error) {
+	return nil, fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) BackupNameList(destURL, volumeName string, credential map[string]string) (names []string, err error) {
+	return nil, fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) BackupVolumeNameList(destURL string, credential map[string]string) (names []string, err error) {
+	return nil, fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) BackupDelete(destURL string, credential map[string]string) (err error) {
+	return fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) BackupVolumeDelete(destURL, volumeName string, credential map[string]string) (err error) {
+	return fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) BackupConfigMetaGet(destURL string, credential map[string]string) (*ConfigMetadata, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }

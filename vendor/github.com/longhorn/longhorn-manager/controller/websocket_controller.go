@@ -7,7 +7,7 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	"github.com/longhorn/longhorn-manager/datastore"
 )
 
 type SimpleResourceEventHandler struct{ ChangeFunc func() }
@@ -32,17 +32,7 @@ func (w *Watcher) Close() {
 
 type WebsocketController struct {
 	*baseController
-	volumeSynced       cache.InformerSynced
-	engineSynced       cache.InformerSynced
-	replicaSynced      cache.InformerSynced
-	settingSynced      cache.InformerSynced
-	engineImageSynced  cache.InformerSynced
-	backingImageSynced cache.InformerSynced
-	nodeSynced         cache.InformerSynced
-	backupTargetSynced cache.InformerSynced
-	backupVolumeSynced cache.InformerSynced
-	backupSynced       cache.InformerSynced
-	recurringJobSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	watchers    []*Watcher
 	watcherLock sync.Mutex
@@ -50,45 +40,35 @@ type WebsocketController struct {
 
 func NewWebsocketController(
 	logger logrus.FieldLogger,
-	volumeInformer lhinformers.VolumeInformer,
-	engineInformer lhinformers.EngineInformer,
-	replicaInformer lhinformers.ReplicaInformer,
-	settingInformer lhinformers.SettingInformer,
-	engineImageInformer lhinformers.EngineImageInformer,
-	backingImageInformer lhinformers.BackingImageInformer,
-	nodeInformer lhinformers.NodeInformer,
-	backupTargetInformer lhinformers.BackupTargetInformer,
-	backupVolumeInformer lhinformers.BackupVolumeInformer,
-	backupInformer lhinformers.BackupInformer,
-	recurringJobInformer lhinformers.RecurringJobInformer,
+	ds *datastore.DataStore,
 ) *WebsocketController {
 
 	wc := &WebsocketController{
-		baseController:     newBaseController("longhorn-websocket", logger),
-		volumeSynced:       volumeInformer.Informer().HasSynced,
-		engineSynced:       engineInformer.Informer().HasSynced,
-		replicaSynced:      replicaInformer.Informer().HasSynced,
-		settingSynced:      settingInformer.Informer().HasSynced,
-		engineImageSynced:  engineImageInformer.Informer().HasSynced,
-		backingImageSynced: backingImageInformer.Informer().HasSynced,
-		nodeSynced:         nodeInformer.Informer().HasSynced,
-		backupTargetSynced: backupTargetInformer.Informer().HasSynced,
-		backupVolumeSynced: backupVolumeInformer.Informer().HasSynced,
-		backupSynced:       backupInformer.Informer().HasSynced,
-		recurringJobSynced: recurringJobInformer.Informer().HasSynced,
+		baseController: newBaseController("longhorn-websocket", logger),
 	}
 
-	volumeInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("volume"))
-	engineInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("engine"))
-	replicaInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("replica"))
-	settingInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("setting"))
-	engineImageInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("engineImage"))
-	backingImageInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("backingImage"))
-	nodeInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("node"))
-	backupTargetInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("backupTarget"))
-	backupVolumeInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("backupVolume"))
-	backupInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("backup"))
-	recurringJobInformer.Informer().AddEventHandler(wc.notifyWatchersHandler("recurringJob"))
+	ds.VolumeInformer.AddEventHandler(wc.notifyWatchersHandler("volume"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.VolumeInformer.HasSynced)
+	ds.EngineInformer.AddEventHandler(wc.notifyWatchersHandler("engine"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.EngineInformer.HasSynced)
+	ds.ReplicaInformer.AddEventHandler(wc.notifyWatchersHandler("replica"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.ReplicaInformer.HasSynced)
+	ds.SettingInformer.AddEventHandler(wc.notifyWatchersHandler("setting"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.SettingInformer.HasSynced)
+	ds.EngineImageInformer.AddEventHandler(wc.notifyWatchersHandler("engineImage"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.EngineImageInformer.HasSynced)
+	ds.BackingImageInformer.AddEventHandler(wc.notifyWatchersHandler("backingImage"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.BackingImageInformer.HasSynced)
+	ds.NodeInformer.AddEventHandler(wc.notifyWatchersHandler("node"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.NodeInformer.HasSynced)
+	ds.BackupTargetInformer.AddEventHandler(wc.notifyWatchersHandler("backupTarget"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.BackupTargetInformer.HasSynced)
+	ds.BackupVolumeInformer.AddEventHandler(wc.notifyWatchersHandler("backupVolume"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.BackupVolumeInformer.HasSynced)
+	ds.BackupInformer.AddEventHandler(wc.notifyWatchersHandler("backup"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.BackupInformer.HasSynced)
+	ds.RecurringJobInformer.AddEventHandler(wc.notifyWatchersHandler("recurringJob"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.RecurringJobInformer.HasSynced)
 
 	return wc
 }
@@ -112,10 +92,7 @@ func (wc *WebsocketController) Run(stopCh <-chan struct{}) {
 	wc.logger.Infof("Start Longhorn websocket controller")
 	defer wc.logger.Infof("Shutting down Longhorn websocket controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn websocket", stopCh,
-		wc.volumeSynced, wc.engineSynced, wc.replicaSynced,
-		wc.settingSynced, wc.engineImageSynced, wc.backingImageSynced, wc.nodeSynced,
-		wc.backupTargetSynced, wc.backupVolumeSynced, wc.backupSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn websocket", stopCh, wc.cacheSyncs...) {
 		return
 	}
 

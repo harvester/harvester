@@ -1,7 +1,10 @@
 package types
 
 const (
-	LonghornManagerDaemonSetName = "longhorn-manager"
+	LonghornManagerDaemonSetName            = "longhorn-manager"
+	LonghornAdmissionWebhookDeploymentName  = "longhorn-admission-webhook"
+	LonghornConversionWebhookDeploymentName = "longhorn-conversion-webhook"
+	LonghornUIDeploymentName                = "longhorn-ui"
 
 	DriverDeployerName = "longhorn-driver-deployer"
 	CSIAttacherName    = "csi-attacher"

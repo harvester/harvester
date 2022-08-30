@@ -10,6 +10,8 @@ import (
 	"math"
 	"math/big"
 	"net"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +19,8 @@ import (
 )
 
 const (
-	CertificateBlockType = "CERTIFICATE"
+	CertificateBlockType               = "CERTIFICATE"
+	defaultNewSignedCertExpirationDays = 365
 )
 
 func NewSelfSignedCACert(key crypto.Signer, cn string, org ...string) (*x509.Certificate, error) {
@@ -39,6 +42,9 @@ func NewSelfSignedCACert(key crypto.Signer, cn string, org ...string) (*x509.Cer
 	if err != nil {
 		return nil, err
 	}
+
+	logrus.Infof("generated self-signed CA certificate %s: notBefore=%s notAfter=%s",
+		tmpl.Subject, tmpl.NotBefore, tmpl.NotAfter)
 
 	return x509.ParseCertificate(certDERBytes)
 }
@@ -82,12 +88,22 @@ func NewSignedCert(signer crypto.Signer, caCert *x509.Certificate, caKey crypto.
 		return nil, err
 	}
 
+	expirationDays := defaultNewSignedCertExpirationDays
+	envExpirationDays := os.Getenv("CATTLE_NEW_SIGNED_CERT_EXPIRATION_DAYS")
+	if envExpirationDays != "" {
+		if envExpirationDaysInt, err := strconv.Atoi(envExpirationDays); err != nil {
+			logrus.Infof("[NewSignedCert] expiration days from ENV (%s) could not be converted to int (falling back to default value: %d)", envExpirationDays, defaultNewSignedCertExpirationDays)
+		} else {
+			expirationDays = envExpirationDaysInt
+		}
+	}
+
 	parent := x509.Certificate{
 		DNSNames:     domains,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		IPAddresses:  ips,
 		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		NotAfter:     time.Now().Add(time.Hour * 24 * 365).UTC(),
+		NotAfter:     time.Now().Add(time.Hour * 24 * time.Duration(expirationDays)).UTC(),
 		NotBefore:    caCert.NotBefore,
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{

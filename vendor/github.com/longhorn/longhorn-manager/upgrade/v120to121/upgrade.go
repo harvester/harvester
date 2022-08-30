@@ -32,7 +32,7 @@ func upgradeSettings(namespace string, lhClient *lhclientset.Clientset) (err err
 	}()
 
 	// Skip the upgrade if this deprecated setting is unavailable.
-	disableReplicaRebuildSetting, err := lhClient.LonghornV1beta1().Settings(namespace).Get(context.TODO(), string(types.SettingNameDisableReplicaRebuild), metav1.GetOptions{})
+	disableReplicaRebuildSetting, err := lhClient.LonghornV1beta2().Settings(namespace).Get(context.TODO(), string(types.SettingNameDisableReplicaRebuild), metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
@@ -49,7 +49,7 @@ func upgradeSettings(namespace string, lhClient *lhclientset.Clientset) (err err
 	}
 
 	// The rebuilding is already disabled. This new setting should be consistent with it.
-	concurrentRebuildLimitSetting, err := lhClient.LonghornV1beta1().Settings(namespace).Get(context.TODO(), string(types.SettingNameConcurrentReplicaRebuildPerNodeLimit), metav1.GetOptions{})
+	concurrentRebuildLimitSetting, err := lhClient.LonghornV1beta2().Settings(namespace).Get(context.TODO(), string(types.SettingNameConcurrentReplicaRebuildPerNodeLimit), metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -59,14 +59,14 @@ func upgradeSettings(namespace string, lhClient *lhclientset.Clientset) (err err
 	}
 	if concurrentRebuildLimit != 0 {
 		concurrentRebuildLimitSetting.Value = "0"
-		if _, err := lhClient.LonghornV1beta1().Settings(namespace).Update(context.TODO(), concurrentRebuildLimitSetting, metav1.UpdateOptions{}); err != nil {
+		if _, err := lhClient.LonghornV1beta2().Settings(namespace).Update(context.TODO(), concurrentRebuildLimitSetting, metav1.UpdateOptions{}); err != nil {
 			return err
 		}
 	}
 
 	// This old/deprecated setting can be unset or cleaned up now.
 	disableReplicaRebuildSetting.Value = "false"
-	if _, err := lhClient.LonghornV1beta1().Settings(namespace).Update(context.TODO(), disableReplicaRebuildSetting, metav1.UpdateOptions{}); err != nil {
+	if _, err := lhClient.LonghornV1beta2().Settings(namespace).Update(context.TODO(), disableReplicaRebuildSetting, metav1.UpdateOptions{}); err != nil {
 		return err
 	}
 

@@ -44,6 +44,7 @@ var (
 	OvercommitConfig        = NewSetting(OvercommitConfigSettingName, `{"cpu":1600,"memory":150,"storage":200}`)
 	VipPools                = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths  = NewSetting("auto-disk-provision-paths", "")
+	CSIDriverConfig         = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn"}}`)
 )
 
 const (
@@ -59,6 +60,7 @@ const (
 	VolumeSnapshotClassSettingName  = "volume-snapshot-class"
 	DefaultDashboardUIURL           = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
 	SupportBundleImageName          = "support-bundle-image"
+	CSIDriverConfigSettingName      = "csi-driver-config"
 )
 
 func init() {
@@ -252,4 +254,9 @@ type Image struct {
 	Repository      string            `json:"repository"`
 	Tag             string            `json:"tag"`
 	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy"`
+}
+
+type CSIDriverInfo struct {
+	VolumeSnapshotClassName       string `json:"volumeSnapshotClassName"`
+	BackupVolumeSnapshotClassName string `json:"backupVolumeSnapshotClassName"`
 }

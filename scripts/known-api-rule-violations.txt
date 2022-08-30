@@ -68,10 +68,8 @@ API rule violation: list_type_missing,k8s.io/api/core/v1,EphemeralContainerCommo
 API rule violation: list_type_missing,k8s.io/api/core/v1,EphemeralContainerCommon,Command
 API rule violation: list_type_missing,k8s.io/api/core/v1,EphemeralContainerCommon,Env
 API rule violation: list_type_missing,k8s.io/api/core/v1,EphemeralContainerCommon,EnvFrom
-API rule violation: list_type_missing,k8s.io/api/core/v1,EphemeralContainerCommon,Ports
 API rule violation: list_type_missing,k8s.io/api/core/v1,EphemeralContainerCommon,VolumeDevices
 API rule violation: list_type_missing,k8s.io/api/core/v1,EphemeralContainerCommon,VolumeMounts
-API rule violation: list_type_missing,k8s.io/api/core/v1,EphemeralContainers,EphemeralContainers
 API rule violation: list_type_missing,k8s.io/api/core/v1,ExecAction,Command
 API rule violation: list_type_missing,k8s.io/api/core/v1,FCVolumeSource,TargetWWNs
 API rule violation: list_type_missing,k8s.io/api/core/v1,FCVolumeSource,WWIDs
@@ -139,7 +137,6 @@ API rule violation: list_type_missing,k8s.io/api/core/v1,ServiceAccount,ImagePul
 API rule violation: list_type_missing,k8s.io/api/core/v1,ServiceAccount,Secrets
 API rule violation: list_type_missing,k8s.io/api/core/v1,ServiceSpec,ExternalIPs
 API rule violation: list_type_missing,k8s.io/api/core/v1,ServiceSpec,LoadBalancerSourceRanges
-API rule violation: list_type_missing,k8s.io/api/core/v1,ServiceSpec,TopologyKeys
 API rule violation: list_type_missing,k8s.io/api/core/v1,TopologySelectorLabelRequirement,Values
 API rule violation: list_type_missing,k8s.io/api/core/v1,TopologySelectorTerm,MatchLabelExpressions
 API rule violation: list_type_missing,k8s.io/apimachinery/pkg/apis/meta/v1,APIGroup,ServerAddressByClientCIDRs
@@ -200,7 +197,10 @@ API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-ap
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,CDIConfigSpec,InsecureRegistries
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,ClaimPropertySet,AccessModes
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,DataImportCronStatus,Conditions
+API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,DataImportCronStatus,CurrentImports
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,DataSourceStatus,Conditions
+API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,DataVolumeSourceHTTP,ExtraHeaders
+API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,DataVolumeSourceHTTP,SecretExtraHeaders
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,DataVolumeSpec,Checkpoints
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,DataVolumeStatus,Conditions
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,ObjectTransferStatus,Conditions
@@ -289,7 +289,6 @@ API rule violation: names_match,kubevirt.io/api/core/v1,FeatureHyperv,VPIndex
 API rule violation: names_match,kubevirt.io/api/core/v1,FeatureHyperv,VendorID
 API rule violation: names_match,kubevirt.io/api/core/v1,FeatureSpinlocks,Retries
 API rule violation: names_match,kubevirt.io/api/core/v1,FeatureVendorID,VendorID
-API rule violation: names_match,kubevirt.io/api/core/v1,FloppyTarget,ReadOnly
 API rule violation: names_match,kubevirt.io/api/core/v1,HPETTimer,Enabled
 API rule violation: names_match,kubevirt.io/api/core/v1,HypervTimer,Enabled
 API rule violation: names_match,kubevirt.io/api/core/v1,KVMTimer,Enabled
@@ -313,5 +312,7 @@ API rule violation: names_match,kubevirt.io/containerized-data-importer-api/pkg/
 API rule violation: names_match,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,DataVolumeSourceImageIO,DiskID
 API rule violation: names_match,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,ImportProxy,HTTPProxy
 API rule violation: names_match,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,ImportProxy,HTTPSProxy
+API rule violation: names_match,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,ImportStatus,DataVolumeName
+API rule violation: names_match,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,ImportStatus,Digest
 API rule violation: omitempty_match_case,github.com/openshift/api/operator/v1,StaticPodOperatorStatus,LatestAvailableRevision
 API rule violation: omitempty_match_case,github.com/openshift/api/operator/v1,StaticPodOperatorStatus,LatestAvailableRevisionReason

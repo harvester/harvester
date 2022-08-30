@@ -7,13 +7,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -40,14 +39,13 @@ type KubernetesConfigMapController struct {
 
 	ds *datastore.DataStore
 
-	cfmStoreSynced cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewKubernetesConfigMapController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	configMapInformer coreinformers.ConfigMapInformer,
 	kubeClient clientset.Interface,
 	controllerID string,
 	namespace string) *KubernetesConfigMapController {
@@ -68,15 +66,24 @@ func NewKubernetesConfigMapController(
 
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-kubernetes-configmap-controller"}),
-
-		cfmStoreSynced: configMapInformer.Informer().HasSynced,
 	}
 
-	configMapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.ConfigMapInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    kc.enqueueConfigMapChange,
 		UpdateFunc: func(old, cur interface{}) { kc.enqueueConfigMapChange(cur) },
 		DeleteFunc: kc.enqueueConfigMapChange,
 	})
+
+	ds.StorageClassInformer.AddEventHandlerWithResyncPeriod(
+		cache.FilteringResourceEventHandler{
+			FilterFunc: isLonghornStorageClass,
+			Handler: cache.ResourceEventHandlerFuncs{
+				UpdateFunc: func(old, cur interface{}) { kc.enqueueConfigMapForStorageClassChange(cur) },
+				DeleteFunc: kc.enqueueConfigMapForStorageClassChange,
+			},
+		}, 0)
+
+	kc.cacheSyncs = append(kc.cacheSyncs, ds.ConfigMapInformer.HasSynced, ds.StorageClassInformer.HasSynced)
 
 	return kc
 }
@@ -88,7 +95,7 @@ func (kc *KubernetesConfigMapController) Run(workers int, stopCh <-chan struct{}
 	kc.logger.Infof("Start")
 	defer kc.logger.Infof("Shutting down")
 
-	if !cache.WaitForNamedCacheSync(kc.name, stopCh, kc.cfmStoreSynced) {
+	if !cache.WaitForNamedCacheSync(kc.name, stopCh, kc.cacheSyncs...) {
 		return
 	}
 	for i := 0; i < workers; i++ {
@@ -140,56 +147,63 @@ func (kc *KubernetesConfigMapController) syncHandler(key string) (err error) {
 		return err
 	}
 
-	if err := kc.reconcileDefaultStorageClass(namespace, cfmName); err != nil {
+	if err := kc.reconcile(namespace, cfmName); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (kc *KubernetesConfigMapController) reconcileDefaultStorageClass(namespace, cfmName string) error {
-	if namespace != kc.namespace || cfmName != types.DefaultStorageClassConfigMapName {
+func (kc *KubernetesConfigMapController) reconcile(namespace, cfmName string) error {
+	if namespace != kc.namespace {
 		return nil
 	}
 
-	storageCFM, err := kc.ds.GetConfigMap(kc.namespace, types.DefaultStorageClassConfigMapName)
-	if err != nil {
-		return err
-	}
+	switch cfmName {
+	case types.DefaultStorageClassConfigMapName:
+		storageCFM, err := kc.ds.GetConfigMap(kc.namespace, types.DefaultStorageClassConfigMapName)
+		if err != nil {
+			return err
+		}
 
-	storageclassYAML, ok := storageCFM.Data["storageclass.yaml"]
-	if !ok {
-		return fmt.Errorf("cannot find storageclass.yaml inside the default StorageClass ConfigMap")
-	}
+		storageclassYAML, ok := storageCFM.Data["storageclass.yaml"]
+		if !ok {
+			return fmt.Errorf("cannot find storageclass.yaml inside the default StorageClass ConfigMap")
+		}
 
-	existingSC, err := kc.ds.GetStorageClassRO(types.DefaultStorageClassName)
-	if err != nil && !datastore.ErrorIsNotFound(err) {
-		return err
-	}
+		existingSC, err := kc.ds.GetStorageClassRO(types.DefaultStorageClassName)
+		if err != nil && !datastore.ErrorIsNotFound(err) {
+			return err
+		}
 
-	if !needToUpdateStorageClass(storageclassYAML, existingSC) {
-		return nil
-	}
-
-	storageclass, err := buildStorageClassManifestFromYAMLString(storageclassYAML)
-	if err != nil {
-		return err
-	}
-
-	err = kc.ds.DeleteStorageClass(types.DefaultStorageClassName)
-	if err != nil && !datastore.ErrorIsNotFound(err) {
-		return err
-	}
-
-	storageclass, err = kc.ds.CreateStorageClass(storageclass)
-	if err != nil {
-		if apierrors.IsAlreadyExists(err) {
+		if !needToUpdateStorageClass(storageclassYAML, existingSC) {
 			return nil
 		}
-		return err
-	}
 
-	kc.logger.Infof("Updated the default Longhorn StorageClass: %v", storageclass)
+		storageclass, err := buildStorageClassManifestFromYAMLString(storageclassYAML)
+		if err != nil {
+			return err
+		}
+
+		err = kc.ds.DeleteStorageClass(types.DefaultStorageClassName)
+		if err != nil && !datastore.ErrorIsNotFound(err) {
+			return err
+		}
+
+		storageclass, err = kc.ds.CreateStorageClass(storageclass)
+		if err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				return nil
+			}
+			return err
+		}
+
+		kc.logger.Infof("Updated the default Longhorn StorageClass: %v", storageclass)
+	case types.DefaultDefaultSettingConfigMapName:
+		if err := kc.ds.UpdateCustomizedSettings(nil); err != nil {
+			return errors.Wrap(err, "failed to update built-in settings with customized values")
+		}
+	}
 
 	return nil
 }
@@ -236,4 +250,27 @@ func (kc *KubernetesConfigMapController) enqueueConfigMapChange(obj interface{})
 	}
 
 	kc.queue.Add(key)
+}
+
+func (kc *KubernetesConfigMapController) enqueueConfigMapForStorageClassChange(obj interface{}) {
+	kc.queue.Add(kc.namespace + "/" + types.DefaultStorageClassConfigMapName)
+}
+
+func isLonghornStorageClass(obj interface{}) bool {
+	sc, isSC := obj.(*storagev1.StorageClass)
+	if !isSC {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
+			return false
+		}
+
+		sc, ok = deletedState.Obj.(*storagev1.StorageClass)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("DeletedFinalStateUnknown contained non StorageClass object: %#v", deletedState.Obj))
+			return false
+		}
+	}
+
+	return sc.Name == types.DefaultStorageClassName && sc.Provisioner == types.LonghornDriverName
 }

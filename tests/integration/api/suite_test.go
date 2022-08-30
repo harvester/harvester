@@ -2,13 +2,14 @@ package api_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
-	"github.com/rancher/dynamiclistener"
-
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rancher/dynamiclistener"
+	"github.com/sirupsen/logrus"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/harvester/harvester/pkg/server"
 	"github.com/harvester/harvester/tests/framework/cluster"
 	. "github.com/harvester/harvester/tests/framework/dsl"
-	"github.com/harvester/harvester/tests/framework/printer"
+	"github.com/harvester/harvester/tests/framework/helper"
 	"github.com/harvester/harvester/tests/integration/runtime"
 )
 
@@ -40,9 +41,7 @@ var (
 )
 
 const (
-	beforeSuiteTimeOut    = 1200
-	afterSuiteTimeOut     = 600
-	harvesterStartTimeOut = 15
+	harvesterStartTimeOut = 20
 )
 
 func TestAPI(t *testing.T) {
@@ -50,12 +49,10 @@ func TestAPI(t *testing.T) {
 
 	RegisterFailHandler(Fail)
 
-	RunSpecsWithDefaultAndCustomReporters(t, "api suite", []Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "api suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
-	defer close(done)
-
+var _ = BeforeSuite(func() {
 	testCtx, testCtxCancel = context.WithCancel(context.Background())
 	var err error
 
@@ -94,14 +91,15 @@ var _ = BeforeSuite(func(done Done) {
 	// and please use the client interface instead of informer interface if you can.
 	select {
 	case <-time.After(harvesterStartTimeOut * time.Second):
+		MustFinallyBeTrue(func() bool {
+			return validateApiIsReady()
+		})
 	case err := <-testSuiteStartErrChan:
 		MustNotError(err)
 	}
-}, beforeSuiteTimeOut)
+})
 
-var _ = AfterSuite(func(done Done) {
-	defer close(done)
-
+var _ = AfterSuite(func() {
 	By("tearing down harvester runtime")
 	err := runtime.Destruct(context.Background(), kubeConfig)
 	MustNotError(err)
@@ -115,4 +113,15 @@ var _ = AfterSuite(func(done Done) {
 		testCtxCancel()
 	}
 
-}, afterSuiteTimeOut)
+})
+
+// validate the v1 api server is ready
+func validateApiIsReady() bool {
+	apiURL := helper.BuildAPIURL("v1", "", options.HTTPSListenPort)
+	code, _, err := helper.GetResponse(apiURL)
+	if err != nil || code != http.StatusOK {
+		logrus.Errorf("failed to get %s, error: %d", apiURL, err)
+		return false
+	}
+	return true
+}

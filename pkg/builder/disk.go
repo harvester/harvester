@@ -74,13 +74,13 @@ func (v *VMBuilder) Disk(diskName, diskBus string, isCDRom bool, bootOrder int) 
 	}
 	diskDevice := kubevirtv1.DiskDevice{
 		Disk: &kubevirtv1.DiskTarget{
-			Bus: diskBus,
+			Bus: kubevirtv1.DiskBus(diskBus),
 		},
 	}
 	if isCDRom {
 		diskDevice = kubevirtv1.DiskDevice{
 			CDRom: &kubevirtv1.CDRomTarget{
-				Bus: diskBus,
+				Bus: kubevirtv1.DiskBus(diskBus),
 			},
 		}
 	}

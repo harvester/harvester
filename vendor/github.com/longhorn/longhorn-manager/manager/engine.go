@@ -13,43 +13,71 @@ import (
 
 	"github.com/longhorn/longhorn-manager/engineapi"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
 	BackupStatusQueryInterval = 2 * time.Second
 )
 
-func (m *VolumeManager) ListSnapshots(volumeName string) (map[string]*longhorn.Snapshot, error) {
+func (m *VolumeManager) ListSnapshots(volumeName string) (map[string]*longhorn.SnapshotInfo, error) {
 	if volumeName == "" {
 		return nil, fmt.Errorf("volume name required")
 	}
-	engine, err := m.GetEngineClient(volumeName)
+
+	engineCliClient, err := m.GetEngineBinaryClient(volumeName)
 	if err != nil {
 		return nil, err
 	}
-	return engine.SnapshotList()
+
+	engine, err := m.GetRunningEngineByVolume(volumeName)
+	if err != nil {
+		return nil, err
+	}
+
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer engineClientProxy.Close()
+
+	return engineClientProxy.SnapshotList(engine)
 }
 
-func (m *VolumeManager) GetSnapshot(snapshotName, volumeName string) (*longhorn.Snapshot, error) {
+func (m *VolumeManager) GetSnapshot(snapshotName, volumeName string) (*longhorn.SnapshotInfo, error) {
 	if volumeName == "" || snapshotName == "" {
 		return nil, fmt.Errorf("volume and snapshot name required")
 	}
-	engine, err := m.GetEngineClient(volumeName)
+
+	engineCliClient, err := m.GetEngineBinaryClient(volumeName)
 	if err != nil {
 		return nil, err
 	}
-	snapshot, err := engine.SnapshotGet(snapshotName)
+
+	engine, err := m.GetRunningEngineByVolume(volumeName)
 	if err != nil {
 		return nil, err
 	}
+
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer engineClientProxy.Close()
+
+	snapshot, err := engineClientProxy.SnapshotGet(engine, snapshotName)
+	if err != nil {
+		return nil, err
+	}
+
 	if snapshot == nil {
 		return nil, fmt.Errorf("cannot find snapshot '%s' for volume '%s'", snapshotName, volumeName)
 	}
+
 	return snapshot, nil
 }
 
-func (m *VolumeManager) CreateSnapshot(snapshotName string, labels map[string]string, volumeName string) (*longhorn.Snapshot, error) {
+func (m *VolumeManager) CreateSnapshot(snapshotName string, labels map[string]string, volumeName string) (*longhorn.SnapshotInfo, error) {
 	if volumeName == "" {
 		return nil, fmt.Errorf("volume name required")
 	}
@@ -64,21 +92,36 @@ func (m *VolumeManager) CreateSnapshot(snapshotName string, labels map[string]st
 		return nil, err
 	}
 
-	engine, err := m.GetEngineClient(volumeName)
+	engineCliClient, err := m.GetEngineBinaryClient(volumeName)
 	if err != nil {
 		return nil, err
 	}
-	snapshotName, err = engine.SnapshotCreate(snapshotName, labels)
+
+	e, err := m.GetRunningEngineByVolume(volumeName)
 	if err != nil {
 		return nil, err
 	}
-	snap, err := engine.SnapshotGet(snapshotName)
+
+	engineClientProxy, err := engineapi.GetCompatibleClient(e, engineCliClient, m.ds, nil)
 	if err != nil {
 		return nil, err
 	}
+	defer engineClientProxy.Close()
+
+	snapshotName, err = engineClientProxy.SnapshotCreate(e, snapshotName, labels)
+	if err != nil {
+		return nil, err
+	}
+
+	snap, err := engineClientProxy.SnapshotGet(e, snapshotName)
+	if err != nil {
+		return nil, err
+	}
+
 	if snap == nil {
 		return nil, fmt.Errorf("cannot found just created snapshot '%s', for volume '%s'", snapshotName, volumeName)
 	}
+
 	logrus.Debugf("Created snapshot %v with labels %+v for volume %v", snapshotName, labels, volumeName)
 	return snap, nil
 }
@@ -92,13 +135,26 @@ func (m *VolumeManager) DeleteSnapshot(snapshotName, volumeName string) error {
 		return err
 	}
 
-	engine, err := m.GetEngineClient(volumeName)
+	engineCliClient, err := m.GetEngineBinaryClient(volumeName)
 	if err != nil {
 		return err
 	}
-	if err := engine.SnapshotDelete(snapshotName); err != nil {
+
+	engine, err := m.GetRunningEngineByVolume(volumeName)
+	if err != nil {
 		return err
 	}
+
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil)
+	if err != nil {
+		return err
+	}
+	defer engineClientProxy.Close()
+
+	if err := engineClientProxy.SnapshotDelete(engine, snapshotName); err != nil {
+		return err
+	}
+
 	logrus.Debugf("Deleted snapshot %v for volume %v", snapshotName, volumeName)
 	return nil
 }
@@ -112,20 +168,39 @@ func (m *VolumeManager) RevertSnapshot(snapshotName, volumeName string) error {
 		return err
 	}
 
-	engine, err := m.GetEngineClient(volumeName)
+	engineCliClient, err := m.GetEngineBinaryClient(volumeName)
 	if err != nil {
 		return err
 	}
-	snapshot, err := engine.SnapshotGet(snapshotName)
+
+	engine, err := m.GetRunningEngineByVolume(volumeName)
 	if err != nil {
 		return err
 	}
+
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil)
+	if err != nil {
+		return err
+	}
+	defer engineClientProxy.Close()
+
+	snapshot, err := engineClientProxy.SnapshotGet(engine, snapshotName)
+	if err != nil {
+		return err
+	}
+
 	if snapshot == nil {
 		return fmt.Errorf("not found snapshot '%s', for volume '%s'", snapshotName, volumeName)
 	}
-	if err := engine.SnapshotRevert(snapshotName); err != nil {
+
+	if snapshot.Removed {
+		return fmt.Errorf("not revert to snapshot '%s' for volume '%s' since it's marked as Removed", snapshotName, volumeName)
+	}
+
+	if err := engineClientProxy.SnapshotRevert(engine, snapshotName); err != nil {
 		return err
 	}
+
 	logrus.Debugf("Revert to snapshot %v for volume %v", snapshotName, volumeName)
 	return nil
 }
@@ -139,14 +214,26 @@ func (m *VolumeManager) PurgeSnapshot(volumeName string) error {
 		return err
 	}
 
-	engine, err := m.GetEngineClient(volumeName)
+	engineCliClient, err := m.GetEngineBinaryClient(volumeName)
 	if err != nil {
 		return err
 	}
 
-	if err := engine.SnapshotPurge(); err != nil {
+	engine, err := m.GetRunningEngineByVolume(volumeName)
+	if err != nil {
 		return err
 	}
+
+	engineClientProxy, err := engineapi.GetCompatibleClient(engine, engineCliClient, m.ds, nil)
+	if err != nil {
+		return err
+	}
+	defer engineClientProxy.Close()
+
+	if err := engineClientProxy.SnapshotPurge(engine); err != nil {
+		return err
+	}
+
 	logrus.Debugf("Started snapshot purge for volume %v", volumeName)
 	return nil
 }
@@ -184,7 +271,7 @@ func (m *VolumeManager) checkVolumeNotInMigration(volumeName string) error {
 	return nil
 }
 
-func (m *VolumeManager) GetEngineClient(volumeName string) (client engineapi.EngineClient, err error) {
+func (m *VolumeManager) GetEngineBinaryClient(volumeName string) (client *engineapi.EngineBinary, err error) {
 	var e *longhorn.Engine
 
 	defer func() {
@@ -220,6 +307,41 @@ func (m *VolumeManager) GetEngineClient(volumeName string) (client engineapi.Eng
 		IP:          e.Status.IP,
 		Port:        e.Status.Port,
 	})
+}
+
+func (m *VolumeManager) GetRunningEngineByVolume(name string) (e *longhorn.Engine, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "cannot get %v volume engine", name)
+	}()
+
+	es, err := m.ds.ListVolumeEngines(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(es) == 0 {
+		return nil, errors.Errorf("cannot find engine")
+	}
+
+	if len(es) != 1 {
+		return nil, errors.Errorf("more than one engine exists")
+	}
+
+	for _, e = range es {
+		break
+	}
+	if e.Status.CurrentState != longhorn.InstanceStateRunning {
+		return nil, errors.Errorf("engine is not running")
+	}
+
+	if isReady, err := m.ds.CheckEngineImageReadiness(e.Status.CurrentImage, m.currentNodeID); !isReady {
+		if err != nil {
+			return nil, errors.Errorf("cannot get engine with image %v: %v", e.Status.CurrentImage, err)
+		}
+		return nil, errors.Errorf("cannot get engine with image %v because it isn't deployed on this node", e.Status.CurrentImage)
+	}
+
+	return e, nil
 }
 
 func (m *VolumeManager) ListBackupTargetsSorted() ([]*longhorn.BackupTarget, error) {

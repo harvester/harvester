@@ -2,10 +2,14 @@ package datastore
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
@@ -22,7 +26,7 @@ import (
 
 	"github.com/longhorn/longhorn-manager/types"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -241,6 +245,13 @@ func (s *DataStore) CreateStorageClass(sc *storagev1.StorageClass) (*storagev1.S
 	return s.kubeClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 }
 
+// ListPodsRO returns a list of all Pods for the given namespace,
+// the list contains direct references to the internal cache objects and should not be mutated.
+// Consider using this function when you can guarantee read only access and don't want the overhead of deep copies
+func (s *DataStore) ListPodsRO(namespace string) ([]*corev1.Pod, error) {
+	return s.pLister.Pods(namespace).List(labels.Everything())
+}
+
 // GetPod returns a mutable Pod object for the given name and namspace
 func (s *DataStore) GetPod(name string) (*corev1.Pod, error) {
 	resultRO, err := s.pLister.Pods(s.namespace).Get(name)
@@ -251,6 +262,10 @@ func (s *DataStore) GetPod(name string) (*corev1.Pod, error) {
 		return nil, err
 	}
 	return resultRO.DeepCopy(), nil
+}
+
+func (s *DataStore) GetPodRO(namespace, name string) (*corev1.Pod, error) {
+	return s.pLister.Pods(namespace).Get(name)
 }
 
 // GetPodContainerLog dumps the log of a container in a Pod object for the given name and namespace.
@@ -398,6 +413,13 @@ func (s *DataStore) ListPodsBySelector(selector labels.Selector) ([]*corev1.Pod,
 		res = append(res, item.DeepCopy())
 	}
 	return res, nil
+}
+
+// ListKubeNodesRO returns a list of all Kubernetes Nodes for the given namespace,
+// the list contains direct references to the internal cache objects and should not be mutated.
+// Consider using this function when you can guarantee read only access and don't want the overhead of deep copies
+func (s *DataStore) ListKubeNodesRO() ([]*corev1.Node, error) {
+	return s.knLister.List(labels.Everything())
 }
 
 // GetKubernetesNode gets the Node from the index for the given name
@@ -645,4 +667,69 @@ func NewPVCManifest(size int64, pvName, ns, pvcName, storageClassName string, ac
 			VolumeName:       pvName,
 		},
 	}
+}
+
+// GetStorageIPFromPod returns the given pod network-status IP of the name matching the storage-network setting value.
+// If the storage-network setting is empty or encountered an error, return the pod IP instead.
+// For below example, given "kube-system/demo-192-168-0-0" will return "192.168.1.175".
+//
+// apiVersion: v1
+// kind: Pod
+// metadata:
+//   annotations:
+//     k8s.v1.cni.cncf.io/network-status: |-
+//       [{
+//     	  "name": "cbr0",
+//     	  "interface": "eth0",
+//     	  "ips": [
+//     		  "10.42.0.175"
+//     	  ],
+//     	  "mac": "be:67:b2:19:17:84",
+//     	  "default": true,
+//     	  "dns": {}
+//       },{
+//     	  "name": "kube-system/demo-192-168-0-0",
+//     	  "interface": "lhnet1",
+//     	  "ips": [
+//     		  "192.168.1.175"
+//     	  ],
+//     	  "mac": "02:59:e5:d4:ae:ea",
+//     	  "dns": {}
+//       }]
+func (s *DataStore) GetStorageIPFromPod(pod *corev1.Pod) string {
+	storageNetwork, err := s.GetSetting(types.SettingNameStorageNetwork)
+	if err != nil {
+		logrus.Warnf("Failed to get %v setting, use %v pod IP %v", types.SettingNameStorageNetwork, pod.Name, pod.Status.PodIP)
+		return pod.Status.PodIP
+	}
+
+	if storageNetwork.Value == types.CniNetworkNone {
+		logrus.Debugf("Found %v setting is empty, use %v pod IP %v", types.SettingNameStorageNetwork, pod.Name, pod.Status.PodIP)
+		return pod.Status.PodIP
+	}
+
+	status, ok := pod.Annotations[string(types.CNIAnnotationNetworkStatus)]
+	if !ok {
+		logrus.Warnf("Missing %v annotation, use %v pod IP %v", types.CNIAnnotationNetworkStatus, pod.Name, pod.Status.PodIP)
+		return pod.Status.PodIP
+	}
+
+	nets := []types.CniNetwork{}
+	err = json.Unmarshal([]byte(status), &nets)
+	if err != nil {
+		logrus.Warnf("Failed to unmarshal %v annotation, use %v pod IP %v", types.CNIAnnotationNetworkStatus, pod.Name, pod.Status.PodIP)
+		return pod.Status.PodIP
+	}
+
+	for _, net := range nets {
+		if net.Name != storageNetwork.Value {
+			continue
+		}
+
+		sort.Strings(net.IPs)
+		return net.IPs[0]
+	}
+
+	logrus.Warnf("Failed to get storage IP from %v pod, use IP %v", pod.Name, pod.Status.PodIP)
+	return pod.Status.PodIP
 }

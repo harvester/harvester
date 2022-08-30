@@ -239,15 +239,61 @@ spec:
                                       description: 'This field can be used to specify
                                         either: * An existing VolumeSnapshot object
                                         (snapshot.storage.k8s.io/VolumeSnapshot) *
-                                        An existing PVC (PersistentVolumeClaim) *
-                                        An existing custom resource that implements
-                                        data population (Alpha) In order to use custom
-                                        resource types that implement data population,
-                                        the AnyVolumeDataSource feature gate must
-                                        be enabled. If the provisioner or an external
-                                        controller can support the specified data
-                                        source, it will create a new volume based
-                                        on the contents of the specified data source.'
+                                        An existing PVC (PersistentVolumeClaim) If
+                                        the provisioner or an external controller
+                                        can support the specified data source, it
+                                        will create a new volume based on the contents
+                                        of the specified data source. If the AnyVolumeDataSource
+                                        feature gate is enabled, this field will always
+                                        have the same contents as the DataSourceRef
+                                        field.'
+                                      properties:
+                                        apiGroup:
+                                          description: APIGroup is the group for the
+                                            resource being referenced. If APIGroup
+                                            is not specified, the specified Kind must
+                                            be in the core API group. For any other
+                                            third-party types, APIGroup is required.
+                                          type: string
+                                        kind:
+                                          description: Kind is the type of resource
+                                            being referenced
+                                          type: string
+                                        name:
+                                          description: Name is the name of resource
+                                            being referenced
+                                          type: string
+                                      required:
+                                      - kind
+                                      - name
+                                      type: object
+                                    dataSourceRef:
+                                      description: 'Specifies the object from which
+                                        to populate the volume with data, if a non-empty
+                                        volume is desired. This may be any local object
+                                        from a non-empty API group (non core object)
+                                        or a PersistentVolumeClaim object. When this
+                                        field is specified, volume binding will only
+                                        succeed if the type of the specified object
+                                        matches some installed volume populator or
+                                        dynamic provisioner. This field will replace
+                                        the functionality of the DataSource field
+                                        and as such if both fields are non-empty,
+                                        they must have the same value. For backwards
+                                        compatibility, both fields (DataSource and
+                                        DataSourceRef) will be set to the same value
+                                        automatically if one of them is empty and
+                                        the other is non-empty. There are two important
+                                        differences between DataSource and DataSourceRef:
+                                        * While DataSource only allows two specific
+                                        types of objects, DataSourceRef   allows any
+                                        non-core object, as well as PersistentVolumeClaim
+                                        objects. * While DataSource ignores disallowed
+                                        values (dropping them), DataSourceRef   preserves
+                                        all values, and generates an error if a disallowed
+                                        value is   specified. (Alpha) Using this field
+                                        requires the AnyVolumeDataSource feature gate
+                                        to be enabled.'
                                       properties:
                                         apiGroup:
                                           description: APIGroup is the group for the
@@ -270,8 +316,12 @@ spec:
                                       type: object
                                     resources:
                                       description: 'Resources represents the minimum
-                                        resources the volume should have. More info:
-                                        https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
+                                        resources the volume should have. If RecoverVolumeExpansionFailure
+                                        feature is enabled users are allowed to specify
+                                        resource requirements that are lower than
+                                        previous value but must still be higher than
+                                        capacity recorded in the status field of the
+                                        claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
                                       properties:
                                         limits:
                                           additionalProperties:
@@ -386,6 +436,21 @@ spec:
                                             reference, containing a Certificate Authority(CA)
                                             public key, and a base64 encoded pem certificate
                                           type: string
+                                        extraHeaders:
+                                          description: ExtraHeaders is a list of strings
+                                            containing extra headers to include with
+                                            HTTP transfer requests
+                                          items:
+                                            type: string
+                                          type: array
+                                        secretExtraHeaders:
+                                          description: SecretExtraHeaders is a list
+                                            of Secret references, each containing
+                                            an extra HTTP header that may include
+                                            sensitive information
+                                          items:
+                                            type: string
+                                          type: array
                                         secretRef:
                                           description: SecretRef A Secret reference,
                                             the secret should contain accessKeyId
@@ -502,6 +567,12 @@ spec:
                                           description: BackingFile is the path to
                                             the virtual hard disk to migrate from
                                             vCenter/ESXi
+                                          type: string
+                                        initImageURL:
+                                          description: InitImageURL is an optional
+                                            URL to an image containing an extracted
+                                            VDDK library, overrides v2v-vmware config
+                                            map
                                           type: string
                                         secretRef:
                                           description: SecretRef provides a reference
@@ -707,10 +778,6 @@ spec:
                           name:
                             description: Name is the name of the VirtualMachineFlavor
                               or VirtualMachineClusterFlavor
-                            type: string
-                          profile:
-                            description: Profile is the name of a custom profile in
-                              the flavor. If left empty, the default profile is used.
                             type: string
                         required:
                         - name
@@ -1201,8 +1268,8 @@ spec:
                                                     or empty namespaces list means
                                                     "this pod's namespace". An empty
                                                     selector ({}) matches all namespaces.
-                                                    This field is alpha-level and
-                                                    is only honored when PodAffinityNamespaceSelector
+                                                    This field is beta-level and is
+                                                    only honored when PodAffinityNamespaceSelector
                                                     feature is enabled.
                                                   properties:
                                                     matchExpressions:
@@ -1399,7 +1466,7 @@ spec:
                                                 namespaces list means "this pod's
                                                 namespace". An empty selector ({})
                                                 matches all namespaces. This field
-                                                is alpha-level and is only honored
+                                                is beta-level and is only honored
                                                 when PodAffinityNamespaceSelector
                                                 feature is enabled.
                                               properties:
@@ -1595,8 +1662,8 @@ spec:
                                                     or empty namespaces list means
                                                     "this pod's namespace". An empty
                                                     selector ({}) matches all namespaces.
-                                                    This field is alpha-level and
-                                                    is only honored when PodAffinityNamespaceSelector
+                                                    This field is beta-level and is
+                                                    only honored when PodAffinityNamespaceSelector
                                                     feature is enabled.
                                                   properties:
                                                     matchExpressions:
@@ -1793,7 +1860,7 @@ spec:
                                                 namespaces list means "this pod's
                                                 namespace". An empty selector ({})
                                                 matches all namespaces. This field
-                                                is alpha-level and is only honored
+                                                is beta-level and is only honored
                                                 when PodAffinityNamespaceSelector
                                                 feature is enabled.
                                               properties:
@@ -2205,9 +2272,8 @@ spec:
                                           to hotplug disks.
                                         type: boolean
                                       disks:
-                                        description: Disks describes disks, cdroms,
-                                          floppy and luns which are connected to the
-                                          vmi.
+                                        description: Disks describes disks, cdroms
+                                          and luns which are connected to the vmi.
                                         items:
                                           properties:
                                             blockSize:
@@ -2304,21 +2370,6 @@ spec:
                                                     to false.
                                                   type: boolean
                                               type: object
-                                            floppy:
-                                              description: Attach a volume as a floppy
-                                                to the vmi.
-                                              properties:
-                                                readonly:
-                                                  description: ReadOnly. Defaults
-                                                    to false.
-                                                  type: boolean
-                                                tray:
-                                                  description: Tray indicates if the
-                                                    tray of the device is open or
-                                                    closed. Allowed values are "open"
-                                                    and "closed". Defaults to closed.
-                                                  type: string
-                                              type: object
                                             io:
                                               description: 'IO specifies which QEMU
                                                 disk IO mode should be used. Supported
@@ -2347,6 +2398,11 @@ spec:
                                                 to specify a serial number for the
                                                 disk device.
                                               type: string
+                                            shareable:
+                                              description: If specified the disk is
+                                                made sharable and multiple write from
+                                                different VMs are permitted
+                                              type: boolean
                                             tag:
                                               description: If specified, disk address
                                                 and its tag will be provided to the
@@ -2383,6 +2439,12 @@ spec:
                                             name:
                                               description: Name of the GPU device
                                                 as exposed by a device plugin
+                                              type: string
+                                            tag:
+                                              description: If specified, the virtual
+                                                network interface address and its
+                                                tag will be provided to the guest
+                                                via config drive
                                               type: string
                                             virtualGPUOptions:
                                               properties:
@@ -2429,6 +2491,12 @@ spec:
                                               type: string
                                             name:
                                               type: string
+                                            tag:
+                                              description: If specified, the virtual
+                                                network interface address and its
+                                                tag will be provided to the guest
+                                                via config drive
+                                              type: string
                                           required:
                                           - deviceName
                                           - name
@@ -2472,6 +2540,8 @@ spec:
                                                 boot order are not tried.
                                               type: integer
                                             bridge:
+                                              description: InterfaceBridge connects
+                                                to a given network via a linux bridge.
                                               type: object
                                             dhcpOptions:
                                               description: If specified the network
@@ -2526,8 +2596,15 @@ spec:
                                                 DE-AD-00-00-BE-AF.'
                                               type: string
                                             macvtap:
+                                              description: InterfaceMacvtap connects
+                                                to a given network by extending the
+                                                Kubernetes node's L2 networks via
+                                                a macvtap interface.
                                               type: object
                                             masquerade:
+                                              description: InterfaceMasquerade connects
+                                                to a given network using netfilter
+                                                rules to nat the traffic.
                                               type: object
                                             model:
                                               description: 'Interface model. One of:
@@ -2583,8 +2660,14 @@ spec:
                                                 type: object
                                               type: array
                                             slirp:
+                                              description: InterfaceSlirp connects
+                                                to a given network using QEMU user
+                                                networking mode.
                                               type: object
                                             sriov:
+                                              description: InterfaceSRIOV connects
+                                                to a given network by passing-through
+                                                an SR-IOV PCI device via vfio.
                                               type: object
                                             tag:
                                               description: If specified, the virtual
@@ -2624,6 +2707,9 @@ spec:
                                             type: string
                                         required:
                                         - name
+                                        type: object
+                                      tpm:
+                                        description: Whether to emulate a TPM device.
                                         type: object
                                       useVirtioTransitional:
                                         description: Fall back to legacy virtio 0.9
@@ -3989,14 +4075,55 @@ spec:
                             dataSource:
                               description: 'This field can be used to specify either:
                                 * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
-                                * An existing PVC (PersistentVolumeClaim) * An existing
-                                custom resource that implements data population (Alpha)
-                                In order to use custom resource types that implement
-                                data population, the AnyVolumeDataSource feature gate
-                                must be enabled. If the provisioner or an external
-                                controller can support the specified data source,
-                                it will create a new volume based on the contents
-                                of the specified data source.'
+                                * An existing PVC (PersistentVolumeClaim) If the provisioner
+                                or an external controller can support the specified
+                                data source, it will create a new volume based on
+                                the contents of the specified data source. If the
+                                AnyVolumeDataSource feature gate is enabled, this
+                                field will always have the same contents as the DataSourceRef
+                                field.'
+                              properties:
+                                apiGroup:
+                                  description: APIGroup is the group for the resource
+                                    being referenced. If APIGroup is not specified,
+                                    the specified Kind must be in the core API group.
+                                    For any other third-party types, APIGroup is required.
+                                  type: string
+                                kind:
+                                  description: Kind is the type of resource being
+                                    referenced
+                                  type: string
+                                name:
+                                  description: Name is the name of resource being
+                                    referenced
+                                  type: string
+                              required:
+                              - kind
+                              - name
+                              type: object
+                            dataSourceRef:
+                              description: 'Specifies the object from which to populate
+                                the volume with data, if a non-empty volume is desired.
+                                This may be any local object from a non-empty API
+                                group (non core object) or a PersistentVolumeClaim
+                                object. When this field is specified, volume binding
+                                will only succeed if the type of the specified object
+                                matches some installed volume populator or dynamic
+                                provisioner. This field will replace the functionality
+                                of the DataSource field and as such if both fields
+                                are non-empty, they must have the same value. For
+                                backwards compatibility, both fields (DataSource and
+                                DataSourceRef) will be set to the same value automatically
+                                if one of them is empty and the other is non-empty.
+                                There are two important differences between DataSource
+                                and DataSourceRef: * While DataSource only allows
+                                two specific types of objects, DataSourceRef   allows
+                                any non-core object, as well as PersistentVolumeClaim
+                                objects. * While DataSource ignores disallowed values
+                                (dropping them), DataSourceRef   preserves all values,
+                                and generates an error if a disallowed value is   specified.
+                                (Alpha) Using this field requires the AnyVolumeDataSource
+                                feature gate to be enabled.'
                               properties:
                                 apiGroup:
                                   description: APIGroup is the group for the resource
@@ -4018,7 +4145,11 @@ spec:
                               type: object
                             resources:
                               description: 'Resources represents the minimum resources
-                                the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
+                                the volume should have. If RecoverVolumeExpansionFailure
+                                feature is enabled users are allowed to specify resource
+                                requirements that are lower than previous value but
+                                must still be higher than capacity recorded in the
+                                status field of the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
                               properties:
                                 limits:
                                   additionalProperties:

@@ -117,7 +117,7 @@ func (c *FakeBackupTargets) UpdateStatus(ctx context.Context, backupTarget *v1be
 // Delete takes name of the backupTarget and deletes it. Returns an error if one occurs.
 func (c *FakeBackupTargets) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(backuptargetsResource, c.ns, name), &v1beta1.BackupTarget{})
+		Invokes(testing.NewDeleteActionWithOptions(backuptargetsResource, c.ns, name, opts), &v1beta1.BackupTarget{})
 
 	return err
 }

@@ -27,6 +27,7 @@ type TLSFactory interface {
 	AddCN(secret *v1.Secret, cn ...string) (*v1.Secret, bool, error)
 	Merge(target *v1.Secret, additional *v1.Secret) (*v1.Secret, bool, error)
 	Filter(cn ...string) []string
+	Regenerate(secret *v1.Secret) (*v1.Secret, error)
 }
 
 type SetFactory interface {
@@ -43,14 +44,18 @@ func NewListener(l net.Listener, storage TLSStorage, caCert *x509.Certificate, c
 	if config.TLSConfig == nil {
 		config.TLSConfig = &tls.Config{}
 	}
+	if config.ExpirationDaysCheck == 0 {
+		config.ExpirationDaysCheck = 90
+	}
 
 	dynamicListener := &listener{
 		factory: &factory.TLS{
-			CACert:       caCert,
-			CAKey:        caKey,
-			CN:           config.CN,
-			Organization: config.Organization,
-			FilterCN:     allowDefaultSANs(config.SANs, config.FilterCN),
+			CACert:              caCert,
+			CAKey:               caKey,
+			CN:                  config.CN,
+			Organization:        config.Organization,
+			FilterCN:            allowDefaultSANs(config.SANs, config.FilterCN),
+			ExpirationDaysCheck: config.ExpirationDaysCheck,
 		},
 		Listener:  l,
 		storage:   &nonNil{storage: storage},
@@ -74,11 +79,14 @@ func NewListener(l net.Listener, storage TLSStorage, caCert *x509.Certificate, c
 		setter.SetFactory(dynamicListener.factory)
 	}
 
-	if config.ExpirationDaysCheck == 0 {
-		config.ExpirationDaysCheck = 30
+	if config.RegenerateCerts != nil && config.RegenerateCerts() {
+		if err := dynamicListener.regenerateCerts(); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	tlsListener := tls.NewListener(dynamicListener.WrapExpiration(config.ExpirationDaysCheck), dynamicListener.tlsConfig)
+
 	return tlsListener, dynamicListener.cacheHandler(), nil
 }
 
@@ -129,6 +137,7 @@ type Config struct {
 	MaxSANs               int
 	ExpirationDaysCheck   int
 	CloseConnOnCertChange bool
+	RegenerateCerts       func() bool
 	FilterCN              func(...string) []string
 }
 
@@ -153,12 +162,15 @@ type listener struct {
 func (l *listener) WrapExpiration(days int) net.Listener {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(30 * time.Second)
+		// loop on short sleeps until certificate preload completes
+		for l.cert == nil {
+			time.Sleep(time.Millisecond)
+		}
 
 		for {
 			wait := 6 * time.Hour
 			if err := l.checkExpiration(days); err != nil {
-				logrus.Errorf("failed to check and renew dynamic cert: %v", err)
+				logrus.Errorf("dynamiclistener %s: failed to check and renew dynamic cert: %v", l.Addr(), err)
 				// Don't go into short retry loop if we're using a static (user-provided) cert.
 				// We will still check and print an error every six hours until the user updates the secret with
 				// a cert that is not about to expire. Hopefully this will prompt them to take action.
@@ -178,6 +190,30 @@ func (l *listener) WrapExpiration(days int) net.Listener {
 		cancel:   cancel,
 		Listener: l,
 	}
+}
+
+// regenerateCerts regenerates the used certificates and
+// updates the secret.
+func (l *listener) regenerateCerts() error {
+	l.Lock()
+	defer l.Unlock()
+
+	secret, err := l.storage.Get()
+	if err != nil {
+		return err
+	}
+
+	newSecret, err := l.factory.Regenerate(secret)
+	if err != nil {
+		return err
+	}
+	if err := l.storage.Update(newSecret); err != nil {
+		return err
+	}
+	// clear version to force cert reload
+	l.version = ""
+
+	return nil
 }
 
 func (l *listener) checkExpiration(days int) error {
@@ -225,7 +261,19 @@ func (l *listener) checkExpiration(days int) error {
 func (l *listener) Accept() (net.Conn, error) {
 	l.init.Do(func() {
 		if len(l.sans) > 0 {
-			l.updateCert(l.sans...)
+			if err := l.updateCert(l.sans...); err != nil {
+				logrus.Errorf("dynamiclistener %s: failed to update cert with configured SANs: %v", l.Addr(), err)
+				return
+			}
+		}
+		if cert, err := l.loadCert(nil); err != nil {
+			logrus.Errorf("dynamiclistener %s: failed to preload certificate: %v", l.Addr(), err)
+		} else if cert == nil {
+			// This should only occur on the first startup when no SANs are configured in the listener config, in which
+			// case no certificate can be created, as dynamiclistener will not create certificates until at least one IP
+			// or DNS SAN is set. It will also occur when using the Kubernetes storage without a local File cache.
+			// For reliable serving of requests, callers should configure a local cache and/or a default set of SANs.
+			logrus.Warnf("dynamiclistener %s: no cached certificate available for preload - deferring certificate load until storage initialization or first client request", l.Addr())
 		}
 	})
 
@@ -241,14 +289,12 @@ func (l *listener) Accept() (net.Conn, error) {
 
 	host, _, err := net.SplitHostPort(addr.String())
 	if err != nil {
-		logrus.Errorf("failed to parse network %s: %v", addr.Network(), err)
+		logrus.Errorf("dynamiclistener %s: failed to parse connection local address %s: %v", l.Addr(), addr, err)
 		return conn, nil
 	}
 
-	if !strings.Contains(host, ":") {
-		if err := l.updateCert(host); err != nil {
-			logrus.Infof("failed to create TLS cert for: %s, %v", host, err)
-		}
+	if err := l.updateCert(host); err != nil {
+		logrus.Errorf("dynamiclistener %s: failed to update cert with connection local address: %v", l.Addr(), err)
 	}
 
 	if l.conns != nil {
@@ -295,6 +341,7 @@ func (l *listener) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate,
 	newConn := hello.Conn
 	if hello.ServerName != "" {
 		if err := l.updateCert(hello.ServerName); err != nil {
+			logrus.Errorf("dynamiclistener %s: failed to update cert with TLS ServerName: %v", l.Addr(), err)
 			return nil, err
 		}
 	}
@@ -316,7 +363,7 @@ func (l *listener) updateCert(cn ...string) error {
 		return err
 	}
 
-	if !factory.IsStatic(secret) && !factory.NeedsUpdate(l.maxSANs, secret, cn...) {
+	if factory.IsStatic(secret) || !factory.NeedsUpdate(l.maxSANs, secret, cn...) {
 		return nil
 	}
 
@@ -334,7 +381,9 @@ func (l *listener) updateCert(cn ...string) error {
 		if err := l.storage.Update(secret); err != nil {
 			return err
 		}
-		// clear version to force cert reload
+		// Clear version to force cert reload next time loadCert is called by TLSConfig's
+		// GetCertificate hook to provide a certificate for a new connection. Note that this
+		// means the old certificate stays in l.cert until a new connection is made.
 		l.version = ""
 	}
 
@@ -362,6 +411,9 @@ func (l *listener) loadCert(currentConn net.Conn) (*tls.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !cert.IsValidTLSSecret(secret) {
+		return l.cert, nil
+	}
 	if l.cert != nil && l.version == secret.ResourceVersion && secret.ResourceVersion != "" {
 		return l.cert, nil
 	}
@@ -372,7 +424,7 @@ func (l *listener) loadCert(currentConn net.Conn) (*tls.Certificate, error) {
 	}
 
 	// cert has changed, close closeWrapper wrapped connections if this isn't the first load
-	if l.conns != nil && l.cert != nil {
+	if currentConn != nil && l.conns != nil && l.cert != nil {
 		l.connLock.Lock()
 		for _, conn := range l.conns {
 			// Don't close a connection that's in the middle of completing a TLS handshake
@@ -405,7 +457,9 @@ func (l *listener) cacheHandler() http.Handler {
 				}
 			}
 
-			l.updateCert(h)
+			if err := l.updateCert(h); err != nil {
+				logrus.Errorf("dynamiclistener %s: failed to update cert with HTTP request Host header: %v", l.Addr(), err)
+			}
 		}
 	})
 }

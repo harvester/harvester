@@ -185,7 +185,7 @@ func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevir
 			},
 			Annotations: map[string]string{
 				"harvesterhci.io/volumeClaimTemplates": string(pvc),
-				"networks.harvesterhci.io/ips":         "[]",
+				"network.harvesterhci.io/ips":          "[]",
 				util.RemovedPVCsAnnotationKey:          disk0Claim,
 			},
 			OwnerReferences: []metav1.OwnerReference{

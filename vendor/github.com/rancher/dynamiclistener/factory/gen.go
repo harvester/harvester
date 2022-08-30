@@ -6,13 +6,16 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"net"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/rancher/dynamiclistener/cert"
 	"github.com/sirupsen/logrus"
@@ -30,11 +33,12 @@ var (
 )
 
 type TLS struct {
-	CACert       *x509.Certificate
-	CAKey        crypto.Signer
-	CN           string
-	Organization []string
-	FilterCN     func(...string) []string
+	CACert              *x509.Certificate
+	CAKey               crypto.Signer
+	CN                  string
+	Organization        []string
+	FilterCN            func(...string) []string
+	ExpirationDaysCheck int
 }
 
 func cns(secret *v1.Secret) (cns []string) {
@@ -68,20 +72,42 @@ func collectCNs(secret *v1.Secret) (domains []string, ips []net.IP, err error) {
 	return
 }
 
-// Merge combines the SAN lists from the target and additional Secrets, and returns a potentially modified Secret,
-// along with a bool indicating if the returned Secret has been updated or not. If the two SAN lists alread matched
-// and no merging was necessary, but the Secrets' certificate fingerprints differed, the second secret is returned
-// and the updated bool is set to true despite neither certificate having actually been modified. This is required
-// to support handling certificate renewal within the kubernetes storage provider.
+// Merge combines the SAN lists from the target and additional Secrets, and
+// returns a potentially modified Secret, along with a bool indicating if the
+// returned Secret is not the same as the target Secret. Secrets with expired
+// certificates will never be returned.
+//
+// If the merge would not add any CNs to the additional Secret, the additional
+// Secret is returned, to allow for certificate rotation/regeneration.
+//
+// If the merge would not add any CNs to the target Secret, the target Secret is
+// returned; no merging is necessary.
+//
+// If neither certificate is acceptable as-is, a new certificate containing
+// the union of the two lists is generated, using the private key from the
+// first Secret. The returned Secret will contain the updated cert.
 func (t *TLS) Merge(target, additional *v1.Secret) (*v1.Secret, bool, error) {
-	secret, updated, err := t.AddCN(target, cns(additional)...)
-	if !updated {
-		if target.Annotations[fingerprint] != additional.Annotations[fingerprint] {
-			secret = additional
-			updated = true
-		}
+	// static secrets can't be altered, don't bother trying
+	if IsStatic(target) {
+		return target, false, nil
 	}
-	return secret, updated, err
+
+	mergedCNs := append(cns(target), cns(additional)...)
+
+	// if the additional secret already has all the CNs, use it in preference to the
+	// current one. This behavior is required to allow for renewal or regeneration.
+	if !NeedsUpdate(0, additional, mergedCNs...) && !t.IsExpired(additional) {
+		return additional, true, nil
+	}
+
+	// if the target secret already has all the CNs, continue using it. The additional
+	// cert had only a subset of the current CNs, so nothing needs to be added.
+	if !NeedsUpdate(0, target, mergedCNs...) && !t.IsExpired(target) {
+		return target, false, nil
+	}
+
+	// neither cert currently has all the necessary CNs or is unexpired; generate a new one.
+	return t.generateCert(target, mergedCNs...)
 }
 
 // Renew returns a copy of the given certificate that has been re-signed
@@ -119,10 +145,20 @@ func (t *TLS) AddCN(secret *v1.Secret, cn ...string) (*v1.Secret, bool, error) {
 	return t.generateCert(secret, cn...)
 }
 
+func (t *TLS) Regenerate(secret *v1.Secret) (*v1.Secret, error) {
+	cns := cns(secret)
+	secret, _, err := t.generateCert(nil, cns...)
+	return secret, err
+}
+
 func (t *TLS) generateCert(secret *v1.Secret, cn ...string) (*v1.Secret, bool, error) {
 	secret = secret.DeepCopy()
 	if secret == nil {
 		secret = &v1.Secret{}
+	}
+
+	if err := t.Verify(secret); err != nil {
+		logrus.Warnf("unable to verify existing certificate: %v - signing operation may change certificate issuer", err)
 	}
 
 	secret = populateCN(secret, cn...)
@@ -142,7 +178,7 @@ func (t *TLS) generateCert(secret *v1.Secret, cn ...string) (*v1.Secret, bool, e
 		return nil, false, err
 	}
 
-	certBytes, keyBytes, err := Marshal(newCert, privateKey)
+	keyBytes, certBytes, err := MarshalChain(privateKey, newCert, t.CACert)
 	if err != nil {
 		return nil, false, err
 	}
@@ -150,11 +186,50 @@ func (t *TLS) generateCert(secret *v1.Secret, cn ...string) (*v1.Secret, bool, e
 	if secret.Data == nil {
 		secret.Data = map[string][]byte{}
 	}
+	secret.Type = v1.SecretTypeTLS
 	secret.Data[v1.TLSCertKey] = certBytes
 	secret.Data[v1.TLSPrivateKeyKey] = keyBytes
 	secret.Annotations[fingerprint] = fmt.Sprintf("SHA1=%X", sha1.Sum(newCert.Raw))
 
 	return secret, true, nil
+}
+
+func (t *TLS) IsExpired(secret *v1.Secret) bool {
+	certsPem := secret.Data[v1.TLSCertKey]
+	if len(certsPem) == 0 {
+		return false
+	}
+
+	certificates, err := cert.ParseCertsPEM(certsPem)
+	if err != nil || len(certificates) == 0 {
+		return false
+	}
+
+	expirationDays := time.Duration(t.ExpirationDaysCheck) * time.Hour * 24
+	return time.Now().Add(expirationDays).After(certificates[0].NotAfter)
+}
+
+func (t *TLS) Verify(secret *v1.Secret) error {
+	certsPem := secret.Data[v1.TLSCertKey]
+	if len(certsPem) == 0 {
+		return nil
+	}
+
+	certificates, err := cert.ParseCertsPEM(certsPem)
+	if err != nil || len(certificates) == 0 {
+		return err
+	}
+
+	verifyOpts := x509.VerifyOptions{
+		Roots: x509.NewCertPool(),
+		KeyUsages: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageAny,
+		},
+	}
+	verifyOpts.Roots.AddCert(t.CACert)
+
+	_, err = certificates[0].Verify(verifyOpts)
+	return err
 }
 
 func (t *TLS) newCert(domains []string, ips []net.IP, privateKey crypto.Signer) (*x509.Certificate, error) {
@@ -168,7 +243,7 @@ func populateCN(secret *v1.Secret, cn ...string) *v1.Secret {
 	}
 	for _, cn := range cn {
 		if cnRegexp.MatchString(cn) {
-			secret.Annotations[cnPrefix+cn] = cn
+			secret.Annotations[getAnnotationKey(cn)] = cn
 		} else {
 			logrus.Errorf("dropping invalid CN: %s", cn)
 		}
@@ -195,7 +270,7 @@ func NeedsUpdate(maxSANs int, secret *v1.Secret, cn ...string) bool {
 	}
 
 	for _, cn := range cn {
-		if secret.Annotations[cnPrefix+cn] == "" {
+		if secret.Annotations[getAnnotationKey(cn)] == "" {
 			if maxSANs > 0 && len(cns(secret)) >= maxSANs {
 				return false
 			}
@@ -220,14 +295,33 @@ func getPrivateKey(secret *v1.Secret) (crypto.Signer, error) {
 	return NewPrivateKey()
 }
 
+// MarshalChain returns given key and certificates as byte slices.
+func MarshalChain(privateKey crypto.Signer, certs ...*x509.Certificate) (keyBytes, certChainBytes []byte, err error) {
+	keyBytes, err = cert.MarshalPrivateKeyToPEM(privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, cert := range certs {
+		if cert != nil {
+			certBlock := pem.Block{
+				Type:  CertificateBlockType,
+				Bytes: cert.Raw,
+			}
+			certChainBytes = append(certChainBytes, pem.EncodeToMemory(&certBlock)...)
+		}
+	}
+	return keyBytes, certChainBytes, nil
+}
+
 // Marshal returns the given cert and key as byte slices.
-func Marshal(x509Cert *x509.Certificate, privateKey crypto.Signer) ([]byte, []byte, error) {
+func Marshal(x509Cert *x509.Certificate, privateKey crypto.Signer) (certBytes, keyBytes []byte, err error) {
 	certBlock := pem.Block{
 		Type:  CertificateBlockType,
 		Bytes: x509Cert.Raw,
 	}
 
-	keyBytes, err := cert.MarshalPrivateKeyToPEM(privateKey)
+	keyBytes, err = cert.MarshalPrivateKeyToPEM(privateKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -238,4 +332,23 @@ func Marshal(x509Cert *x509.Certificate, privateKey crypto.Signer) ([]byte, []by
 // NewPrivateKey returnes a new ECDSA key
 func NewPrivateKey() (crypto.Signer, error) {
 	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+}
+
+// getAnnotationKey return the key to use for a given CN. IPv4 addresses and short hostnames
+// are safe to store as-is, but longer hostnames and IPv6 address must be truncated and/or undergo
+// character replacement in order to be used as an annotation key. If the CN requires modification,
+// a portion of the SHA256 sum of the original value is used as the suffix, to reduce the likelihood
+// of collisions in modified values.
+func getAnnotationKey(cn string) string {
+	cn = cnPrefix + cn
+	cnLen := len(cn)
+	if cnLen < 64 && !strings.ContainsRune(cn, ':') {
+		return cn
+	}
+	digest := sha256.Sum256([]byte(cn))
+	cn = strings.ReplaceAll(cn, ":", "_")
+	if cnLen > 56 {
+		cnLen = 56
+	}
+	return cn[0:cnLen] + "-" + hex.EncodeToString(digest[0:])[0:6]
 }

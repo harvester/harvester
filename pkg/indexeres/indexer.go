@@ -7,15 +7,18 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/ref"
 )
 
 const (
-	UserNameIndex           = "auth.harvesterhci.io/user-username-index"
-	RbByRoleAndSubjectIndex = "auth.harvesterhci.io/crb-by-role-and-subject"
-	PVCByVMIndex            = "harvesterhci.io/pvc-by-vm-index"
-	VMByNetworkIndex        = "vm.harvesterhci.io/vm-by-network"
+	UserNameIndex              = "auth.harvesterhci.io/user-username-index"
+	RbByRoleAndSubjectIndex    = "auth.harvesterhci.io/crb-by-role-and-subject"
+	PVCByVMIndex               = "harvesterhci.io/pvc-by-vm-index"
+	VMByNetworkIndex           = "vm.harvesterhci.io/vm-by-network"
+	PodByNodeNameIndex         = "harvesterhci.io/pod-by-nodename"
+	VMBackupBySourceVMUIDIndex = "harvesterhci.io/vmbackup-by-source-vm-uid"
 )
 
 func RegisterScaledIndexers(scaled *config.Scaled) {
@@ -28,6 +31,13 @@ func RegisterManagementIndexers(management *config.Management) {
 	crbInformer.AddIndexer(RbByRoleAndSubjectIndex, rbByRoleAndSubject)
 	pvcInformer := management.CoreFactory.Core().V1().PersistentVolumeClaim().Cache()
 	pvcInformer.AddIndexer(PVCByVMIndex, pvcByVM)
+	podInformer := management.CoreFactory.Core().V1().Pod().Cache()
+	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
+}
+
+func RegisterAPIIndexers(scaled *config.Scaled) {
+	vmBackupInformer := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()
+	vmBackupInformer.AddIndexer(VMBackupBySourceVMUIDIndex, VMBackupBySourceVMUID)
 }
 
 func rbByRoleAndSubject(obj *rbacv1.ClusterRoleBinding) ([]string, error) {
@@ -60,4 +70,15 @@ func VMByNetwork(obj *kubevirtv1.VirtualMachine) ([]string, error) {
 		networkNameList = append(networkNameList, network.NetworkSource.Multus.NetworkName)
 	}
 	return networkNameList, nil
+}
+
+func PodByNodeName(obj *corev1.Pod) ([]string, error) {
+	return []string{obj.Spec.NodeName}, nil
+}
+
+func VMBackupBySourceVMUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
+	if obj.Status == nil || obj.Status.SourceUID == nil {
+		return []string{}, nil
+	}
+	return []string{string(*obj.Status.SourceUID)}, nil
 }

@@ -8,7 +8,7 @@ const (
 	NetworkInterfaceTypeBridge     = "bridge"
 	NetworkInterfaceTypeMasquerade = "masquerade"
 
-	LabelKeyNetworkType = "networks.harvesterhci.io/type"
+	LabelKeyNetworkType = "network.harvesterhci.io/type"
 
 	NetworkTypeVLAN   = "L2VlanNetwork"
 	NetworkTypeCustom = "Custom"
@@ -66,5 +66,10 @@ func (v *VMBuilder) Interface(interfaceName, interfaceModel, interfaceMACAddress
 	}
 	interfaces = append(interfaces, networkInterface)
 	v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Interfaces = interfaces
+	return v
+}
+
+func (v *VMBuilder) WaitForLease(interfaceName string) *VMBuilder {
+	v.WaitForLeaseInterfaceNames = append(v.WaitForLeaseInterfaceNames, interfaceName)
 	return v
 }

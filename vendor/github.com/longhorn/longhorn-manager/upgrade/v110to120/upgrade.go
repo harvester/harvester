@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/longhorn/longhorn-manager/datastore"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
 	"github.com/longhorn/longhorn-manager/types"
 	upgradeutil "github.com/longhorn/longhorn-manager/upgrade/util"
@@ -54,7 +54,7 @@ func upgradeInstanceManagers(namespace string, lhClient *lhclientset.Clientset, 
 	}
 	for _, imPod := range imPodList {
 		if imPod.OwnerReferences == nil || len(imPod.OwnerReferences) == 0 {
-			im, err := lhClient.LonghornV1beta1().InstanceManagers(namespace).Get(context.TODO(), imPod.Name, metav1.GetOptions{})
+			im, err := lhClient.LonghornV1beta2().InstanceManagers(namespace).Get(context.TODO(), imPod.Name, metav1.GetOptions{})
 			if err != nil {
 				logrus.Errorf("cannot find the instance manager CR for the instance manager pod %v that has no owner reference during v1.2.0 upgrade: %v", imPod.Name, err)
 				continue
@@ -73,7 +73,7 @@ func upgradeInstanceManagers(namespace string, lhClient *lhclientset.Clientset, 
 		}
 	}
 
-	imList, err := lhClient.LonghornV1beta1().InstanceManagers(namespace).List(context.TODO(), metav1.ListOptions{})
+	imList, err := lhClient.LonghornV1beta2().InstanceManagers(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func upgradeInstanceManagers(namespace string, lhClient *lhclientset.Clientset, 
 		if err := util.RemoveFinalizer(longhornFinalizerKey, &im); err != nil {
 			return err
 		}
-		if _, err := lhClient.LonghornV1beta1().InstanceManagers(namespace).Update(context.TODO(), &im, metav1.UpdateOptions{}); err != nil {
+		if _, err := lhClient.LonghornV1beta2().InstanceManagers(namespace).Update(context.TODO(), &im, metav1.UpdateOptions{}); err != nil {
 			return err
 		}
 	}
@@ -285,7 +285,7 @@ func (run *recurringJobUpgrade) translateVolumeRecurringJobs() (err error) {
 	run.log = run.log.WithField("translate", "volume-recurring-jobs")
 	run.log.Info(upgradeLogPrefix + "Starting volume recurring job translation")
 
-	run.volumes, err = run.lhClient.LonghornV1beta1().Volumes(run.namespace).List(context.TODO(), metav1.ListOptions{})
+	run.volumes, err = run.lhClient.LonghornV1beta2().Volumes(run.namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			run.log.Debug(upgradeLogPrefix + "Found 0 volume")
@@ -337,7 +337,7 @@ func (run *recurringJobUpgrade) convertToVolumeLabels() (err error) {
 	}()
 	run.log = run.log.WithField("action", "convert-volume-recurring-jobs-to-labels")
 
-	volumeClient := run.lhClient.LonghornV1beta1().Volumes(run.namespace)
+	volumeClient := run.lhClient.LonghornV1beta2().Volumes(run.namespace)
 	for volumeName, labels := range run.volumeMapLabels {
 		if len(labels) == 0 {
 			continue
@@ -414,7 +414,7 @@ func (run *recurringJobUpgrade) createRecurringJobCRs() (err error) {
 		return nil
 	}
 
-	recurringJobClient := run.lhClient.LonghornV1beta1().RecurringJobs(run.namespace)
+	recurringJobClient := run.lhClient.LonghornV1beta2().RecurringJobs(run.namespace)
 	for recurringJobName, spec := range run.recurringJobMapSpec {
 		run.log.Infof(upgradeLogPrefix+"Creating %v recurring job CR", recurringJobName)
 		newRecurringJob := &longhorn.RecurringJob{

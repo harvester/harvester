@@ -167,8 +167,8 @@ func fakeImageExist(imageCache ctlharvesterv1.VirtualMachineImageCache, displayN
 }
 
 func emptyConditionsTime(conditions []harvesterv1.Condition) {
-	for _, c := range conditions {
-		c.LastTransitionTime = ""
-		c.LastUpdateTime = ""
+	for k := range conditions {
+		conditions[k].LastTransitionTime = ""
+		conditions[k].LastUpdateTime = ""
 	}
 }

@@ -117,7 +117,7 @@ func (c *FakeKubeVirts) UpdateStatus(ctx context.Context, kubeVirt *corev1.KubeV
 // Delete takes name of the kubeVirt and deletes it. Returns an error if one occurs.
 func (c *FakeKubeVirts) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(kubevirtsResource, c.ns, name), &corev1.KubeVirt{})
+		Invokes(testing.NewDeleteActionWithOptions(kubevirtsResource, c.ns, name, opts), &corev1.KubeVirt{})
 
 	return err
 }

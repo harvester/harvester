@@ -10,14 +10,13 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -33,8 +32,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -53,10 +51,7 @@ type BackingImageManagerController struct {
 
 	ds *datastore.DataStore
 
-	bimStoreSynced cache.InformerSynced
-	biStoreSynced  cache.InformerSynced
-	nStoreSynced   cache.InformerSynced
-	pStoreSynced   cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 
 	lock       *sync.RWMutex
 	monitorMap map[string]chan struct{}
@@ -103,10 +98,6 @@ func NewBackingImageManagerController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	bimInformer lhinformers.BackingImageManagerInformer,
-	biInformer lhinformers.BackingImageInformer,
-	nodeInformer lhinformers.NodeInformer,
-	pInformer coreinformers.PodInformer,
 	kubeClient clientset.Interface,
 	namespace, controllerID, serviceAccount string) *BackingImageManagerController {
 
@@ -128,35 +119,33 @@ func NewBackingImageManagerController(
 
 		backoffMap: sync.Map{},
 
-		bimStoreSynced: bimInformer.Informer().HasSynced,
-		biStoreSynced:  biInformer.Informer().HasSynced,
-		nStoreSynced:   nodeInformer.Informer().HasSynced,
-		pStoreSynced:   pInformer.Informer().HasSynced,
-
 		lock:       &sync.RWMutex{},
 		monitorMap: map[string]chan struct{}{},
 
 		versionUpdater: updateBackingImageManagerVersion,
 	}
 
-	bimInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageManagerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueBackingImageManager,
 		UpdateFunc: func(old, cur interface{}) { c.enqueueBackingImageManager(cur) },
 		DeleteFunc: c.enqueueBackingImageManager,
 	})
+	c.cacheSyncs = append(c.cacheSyncs, ds.BackingImageManagerInformer.HasSynced)
 
-	biInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueForBackingImage,
 		UpdateFunc: func(old, cur interface{}) { c.enqueueForBackingImage(cur) },
 		DeleteFunc: c.enqueueForBackingImage,
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.BackingImageInformer.HasSynced)
 
-	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.NodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, cur interface{}) { c.enqueueForLonghornNode(cur) },
 		DeleteFunc: c.enqueueForLonghornNode,
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.NodeInformer.HasSynced)
 
-	pInformer.Informer().AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
+	ds.PodInformer.AddEventHandlerWithResyncPeriod(cache.FilteringResourceEventHandler{
 		FilterFunc: isBackingImageManagerPod,
 		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.enqueueForBackingImageManagerPod,
@@ -164,6 +153,7 @@ func NewBackingImageManagerController(
 			DeleteFunc: c.enqueueForBackingImageManagerPod,
 		},
 	}, 0)
+	c.cacheSyncs = append(c.cacheSyncs, ds.PodInformer.HasSynced)
 
 	return c
 }
@@ -175,7 +165,7 @@ func (c *BackingImageManagerController) Run(workers int, stopCh <-chan struct{})
 	logrus.Infof("Starting Longhorn backing image manager controller")
 	defer logrus.Infof("Shutting down Longhorn backing image manager controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn backing image manager", stopCh, c.bimStoreSynced, c.biStoreSynced, c.nStoreSynced, c.pStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn backing image manager", stopCh, c.cacheSyncs...) {
 		return
 	}
 
@@ -349,9 +339,9 @@ func (c *BackingImageManagerController) cleanupBackingImageManager(bim *longhorn
 			log.WithError(err).Warnf("Failed to launch a gRPC client during cleanup, will skip deleting all files")
 		} else {
 			log.Infof("Start to delete all backing image files during cleanup")
-			for biName := range bim.Status.BackingImageFileMap {
-				if err := cli.Delete(biName); err != nil {
-					log.WithError(err).Warnf("Failed to launch a gRPC client during cleanup, will skip deleting the file for backing image %v", biName)
+			for biName, biFileInfo := range bim.Status.BackingImageFileMap {
+				if err := cli.Delete(biName, biFileInfo.UUID); err != nil {
+					log.WithError(err).Warnf("Failed to launch a gRPC client during cleanup, will skip deleting the file for backing image %v(%v)", biName, biFileInfo.UUID)
 					continue
 				}
 			}
@@ -404,7 +394,6 @@ func (c *BackingImageManagerController) updateForUnknownBackingImageManager(bim 
 		bim.Status.BackingImageFileMap[biName] = info
 	}
 
-	return
 }
 
 func (c *BackingImageManagerController) syncBackingImageManagerPod(bim *longhorn.BackingImageManager, backoff *flowcontrol.Backoff) (err error) {
@@ -471,6 +460,12 @@ func (c *BackingImageManagerController) syncBackingImageManagerPod(bim *longhorn
 			}
 
 			if bim.Status.CurrentState == longhorn.BackingImageManagerStateRunning {
+				storageIP := c.ds.GetStorageIPFromPod(pod)
+				if bim.Status.StorageIP != storageIP {
+					bim.Status.StorageIP = storageIP
+					logrus.Debugf("Inconsistent storage IP from pod %v, update backing image status storage IP %v", pod.Name, bim.Status.StorageIP)
+				}
+
 				bim.Status.IP = pod.Status.PodIP
 			}
 		default:
@@ -586,16 +581,18 @@ func (c *BackingImageManagerController) deleteInvalidBackingImages(bim *longhorn
 
 	for biName := range bim.Status.BackingImageFileMap {
 		bi, err := c.ds.GetBackingImage(biName)
-		if err != nil && !apierrors.IsNotFound(err) {
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Warnf("Cannot find backing image %v during invalid backing image cleanup, will skip it", biName)
+				continue
+			}
 			return err
 		}
-		biUUID, exists := bim.Spec.BackingImages[biName]
-		isInvalid := bi == nil || !exists || bi.Status.UUID != biUUID
-		if !isInvalid {
+		if bi.Status.UUID == bim.Spec.BackingImages[biName] {
 			continue
 		}
-		log.Debugf("Start to delete the file for invalid backing image %v", biName)
-		if err := cli.Delete(biName); err != nil && !types.ErrorIsNotFound(err) {
+		log.Debugf("Start to delete the file for invalid backing image %v, in backing image manager spec UUID %v, backing image correct UUID %v", biName, bim.Spec.BackingImages[biName], bi.Status.UUID)
+		if err := cli.Delete(biName, bi.Status.UUID); err != nil && !types.ErrorIsNotFound(err) {
 			return err
 		}
 		delete(bim.Status.BackingImageFileMap, biName)
@@ -651,9 +648,12 @@ func (c *BackingImageManagerController) prepareBackingImageFiles(currentBIM *lon
 			if bids.Spec.DiskUUID != currentBIM.Spec.DiskUUID {
 				continue
 			}
-			sourceFileName := engineapi.GetBackingImageDataSourceFileName(biName, bi.Status.UUID)
-			log.Debugf("Start to fetch the first file %v from the backing image data source work directory %v", sourceFileName, bimtypes.DataSourceDirectoryName)
-			if _, err := cli.Fetch(bi.Name, bi.Status.UUID, sourceFileName, bids.Status.Checksum, bids.Status.Size); err != nil {
+			if bids.Status.StorageIP == "" {
+				log.Debugf("Backing image data source %v does not contain the storage IP, cannot start transfer the file to the backing image manager", bids.Name)
+				continue
+			}
+			log.Debugf("Start to fetch the data source file from the backing image data source work directory %v", bimtypes.DataSourceDirectoryName)
+			if _, err := cli.Fetch(bi.Name, bi.Status.UUID, bids.Status.Checksum, fmt.Sprintf("%s:%d", bids.Status.StorageIP, engineapi.BackingImageDataSourceDefaultPort), bids.Status.Size); err != nil {
 				if types.ErrorAlreadyExists(err) {
 					log.Debugf("Backing image already exists, no need to fetch it again")
 					continue
@@ -699,8 +699,8 @@ func (c *BackingImageManagerController) prepareBackingImageFiles(currentBIM *lon
 			if size == 0 {
 				size = bids.Status.Size
 			}
-			// Empty source file name means trying to find and resue the file in the work directory.
-			if _, err := cli.Fetch(bi.Name, bi.Status.UUID, "", bi.Status.Checksum, size); err != nil {
+			// Empty source file name means trying to find and reuse the file in the work directory.
+			if _, err := cli.Fetch(bi.Name, bi.Status.UUID, bi.Status.Checksum, "", size); err != nil {
 				if types.ErrorAlreadyExists(err) {
 					log.Debugf("Backing image already exists, no need to check and reuse file")
 					continue
@@ -715,18 +715,18 @@ func (c *BackingImageManagerController) prepareBackingImageFiles(currentBIM *lon
 		}
 
 		if senderCandidate != nil {
-			log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.IP, "toHost": currentBIM.Status.IP, "size": bi.Status.Size}).Debugf("Start to sync backing image")
-			if _, err := cli.Sync(biName, bi.Status.UUID, bi.Status.Checksum, senderCandidate.Status.IP, currentBIM.Status.IP, bi.Status.Size); err != nil {
+			log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.StorageIP, "size": bi.Status.Size}).Debugf("Start to sync backing image")
+			if _, err := cli.Sync(biName, bi.Status.UUID, bi.Status.Checksum, senderCandidate.Status.StorageIP, bi.Status.Size); err != nil {
 				if types.ErrorAlreadyExists(err) {
-					log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.IP, "toHost": currentBIM.Status.IP, "size": bi.Status.Size}).Debugf("Backing image already exists, no need to sync from others")
+					log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.StorageIP, "size": bi.Status.Size}).Debugf("Backing image already exists, no need to sync from others")
 					continue
 				}
 				backoff.Next(bi.Name, time.Now())
 				return err
 			}
 			backoff.Next(bi.Name, time.Now())
-			log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.IP, "toHost": currentBIM.Status.IP, "size": bi.Status.Size}).Debugf("Syncing backing image")
-			c.eventRecorder.Eventf(currentBIM, v1.EventTypeNormal, EventReasonSyncing, "Syncing backing image %v in disk %v on node %v from %v(%v)", bi.Name, currentBIM.Spec.DiskUUID, currentBIM.Spec.NodeID, senderCandidate.Name, senderCandidate.Status.IP)
+			log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.StorageIP, "size": bi.Status.Size}).Debugf("Syncing backing image")
+			c.eventRecorder.Eventf(currentBIM, v1.EventTypeNormal, EventReasonSyncing, "Syncing backing image %v in disk %v on node %v from %v(%v)", bi.Name, currentBIM.Spec.DiskUUID, currentBIM.Spec.NodeID, senderCandidate.Name, senderCandidate.Status.StorageIP)
 			continue
 		}
 	}
@@ -808,9 +808,10 @@ func (c *BackingImageManagerController) generateBackingImageManagerPodManifest(b
 						"backing-image-manager", "--debug",
 						"daemon",
 						"--listen", fmt.Sprintf("%s:%d", "0.0.0.0", engineapi.BackingImageManagerDefaultPort),
+						"--sync-listen", fmt.Sprintf("%s:%d", "0.0.0.0", engineapi.BackingImageSyncServerDefaultPort),
 					},
 					ReadinessProbe: &v1.Probe{
-						Handler: v1.Handler{
+						ProbeHandler: v1.ProbeHandler{
 							TCPSocket: &v1.TCPSocketAction{
 								Port: intstr.FromInt(engineapi.BackingImageManagerDefaultPort),
 							},
@@ -823,6 +824,16 @@ func (c *BackingImageManagerController) generateBackingImageManagerPodManifest(b
 						{
 							Name:      "disk-path",
 							MountPath: bimtypes.DiskPathInContainer,
+						},
+					},
+					Env: []v1.EnvVar{
+						{
+							Name: types.EnvPodIP,
+							ValueFrom: &v1.EnvVarSource{
+								FieldRef: &v1.ObjectFieldSelector{
+									FieldPath: "status.podIP",
+								},
+							},
 						},
 					},
 				},
@@ -850,6 +861,16 @@ func (c *BackingImageManagerController) generateBackingImageManagerPodManifest(b
 		}
 	}
 
+	storageNetwork, err := c.ds.GetSetting(types.SettingNameStorageNetwork)
+	if err != nil {
+		return nil, err
+	}
+
+	nadAnnot := string(types.CNIAnnotationNetworks)
+	if storageNetwork.Value != types.CniNetworkNone {
+		podSpec.Annotations[nadAnnot] = types.CreateCniAnnotationFromSetting(storageNetwork)
+	}
+
 	return podSpec, nil
 }
 
@@ -866,7 +887,7 @@ func (c *BackingImageManagerController) enqueueBackingImageManager(backingImageM
 func isBackingImageManagerPod(obj interface{}) bool {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			return false
 		}
@@ -887,7 +908,7 @@ func isBackingImageManagerPod(obj interface{}) bool {
 func (c *BackingImageManagerController) enqueueForBackingImage(obj interface{}) {
 	backingImage, ok := obj.(*longhorn.BackingImage)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -906,7 +927,7 @@ func (c *BackingImageManagerController) enqueueForBackingImage(obj interface{}) 
 		if apierrors.IsNotFound(err) {
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("Couldn't get backing image %v: %v ", backingImage.Name, err))
+		utilruntime.HandleError(fmt.Errorf("couldn't get backing image %v: %v ", backingImage.Name, err))
 		return
 	}
 
@@ -930,7 +951,7 @@ func (c *BackingImageManagerController) enqueueForBackingImage(obj interface{}) 
 func (c *BackingImageManagerController) enqueueForLonghornNode(obj interface{}) {
 	node, ok := obj.(*longhorn.Node)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -973,7 +994,7 @@ func (c *BackingImageManagerController) enqueueForLonghornNode(obj interface{}) 
 func (c *BackingImageManagerController) enqueueForBackingImageManagerPod(obj interface{}) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -1069,7 +1090,6 @@ func (c *BackingImageManagerController) stopMonitoring(bimName string) {
 	delete(c.monitorMap, bimName)
 	log.Infof("Stopped monitoring")
 
-	return
 }
 
 func (c *BackingImageManagerController) isMonitoring(bimName string) bool {

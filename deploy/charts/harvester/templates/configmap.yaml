@@ -70,9 +70,9 @@ data:
 
     # For how to promote nodes, see: https://github.com/rancher/rancher/issues/36480#issuecomment-1039253499
     ROLE_LABELS="rke.cattle.io/control-plane-role=true rke.cattle.io/etcd-role=true"
-    $KUBECTL label -n fleet-local machines.cluster.x-k8s.io $CUSTOM_MACHINE $ROLE_LABELS
-    $KUBECTL label -n fleet-local secret $PLAN_SECRET $ROLE_LABELS
-    $KUBECTL label -n fleet-local rkebootstraps.rke.cattle.io $CUSTOM_MACHINE $ROLE_LABELS
+    $KUBECTL label --overwrite -n fleet-local machines.cluster.x-k8s.io $CUSTOM_MACHINE $ROLE_LABELS
+    $KUBECTL label --overwrite -n fleet-local secret $PLAN_SECRET $ROLE_LABELS
+    $KUBECTL label --overwrite -n fleet-local rkebootstraps.rke.cattle.io $CUSTOM_MACHINE $ROLE_LABELS
 
     while true
     do

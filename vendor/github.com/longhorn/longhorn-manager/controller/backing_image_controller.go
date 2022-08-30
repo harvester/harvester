@@ -24,8 +24,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/longhorn/v1beta1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type BackingImageController struct {
@@ -42,20 +41,13 @@ type BackingImageController struct {
 
 	ds *datastore.DataStore
 
-	biStoreSynced   cache.InformerSynced
-	bimStoreSynced  cache.InformerSynced
-	bidsStoreSynced cache.InformerSynced
-	rStoreSynced    cache.InformerSynced
+	cacheSyncs []cache.InformerSynced
 }
 
 func NewBackingImageController(
 	logger logrus.FieldLogger,
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
-	backingImageInformer lhinformers.BackingImageInformer,
-	backingImageManagerInformer lhinformers.BackingImageManagerInformer,
-	backingImageDataSourceInformer lhinformers.BackingImageDataSourceInformer,
-	replicaInformer lhinformers.ReplicaInformer,
 	kubeClient clientset.Interface,
 	namespace string, controllerID, serviceAccount string) *BackingImageController {
 
@@ -75,36 +67,35 @@ func NewBackingImageController(
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "longhorn-backing-image-controller"}),
 
 		ds: ds,
-
-		biStoreSynced:   backingImageInformer.Informer().HasSynced,
-		bimStoreSynced:  backingImageManagerInformer.Informer().HasSynced,
-		bidsStoreSynced: backingImageDataSourceInformer.Informer().HasSynced,
-		rStoreSynced:    replicaInformer.Informer().HasSynced,
 	}
 
-	backingImageInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImage,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImage(cur) },
 		DeleteFunc: bic.enqueueBackingImage,
 	})
+	bic.cacheSyncs = append(bic.cacheSyncs, ds.BackingImageInformer.HasSynced)
 
-	backingImageManagerInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageManagerInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImageForBackingImageManager,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImageForBackingImageManager(cur) },
 		DeleteFunc: bic.enqueueBackingImageForBackingImageManager,
 	}, 0)
+	bic.cacheSyncs = append(bic.cacheSyncs, ds.BackingImageManagerInformer.HasSynced)
 
-	backingImageDataSourceInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.BackingImageDataSourceInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImageForBackingImageDataSource,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImageForBackingImageDataSource(cur) },
 		DeleteFunc: bic.enqueueBackingImageForBackingImageDataSource,
 	}, 0)
+	bic.cacheSyncs = append(bic.cacheSyncs, ds.BackingImageDataSourceInformer.HasSynced)
 
-	replicaInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+	ds.ReplicaInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    bic.enqueueBackingImageForReplica,
 		UpdateFunc: func(old, cur interface{}) { bic.enqueueBackingImageForReplica(cur) },
 		DeleteFunc: bic.enqueueBackingImageForReplica,
 	}, 0)
+	bic.cacheSyncs = append(bic.cacheSyncs, ds.ReplicaInformer.HasSynced)
 
 	return bic
 }
@@ -116,7 +107,7 @@ func (bic *BackingImageController) Run(workers int, stopCh <-chan struct{}) {
 	logrus.Infof("Start Longhorn Backing Image controller")
 	defer logrus.Infof("Shutting down Longhorn Backing Image controller")
 
-	if !cache.WaitForNamedCacheSync("longhorn backing images", stopCh, bic.biStoreSynced, bic.bimStoreSynced, bic.bidsStoreSynced, bic.rStoreSynced) {
+	if !cache.WaitForNamedCacheSync("longhorn backing images", stopCh, bic.cacheSyncs...) {
 		return
 	}
 
@@ -303,16 +294,16 @@ func (bic *BackingImageController) cleanupBackingImageManagers(bi *longhorn.Back
 		if bim.DeletionTimestamp != nil {
 			continue
 		}
-
+		bimLog := log.WithField("backingImageManager", bim.Name)
 		// Directly clean up old backing image managers (including incompatible managers).
 		// New backing image managers can detect and reuse the existing backing image files if necessary.
 		if bim.Spec.Image != defaultImage {
-			log.WithField("backingImageManager", bim.Name).Info("Start to delete old backing image manager")
+			bimLog.Info("Deleting old/non-default backing image manager")
 			if err := bic.ds.DeleteBackingImageManager(bim.Name); err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}
-			log.WithField("backingImageManager", bim.Name).Info("Deleting old backing image manager")
-			bic.eventRecorder.Eventf(bi, corev1.EventTypeNormal, EventReasonDelete, "delete old backing image manager %v in disk %v on node %v", bim.Name, bim.Spec.DiskUUID, bim.Spec.NodeID)
+			bimLog.Info("Deleted old/non-default backing image manager")
+			bic.eventRecorder.Eventf(bi, corev1.EventTypeNormal, EventReasonDelete, "deleted old/non-default backing image manager %v in disk %v on node %v", bim.Name, bim.Spec.DiskUUID, bim.Spec.NodeID)
 			continue
 		}
 
@@ -334,12 +325,12 @@ func (bic *BackingImageController) cleanupBackingImageManagers(bi *longhorn.Back
 			return err
 		}
 		if len(bim.Spec.BackingImages) == 0 {
-			log.WithField("backingImageManager", bim.Name).Info("Start to delete unused backing image manager")
+			bimLog.Info("Deleting unused backing image manager")
 			if err := bic.ds.DeleteBackingImageManager(bim.Name); err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}
-			log.WithField("backingImageManager", bim.Name).Info("Deleting unused backing image manager")
-			bic.eventRecorder.Eventf(bi, corev1.EventTypeNormal, EventReasonDelete, "delete unused backing image manager %v in disk %v on node %v", bim.Name, bim.Spec.DiskUUID, bim.Spec.NodeID)
+			bimLog.Info("Deleted unused backing image manager")
+			bic.eventRecorder.Eventf(bi, corev1.EventTypeNormal, EventReasonDelete, "deleted unused backing image manager %v in disk %v on node %v", bim.Name, bim.Spec.DiskUUID, bim.Spec.NodeID)
 			continue
 		}
 	}
@@ -418,6 +409,7 @@ func (bic *BackingImageController) handleBackingImageDataSource(bi *longhorn.Bac
 			},
 			Spec: longhorn.BackingImageDataSourceSpec{
 				NodeID:     readyNodeID,
+				UUID:       bi.Status.UUID,
 				DiskUUID:   readyDiskUUID,
 				DiskPath:   readyDiskPath,
 				Checksum:   bi.Spec.Checksum,
@@ -440,6 +432,10 @@ func (bic *BackingImageController) handleBackingImageDataSource(bi *longhorn.Bac
 	}
 	existingBIDS := bids.DeepCopy()
 
+	if bids.Spec.UUID == "" {
+		bids.Spec.UUID = bi.Status.UUID
+	}
+
 	recoveryWaitIntervalSettingValue, err := bic.ds.GetSettingAsInt(types.SettingNameBackingImageRecoveryWaitInterval)
 	if err != nil {
 		return err
@@ -451,7 +447,10 @@ func (bic *BackingImageController) handleBackingImageDataSource(bi *longhorn.Bac
 	if bi.Spec.Disks != nil {
 		for diskUUID := range bi.Spec.Disks {
 			fileStatus, ok := bi.Status.DiskFileStatusMap[diskUUID]
-			if !ok || (fileStatus.State != longhorn.BackingImageStateFailed && fileStatus.State != longhorn.BackingImageStateUnknown) {
+			if !ok {
+				continue
+			}
+			if fileStatus.State != longhorn.BackingImageStateFailed {
 				allFilesUnavailable = false
 				break
 			}
@@ -475,7 +474,7 @@ func (bic *BackingImageController) handleBackingImageDataSource(bi *longhorn.Bac
 			if _, exists := bi.Spec.Disks[diskUUID]; exists {
 				continue
 			}
-			if fileStatus.State != longhorn.BackingImageStateFailed && fileStatus.State != longhorn.BackingImageStateUnknown {
+			if fileStatus.State != longhorn.BackingImageStateFailed {
 				allFilesUnavailable = false
 				break
 			}
@@ -495,29 +494,11 @@ func (bic *BackingImageController) handleBackingImageDataSource(bi *longhorn.Bac
 	}
 
 	// Check if the data source already finished the 1st file preparing.
-	if !bids.Spec.FileTransferred && bids.Status.CurrentState == longhorn.BackingImageStateReadyForTransfer {
-		// Cannot rely on backingImage.Status.DiskFileStatusMap[bids.Spec.DiskUUID]
-		// Need to make sure the backing image manager take over the file before marking the data source as file transferred
-		defaultImage, err := bic.ds.GetSettingValueExisted(types.SettingNameDefaultBackingImageManagerImage)
-		if err != nil {
-			return err
-		}
-		bims, err := bic.ds.ListBackingImageManagersByDiskUUID(bids.Spec.DiskUUID)
-		if err != nil {
-			return err
-		}
-		var defaultBIM *longhorn.BackingImageManager
-		for _, bim := range bims {
-			if bim.Spec.Image == defaultImage {
-				defaultBIM = bim
-				break
-			}
-		}
-		if defaultBIM != nil {
-			if fileInfo, exists := defaultBIM.Status.BackingImageFileMap[bi.Name]; exists && fileInfo.State == longhorn.BackingImageStateReady && fileInfo.UUID == bi.Status.UUID {
-				bids.Spec.FileTransferred = true
-				log.Infof("Backing image manager %v already took over the file prepared by the backing image data source, will mark the data source as file transferred", defaultBIM.Name)
-			}
+	if !bids.Spec.FileTransferred && bids.Status.CurrentState == longhorn.BackingImageStateReady {
+		fileStatus, exists := bi.Status.DiskFileStatusMap[bids.Spec.DiskUUID]
+		if exists && fileStatus.State == longhorn.BackingImageStateReady {
+			bids.Spec.FileTransferred = true
+			log.Infof("Default backing image manager successfully took over the file prepared by the backing image data source, will mark the data source as file transferred")
 		}
 	} else if bids.Spec.FileTransferred && allFilesUnavailable {
 		switch bids.Spec.SourceType {
@@ -650,7 +631,7 @@ func (bic *BackingImageController) syncBackingImageFileInfo(bi *longhorn.Backing
 		}
 		log.Warn("Cannot find backing image data source, but controller will continue syncing backing image")
 	}
-	if bids != nil && !bids.Spec.FileTransferred {
+	if bids != nil && bids.Status.CurrentState != longhorn.BackingImageStateReady {
 		currentDiskFiles[bids.Spec.DiskUUID] = struct{}{}
 		// Due to the possible file type conversion (from raw to qcow2), the size of a backing image data source may changed when the file becomes `ready-for-transfer`.
 		// To avoid mismatching, the controller will blindly update bi.Status.Size based on bids.Status.Size here.
@@ -662,6 +643,9 @@ func (bic *BackingImageController) syncBackingImageFileInfo(bi *longhorn.Backing
 			return err
 		}
 	}
+
+	// The file info may temporarily become empty when the data source just transfers the file
+	// but the backing image manager has not updated the map.
 
 	bimMap, err := bic.ds.ListBackingImageManagers()
 	if err != nil {
@@ -680,7 +664,7 @@ func (bic *BackingImageController) syncBackingImageFileInfo(bi *longhorn.Backing
 		}
 		// If the backing image data source is up and preparing the 1st file,
 		// backing image should ignore the file info of the related backing image manager.
-		if bids != nil && !bids.Spec.FileTransferred && bids.Spec.DiskUUID == bim.Spec.DiskUUID {
+		if bids != nil && bids.Spec.DiskUUID == bim.Spec.DiskUUID && bids.Status.CurrentState != longhorn.BackingImageStateReady {
 			continue
 		}
 		currentDiskFiles[bim.Spec.DiskUUID] = struct{}{}
@@ -801,7 +785,7 @@ func (bic *BackingImageController) enqueueBackingImage(obj interface{}) {
 func (bic *BackingImageController) enqueueBackingImageForBackingImageManager(obj interface{}) {
 	bim, isBIM := obj.(*longhorn.BackingImageManager)
 	if !isBIM {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return
@@ -831,7 +815,7 @@ func (bic *BackingImageController) enqueueBackingImageForBackingImageDataSource(
 func (bic *BackingImageController) enqueueBackingImageForReplica(obj interface{}) {
 	replica, isReplica := obj.(*longhorn.Replica)
 	if !isReplica {
-		deletedState, ok := obj.(*cache.DeletedFinalStateUnknown)
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("received unexpected obj: %#v", obj))
 			return

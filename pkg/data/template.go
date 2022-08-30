@@ -100,6 +100,14 @@ spec:
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplate
 metadata:
+  name: windows-raw-image-base-template
+  namespace: {{ .Namespace }}
+spec:
+  description: Template for booting the virtual machine from a windows qcow2/raw image
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplate
+metadata:
   name: windows-iso-image-base-template
   namespace: {{ .Namespace }}
 spec:
@@ -175,6 +183,7 @@ spec:
               interfaces:
               - name: default
                 masquerade: {}
+                model: virtio
             resources:
               limits:
                 memory: 2048Mi
@@ -238,6 +247,71 @@ spec:
               interfaces:
               - name: default
                 masquerade: {}
+                model: virtio
+            resources:
+              limits:
+                memory: 2048Mi
+                cpu: 1
+          networks:
+          - name: default
+            pod: {}
+          volumes:
+          - persistentVolumeClaim:
+              claimName: pvc-rootdisk
+            name: rootdisk
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplateVersion
+metadata:
+  name: windows-raw-image-base-version
+  namespace: {{ .Namespace }}
+spec:
+  templateId: {{ .Namespace }}/windows-raw-image-base-template
+  vm:
+    metadata:
+      labels:
+        harvesterhci.io/os: windows
+      annotations:
+        harvesterhci.io/reservedMemory: 256Mi
+        harvesterhci.io/volumeClaimTemplates: |-
+          [{
+            "metadata": {
+              "name": "pvc-rootdisk",
+              "annotations": {
+                "harvesterhci.io/imageId": ""
+              }
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "32Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          }]
+    spec:
+      runStrategy: RerunOnFailure
+      template:
+        spec:
+          evictionStrategy: LiveMigrate
+          domain:
+            features:
+              acpi:
+                enabled: true
+            cpu:
+              cores: 1
+            devices:
+              disks:
+              - disk:
+                  bus: virtio
+                name: rootdisk
+                bootOrder: 1
+              interfaces:
+              - name: default
+                masquerade: {}
+                model: virtio
             resources:
               limits:
                 memory: 2048Mi
@@ -259,7 +333,10 @@ spec:
   templateId: {{ .Namespace }}/windows-iso-image-base-template
   vm:
     metadata:
+      labels:
+        harvesterhci.io/os: windows
       annotations:
+        harvesterhci.io/reservedMemory: 256Mi
         harvesterhci.io/volumeClaimTemplates: |-
           [{
             "metadata": {

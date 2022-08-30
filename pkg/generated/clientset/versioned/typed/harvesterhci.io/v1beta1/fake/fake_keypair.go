@@ -117,7 +117,7 @@ func (c *FakeKeyPairs) UpdateStatus(ctx context.Context, keyPair *v1beta1.KeyPai
 // Delete takes name of the keyPair and deletes it. Returns an error if one occurs.
 func (c *FakeKeyPairs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(keypairsResource, c.ns, name), &v1beta1.KeyPair{})
+		Invokes(testing.NewDeleteActionWithOptions(keypairsResource, c.ns, name, opts), &v1beta1.KeyPair{})
 
 	return err
 }
