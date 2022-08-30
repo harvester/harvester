@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ .Release.Name }}"
+  namespace: "{{ .Release.Namespace }}"
+  labels:
+{{ include "harvester-journal.labels" . | indent 4}}
+data:
+  fluent-bit.conf: |
+    [INPUT]
+        Name              systemd
+        Tag               systemd.*
+        Path              {{ .Values.systemdLogPath }}
+        {{- if .Values.stripUnderscores }}
+        Strip_Underscores On
+        {{- end }}
+
+    [OUTPUT]
+        Name              forward
+        Match             *
+        Host              {{ .Values.loggingOperatorServiceHost }}
+        Port              24240
+        Retry_Limit       False
+
+  parsers.conf: |
+{{ include "harvester-journal.parsers" . | indent 4 }}

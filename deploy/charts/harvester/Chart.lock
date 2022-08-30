@@ -26,5 +26,8 @@ dependencies:
 - name: harvester-load-balancer
   repository: https://charts.harvesterhci.io
   version: 0.1.3
-digest: sha256:a637b3897e25d376d052411b50cf5a79956a87b8b9e8965b93705714b42ae028
-generated: "2022-08-02T17:40:23.702048573+08:00"
+- name: harvester-journal
+  repository: file://dependency_charts/harvester-journal
+  version: 0.1.0
+digest: sha256:76e76132f1591da5631a10a10ca5cf1d35477003abc36dec01f1a50f51c5874a
+generated: "2022-08-30T11:46:15.716650594-04:00"

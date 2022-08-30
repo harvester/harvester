@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: "{{ include "harvester-journal.name" . }}-aggregator"
+  namespace: "{{ include "harvester-journal.namespace" . }}"
+spec:
+  selector:
+    matchLabels:
+      name: {{ include "harvester-journal.name" . }}-aggregator
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      name: "{{ include "harvester-journal.name" . }}-aggregator"
+      namespace: "{{ include "harvester-journal.namespace" . }}"
+      labels:
+        name: {{ include "harvester-journal.name" . }}-aggregator
+    spec:
+      containers:
+        - name: fluentbit
+          image: "{{ template "harvester-journal.fluentbitImage" . }}"
+          command: ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit.conf"]
+          {{- if .Values.global.seLinux.enabled }}
+          securityContext:
+            seLinuxOptions:
+              type: rke_logreader_t
+          {{- end }}
+          volumeMounts:
+            - mountPath: /fluent-bit/etc/
+              name: config
+            - mountPath: {{ .Values.systemdLogPath | default "/var/log/journal" }}
+              name: journal
+              readOnly: true
+            - mountPath: "/var/lib/rancher/rke2/agent/logs/kubelet.log"
+              name: kubelet
+              readOnly: true
+            - mountPath: /etc/machine-id
+              name: machine-id
+              readOnly: true
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: "{{ include "harvester-journal.name" . }}-aggregator"
+      volumes:
+        - name: config
+          configMap:
+            name: "{{ include "harvester-journal.name" . }}"
+        - name: journal
+          hostPath:
+            path: {{ .Values.systemdLogPath | default "/var/log/journal" }}
+        - name: kubelet
+          hostPath:
+            path: "/var/lib/rancher/rke2/agent/logs/kubelet.log"
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "{{ include "harvester-journal.name" . }}-aggregator"
+  namespace: "{{ include "harvester-journal.namespace" . }}"
+{{- if .Values.global.psp.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "{{ include "harvester-journal.name" . }}-aggregator"
+rules:
+  - apiGroups:
+    - policy
+    resourceNames:
+    - "{{ include "harvester-journal.name" . }}-aggregator"
+    resources:
+    - podsecuritypolicies
+    verbs:
+    - use
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "{{ include "harvester-journal.name" . }}-aggregator"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: "{{ include "harvester-journal.name" . }}-aggregator"
+subjects:
+  - kind: ServiceAccount
+    name: "{{ include "harvester-journal.name" . }}-aggregator"
+---
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: "{{ include "harvester-journal.name" . }}-aggregator"
+  namespace: "{{ include "harvester-journal.namespace" . }}"
+spec:
+  allowPrivilegeEscalation: false
+  fsGroup:
+    rule: RunAsAny
+  readOnlyRootFilesystem: true
+  runAsUser:
+    rule: RunAsAny
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  volumes:
+  - configMap
+  - emptyDir
+  - secret
+  - hostPath
+{{- end }}
