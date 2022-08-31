@@ -442,3 +442,9 @@ generalJob:
     imagePullPolicy: IfNotPresent
     repository: registry.suse.com/bci/bci-base
     tag: 15.3
+
+whereabouts:
+  image:
+    pullPolicy: IfNotPresent
+    repository: ghcr.io/k8snetworkplumbingwg/whereabouts
+    tag: "v0.5.4-amd64"
