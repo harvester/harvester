@@ -11,6 +11,7 @@ import (
 	"github.com/harvester/harvester/pkg/api/vm"
 	"github.com/harvester/harvester/pkg/api/vmtemplate"
 	"github.com/harvester/harvester/pkg/api/volume"
+	"github.com/harvester/harvester/pkg/api/volumesnapshot"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/indexeres"
 )
@@ -35,5 +36,6 @@ func Setup(ctx context.Context, server *server.Server, controllers *server.Contr
 		vmtemplate.RegisterSchema,
 		vm.RegisterSchema,
 		node.RegisterSchema,
-		volume.RegisterSchema)
+		volume.RegisterSchema,
+		volumesnapshot.RegisterSchema)
 }
