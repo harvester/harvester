@@ -2,11 +2,15 @@
 
 ## Summary
 
-We need to be able to aggregate all cluster pod logs outside the cluster, to allow for collecting and analyzing those logs to aid in debugging and harvester management.
+We need to be able to support exporting harvester system logs outside the cluster, to allow for collecting and analyzing those logs to aid in debugging and harvester management.
 
 ### Related Issues
 
 - https://github.com/harvester/harvester/issues/577
+- https://github.com/harvester/harvester/issues/2644
+- https://github.com/harvester/harvester/issues/2645
+- https://github.com/harvester/harvester/issues/2646
+- https://github.com/harvester/harvester/issues/2647
 
 ## Motivation
 
@@ -14,8 +18,10 @@ We need to be able to aggregate all cluster pod logs outside the cluster, to all
 
 List the specific goals of the enhancement. How will we know that this has succeeded?
 
-- The user can aggregate harvester logs in a centralized location
-- The user can view the aggregated harvester logs outside the cluster
+- [X] The user can aggregate harvester logs in a centralized location
+  - [X] k8s cluster logs
+  - [X] host system logs (ie `/var/log`)
+- [X] The user can export the aggregated harvester logs outside the cluster (ex rancher)
 
 ### Non-goals
 
@@ -24,54 +30,22 @@ List the specific goals of the enhancement. How will we know that this has succe
 ## Proposal
 
 We will deploy a new `ManagedChart` in the [Harvester Installer](https://github.com/harvester/harvester-installer) to
-install. The `ManagedChart` will deploy a [`ClusterFlow`](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/flow/) to select and 
-aggregate interesting logs, which can be managed by a new [`ClusterOutput`](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/output/) 
-crd. The `ClusterOutput` can then be configured by settings from the harvester UI.
+install. The `ManagedChart` will deploy a `ClusterFlow` to select and aggregate interesting logs, which can be managed
+by a new `ClusterOutput` crd.
+
+To collect the host system logs, a new harvester sub-chart [harvester-journal](https://github.com/harvester/charts/tree/master/charts/harvester-journal).
 
 ### User Stories
 
-Currently, users need to manually check harvester for failing pods or services and manually check logs using `kubectl` or other cluster
-inspection tools.
+#### Easily View Harvester Logs
 
-#### Setup
+Currently, users need to manually check harvester for failing pods or services and manually check logs using `kubectl`.
 
-Logging will be available after the cluster is installed, or upgraded from a previous version.
-
-#### Configuration
-
-The logging behavior should be configuratble using the Harvester UI settings.
-
-##### Outputs
-
-There are a lot of supported [plugins](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/plugins/) so we probably want 
-to pick a few "supported" pluggins ([splunk](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/plugins/outputs
-/splunk_hec/), [Elasticsearch](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/plugins/outputs/elasticsearch/), etc) 
-to wrap in a clean UI (similar to VM provisioning), and allow users to manually enter yaml for greater control over the `ClusterOutput`.
-
-Banzai does not impose a limit on the amount of outputs, so barringto performance issues we should not need to enforce limits on the amount of outputs a 
-user can configure.
-
-##### Local Storage
-
-To allow for querying logs via rancher UI, we will install a default `ClusterOutput` to store the logs on a local cluster volume reacheable by the UI 
-server.
-
-##### Log Level
-
-We can add a Flow [filter](https://banzaicloud.com/docs/one-eye/logging-operator/configuration/plugins/filters/) to filter logs based on 
-entry level. When the love level changes we will need to path the current `ClusterFlow`.
-
-#### Viewing Harvester Logs
-
-This enhancement will allow users to view harvester system logs from a web based UI making it easier to diagnose problems and check the status of the
-harvester system. The user should at a minimum be able to filter logs based on pattern matching.
+This enhancement will allow users to send their logs using any of the [output plugins]().
 
 ### User Experience In Detail
 
 The user should be able to view harvester logs via UI, and configure where the logs are sent.
-
-The user shuold be able to view and filter harvester cluster logs via UI. The user should be able to configure the cluster logging via the settings UI
-and create / modify `ClusterOutputs`.
 
 ### API changes
 
@@ -81,10 +55,9 @@ None.
 
 ### Implementation Overview
 
-- Install a `harvester-logging` managed chart similar to what is done in rancher: [rancherd-13-monitoring.yaml](https://github.com/harvester/harvester-installer/blob/master/pkg/config/templates/rancherd-13-monitoring.yaml)
-- Definine a `ClusterFlow` and `ClusterOutput`
-  - We can probably route logs to a simple Http or File output by default
-- Implement a setting controller to allow the user to configure log destination endpoints via harvester settings UI
+- Install a `harvester-logging` managed chart defining a `ClusterFlow` and `ClusterOutput`
+  - By default we send logs to loki
+- Add a new sub chart to the harvester
 
 ### Test plan
 
@@ -95,4 +68,4 @@ None.
 
 ### Upgrade strategy
 
-Likely the simplest approach is to update the harvester [upgrade_manifests.sh](https://github.com/harvester/harvester/blob/master/package/upgrade/upgrade_manifests.sh) script to include the new managed chart. This is again similar to how the rancher monitoring is upgraded.
+No user intervention is required during the upgrade.
