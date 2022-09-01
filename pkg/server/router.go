@@ -14,6 +14,7 @@ import (
 	"github.com/harvester/harvester/pkg/api/kubeconfig"
 	"github.com/harvester/harvester/pkg/api/proxy"
 	"github.com/harvester/harvester/pkg/api/supportbundle"
+	"github.com/harvester/harvester/pkg/api/uiinfo"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/server/ui"
 )
@@ -46,6 +47,10 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	// Those routes should be above /v1/harvester/{type}, otherwise, the response status code would be 404
 	kcGenerateHandler := kubeconfig.NewGenerateHandler(r.scaled, r.options)
 	m.Path("/v1/harvester/kubeconfig").Methods("POST").Handler(kcGenerateHandler)
+
+	uiInfoHandler := uiinfo.NewUIInfoHandler(r.scaled, r.options)
+	m.Path("/v1/harvester/ui-info").Methods("GET").Handler(uiInfoHandler)
+	m.PathPrefix("/v1/harvester/plugin-assets").Handler(ui.Vue.PluginServeAsset())
 
 	sbDownloadHandler := supportbundle.NewDownloadHandler(r.scaled, r.options.Namespace)
 	m.Path("/v1/harvester/supportbundles/{bundleName}/download").Methods("GET").Handler(sbDownloadHandler)

@@ -15,6 +15,8 @@ ENV HARVESTER_UI_PATH /usr/share/harvester/harvester
 # Please update the api-ui-version in pkg/settings/settings.go when updating the version here.
 ENV HARVESTER_API_UI_VERSION 1.1.9
 
+ENV HARVESTER_UI_PLUGIN_BUNDLED_VERSION latest
+
 ARG ARCH=amd64
 ARG VERSION=dev
 ENV HARVESTER_SERVER_VERSION ${VERSION}
@@ -32,6 +34,9 @@ RUN mkdir -p /usr/share/harvester/harvester && \
     mkdir -p /usr/share/harvester/harvester/api-ui && \
     cd /usr/share/harvester/harvester/api-ui && \
     curl -sL https://releases.rancher.com/api-ui/${HARVESTER_API_UI_VERSION}.tar.gz | tar xvzf - --strip-components=1 && \
+    mkdir -p /usr/share/harvester/harvester/v1/harvester/plugin-assets && \
+    cd /usr/share/harvester/harvester/v1/harvester/plugin-assets && \
+    curl -sL https://releases.rancher.com/harvester-ui/plugin/harvester-${HARVESTER_UI_PLUGIN_BUNDLED_VERSION}.tar.gz | tar xvzf - --strip-components=1 && \
     cd /var/lib/harvester/harvester
 
 COPY entrypoint.sh harvester /usr/bin/

@@ -23,9 +23,10 @@ var (
 	APIUIVersion            = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
 	ClusterRegistrationURL  = NewSetting("cluster-registration-url", "")
 	ServerVersion           = NewSetting("server-version", "dev")
-	UIIndex                 = NewSetting("ui-index", DefaultDashboardUIURL)
-	UIPath                  = NewSetting("ui-path", "/usr/share/harvester/harvester")
-	UISource                = NewSetting("ui-source", "auto") // Options are 'auto', 'external' or 'bundled'
+	UIIndex                 = NewSetting(UIIndexSettingName, DefaultDashboardUIURL)
+	UIPath                  = NewSetting(UIPathSettingName, "/usr/share/harvester/harvester")
+	UISource                = NewSetting(UISourceSettingName, "auto") // Options are 'auto', 'external' or 'bundled'
+	UIPluginIndex           = NewSetting(UIPluginIndexSettingName, DefaultUIPluginURL)
 	VolumeSnapshotClass     = NewSetting(VolumeSnapshotClassSettingName, "longhorn")
 	BackupTargetSet         = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
 	UpgradableVersions      = NewSetting("upgradable-versions", "")
@@ -48,19 +49,25 @@ var (
 )
 
 const (
-	AdditionalCASettingName         = "additional-ca"
-	BackupTargetSettingName         = "backup-target"
-	VMForceResetPolicySettingName   = "vm-force-reset-policy"
-	SupportBundleTimeoutSettingName = "support-bundle-timeout"
-	HttpProxySettingName            = "http-proxy"
-	OvercommitConfigSettingName     = "overcommit-config"
-	SSLCertificatesSettingName      = "ssl-certificates"
-	SSLParametersName               = "ssl-parameters"
-	VipPoolsConfigSettingName       = "vip-pools"
-	VolumeSnapshotClassSettingName  = "volume-snapshot-class"
-	DefaultDashboardUIURL           = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
-	SupportBundleImageName          = "support-bundle-image"
-	CSIDriverConfigSettingName      = "csi-driver-config"
+	AdditionalCASettingName           = "additional-ca"
+	BackupTargetSettingName           = "backup-target"
+	VMForceResetPolicySettingName     = "vm-force-reset-policy"
+	SupportBundleTimeoutSettingName   = "support-bundle-timeout"
+	HttpProxySettingName              = "http-proxy"
+	OvercommitConfigSettingName       = "overcommit-config"
+	SSLCertificatesSettingName        = "ssl-certificates"
+	SSLParametersName                 = "ssl-parameters"
+	VipPoolsConfigSettingName         = "vip-pools"
+	VolumeSnapshotClassSettingName    = "volume-snapshot-class"
+	DefaultDashboardUIURL             = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
+	SupportBundleImageName            = "support-bundle-image"
+	CSIDriverConfigSettingName        = "csi-driver-config"
+	UIIndexSettingName                = "ui-index"
+	UIPathSettingName                 = "ui-path"
+	UISourceSettingName               = "ui-source"
+	UIPluginIndexSettingName          = "ui-plugin-index"
+	UIPluginBundledVersionSettingName = "ui-plugin-bundled-version"
+	DefaultUIPluginURL                = "https://releases.rancher.com/harvester-ui/plugin/harvester-latest/harvester-latest.umd.min.js"
 )
 
 func init() {
