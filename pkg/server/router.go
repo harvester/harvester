@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/rest"
 
+	"github.com/harvester/harvester/pkg/api/backuptarget"
 	"github.com/harvester/harvester/pkg/api/kubeconfig"
 	"github.com/harvester/harvester/pkg/api/proxy"
 	"github.com/harvester/harvester/pkg/api/supportbundle"
@@ -48,6 +49,9 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 
 	sbDownloadHandler := supportbundle.NewDownloadHandler(r.scaled, r.options.Namespace)
 	m.Path("/v1/harvester/supportbundles/{bundleName}/download").Methods("GET").Handler(sbDownloadHandler)
+
+	btHealthyHandler := backuptarget.NewHealthyHandler(r.scaled)
+	m.Path("/v1/harvester/backuptarget/healthz").Methods("GET").Handler(btHealthyHandler)
 	// --- END of preposition routes ---
 
 	// adds collection action support
