@@ -76,7 +76,7 @@ SR-IOV in the host cluster. VMs running in a Harvester bare metal cluster are ru
 
 ![host cluster SR-IOV](20220614-single-root-io-virtualization/host-cluster-sriov.png)
 
-When the guest pod needs a VF, it makes an HTTP request to the host cluster's api-server. The request is `POST /apis/v1beta1/devices.harvesterhci.io/vfclaim` to create a VF claim for itself. If that host has free VFs, then the `vf-allocator` decrements the number of allocatable vfs on that node.
+When the guest pod needs a VF, it makes an HTTP request to the host cluster's api-server. The request is `POST /apis/v1beta1/devices.harvesterhci.io/pcideviceclaim` to create a PCI Device Claim for the VF's PCI Address. If that host has free VFs, then the `vf-allocator` decrements the number of allocatable vfs on that node.
 
 The `vf-allocator` attaches the VF using a Multus CNI configuration and recreates the VMI pod.
 
