@@ -130,3 +130,9 @@ func serveIndex(resp io.Writer, url string) error {
 	_, err = io.Copy(resp, r.Body)
 	return err
 }
+
+func (u *handler) PluginServeAsset() http.Handler {
+	return u.middleware(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		http.FileServer(http.Dir(u.pathSetting())).ServeHTTP(rw, req)
+	}))
+}
