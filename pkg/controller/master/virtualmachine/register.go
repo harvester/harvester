@@ -19,31 +19,39 @@ const (
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	var (
-		pvcClient  = management.CoreFactory.Core().V1().PersistentVolumeClaim()
-		pvcCache   = pvcClient.Cache()
-		vmClient   = management.VirtFactory.Kubevirt().V1().VirtualMachine()
-		vmCache    = vmClient.Cache()
-		nodeClient = management.CoreFactory.Core().V1().Node()
-		nodeCache  = nodeClient.Cache()
-		vmiClient  = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
-		vmiCache   = vmiClient.Cache()
+		pvcClient      = management.CoreFactory.Core().V1().PersistentVolumeClaim()
+		pvcCache       = pvcClient.Cache()
+		vmClient       = management.VirtFactory.Kubevirt().V1().VirtualMachine()
+		vmCache        = vmClient.Cache()
+		nodeClient     = management.CoreFactory.Core().V1().Node()
+		nodeCache      = nodeClient.Cache()
+		vmiClient      = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
+		vmiCache       = vmiClient.Cache()
+		vmBackupClient = management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
+		vmBackupCache  = vmBackupClient.Cache()
+		snapshotClient = management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
+		snapshotCache  = snapshotClient.Cache()
 	)
 
 	// registers the vm controller
 	var vmCtrl = &VMController{
-		pvcClient: pvcClient,
-		pvcCache:  pvcCache,
-		vmClient:  vmClient,
-		vmCache:   vmCache,
-		vmiClient: vmiClient,
-		vmiCache:  vmiCache,
+		pvcClient:      pvcClient,
+		pvcCache:       pvcCache,
+		vmClient:       vmClient,
+		vmCache:        vmCache,
+		vmiClient:      vmiClient,
+		vmiCache:       vmiCache,
+		vmBackupClient: vmBackupClient,
+		vmBackupCache:  vmBackupCache,
+		snapshotClient: snapshotClient,
+		snapshotCache:  snapshotCache,
 	}
 	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	virtualMachineClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
 	virtualMachineClient.OnChange(ctx, vmControllerSetOwnerOfPVCsControllerName, vmCtrl.SetOwnerOfPVCs)
 	virtualMachineClient.OnChange(ctx, vmControllerStoreRunStrategyControllerName, vmCtrl.StoreRunStrategy)
 	virtualMachineClient.OnChange(ctx, vmControllerSyncLabelsToVmi, vmCtrl.SyncLabelsToVmi)
-	virtualMachineClient.OnRemove(ctx, vmControllerUnsetOwnerOfPVCsControllerName, vmCtrl.UnsetOwnerOfPVCs)
+	virtualMachineClient.OnRemove(ctx, vmControllerUnsetOwnerOfPVCsControllerName, vmCtrl.OnVMRemove)
 
 	// registers the vmi controller
 	var virtualMachineCache = virtualMachineClient.Cache()

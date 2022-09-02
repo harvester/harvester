@@ -41,6 +41,7 @@ const (
 	backupControllerName         = "harvester-vm-backup-controller"
 	snapshotControllerName       = "volume-snapshot-controller"
 	longhornBackupControllerName = "longhorn-backup-controller"
+	pvcControllerName            = "harvester-pvc-controller"
 	vmBackupKindName             = "VirtualMachineBackup"
 
 	volumeSnapshotCreateEvent = "VolumeSnapshotCreated"
@@ -55,6 +56,7 @@ var vmBackupKind = harvesterv1.SchemeGroupVersion.WithKind(vmBackupKindName)
 // RegisterBackup register the vmBackup and volumeSnapshot controller
 func RegisterBackup(ctx context.Context, management *config.Management, opts config.Options) error {
 	vmBackups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
+	pv := management.CoreFactory.Core().V1().PersistentVolume()
 	pvc := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	storageClasses := management.StorageFactory.Storage().V1().StorageClass()
@@ -69,6 +71,7 @@ func RegisterBackup(ctx context.Context, management *config.Management, opts con
 		vmBackups:            vmBackups,
 		vmBackupController:   vmBackups,
 		vmBackupCache:        vmBackups.Cache(),
+		pvCache:              pv.Cache(),
 		pvcCache:             pvc.Cache(),
 		secretCache:          secrets.Cache(),
 		storageClassCache:    storageClasses.Cache(),
@@ -98,6 +101,7 @@ type Handler struct {
 	vmBackupController   ctlharvesterv1.VirtualMachineBackupController
 	vms                  ctlkubevirtv1.VirtualMachineClient
 	vmsCache             ctlkubevirtv1.VirtualMachineCache
+	pvCache              ctlcorev1.PersistentVolumeCache
 	pvcCache             ctlcorev1.PersistentVolumeClaimCache
 	secretCache          ctlcorev1.SecretCache
 	storageClassCache    ctlstoragev1.StorageClassCache
@@ -118,35 +122,19 @@ func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachin
 		return nil, nil
 	}
 
-	target, err := settings.DecodeBackupTarget(settings.BackupTargetSet.Get())
-	if err != nil {
-		return nil, err
+	if IsBackupReady(vmBackup) {
+		return nil, h.handleBackupReady(vmBackup)
 	}
 
-	logrus.Debugf("OnBackupChange: vmBackup name:%s, target:%s:%s", vmBackup.Name, target.Type, target.Endpoint)
-
-	if isBackupReady(vmBackup) {
-		// We've changed backup target information to status since v1.0.0.
-		// For backport to v0.3.0, we move backup target information from annotation to status.
-		if vmBackup, err = h.configureBackupTargetOnStatus(vmBackup); err != nil {
-			return nil, err
-		}
-
-		// generate vm backup metadata and upload to backup target
-		return nil, h.uploadVMBackupMetadata(vmBackup, target)
-	}
-
+	logrus.Debugf("OnBackupChange: vmBackup name:%s", vmBackup.Name)
 	// set vmBackup init status
 	if isBackupMissingStatus(vmBackup) {
-		// get vmBackup source
+		// We cannot get VM outside this block, because we also can sync VMBackup from remote target.
+		// A VMBackup without status is a new VMBackup, so it must have sourceVM.
 		sourceVM, err := h.getBackupSource(vmBackup)
 		if err != nil {
 			return nil, h.setStatusError(vmBackup, err)
 		}
-		if sourceVM.DeletionTimestamp != nil {
-			return nil, h.setStatusError(vmBackup, fmt.Errorf("vm %s/%s is being deleted", vmBackup.Namespace, vmBackup.Spec.Source.Name))
-		}
-
 		// check if the VM is running, if not make sure the volumes are mounted to the host
 		if !sourceVM.Status.Ready || !sourceVM.Status.Created {
 			if err := h.mountLonghornVolumes(sourceVM); err != nil {
@@ -154,13 +142,18 @@ func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachin
 			}
 		}
 
-		return nil, h.initBackup(vmBackup, sourceVM, target)
+		return nil, h.initBackup(vmBackup, sourceVM)
 	}
 
 	// TODO, make sure status is initialized, and "Lock" the source VM by adding a finalizer and setting snapshotInProgress in status
 
+	_, csiDriverVolumeSnapshotClassMap, err := h.getCSIDriverMap(vmBackup)
+	if err != nil {
+		return nil, h.setStatusError(vmBackup, err)
+	}
+
 	// create volume snapshots if not exist
-	if err := h.reconcileVolumeSnapshots(vmBackup); err != nil {
+	if err := h.reconcileVolumeSnapshots(vmBackup, csiDriverVolumeSnapshotClassMap); err != nil {
 		return nil, h.setStatusError(vmBackup, err)
 	}
 
@@ -200,12 +193,24 @@ func (h *Handler) OnBackupRemove(key string, vmBackup *harvesterv1.VirtualMachin
 }
 
 func (h *Handler) getBackupSource(vmBackup *harvesterv1.VirtualMachineBackup) (*kubevirtv1.VirtualMachine, error) {
+	var (
+		sourceVM *kubevirtv1.VirtualMachine
+		err      error
+	)
+
 	switch vmBackup.Spec.Source.Kind {
 	case kubevirtv1.VirtualMachineGroupVersionKind.Kind:
-		return h.vmsCache.Get(vmBackup.Namespace, vmBackup.Spec.Source.Name)
+		sourceVM, err = h.vmsCache.Get(vmBackup.Namespace, vmBackup.Spec.Source.Name)
+	default:
+		err = fmt.Errorf("unsupported source: %+v", vmBackup.Spec.Source)
+	}
+	if err != nil {
+		return nil, err
+	} else if sourceVM.DeletionTimestamp != nil {
+		return nil, fmt.Errorf("vm %s/%s is being deleted", vmBackup.Namespace, vmBackup.Spec.Source.Name)
 	}
 
-	return nil, fmt.Errorf("unsupported source: %+v", vmBackup.Spec.Source)
+	return sourceVM, nil
 }
 
 // getVolumeBackups helps to build a list of VolumeBackup upon the volume list of backup VM
@@ -219,11 +224,21 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 			return nil, err
 		}
 
+		pv, err := h.pvCache.Get(pvc.Spec.VolumeName)
+		if err != nil {
+			return nil, err
+		}
+
+		if pv.Spec.PersistentVolumeSource.CSI == nil {
+			return nil, fmt.Errorf("PV %s is not from CSI driver, cannot take a %s", pv.Name, backup.Spec.Type)
+		}
+
 		volumeBackupName := fmt.Sprintf("%s-volume-%s", backup.Name, pvcName)
 
 		vb := harvesterv1.VolumeBackup{
-			Name:       &volumeBackupName,
-			VolumeName: volumeName,
+			Name:          &volumeBackupName,
+			VolumeName:    volumeName,
+			CSIDriverName: pv.Spec.PersistentVolumeSource.CSI.Driver,
 			PersistentVolumeClaim: harvesterv1.PersistentVolumeClaimSourceSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        pvc.ObjectMeta.Name,
@@ -240,6 +255,43 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 	}
 
 	return volumeBackups, nil
+}
+
+// getCSIDriverMap retrieves VolumeSnapshotClassName for each csi driver
+func (h *Handler) getCSIDriverMap(backup *harvesterv1.VirtualMachineBackup) (map[string]string, map[string]snapshotv1.VolumeSnapshotClass, error) {
+	csiDriverConfig := map[string]settings.CSIDriverInfo{}
+	if err := json.Unmarshal([]byte(settings.CSIDriverConfig.Get()), &csiDriverConfig); err != nil {
+		return nil, nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, settings.CSIDriverConfig.Get())
+	}
+
+	csiDriverVolumeSnapshotClassNameMap := map[string]string{}
+	csiDriverVolumeSnapshotClassMap := map[string]snapshotv1.VolumeSnapshotClass{}
+	for _, volumeBackup := range backup.Status.VolumeBackups {
+		csiDriverName := volumeBackup.CSIDriverName
+		if _, ok := csiDriverVolumeSnapshotClassNameMap[csiDriverName]; ok {
+			continue
+		}
+
+		if driverInfo, ok := csiDriverConfig[csiDriverName]; !ok {
+			return nil, nil, fmt.Errorf("can't find CSI driver %s in setting CSIDriverInfo", csiDriverName)
+		} else {
+			volumeSnapshotClassName := ""
+			switch backup.Spec.Type {
+			case harvesterv1.Backup:
+				volumeSnapshotClassName = driverInfo.BackupVolumeSnapshotClassName
+			case harvesterv1.Snapshot:
+				volumeSnapshotClassName = driverInfo.VolumeSnapshotClassName
+			}
+			volumeSnapshotClass, err := h.snapshotClassCache.Get(volumeSnapshotClassName)
+			if err != nil {
+				return nil, nil, fmt.Errorf("can't find volumeSnapshotClass %s for CSI driver %s", volumeSnapshotClassName, csiDriverName)
+			}
+			csiDriverVolumeSnapshotClassNameMap[csiDriverName] = volumeSnapshotClassName
+			csiDriverVolumeSnapshotClassMap[csiDriverName] = *volumeSnapshotClass
+		}
+	}
+
+	return csiDriverVolumeSnapshotClassNameMap, csiDriverVolumeSnapshotClassMap, nil
 }
 
 // getSecretBackups helps to build a list of SecretBackup upon the secrets used by the backup VM
@@ -307,7 +359,7 @@ func (h *Handler) getSecretBackupFromSecret(namespace, name string) (*harvesterv
 }
 
 // initBackup initialize VM backup status and annotation
-func (h *Handler) initBackup(backup *harvesterv1.VirtualMachineBackup, vm *kubevirtv1.VirtualMachine, target *settings.BackupTarget) error {
+func (h *Handler) initBackup(backup *harvesterv1.VirtualMachineBackup, vm *kubevirtv1.VirtualMachine) error {
 	var err error
 	backupCpy := backup.DeepCopy()
 	backupCpy.Status = &harvesterv1.VirtualMachineBackupStatus{
@@ -332,10 +384,21 @@ func (h *Handler) initBackup(backup *harvesterv1.VirtualMachineBackup, vm *kubev
 		return err
 	}
 
-	backupCpy.Status.BackupTarget = &harvesterv1.BackupTarget{
-		Endpoint:     target.Endpoint,
-		BucketName:   target.BucketName,
-		BucketRegion: target.BucketRegion,
+	if backupCpy.Status.CSIDriverVolumeSnapshotClassNames, _, err = h.getCSIDriverMap(backupCpy); err != nil {
+		return err
+	}
+
+	if backup.Spec.Type == harvesterv1.Backup {
+		target, err := settings.DecodeBackupTarget(settings.BackupTargetSet.Get())
+		if err != nil {
+			return err
+		}
+
+		backupCpy.Status.BackupTarget = &harvesterv1.BackupTarget{
+			Endpoint:     target.Endpoint,
+			BucketName:   target.BucketName,
+			BucketRegion: target.BucketRegion,
+		}
 	}
 
 	if _, err := h.vmBackups.Update(backupCpy); err != nil {
@@ -364,7 +427,7 @@ func (h *Handler) getBackupPVC(namespace, name string) (*corev1.PersistentVolume
 // reconcileVolumeSnapshots create volume snapshot if not exist.
 // For vm backup from a existent VM, we create volume snapshot from pvc.
 // For vm backup from syncing vm backup metadata, we create volume snapshot from volume snapshot content.
-func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineBackup) error {
+func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineBackup, csiDriverVolumeSnapshotClassMap map[string]snapshotv1.VolumeSnapshotClass) error {
 	vmBackupCpy := vmBackup.DeepCopy()
 	for i, volumeBackup := range vmBackupCpy.Status.VolumeBackups {
 		if volumeBackup.Name == nil {
@@ -386,7 +449,8 @@ func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineB
 		}
 
 		if volumeSnapshot == nil {
-			volumeSnapshot, err = h.createVolumeSnapshot(vmBackupCpy, volumeBackup)
+			volumeSnapshotClass := csiDriverVolumeSnapshotClassMap[volumeBackup.CSIDriverName]
+			volumeSnapshot, err = h.createVolumeSnapshot(vmBackupCpy, volumeBackup, &volumeSnapshotClass)
 			if err != nil {
 				logrus.Debugf("create volumeSnapshot %s/%s error: %v", vmBackupCpy.Namespace, snapshotName, err)
 				return err
@@ -419,24 +483,8 @@ func (h *Handler) getVolumeSnapshot(namespace, name string) (*snapshotv1.VolumeS
 	return snapshot, nil
 }
 
-func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBackup, volumeBackup harvesterv1.VolumeBackup) (*snapshotv1.VolumeSnapshot, error) {
+func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBackup, volumeBackup harvesterv1.VolumeBackup, volumeSnapshotClass *snapshotv1.VolumeSnapshotClass) (*snapshotv1.VolumeSnapshot, error) {
 	logrus.Debugf("attempting to create VolumeSnapshot %s", *volumeBackup.Name)
-	sc, err := h.storageClassCache.Get(*volumeBackup.PersistentVolumeClaim.Spec.StorageClassName)
-	if err != nil {
-		return nil, fmt.Errorf("%s/%s VolumeSnapshot requested but no storage class, err: %s",
-			vmBackup.Namespace, volumeBackup.PersistentVolumeClaim.ObjectMeta.Name, err.Error())
-	}
-	csiDriverInfo, err := settings.GetCSIDriverInfo(sc.Provisioner)
-	if err != nil {
-		return nil, err
-	}
-	volumeSnapshotClassName := csiDriverInfo.BackupVolumeSnapshotClassName
-	ssc, err := h.snapshotClassCache.Get(volumeSnapshotClassName)
-	if err != nil {
-		return nil, fmt.Errorf("%s/%s VolumeSnapshot requested but no volumeSnapshot class, err: %s",
-			vmBackup.Namespace, volumeBackup.PersistentVolumeClaim.ObjectMeta.Name, err.Error())
-	}
-
 	var (
 		sourceStorageClassName string
 		sourceImageID          string
@@ -447,7 +495,7 @@ func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBacku
 	// If LonghornBackupName exists, it means the VM Backup has associated LH Backup.
 	// In this case, we should create volume snapshot from LH Backup instead of from current PVC.
 	if volumeBackup.LonghornBackupName != nil {
-		volumeSnapshotContent, err := h.createVolumeSnapshotContent(vmBackup, volumeBackup, ssc)
+		volumeSnapshotContent, err := h.createVolumeSnapshotContent(vmBackup, volumeBackup, volumeSnapshotClass)
 		if err != nil {
 			return nil, err
 		}
@@ -469,19 +517,18 @@ func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBacku
 			Namespace: vmBackup.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         harvesterv1.SchemeGroupVersion.String(),
-					Kind:               vmBackupKind.Kind,
-					Name:               vmBackup.Name,
-					UID:                vmBackup.UID,
-					Controller:         pointer.BoolPtr(true),
-					BlockOwnerDeletion: pointer.BoolPtr(true),
+					APIVersion: harvesterv1.SchemeGroupVersion.String(),
+					Kind:       vmBackupKind.Kind,
+					Name:       vmBackup.Name,
+					UID:        vmBackup.UID,
+					Controller: pointer.BoolPtr(true),
 				},
 			},
 			Annotations: map[string]string{},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source:                  volumeSnapshotSource,
-			VolumeSnapshotClassName: pointer.StringPtr(ssc.Name),
+			VolumeSnapshotClassName: pointer.StringPtr(volumeSnapshotClass.Name),
 		},
 	}
 
@@ -538,12 +585,11 @@ func (h *Handler) createVolumeSnapshotContent(
 			Namespace: vmBackup.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         harvesterv1.SchemeGroupVersion.String(),
-					Kind:               vmBackupKind.Kind,
-					Name:               vmBackup.Name,
-					UID:                vmBackup.UID,
-					Controller:         pointer.BoolPtr(true),
-					BlockOwnerDeletion: pointer.BoolPtr(true),
+					APIVersion: harvesterv1.SchemeGroupVersion.String(),
+					Kind:       vmBackupKind.Kind,
+					Name:       vmBackup.Name,
+					UID:        vmBackup.UID,
+					Controller: pointer.BoolPtr(true),
 				},
 			},
 		},
@@ -782,6 +828,43 @@ func (h *Handler) configureBackupTargetOnStatus(vmBackup *harvesterv1.VirtualMac
 		Endpoint:     vmBackup.Annotations[backupTargetAnnotation],
 		BucketName:   vmBackup.Annotations[backupBucketNameAnnotation],
 		BucketRegion: vmBackup.Annotations[backupBucketRegionAnnotation],
+	}
+	return h.vmBackups.Update(vmBackupCpy)
+}
+
+func (h *Handler) handleBackupReady(vmBackup *harvesterv1.VirtualMachineBackup) error {
+	// We add CSIDriverVolumeSnapshotClassNameMap since v1.1.0.
+	// For backport to v1.0.x, we construct the map from VolumeBackups.
+	var err error
+	if vmBackup, err = h.configureCSIDriverVolumeSnapshotClassNames(vmBackup); err != nil {
+		return err
+	}
+
+	// only backup type needs to configure backup target and upload metadata
+	if vmBackup.Spec.Type == harvesterv1.Snapshot {
+		return nil
+	}
+
+	// We've changed backup target information to status since v1.0.0.
+	// For backport to v0.3.0, we move backup target information from annotation to status.
+	if vmBackup, err = h.configureBackupTargetOnStatus(vmBackup); err != nil {
+		return err
+	}
+
+	// generate vm backup metadata and upload to backup target
+	return h.uploadVMBackupMetadata(vmBackup, nil)
+}
+
+func (h *Handler) configureCSIDriverVolumeSnapshotClassNames(vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
+	if len(vmBackup.Status.CSIDriverVolumeSnapshotClassNames) != 0 {
+		return vmBackup, nil
+	}
+
+	logrus.Debugf("configure csiDriverVolumeSnapshotClassNames from volumeBackups for vm backup %s/%s", vmBackup.Namespace, vmBackup.Name)
+	var err error
+	vmBackupCpy := vmBackup.DeepCopy()
+	if vmBackupCpy.Status.CSIDriverVolumeSnapshotClassNames, _, err = h.getCSIDriverMap(vmBackup); err != nil {
+		return nil, err
 	}
 	return h.vmBackups.Update(vmBackupCpy)
 }
