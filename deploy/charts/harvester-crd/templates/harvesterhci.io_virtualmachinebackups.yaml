@@ -26,6 +26,9 @@ spec:
     - jsonPath: .spec.source.name
       name: SOURCE_NAME
       type: string
+    - jsonPath: .spec.type
+      name: TYPE
+      type: string
     - jsonPath: .status.readyToUse
       name: READY_TO_USE
       type: boolean
@@ -73,8 +76,15 @@ spec:
                 - kind
                 - name
                 type: object
+              type:
+                default: backup
+                enum:
+                - backup
+                - snapshot
+                type: string
             required:
             - source
+            - type
             type: object
           status:
             description: VirtualMachineBackupStatus is the status for a VirtualMachineBackup
@@ -121,6 +131,10 @@ spec:
               creationTime:
                 format: date-time
                 type: string
+              csiDriverVolumeSnapshotClassNames:
+                additionalProperties:
+                  type: string
+                type: object
               error:
                 description: Error is the last error encountered during the snapshot/restore
                 properties:
@@ -4081,6 +4095,9 @@ spec:
                     creationTime:
                       format: date-time
                       type: string
+                    csiDriverName:
+                      default: driver.longhorn.io
+                      type: string
                     error:
                       description: Error is the last error encountered during the
                         snapshot/restore
@@ -4281,6 +4298,7 @@ spec:
                     volumeName:
                       type: string
                   required:
+                  - csiDriverName
                   - persistentVolumeClaim
                   - volumeName
                   type: object
