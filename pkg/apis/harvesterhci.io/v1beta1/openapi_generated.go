@@ -2478,8 +2478,15 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupSpec(ref common.
 							Ref:     ref("k8s.io/api/core/v1.TypedLocalObjectReference"),
 						},
 					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
 				},
-				Required: []string{"source"},
+				Required: []string{"source", "type"},
 			},
 		},
 		Dependencies: []string{
@@ -2508,6 +2515,21 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref commo
 					"backupTarget": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.BackupTarget"),
+						},
+					},
+					"csiDriverVolumeSnapshotClassNames": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
 						},
 					},
 					"source": {
@@ -3371,6 +3393,13 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackup(ref common.ReferenceCal
 							Format:  "",
 						},
 					},
+					"csiDriverName": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
 					"creationTime": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
@@ -3400,7 +3429,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackup(ref common.ReferenceCal
 						},
 					},
 				},
-				Required: []string{"volumeName", "persistentVolumeClaim"},
+				Required: []string{"volumeName", "csiDriverName", "persistentVolumeClaim"},
 			},
 		},
 		Dependencies: []string{
