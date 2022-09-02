@@ -16,19 +16,26 @@ import (
 	kubevirt "kubevirt.io/api/core"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 type VMController struct {
-	pvcClient v1.PersistentVolumeClaimClient
-	pvcCache  v1.PersistentVolumeClaimCache
-	vmClient  ctlkubevirtv1.VirtualMachineClient
-	vmCache   ctlkubevirtv1.VirtualMachineCache
-	vmiCache  ctlkubevirtv1.VirtualMachineInstanceCache
-	vmiClient ctlkubevirtv1.VirtualMachineInstanceClient
+	pvcClient      v1.PersistentVolumeClaimClient
+	pvcCache       v1.PersistentVolumeClaimCache
+	vmClient       ctlkubevirtv1.VirtualMachineClient
+	vmCache        ctlkubevirtv1.VirtualMachineCache
+	vmiCache       ctlkubevirtv1.VirtualMachineInstanceCache
+	vmiClient      ctlkubevirtv1.VirtualMachineInstanceClient
+	vmBackupClient ctlharvesterv1.VirtualMachineBackupClient
+	vmBackupCache  ctlharvesterv1.VirtualMachineBackupCache
+	snapshotClient ctlsnapshotv1.VolumeSnapshotClient
+	snapshotCache  ctlsnapshotv1.VolumeSnapshotCache
 }
 
 // createPVCsFromAnnotation creates PVCs defined in the volumeClaimTemplates annotation if they don't exist.
@@ -222,12 +229,25 @@ func (h *VMController) StoreRunStrategy(_ string, vm *kubevirtv1.VirtualMachine)
 	return vm, nil
 }
 
-// UnsetOwnerOfPVCs erases the target VirtualMachine from the owner of the PVCs in annotation.
-func (h *VMController) UnsetOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+// OnVMRemove handle related PVC and delete related VMBackup snapshot
+func (h *VMController) OnVMRemove(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp == nil || vm.Spec.Template == nil {
 		return vm, nil
 	}
 
+	if err := h.unsetOwnerOfPVCs(vm); err != nil {
+		return vm, err
+	}
+
+	if err := h.removeVMBackupSnapshot(vm); err != nil {
+		return vm, err
+	}
+
+	return vm, nil
+}
+
+// unsetOwnerOfPVCs erases the target VirtualMachine from the owner of the PVCs in annotation.
+func (h *VMController) unsetOwnerOfPVCs(vm *kubevirtv1.VirtualMachine) error {
 	var (
 		pvcNamespace = vm.Namespace
 		pvcNames     = getPVCNames(&vm.Spec.Template.Spec)
@@ -241,29 +261,75 @@ func (h *VMController) UnsetOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine)
 				// and also doesn't block the whole logic if the PVC has already been deleted.
 				continue
 			}
-			return vm, fmt.Errorf("failed to get PVC(%s/%s): %w", pvcNamespace, pvcName, err)
+			return fmt.Errorf("failed to get PVC(%s/%s): %w", pvcNamespace, pvcName, err)
 		}
 
 		if err := unsetBoundedPVCReference(h.pvcClient, pvc, vm); err != nil {
-			return vm, fmt.Errorf("failed to revoke VitrualMachine(%s/%s) as PVC(%s/%s)'s owner: %w",
+			return fmt.Errorf("failed to revoke VitrualMachine(%s/%s) as PVC(%s/%s)'s owner: %w",
 				vm.Namespace, vm.Name, pvcNamespace, pvcName, err)
 		}
 
 		if slice.ContainsString(removedPVCs, pvcName) {
 			numberOfOwner, err := numberOfBoundedPVCReference(pvc)
 			if err != nil {
-				return vm, fmt.Errorf("failed to count number of owners for PVC(%s/%s): %w", pvcNamespace, pvcName, err)
+				return fmt.Errorf("failed to count number of owners for PVC(%s/%s): %w", pvcNamespace, pvcName, err)
 			}
 			// We are the solely owner here, so try to delete the PVC as requested.
 			if numberOfOwner == 1 {
 				if err := h.pvcClient.Delete(pvcNamespace, pvcName, &metav1.DeleteOptions{}); err != nil {
-					return vm, err
+					return err
 				}
 			}
 		}
 	}
 
-	return vm, nil
+	return nil
+}
+
+// removeVMBackupSnapshot only works on VMBackup snapshot.
+// This function will set PVC as VolumeSnapshot's owner reference and remove related VMBackup snapshot.
+func (h *VMController) removeVMBackupSnapshot(vm *kubevirtv1.VirtualMachine) error {
+	vmBackups, err := h.vmBackupCache.GetByIndex(indexeres.VMBackupBySourceVMNameIndex, vm.Name)
+	if err != nil {
+		return fmt.Errorf("can't get VMBackups from index %s, err: %w", indexeres.VMBackupBySourceVMNameIndex, err)
+	}
+
+	for _, vmBackup := range vmBackups {
+		if vmBackup.Spec.Type == harvesterv1.Backup || vmBackup.Status == nil {
+			continue
+		}
+
+		for _, vb := range vmBackup.Status.VolumeBackups {
+			volumeSnapshot, err := h.snapshotCache.Get(vmBackup.Namespace, *vb.Name)
+			if err != nil {
+				return fmt.Errorf("can't get VolumeSnapshot %s/%s, err: %w", vmBackup.Namespace, *vb.Name, err)
+			}
+			pvc, err := h.pvcCache.Get(vb.PersistentVolumeClaim.ObjectMeta.Namespace, vb.PersistentVolumeClaim.ObjectMeta.Name)
+			if err != nil {
+				return fmt.Errorf("can't get PVC %s/%s, err: %w", vb.PersistentVolumeClaim.ObjectMeta.Namespace, vb.PersistentVolumeClaim.ObjectMeta.Name, err)
+			}
+
+			volumeSnapshotCpy := volumeSnapshot.DeepCopy()
+			volumeSnapshotCpy.OwnerReferences = []metav1.OwnerReference{
+				{
+					APIVersion: pvc.APIVersion,
+					Kind:       pvc.Kind,
+					Name:       pvc.Name,
+					UID:        pvc.UID,
+				},
+			}
+			if !reflect.DeepEqual(volumeSnapshot, volumeSnapshotCpy) {
+				if _, err := h.snapshotClient.Update(volumeSnapshotCpy); err != nil {
+					return fmt.Errorf("can't update VolumeSnapshot %+v, err: %w", volumeSnapshotCpy, err)
+				}
+			}
+		}
+
+		if err := h.vmBackupClient.Delete(vmBackup.Namespace, vmBackup.Name, metav1.NewDeleteOptions(0)); err != nil {
+			return fmt.Errorf("can't delete VMBackup %s/%s, err: %w", vmBackup.Namespace, vmBackup.Name, err)
+		}
+	}
+	return nil
 }
 
 // getRemovedPVCs returns removed PVCs.

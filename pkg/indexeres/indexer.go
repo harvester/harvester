@@ -20,6 +20,7 @@ const (
 	VMByNetworkIndex             = "vm.harvesterhci.io/vm-by-network"
 	PodByNodeNameIndex           = "harvesterhci.io/pod-by-nodename"
 	VMBackupBySourceVMUIDIndex   = "harvesterhci.io/vmbackup-by-source-vm-uid"
+	VMBackupBySourceVMNameIndex  = "harvesterhci.io/vmbackup-by-source-vm-name"
 	VolumeSnapshotByPVCNameIndex = "harvesterhci.io/volume-snapshot-by-pvc-name"
 )
 
@@ -37,6 +38,8 @@ func RegisterManagementIndexers(management *config.Management) {
 	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
 	volumeSnapshotInformer := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot().Cache()
 	volumeSnapshotInformer.AddIndexer(VolumeSnapshotByPVCNameIndex, volumeSnapshotByPVCName)
+	vmBackupInformer := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()
+	vmBackupInformer.AddIndexer(VMBackupBySourceVMNameIndex, VMBackupBySourceVMName)
 }
 
 func RegisterAPIIndexers(scaled *config.Scaled) {
@@ -92,4 +95,8 @@ func volumeSnapshotByPVCName(obj *snapshotv1.VolumeSnapshot) ([]string, error) {
 		return []string{*obj.Spec.Source.PersistentVolumeClaimName}, nil
 	}
 	return []string{}, nil
+}
+
+func VMBackupBySourceVMName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
+	return []string{obj.Spec.Source.Name}, nil
 }

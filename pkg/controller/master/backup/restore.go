@@ -13,6 +13,7 @@ import (
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/sirupsen/logrus"
@@ -80,6 +81,8 @@ type RestoreHandler struct {
 	snapshotContents     ctlsnapshotv1.VolumeSnapshotContentClient
 	snapshotContentCache ctlsnapshotv1.VolumeSnapshotContentCache
 	lhbackupCache        ctllonghornv1.BackupCache
+	volumeCache          ctllonghornv1.VolumeCache
+	volumes              ctllonghornv1.VolumeClient
 
 	recorder   record.EventRecorder
 	restClient *rest.RESTClient
@@ -95,6 +98,7 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
 	snapshotContents := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotContent()
 	lhbackups := management.LonghornFactory.Longhorn().V1beta1().Backup()
+	volumes := management.LonghornFactory.Longhorn().V1beta1().Volume()
 
 	copyConfig := rest.CopyConfig(management.RestConfig)
 	copyConfig.GroupVersion = &k8sschema.GroupVersion{Group: kubevirtv1.SubresourceGroupName, Version: kubevirtv1.ApiLatestVersion}
@@ -123,6 +127,8 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 		snapshotContents:     snapshotContents,
 		snapshotContentCache: snapshotContents.Cache(),
 		lhbackupCache:        lhbackups.Cache(),
+		volumes:              volumes,
+		volumeCache:          volumes.Cache(),
 		recorder:             management.NewRecorder(restoreControllerName, "", ""),
 		restClient:           restClient,
 	}
@@ -155,6 +161,9 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.Virtu
 	}
 
 	if isVMRestoreMissingVolumes(restore) {
+		if err := h.mountLonghornVolumes(backup); err != nil {
+			return nil, h.updateStatusError(restore, err, true)
+		}
 		return nil, h.initVolumesStatus(restore, backup)
 	}
 
@@ -182,7 +191,10 @@ func (h *RestoreHandler) RestoreOnRemove(key string, restore *harvesterv1.Virtua
 
 	backup, err := h.getVMBackup(restore)
 	if err != nil {
-		return nil, err
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		return nil, nil
 	}
 
 	for _, volumeBackup := range backup.Status.VolumeBackups {
@@ -489,7 +501,7 @@ func (h *RestoreHandler) getVMBackup(vmRestore *harvesterv1.VirtualMachineRestor
 		return nil, err
 	}
 
-	if !isBackupReady(backup) {
+	if !IsBackupReady(backup) {
 		return nil, fmt.Errorf("VMBackup %s is not ready", backup.Name)
 	}
 
@@ -874,4 +886,35 @@ func (h *RestoreHandler) constructVolumeSnapshotContentName(restoreNamespace, re
 	// VolumeSnapshotContent is cluster-scoped resource,
 	// so adding restoreNamespace to its name to prevent conflict in different namespace with same restore name and backup
 	return name.SafeConcatName("restore", restoreNamespace, restoreName, volumeBackupName)
+}
+
+// mountLonghornVolumes helps to mount the volumes to host if it is detached
+func (h *RestoreHandler) mountLonghornVolumes(backup *harvesterv1.VirtualMachineBackup) error {
+	for _, vb := range backup.Status.VolumeBackups {
+		pvcNamespace := vb.PersistentVolumeClaim.ObjectMeta.Namespace
+		pvcName := vb.PersistentVolumeClaim.ObjectMeta.Name
+
+		pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
+		if err != nil {
+			return fmt.Errorf("failed to get pvc %s/%s, error: %s", pvcNamespace, pvcName, err.Error())
+		}
+
+		volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
+		if err != nil {
+			return fmt.Errorf("failed to get volume %s/%s, error: %s", util.LonghornSystemNamespaceName, pvc.Spec.VolumeName, err.Error())
+		}
+
+		volCpy := volume.DeepCopy()
+		if volume.Status.State == lhv1beta1.VolumeStateDetached || volume.Status.State == lhv1beta1.VolumeStateDetaching {
+			volCpy.Spec.NodeID = volume.Status.OwnerID
+		}
+
+		if !reflect.DeepEqual(volCpy, volume) {
+			logrus.Infof("mount detached volume %s to the node %s", volCpy.Name, volCpy.Spec.NodeID)
+			if _, err = h.volumes.Update(volCpy); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

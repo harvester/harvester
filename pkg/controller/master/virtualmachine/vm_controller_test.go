@@ -1151,87 +1151,6 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 		expected output
 	}{
 		{
-			name: "ignore nil resource",
-			given: input{
-				key: "",
-				vm:  nil,
-				pvc: nil,
-			},
-			expected: output{
-				vm:  nil,
-				err: nil,
-				pvc: nil,
-			},
-		},
-		{
-			name: "ignore none deleted resource",
-			given: input{
-				key: "default/test",
-				vm: &kubevirtv1.VirtualMachine{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace:  "default",
-						Name:       "test",
-						UID:        "fake-vm-uid",
-						Finalizers: testFinalizers,
-					},
-					Spec: kubevirtv1.VirtualMachineSpec{
-						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
-					},
-				},
-				pvc: nil,
-			},
-			expected: output{
-				vm: &kubevirtv1.VirtualMachine{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace:  "default",
-						Name:       "test",
-						UID:        "fake-vm-uid",
-						Finalizers: testFinalizers,
-					},
-					Spec: kubevirtv1.VirtualMachineSpec{
-						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
-					},
-				},
-				err: nil,
-				pvc: nil,
-			},
-		},
-		{
-			name: "ignore nil virtual machine instance template",
-			given: input{
-				key: "default/test",
-				vm: &kubevirtv1.VirtualMachine{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace:         "default",
-						Name:              "test",
-						UID:               "fake-vm-uid",
-						Finalizers:        testFinalizers,
-						DeletionTimestamp: &metav1.Time{},
-					},
-					Spec: kubevirtv1.VirtualMachineSpec{
-						Template: nil,
-					},
-				},
-				pvc: nil,
-			},
-			expected: output{
-				vm: &kubevirtv1.VirtualMachine{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace:         "default",
-						Name:              "test",
-						UID:               "fake-vm-uid",
-						Finalizers:        testFinalizers,
-						DeletionTimestamp: &metav1.Time{},
-					},
-					Spec: kubevirtv1.VirtualMachineSpec{
-						Template: nil,
-					},
-				},
-				err: nil,
-				pvc: nil,
-			},
-		},
-		{
 			name: "ignore if not any PVCs",
 			given: input{
 				key: "default/test",
@@ -2042,7 +1961,8 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 			assert.True(t, hasFinalizer, "case %q's input is not a process target", tc.name)
 		}
 		var actual output
-		actual.vm, actual.err = ctrl.UnsetOwnerOfPVCs(tc.given.key, tc.given.vm)
+		actual.vm = tc.given.vm
+		actual.err = ctrl.unsetOwnerOfPVCs(tc.given.vm)
 		if tc.expected.pvc != nil {
 			var pvcStored, err = clientset.Tracker().Get(corev1.SchemeGroupVersion.WithResource("persistentvolumeclaims"), tc.expected.pvc.Namespace, tc.expected.pvc.Name)
 			assert.Nil(t, err, "mock resource should get from fake controller tracker")
