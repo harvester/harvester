@@ -3,12 +3,14 @@ package volumesnapshot
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -19,9 +21,10 @@ import (
 )
 
 type ActionHandler struct {
-	pvcs          ctlcorev1.PersistentVolumeClaimClient
-	pvcCache      ctlcorev1.PersistentVolumeClaimCache
-	snapshotCache ctlsnapshotv1.VolumeSnapshotCache
+	pvcs              ctlcorev1.PersistentVolumeClaimClient
+	pvcCache          ctlcorev1.PersistentVolumeClaimCache
+	snapshotCache     ctlsnapshotv1.VolumeSnapshotCache
+	storageClassCache ctlstoragev1.StorageClassCache
 }
 
 func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -52,16 +55,34 @@ func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 		if input.Name == "" {
 			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
 		}
-		return h.restore(r.Context(), snapshotNamespace, snapshotName, input.Name)
+		return h.restore(r.Context(), snapshotNamespace, snapshotName, input.Name, input.StorageClassName)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
 }
 
-func (h *ActionHandler) restore(ctx context.Context, snapshotNamespace, snapshotName, newPVCName string) error {
+func (h *ActionHandler) restore(ctx context.Context, snapshotNamespace, snapshotName, newPVCName, storageClassName string) error {
 	volumeSnapshot, err := h.snapshotCache.Get(snapshotNamespace, snapshotName)
 	if err != nil {
 		return err
+	}
+
+	sourceStorageClassName := volumeSnapshot.Annotations[util.AnnotationStorageClassName]
+	sourceStorageProvisioner := volumeSnapshot.Annotations[util.AnnotationStorageProvisioner]
+	sourceImageId := volumeSnapshot.Annotations[util.AnnotationImageID]
+	// default to using source storageClass
+	if storageClassName == "" {
+		storageClassName = sourceStorageClassName
+	}
+	sc, err := h.storageClassCache.Get(storageClassName)
+	if err != nil {
+		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Can not restore volume snapshot with a storageClass that does not exist: %v", err))
+	}
+	if sourceStorageProvisioner != "" && sc.Provisioner != sourceStorageProvisioner {
+		return apierror.NewAPIError(validation.InvalidBodyContent, "Can not use different provisioner for restoring volume snapshot")
+	}
+	if sourceImageId != "" && storageClassName != sourceStorageClassName {
+		return apierror.NewAPIError(validation.InvalidBodyContent, "Can not use different storageClass for restoring image volume snapshot")
 	}
 
 	apiGroup := snapshotv1.GroupName
@@ -74,7 +95,7 @@ func (h *ActionHandler) restore(ctx context.Context, snapshotNamespace, snapshot
 			corev1.ResourceStorage: *volumeSnapshot.Status.RestoreSize,
 		},
 	}
-	storageClassName := volumeSnapshot.Annotations[util.AnnotationStorageClassName]
+
 	newPVC := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        newPVCName,
@@ -94,8 +115,8 @@ func (h *ActionHandler) restore(ctx context.Context, snapshotNamespace, snapshot
 		},
 	}
 
-	if imageID := volumeSnapshot.Annotations[util.AnnotationImageID]; imageID != "" {
-		newPVC.Annotations[util.AnnotationImageID] = imageID
+	if sourceImageId != "" {
+		newPVC.Annotations[util.AnnotationImageID] = sourceImageId
 	}
 
 	if _, err = h.pvcs.Create(newPVC); err != nil {
