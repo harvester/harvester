@@ -1,0 +1,9 @@
+versions:
+- name: v1.1.0
+  minUpgradableVersion: v1.0.3
+- name: v1.0.3
+  minUpgradableVersion: v1.0.2
+- name: v1.0.2
+  minUpgradableVersion: v1.0.1
+- name: v1.0.1
+  minUpgradableVersion: v1.0.0
