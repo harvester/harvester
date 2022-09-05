@@ -27,6 +27,7 @@ detect_repo()
   REPO_RANCHER_WEBHOOK_CHART_VERSION=$(yq -e e '.rancherDependencies.rancher-webhook.chart' $release_file)
   REPO_RANCHER_WEBHOOK_APP_VERSION=$(yq -e e '.rancherDependencies.rancher-webhook.app' $release_file)
   REPO_KUBEVIRT_VERSION=$(yq -e e '.kubevirt' $release_file)
+  REPO_HARVESTER_MIN_UPGRADABLE_VERSION=$(yq -e e '.minUpgradableVersion' $release_file)
 
   if [ -z "$REPO_HARVESTER_VERSION" ]; then
     echo "[ERROR] Fail to get Harvester version from upgrade repo."

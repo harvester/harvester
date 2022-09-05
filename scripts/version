@@ -1,5 +1,8 @@
 #!/bin/bash
 
+TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+PACKAGE_DIR="${TOP_DIR}/package"
+
 unset DIRTY
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     DIRTY="-dirty"
@@ -9,6 +12,8 @@ COMMIT=$(git rev-parse --short HEAD)
 COMMIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 COMMIT_BRANCH_FORMATTED=$(echo "${COMMIT_BRANCH}" | sed -E 's/[^a-zA-Z0-9]+/-/g')
 GIT_TAG=$(git tag -l --contains HEAD | head -n 1)
+
+MIN_UPGRADABLE_VERSION=$(cat ${PACKAGE_DIR}/min-upgradable-version)
 
 if [[ -z "$DIRTY" && -n "$GIT_TAG" ]]; then
     VERSION=$GIT_TAG

@@ -52,6 +52,23 @@ EOF
   chroot $HOST_DIR systemctl start upgrade-reboot
 }
 
+check_version()
+{
+  CURRENT_HARVESTER_VERSION=$(kubectl -n fleet-local get managedcharts harvester -o jsonpath='{.spec.version}')
+  MIN_UPGRADABLE_VERSION=${REPO_HARVESTER_MIN_UPGRADABLE_VERSION#v}
+
+  VERSIONS_TO_COMPARE="${MIN_UPGRADABLE_VERSION}
+  ${CURRENT_HARVESTER_VERSION}"
+
+  # Current Harvester version should be newer or equal to minimum upgradable version
+  if [ "${VERSION_TO_COMPARE}" == "$(sort -V <<< "${VERSION_TO_COMPARE}")" ]; then
+    echo "Current version is supported."
+  else
+    echo "Current version is not supported. Abort the upgrade."
+    exit 1
+  fi
+}
+
 preload_images()
 {
   export CONTAINER_RUNTIME_ENDPOINT=unix:///$HOST_DIR/run/k3s/containerd/containerd.sock
@@ -184,6 +201,7 @@ command_prepare()
 {
   wait_repo
   detect_repo
+  check_version
   preload_images
 }
 
