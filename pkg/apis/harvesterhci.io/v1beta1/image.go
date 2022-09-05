@@ -54,6 +54,9 @@ type VirtualMachineImageSpec struct {
 
 	// +optional
 	Checksum string `json:"checksum"`
+
+	// +optional
+	StorageClassParameters map[string]string `json:"storageClassParameters"`
 }
 
 type VirtualMachineImageStatus struct {

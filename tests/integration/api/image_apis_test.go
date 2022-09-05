@@ -10,6 +10,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
 	. "github.com/harvester/harvester/tests/framework/dsl"
 	"github.com/harvester/harvester/tests/framework/fuzz"
 	"github.com/harvester/harvester/tests/framework/helper"
@@ -106,6 +107,7 @@ var _ = Describe("verify image APIs", func() {
 			})
 
 			By("verify image fields matching", func() {
+				image.Spec.StorageClassParameters = util.GetImageDefaultStorageClassParameters()
 				respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
 				MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
 				Expect(retImage.Labels).To(BeEquivalentTo(image.Labels))
@@ -148,6 +150,7 @@ var _ = Describe("verify image APIs", func() {
 			})
 
 			By("verify image fields matching", func() {
+				image.Spec.StorageClassParameters = util.GetImageDefaultStorageClassParameters()
 				respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
 				MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
 				Expect(retImage.Labels).To(BeEquivalentTo(image.Labels))
@@ -218,6 +221,7 @@ var _ = Describe("verify image APIs", func() {
 				toUpdateImage.ResourceVersion = retImage.ResourceVersion
 				toUpdateImage.Kind = retImage.Kind
 				toUpdateImage.APIVersion = retImage.APIVersion
+				toUpdateImage.Spec.StorageClassParameters = retImage.Spec.StorageClassParameters
 
 				respCode, respBody, err = helper.PutObject(imageURL, toUpdateImage)
 				MustNotError(err)
