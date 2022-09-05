@@ -184,6 +184,8 @@ command_prepare()
 {
   wait_repo
   detect_repo
+  detect_upgrade
+  check_version
   preload_images
 }
 
