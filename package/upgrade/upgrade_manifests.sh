@@ -139,6 +139,71 @@ wait_kubevirt()
   done
 }
 
+wait_longhorn_manager() {
+  echo "Waiting for longhorn-manager to be upgraded..."
+
+  lm_repo=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.manager.repository)
+  lm_tag=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.manager.tag)
+  lm_image="${lm_repo}:${lm_tag}"
+  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true -o json | jq -r '.items | length')
+
+  while [ true ]; do
+    lm_ds_ready=0
+    lm_ds_image=$(kubectl get daemonset longhorn-manager -n longhorn-system -o jsonpath='{.spec.template.spec.containers[0].image}')
+
+    if [ "$lm_ds_image" = "$lm_image" ]; then
+      lm_ds_ready=$(kubectl get daemonset longhorn-manager -n longhorn-system -o jsonpath='{.status.numberReady}')
+      if [ $lm_ds_ready -eq $node_count ]; then
+        break
+      fi
+    fi
+
+    echo "Waiting for longhorn-manager to be upgraded ($lm_ds_ready/$node_count)..."
+    sleep 10
+  done
+}
+
+wait_longhorn_instance_manager_r() {
+  im_repo=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.instanceManager.repository)
+  im_tag=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.instanceManager.tag)
+  im_image="${im_repo}:${im_tag}"
+
+  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true -o json | jq -r '.items | length')
+  if [ $node_count -le 2 ]; then
+    echo "Skip waiting instance-manager-r, node count: $node_count"
+    return
+  fi
+
+  # Wait for instance-manager-r pods upgraded to new version first.
+  kubectl get nodes -o json | jq -r '.items[].metadata.name' | while read -r node; do
+    echo "Checking instance-manager-r pod on node $node..."
+    while [ true ]; do
+      pod_count=$(kubectl get pod --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=replica -n longhorn-system -o json | jq -r '.items | length')
+      if [ "$pod_count" != "1" ]; then
+        echo "instance-manager-r pod count is not 1 on node $node, will retry..."
+        sleep 5
+        continue
+      fi
+
+      container_image=$(kubectl get pod --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=replica -n longhorn-system -o json | jq -r '.items[0].spec.containers[0].image')
+      if [ "$container_image" != "$im_image" ]; then
+        echo "instance-manager-r pod image is not $im_image, will retry..."
+        sleep 5
+        continue
+      fi
+
+      echo "Checking instance-manager-r pod on node $node OK."
+      break
+    done
+  done
+}
+
+wait_longhorn_upgrade() {
+  echo "Waiting for LH settling down..."
+  wait_longhorn_manager
+  wait_longhorn_instance_manager_r
+}
+
 get_running_rancher_version()
 {
   kubectl get settings.management.cattle.io server-version -o yaml | yq -e e '.value' -
@@ -394,5 +459,6 @@ pause_all_charts
 upgrade_rancher
 upgrade_harvester_cluster_repo
 upgrade_harvester
+wait_longhorn_upgrade
 upgrade_monitoring
 apply_extra_manifests
