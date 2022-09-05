@@ -388,6 +388,7 @@ pause_all_charts()
 wait_repo
 detect_repo
 detect_upgrade
+check_version
 pre_upgrade_manifest
 pause_all_charts
 upgrade_rancher

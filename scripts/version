@@ -1,5 +1,8 @@
 #!/bin/bash
 
+TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+PACKAGE_DIR="${TOP_DIR}/package"
+
 unset DIRTY
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     DIRTY="-dirty"
@@ -12,8 +15,13 @@ GIT_TAG=$(git tag -l --contains HEAD | head -n 1)
 
 if [[ -z "$DIRTY" && -n "$GIT_TAG" ]]; then
     VERSION=$GIT_TAG
+    # Search for minimum upgradable version.
+    # If the release does not come with a corresponding minimum upgradable version, the build will error out.
+    MIN_UPGRADABLE_VERSION=$(yq -e e ".versions | map(select(.name == \"$VERSION\")) | .[0].minUpgradableVersion" "${PACKAGE_DIR}"/upgrade-matrix.yaml)
 else
     VERSION="${COMMIT}${DIRTY}"
+    # Dev builds do not come with this restriction.
+    MIN_UPGRADABLE_VERSION=""
 fi
 
 # Chart tag.
@@ -51,3 +59,4 @@ echo "SUFFIX: $SUFFIX"
 echo "REPO: $REPO"
 echo "TAG: $TAG"
 echo "IMAGE_PUSH_TAG: $IMAGE_PUSH_TAG"
+echo "MIN_UPGRADABLE_VERSION: $MIN_UPGRADABLE_VERSION"

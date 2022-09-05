@@ -27,6 +27,8 @@ detect_repo()
   REPO_RANCHER_WEBHOOK_CHART_VERSION=$(yq -e e '.rancherDependencies.rancher-webhook.chart' $release_file)
   REPO_RANCHER_WEBHOOK_APP_VERSION=$(yq -e e '.rancherDependencies.rancher-webhook.app' $release_file)
   REPO_KUBEVIRT_VERSION=$(yq -e e '.kubevirt' $release_file)
+  # Value could be: 1. valid version string; 2. empty string
+  REPO_HARVESTER_MIN_UPGRADABLE_VERSION=$(yq e '.minUpgradableVersion' $release_file)
 
   if [ -z "$REPO_HARVESTER_VERSION" ]; then
     echo "[ERROR] Fail to get Harvester version from upgrade repo."
@@ -95,6 +97,30 @@ detect_repo()
 
   CACHED_BUNDLE_METADATA=$(mktemp --suffix=.yaml)
   curl -sfL "$UPGRADE_REPO_BUNDLE_METADATA" -o "$CACHED_BUNDLE_METADATA"
+}
+
+check_version()
+{
+  CURRENT_VERSION=${UPGRADE_PREVIOUS_VERSION#v}
+  MIN_UPGRADABLE_VERSION=${REPO_HARVESTER_MIN_UPGRADABLE_VERSION#v}
+
+  echo "Current version: $CURRENT_VERSION"
+  echo "Minimum upgradable version: $MIN_UPGRADABLE_VERSION"
+
+  if [ -z "$MIN_UPGRADABLE_VERSION" ]; then
+    echo "No restriction."
+  else
+    VERSIONS_TO_COMPARE="${MIN_UPGRADABLE_VERSION}
+${CURRENT_VERSION}"
+
+  # Current Harvester version should be newer or equal to minimum upgradable version
+    if [ "$VERSIONS_TO_COMPARE" = "$(sort -V <<< "$VERSIONS_TO_COMPARE")" ]; then
+      echo "Current version is supported."
+    else
+      echo "Current version is not supported. Abort the upgrade."
+      exit 1
+    fi
+  fi
 }
 
 wait_repo()

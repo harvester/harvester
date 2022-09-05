@@ -19,7 +19,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # install yq
-RUN GO111MODULE=on go install github.com/mikefarah/yq/v4@v4.6.0
+RUN GO111MODULE=on go install github.com/mikefarah/yq/v4@v4.27.5
 # set up helm
 ENV HELM_VERSION v3.5.4
 ENV HELM_URL=https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
