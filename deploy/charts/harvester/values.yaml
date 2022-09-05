@@ -444,6 +444,7 @@ generalJob:
     tag: 15.3
 
 whereabouts:
+  enabled: true
   image:
     pullPolicy: IfNotPresent
     repository: ghcr.io/k8snetworkplumbingwg/whereabouts
