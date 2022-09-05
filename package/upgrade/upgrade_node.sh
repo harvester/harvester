@@ -197,8 +197,46 @@ wait_evacuation_pdb_gone()
   done
 }
 
+wait_longhorn_engines() {
+  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true -o json | jq -r '.items | length')
+
+  # For each running engine and its volume
+  kubectl get engines.longhorn.io -n longhorn-system -o json |
+    jq -r '.items | map(select(.status.currentState == "running")) | map(.metadata.name + " " + .metadata.labels.longhornvolume) | .[]' |
+    while read -r lh_engine lh_volume; do
+      echo Checking running engine "${lh_engine}..."
+
+      # Wait until volume turn healthy (except two-node clusters)
+      while [ true ]; do
+        if [ $node_count -gt 2 ];then
+          robustness=$(kubectl get volumes.longhorn.io/$lh_volume -n longhorn-system -o jsonpath='{.status.robustness}')
+          if [ "$robustness" = "healthy" ]; then
+            echo "Volume $lh_volume is healthy."
+            break
+          fi
+        else
+          # two node situation, make sure two replicas are healthy
+          ready_replicas=$(kubectl get engines.longhorn.io/$lh_engine -n longhorn-system -o json |
+                             jq -r '.status.replicaModeMap | to_entries | map(select(.value == "RW")) | length')
+          if [ $ready_replicas -eq 2 ]; then
+            break
+          fi
+        fi
+
+        if [ -f "/tmp/skip-$lh_volume" ]; then
+          echo "Skip $lh_volume."
+          break
+        fi
+
+        echo "Waiting for volume $lh_volume to be healthy..."
+        sleep 10
+      done
+    done
+}
 
 command_pre_drain() {
+  wait_longhorn_engines
+
   shutdown_non_migrate_able_vms
 
   # Live migrate VMs
