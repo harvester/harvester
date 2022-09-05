@@ -16,8 +16,9 @@ const (
 	AnnotationRunStrategy          = prefix + "/vmRunStrategy"
 	LabelImageDisplayName          = prefix + "/imageDisplayName"
 
-	AnnotationStorageClassName   = prefix + "/storageClassName"
-	AnnotationStorageProvisioner = prefix + "/storageProvisioner"
+	AnnotationStorageClassName          = prefix + "/storageClassName"
+	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
+	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
 
 	BackupTargetSecretName      = "harvester-backup-target-secret"
 	InternalTLSSecretName       = "tls-rancher-internal"
@@ -30,4 +31,7 @@ const (
 	HTTPProxyEnv  = "HTTP_PROXY"
 	HTTPSProxyEnv = "HTTPS_PROXY"
 	NoProxyEnv    = "NO_PROXY"
+
+	LonghornOptionBackingImageName = "backingImage"
+	LonghornOptionMigratable       = "migratable"
 )

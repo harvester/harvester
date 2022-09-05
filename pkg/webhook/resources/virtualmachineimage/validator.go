@@ -2,6 +2,7 @@ package virtualmachineimage
 
 import (
 	"fmt"
+	"reflect"
 
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -141,6 +142,10 @@ func (v *virtualMachineImageValidator) Update(request *types.Request, oldObj run
 
 	if !newImage.DeletionTimestamp.IsZero() {
 		return nil
+	}
+
+	if !reflect.DeepEqual(newImage.Spec.StorageClassParameters, oldImage.Spec.StorageClassParameters) {
+		return werror.NewInvalidError("storageClassParameters of the VM Image cannot be modified", "spec.storageClassParameters")
 	}
 
 	if oldImage.Spec.SourceType != newImage.Spec.SourceType {
