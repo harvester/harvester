@@ -87,9 +87,9 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 	var err error
 	if syncer, ok := syncers[setting.Name]; ok {
 		err = syncer(setting)
-	}
-	if updateErr := h.setConfiguredCondition(toUpdate, err); updateErr != nil {
-		return setting, updateErr
+		if updateErr := h.setConfiguredCondition(toUpdate, err); updateErr != nil {
+			return setting, updateErr
+		}
 	}
 
 	return setting, err
