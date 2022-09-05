@@ -72,12 +72,12 @@ type TargetHandler struct {
 func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil ||
 		setting.Name != settings.BackupTargetSettingName || setting.Value == "" {
-		return nil, nil
+		return setting, nil
 	}
 
 	target, err := settings.DecodeBackupTarget(setting.Value)
 	if err != nil {
-		return setting, err
+		return h.setConfiguredCondition(setting, "", err)
 	}
 
 	logrus.Debugf("backup target change:%s:%s", target.Type, target.Endpoint)
@@ -88,48 +88,55 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Se
 		// in reUpdateBackupTargetSettingSecret
 		// stop the controller to reconcile it
 		if target.SecretAccessKey == "" && target.AccessKeyID == "" {
-			return nil, nil
+			break
 		}
 
 		if err = h.updateLonghornTarget(target); err != nil {
-			return nil, err
+			return h.setConfiguredCondition(setting, "", err)
 		}
 
 		if err = h.updateBackupTargetSecret(target); err != nil {
-			return nil, err
+			return h.setConfiguredCondition(setting, "", err)
 		}
 
 		return h.reUpdateBackupTargetSettingSecret(setting, target)
 
 	case settings.NFSBackupType:
 		if err = h.updateLonghornTarget(target); err != nil {
-			return nil, err
+			return h.setConfiguredCondition(setting, "", err)
 		}
 
 		// delete the may existing previous secret of S3
 		if err = h.deleteBackupTargetSecret(target); err != nil {
-			return nil, err
+			return h.setConfiguredCondition(setting, "", err)
 		}
-
-		return nil, nil
 
 	default:
 		// reset backup target to default, then delete/update related settings
 		if target.IsDefaultBackupTarget() {
 			if err = h.updateLonghornTarget(target); err != nil {
-				return nil, err
+				return h.setConfiguredCondition(setting, "", err)
 			}
 
 			// delete the may existing previous secret of S3
 			if err = h.deleteBackupTargetSecret(target); err != nil {
-				return nil, err
+				return h.setConfiguredCondition(setting, "", err)
 			}
 
-			return nil, nil
+			settingCpy := setting.DeepCopy()
+			harvesterv1.SettingConfigured.False(settingCpy)
+			harvesterv1.SettingConfigured.Message(settingCpy, "")
+			harvesterv1.SettingConfigured.Reason(settingCpy, "")
+			return h.settings.Update(settingCpy)
 		}
 
-		return nil, fmt.Errorf("Invalid backup target type:%s or parameter", target.Type)
+		return h.setConfiguredCondition(setting, "", fmt.Errorf("Invalid backup target type:%s or parameter", target.Type))
 	}
+
+	if len(setting.Status.Conditions) == 0 || harvesterv1.SettingConfigured.IsFalse(setting) {
+		return h.setConfiguredCondition(setting, "", nil)
+	}
+	return setting, nil
 }
 
 func (h *TargetHandler) reUpdateBackupTargetSettingSecret(setting *harvesterv1.Setting, target *settings.BackupTarget) (*harvesterv1.Setting, error) {
@@ -279,6 +286,13 @@ func (h *TargetHandler) updateLonghornBackupTargetSecretSetting(target *settings
 	}
 
 	return nil
+}
+
+func (h *TargetHandler) setConfiguredCondition(setting *harvesterv1.Setting, reason string, err error) (*harvesterv1.Setting, error) {
+	settingCpy := setting.DeepCopy()
+	// SetError with nil error will cleanup message in condition and set the status to true
+	harvesterv1.SettingConfigured.SetError(settingCpy, reason, err)
+	return h.settings.Update(settingCpy)
 }
 
 func ConstructEndpoint(target *settings.BackupTarget) string {
