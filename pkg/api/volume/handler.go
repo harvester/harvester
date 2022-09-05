@@ -303,6 +303,7 @@ func (h *ActionHandler) snapshot(ctx context.Context, pvcNamespace, pvcName, sna
 	}
 
 	volumeSnapshotClassName := csiDriverInfo.VolumeSnapshotClassName
+	pvcAPIVersion, pvcKind := util.PersistentVolumeClaimsKind.ToAPIVersionAndKind()
 	snapshot := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      snapshotName,
@@ -313,8 +314,8 @@ func (h *ActionHandler) snapshot(ctx context.Context, pvcNamespace, pvcName, sna
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: pvc.APIVersion,
-					Kind:       pvc.Kind,
+					APIVersion: pvcAPIVersion,
+					Kind:       pvcKind,
 					Name:       pvc.Name,
 					UID:        pvc.UID,
 				},
