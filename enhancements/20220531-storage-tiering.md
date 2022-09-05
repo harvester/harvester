@@ -1,6 +1,7 @@
 # Storage Tiering
 
 ## Summary
+Expose storageClass to users. Users can define storage tiers and replicas in storageClass, and then select storageClass to specify storage tiers and replicas when creating a volume or image
 
 ### Related Issues
 https://github.com/harvester/harvester/issues/2147
@@ -8,7 +9,7 @@ https://github.com/harvester/harvester/issues/2147
 ## Motivation
 
 ### Goals
-Allow admins to define storage tiers based on:
+Allow users to define storage tiers based on:
 
 + Node tag selectors
 + Disk tag selectors
@@ -19,10 +20,10 @@ Allow admins to define storage tiers based on:
 
 ### User Stories
 
-Use mixed different performance levels storage hardware to
+Use a mix of storage hardware at different performance levels to
 
 + optimize cost
-+ predictable performance
++ provide predictable performance
 
 ### User Experience In Detail
 
@@ -31,88 +32,82 @@ Use mixed different performance levels storage hardware to
 ##### 1.1 Edit Node Tag
 `Hosts` > host > `Edit Config` > `Storage`
 
-![image](./20220531-storage-tiering/edit-node-tag.png)
+![edit node tag](./20220531-storage-tiering/edit-node-tag.png)
 
 ##### 1.2 Show Node Tag
 `Hosts` > host > `Storage`
 
-![image](./20220531-storage-tiering/show-node-tag.png)
+![show node tag](./20220531-storage-tiering/show-node-tag.png)
 
 #### 2 Disk Tag
 
 ##### 2.1 Edit Disk Tag
 `Hosts` > host > `Edit Config` > `Storage`
 
-![image](./20220531-storage-tiering/edit-disk-tag.png)
+![edit disk tag](./20220531-storage-tiering/edit-disk-tag.png)
 
 ##### 2.2 Show Disk Tag
 `Hosts` > host > `Storage`
 
-![image](./20220531-storage-tiering/show-disk-tag.png)
+![show disk tag](./20220531-storage-tiering/show-disk-tag.png)
 
 #### 3 Volume
-Since disk tag and node tag can have many combinations and the pvc's storageClass must exist before a pvc be created, we need to let users select storageClass during volume creating.
+Since there can be various combinations of disk tags and node tags, and the storageClass of pvc must exist before the pvc is created, we need to let the user select the storageClass when creating a volume.
 
-Users can access [Embedded Rancher UI](https://docs.harvesterhci.io/v1.0/troubleshooting/harvester/#access-embedded-rancher) to manage storageClass, or we can add Harvester's `StorageClass` page.
+And we need to add a Harvester's `StorageClass` page.
 
 ##### 3.1 Create Volume
-Select storageClass (default to longhorn).
+Select storageClass (default to `longhorn`).
 
 + `Volumes` > `Create`（source=New), backing image storageClass need to be filtered out.
-![image](./20220531-storage-tiering/create-volume.png)
+![create volume](./20220531-storage-tiering/create-volume.png)
 + `Virtual Machines` > `Create` > `Volumes` > `Add Volume`, backing image storageClass need to be filtered out.
-![image](./20220531-storage-tiering/vm-add-volume.png)
+![vm add volume](./20220531-storage-tiering/vm-add-volume.png)
 + `Snapshots` > snapshot > `Restore`
   - For snapshot of an image volume, if source storageClass is not found, it can not be restored.
   - For snapshot of other volume, only show storageClasses those have the same provisioner of source storageClass and choose source storageClassName by default. If source storageClass is not found, need show a warning message.
   - For the above two points, save source provisioner, storageClassName,ImageID in snapshot's annotations during volume snapshot.
 
 ##### 3.2 Show Volume
-```
-if provisioner is driver.longhorn.io
-  show diskSelector and nodeSelector 
-else
-  show storageClassName
-fi
-```
+show storageClassName
 
 + `Volumes` > volume
-![image](./20220531-storage-tiering/show-volume.png)
+![show volume](./20220531-storage-tiering/show-volume.png)
 
 #### 4 Image
-Since the storageClass of backing image is created dynamically, we only need to let users select diskSelector and nodeSelector during vm image creating.
+Since the storageClass of backing image is created dynamically, we can let users select a storageClass as base template when creating images.
 
 ##### 4.1 Create Image
+Select storageClass (default to `longhorn`)
 
-Select diskSelector,nodeSelector (default to `any available`)
-+ `Images` > `Create`
-  ![image](./20220531-storage-tiering/create-image.png)
-+ `Volumes` > volume > `Export`
-  ![image](./20220531-storage-tiering/volume-export.png)
++ `Images` > `Create`, backing image storageClass need to be filtered out.
+  ![create image](./20220531-storage-tiering/create-image.png)
++ `Volumes` > volume > `Export`, backing image storageClass need to be filtered out.
+  ![volume export](./20220531-storage-tiering/volume-export.png)
 
 ##### 4.2 Show Image
-Show diskSelector,nodeSelector, if it exits
+Show parameters of storageClass
 
 + `Images` > image
-  ![image](./20220531-storage-tiering/show-image.png)
+  ![show image](./20220531-storage-tiering/show-image.png)
 
 
 ### API changes
 
-Add a new field: `extraStorageClassParameters`, type `map[string]string`, to `harvesterhci.io.virtualmachineimages.spec`.
+Add a new field: `storageClassParameters`, type `map[string]string`, to `harvesterhci.io.virtualmachineimages.spec`.
 
-If `extraStorageClassParameters` are allowed to be modified, the backend deletion and reconstruction of the storageClass being used may cause unpredictable consequences.
+If `storageClassParameters` are allowed to be modified, the backend deletion and reconstruction of the storageClass being used may cause unpredictable consequences.
 And it is difficult to know from the storageClass information what the parameters were when the PVC was created.
 This makes displaying diskSelector and nodeSelector on the UI potentially inaccurate.
 Currently, the URL of image is also not allowed to be modified by the user on the UI
-So users should not be allowed to modify the `extraStorageClassParameters` contents.
+So users should not be allowed to modify the `storageClassParameters` contents.
 For different scheduling rules for the same image file, users need to create different images.
 
 ```yaml
 spec:
   checksum: ""
   displayName: ubuntu-20.04-minimal-cloudimg-amd64.img
-  extraStorageClassParameters:
+  storageClassParameters:
     nodeSelector: "large"
     diskSelector: "hdd"
     migratable: "true"
@@ -124,19 +119,12 @@ spec:
 
 ### Implementation Overview
 
-1. Specify diskSelector and nodeSelector in `spec.extraStorageClassParameters` when vm image creating or updating.
-2. The `vm image mutator` in `harvester-webhook` will autofill other extraStorageClassParameters according to the `image-storage-class-parameters` settings.
-3. The `vm image controller` in `harvester` will create or update a backing image storageClass according to the `spec.extraStorageClassParameters`.
-
-#### New Settings `image-default-storage-class-parameters`
-
-Default to `{"numberOfReplicas":"3","staleReplicaTimeout":"30","migratable":"true"}`
-```go
-ImageDefaultStorageClassParameters   = NewSetting("image-default-storage-class-parameters", `{"numberOfReplicas":"3","staleReplicaTimeout":"30","migratable":"true"}`)
-```
+1. Specify storageClassName in `metadata.Annotations["harvesterhci.io/storageClassName"]` when vm image creating.
+2. The `vm image mutator` in `harvester-webhook` will autofill storageClassParameters according to the `metadata.Annotations["harvesterhci.io/storageClassName"]`.
+3. The `vm image controller` in `harvester` will create a backing image storageClass according to the `spec.storageClassParameters`.
 
 #### Add vm image mutator to harvester-webhook
 
-![image](./20220531-storage-tiering/backingimage.png)
+![backingimage](./20220531-storage-tiering/backingimage.png)
 
 ### Test plan
