@@ -18,9 +18,10 @@ const (
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
 	server.BaseSchemas.MustImportAndCustomize(RestoreSnapshotInput{}, nil)
 	actionHandler := ActionHandler{
-		pvcs:          scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
-		pvcCache:      scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
-		snapshotCache: scaled.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot().Cache(),
+		pvcs:              scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
+		pvcCache:          scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
+		snapshotCache:     scaled.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot().Cache(),
+		storageClassCache: scaled.StorageFactory.Storage().V1().StorageClass().Cache(),
 	}
 	t := schema.Template{
 		ID: volumesnapshotSchemaID,

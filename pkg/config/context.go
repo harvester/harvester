@@ -64,6 +64,7 @@ type Scaled struct {
 	RbacFactory              *rbacv1.Factory
 	CniFactory               *cniv1.Factory
 	SnapshotFactory          *snapshotv1.Factory
+	StorageFactory           *storagev1.Factory
 	LonghornFactory          *longhornv1.Factory
 	RancherManagementFactory *rancherv3.Factory
 	starters                 []start.Starter
@@ -168,6 +169,13 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	}
 	scaled.SnapshotFactory = snapshot
 	scaled.starters = append(scaled.starters, snapshot)
+
+	storage, err := storagev1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.StorageFactory = storage
+	scaled.starters = append(scaled.starters, storage)
 
 	longhorn, err := longhornv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
