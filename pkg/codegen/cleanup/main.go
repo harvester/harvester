@@ -11,7 +11,10 @@ func main() {
 	if err := cleanup.Cleanup("./pkg/apis"); err != nil {
 		logrus.Fatal(err)
 	}
-	if err := os.RemoveAll("./pkg/generated"); err != nil {
+	if err := os.RemoveAll("./pkg/generated/clientset"); err != nil {
+		logrus.Fatal(err)
+	}
+	if err := os.RemoveAll("./pkg/generated/controllers"); err != nil {
 		logrus.Fatal(err)
 	}
 }
