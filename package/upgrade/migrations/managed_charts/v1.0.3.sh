@@ -41,21 +41,30 @@ if [ -n "$HARVESTER_VIP" ]; then
 fi
 }
 
-# get harvester vip from configmap, skip potential error
+# get harvester vip from service first, then configmap, skip potential error
 get_harvester_vip()
 {
   EXIT_CODE=0
   #escape the 'return on error'
-  JSON_DATA=$(kubectl get configmap -n kube-system kubevip -o "jsonpath={.data['kubevip-services']}") || EXIT_CODE=$?;
+
+  VIP=$(kubectl get service -n kube-system ingress-expose -o "jsonpath={.spec.loadBalancerIP}") || EXIT_CODE=$?
   if test $EXIT_CODE = 0; then
-    VIP=$(echo $JSON_DATA | jq -r .services[0].vip) || EXIT_CODE=$?;
+    HARVESTER_VIP=$VIP
+    return 0
+  else
+    echo "kubectl get service -n kube-system ingress-expose failed, will try get from configmap"
+  fi
+
+  JSON_DATA=$(kubectl get configmap -n kube-system kubevip -o "jsonpath={.data['kubevip-services']}") || EXIT_CODE=$?
+  if test $EXIT_CODE = 0; then
+    VIP=$(echo $JSON_DATA | jq -r .services[0].vip) || EXIT_CODE=$?
     if test $EXIT_CODE = 0; then
-      HARVESTER_VIP=$VIP;
+      HARVESTER_VIP=$VIP
     else
-      echo "jq parse kubevip configmap json text failed: $JSON_DATA";
+      echo "jq parse kubevip configmap json text failed: $JSON_DATA"
     fi
   else
-    echo "kubectl get configmap -n kube-system kubevip failed";
+    echo "kubectl get configmap -n kube-system kubevip failed"
   fi
 }
 
