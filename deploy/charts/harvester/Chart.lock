@@ -29,5 +29,8 @@ dependencies:
 - name: whereabouts
   repository: file://dependency_charts/whereabouts
   version: 0.1.1
-digest: sha256:55b5769c9dd6998252ca13d0cb76877ade68f31a8feebf8120e1e17ddf08a5db
-generated: "2022-09-05T15:48:45.139461+08:00"
+- name: harvester-vm-import-controller
+  repository: https://charts.harvesterhci.io
+  version: 0.1.0
+digest: sha256:34a18741b20391e563e66fb57b26857504ed0fcadb8218c5511621d23f24ac2b
+generated: "2022-09-16T09:13:46.191493182+10:00"
