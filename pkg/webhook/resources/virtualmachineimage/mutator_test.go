@@ -25,7 +25,7 @@ func Test_virtualmachineimage_mutator(t *testing.T) {
 		{
 			name: "storageClassName is empty",
 			patchOps: []string{
-				`{"op": "add", "path": "/spec/storageClassParameters", "value": {"baseImage":"","fromBackup":"","migratable":"true","numberOfReplicas":"3","staleReplicaTimeout":"30"}}`,
+				`{"op": "add", "path": "/spec/storageClassParameters", "value": {"migratable":"true","numberOfReplicas":"3","staleReplicaTimeout":"30"}}`,
 			},
 			storageClassName: "",
 			errCheck:         nil,
@@ -39,7 +39,7 @@ func Test_virtualmachineimage_mutator(t *testing.T) {
 		{
 			name: "storageClassName is exist",
 			patchOps: []string{
-				`{"op": "add", "path": "/spec/storageClassParameters", "value": {"baseImage":"","diskSelector":"nvme","fromBackup":"","migratable":"true","nodeSelector":"node1","numberOfReplicas":"1","staleReplicaTimeout":"30"}}`,
+				`{"op": "add", "path": "/spec/storageClassParameters", "value": {"diskSelector":"nvme","migratable":"true","nodeSelector":"node1","numberOfReplicas":"1","staleReplicaTimeout":"30"}}`,
 			},
 			storageClassName: "existing-sc",
 			errCheck:         nil,
