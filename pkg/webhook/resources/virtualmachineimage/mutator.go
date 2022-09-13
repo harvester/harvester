@@ -7,6 +7,7 @@ import (
 
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlstoragev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
+	"github.com/rancher/wrangler/pkg/slice"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -109,8 +110,13 @@ func mergeStorageClassParams(image *harvesterv1.VirtualMachineImage, storageClas
 	} else if storageClass != nil {
 		mergeParams = storageClass.Parameters
 	}
+	var allowPatchParams = []string{
+		longhorntypes.OptionNodeSelector, longhorntypes.OptionDiskSelector,
+		longhorntypes.OptionNumberOfReplicas, longhorntypes.OptionStaleReplicaTimeout}
 	for k, v := range mergeParams {
-		params[k] = v
+		if slice.ContainsString(allowPatchParams, k) {
+			params[k] = v
+		}
 	}
 	return params
 }
