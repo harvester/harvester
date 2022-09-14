@@ -376,6 +376,11 @@ longhorn:
   ## Specify the namespace to install longhorn.
   namespaceOverride: longhorn-system
 
+  ## mark `longhorn` does not be default
+  persistence:
+    defaultClass: false
+    migratable: true
+
   csi:
     ## Specify the kubelet root directory.
     kubeletRootDir: /var/lib/kubelet
