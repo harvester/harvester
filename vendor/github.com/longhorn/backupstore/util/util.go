@@ -127,11 +127,20 @@ func ValidateName(name string) bool {
 }
 
 func Execute(binary string, args []string) (string, error) {
-	var output []byte
-	var err error
-
 	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
 	defer cancel()
+	return execute(ctx, binary, args)
+}
+
+func ExecuteWithCustomTimeout(binary string, args []string, timeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return execute(ctx, binary, args)
+}
+
+func execute(ctx context.Context, binary string, args []string) (string, error) {
+	var output []byte
+	var err error
 
 	cmd := exec.CommandContext(ctx, binary, args...)
 	done := make(chan struct{})
