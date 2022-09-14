@@ -16,7 +16,7 @@ patch_alertmanager_enable()
   yq e '.spec.values.alertmanager.config.global.resolve_timeout = "5m"' $CHART_MANIFEST -i
   yq e '.spec.values.alertmanager.alertmanagerSpec.retention = "120h"' $CHART_MANIFEST -i
   yq e '.spec.values.alertmanager.alertmanagerSpec.resources = {"limits": {"cpu": "1000m", "memory": "600Mi"}, "requests": {"cpu": "100m", "memory": "100Mi"}}' $CHART_MANIFEST -i
-  yq e '.spec.values.alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.storageClassName = "longhorn"' $CHART_MANIFEST -i
+  yq e '.spec.values.alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.storageClassName = "harvester-longhorn"' $CHART_MANIFEST -i
   yq e '.spec.values.alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.accessModes = ["ReadWriteOnce"]' $CHART_MANIFEST -i
   yq e '.spec.values.alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage = "5Gi"' $CHART_MANIFEST -i
 }
