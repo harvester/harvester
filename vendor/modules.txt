@@ -421,7 +421,7 @@ github.com/longhorn/backing-image-manager/pkg/meta
 github.com/longhorn/backing-image-manager/pkg/rpc
 github.com/longhorn/backing-image-manager/pkg/types
 github.com/longhorn/backing-image-manager/pkg/util
-# github.com/longhorn/backupstore v0.0.0-20211109055147-56ddc538b859
+# github.com/longhorn/backupstore v0.0.0-20220913112826-5f5c95274f2a
 ## explicit; go 1.13
 github.com/longhorn/backupstore
 github.com/longhorn/backupstore/fsops
