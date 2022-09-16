@@ -93,6 +93,25 @@ kubevirt:
       ##
       emulatedMachines: ["q35","pc-q35*","pc","pc-i440fx*"]
 
+    customizeComponents:
+      patches:
+        - patch: '{"webhooks":[{"name":"kubevirt-validator.kubevirt.io","failurePolicy":"Ignore"},{"name":"kubevirt-update-validator.kubevirt.io","failurePolicy":"Ignore"}]}'
+          resourceName: virt-operator-validator
+          resourceType: ValidatingWebhookConfiguration
+          type: strategic
+        - patch: '{"spec":{"template":{"spec":{"containers":[{"name":"virt-api", "resources":{"limits":{"cpu":"400m","memory":"1100Mi"}}}]}}}}'
+          resourceName: virt-api
+          resourceType: Deployment
+          type: strategic
+        - patch: '{"spec":{"template":{"spec":{"containers":[{"name":"virt-controller", "resources":{"limits":{"cpu":"800m","memory":"1300Mi"}}}]}}}}'
+          resourceName: virt-controller
+          resourceType: Deployment
+          type: strategic
+        - patch: '{"spec":{"template":{"spec":{"containers":[{"name":"virt-handler", "resources":{"limits":{"cpu":"700m","memory":"1600Mi"}}}]}}}}'
+          resourceName: virt-handler
+          resourceType: DaemonSet
+          type: strategic
+
 ###########################################################################
 ###########################################################################
 ##                    Default values for Harvester                       ##
