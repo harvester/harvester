@@ -1,9 +1,11 @@
 package indexeres
 
 import (
+	"context"
 	"fmt"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	"github.com/rancher/steve/pkg/server"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -24,12 +26,9 @@ const (
 	VolumeSnapshotByPVCNameIndex = "harvesterhci.io/volume-snapshot-by-pvc-name"
 )
 
-func RegisterScaledIndexers(scaled *config.Scaled) {
-	vmInformer := scaled.Management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
-	vmInformer.AddIndexer(VMByNetworkIndex, VMByNetwork)
-}
-
-func RegisterManagementIndexers(management *config.Management) {
+func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
+	scaled := config.ScaledWithContext(ctx)
+	management := scaled.Management
 	crbInformer := management.RbacFactory.Rbac().V1().ClusterRoleBinding().Cache()
 	crbInformer.AddIndexer(RbByRoleAndSubjectIndex, rbByRoleAndSubject)
 	pvcInformer := management.CoreFactory.Core().V1().PersistentVolumeClaim().Cache()
@@ -38,13 +37,12 @@ func RegisterManagementIndexers(management *config.Management) {
 	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
 	volumeSnapshotInformer := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot().Cache()
 	volumeSnapshotInformer.AddIndexer(VolumeSnapshotByPVCNameIndex, volumeSnapshotByPVCName)
+	vmInformer := management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
+	vmInformer.AddIndexer(VMByNetworkIndex, VMByNetwork)
 	vmBackupInformer := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()
 	vmBackupInformer.AddIndexer(VMBackupBySourceVMNameIndex, VMBackupBySourceVMName)
-}
-
-func RegisterAPIIndexers(scaled *config.Scaled) {
-	vmBackupInformer := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()
 	vmBackupInformer.AddIndexer(VMBackupBySourceVMUIDIndex, VMBackupBySourceVMUID)
+	return nil
 }
 
 func rbByRoleAndSubject(obj *rbacv1.ClusterRoleBinding) ([]string, error) {

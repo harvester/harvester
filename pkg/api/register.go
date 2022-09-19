@@ -13,7 +13,6 @@ import (
 	"github.com/harvester/harvester/pkg/api/volume"
 	"github.com/harvester/harvester/pkg/api/volumesnapshot"
 	"github.com/harvester/harvester/pkg/config"
-	"github.com/harvester/harvester/pkg/indexeres"
 )
 
 type registerSchema func(scaled *config.Scaled, server *server.Server, options config.Options) error
@@ -29,7 +28,6 @@ func registerSchemas(scaled *config.Scaled, server *server.Server, options confi
 
 func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
-	indexeres.RegisterAPIIndexers(scaled)
 	return registerSchemas(scaled, server, options,
 		image.RegisterSchema,
 		keypair.RegisterSchema,

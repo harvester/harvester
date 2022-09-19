@@ -35,6 +35,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/global"
 	"github.com/harvester/harvester/pkg/controller/master"
 	"github.com/harvester/harvester/pkg/data"
+	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/server/ui"
 )
 
@@ -235,6 +236,7 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 	s.Handler = authMiddleware(s.steve)
 
 	s.startHooks = []StartHook{
+		indexeres.Setup,
 		master.Setup,
 		global.Setup,
 		api.Setup,
