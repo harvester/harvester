@@ -18,7 +18,6 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/template"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
-	"github.com/harvester/harvester/pkg/indexeres"
 )
 
 type registerFunc func(context.Context, *config.Management, config.Options) error
@@ -54,8 +53,6 @@ func register(ctx context.Context, management *config.Management, options config
 
 func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
-
-	indexeres.RegisterManagementIndexers(scaled.Management)
 
 	go leader.RunOrDie(ctx, "", "harvester-controllers", controllers.K8s, func(ctx context.Context) {
 		if err := register(ctx, scaled.Management, options); err != nil {
