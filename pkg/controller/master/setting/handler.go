@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/wrangler/pkg/apply"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	rbacv1 "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/slice"
 	"k8s.io/apimachinery/pkg/api/errors"
 
@@ -36,28 +37,36 @@ var (
 )
 
 type Handler struct {
-	namespace            string
-	httpClient           http.Client
-	apply                apply.Apply
-	clusterCache         provisioningv1.ClusterCache
-	clusters             provisioningv1.ClusterClient
-	settings             v1beta1.SettingClient
-	settingCache         v1beta1.SettingCache
-	secrets              ctlcorev1.SecretClient
-	secretCache          ctlcorev1.SecretCache
-	deployments          v1.DeploymentClient
-	deploymentCache      v1.DeploymentCache
-	ingresses            networkingv1.IngressClient
-	ingressCache         networkingv1.IngressCache
-	longhornSettings     ctllonghornv1.SettingClient
-	longhornSettingCache ctllonghornv1.SettingCache
-	configmaps           ctlcorev1.ConfigMapClient
-	configmapCache       ctlcorev1.ConfigMapCache
-	apps                 catalogv1.AppClient
-	managedCharts        mgmtv3.ManagedChartClient
-	managedChartCache    mgmtv3.ManagedChartCache
-	helmChartConfigs     ctlhelmv1.HelmChartConfigClient
-	helmChartConfigCache ctlhelmv1.HelmChartConfigCache
+	namespace               string
+	httpClient              http.Client
+	apply                   apply.Apply
+	clusterCache            provisioningv1.ClusterCache
+	clusters                provisioningv1.ClusterClient
+	settings                v1beta1.SettingClient
+	settingCache            v1beta1.SettingCache
+	secrets                 ctlcorev1.SecretClient
+	secretCache             ctlcorev1.SecretCache
+	deployments             v1.DeploymentClient
+	deploymentCache         v1.DeploymentCache
+	ingresses               networkingv1.IngressClient
+	ingressCache            networkingv1.IngressCache
+	longhornSettings        ctllonghornv1.SettingClient
+	longhornSettingCache    ctllonghornv1.SettingCache
+	configmaps              ctlcorev1.ConfigMapClient
+	configmapCache          ctlcorev1.ConfigMapCache
+	apps                    catalogv1.AppClient
+	managedCharts           mgmtv3.ManagedChartClient
+	managedChartCache       mgmtv3.ManagedChartCache
+	helmChartConfigs        ctlhelmv1.HelmChartConfigClient
+	helmChartConfigCache    ctlhelmv1.HelmChartConfigCache
+	services                ctlcorev1.ServiceClient
+	serviceCache            ctlcorev1.ServiceCache
+	serviceAccounts         ctlcorev1.ServiceAccountClient
+	serviceAccountCache     ctlcorev1.ServiceAccountCache
+	clusterRoles            rbacv1.ClusterRoleClient
+	clusterRoleCache        rbacv1.ClusterRoleCache
+	clusterRoleBindings     rbacv1.ClusterRoleBindingClient
+	clusterRoleBindingCache rbacv1.ClusterRoleBindingCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

@@ -75,7 +75,18 @@ func (h *Handler) cleanupClusterAgent() error {
 	// cleanup rancher related resources
 	// ref: https://rancher.com/docs/rancher/v2.6/en/cluster-provisioning/registered-clusters/#registering-a-cluster
 	// ref: https://rancher.com/docs/rancher/v2.6/en/cluster-provisioning/rke-clusters/rancher-agents/
-	if _, err := h.deploymentCache.Get("cattle-system", "cattle-cluster-agent"); err == nil {
+	var err error
+	if _, err = h.serviceCache.Get("cattle-system", "cattle-cluster-agent"); err == nil {
+		if err = h.services.Delete("cattle-system", "cattle-cluster-agent", nil); err != nil {
+			logrus.Errorf("Can't delete cattle-system/cattle-cluster-agent service, err: %+v", err)
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		logrus.Errorf("Can't get cattle-system/cattle-cluster-agent service, err: %+v", err)
+		return err
+	}
+
+	if _, err = h.deploymentCache.Get("cattle-system", "cattle-cluster-agent"); err == nil {
 		if err = h.deployments.Delete("cattle-system", "cattle-cluster-agent", nil); err != nil {
 			logrus.Errorf("Can't delete cattle-system/cattle-cluster-agent deployment, err: %+v", err)
 			return err
@@ -84,5 +95,56 @@ func (h *Handler) cleanupClusterAgent() error {
 		logrus.Errorf("Can't get cattle-system/cattle-cluster-agent deployment, err: %+v", err)
 		return err
 	}
+
+	if _, err = h.clusterRoleBindingCache.Get("proxy-role-binding-kubernetes-master"); err == nil {
+		if err = h.clusterRoleBindings.Delete("proxy-role-binding-kubernetes-master", nil); err != nil {
+			logrus.Errorf("Can't delete proxy-role-binding-kubernetes-master ClusterRoleBinding, err: %+v", err)
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		logrus.Errorf("Can't get proxy-role-binding-kubernetes-master ClusterRoleBinding, err: %+v", err)
+		return err
+	}
+
+	if _, err = h.clusterRoleBindingCache.Get("cattle-admin-binding"); err == nil {
+		if err = h.clusterRoleBindings.Delete("cattle-admin-binding", nil); err != nil {
+			logrus.Errorf("Can't delete cattle-admin-binding ClusterRoleBinding, err: %+v", err)
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		logrus.Errorf("Can't get cattle-admin-binding ClusterRoleBinding, err: %+v", err)
+		return err
+	}
+
+	if _, err = h.clusterRoleCache.Get("proxy-clusterrole-kubeapiserver"); err == nil {
+		if err = h.clusterRoles.Delete("proxy-clusterrole-kubeapiserver", nil); err != nil {
+			logrus.Errorf("Can't delete proxy-clusterrole-kubeapiserver ClusterRole, err: %+v", err)
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		logrus.Errorf("Can't get proxy-clusterrole-kubeapiserver ClusterRole, err: %+v", err)
+		return err
+	}
+
+	if _, err = h.clusterRoleCache.Get("cattle-admin"); err == nil {
+		if err = h.clusterRoles.Delete("cattle-admin", nil); err != nil {
+			logrus.Errorf("Can't delete cattle-admin ClusterRole, err: %+v", err)
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		logrus.Errorf("Can't get cattle-admin ClusterRole, err: %+v", err)
+		return err
+	}
+
+	if _, err = h.serviceAccountCache.Get("cattle-system", "cattle"); err == nil {
+		if err = h.serviceAccounts.Delete("cattle-system", "cattle", nil); err != nil {
+			logrus.Errorf("Can't delete cattle-admin/cattle ServiceAccount, err: %+v", err)
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		logrus.Errorf("Can't get cattle-system/cattle ServiceAccount, err: %+v", err)
+		return err
+	}
+
 	return nil
 }
