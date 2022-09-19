@@ -66,6 +66,7 @@ data:
     cluster-dns: 10.53.0.10
     tls-san:
       - $VIP
+    audit-policy-file: /etc/rancher/rke2/config.yaml.d/92-harvester-kube-audit-policy.yaml
     EOF
 
     # For how to promote nodes, see: https://github.com/rancher/rancher/issues/36480#issuecomment-1039253499
