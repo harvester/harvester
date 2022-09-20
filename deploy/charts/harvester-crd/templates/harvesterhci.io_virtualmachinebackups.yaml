@@ -84,7 +84,6 @@ spec:
                 type: string
             required:
             - source
-            - type
             type: object
           status:
             description: VirtualMachineBackupStatus is the status for a VirtualMachineBackup

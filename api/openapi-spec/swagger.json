@@ -6683,8 +6683,7 @@
     "harvesterhci.io.v1beta1.VirtualMachineBackupSpec": {
       "type": "object",
       "required": [
-        "source",
-        "type"
+        "source"
       ],
       "properties": {
         "source": {
@@ -6692,8 +6691,7 @@
           "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
         },
         "type": {
-          "type": "string",
-          "default": ""
+          "type": "string"
         }
       }
     },

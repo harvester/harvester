@@ -2484,13 +2484,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupSpec(ref common.
 					},
 					"type": {
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 				},
-				Required: []string{"source", "type"},
+				Required: []string{"source"},
 			},
 		},
 		Dependencies: []string{
