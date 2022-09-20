@@ -89,7 +89,18 @@ all-logs-gelf-hs    true
 
 #### Viewing Logs Via Grafana Loki
 
+### Setup
+
+Loki will not be installed to the cluster by default, but you can manually install it:
+
+  1. Install the helm chart: `helm install --repo https://grafana.github.io/helm-charts --values enhancements/20220525-system-logging/loki-values.yaml --version 2.7.0 loki-stack`s
+  2. Apply the `ClusterFlow` and `ClusterOutput`: `kubectl apply -f enhancements/20220525-system-logging/loki.yaml`
+
+After some time for the logging operator to load and apply the `ClusterFlow` and `ClusterOutput` you will see the logs
+flowing into loki.
+
 ##### Accessing
+
 By default, harvester routes logs to its internal Grafana Loki deployment. To view the Loki UI, you can go to port
 forward to the `loki-stack-grafana` service. For example map `localhost:3000` to `loki-stack-grafana`s port 80:
 
@@ -132,9 +143,24 @@ None.
 
 ### Implementation Overview
 
-- Install a `harvester-logging` managed chart defining a `ClusterFlow` and `ClusterOutput`
-  - By default we send logs to loki
-- Add a new sub chart to the harvester
+The bulk of the logging functionality is handled by installing the [`rancher-logging`](https://github.com/rancher/charts/tree/dev-v2.7/charts/rancher-logging/100.1.3%2Bup3.17.7/)
+to deploy the main logging components:
+
+| Name                | Purpose                                                                    |
+|---------------------|----------------------------------------------------------------------------|
+| logging-operator    | manages the `ClusterFlow`s and `ClusterOutput`s defining log routes        |
+| fluentd             | the central log aggregator which will forward logs to other log collectors |
+| fluent-bit          | collects the logs from teh cluster pods                                    |
+| journald-aggregator | deploys a pod to collect the journal logs from each node                   |
+
+The journald-aggregator is a `fluent-bit` pod which collects the node logs by mounting the host's `/var/log/journal`
+directory to the pod. Using the [`systemd`](https://docs.fluentbit.io/manual/pipeline/inputs/systemd) input plugin, the
+logs can be filtered by the fields in the log entry (ex `_SYSTEMD_UNIT`, `_TRANSPORT`, etc). Collecting all the jogs
+from `/var/log/journal` is too much, so we only select logs from some important services: rke2-server, rke2-agent,
+rancherd, rancher-system-agent, wicked, iscsid, and kernal logs.
+
+The logging feature is enabled by default; however, due to an [issue](https://github.com/harvester/harvester/issues/2719)
+with enabling and disabling `ManagedChart`s, it cannt be disabled.
 
 ### Test plan
 
