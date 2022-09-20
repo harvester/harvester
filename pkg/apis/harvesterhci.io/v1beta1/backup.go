@@ -63,7 +63,8 @@ type VirtualMachineBackupSpec struct {
 
 	// +kubebuilder:default:="backup"
 	// +kubebuilder:validation:Enum=backup;snapshot
-	Type BackupType `json:"type"`
+	// +kubebuilder:validation:Optional
+	Type BackupType `json:"type,omitempty" default:"backup"`
 }
 
 // VirtualMachineBackupStatus is the status for a VirtualMachineBackup resource
