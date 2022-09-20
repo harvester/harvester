@@ -889,6 +889,11 @@ func (h *RestoreHandler) constructVolumeSnapshotContentName(restoreNamespace, re
 
 // mountLonghornVolumes helps to mount the volumes to host if it is detached
 func (h *RestoreHandler) mountLonghornVolumes(backup *harvesterv1.VirtualMachineBackup) error {
+	// we only need to mount LH Volumes for snapshot type.
+	if backup.Spec.Type == harvesterv1.Backup {
+		return nil
+	}
+
 	for _, vb := range backup.Status.VolumeBackups {
 		pvcNamespace := vb.PersistentVolumeClaim.ObjectMeta.Namespace
 		pvcName := vb.PersistentVolumeClaim.ObjectMeta.Name
