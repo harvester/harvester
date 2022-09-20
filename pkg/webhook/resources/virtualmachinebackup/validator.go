@@ -16,6 +16,7 @@ import (
 
 const (
 	fieldSourceName = "spec.source.name"
+	fieldTypeName   = "spec.type"
 )
 
 func NewValidator(
@@ -64,7 +65,7 @@ func (v *virtualMachineBackupValidator) Create(request *types.Request, newObj ru
 		err = v.checkBackupTarget()
 	}
 	if err != nil {
-		return werror.NewInvalidError(err.Error(), fieldSourceName)
+		return werror.NewInvalidError(err.Error(), fieldTypeName)
 	}
 
 	return nil
