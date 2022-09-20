@@ -391,6 +391,7 @@ func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input Backu
 				Kind:     kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 				Name:     vmName,
 			},
+			Type: harvesterv1.Backup,
 		},
 	}
 	if _, err := h.backups.Create(backup); err != nil {
