@@ -333,16 +333,21 @@ jobs:
 harvester-network-controller:
   ## Specify to install harvester network controller,
   ## defaults to "false".
-  enabled: false
+  enabled: true
   image:
     repository: rancher/harvester-network-controller
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: master-head
+    tag: v0.3.0-rc1
   helper:
     image:
       repository: rancher/harvester-network-helper
-      tag: master-head
+      tag: v0.3.0-rc1
+  webhook:
+    image:
+      repository: rancher/harvester-network-webhook
+      pullPolicy: IfNotPresent
+      tag: v0.3.0-rc1
 
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
