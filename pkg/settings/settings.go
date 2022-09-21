@@ -46,6 +46,7 @@ var (
 	VipPools                = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths  = NewSetting("auto-disk-provision-paths", "")
 	CSIDriverConfig         = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn"}}`)
+	ContainerdRegistry      = NewSetting(ContainerdRegistrySettingName, "")
 )
 
 const (
@@ -68,6 +69,7 @@ const (
 	UIPluginIndexSettingName          = "ui-plugin-index"
 	UIPluginBundledVersionSettingName = "ui-plugin-bundled-version"
 	DefaultUIPluginURL                = "https://releases.rancher.com/harvester-ui/plugin/harvester-latest/harvester-latest.umd.min.js"
+	ContainerdRegistrySettingName     = "containerd-registry"
 )
 
 func init() {

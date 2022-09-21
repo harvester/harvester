@@ -20,6 +20,9 @@ const (
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
 
+	ContainerdRegistrySecretName = "harvester-containerd-registry"
+	ContainerdRegistryFileName   = "registries.yaml"
+
 	BackupTargetSecretName      = "harvester-backup-target-secret"
 	InternalTLSSecretName       = "tls-rancher-internal"
 	Rke2IngressNginxAppName     = "rke2-ingress-nginx"

@@ -14,6 +14,7 @@ import (
 	"github.com/longhorn/backupstore"
 	_ "github.com/longhorn/backupstore/nfs"
 	_ "github.com/longhorn/backupstore/s3"
+	"github.com/rancher/wharfie/pkg/registries"
 	"github.com/rancher/wrangler/pkg/slice"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
@@ -52,6 +53,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.VipPoolsConfigSettingName:       validateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:      validateSSLCertificates,
 	settings.SSLParametersName:               validateSSLParameters,
+	settings.ContainerdRegistrySettingName:   validateContainerdRegistry,
 }
 
 func NewValidator(
@@ -469,4 +471,17 @@ func (v *settingValidator) validateVolumeSnapshotClass(setting *v1beta1.Setting)
 	}
 	_, err := v.snapshotClassCache.Get(setting.Value)
 	return err
+}
+
+func validateContainerdRegistry(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	registry := &registries.Registry{}
+	if err := json.Unmarshal([]byte(setting.Value), registry); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	return nil
 }
