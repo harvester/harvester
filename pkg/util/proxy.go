@@ -14,6 +14,7 @@ var builtInNoProxy = []string{
 	"longhorn-system",
 	"cattle-system",
 	"cattle-system.svc",
+	"harvester-system",
 	".svc",
 	".cluster.local",
 }
