@@ -120,7 +120,7 @@ all-logs-gelf-hs    true
 
 Loki will not be installed to the cluster by default, but you can manually install it:
 
-  1. Install the helm chart: `helm install --generate-name --repo https://grafana.github.io/helm-charts --values enhancements/20220525-system-logging/loki-values.yaml --version 2.7.0 loki-stack`s
+  1. Install the helm chart: `helm install --repo https://grafana.github.io/helm-charts --values enhancements/20220525-system-logging/loki-values.yaml --version 2.7.0 --namespace cattle-logging-system loki-stack loki-stack`
   2. Apply the `ClusterFlow` and `ClusterOutput`: `kubectl apply -f enhancements/20220525-system-logging/loki.yaml`
 
 After some time for the logging operator to load and apply the `ClusterFlow` and `ClusterOutput` you will see the logs
@@ -162,6 +162,10 @@ Or to select harvester host machine logs from the `rke2-server.service` service:
 #### Logging is Enabled by Default
 Due to limitations with enabling and disabling `ManagedCharts` the logging feature will be enabled by default, and
 cannot be disabled later by the user.
+
+#### Log Storage PVC
+Logging is not backed by a PVC, users need to configure a log receiver (see instructions above) in order to view and
+store logs.
 
 ### User Experience In Detail
 
@@ -208,5 +212,4 @@ with enabling and disabling `ManagedChart`s, it cannt be disabled.
 7. Verify hoist kernel and systemd logs are received
 
 ### Upgrade strategy
-
-No user intervention is required during the upgrade.
+No user intervention is required during the upgrade. After upgrade, logging should be installed and enabled.
