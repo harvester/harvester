@@ -147,7 +147,7 @@ containers:
 
       ## Specify the pull policy of image.
       ##
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
 
       ## Specify the repository of image.
       ##
@@ -155,7 +155,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: master-head
+      tag: v1.1-head
 
     ## Specify whether to run in HCI mode. This option enables additional controllers.
     ## defaults to "false", this will be enabled in ISO mode installation.
@@ -359,16 +359,16 @@ harvester-node-disk-manager:
 
   image:
     repository: rancher/harvester-node-disk-manager
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: master-head
+    tag: v0.4.5
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter
   enabled: true
 
   image:
-    repository: k8s.gcr.io/sig-storage/snapshot-controller
+    repository: csiplugin/snapshot-controller
     tag: v4.0.0
 
 longhorn:
@@ -403,7 +403,7 @@ webhook:
 
     ## Specify the pull policy of image.
     ##
-    imagePullPolicy: Always
+    imagePullPolicy: IfNotPresent
 
     ## Specify the repository of image.
     ##
@@ -411,21 +411,21 @@ webhook:
 
     ## Specify the tag of image.
     ##
-    tag: master-head
+    tag: v1.1-head
 
   httpsPort: 9443
 
 upgrade:
   image:
     repository: rancher/harvester-upgrade
-    tag: master-head
+    tag: v1.1-head
 
 harvester-load-balancer:
   enabled: false
   image:
-    imagePullPolicy: Always
+    imagePullPolicy: IfNotPresent
     repository: rancher/harvester-load-balancer
-    tag: master-head
+    tag: v0.1.2
 
 kube-vip:
   enabled: false
@@ -445,7 +445,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: master-head
+    tag: v0.0.11
 
 generalJob:
   image:
