@@ -29,11 +29,38 @@ List the specific goals of the enhancement. How will we know that this has succe
 
 ## Proposal
 
-We will deploy a new `ManagedChart` in the [Harvester Installer](https://github.com/harvester/harvester-installer) to
-install. The `ManagedChart` will deploy a `ClusterFlow` to select and aggregate interesting logs, which can be managed
-by a new `ClusterOutput` crd.
+Install [`rancher-logging`](https://github.com/rancher/charts/tree/dev-v2.7/charts/rancher-logging/100.1.3%2Bup3.17.7)
+as a `ManagedChart` in the [Harvester Installer](https://github.com/harvester/harvester-installer) to collect logs from
+the Harvester cluster.
 
-To collect the host system logs, a new harvester sub-chart [harvester-journal](https://github.com/joshmeranda/harvester-charts/tree/logging/charts/harvester-journal).
+To collect the host system logs on each node, we will patch and enable `rancher-logging`'s `rke2` logging source. This
+will deploy a `DaemonSet` to mount each node's `/var/log/journal`. Collecting all logs under `/var/log/journal` is too
+much, so we will add systemd filters to the deployed `fluent-bit` pod to only collect logs from the kernel and important
+services:
+
+```
+        Systemd_Filter    _SYSTEMD_UNIT=rke2-server.service
+        Systemd_Filter    _SYSTEMD_UNIT=rke2-agent.service
+        Systemd_Filter    _SYSTEMD_UNIT=rancherd.service
+        Systemd_Filter    _SYSTEMD_UNIT=rancher-system-agent.service
+        Systemd_Filter    _SYSTEMD_UNIT=wicked.service
+        Systemd_Filter    _SYSTEMD_UNIT=iscsid.service
+        Systemd_Filter    _TRANSPORT=kernel
+```
+
+Users will be able to configure where to send the logs by applying `ClusterOutput` and `ClusterFlow` to the cluster, but
+by default none will be added.
+
+Once installed the cluster should have the pods below:
+
+```
+NAME                                                      READY   STATUS      RESTARTS   AGE
+rancher-logging-685cf9664-w4wl2                           1/1     Running     0          17m
+rancher-logging-rke2-journald-aggregator-6zfsp            1/1     Running     0          17m
+rancher-logging-root-fluentbit-hj72q                      1/1     Running     0          15m
+rancher-logging-root-fluentd-0                            2/2     Running     0          15m
+rancher-logging-root-fluentd-configcheck-ac2d4553         0/1     Completed   0          17m
+```
 
 ### User Stories
 
@@ -93,7 +120,7 @@ all-logs-gelf-hs    true
 
 Loki will not be installed to the cluster by default, but you can manually install it:
 
-  1. Install the helm chart: `helm install --repo https://grafana.github.io/helm-charts --values enhancements/20220525-system-logging/loki-values.yaml --version 2.7.0 loki-stack`s
+  1. Install the helm chart: `helm install --generate-name --repo https://grafana.github.io/helm-charts --values enhancements/20220525-system-logging/loki-values.yaml --version 2.7.0 loki-stack`s
   2. Apply the `ClusterFlow` and `ClusterOutput`: `kubectl apply -f enhancements/20220525-system-logging/loki.yaml`
 
 After some time for the logging operator to load and apply the `ClusterFlow` and `ClusterOutput` you will see the logs
@@ -101,8 +128,7 @@ flowing into loki.
 
 ##### Accessing
 
-By default, harvester routes logs to its internal Grafana Loki deployment. To view the Loki UI, you can go to port
-forward to the `loki-stack-grafana` service. For example map `localhost:3000` to `loki-stack-grafana`s port 80:
+To view the Loki UI, you can go to port forward to the `loki-stack-grafana` service. For example map `localhost:3000` to `loki-stack-grafana`s port 80:
 
 ```bash
 kubectl port-forward --namespace cattle-logging-system service/loki-stack-grafana 3000:80
@@ -110,7 +136,7 @@ kubectl port-forward --namespace cattle-logging-system service/loki-stack-grafan
 
 ##### Authentication
 
-The default username is admin. To get the password for the admin user run the following command:
+The default username is `admin`. To get the password for the admin user run the following command:
 
 ```bash
 kubectl get secret --namespace cattle-logging-system loki-stack-grafana --output jsonpath="{.data.admin-password}" | base64 --decode
@@ -132,6 +158,10 @@ In the search bar you can enter queries to select the logs you are interested in
 Or to select harvester host machine logs from the `rke2-server.service` service:
 
 ![](./20220525-system-logging/loki-explore-query-systemd-rke2-server.png)
+
+#### Logging is Enabled by Default
+Due to limitations with enabling and disabling `ManagedCharts` the logging feature will be enabled by default, and
+cannot be disabled later by the user.
 
 ### User Experience In Detail
 
@@ -164,10 +194,18 @@ with enabling and disabling `ManagedChart`s, it cannt be disabled.
 
 ### Test plan
 
-1. Install harvester with the implemented charts and CRDs
-2. Verify logs are being routed to the configured ClusterOutput
-3. Change log output settings
-4. Verify logs are routed to the newly configured ClusterOutput
+1. Install harvester cluster
+2. Check that the related pods are created
+   1. `rancher-logging`
+   2. `rancher-logging-rke2-journald-aggregator`
+   3. `rancher-logging-root-fluentbit`
+   4. `rancher-logging-root-fluentd-0`
+   5. `rancher-logging-root-fluentd-configcheck`
+3. Setup a log server, e.g. `Graylog`, `Splunck`, `ElasticSearch`, `Webhook`. Make sure it is network reachable with Harvester cluster VIP.
+4. Config `ClusterFlow` and `ClusterOutput` to route to this server
+5. Verify logs are being routed to the configured `ClusterOutput`
+6. Verify k8s pod logs are received
+7. Verify hoist kernel and systemd logs are received
 
 ### Upgrade strategy
 
