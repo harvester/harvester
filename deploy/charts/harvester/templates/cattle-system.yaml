@@ -15,10 +15,66 @@ spec:
   secrets:
     - name: harvester-additional-ca
       path: /ca
-  version: v1.0.2
+  version: v1.1.0
   upgrade:
     image: {{ .Values.generalJob.image.repository }}:{{ .Values.generalJob.image.tag }}
     command: ["/bin/sh", "-c"]
     args:
-      - cp /ca/additional-ca.pem /host/etc/pki/trust/anchors;
-      - chroot /host update-ca-certificates
+      - echo "Update additional ca ...";
+        cp /ca/additional-ca.pem /host/etc/pki/trust/anchors;
+        chroot /host update-ca-certificates;
+        echo "Done";
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: harvester-update-containerd-registry-script
+  namespace: cattle-system
+type: Opaque
+stringData:
+  update_registries.sh: |
+    #!/bin/sh
+    RESTART=true
+    if [ -f "/etc/rancher/rke2/registries.yaml" ]; then
+      if [ cmp -s "/run/system-upgrade/secrets/registries/registries.yaml" "/etc/rancher/rke2/registries.yaml" ]; then
+        RESTART=false
+        echo "/etc/rancher/rke2/registries.yaml is not changed"
+      fi
+    else
+      echo "File /etc/rancher/rke2/registries.yaml doesn't exist"
+      if [ ! -s "/run/system-upgrade/secrets/registries/registries.yaml" ]; then
+        RESTART=false
+        echo "New registries.yaml is empty"
+      fi
+    fi
+    if [ "$RESTART" == true ]; then
+      echo "Update /etc/rancher/rke2 ..."
+      cp /run/system-upgrade/secrets/registries/registries.yaml /etc/rancher/rke2
+      echo "Restart RKE2 ..."
+      kill $(pgrep rke2)
+      echo "Done"
+    else
+      echo "Registry content doesn't change"
+    fi
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: sync-containerd-registry
+  namespace: cattle-system
+spec:
+  concurrency: 1
+  nodeSelector:
+    matchLabels:
+      harvesterhci.io/managed: "true"
+  serviceAccountName: system-upgrade-controller
+  secrets:
+    - name: harvester-containerd-registry
+      path: /host/run/system-upgrade/secrets/registries
+    - name: harvester-update-containerd-registry-script
+      path: /host/run/system-upgrade/secrets/scripts
+  version: v1.1.0
+  upgrade:
+    image: {{ .Values.generalJob.image.repository }}:{{ .Values.generalJob.image.tag }}
+    command: ["chroot", "/host"]
+    args: ["sh", "/run/system-upgrade/secrets/scripts/update_registries.sh"]

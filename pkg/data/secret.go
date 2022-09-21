@@ -13,19 +13,32 @@ import (
 func createSecrets(mgmt *config.Management) error {
 	secrets := mgmt.CoreFactory.Core().V1().Secret()
 
-	// Initializing the secret for Plan cattle-system/sync-additional-ca,
-	// so sync-additional-ca doesn't fail to mount harvester-additional-ca secret to jobs.
-	additionalCA := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: util.CattleSystemNamespaceName,
-			Name:      util.AdditionalCASecretName,
+	// Initializing the secret for Plan cattle-system/sync-additional-ca and cattle-system/sync-rke2-registries,
+	// so plans don't fail to mount secrets to jobs.
+	defaultSecrets := []corev1.Secret{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: util.CattleSystemNamespaceName,
+				Name:      util.AdditionalCASecretName,
+			},
+			Data: map[string][]byte{
+				util.AdditionalCAFileName: []byte(""),
+			},
 		},
-		Data: map[string][]byte{
-			util.AdditionalCAFileName: []byte(""),
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: util.CattleSystemNamespaceName,
+				Name:      util.ContainerdRegistrySecretName,
+			},
+			Data: map[string][]byte{
+				util.ContainerdRegistryFileName: []byte(""),
+			},
 		},
 	}
-	if _, err := secrets.Create(&additionalCA); err != nil && !apierrors.IsAlreadyExists(err) {
-		return errors.Wrapf(err, "Failed to create secret %s/%s", additionalCA.Namespace, additionalCA.Name)
+	for _, defaultSecret := range defaultSecrets {
+		if _, err := secrets.Create(&defaultSecret); err != nil && !apierrors.IsAlreadyExists(err) {
+			return errors.Wrapf(err, "Failed to create secret %s/%s", defaultSecret.Namespace, defaultSecret.Name)
+		}
 	}
 
 	return nil
