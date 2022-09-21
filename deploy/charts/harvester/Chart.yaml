@@ -58,3 +58,6 @@ dependencies:
   - name: harvester-vm-import-controller
     version: 0.1.0
     repository: https://charts.harvesterhci.io
+  - name: harvester-pcidevices-controller
+    version: 0.2.0-rc1
+    repository: https://charts.harvesterhci.io

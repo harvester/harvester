@@ -32,5 +32,8 @@ dependencies:
 - name: harvester-vm-import-controller
   repository: https://charts.harvesterhci.io
   version: 0.1.0
-digest: sha256:34a18741b20391e563e66fb57b26857504ed0fcadb8218c5511621d23f24ac2b
-generated: "2022-09-16T09:13:46.191493182+10:00"
+- name: harvester-pcidevices-controller
+  repository: https://charts.harvesterhci.io
+  version: 0.2.0-rc1
+digest: sha256:fd119facd6a02424b4d24f70f97005b95653423773976b1ac73adbc7cec39219
+generated: "2022-09-21T14:48:17.206589017+10:00"
