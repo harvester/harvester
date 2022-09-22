@@ -44,7 +44,7 @@ func (h *Handler) syncContainerdRegistry(setting *harvesterv1.Setting) error {
 		if _, err := h.secrets.Create(newSecret); err != nil {
 			return err
 		}
-		return nil
+		return h.removeCredentialInSetting(setting, registryFromSetting)
 	} else if err != nil {
 		return err
 	}
@@ -139,16 +139,16 @@ func isSameMirrors(fromSetting, fromSecret map[string]registries.Mirror) bool {
 
 	// For map comparison in reflect.DeepEqual, it only same if both are nil or both content are same.
 	for mirrorName, mirror := range fromSetting {
-		if len(mirror.Rewrites) == 0 {
+		if len(mirror.Rewrites) == 0 && mirror.Rewrites != nil {
 			mirror.Rewrites = nil
+			fromSetting[mirrorName] = mirror
 		}
-		fromSetting[mirrorName] = mirror
 	}
 	for mirrorName, mirror := range fromSecret {
-		if len(mirror.Rewrites) == 0 {
+		if len(mirror.Rewrites) == 0 && mirror.Rewrites != nil {
 			mirror.Rewrites = nil
+			fromSecret[mirrorName] = mirror
 		}
-		fromSecret[mirrorName] = mirror
 	}
 	return reflect.DeepEqual(fromSetting, fromSecret)
 }
