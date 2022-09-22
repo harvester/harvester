@@ -47,7 +47,7 @@ func installHarvesterChart(ctx context.Context, kubeConfig *restclient.Config) e
 	// chart values patches
 	patches := map[string]interface{}{
 		"replicas":                             0,
-		"harvester-network-controller.enabled": false,
+		"harvester-network-controller.enabled": true,
 	}
 
 	// webhook
