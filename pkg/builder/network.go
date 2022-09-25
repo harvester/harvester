@@ -13,7 +13,7 @@ const (
 	NetworkTypeVLAN   = "L2VlanNetwork"
 	NetworkTypeCustom = "Custom"
 
-	NetworkVLANConfigTemplate = `{"cniVersion":"0.3.1","name":"%s","type":"bridge","bridge":"harvester-br0","promiscMode":true,"vlan":%d,"ipam":{}}`
+	NetworkVLANConfigTemplate = `{"cniVersion":"0.3.1","name":"%s","type":"bridge","bridge":"%s-br","promiscMode":true,"vlan":%d,"ipam":{}}`
 )
 
 func (v *VMBuilder) NetworkInterface(interfaceName, interfaceModel, interfaceMACAddress, interfaceType, networkName string) *VMBuilder {
