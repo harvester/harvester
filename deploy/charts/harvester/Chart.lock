@@ -29,9 +29,6 @@ dependencies:
 - name: whereabouts
   repository: file://dependency_charts/whereabouts
   version: 0.1.1
-- name: harvester-vm-import-controller
-  repository: https://charts.harvesterhci.io
-  version: 0.1.1-rc1
 - name: harvester-pcidevices-controller
   repository: https://charts.harvesterhci.io
   version: 0.2.0-rc3

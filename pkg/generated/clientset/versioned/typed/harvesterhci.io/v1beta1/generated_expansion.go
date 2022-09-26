@@ -18,6 +18,8 @@ limitations under the License.
 
 package v1beta1
 
+type AddonExpansion interface{}
+
 type KeyPairExpansion interface{}
 
 type PreferenceExpansion interface{}

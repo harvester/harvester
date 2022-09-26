@@ -128,14 +128,16 @@ func (c LocalKindCluster) LoadImages(output io.Writer) error {
 	logger := logs.NewLogger(output, 0)
 
 	for _, image := range env.GetPreloadingImages() {
-		logger.V(0).Infof("Loading image %s...", image)
-		cmd := exec.Command("kind", "load", "docker-image", image, "--name", c.ClusterName)
-		// kind load prints messages to stderr
-		lines, err := exec.CombinedOutputLines(cmd)
-		if err != nil {
-			return err
+		if image != "" {
+			logger.V(0).Infof("Loading image %s...", image)
+			cmd := exec.Command("kind", "load", "docker-image", image, "--name", c.ClusterName)
+			// kind load prints messages to stderr
+			lines, err := exec.CombinedOutputLines(cmd)
+			if err != nil {
+				return err
+			}
+			logger.V(0).Info(strings.Join(lines, "\n"))
 		}
-		logger.V(0).Info(strings.Join(lines, "\n"))
 	}
 
 	return nil

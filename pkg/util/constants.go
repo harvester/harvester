@@ -39,4 +39,5 @@ const (
 
 	LonghornOptionBackingImageName = "backingImage"
 	LonghornOptionMigratable       = "migratable"
+	AddonValuesAnnotation          = "harvesterhci.io/addon-defaults"
 )
