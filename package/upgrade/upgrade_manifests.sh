@@ -450,6 +450,17 @@ pause_all_charts()
   done
 }
 
+upgrade_addons()
+{
+ if test $UPGRADE_PREVIOUS_VERSION = 1.0.3; then
+   wait_for_addons_crd
+  addons="vm-import-controller"
+  for addon in $addons; do
+    upgrade_addon $addon "harvester-system"
+  done
+  fi
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -462,3 +473,4 @@ upgrade_harvester
 wait_longhorn_upgrade
 upgrade_monitoring
 apply_extra_manifests
+upgrade_addons

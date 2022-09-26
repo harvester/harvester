@@ -210,3 +210,20 @@ func NewSupportBundle(namespace, name string, obj SupportBundle) *SupportBundle 
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// AddonList is a list of Addon resources
+type AddonList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []Addon `json:"items"`
+}
+
+func NewAddon(namespace, name string, obj Addon) *Addon {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("Addon").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}

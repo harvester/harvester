@@ -42,6 +42,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkList":                       schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkList(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkSpec":                       schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkSpec(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkStatus":                     schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkStatus(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Addon":                                                            schema_pkg_apis_harvesterhciio_v1beta1_Addon(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonList":                                                        schema_pkg_apis_harvesterhciio_v1beta1_AddonList(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonSpec":                                                        schema_pkg_apis_harvesterhciio_v1beta1_AddonSpec(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonStatus":                                                      schema_pkg_apis_harvesterhciio_v1beta1_AddonStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.BackupTarget":                                                     schema_pkg_apis_harvesterhciio_v1beta1_BackupTarget(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition":                                                        schema_pkg_apis_harvesterhciio_v1beta1_Condition(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error":                                                            schema_pkg_apis_harvesterhciio_v1beta1_Error(ref),
@@ -1230,6 +1234,168 @@ func schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkStatus(ref common.
 		},
 		Dependencies: []string{
 			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkStatus", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NIC"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_Addon(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonStatus"),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_AddonList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "AddonList is a list of Addon resources",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Addon"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Addon", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_AddonSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"repo": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"chart": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Default: false,
+							Type:    []string{"boolean"},
+							Format:  "",
+						},
+					},
+					"valuesContent": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"repo", "chart", "version", "enabled", "valuesContent"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_AddonStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 

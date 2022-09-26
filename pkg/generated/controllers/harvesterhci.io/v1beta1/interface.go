@@ -30,6 +30,7 @@ func init() {
 }
 
 type Interface interface {
+	Addon() AddonController
 	KeyPair() KeyPairController
 	Preference() PreferenceController
 	Setting() SettingController
@@ -53,6 +54,9 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
+func (c *version) Addon() AddonController {
+	return NewAddonController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Addon"}, "addons", true, c.controllerFactory)
+}
 func (c *version) KeyPair() KeyPairController {
 	return NewKeyPairController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "KeyPair"}, "keypairs", true, c.controllerFactory)
 }
