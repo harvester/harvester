@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
@@ -27,6 +26,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			createManagedChartCRD(),
 			createAppCRD(),
 			createPlanCRD(),
+			createHelmChartCRD(),
 		).
 		BatchWait()
 }
@@ -64,4 +64,16 @@ func createPlanCRD() wcrd.CRD {
 	plan.PluralName = "plans"
 	plan.SingularName = "plan"
 	return plan
+}
+
+func createHelmChartCRD() wcrd.CRD {
+	return wcrd.NamespacedType("HelmChart.helm.cattle.io/v1").
+		WithSchemaFromStruct(helmv1.HelmChart{}).
+		WithColumn("Job", ".status.jobName").
+		WithColumn("Chart", ".spec.chart").
+		WithColumn("TargetNamespace", ".spec.targetNamespace").
+		WithColumn("Version", ".spec.version").
+		WithColumn("Repo", ".spec.repo").
+		WithColumn("HelmVersion", ".spec.helmVersion").
+		WithColumn("Bootstrap", ".spec.bootstrap")
 }
