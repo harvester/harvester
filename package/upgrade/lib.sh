@@ -215,3 +215,43 @@ detect_upgrade()
 
   UPGRADE_PREVIOUS_VERSION=$(echo "$upgrade_obj" | yq e .status.previousVersion -)
 }
+
+upgrade_addon()
+{
+  local name=$1
+  local namespace=$2
+  local version=$3
+
+  version=$(cat ./addons/${name}.yaml | yq e .spec.version)
+
+  cat > addon-patch.yaml <<EOF
+spec:
+  version: $version
+EOF
+
+  item_count=$(kubectl get addons.harvesterhci $name -n $namespace -o  jsonpath='{..name}')
+  if [ -z "$item_count" ]; then
+    install_addon $name $namespace
+  else
+    kubectl patch addons.harvesterhci $name -n $namespace --patch-file ./addon-patch.yaml --type merge
+  fi
+}
+
+install_addon()
+{
+  local name=$1
+  local namespace=$2
+
+  kubectl apply -f ./addons/${name}.yaml -n $namespace
+}
+
+wait_for_addons_crd()
+{
+  item_count=$(kubectl get customresourcedefinitions addons.harvesterhci.io -o  jsonpath='{.metadata.name}')
+  while [ -z "$item_count" ]
+  do
+    echo "wait for addons.harvesterhci.io crd to be created"
+    sleep 10
+    item_count=$(kubectl get customresourcedefinitions addons.harvesterhci.io -o  jsonpath='{.metadata.name}')
+  done
+}
