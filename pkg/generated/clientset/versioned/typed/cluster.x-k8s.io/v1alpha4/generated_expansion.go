@@ -18,4 +18,6 @@ limitations under the License.
 
 package v1alpha4
 
+type ClusterExpansion interface{}
+
 type MachineExpansion interface{}
