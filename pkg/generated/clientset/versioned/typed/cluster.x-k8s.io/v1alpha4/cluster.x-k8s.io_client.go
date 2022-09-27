@@ -28,12 +28,17 @@ import (
 
 type ClusterV1alpha4Interface interface {
 	RESTClient() rest.Interface
+	ClustersGetter
 	MachinesGetter
 }
 
 // ClusterV1alpha4Client is used to interact with features provided by the cluster.x-k8s.io group.
 type ClusterV1alpha4Client struct {
 	restClient rest.Interface
+}
+
+func (c *ClusterV1alpha4Client) Clusters(namespace string) ClusterInterface {
+	return newClusters(c, namespace)
 }
 
 func (c *ClusterV1alpha4Client) Machines(namespace string) MachineInterface {

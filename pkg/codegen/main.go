@@ -95,6 +95,7 @@ func main() {
 			},
 			capi.GroupVersion.Group: {
 				Types: []interface{}{
+					capi.Cluster{},
 					capi.Machine{},
 				},
 				GenerateTypes:   false,
