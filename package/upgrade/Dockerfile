@@ -18,5 +18,6 @@ RUN curl -sfL https://github.com/kubevirt/kubevirt/releases/download/v0.49.0/vir
 COPY upgrade_node.sh /usr/local/bin/
 COPY upgrade_manifests.sh /usr/local/bin/
 COPY lib.sh /usr/local/bin
+COPY patch_99_custom.sh /usr/local/bin
 COPY extra_manifests /usr/local/share/extra_manifests
 COPY migrations /usr/local/share/migrations
