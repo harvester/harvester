@@ -76,6 +76,33 @@ get_harvester_vip()
   fi
 }
 
+# the logging audit is enabled when upgrading from v1.0.3 to v1.1.0
+create_logging_audit()
+{
+  RESOURCE_FILE=/usr/local/share/migrations/managed_charts/logging-audit-v1.0.3.yaml
+
+  if [ -e "$RESOURCE_FILE" ]; then
+    echo "add logging audit resource from $RESOURCE_FILE to manifest $CHART_MANIFEST"
+    cat $RESOURCE_FILE > $CHART_MANIFEST
+  else
+    echo "the logging audit resource file $RESOURCE_FILE is not existing, check!"
+  fi
+}
+
+# the event is enabled when upgrading from v1.0.3 to v1.1.0
+create_event()
+{
+  RESOURCE_FILE=/usr/local/share/migrations/managed_charts/event-v1.0.3.yaml
+
+  if [ -e "$RESOURCE_FILE" ]; then
+    echo "add event resource from $RESOURCE_FILE to manifest $CHART_MANIFEST"
+    cat $RESOURCE_FILE > $CHART_MANIFEST
+  else
+    echo "the event resource file $RESOURCE_FILE is not existing, check!"
+  fi
+}
+
+
 case $CHART_NAME in
   harvester)
     patch_ignoring_resource
@@ -86,5 +113,11 @@ case $CHART_NAME in
     get_harvester_vip
     patch_alertmanager_externalurl
     patch_prometheus_externalurl
+    ;;
+  rancher-logging)
+    create_logging_audit
+    ;;
+  rancher-logging_event-extension)
+    create_event
     ;;
 esac

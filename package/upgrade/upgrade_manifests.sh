@@ -405,6 +405,70 @@ EOF
   wait_rollout cattle-monitoring-system deployment rancher-monitoring-operator
 }
 
+upgrade_logging_event_audit() {
+  # from v1.0.3, logging, event, audit are enabled by default
+  echo "The current version is $UPGRADE_PREVIOUS_VERSION, will check Logging Event Audit upgrade manifest option"
+
+  if test "$UPGRADE_PREVIOUS_VERSION" = "v1.0.3"; then
+    echo "Logging Event Audit: start to upgrade manifest"
+
+    # prepare a malformed yaml file, make sure it is effectively replaced
+    echo "to-be-replaced-file" > rancher-logging.yaml
+
+    # reuse frame work to generate yaml file
+    upgrade_managed_chart_from_version $UPGRADE_PREVIOUS_VERSION rancher-logging rancher-logging.yaml
+
+    echo "Apply resource file"
+
+    kubectl apply -f ./rancher-logging.yaml
+
+    # wait for managedchart to be applied
+    sleep 50
+
+    echo "Wait for rollout of logging and audit"
+
+    # logging operator
+    wait_rollout cattle-logging-system deployment rancher-logging
+
+    # agent to grab log
+    wait_rollout cattle-logging-system daemonset rancher-logging-root-fluentbit
+    wait_rollout cattle-logging-system daemonset rancher-logging-rke2-journald-aggregator
+    wait_rollout cattle-logging-system daemonset rancher-logging-kube-audit-fluentbit
+
+    # fluentd, a known issue: https://github.com/harvester/harvester/issues/2787
+    # wait_rollout cattle-logging-system statefulset rancher-logging-root-fluentd
+    # wait_rollout cattle-logging-system statefulset rancher-logging-kube-audit-fluentd
+
+
+    # due to error: unable to recognize "./rancher-logging.yaml": no matches for kind "EventTailer" in version "logging-extensions.banzaicloud.io/v1alpha1"
+    # the eventtailer needs to be deployed after the managedcharts are deployed
+
+    # prepare a malformed yaml file, make sure it is effectively replaced
+    echo "to-be-replaced-file" > rancher-logging.yaml
+
+    # reuse frame work to generate yaml file
+    # rancher-logging_event-extension is reusing chart rancher-logging, but as an extension for event
+    upgrade_managed_chart_from_version $UPGRADE_PREVIOUS_VERSION rancher-logging_event-extension rancher-logging.yaml
+
+    echo "Apply resource file"
+
+    kubectl apply -f ./rancher-logging.yaml
+
+    # wait few seconds
+    sleep 20
+
+    echo "Wait for rollout of event-tailer"
+
+    # event tailer to collecting k8s events
+    wait_rollout cattle-logging-system statefulset harvester-default-event-tailer
+
+    echo "Logging Event Audit: finish upgrading manifest"
+
+  else
+    echo "Logging Event Audit: nothing to do in $UPGRADE_PREVIOUS_VERSION"
+  fi
+}
+
 apply_extra_manifests()
 {
     echo "Applying extra manifests"
@@ -472,5 +536,6 @@ upgrade_harvester_cluster_repo
 upgrade_harvester
 wait_longhorn_upgrade
 upgrade_monitoring
+upgrade_logging_event_audit
 apply_extra_manifests
 upgrade_addons
