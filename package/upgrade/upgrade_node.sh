@@ -215,10 +215,18 @@ wait_longhorn_engines() {
             break
           fi
         else
-          # two node situation, make sure two replicas are healthy
+          # two node situation, make sure maximum two replicas are healthy
+          expected_replicas=2
+
+          # replica 1 case
+          volume_replicas=$(kubectl get volumes.longhorn.io/$lh_volume -n longhorn-system -o jsonpath='{.spec.numberOfReplicas}')
+          if [ $volume_replicas -eq 1 ]; then
+            expected_replicas=1
+          fi
+
           ready_replicas=$(kubectl get engines.longhorn.io/$lh_engine -n longhorn-system -o json |
                              jq -r '.status.replicaModeMap | to_entries | map(select(.value == "RW")) | length')
-          if [ $ready_replicas -eq 2 ]; then
+          if [ $ready_replicas -ge $expected_replicas ]; then
             break
           fi
         fi
