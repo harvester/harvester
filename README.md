@@ -19,8 +19,8 @@ Some notable features of Harvester include the following:
 1. Distributed block storage
 1. Multiple NICs in the VM connecting to the management network or VLANs
 1. Virtual Machine and cloud-init templates
-1. [Rancher integration](https://docs.harvesterhci.io/latest/rancher/rancher-integration/) with multi-cluster management and the Harvester node driver
-1. [PXE/iPXE boot support](https://docs.harvesterhci.io/latest/install/pxe-boot-install)
+1. [Rancher integration](https://docs.harvesterhci.io/v1.0/rancher/rancher-integration/) with multi-cluster management and the Harvester node driver
+1. [PXE/iPXE boot support](https://docs.harvesterhci.io/v1.0/install/pxe-boot-install)
 1. Virtual IP and bond NIC support
 1. Monitoring integration
 
@@ -78,7 +78,7 @@ During the installation, you can either choose to form a new cluster, or join th
 
 ## Documentation
 
-Find more documentation [here](https://docs.harvesterhci.io/latest)
+Find more documentation [here](https://docs.harvesterhci.io/).
 
 
 ## Demo
