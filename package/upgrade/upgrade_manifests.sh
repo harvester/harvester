@@ -452,7 +452,7 @@ pause_all_charts()
 
 upgrade_addons()
 {
- if test $UPGRADE_PREVIOUS_VERSION = 1.0.3; then
+ if test $UPGRADE_PREVIOUS_VERSION < 1.1.0; then
    wait_for_addons_crd
   addons="vm-import-controller"
   for addon in $addons; do
