@@ -30,6 +30,8 @@ const (
 	LonghornSystemNamespaceName = "longhorn-system"
 	LonghornDefaultManagerURL   = "http://longhorn-backend.longhorn-system:9500/v1"
 	KubeSystemNamespace         = "kube-system"
+	FleetLocalNamespaceName     = "fleet-local"
+	LocalClusterName            = "local"
 
 	HTTPProxyEnv  = "HTTP_PROXY"
 	HTTPSProxyEnv = "HTTPS_PROXY"

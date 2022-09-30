@@ -10,9 +10,11 @@ import (
 	v1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/client-go/rest"
 
+	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
 )
 
@@ -25,6 +27,8 @@ type Clients struct {
 	SnapshotFactory  *ctlsnapshotv1.Factory
 	FleetFactory     *ctlfleetv1.Factory
 	StorageFactory   *storagev1.Factory
+	LonghornFactory  *ctllonghornv1.Factory
+	ClusterFactory   *ctlclusterv1.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
@@ -91,6 +95,16 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
+	longhornFactory, err := ctllonghornv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	clusterFactory, err := ctlclusterv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Clients{
 		Clients:          *clients,
 		HarvesterFactory: harvesterFactory,
@@ -99,5 +113,7 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		SnapshotFactory:  snapshotFactory,
 		FleetFactory:     fleetFactory,
 		StorageFactory:   storageFactory,
+		LonghornFactory:  longhornFactory,
+		ClusterFactory:   clusterFactory,
 	}, nil
 }
