@@ -87,6 +87,7 @@ get_running_vm_count()
   echo $count
 }
 
+
 wait_vms_out()
 {
   local vm_count="$(get_running_vm_count)"
@@ -123,7 +124,8 @@ wait_vms_out_or_shutdown()
   done
 }
 
-shutdown_repo_vm() {
+shutdown_repo_vm()
+{
   # We don't need to live-migrate upgrade repo VM. Just make sure it's up when we need it.
   # Shutdown it if it's running on this upgrading node.
   repo_vm_name="upgrade-repo-$HARVESTER_UPGRADE_NAME"
@@ -147,18 +149,6 @@ shutdown_vms_on_node()
     done
 }
 
-shutdown_all_vms()
-{
-  kubectl get vmi -A -o json |
-    jq -r '.items[] | [.metadata.name, .metadata.namespace] | @tsv' |
-    while IFS=$'\t' read -r name namespace; do
-      if [ -z "$name" ]; then
-        break
-      fi
-      echo "Stop ${namespace}/${name}"
-      virtctl stop $name -n $namespace
-    done
-}
 
 shutdown_non_migrate_able_vms()
 {
@@ -362,6 +352,55 @@ clean_rke2_archives() {
     done
 }
 
+convert_nodenetwork_to_vlanconfig() {
+  detect_upgrade
+
+  [[ $UPGRADE_PREVIOUS_VERSION != "v1.0.3" ]] && return
+
+  # Don't need to convert nodenetwork if harvester-mgmt is used as vlan interface in any nodenetwork
+  [[ $(kubectl get nodenetwork -o yaml | yq '.items[].spec.nic | select(. == "harvester-mgmt")') ]] &&
+  echo "Don't need to convert nodenetwork because harvester-mgmt is used as VLAN interface in not less than one nodenetwork" && return
+
+  local name=${HARVESTER_UPGRADE_NODE_NAME}-vlan
+
+  nn=$(kubectl get nn "$name" -o yaml)
+  vlan_interface=$(echo "$nn" | yq '.spec.nic')
+
+  [[ "$vlan_interface" == "null" ]] && echo "Invalid nodenetwork $name" && return
+
+  type=$(echo "$nn" | yq e '.spec.nic as $nic | .status.networkLinkStatus.[$nic].type')
+  if [ "$type" == "bond" ]; then
+    vlan_interface_details=$(v="$vlan_interface" yq '.install.networks.[env(v)]' $HOST_DIR/oem/harvester.config)
+    nics=($(echo "$vlan_interface_details" | yq '.interfaces[].name'))
+    mtu=$(echo "$vlan_interface_details" | yq '.mtu')
+    mode=$(echo "$vlan_interface_details" | yq '.bondoptions.mode')
+    miimon=$(echo "$vlan_interface_details" | yq '.bondoptions.miimon')
+  else
+    nics=("$vlan_interface")
+    mtu=0
+    mode="active-backup"
+    miimon=0
+  fi
+
+  kubectl apply -f - <<EOF
+apiVersion: network.harvesterhci.io/v1beta1
+kind: VlanConfig
+metadata:
+  name: $name
+spec:
+  clusterNetwork: vlan
+  nodeSelector:
+    kubernetes.io/hostname: "$HARVESTER_UPGRADE_NODE_NAME"
+  uplink:
+    bondOptions:
+      mode: $mode
+      miimon: $miimon
+    linkAttributes:
+      mtu: $mtu
+    nics: [$(IFS=,; echo "${nics[*]}")]
+EOF
+}
+
 upgrade_os() {
   CURRENT_OS_VERSION=$(source $HOST_DIR/etc/os-release && echo $PRETTY_NAME)
 
@@ -413,6 +452,9 @@ command_post_drain() {
   clean_rke2_archives
 
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME kubevirt.io/drain- || true
+
+  convert_nodenetwork_to_vlanconfig
+
   upgrade_os
 }
 
@@ -437,6 +479,8 @@ command_single_node_upgrade() {
   upgrade_rke2
   wait_rke2_upgrade
   clean_rke2_archives
+
+  convert_nodenetwork_to_vlanconfig
 
   # Upgrade OS
   upgrade_os
