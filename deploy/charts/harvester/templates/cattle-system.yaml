@@ -36,7 +36,7 @@ stringData:
     #!/bin/sh
     RESTART=true
     if [ -f "/etc/rancher/rke2/registries.yaml" ]; then
-      if [ cmp -s "/run/system-upgrade/secrets/registries/registries.yaml" "/etc/rancher/rke2/registries.yaml" ]; then
+      if cmp -s "/run/system-upgrade/secrets/registries/registries.yaml" "/etc/rancher/rke2/registries.yaml"; then
         RESTART=false
         echo "/etc/rancher/rke2/registries.yaml is not changed"
       fi
