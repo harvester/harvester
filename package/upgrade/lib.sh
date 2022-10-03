@@ -255,3 +255,14 @@ wait_for_addons_crd()
     item_count=$(kubectl get customresourcedefinitions addons.harvesterhci.io -o  jsonpath='{.metadata.name}')
   done
 }
+
+lower_version_check()
+{
+  local v1=$1
+  local v2=$2
+  first=$(printf "$v1\n$v2\n" | sort -V | head -1)
+  if [ $first = $v1 ]; then
+    echo "upgrade needed"
+    echo 1 && return 0
+  fi
+}
