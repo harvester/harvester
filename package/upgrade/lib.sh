@@ -222,14 +222,14 @@ upgrade_addon()
   local namespace=$2
   local version=$3
 
-  version=$(cat ./addons/${name}.yaml | yq e .spec.version)
+  version=$(cat /usr/local/share/addons/${name}.yaml | yq e .spec.version)
 
   cat > addon-patch.yaml <<EOF
 spec:
   version: $version
 EOF
 
-  item_count=$(kubectl get addons.harvesterhci $name -n $namespace -o  jsonpath='{..name}')
+  item_count=$(kubectl get addons.harvesterhci $name -n $namespace -o  jsonpath='{..name}' || true)
   if [ -z "$item_count" ]; then
     install_addon $name $namespace
   else
@@ -242,17 +242,17 @@ install_addon()
   local name=$1
   local namespace=$2
 
-  kubectl apply -f ./addons/${name}.yaml -n $namespace
+  kubectl apply -f /usr/local/share/addons/${name}.yaml -n $namespace
 }
 
 wait_for_addons_crd()
 {
-  item_count=$(kubectl get customresourcedefinitions addons.harvesterhci.io -o  jsonpath='{.metadata.name}')
+  item_count=$(kubectl get customresourcedefinitions addons.harvesterhci.io -o  jsonpath='{.metadata.name}' || true)
   while [ -z "$item_count" ]
   do
     echo "wait for addons.harvesterhci.io crd to be created"
     sleep 10
-    item_count=$(kubectl get customresourcedefinitions addons.harvesterhci.io -o  jsonpath='{.metadata.name}')
+    item_count=$(kubectl get customresourcedefinitions addons.harvesterhci.io -o  jsonpath='{.metadata.name}' || true)
   done
 }
 
