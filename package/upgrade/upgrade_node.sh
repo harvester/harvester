@@ -28,6 +28,11 @@ if [ "$container_state" = "CONTAINER_EXITED" ]; then
 
   if [ "$container_exit_code" = "0" ]; then
     sleep 10
+
+    # workaround for https://github.com/harvester/harvester/issues/2865
+    # kubelet could start from old manifest first and generate a new manifest later.
+    rm -f /var/lib/rancher/rke2/agent/pod-manifests/kube-apiserver.yaml
+
     reboot
     exit 0
   fi
