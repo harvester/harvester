@@ -27,7 +27,7 @@ dependencies:
       - kubevirt
       - crd
   - name: harvester-network-controller
-    version: 0.3.0-rc1
+    version: 0.3.0-rc2
     repository: https://charts.harvesterhci.io
     condition: harvester-network-controller.enabled
   - name: harvester-node-disk-manager
