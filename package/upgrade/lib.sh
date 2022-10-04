@@ -130,7 +130,11 @@ wait_repo()
   # Start upgrade repo VM in case it's shut down due to migration timeout or job failure
   repo_vm_status=$(kubectl get virtualmachines.kubevirt.io $UPGRADE_REPO_VM_NAME -n $UPGRADE_NAMESPACE -o=jsonpath='{.status.printableStatus}')
   if [ "$repo_vm_status" != "Running" ]; then
-    virtctl start $UPGRADE_REPO_VM_NAME -n $UPGRADE_NAMESPACE || true
+    until virtctl start $UPGRADE_REPO_VM_NAME -n $UPGRADE_NAMESPACE
+    do
+      echo "Try to bring up upgrade repo VM again..."
+      sleep 10
+    done
   fi
 
   until curl -sfL $UPGRADE_REPO_RELEASE_FILE
