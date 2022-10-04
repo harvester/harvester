@@ -361,8 +361,7 @@ EOF
   pause_managed_chart harvester "false"
   pause_managed_chart harvester-crd "false"
 
-  # XXX The eventual state of harvester would be "modified", not "ready"!
-  wait_managed_chart fleet-local harvester $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester modified
+  wait_managed_chart fleet-local harvester $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester ready
   wait_managed_chart fleet-local harvester-crd $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester_crd ready
 
   wait_kubevirt harvester-system kubevirt $REPO_KUBEVIRT_VERSION
