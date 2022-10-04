@@ -41,6 +41,14 @@ if [ -n "$HARVESTER_VIP" ]; then
 fi
 }
 
+patch_ignoring_resource()
+{
+	# add ignoring resources when upgrading to match this pr (https://github.com/harvester/harvester-installer/pull/345)
+	yq e '.spec.diff.comparePatches = [{"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition", "name": "engineimages.longhorn.io", "jsonPointers":["/status/acceptedNames", "/status/conditions", "/status/storedVersions"]}]' $CHART_MANIFEST -i
+	yq e '.spec.diff.comparePatches += [{"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition", "name": "nodes.longhorn.io", "jsonPointers":["/status/acceptedNames", "/status/conditions", "/status/storedVersions"]}]' $CHART_MANIFEST -i
+	yq e '.spec.diff.comparePatches += [{"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition", "name": "volumes.longhorn.io", "jsonPointers":["/status/acceptedNames", "/status/conditions", "/status/storedVersions"]}]' $CHART_MANIFEST -i
+}
+
 # get harvester vip from service first, then configmap, skip potential error
 get_harvester_vip()
 {
@@ -69,6 +77,9 @@ get_harvester_vip()
 }
 
 case $CHART_NAME in
+  harvester)
+    patch_ignoring_resource
+    ;;
   rancher-monitoring)
     patch_grafana_resources
     patch_alertmanager_enable
