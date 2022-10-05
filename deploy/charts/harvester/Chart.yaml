@@ -56,7 +56,7 @@ dependencies:
     repository: file://dependency_charts/whereabouts
     condition: whereabouts.enabled
   - name: harvester-pcidevices-controller
-    version: 0.2.0-rc3
+    version: 0.2.1-rc2
     repository: https://charts.harvesterhci.io
   - name: harvester-node-manager
     version: 0.1.1
