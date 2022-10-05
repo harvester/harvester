@@ -31,9 +31,9 @@ dependencies:
   version: 0.1.1
 - name: harvester-pcidevices-controller
   repository: https://charts.harvesterhci.io
-  version: 0.2.0-rc3
+  version: 0.2.1-rc2
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 0.1.1
-digest: sha256:4c0d13ef5b6a046fce67dd507bf87b9a3282726ec04f3ce9cebb3156fd3da637
-generated: "2022-10-04T21:26:55.74024153+08:00"
+digest: sha256:6a08f57c0fcb4cb1b4425997b74becc7b5936d5d06972d510dbfe30edbe7ae46
+generated: "2022-10-05T18:09:10.986765626+08:00"
