@@ -464,7 +464,7 @@ harvester-pcidevices-controller:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/harvester-pcidevices
-    tag: v0.2.1-rc1
+    tag: v0.2.1-rc2
 
 harvester-node-manager:
   image:
