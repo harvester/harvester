@@ -338,16 +338,16 @@ harvester-network-controller:
     repository: rancher/harvester-network-controller
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: master-head
+    tag: v0.3.0-rc2
   helper:
     image:
       repository: rancher/harvester-network-helper
-      tag: master-head
+      tag: v0.3.0-rc2
   webhook:
     image:
       repository: rancher/harvester-network-webhook
       pullPolicy: IfNotPresent
-      tag: master-head
+      tag: v0.3.0-rc2
 
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
@@ -361,7 +361,7 @@ harvester-node-disk-manager:
     repository: rancher/harvester-node-disk-manager
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.4.5
+    tag: v0.4.6
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter
