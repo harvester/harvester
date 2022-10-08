@@ -182,12 +182,12 @@ func (h *GenerateHandler) createRoleBindingIfNotExit(clusterRoleName string, sa 
 
 // ensureSaAndSecret returns the serviceAccount and the associated secret
 func (h *GenerateHandler) ensureSaAndSecret(namespace, name string) (*corev1.ServiceAccount, *corev1.Secret, error) {
-	_, err := h.saCache.Get(namespace, name)
+	sa, err := h.saCache.Get(namespace, name)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, nil, err
 	}
 	if apierrors.IsNotFound(err) {
-		_, err := h.saClient.Create(&corev1.ServiceAccount{
+		sa, err = h.saClient.Create(&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 				Name:      name,
@@ -197,6 +197,36 @@ func (h *GenerateHandler) ensureSaAndSecret(namespace, name string) (*corev1.Ser
 		}
 	}
 
+	secretName := sa.Name + "-token"
+	secretNamespace := sa.Namespace
+	secret, err := h.secretCache.Get(secretNamespace, secretName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, nil, err
+	}
+	if apierrors.IsNotFound(err) {
+		secret, err = h.secretClient.Create(&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secretName,
+				Namespace: secretNamespace,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: rbacv1.SchemeGroupVersion.Version,
+						Kind:       rbacv1.ServiceAccountKind,
+						Name:       sa.Name,
+						UID:        sa.UID,
+					},
+				},
+				Annotations: map[string]string{
+					corev1.ServiceAccountNameKey: sa.Name,
+					corev1.ServiceAccountUIDKey:  string(sa.UID),
+				},
+			},
+			Type: corev1.SecretTypeServiceAccountToken,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	timer := time.NewTimer(defaultTimeout)
 	defer timer.Stop()
 
@@ -208,15 +238,13 @@ func (h *GenerateHandler) ensureSaAndSecret(namespace, name string) (*corev1.Ser
 		case <-timer.C:
 			return nil, nil, fmt.Errorf("timeout while waiting for secret")
 		case <-ticker.C:
-			sa, err := h.saCache.Get(namespace, name)
+			secret, err = h.secretCache.Get(secretNamespace, secretName)
 			if err != nil {
 				return nil, nil, err
 			}
-			if len(sa.Secrets) != 0 {
-				secret, err := h.secretCache.Get(namespace, sa.Secrets[0].Name)
-				if err != nil {
-					return nil, nil, err
-				}
+			_, caOk := secret.Data["ca.crt"]
+			_, tokenOk := secret.Data["token"]
+			if caOk && tokenOk {
 				return sa, secret, nil
 			}
 		}
