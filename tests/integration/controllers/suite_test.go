@@ -6,13 +6,6 @@ import (
 	"testing"
 	"time"
 
-	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/config"
-	"github.com/harvester/harvester/pkg/controller/master/addon"
-	"github.com/harvester/harvester/pkg/server"
-	"github.com/harvester/harvester/tests/framework/cluster"
-	. "github.com/harvester/harvester/tests/framework/dsl"
-	"github.com/harvester/harvester/tests/integration/controllers/fake"
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -28,6 +21,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/yaml"
+
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/controller/master/addon"
+	"github.com/harvester/harvester/pkg/server"
+	"github.com/harvester/harvester/tests/framework/cluster"
+	. "github.com/harvester/harvester/tests/framework/dsl"
+	"github.com/harvester/harvester/tests/integration/controllers/fake"
 )
 
 var (
