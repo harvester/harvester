@@ -14,6 +14,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/node"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
 	"github.com/harvester/harvester/pkg/webhook/resources/setting"
+	"github.com/harvester/harvester/pkg/webhook/resources/storageclass"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
 	"github.com/harvester/harvester/pkg/webhook/resources/upgrade"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachine"
@@ -68,6 +69,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		bundledeployment.NewValidator(
 			clients.FleetFactory.Fleet().V1alpha1().Cluster().Cache(),
 		),
+		storageclass.NewValidator(clients.StorageFactory.Storage().V1().StorageClass().Cache()),
 	}
 
 	router := webhook.NewRouter()
