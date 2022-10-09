@@ -8,3 +8,4 @@
 .DS_Store
 api.test
 .docker
+.nocalhost
