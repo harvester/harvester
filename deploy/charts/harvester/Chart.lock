@@ -29,11 +29,8 @@ dependencies:
 - name: whereabouts
   repository: file://dependency_charts/whereabouts
   version: 0.1.1
-- name: harvester-pcidevices-controller
-  repository: https://charts.harvesterhci.io
-  version: 0.2.1-rc2
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 0.1.1
-digest: sha256:6a08f57c0fcb4cb1b4425997b74becc7b5936d5d06972d510dbfe30edbe7ae46
-generated: "2022-10-05T18:09:10.986765626+08:00"
+digest: sha256:337290f16b21e2afde4c4ed4a0fb14732485905024bc49db7c5fd9e9e91f85e3
+generated: "2022-10-12T09:36:42.481092521+11:00"

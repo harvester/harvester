@@ -1,14 +1,14 @@
 apiVersion: harvesterhci.io/v1beta1
 kind: Addon
 metadata:
-  name: vm-import-controller
+  name: pcidevices-controller
   namespace: harvester-system
 spec:
   repo: http://harvester-cluster-repo.cattle-system.svc/charts
-  version: "0.1.1"
-  chart: harvester-vm-import-controller
+  version: "0.2.1-rc2"
+  chart: harvester-pcidevices-controller
   enabled: false
   valuesContent: |
     image:
-      tag: v0.1.1
-    fullnameOverride: harvester-vm-import-controller
+      tag: v0.2.1-rc3
+    fullnameOverride: harvester-pcidevices-controller
