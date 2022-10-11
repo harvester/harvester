@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"time"
 
 	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	. "github.com/onsi/ginkgo/v2"
@@ -116,6 +117,32 @@ var _ = Describe("verify helm chart is create and addon gets to desired state", 
 			}, "60s", "5s").ShouldNot(HaveOccurred())
 		})
 
+		By("watch status of addon to ensure it doesnt change", func() {
+			Eventually(func() error {
+				i := 0
+				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				initialStatus := aObj.Status.Status
+				interval := time.Duration(500 * time.Millisecond)
+				t := time.NewTicker(interval)
+				for range t.C {
+					i++
+					aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+					if err != nil {
+						return err
+					}
+					if aObj.Status.Status != initialStatus {
+						return fmt.Errorf("addon status changing during reconcile")
+					}
+					if i > 10 {
+						break
+					}
+				}
+				return nil
+			}, "60s", "5s").ShouldNot(HaveOccurred())
+		})
 	})
 
 	AfterEach(func() {
