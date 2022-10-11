@@ -82,11 +82,12 @@ func (h *Handler) MonitorChanges(key string, aObj *harvesterv1.Addon) (*harveste
 		if err != nil {
 			return a, fmt.Errorf("error updating helm chart during monitor changes: %v", err)
 		}
+		// reset status to AddonEnable to trigger reconcile for job
+		a.Status.Status = harvesterv1.AddonEnabled
+		return h.addon.UpdateStatus(a)
 	}
 
-	// reset status to AddonEnable to trigger reconcile for job
-	a.Status.Status = harvesterv1.AddonEnabled
-	return h.addon.UpdateStatus(a)
+	return a, nil
 }
 
 // MonitorAddon will track the deployment of Addon
