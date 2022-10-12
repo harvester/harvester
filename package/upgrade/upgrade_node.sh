@@ -31,7 +31,7 @@ if [ "$container_state" = "CONTAINER_EXITED" ]; then
 
     # workaround for https://github.com/harvester/harvester/issues/2865
     # kubelet could start from old manifest first and generate a new manifest later.
-    rm -f /var/lib/rancher/rke2/agent/pod-manifests/kube-apiserver.yaml
+    rm -f /var/lib/rancher/rke2/agent/pod-manifests/*
 
     reboot
     exit 0
