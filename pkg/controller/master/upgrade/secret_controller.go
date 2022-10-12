@@ -77,6 +77,9 @@ func (h *secretHandler) OnChanged(key string, secret *v1.Secret) (*v1.Secret, er
 	switch upgrade.Status.NodeStatuses[nodeName].State {
 	case nodeStateImagesPreloaded:
 		if secret.Annotations[rke2PreDrainAnnotation] != secret.Annotations[preDrainAnnotation] {
+			if err := checkEligibleToDrain(upgrade, nodeName); err != nil {
+				return nil, err
+			}
 			logrus.Debugf("Create pre-drain job on %s", nodeName)
 			if err := h.createHookJob(upgrade, nodeName, upgradeJobTypePreDrain, nodeStatePreDraining); err != nil {
 				return nil, err
@@ -84,6 +87,9 @@ func (h *secretHandler) OnChanged(key string, secret *v1.Secret) (*v1.Secret, er
 		}
 	case nodeStatePreDrained:
 		if secret.Annotations[rke2PostDrainAnnotation] != secret.Annotations[postDrainAnnotation] {
+			if err := checkEligibleToDrain(upgrade, nodeName); err != nil {
+				return nil, err
+			}
 			logrus.Debugf("Create post-drain job on %s", nodeName)
 			if err := h.createHookJob(upgrade, nodeName, upgradeJobTypePostDrain, nodeStatePostDraining); err != nil {
 				return nil, err
@@ -131,6 +137,21 @@ func (h *secretHandler) checkPendingHookJobs(upgrade string) error {
 	for _, job := range jobs {
 		if job.Status.Succeeded == 0 {
 			return fmt.Errorf("There are pending jobs: (%s/%s)", job.Namespace, job.Name)
+		}
+	}
+	return nil
+}
+
+func checkEligibleToDrain(upgrade *harvesterv1.Upgrade, nodeName string) error {
+	// To make sure there will be only one node in the cluster can be put into the pre-drain or post-drain state
+	for name, status := range upgrade.Status.NodeStatuses {
+		if name == nodeName {
+			continue
+		}
+		if status.State == StateSucceeded || status.State == nodeStateImagesPreloaded {
+			continue
+		} else {
+			return fmt.Errorf("%s is in \"%s\" state so %s is not allowed to run any kind of job", name, status, nodeName)
 		}
 	}
 	return nil
