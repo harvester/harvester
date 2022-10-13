@@ -338,7 +338,8 @@ func (r *UpgradeRepo) deleteVM() error {
 func (r *UpgradeRepo) deleteImage(pvcName string) error {
 	imageID := r.upgrade.Status.ImageID
 	if imageID == "" {
-		return errors.New("Upgrade repo image is not provided")
+		logrus.Error("Upgrade repo image is not provided")
+		return nil
 	}
 
 	image, err := r.GetImage(imageID)
