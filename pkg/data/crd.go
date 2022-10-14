@@ -4,11 +4,13 @@ import (
 	"context"
 
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	"k8s.io/client-go/rest"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -54,6 +56,11 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(fleetv1alpha1.SchemeGroupVersion, "Cluster", fleetv1alpha1.Cluster{}),
 			crd.FromGV(clusterv1.GroupVersion, "Cluster", clusterv1.Cluster{}),
 			crd.FromGV(harvesterv1.SchemeGroupVersion, "Addon", harvesterv1.Addon{}).WithStatus(),
+			crd.FromGV(monitoringv1.SchemeGroupVersion, "Prometheus", monitoringv1.Prometheus{}),
+			crd.FromGV(monitoringv1.SchemeGroupVersion, "Alertmanager", monitoringv1.Alertmanager{}),
+			crd.FromGV(kubevirtv1.SchemeGroupVersion, "VirtualMachine", kubevirtv1.VirtualMachine{}),
+			crd.FromGV(kubevirtv1.SchemeGroupVersion, "VirtualMachineInstance", kubevirtv1.VirtualMachineInstance{}),
+			crd.FromGV(kubevirtv1.SchemeGroupVersion, "VirtualMachineInstanceMigration", kubevirtv1.VirtualMachineInstanceMigration{}),
 		).
 		BatchWait()
 }
