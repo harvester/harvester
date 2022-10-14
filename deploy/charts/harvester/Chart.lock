@@ -7,7 +7,7 @@ dependencies:
   version: 0.1.0
 - name: harvester-network-controller
   repository: https://charts.harvesterhci.io
-  version: 0.3.0-rc2
+  version: 0.3.0-rc3
 - name: harvester-node-disk-manager
   repository: https://charts.harvesterhci.io
   version: 0.4.5
@@ -32,5 +32,5 @@ dependencies:
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 0.1.1
-digest: sha256:337290f16b21e2afde4c4ed4a0fb14732485905024bc49db7c5fd9e9e91f85e3
-generated: "2022-10-12T09:36:42.481092521+11:00"
+digest: sha256:54081aefca5b41a2057e8cf62074a3b3d8c4ee2db994293468bc40b1f75423aa
+generated: "2022-10-14T14:49:45.462215+08:00"
