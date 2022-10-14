@@ -5,10 +5,10 @@ metadata:
   namespace: harvester-system
 spec:
   repo: http://harvester-cluster-repo.cattle-system.svc/charts
-  version: "0.2.1-rc2"
+  version: "0.2.1-rc3"
   chart: harvester-pcidevices-controller
   enabled: false
   valuesContent: |
     image:
-      tag: v0.2.1-rc3
+      tag: v0.2.1-rc4
     fullnameOverride: harvester-pcidevices-controller
