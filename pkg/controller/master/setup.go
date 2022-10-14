@@ -16,6 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/rancher"
 	"github.com/harvester/harvester/pkg/controller/master/setting"
+	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle"
 	"github.com/harvester/harvester/pkg/controller/master/template"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
@@ -42,6 +43,7 @@ var registerFuncs = []registerFunc{
 	rancher.Register,
 	upgrade.Register,
 	addon.Register,
+	storagenetwork.Register,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {

@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -26,7 +27,9 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
+	storagenetworkctl "github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -56,20 +59,46 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.ContainerdRegistrySettingName:   validateContainerdRegistry,
 }
 
+type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
+
+var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
+	settings.HttpProxySettingName:            validateUpdateHTTPProxy,
+	settings.VMForceResetPolicySettingName:   validateUpdateVMForceResetPolicy,
+	settings.SupportBundleImageName:          validateUpdateSupportBundleImage,
+	settings.SupportBundleTimeoutSettingName: validateUpdateSupportBundleTimeout,
+	settings.OvercommitConfigSettingName:     validateUpdateOvercommitConfig,
+	settings.VipPoolsConfigSettingName:       validateUpdateVipPoolsConfig,
+	settings.SSLCertificatesSettingName:      validateUpdateSSLCertificates,
+	settings.SSLParametersName:               validateUpdateSSLParameters,
+	settings.ContainerdRegistrySettingName:   validateUpdateContainerdRegistry,
+}
+
+type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
+
+var validateSettingDeleteFuncs = make(map[string]validateSettingDeleteFunc)
+
 func NewValidator(
 	settingCache ctlv1beta1.SettingCache,
 	vmBackupCache ctlv1beta1.VirtualMachineBackupCache,
 	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
 	vmRestoreCache ctlv1beta1.VirtualMachineRestoreCache,
+	vmis ctlkubevirtv1.VirtualMachineInstanceCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
 		vmBackupCache:      vmBackupCache,
 		snapshotClassCache: snapshotClassCache,
 		vmRestoreCache:     vmRestoreCache,
+		vmis:               vmis,
 	}
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
 	validateSettingFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateVolumeSnapshotClass
+	validateSettingUpdateFuncs[settings.BackupTargetSettingName] = validator.validateUpdateBackupTarget
+	validateSettingUpdateFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateUpdateVolumeSnapshotClass
+
+	validateSettingFuncs[settings.StorageNetworkName] = validator.validateStorageNetwork
+	validateSettingUpdateFuncs[settings.StorageNetworkName] = validator.validateUpdateStorageNetwork
+	validateSettingDeleteFuncs[settings.StorageNetworkName] = validator.validateDeleteStorageNetwork
 	return validator
 }
 
@@ -80,6 +109,7 @@ type settingValidator struct {
 	vmBackupCache      ctlv1beta1.VirtualMachineBackupCache
 	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache
 	vmRestoreCache     ctlv1beta1.VirtualMachineRestoreCache
+	vmis               ctlkubevirtv1.VirtualMachineInstanceCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -92,6 +122,7 @@ func (v *settingValidator) Resource() types.Resource {
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
 			admissionregv1.Update,
+			admissionregv1.Delete,
 		},
 	}
 }
@@ -101,7 +132,11 @@ func (v *settingValidator) Create(request *types.Request, newObj runtime.Object)
 }
 
 func (v *settingValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
-	return validateSetting(newObj)
+	return validateUpdateSetting(oldObj, newObj)
+}
+
+func (v *settingValidator) Delete(request *types.Request, oldObj runtime.Object) error {
+	return validateDeleteSetting(oldObj)
 }
 
 func validateSetting(newObj runtime.Object) error {
@@ -109,6 +144,27 @@ func validateSetting(newObj runtime.Object) error {
 
 	if validateFunc, ok := validateSettingFuncs[setting.Name]; ok {
 		return validateFunc(setting)
+	}
+
+	return nil
+}
+
+func validateUpdateSetting(oldObj runtime.Object, newObj runtime.Object) error {
+	oldSetting := oldObj.(*v1beta1.Setting)
+	newSetting := newObj.(*v1beta1.Setting)
+
+	if validateUpdateFunc, ok := validateSettingUpdateFuncs[newSetting.Name]; ok {
+		return validateUpdateFunc(oldSetting, newSetting)
+	}
+
+	return nil
+}
+
+func validateDeleteSetting(oldObj runtime.Object) error {
+	setting := oldObj.(*v1beta1.Setting)
+
+	if validateDeleteFunc, ok := validateSettingDeleteFuncs[setting.Name]; ok {
+		return validateDeleteFunc(setting)
 	}
 
 	return nil
@@ -123,6 +179,10 @@ func validateHTTPProxy(setting *v1beta1.Setting) error {
 		return werror.NewInvalidError(message, "value")
 	}
 	return nil
+}
+
+func validateUpdateHTTPProxy(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateHTTPProxy(newSetting)
 }
 
 func validateOvercommitConfig(setting *v1beta1.Setting) error {
@@ -149,6 +209,10 @@ func validateOvercommitConfig(setting *v1beta1.Setting) error {
 	return nil
 }
 
+func validateUpdateOvercommitConfig(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateOvercommitConfig(newSetting)
+}
+
 func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
@@ -159,6 +223,10 @@ func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
 	}
 
 	return nil
+}
+
+func validateUpdateVMForceResetPolicy(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateVMForceResetPolicy(newSetting)
 }
 
 // chech if this backup target is updated again by controller to strip secret information
@@ -212,6 +280,10 @@ func (v *settingValidator) validateBackupTargetFields(target *settings.BackupTar
 	}
 
 	return nil
+}
+
+func (v *settingValidator) validateUpdateBackupTarget(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return v.validateBackupTarget(newSetting)
 }
 
 func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error {
@@ -335,6 +407,10 @@ func validateVipPoolsConfig(setting *v1beta1.Setting) error {
 	return nil
 }
 
+func validateUpdateVipPoolsConfig(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateVipPoolsConfig(newSetting)
+}
+
 func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
@@ -348,6 +424,10 @@ func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
 		return werror.NewInvalidError("timeout can't be negative", "value")
 	}
 	return nil
+}
+
+func validateUpdateSupportBundleTimeout(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateSupportBundleTimeout(newSetting)
 }
 
 func validateSSLCertificates(setting *v1beta1.Setting) error {
@@ -379,6 +459,10 @@ func validateSSLCertificates(setting *v1beta1.Setting) error {
 	return nil
 }
 
+func validateUpdateSSLCertificates(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateSSLCertificates(newSetting)
+}
+
 func validateSSLParameters(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
@@ -401,6 +485,10 @@ func validateSSLParameters(setting *v1beta1.Setting) error {
 	// Currently, there's no easy way to actually tell what Ciphers are supported by rke2-ingress-nginx,
 	// we need to tell users where to look for ciphers in docs.
 	return nil
+}
+
+func validateUpdateSSLParameters(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateSSLParameters(newSetting)
 }
 
 func validateSSLProtocols(param *settings.SSLParameter) error {
@@ -465,12 +553,20 @@ func validateSupportBundleImage(setting *v1beta1.Setting) error {
 	return nil
 }
 
+func validateUpdateSupportBundleImage(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateSupportBundleImage(newSetting)
+}
+
 func (v *settingValidator) validateVolumeSnapshotClass(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
 	}
 	_, err := v.snapshotClassCache.Get(setting.Value)
 	return err
+}
+
+func (v *settingValidator) validateUpdateVolumeSnapshotClass(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return v.validateVolumeSnapshotClass(newSetting)
 }
 
 func validateContainerdRegistry(setting *v1beta1.Setting) error {
@@ -483,5 +579,86 @@ func validateContainerdRegistry(setting *v1beta1.Setting) error {
 		return werror.NewInvalidError(err.Error(), "value")
 	}
 
+	return nil
+}
+
+func validateUpdateContainerdRegistry(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateContainerdRegistry(newSetting)
+}
+
+func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) error {
+	if setting.Name != settings.StorageNetworkName {
+		return nil
+	}
+
+	if setting.Value == "" {
+		// harvester will create a default setting with empty value
+		// storage-network will be the same in Longhorn, just skip check, don't require all VMs are stopped.
+		return nil
+	}
+
+	return v.checkStorageNetworkValueVaild(setting)
+}
+
+func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	if newSetting.Name != settings.StorageNetworkName {
+		return nil
+	}
+
+	if oldSetting.Value == newSetting.Value {
+		return nil
+	}
+
+	return v.checkStorageNetworkValueVaild(newSetting)
+}
+
+func (v *settingValidator) validateDeleteStorageNetwork(setting *v1beta1.Setting) error {
+	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.StorageNetworkName))
+}
+
+func (v *settingValidator) checkStorageNetworkValueVaild(setting *v1beta1.Setting) error {
+	// check JSON is valid
+	if setting.Value != "" {
+		var config storagenetworkctl.Config
+		if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
+			return werror.NewInvalidError(fmt.Sprintf("failed to unmarshal the setting value, %v", err), "value")
+		}
+
+		if err := v.checkStorageNetworkVlanValid(&config); err != nil {
+			return werror.NewInvalidError(err.Error(), "value")
+		}
+
+		if err := v.checkStorageNetworkRangeValid(&config); err != nil {
+			return werror.NewInvalidError(err.Error(), "value")
+		}
+	}
+
+	// check all VM are stopped, there is no VMI
+	vmis, err := v.vmis.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return err
+	}
+	if len(vmis) > 0 {
+		return werror.NewInvalidError("Please stop all VMs before configuring the storage-network setting", "value")
+	}
+
+	return nil
+}
+
+func (v *settingValidator) checkStorageNetworkVlanValid(config *storagenetworkctl.Config) error {
+	if config.Vlan < 1 || config.Vlan > 4094 {
+		return fmt.Errorf("The valid value range for VLAN IDs is 1 to 4094")
+	}
+	return nil
+}
+
+func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkctl.Config) error {
+	ip, network, err := net.ParseCIDR(config.Range)
+	if err != nil {
+		return err
+	}
+	if !network.IP.Equal(ip) {
+		return fmt.Errorf("Range should be subnet CIDR %v", network)
+	}
 	return nil
 }
