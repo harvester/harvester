@@ -31,6 +31,7 @@ import (
 	cniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
 	longhornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
+	monitoringv1 "github.com/harvester/harvester/pkg/generated/controllers/monitoring.coreos.com"
 	"github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io"
 	snapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io"
@@ -81,6 +82,7 @@ type Management struct {
 	VirtFactory              *kubevirt.Factory
 	HarvesterFactory         *ctlharvesterv1.Factory
 	CoreFactory              *corev1.Factory
+	CniFactory               *cniv1.Factory
 	AppsFactory              *appsv1.Factory
 	BatchFactory             *batchv1.Factory
 	RbacFactory              *rbacv1.Factory
@@ -90,6 +92,7 @@ type Management struct {
 	ProvisioningFactory      *provisioningv1.Factory
 	CatalogFactory           *catalogv1.Factory
 	RancherManagementFactory *rancherv3.Factory
+	MonitoringFactory        *monitoringv1.Factory
 	HelmFactory              *helmv1.Factory
 
 	NetworkingFactory *networking.Factory
@@ -231,6 +234,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.CoreFactory = core
 	management.starters = append(management.starters, core)
 
+	cni, err := cniv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.CniFactory = cni
+	management.starters = append(management.starters, cni)
+
 	apps, err := appsv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return nil, err
@@ -321,6 +331,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.ClusterFactory = cluster
 	management.starters = append(management.starters, cluster)
+
+	monitoring, err := monitoringv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.MonitoringFactory = monitoring
+	management.starters = append(management.starters, monitoring)
 
 	management.RestConfig = restConfig
 	management.ClientSet, err = kubernetes.NewForConfig(restConfig)

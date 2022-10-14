@@ -47,6 +47,7 @@ var (
 	AutoDiskProvisionPaths  = NewSetting("auto-disk-provision-paths", "")
 	CSIDriverConfig         = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn"}}`)
 	ContainerdRegistry      = NewSetting(ContainerdRegistrySettingName, "")
+	StorageNetwork          = NewSetting(StorageNetworkName, "")
 
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.1.14","harvester-csi-provider":">=0.0.1 <0.1.15"}`)
@@ -74,6 +75,7 @@ const (
 	DefaultUIPluginURL                = "https://releases.rancher.com/harvester-ui/plugin/harvester-latest/harvester-latest.umd.min.js"
 	ContainerdRegistrySettingName     = "containerd-registry"
 	HarvesterCSICCMSettingName        = "harvester-csi-ccm-versions"
+	StorageNetworkName                = "storage-network"
 )
 
 func init() {
