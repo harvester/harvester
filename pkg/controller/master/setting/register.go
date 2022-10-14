@@ -69,6 +69,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		"ssl-parameters":            controller.syncSSLParameters,
 		"containerd-registry":       controller.syncContainerdRegistry,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
+		// for "storage-network" syncer, please check harvester-storage-network-controller
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
