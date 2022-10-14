@@ -30,6 +30,8 @@ import (
 	fakekubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1/fake"
 	longhornv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta1"
 	fakelonghornv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta1/fake"
+	monitoringv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/monitoring.coreos.com/v1"
+	fakemonitoringv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/monitoring.coreos.com/v1/fake"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1"
 	fakenetworkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1/fake"
 	snapshotv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1"
@@ -116,6 +118,11 @@ func (c *Clientset) KubevirtV1() kubevirtv1.KubevirtV1Interface {
 // LonghornV1beta1 retrieves the LonghornV1beta1Client
 func (c *Clientset) LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface {
 	return &fakelonghornv1beta1.FakeLonghornV1beta1{Fake: &c.Fake}
+}
+
+// MonitoringV1 retrieves the MonitoringV1Client
+func (c *Clientset) MonitoringV1() monitoringv1.MonitoringV1Interface {
+	return &fakemonitoringv1.FakeMonitoringV1{Fake: &c.Fake}
 }
 
 // NetworkingV1 retrieves the NetworkingV1Client
