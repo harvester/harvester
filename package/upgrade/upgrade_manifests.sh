@@ -344,6 +344,7 @@ get_all_running_vm_count() {
 
 delete_canal_flannel_iface() {
   kubectl delete helmchartconfig rke2-canal -n kube-system || true
+  kubectl patch configmap rke2-canal-config -n kube-system -p '{"data":{"canal_iface": ""}}' --type merge
 }
 
 modify_nad_bridge() {
