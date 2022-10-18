@@ -440,6 +440,84 @@ EOF
   wait_rollout cattle-monitoring-system deployment rancher-monitoring-operator
 }
 
+loop_wait_rollout_logging_audit() {
+  local NS=cattle-logging-system
+
+  for i in $(seq 1 $1)
+  do
+    local EXIT_CODE=0 # reset each loop
+    sleep 10
+
+    # logging operator
+    wait_rollout $NS deployment rancher-logging || EXIT_CODE=$?
+    if [ $EXIT_CODE != 0 ]; then
+      echo "continue waiting rollout deployment rancher-logging, $i"
+      continue
+    fi
+
+    # agent to grab log
+    wait_rollout $NS daemonset rancher-logging-root-fluentbit || EXIT_CODE=$?
+    if [ $EXIT_CODE != 0 ]; then
+      echo "continue waiting rollout daemonset rancher-logging-root-fluentbit, $i"
+      continue
+    fi
+
+    wait_rollout $NS daemonset rancher-logging-rke2-journald-aggregator || EXIT_CODE=$?
+    if [ $EXIT_CODE != 0 ]; then
+      echo "continue waiting rollout daemonset rancher-logging-rke2-journald-aggregator, $i"
+      continue
+    fi
+
+    wait_rollout $NS daemonset rancher-logging-kube-audit-fluentbit || EXIT_CODE=$?
+    if [ $EXIT_CODE != 0 ]; then
+      echo "continue waiting rollout daemonset rancher-logging-kube-audit-fluentbit, $i"
+      continue
+    fi
+
+    # fluentd, a known issue: https://github.com/harvester/harvester/issues/2787
+    # wait_rollout cattle-logging-system statefulset rancher-logging-root-fluentd
+    # wait_rollout cattle-logging-system statefulset rancher-logging-kube-audit-fluentd
+
+    break
+  done
+
+  if [ $EXIT_CODE != 0 ]; then
+    echo "fail to wait rollout logging audit"
+    return $EXIT_CODE
+  fi
+
+  echo "success to wait rollout logging audit"
+  return 0
+}
+
+loop_wait_rollout_event() {
+  local NS=cattle-logging-system
+  local NAME=harvester-default-event-tailer
+
+  for i in $(seq 1 $1)
+  do
+    local EXIT_CODE=0 # reset each loop
+    sleep 10
+
+    wait_rollout $NS statefulset $NAME || EXIT_CODE=$?
+    if [ $EXIT_CODE != 0 ]; then
+      echo "continue waiting rollout statefulset $NAME, $i"
+      continue
+    fi
+
+    break
+  done
+
+  if [ $EXIT_CODE != 0 ]; then
+    echo "fail to wait rollout event"
+    return $EXIT_CODE
+  fi
+
+  echo "success to wait rollout event"
+  return 0
+}
+
+
 upgrade_logging_event_audit() {
   # from v1.0.3, logging, event, audit are enabled by default
   echo "The current version is $UPGRADE_PREVIOUS_VERSION, will check Logging Event Audit upgrade manifest option"
@@ -453,7 +531,7 @@ upgrade_logging_event_audit() {
     # reuse frame work to generate yaml file
     upgrade_managed_chart_from_version $UPGRADE_PREVIOUS_VERSION rancher-logging rancher-logging.yaml
 
-    echo "Apply resource file"
+    echo "Apply resource file of logging and audit"
 
     kubectl apply -f ./rancher-logging.yaml
 
@@ -461,19 +539,8 @@ upgrade_logging_event_audit() {
     sleep 50
 
     echo "Wait for rollout of logging and audit"
-
-    # logging operator
-    wait_rollout cattle-logging-system deployment rancher-logging
-
-    # agent to grab log
-    wait_rollout cattle-logging-system daemonset rancher-logging-root-fluentbit
-    wait_rollout cattle-logging-system daemonset rancher-logging-rke2-journald-aggregator
-    wait_rollout cattle-logging-system daemonset rancher-logging-kube-audit-fluentbit
-
-    # fluentd, a known issue: https://github.com/harvester/harvester/issues/2787
-    # wait_rollout cattle-logging-system statefulset rancher-logging-root-fluentd
-    # wait_rollout cattle-logging-system statefulset rancher-logging-kube-audit-fluentd
-
+    # loop wait for at most 6 minutes (36 * 10s)
+    loop_wait_rollout_logging_audit 36
 
     # due to error: unable to recognize "./rancher-logging.yaml": no matches for kind "EventTailer" in version "logging-extensions.banzaicloud.io/v1alpha1"
     # the eventtailer needs to be deployed after the managedcharts are deployed
@@ -485,17 +552,16 @@ upgrade_logging_event_audit() {
     # rancher-logging_event-extension is reusing chart rancher-logging, but as an extension for event
     upgrade_managed_chart_from_version $UPGRADE_PREVIOUS_VERSION rancher-logging_event-extension rancher-logging.yaml
 
-    echo "Apply resource file"
+    echo "Apply resource file of event"
 
     kubectl apply -f ./rancher-logging.yaml
 
     # wait few seconds
     sleep 20
 
-    echo "Wait for rollout of event-tailer"
-
-    # event tailer to collecting k8s events
-    wait_rollout cattle-logging-system statefulset harvester-default-event-tailer
+    echo "Wait for rollout of event"
+    # loop wait for at most 3 minutes (18 * 10s)
+    loop_wait_rollout_event 18
 
     echo "Logging Event Audit: finish upgrading manifest"
 
