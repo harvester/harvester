@@ -395,8 +395,8 @@ csi-snapshotter:
   enabled: true
 
   image:
-    repository: k8s.gcr.io/sig-storage/snapshot-controller
-    tag: v4.0.0
+    repository: registry.k8s.io/sig-storage/snapshot-controller
+    tag: v5.0.1
 
 longhorn:
   ## Specify whether to install longhorn,
