@@ -127,7 +127,8 @@ func Test_virtualmachine_mutator(t *testing.T) {
 			}
 			err := clientset.Tracker().Add(settingCpy)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings))
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
 			vm := &kubevirtv1.VirtualMachine{
 				Spec: kubevirtv1.VirtualMachineSpec{
 					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
