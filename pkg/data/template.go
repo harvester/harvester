@@ -198,6 +198,18 @@ spec:
           - persistentVolumeClaim:
               claimName: pvc-rootdisk
             name: rootdisk
+          - name: cloudinitdisk
+            cloudInitNoCloud:
+                userData: |
+                  #cloud-config
+                  package_update: true
+                  packages:
+                    - qemu-guest-agent
+                  runcmd:
+                    - - systemctl
+                      - enable
+                      - --now
+                      - qemu-guest-agent.service
 ---
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
@@ -259,6 +271,18 @@ spec:
           - persistentVolumeClaim:
               claimName: pvc-rootdisk
             name: rootdisk
+          - name: cloudinitdisk
+            cloudInitNoCloud:
+                userData: |
+                  #cloud-config
+                  package_update: true
+                  packages:
+                    - qemu-guest-agent
+                  runcmd:
+                    - - systemctl
+                      - enable
+                      - --now
+                      - qemu-guest-agent.service
 ---
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
