@@ -5,27 +5,37 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 var (
+	userdataTmpl        = template.Must(template.New("userdata").Parse(initBaseUserdatas))
 	templateTmpl        = template.Must(template.New("template").Parse(initBaseTemplates))
 	templateVersionTmpl = template.Must(template.New("templateVersion").Parse(initBaseTemplateVersions))
 )
 
 func createTemplates(mgmt *config.Management, namespace string) error {
+
 	templates := mgmt.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
 	templateVersions := mgmt.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
 	if err := initBaseTemplate(templates, namespace); err != nil {
 		return err
 	}
+	if err := initBaseTemplateVersion(templateVersions, namespace); err != nil {
+		return err
+	}
 
-	return initBaseTemplateVersion(templateVersions, namespace)
+	secrets := mgmt.CoreFactory.Core().V1().Secret()
+	return initBaseUserdata(secrets, templateVersions, namespace)
 }
 
 func generateYmls(tmpl *template.Template, namespace string) ([][]byte, error) {
@@ -75,11 +85,79 @@ func initBaseTemplateVersion(vmTemplateVersions ctlharvesterv1.VirtualMachineTem
 		if _, err := vmTemplateVersions.Create(&vmTemplateVersion); err != nil && !apierrors.IsAlreadyExists(err) {
 			return errors.Wrapf(err, "Failed to create virtualMachineTemplateVersion %s/%s", vmTemplateVersion.Namespace, vmTemplateVersion.Name)
 		}
+
+	}
+	return nil
+}
+
+func initBaseUserdata(secretClient ctlcorev1.SecretClient, templateVersions ctlharvesterv1.VirtualMachineTemplateVersionClient, namespace string) error {
+	ymls, err := generateYmls(userdataTmpl, namespace)
+	if err != nil {
+		return err
+	}
+
+	tmplVers, err := templateVersions.List(namespace, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	owners := make(map[string][]metav1.OwnerReference)
+	for _, v := range tmplVers.Items {
+		if secretName, ok := v.Annotations[util.AnnotationDefaultUserdataSecret]; ok {
+			owners[secretName] = []metav1.OwnerReference{
+				{
+					APIVersion: v.APIVersion,
+					Kind:       v.Kind,
+					Name:       v.Name,
+					UID:        v.UID,
+				},
+			}
+		}
+	}
+
+	for _, yml := range ymls {
+		var secret corev1.Secret
+		if err := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(yml), 1024).Decode(&secret); err != nil {
+			return errors.Wrap(err, "Failed to convert Secret from yaml to object")
+		}
+
+		if owner, ok := owners[secret.Name]; ok {
+			secret.OwnerReferences = owner
+		}
+		if _, err := secretClient.Create(&secret); err != nil && !apierrors.IsAlreadyExists(err) {
+			return errors.Wrapf(err, "Failed to create Secret %s/%s", secret.Namespace, secret.Name)
+		}
 	}
 	return nil
 }
 
 var (
+	initBaseUserdatas = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: iso-image-template-userdata
+  namespace: {{ .Namespace }}
+  labels:
+    harvesterhci.io/cloud-init-template: harvester
+type: secret
+data:
+  networkdata: ""
+  userdata: I2Nsb3VkLWNvbmZpZwpwYWNrYWdlX3VwZGF0ZTogdHJ1ZQpwYWNrYWdlczoKICAtIHFlbXUtZ3Vlc3QtYWdlbnQKcnVuY21kOgogIC0gLSBzeXN0ZW1jdGwKICAgIC0gZW5hYmxlCiAgICAtIC0tbm93CiAgICAtIHFlbXUtZ3Vlc3QtYWdlbnQuc2VydmljZQo=
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: raw-image-template-userdata
+  namespace: {{ .Namespace }}
+  labels:
+    harvesterhci.io/cloud-init-template: harvester
+type: secret
+data:
+  networkdata: ""
+  userdata: I2Nsb3VkLWNvbmZpZwpwYWNrYWdlX3VwZGF0ZTogdHJ1ZQpwYWNrYWdlczoKICAtIHFlbXUtZ3Vlc3QtYWdlbnQKcnVuY21kOgogIC0gLSBzeXN0ZW1jdGwKICAgIC0gZW5hYmxlCiAgICAtIC0tbm93CiAgICAtIHFlbXUtZ3Vlc3QtYWdlbnQuc2VydmljZQo=
+`
+
 	initBaseTemplates = `
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplate
@@ -119,6 +197,8 @@ spec:
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
 metadata:
+  annotations:
+    harvesterhci.io/default-userdata-secret: iso-image-template-userdata
   name: iso-image-base-version
   namespace: {{ .Namespace }}
 spec:
@@ -200,20 +280,14 @@ spec:
             name: rootdisk
           - name: cloudinitdisk
             cloudInitNoCloud:
-                userData: |
-                  #cloud-config
-                  package_update: true
-                  packages:
-                    - qemu-guest-agent
-                  runcmd:
-                    - - systemctl
-                      - enable
-                      - --now
-                      - qemu-guest-agent.service
+              secretRef:
+                name: iso-image-template-userdata
 ---
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
 metadata:
+  annotations:
+    harvesterhci.io/default-userdata-secret: raw-image-template-userdata
   name: raw-image-base-version
   namespace: {{ .Namespace }}
 spec:
@@ -273,16 +347,8 @@ spec:
             name: rootdisk
           - name: cloudinitdisk
             cloudInitNoCloud:
-                userData: |
-                  #cloud-config
-                  package_update: true
-                  packages:
-                    - qemu-guest-agent
-                  runcmd:
-                    - - systemctl
-                      - enable
-                      - --now
-                      - qemu-guest-agent.service
+              secretRef:
+                name: raw-image-template-userdata
 ---
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
