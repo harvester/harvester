@@ -721,12 +721,16 @@ func (h *vmActionHandler) cloneVolumes(newVM *kubevirtv1.VirtualMachine) ([]core
 					Name:        names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s-", newVM.Name, volume.Name)),
 					Annotations: annotations,
 				},
-				Spec: *pvc.Spec.DeepCopy(),
-			}
-			newPVC.Spec.VolumeName = ""
-			newPVC.Spec.DataSource = &corev1.TypedLocalObjectReference{
-				Kind: "PersistentVolumeClaim",
-				Name: pvc.Name,
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes: pvc.Spec.AccessModes,
+					DataSource: &corev1.TypedLocalObjectReference{
+						Kind: "PersistentVolumeClaim",
+						Name: pvc.Name,
+					},
+					Resources:        pvc.Spec.Resources,
+					StorageClassName: pvc.Spec.StorageClassName,
+					VolumeMode:       pvc.Spec.VolumeMode,
+				},
 			}
 			newPVCs = append(newPVCs, newPVC)
 			volume.PersistentVolumeClaim.ClaimName = newPVC.Name
