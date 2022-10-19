@@ -20,10 +20,11 @@ func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, 
 	resources := []types.Resource{}
 	settingCache := clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 	storageClassCache := clients.StorageFactory.Storage().V1().StorageClass().Cache()
+	nadCache := clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache()
 	mutators := []types.Mutator{
 		pod.NewMutator(settingCache),
 		templateversion.NewMutator(),
-		virtualmachine.NewMutator(settingCache),
+		virtualmachine.NewMutator(settingCache, nadCache),
 		virtualmachineimage.NewMutator(storageClassCache),
 	}
 
