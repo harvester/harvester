@@ -623,20 +623,11 @@ func (h *RestoreHandler) createRestoredPVC(
 	}
 	annotations[restoreNameAnnotation] = vmRestore.Name
 
-	sourcePVC := volumeBackup.PersistentVolumeClaim
-	spec := *sourcePVC.Spec.DeepCopy()
-	spec.VolumeName = ""
-	spec.DataSource = &corev1.TypedLocalObjectReference{
-		APIGroup: pointer.StringPtr(snapshotv1.SchemeGroupVersion.Group),
-		Kind:     volumeSnapshotKindName,
-		Name:     dataSourceName,
-	}
-
 	_, err := h.pvcClient.Create(&corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        volumeRestore.PersistentVolumeClaim.ObjectMeta.Name,
 			Namespace:   vmRestore.Namespace,
-			Labels:      sourcePVC.ObjectMeta.Labels,
+			Labels:      volumeBackup.PersistentVolumeClaim.ObjectMeta.Labels,
 			Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -649,7 +640,17 @@ func (h *RestoreHandler) createRestoredPVC(
 				},
 			},
 		},
-		Spec: spec,
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: volumeBackup.PersistentVolumeClaim.Spec.AccessModes,
+			DataSource: &corev1.TypedLocalObjectReference{
+				APIGroup: pointer.StringPtr(snapshotv1.SchemeGroupVersion.Group),
+				Kind:     volumeSnapshotKindName,
+				Name:     dataSourceName,
+			},
+			Resources:        volumeBackup.PersistentVolumeClaim.Spec.Resources,
+			StorageClassName: volumeBackup.PersistentVolumeClaim.Spec.StorageClassName,
+			VolumeMode:       volumeBackup.PersistentVolumeClaim.Spec.VolumeMode,
+		},
 	})
 	return err
 }
