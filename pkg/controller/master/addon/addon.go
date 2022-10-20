@@ -169,6 +169,16 @@ func (h *Handler) checkHelmChartExists(a *harvesterv1.Addon) (bool, error) {
 
 func (h *Handler) deployHelmChart(aObj *harvesterv1.Addon) (*harvesterv1.Addon, error) {
 	a := aObj.DeepCopy()
+	err := h.enableDependencies(a)
+	if err != nil {
+		return a, err
+	}
+
+	err = h.isDependencyReady(a)
+	if err != nil {
+		return a, err
+	}
+
 	vals, err := defaultValues(a)
 	if err != nil {
 		return a, err
@@ -267,7 +277,11 @@ func (h *Handler) ReconcileHelmChartOwners(_ string, _ string, obj runtime.Objec
 
 func (h *Handler) removeHelmChart(aObj *harvesterv1.Addon) (*harvesterv1.Addon, error) {
 	a := aObj.DeepCopy()
-	err := h.checkAndDeleteChart(a)
+	err := h.disableDependencies(aObj)
+	if err != nil {
+		return a, err
+	}
+	err = h.checkAndDeleteChart(a)
 	if err != nil {
 		return a, fmt.Errorf("error removing helm chart for addon %s: %v", a.Name, err)
 	}
@@ -307,4 +321,54 @@ func (h *Handler) redeployNeeded(a *harvesterv1.Addon) (*helmv1.HelmChart, bool,
 	}
 
 	return hc, redeployChart, nil
+}
+
+func (h *Handler) isDependencyReady(a *harvesterv1.Addon) error {
+	for _, v := range a.Spec.DependsOn {
+		depObj, err := h.addon.Cache().Get(v.Namespace, v.Name)
+		if err != nil {
+			return err
+		}
+		if depObj.Status.Status != harvesterv1.AddonDeployed {
+			return fmt.Errorf("dependency not ready. current state of dependent addon %s in ns %s is %s", v.Name, v.Namespace, depObj.Status.Status)
+		}
+	}
+
+	return nil
+}
+
+func (h *Handler) enableDependencies(a *harvesterv1.Addon) error {
+	for _, v := range a.Spec.DependsOn {
+		aObj, err := h.addon.Cache().Get(v.Namespace, v.Name)
+		if err != nil {
+			return fmt.Errorf("error looking up dependency addon %s in namespace %s: %v", v.Name, v.Namespace, err)
+		}
+		if !aObj.Spec.Enabled {
+			aObj.Spec.Enabled = true
+			_, err := h.addon.Update(aObj)
+			if err != nil {
+				return fmt.Errorf("error while enabling dependency addon %s in namespace %s: %v", v.Name, v.Namespace, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (h *Handler) disableDependencies(a *harvesterv1.Addon) error {
+	for _, v := range a.Spec.DependsOn {
+		aObj, err := h.addon.Cache().Get(v.Namespace, v.Name)
+		if err != nil {
+			return fmt.Errorf("error looking up dependency addon %s in namespace %s: %v", v.Name, v.Namespace, err)
+		}
+		if aObj.Spec.Enabled {
+			aObj.Spec.Enabled = false
+			_, err := h.addon.Update(aObj)
+			if err != nil {
+				return fmt.Errorf("error while disabled dependency addon %s in namespace %s: %v", v.Name, v.Namespace, err)
+			}
+		}
+	}
+
+	return nil
 }

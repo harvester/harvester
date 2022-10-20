@@ -27,13 +27,19 @@ type Addon struct {
 }
 
 type AddonSpec struct {
-	Repo          string `json:"repo"`
-	Chart         string `json:"chart"`
-	Version       string `json:"version"`
-	Enabled       bool   `json:"enabled"`
-	ValuesContent string `json:"valuesContent"`
+	Repo          string     `json:"repo"`
+	Chart         string     `json:"chart"`
+	Version       string     `json:"version"`
+	Enabled       bool       `json:"enabled"`
+	ValuesContent string     `json:"valuesContent"`
+	DependsOn     []AddonRef `json:"dependsOn,omitempty"`
 }
 
 type AddonStatus struct {
 	Status AddonState `json:"status,omitempty"`
+}
+
+type AddonRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }

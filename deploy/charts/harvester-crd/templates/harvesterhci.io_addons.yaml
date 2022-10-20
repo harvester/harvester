@@ -46,6 +46,18 @@ spec:
             properties:
               chart:
                 type: string
+              dependsOn:
+                items:
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                  required:
+                  - name
+                  - namespace
+                  type: object
+                type: array
               enabled:
                 type: boolean
               repo:
