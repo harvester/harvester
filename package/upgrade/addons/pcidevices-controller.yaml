@@ -3,6 +3,8 @@ kind: Addon
 metadata:
   name: pcidevices-controller
   namespace: harvester-system
+  labels:
+    addon.harvesterhci.io/experimental: "true"
 spec:
   repo: http://harvester-cluster-repo.cattle-system.svc/charts
   version: "0.2.1-rc3"
