@@ -7,10 +7,10 @@ metadata:
     addon.harvesterhci.io/experimental: "true"
 spec:
   repo: http://harvester-cluster-repo.cattle-system.svc/charts
-  version: "0.2.1-rc3"
+  version: "0.2.1"
   chart: harvester-pcidevices-controller
   enabled: false
   valuesContent: |
     image:
-      tag: v0.2.1-rc4
+      tag: v0.2.1
     fullnameOverride: harvester-pcidevices-controller
