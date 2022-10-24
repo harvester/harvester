@@ -27,11 +27,11 @@ dependencies:
       - kubevirt
       - crd
   - name: harvester-network-controller
-    version: 0.3.0-rc3
+    version: 0.3.0
     repository: https://charts.harvesterhci.io
     condition: harvester-network-controller.enabled
   - name: harvester-node-disk-manager
-    version: 0.4.5
+    version: 0.4.7
     repository: https://charts.harvesterhci.io
     condition: harvester-node-disk-manager.enabled
   - name: csi-snapshotter
