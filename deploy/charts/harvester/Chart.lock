@@ -31,6 +31,6 @@ dependencies:
   version: 0.1.1
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
-  version: 0.1.1
-digest: sha256:fa324aed97aa74f9253fea69cf214971bcdc4bf3ece01f189ae1f7d172e352e2
-generated: "2022-10-24T19:47:09.227597+08:00"
+  version: 0.1.2
+digest: sha256:54d3905694eeb508629265693414432426b459bea75d425613b6caf38a1f3a07
+generated: "2022-10-25T16:16:37.503871+08:00"
