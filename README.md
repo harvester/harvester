@@ -13,16 +13,16 @@ Harvester is an open source [hyper-converged infrastructure](https://en.wikipedi
 Harvester implements HCI on bare metal servers. Harvester is designed to use local, direct attached storage instead of complex external SANs. It ships as an integrated bootable appliance image that can be deployed directly to servers through an ISO or PXE boot artifact.  
 
 Some notable features of Harvester include the following:
-1. VM lifecycle management including SSH-Key injection, Cloud-init and, graphic and serial port console
+1. VM lifecycle management including SSH-Key injection, cloud-init, and graphic and serial port console
 1. VM live migration support
-1. Supporting VM backup and restore
-1. Distributed block storage
-1. Multiple NICs in the VM connecting to the management network or VLANs
+1. Supported VM backup, snapshot and restore
+1. Distributed block storage and storage tiering
+1. Multiple network interface controllers (NICs) in the VM connecting to the management network or VLANs
 1. Virtual Machine and cloud-init templates
-1. [Rancher integration](https://docs.harvesterhci.io/v1.0/rancher/rancher-integration/) with multi-cluster management and the Harvester node driver
-1. [PXE/iPXE boot support](https://docs.harvesterhci.io/v1.0/install/pxe-boot-install)
+1. [Rancher](https://github.com/rancher/rancher) integration with multi-cluster management and the Harvester node driver
+1. [PXE/iPXE boot support](https://docs.harvesterhci.io/latest/install/pxe-boot-install)
 1. Virtual IP and bond NIC support
-1. Monitoring integration
+1. Monitoring and logging integration
 
 The following diagram outlines a high-level architecture of Harvester:
 
@@ -30,19 +30,19 @@ The following diagram outlines a high-level architecture of Harvester:
 
 - [Longhorn](https://longhorn.io/) is a lightweight, reliable, and easy-to-use distributed block storage system for Kubernetes.
 - [KubeVirt](https://kubevirt.io/) is a virtual machine management add-on for Kubernetes.
-- [Elemental for openSUSE Leap 15.3](https://github.com/rancher-sandbox/cOS-toolkit) is a Linux distribution designed to remove as much OS maintenance as possible in a Kubernetes cluster.
+- [Elemental for SLE-Micro 5.2](https://github.com/rancher-sandbox/cOS-toolkit) (based on openSUSE Leap 15.3 before v1.0.3) is an immutable Linux distribution designed to remove as much OS maintenance as possible in a Kubernetes cluster.
 
 ## Hardware Requirements
 To get the Harvester server up and running the following minimum hardware is required:
 
-| Type | Requirements |
-|:---|:---|
-| CPU | x86_64 only. Hardware-assisted virtualization is required. 8-core processor minimum; 16-core or above preferred |
-| Memory | 32 GB minimum, 64 GB or above preferred |
-| Disk Capacity |  140 GB minimum, 500 GB or above preferred |
-| Disk Performance |  5,000+ random IOPS per disk(SSD/NVMe). Management nodes (first 3 nodes) must be [fast enough for Etcd](https://www.ibm.com/cloud/blog/using-fio-to-tell-whether-your-storage-is-fast-enough-for-etcd). |
-| Network Card | 1 Gbps Ethernet minimum, 10Gbps Ethernet recommended |
-| Network Switch | Trunking of ports required for VLAN support |
+| Type | Requirements                                                                                                                                                                                               |
+|:---|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| CPU | x86_64 only. Hardware-assisted virtualization is required. 8-core processor minimum for testing; 16-core or above preferred for production                                                                 |
+| Memory | 32 GB minimum; 64 GB or above preferred                                                                                                                                                                    |
+| Disk Capacity | 200 GB minimum for testing; 500 GB or above preferred for production                                                                                                                                       |
+| Disk Performance | 5,000+ random IOPS per disk (SSD/NVMe). Management nodes (first three nodes) must be [fast enough for etcd](https://www.ibm.com/cloud/blog/using-fio-to-tell-whether-your-storage-is-fast-enough-for-etcd) |
+| Network Card | 1 Gbps Ethernet minimum for testing; 10Gbps Ethernet recommended for production                                                                                                                            |
+| Network Switch | Trunking of ports required for VLAN support                                                                                                                                                                |
 
 We recommend server-class hardware for best results. Laptops and nested virtualization are not officially supported.
 
@@ -58,8 +58,10 @@ During the installation, you can either choose to form a new cluster, or join th
 ![iso-install.png](./docs/assets/iso-install.png)
 1. Choose the installation mode by either creating a new Harvester cluster, or by joining an existing one.
 1. Choose the installation device on which the Harvester will be installed to.
-1. Configure the hostname and select the network interface for the management network. By default, Harvester will create a bonded NIC named `harvester-mgmt`, and the IP address can either be configured via DHCP or a static method.
-![iso-installed.png](./docs/assets/iso-nic-config.gif)
+1. Recommended choosing a separate disk for storing VM data.
+![iso-install-disk.png](./docs/assets/iso-select-data-disk.png )
+1. Configure the hostname and select the network interface for the management network. By default, Harvester will create a bonded NIC named `mgmt-bo`, and the IP address can either be configured via DHCP or a static method.
+![iso-installed.png](./docs/assets/iso-nic-config.png)
 1. (Optional) Configure the DNS servers. Use commas as a delimiter.
 1. Configure the `Virtual IP` which you can use to access the cluster or join the other nodes to the cluster.
 1. Configure the `cluster token`. This token will be used for adding other nodes to the cluster.
