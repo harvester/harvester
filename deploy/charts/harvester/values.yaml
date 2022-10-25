@@ -464,4 +464,5 @@ harvester-node-manager:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/harvester-node-manager
-    tag: v0.1.1
+    tag: v0.1.2
+
