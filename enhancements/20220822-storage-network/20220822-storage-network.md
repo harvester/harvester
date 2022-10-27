@@ -61,7 +61,7 @@ Users want to rollback the config back to default
 5. Controller will shut down management pods attached to Longhorn volumes and check all volumes are detached.
 6. Controller will set `storage-network` config to Longhorn settings `storage-network`.
 7. Controller will restart management pods.
-8. Users need to restart VM manually.
+8. Users need to start VM manually.
 
 ### API changes
 
@@ -71,12 +71,12 @@ Users want to rollback the config back to default
 
 ### Implementation Overview
 
-- Re-use VLAN Bridge from VLAN enhancement
+- Re-use VLAN Bridge from VLAN enhancement.
 - Introduce IPAM [Whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts) to be a global IPAM for Longhorn Pods.
-- Create a Network Attachment Definition with plugin bridge and Whereabouts IPAM
+- Create a Network Attachment Definition with plugin bridge and Whereabouts IPAM.
 - According to [Longhorn storage network limitation](https://longhorn.io/docs/1.3.1/advanced-resources/deploy/storage-network/), users should not modify NAD after setting in Longhorn settings.
 - Controller will create NAD for storage-network, and remove old NAD.
-- Controller will sync storage-network config to Longhorn storage-network setting
+- Controller will sync storage-network config to Longhorn storage-network setting.
 
 ### Controller Flow Chart
 
@@ -133,15 +133,15 @@ Users want to rollback the config back to default
 
 #### apply network
 
-1. Shutdown all VMs
-2. install whereabouts charts https://github.com/harvester/harvester/pull/2716
+1. Shutdown all VMs.
+2. Install whereabouts charts https://github.com/harvester/harvester/pull/2716
 3. setup VLAN config and ClusterNetwork
 4. add Settings named "storage-network" with the VLAN ID, ClusterNetwork, and IP Range in Harvester settings
 5. wait and check Longhorn settings "storage-network" is synced.
 6. check Longhorn `instance-manager-e-XXXX` has an interface named "lhnet1"
 7. check settings named "storage-network" status is completed.
 
-#### restore to default
+#### Restore to default
 
 1. Shutdown all VMs
 2. change Settings named "storage-network" with an empty string in Harvester settings
