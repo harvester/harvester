@@ -28,7 +28,7 @@ var (
 	UISource                = NewSetting(UISourceSettingName, "auto") // Options are 'auto', 'external' or 'bundled'
 	UIPluginIndex           = NewSetting(UIPluginIndexSettingName, DefaultUIPluginURL)
 	VolumeSnapshotClass     = NewSetting(VolumeSnapshotClassSettingName, "longhorn")
-	BackupTargetSet         = NewSetting(BackupTargetSettingName, InitBackupTargetToString())
+	BackupTargetSet         = NewSetting(BackupTargetSettingName, "")
 	UpgradableVersions      = NewSetting("upgradable-versions", "")
 	UpgradeCheckerEnabled   = NewSetting("upgrade-checker-enabled", "true")
 	UpgradeCheckerURL       = NewSetting("upgrade-checker-url", "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
