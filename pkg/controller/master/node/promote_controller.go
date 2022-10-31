@@ -457,6 +457,11 @@ func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
 							Operator: corev1.TolerationOpExists,
 							Effect:   corev1.TaintEffectNoSchedule,
 						},
+						{
+							Key:      corev1.TaintNodeUnreachable,
+							Operator: corev1.TolerationOpExists,
+							Effect:   corev1.TaintEffectNoSchedule,
+						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
 					Volumes: []corev1.Volume{{
