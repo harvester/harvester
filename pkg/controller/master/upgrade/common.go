@@ -178,7 +178,7 @@ func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
 			},
 			Upgrade: &upgradev1.ContainerSpec{
 				Image:   fmt.Sprintf("%s:%s", upgradeImageRepository, imageVersion),
-				Command: []string{"upgrade_node.sh"},
+				Command: []string{"do_upgrade_node.sh"},
 				Args:    []string{"prepare"},
 				Env: []corev1.EnvVar{
 					{
@@ -230,7 +230,7 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo, nodeN
 						{
 							Name:    "apply",
 							Image:   fmt.Sprintf("%s:%s", upgradeImageRepository, imageVersion),
-							Command: []string{"upgrade_node.sh"},
+							Command: []string{"do_upgrade_node.sh"},
 							Args:    []string{jobType},
 							Env: []corev1.EnvVar{
 								{

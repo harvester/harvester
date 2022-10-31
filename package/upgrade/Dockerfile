@@ -15,6 +15,7 @@ RUN curl -sfL https://github.com/kubevirt/kubevirt/releases/download/v0.49.0/vir
     curl -sfL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -o /usr/bin/yq && chmod +x /usr/bin/yq && \
     curl -sfL https://github.com/rancher/wharfie/releases/latest/download/wharfie-amd64  -o /usr/bin/wharfie && chmod +x /usr/bin/wharfie
 
+COPY do_upgrade_node.sh /usr/local/bin/
 COPY upgrade_node.sh /usr/local/bin/
 COPY upgrade_manifests.sh /usr/local/bin/
 COPY lib.sh /usr/local/bin
