@@ -56,12 +56,11 @@ Users want to rollback the config back to default
 
 1. Users have to shutdown all VMs and stop all VMI before setting `storage-network` in Harvester settings
 2. Users need to create a VLAN Config with ClusterNetwork name and ensure the cluster network and VLAN config cover all nodes and network connectivity is expected.
-3. Users have to ensure the Cluster Network is configured and VLAN Config will cover all nodes and ensure the network connectivity is working and expected in all nodes.
-4. Users need to assign ClusterNetwork, VLAN ID, IP Range in storage-network settings
-5. Controller will shut down management pods attached to Longhorn volumes and check all volumes are detached.
-6. Controller will set `storage-network` config to Longhorn settings `storage-network`.
-7. Controller will restart management pods.
-8. Users need to start VM manually.
+3. Users need to assign ClusterNetwork, VLAN ID, IP Range in storage-network settings
+4. Controller will shut down management pods attached to Longhorn volumes and check all volumes are detached.
+5. Controller will set `storage-network` config to Longhorn settings `storage-network`.
+6. Controller will restart management pods.
+7. Users need to restart VM manually.
 
 ### API changes
 
