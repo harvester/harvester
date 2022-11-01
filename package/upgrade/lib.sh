@@ -116,20 +116,31 @@ detect_repo()
 
 check_version()
 {
-  CURRENT_VERSION=${UPGRADE_PREVIOUS_VERSION#v}
-  MIN_UPGRADABLE_VERSION=${REPO_HARVESTER_MIN_UPGRADABLE_VERSION#v}
+  local current_version="${UPGRADE_PREVIOUS_VERSION#v}"
+  local min_upgradable_version="${REPO_HARVESTER_MIN_UPGRADABLE_VERSION#v}"
 
-  echo "Current version: $CURRENT_VERSION"
-  echo "Minimum upgradable version: $MIN_UPGRADABLE_VERSION"
+  local is_rc=0
+  [[ "$current_version" =~ "-rc" ]] && is_rc=1
 
-  if [ -z "$MIN_UPGRADABLE_VERSION" ]; then
+  echo "Current version: $current_version"
+  echo "Minimum upgradable version: $min_upgradable_version"
+
+  if [ "$is_rc" = "1" ]; then
+    local current_version_rc_stripped="${current_version%-rc*}"
+    if [ "$current_version_rc_stripped" = "$min_upgradable_version" ]; then
+      echo "Current version is not supported. Abort the upgrade."
+      exit 1
+    fi
+  fi
+
+  if [ -z "$min_upgradable_version" ]; then
     echo "No restriction."
   else
-    VERSIONS_TO_COMPARE="${MIN_UPGRADABLE_VERSION}
-${CURRENT_VERSION}"
+    local versions_to_compare="$min_upgradable_version
+$current_version"
 
-  # Current Harvester version should be newer or equal to minimum upgradable version
-    if [ "$VERSIONS_TO_COMPARE" = "$(sort -V <<< "$VERSIONS_TO_COMPARE")" ]; then
+    # Current Harvester version should be newer or equal to minimum upgradable version
+    if [ "$versions_to_compare" = "$(sort -V <<< "$versions_to_compare")" ]; then
       echo "Current version is supported."
     else
       echo "Current version is not supported. Abort the upgrade."
