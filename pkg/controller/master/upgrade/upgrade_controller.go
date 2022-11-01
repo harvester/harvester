@@ -222,25 +222,9 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 
 		logrus.Info("Check minimum upgradable version")
 		minUpgradableVersion := repoInfo.Release.MinUpgradableVersion
-		if minUpgradableVersion == "" {
-			logrus.Debug("No minimum upgradable version specified, continue the upgrading")
-		} else {
-			constraint := fmt.Sprintf(">= %s", minUpgradableVersion)
-
-			c, err := semverv3.NewConstraint(constraint)
-			if err != nil {
-				return nil, err
-			}
-			v, err := semverv3.NewVersion(upgrade.Status.PreviousVersion)
-			if err != nil {
-				return nil, err
-			}
-
-			if a := c.Check(v); !a {
-				message := fmt.Sprintf("The current version %s is less than the minimum upgradable version %s.", upgrade.Status.PreviousVersion, minUpgradableVersion)
-				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, "Current version not supported.", message)
-				return h.upgradeClient.Update(toUpdate)
-			}
+		if err := isVersionUpgradable(toUpdate, minUpgradableVersion); err != nil {
+			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+			return h.upgradeClient.Update(toUpdate)
 		}
 
 		logrus.Debug("Start preparing nodes for upgrade")
@@ -508,4 +492,28 @@ func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*RepoInfo, error) {
 		return nil, err
 	}
 	return repoInfo, nil
+}
+
+func isVersionUpgradable(upgrade *harvesterv1.Upgrade, minUpgradableVersion string) error {
+	if minUpgradableVersion == "" {
+		logrus.Debug("No minimum upgradable version specified, continue the upgrading")
+	} else {
+		// to enable comparisons against prerelease versions
+		constraint := fmt.Sprintf(">= %s-z", minUpgradableVersion)
+
+		c, err := semverv3.NewConstraint(constraint)
+		if err != nil {
+			return err
+		}
+		v, err := semverv3.NewVersion(upgrade.Status.PreviousVersion)
+		if err != nil {
+			return err
+		}
+
+		if a := c.Check(v); !a {
+			message := fmt.Sprintf("The current version %s is less than the minimum upgradable version %s.", upgrade.Status.PreviousVersion, minUpgradableVersion)
+			return fmt.Errorf("%s", message)
+		}
+	}
+	return nil
 }
