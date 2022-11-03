@@ -231,6 +231,20 @@ detect_upgrade()
   UPGRADE_PREVIOUS_VERSION=$(echo "$upgrade_obj" | yq e .status.previousVersion -)
 }
 
+# refer https://github.com/harvester/harvester/issues/3098
+detect_node_current_harvester_version()
+{
+  NODE_CURRENT_HARVESTER_VERSION=""
+  local harvester_release_file=/host/etc/harvester-release.yaml
+
+  if [ -f "$harvester_release_file" ]; then
+    NODE_CURRENT_HARVESTER_VERSION=$(yq e '.harvester' $harvester_release_file)
+    echo "NODE_CURRENT_HARVESTER_VERSION is: $NODE_CURRENT_HARVESTER_VERSION"
+  else
+    echo "$harvester_release_file is not existing, NODE_CURRENT_HARVESTER_VERSION is set as empty"
+  fi
+}
+
 upgrade_addon()
 {
   local name=$1
