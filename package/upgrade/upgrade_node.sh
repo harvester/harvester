@@ -5,6 +5,15 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 source $SCRIPT_DIR/lib.sh
 UPGRADE_TMP_DIR=$HOST_DIR/usr/local/upgrade_tmp
 
+trap clean_up_tmp_files EXIT
+
+clean_up_tmp_files()
+{
+  echo "Clean up large tmp files..."
+  \rm -vf "$NEW_OS_SQUASHFS_IMAGE_FILE"
+  \rm -vf "$tmp_rootfs_squashfs"
+}
+
 # Create a systemd service on host to reboot the host if this running pod succeeds.
 # This prevents job become from entering `Error`.
 reboot_if_job_succeed()
@@ -429,7 +438,7 @@ upgrade_os() {
   tmp_rootfs_mount=$(mktemp -d -p $HOST_DIR/tmp)
   mount $tmp_rootfs_squashfs $tmp_rootfs_mount
 
-  chroot $HOST_DIR elemental upgrade --directory ${tmp_rootfs_mount#"$HOST_DIR"}
+  chroot $HOST_DIR elemental upgrade --logfile "${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log" --directory ${tmp_rootfs_mount#"$HOST_DIR"}
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
