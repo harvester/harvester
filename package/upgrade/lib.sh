@@ -8,10 +8,24 @@ UPGRADE_REPO_BUNDLE_METADATA="$UPGRADE_REPO_URL/bundle/metadata.yaml"
 CACHED_BUNDLE_METADATA=""
 HOST_DIR="${HOST_DIR:-/host}"
 
+download_file()
+{
+  local url=$1
+  local output=$2
+
+  local i=0
+  until curl -sfL "$url" -o "$output"
+  do
+    i=$((i + 1))
+    echo "Cannot download the requested file \"$output\" from \"$url\", retrying ($i)..."
+    sleep 10
+  done
+}
+
 detect_repo()
 {
   release_file=$(mktemp --suffix=.yaml)
-  curl -sfL $UPGRADE_REPO_RELEASE_FILE -o $release_file
+  download_file "$UPGRADE_REPO_RELEASE_FILE" "$release_file"
 
   REPO_HARVESTER_VERSION=$(yq -e e '.harvester' $release_file)
   REPO_HARVESTER_CHART_VERSION=$(yq -e e '.harvesterChart' $release_file)
@@ -96,7 +110,7 @@ detect_repo()
   fi
 
   CACHED_BUNDLE_METADATA=$(mktemp --suffix=.yaml)
-  curl -sfL "$UPGRADE_REPO_BUNDLE_METADATA" -o "$CACHED_BUNDLE_METADATA"
+  download_file "$UPGRADE_REPO_BUNDLE_METADATA" "$CACHED_BUNDLE_METADATA"
 }
 
 check_version()
@@ -200,11 +214,11 @@ download_image_archives_from_repo() {
       archive_file="$save_dir/$(basename $archive)"
 
       if [ ! -e $image_list_file ]; then
-        curl -fL $image_list_url -o $image_list_file
+        download_file "$image_list_url" "$image_list_file"
       fi
 
       if [ ! -e $archive_file ]; then
-        curl -fL $archive_url -o $archive_file
+        download_file "$archive_url" "$archive_file"
       fi
     done
 }

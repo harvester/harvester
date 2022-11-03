@@ -423,7 +423,7 @@ upgrade_os() {
     tmp_rootfs_squashfs="$NEW_OS_SQUASHFS_IMAGE_FILE"
   else
     tmp_rootfs_squashfs=$(mktemp -p $UPGRADE_TMP_DIR)
-    curl -fL $UPGRADE_REPO_SQUASHFS_IMAGE -o $tmp_rootfs_squashfs
+    download_file "$UPGRADE_REPO_SQUASHFS_IMAGE" "$tmp_rootfs_squashfs"
   fi
 
   tmp_rootfs_mount=$(mktemp -d -p $HOST_DIR/tmp)
@@ -474,7 +474,7 @@ command_single_node_upgrade() {
 
   # Copy OS things, we need to shutdown repo VMs.
   NEW_OS_SQUASHFS_IMAGE_FILE=$(mktemp -p $UPGRADE_TMP_DIR)
-  curl -fL $UPGRADE_REPO_SQUASHFS_IMAGE -o $NEW_OS_SQUASHFS_IMAGE_FILE
+  download_file "$UPGRADE_REPO_SQUASHFS_IMAGE" "$NEW_OS_SQUASHFS_IMAGE_FILE"
 
   # Stop all VMs
   shutdown_all_vms
