@@ -9,7 +9,11 @@ trap clean_up_tmp_files EXIT
 
 clean_up_tmp_files()
 {
-  echo "Clean up large tmp files..."
+  if [ -n "$tmp_rootfs_mount" ]; then
+    echo "Try to unmount $tmp_rootfs_mount..."
+    umount $tmp_rootfs_mount || echo "Umount $tmp_rootfs_mount failed with return code: $?"
+  fi
+  echo "Clean up tmp files..."
   \rm -vf "$NEW_OS_SQUASHFS_IMAGE_FILE"
   \rm -vf "$tmp_rootfs_squashfs"
 }
@@ -438,7 +442,14 @@ upgrade_os() {
   tmp_rootfs_mount=$(mktemp -d -p $HOST_DIR/tmp)
   mount $tmp_rootfs_squashfs $tmp_rootfs_mount
 
-  chroot $HOST_DIR elemental upgrade --logfile "${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log" --directory ${tmp_rootfs_mount#"$HOST_DIR"}
+  elemental_upgrade_log="${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log"
+  local ret=0
+  chroot $HOST_DIR elemental upgrade --logfile "$elemental_upgrade_log" --directory ${tmp_rootfs_mount#"$HOST_DIR"} || ret=$?
+  if [ "$ret" != 0 ]; then
+    echo "elemental upgrade failed with return code: $ret"
+    cat "$HOST_DIR$elemental_upgrade_log"
+    exit "$ret"
+  fi
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
