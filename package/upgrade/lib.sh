@@ -14,9 +14,10 @@ download_file()
   local output=$2
 
   local i=1
+  echo "Downloading the file from \"$url\" to \"$output\"..."
   until curl -sSfL "$url" -o "$output"
   do
-    echo "Failed to download the requested file \"$output\" from \"$url\" with error code: $?, retrying ($i)..."
+    echo "Failed to download the requested file from \"$url\" to \"$output\" with error code: $?, retrying ($i)..."
     sleep 10
     i=$((i + 1))
   done
