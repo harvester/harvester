@@ -14,7 +14,13 @@ download_file()
   local output=$2
 
   echo "Downloading the file from \"$url\" to \"$output\"..."
-  curl -sSfL --retry 10 --retry-connrefused "$url" -o "$output"
+  local i=0
+  while [[ "$i" -lt 100 ]]; do
+    curl -sSfL "$url" -o "$output" && break
+    echo "Failed to download the requested file from \"$url\" to \"$output\" with error code: $?, retrying ($i)..."
+    sleep 10
+    i=$((i + 1))
+  done
 }
 
 detect_repo()
