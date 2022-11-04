@@ -100,10 +100,12 @@ wait_capi_cluster() {
 
     if [ "$current_generation" -gt "$generation" ]; then
       if [ "$current_phase" = "Provisioned" ]; then
+        echo "CAPI cluster $namespace/$name is provisioned (current generation: $current_generation)."
         break
       fi
     fi
 
+    echo "Waiting for CAPI cluster $namespace/$name to be provisioned (current phase: $current_phase, current generation: $current_generation)..."
     sleep 5
   done
 }
