@@ -5,8 +5,6 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 source $SCRIPT_DIR/lib.sh
 UPGRADE_TMP_DIR=$HOST_DIR/usr/local/upgrade_tmp
 
-trap clean_up_tmp_files EXIT
-
 clean_up_tmp_files()
 {
   if [ -n "$tmp_rootfs_mount" ]; then
@@ -14,8 +12,8 @@ clean_up_tmp_files()
     umount $tmp_rootfs_mount || echo "Umount $tmp_rootfs_mount failed with return code: $?"
   fi
   echo "Clean up tmp files..."
-  \rm -vf "$NEW_OS_SQUASHFS_IMAGE_FILE"
-  \rm -vf "$tmp_rootfs_squashfs"
+  [[ -n "$NEW_OS_SQUASHFS_IMAGE_FILE" ]] && \rm -vf "$NEW_OS_SQUASHFS_IMAGE_FILE"
+  [[ -n "$tmp_rootfs_squashfs" ]] && \rm -vf "$tmp_rootfs_squashfs"
 }
 
 # Create a systemd service on host to reboot the host if this running pod succeeds.
@@ -421,6 +419,9 @@ EOF
 }
 
 upgrade_os() {
+  # The trap will be only effective from this point to the end of the execution
+  trap clean_up_tmp_files EXIT
+
   CURRENT_OS_VERSION=$(source $HOST_DIR/etc/os-release && echo $PRETTY_NAME)
 
   if [ "$REPO_OS_PRETTY_NAME" = "$CURRENT_OS_VERSION" ]; then
