@@ -56,9 +56,15 @@ func (v *virtualMachineBackupValidator) Create(request *types.Request, newObj ru
 		return werror.NewInvalidError("source VM name is empty", fieldSourceName)
 	}
 
-	_, err := v.vms.Get(newVMBackup.Namespace, newVMBackup.Spec.Source.Name)
-	if err != nil {
-		return werror.NewInvalidError(err.Error(), fieldSourceName)
+	var err error
+
+	// If VMBackup is from metadata in backup target, we don't check whether the VM is existent,
+	// because the related VM may not exist in a new cluster.
+	if newVMBackup.Status == nil {
+		_, err = v.vms.Get(newVMBackup.Namespace, newVMBackup.Spec.Source.Name)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), fieldSourceName)
+		}
 	}
 
 	if newVMBackup.Spec.Type == v1beta1.Backup {
