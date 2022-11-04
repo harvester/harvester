@@ -115,6 +115,10 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy
 									Name:  "SUPPORT_BUNDLE_EXCLUDE_RESOURCES",
 									Value: m.getExcludeResources(),
 								},
+								{
+									Name:  "SUPPORT_BUNDLE_EXTRA_COLLECTORS",
+									Value: m.getExtraCollectors(),
+								},
 							},
 							Ports: []corev1.ContainerPort{
 								{
@@ -166,6 +170,11 @@ func (m *Manager) getExcludeResources() string {
 	resources = append(resources, rancherv3.Resource(rancherv3.UserResourceName).String())
 
 	return strings.Join(resources, ",")
+}
+
+func (m *Manager) getExtraCollectors() string {
+	extraCollectors := []string{"harvester"}
+	return strings.Join(extraCollectors, ",")
 }
 
 func (m *Manager) GetStatus(sb *harvesterv1.SupportBundle) (*types.ManagerStatus, error) {
