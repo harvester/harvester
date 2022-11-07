@@ -1,6 +1,7 @@
 #!/bin/bash -ex
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+ELEMENTAL_DIR="elemental_cli"
 
 source $SCRIPT_DIR/lib.sh
 UPGRADE_TMP_DIR=$HOST_DIR/usr/local/upgrade_tmp
@@ -10,6 +11,10 @@ clean_up_tmp_files()
   if [ -n "$tmp_rootfs_mount" ]; then
     echo "Try to unmount $tmp_rootfs_mount..."
     umount $tmp_rootfs_mount || echo "Umount $tmp_rootfs_mount failed with return code: $?"
+  fi
+  if [ -n "$target_elemental_cli" ]; then
+    echo "Try to unmount $target_elemental_cli..."
+    umount $target_elemental_cli || echo "Umount $target_elemental_cli failed with return code: $?"
   fi
   echo "Clean up tmp files..."
   [[ -n "$NEW_OS_SQUASHFS_IMAGE_FILE" ]] && \rm -vf "$NEW_OS_SQUASHFS_IMAGE_FILE"
@@ -430,9 +435,6 @@ upgrade_os() {
   fi
   
   # upgrade OS image and reboot
-  mount --rbind $HOST_DIR/dev /dev
-  mount --rbind $HOST_DIR/run /run
-
   if [ -n "$NEW_OS_SQUASHFS_IMAGE_FILE" ]; then
     tmp_rootfs_squashfs="$NEW_OS_SQUASHFS_IMAGE_FILE"
   else
@@ -443,18 +445,21 @@ upgrade_os() {
   tmp_rootfs_mount=$(mktemp -d -p $HOST_DIR/tmp)
   mount $tmp_rootfs_squashfs $tmp_rootfs_mount
 
+  # replace the fixed elemental CLI for fix elemental upgrade issues
+  new_elemental_cli=$SCRIPT_DIR/$ELEMENTAL_DIR/elemental
+  target_elemental_cli=$HOST_DIR/usr/bin/elemental
   elemental_upgrade_log="${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log"
   local ret=0
+  mount --bind $new_elemental_cli $target_elemental_cli
   chroot $HOST_DIR elemental upgrade --logfile "$elemental_upgrade_log" --directory ${tmp_rootfs_mount#"$HOST_DIR"} || ret=$?
   if [ "$ret" != 0 ]; then
     echo "elemental upgrade failed with return code: $ret"
     cat "$HOST_DIR$elemental_upgrade_log"
     exit "$ret"
   fi
+  umount $target_elemental_cli
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
-
-  umount -R /run
 
   reboot_if_job_succeed
 }
