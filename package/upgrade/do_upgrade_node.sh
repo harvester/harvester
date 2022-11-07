@@ -27,7 +27,7 @@ until $SCRIPT_DIR/upgrade_node.sh $@; do
     exit 0
   fi
 
-  echo "[$(date)] Running \"upgrade_node.sh $*\" errors, will retry ($retries retries)..."
-  sleep 60
+  echo "[$(date)] Running \"upgrade_node.sh $*\" errors, will retry after 10 minutes ($retries retries)..."
+  sleep 10m
   retries=$((retries+1))
 done
