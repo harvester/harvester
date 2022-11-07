@@ -25,7 +25,13 @@ func (h *Handler) syncVipPoolsConfig(setting *harvesterv1.Setting) error {
 
 	poolsData := make(map[string]string, len(pools))
 	for ns, pool := range pools {
-		k := fmt.Sprintf("cidr-%s", ns)
+		var prefix string
+		if strings.Contains(pool, "-") {
+			prefix = "range"
+		} else {
+			prefix = "cidr"
+		}
+		k := fmt.Sprintf("%s-%s", prefix, ns)
 		poolsData[k] = pool
 	}
 
@@ -58,11 +64,29 @@ func (h *Handler) syncVipPoolsConfig(setting *harvesterv1.Setting) error {
 }
 
 func ValidateCIDRs(pools map[string]string) error {
-	for ns, v := range pools {
-		cidrs := strings.Split(v, ",")
-		for _, cidr := range cidrs {
-			if _, _, err := net.ParseCIDR(cidr); err != nil {
-				return fmt.Errorf("invalid CIDR value %s of %s, error: %s", v, ns, err.Error())
+	for ns, pool := range pools {
+		if strings.Contains(pool, "-") && strings.Contains(pool, "/") {
+			return fmt.Errorf("invalid Pool value %s of %s, error: IP Range and CIDR cannot be used together", pool, ns)
+		}
+		cidrOrIPRanges := strings.Split(pool, ",")
+		for _, cidrOrIPRange := range cidrOrIPRanges {
+			if strings.HasPrefix(cidrOrIPRange, "-") || strings.HasSuffix(cidrOrIPRange, "-") {
+				return fmt.Errorf("invalid IP Range value %s of %s", pool, ns)
+			}
+			ipRange := strings.Split(cidrOrIPRange, "-")
+			switch len(ipRange) {
+			case 1:
+				if _, _, err := net.ParseCIDR(cidrOrIPRange); err != nil {
+					return fmt.Errorf("invalid CIDR value %s of %s, error: %s", pool, ns, err.Error())
+				}
+			case 2:
+				for _, ipAddr := range ipRange {
+					if ip := net.ParseIP(ipAddr); ip == nil || ip.To4() == nil {
+						return fmt.Errorf("invalid IP value %s of %s", pool, ns)
+					}
+				}
+			default:
+				return fmt.Errorf("invalid IP Range value %s of %s", pool, ns)
 			}
 		}
 	}

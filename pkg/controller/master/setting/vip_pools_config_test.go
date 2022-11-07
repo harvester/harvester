@@ -44,13 +44,15 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: vipPools,
 					},
-					Value: `{"default":"172.16.1.0/24","test":"172.16.2.0/24"}`,
+					Value: `{"default":"172.16.1.0/24","test":"172.16.2.0/24","foo":"172.16.3.1-172.16.3.10","bar":"172.16.4.10-172.16.3.1"}`,
 				},
 			},
 			expected: output{
 				pools: map[string]string{
 					"cidr-default": "172.16.1.0/24",
 					"cidr-test":    "172.16.2.0/24",
+					"range-foo":    "172.16.3.1-172.16.3.10",
+					"range-bar":    "172.16.4.10-172.16.3.1",
 				},
 				err: nil,
 			},
@@ -63,19 +65,21 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: vipPools,
 					},
-					Value: `{"default":"172.16.1.0/24,192.168.10.0/24","test":"172.16.2.0/24,192.168.20.0/24"}`,
+					Value: `{"default":"172.16.1.0/24,192.168.10.0/24","test":"172.16.2.0/24,192.168.20.0/24","foo":"172.16.3.1-172.16.3.10,192.168.30.1-192.168.30.10","bar":"172.16.4.10-172.16.3.1,192.168.40.10-192.168.40.1"}`,
 				},
 			},
 			expected: output{
 				pools: map[string]string{
 					"cidr-default": "172.16.1.0/24,192.168.10.0/24",
 					"cidr-test":    "172.16.2.0/24,192.168.20.0/24",
+					"range-foo":    "172.16.3.1-172.16.3.10,192.168.30.1-192.168.30.10",
+					"range-bar":    "172.16.4.10-172.16.3.1,192.168.40.10-192.168.40.1",
 				},
 				err: nil,
 			},
 		},
 		{
-			name: "incorrect ip pools input, should fail",
+			name: "incorrect cidr input 1, should fail",
 			given: input{
 				setting: &harvesterv1.Setting{
 					Value: `{"default": "172.16.1.0/242", "test": "1000.16.2.0/24"}`,
@@ -83,7 +87,91 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 			},
 			expected: output{
 				pools: nil,
-				err:   errors.New("invalid CIDR value"),
+				err:   errors.New("invalid CIDR value 172.16.1.0/242 of default, error: invalid CIDR address: 172.16.1.0/242"),
+			},
+		},
+		{
+			name: "incorrect cidr input 2, should fail",
+			given: input{
+				setting: &harvesterv1.Setting{
+					Value: `{"test": "1000.16.2.0/24"}`,
+				},
+			},
+			expected: output{
+				pools: nil,
+				err:   errors.New("invalid CIDR value 1000.16.2.0/24 of test, error: invalid CIDR address: 1000.16.2.0/24"),
+			},
+		},
+		{
+			name: "incorrect ip input 1, should fail",
+			given: input{
+				setting: &harvesterv1.Setting{
+					Value: `{"foo": "172.16.3.1000-172.16.3.10"}`,
+				},
+			},
+			expected: output{
+				pools: nil,
+				err:   errors.New("invalid IP value 172.16.3.1000-172.16.3.10 of foo"),
+			},
+		},
+		{
+			name: "incorrect ip input 2, should fail",
+			given: input{
+				setting: &harvesterv1.Setting{
+					Value: `{"bar": "172.16.4.10-::ac10:0401"}`,
+				},
+			},
+			expected: output{
+				pools: nil,
+				err:   errors.New("invalid IP value 172.16.4.10-::ac10:0401 of bar"),
+			},
+		},
+		{
+			name: "incorrect ip range input 1, should fail",
+			given: input{
+				setting: &harvesterv1.Setting{
+					Value: `{"bar": "172.16.4.10-"}`,
+				},
+			},
+			expected: output{
+				pools: nil,
+				err:   errors.New("invalid IP Range value 172.16.4.10- of bar"),
+			},
+		},
+		{
+			name: "incorrect ip range input 2, should fail",
+			given: input{
+				setting: &harvesterv1.Setting{
+					Value: `{"bar": "-172.16.4.10-172.16.4.1"}`,
+				},
+			},
+			expected: output{
+				pools: nil,
+				err:   errors.New("invalid IP Range value -172.16.4.10-172.16.4.1 of bar"),
+			},
+		},
+		{
+			name: "incorrect ip range input 3, should fail",
+			given: input{
+				setting: &harvesterv1.Setting{
+					Value: `{"bar": "172.16.4.10-172.16.4.1-192.168.40.10"}`,
+				},
+			},
+			expected: output{
+				pools: nil,
+				err:   errors.New("invalid IP Range value 172.16.4.10-172.16.4.1-192.168.40.10 of bar"),
+			},
+		},
+		{
+			name: "incorrect pool input, should fail",
+			given: input{
+				setting: &harvesterv1.Setting{
+					Value: `{"bar": "172.16.4.10-172.16.4.1,172.16.1.0/24"}`,
+				},
+			},
+			expected: output{
+				pools: nil,
+				err:   errors.New("invalid Pool value 172.16.4.10-172.16.4.1,172.16.1.0/24 of bar, error: IP Range and CIDR cannot be used together"),
 			},
 		},
 	}
@@ -97,7 +185,7 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 		var actual output
 		actual.err = ValidateCIDRs(pools)
 		if strings.Contains(tc.name, "fail") {
-			assert.Errorf(t, actual.err, "invalid CIDR value")
+			assert.EqualError(t, actual.err, tc.expected.err.Error())
 			continue
 		} else {
 			assert.NoError(t, actual.err)
