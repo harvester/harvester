@@ -1,3 +1,13 @@
+FROM registry.suse.com/bci/bci-base:15.3 AS temp_elemental
+
+RUN zypper rm -y container-suseconnect && \
+    zypper ar --priority=200 http://download.opensuse.org/distribution/leap/15.3/repo/oss repo-oss && \
+    zypper --no-gpg-checks ref && \
+    zypper in -y curl tar gzip && zypper clean -a
+
+RUN mkdir -p /tmp/elemental_cli && \
+    curl -sfL https://github.com/rancher/elemental-cli/releases/download/v0.0.14-harvester1/elemental-v0.0.14-harvester1-Linux-x86_64.tar.gz |tar -xz -C /tmp/elemental_cli
+
 FROM registry.suse.com/bci/bci-base:15.3
 
 ARG ARCH=amd64
@@ -14,6 +24,8 @@ RUN curl -sfL https://storage.googleapis.com/kubernetes-release/release/${KUBECT
 RUN curl -sfL https://github.com/kubevirt/kubevirt/releases/download/v0.49.0/virtctl-v0.49.0-linux-${ARCH} -o /usr/bin/virtctl && chmod +x /usr/bin/virtctl && \
     curl -sfL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -o /usr/bin/yq && chmod +x /usr/bin/yq && \
     curl -sfL https://github.com/rancher/wharfie/releases/latest/download/wharfie-amd64  -o /usr/bin/wharfie && chmod +x /usr/bin/wharfie
+
+COPY --from=temp_elemental /tmp/elemental_cli /usr/local/bin/elemental_cli
 
 COPY do_upgrade_node.sh /usr/local/bin/
 COPY upgrade_node.sh /usr/local/bin/
