@@ -273,9 +273,15 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 		return err
 	}
 	clusterToUpdate := cluster.DeepCopy()
-	clusterToUpdate.Spec.RKEConfig = &provisioningv1.RKEConfig{}
+	provisionGeneration := clusterToUpdate.Spec.RKEConfig.ProvisionGeneration
+	clusterToUpdate.Spec.RKEConfig = &provisioningv1.RKEConfig{
+		RKEClusterSpecCommon: rkev1.RKEClusterSpecCommon{
+			ProvisionGeneration: provisionGeneration,
+		},
+	}
+	logrus.Infof("Reset RKEConfig and set provisionGeneration to %d", provisionGeneration)
 	if !reflect.DeepEqual(clusterToUpdate, cluster) {
-		logrus.Debug("Update cluster fleet-local/local")
+		logrus.Info("Update cluster fleet-local/local")
 		if _, err := h.clusterClient.Update(clusterToUpdate); err != nil {
 			return err
 		}
