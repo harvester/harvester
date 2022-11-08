@@ -176,8 +176,10 @@ func (h *Handler) OnBackupRemove(key string, vmBackup *harvesterv1.VirtualMachin
 		return nil, err
 	}
 
-	if err := h.deleteVMBackupMetadata(vmBackup, target); err != nil {
-		return nil, err
+	if !target.IsDefaultBackupTarget() {
+		if err := h.deleteVMBackupMetadata(vmBackup, target); err != nil {
+			return nil, err
+		}
 	}
 
 	// Since VolumeSnapshot and VolumeSnapshotContent has finalizers,
@@ -666,17 +668,15 @@ func (h *Handler) deleteVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 	return nil
 }
 
-func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBackup, target *settings.BackupTarget) error {
-	var err error
+func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBackup) error {
 	// if users don't update VMBackup CRD, we may lose backup target data.
 	if vmBackup.Status.BackupTarget == nil {
 		return fmt.Errorf("no backup target in vmbackup.status")
 	}
 
-	if target == nil {
-		if target, err = settings.DecodeBackupTarget(settings.BackupTargetSet.Get()); err != nil {
-			return err
-		}
+	target, err := settings.DecodeBackupTarget(settings.BackupTargetSet.Get())
+	if err != nil {
+		return err
 	}
 
 	// when current backup target is default, skip following steps
@@ -852,7 +852,7 @@ func (h *Handler) handleBackupReady(vmBackup *harvesterv1.VirtualMachineBackup) 
 	}
 
 	// generate vm backup metadata and upload to backup target
-	return h.uploadVMBackupMetadata(vmBackup, nil)
+	return h.uploadVMBackupMetadata(vmBackup)
 }
 
 func (h *Handler) configureCSIDriverVolumeSnapshotClassNames(vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
