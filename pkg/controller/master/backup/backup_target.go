@@ -71,7 +71,7 @@ type TargetHandler struct {
 // OnBackupTargetChange handles backupTarget setting object on change
 func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil ||
-		setting.Name != settings.BackupTargetSettingName || setting.Value == "" {
+		setting.Name != settings.BackupTargetSettingName {
 		return setting, nil
 	}
 

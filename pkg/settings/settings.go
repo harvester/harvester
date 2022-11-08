@@ -211,8 +211,11 @@ func InitBackupTargetToString() string {
 
 func DecodeBackupTarget(value string) (*BackupTarget, error) {
 	target := &BackupTarget{}
-	if err := json.Unmarshal([]byte(value), target); err != nil {
-		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
+
+	if value != "" {
+		if err := json.Unmarshal([]byte(value), target); err != nil {
+			return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
+		}
 	}
 
 	return target, nil
