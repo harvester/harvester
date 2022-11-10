@@ -82,7 +82,7 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 			name: "incorrect cidr input 1, should fail",
 			given: input{
 				setting: &harvesterv1.Setting{
-					Value: `{"default": "172.16.1.0/242", "test": "1000.16.2.0/24"}`,
+					Value: `{"default": "172.16.1.0/242"}`,
 				},
 			},
 			expected: output{
