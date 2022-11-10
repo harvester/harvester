@@ -15,7 +15,7 @@ ENV HARVESTER_UI_PATH /usr/share/harvester/harvester
 # Please update the api-ui-version in pkg/settings/settings.go when updating the version here.
 ENV HARVESTER_API_UI_VERSION 1.1.9
 
-ENV HARVESTER_UI_PLUGIN_BUNDLED_VERSION 1.1.1-rc1
+ENV HARVESTER_UI_PLUGIN_BUNDLED_VERSION 1.1.1
 
 ARG ARCH=amd64
 ARG VERSION=dev
