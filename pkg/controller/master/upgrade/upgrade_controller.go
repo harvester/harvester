@@ -89,6 +89,7 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 	repo := NewUpgradeRepo(h.ctx, upgrade, h)
 
 	if harvesterv1.UpgradeCompleted.GetStatus(upgrade) == "" {
+		logrus.Infof("Initialize upgrade %s/%s", upgrade.Namespace, upgrade.Name)
 		if err := h.resetLatestUpgradeLabel(upgrade.Name); err != nil {
 			return nil, err
 		}
@@ -130,6 +131,13 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 		}
 		harvesterv1.ImageReady.CreateUnknownIfNotExists(toUpdate)
 		return h.upgradeClient.Update(toUpdate)
+	}
+
+	logrus.Infof("handle upgrade %s/%s with labels %v", upgrade.Namespace, upgrade.Name, upgrade.Labels)
+
+	// only run further operations for latest upgrade
+	if upgrade.Labels == nil || upgrade.Labels[harvesterLatestUpgradeLabel] != "true" {
+		return upgrade, nil
 	}
 
 	// clean upgrade repo VMs and images if a upgrade succeeds or fails.
