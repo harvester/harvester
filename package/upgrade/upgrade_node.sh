@@ -17,8 +17,14 @@ clean_up_tmp_files()
     umount $target_elemental_cli || echo "Umount $target_elemental_cli failed with return code: $?"
   fi
   echo "Clean up tmp files..."
-  [[ -n "$NEW_OS_SQUASHFS_IMAGE_FILE" ]] && \rm -vf "$NEW_OS_SQUASHFS_IMAGE_FILE"
-  [[ -n "$tmp_rootfs_squashfs" ]] && \rm -vf "$tmp_rootfs_squashfs"
+  if [ -n "$NEW_OS_SQUASHFS_IMAGE_FILE" ]; then
+    echo "Try to remove $NEW_OS_SQUASHFS_IMAGE_FILE..."
+    rm -vf "$NEW_OS_SQUASHFS_IMAGE_FILE"
+  fi
+  if [ -n "$tmp_rootfs_squashfs" ]; then
+    echo "Try to remove $tmp_rootfs_squashfs..."
+    rm -vf "$tmp_rootfs_squashfs"
+  fi
 }
 
 # Create a systemd service on host to reboot the host if this running pod succeeds.
