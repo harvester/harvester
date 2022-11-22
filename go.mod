@@ -32,6 +32,7 @@ replace (
 	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.23.7
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.23.7
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.23.7
+	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20220124234850-424119656bbf
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.23.7
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.23.7
 	k8s.io/kubectl => k8s.io/kubectl v0.23.7
@@ -74,7 +75,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.52.0
 	github.com/rancher/apiserver v0.0.0-20211025232108-df28932a5627
-	github.com/rancher/dynamiclistener v0.3.4
+	github.com/rancher/dynamiclistener v0.3.5
 	github.com/rancher/fleet/pkg/apis v0.0.0-20210918015053-5a141a6b18f0
 	github.com/rancher/lasso v0.0.0-20220519004610-700f167d8324
 	github.com/rancher/norman v0.0.0-20220520225714-4cc2f5a97011
@@ -85,13 +86,13 @@ require (
 	github.com/rancher/wharfie v0.5.3
 	github.com/rancher/wrangler v1.0.1-0.20220520195731-8eeded9bae2a
 	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.0
 	github.com/tidwall/gjson v1.9.3
 	github.com/urfave/cli v1.22.4
 	golang.org/x/crypto v0.0.0-20220321153916-2c7772ba3064
-	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+	golang.org/x/net v0.0.0-20221004154528-8021a29435af
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.7.1
 	k8s.io/api v0.24.0
 	k8s.io/apiextensions-apiserver v0.24.0
@@ -99,8 +100,8 @@ require (
 	k8s.io/apiserver v0.23.7
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/gengo v0.0.0-20211129171323-c02415ce4185
-	k8s.io/kube-openapi v0.0.0-20220124234850-424119656bbf
-	k8s.io/utils v0.0.0-20211116205334-6203023598ed
+	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1
+	k8s.io/utils v0.0.0-20221011040102-427025108f67
 	kubevirt.io/api v0.54.0
 	kubevirt.io/containerized-data-importer-api v1.47.0
 	kubevirt.io/kubevirt v0.54.0
@@ -165,7 +166,7 @@ require (
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/btree v1.0.1 // indirect
-	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/google/go-containerregistry v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
@@ -259,14 +260,13 @@ require (
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.8.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
+	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
-	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect
+	golang.org/x/sys v0.0.0-20221010170243-090e33056c14 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/text v0.3.8 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
-	golang.org/x/tools v0.1.10 // indirect
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	golang.org/x/tools v0.1.12 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220107163113-42d7afdf6368 // indirect
@@ -280,7 +280,7 @@ require (
 	k8s.io/component-base v0.23.7 // indirect
 	k8s.io/component-helpers v0.23.7 // indirect
 	k8s.io/klog v1.0.0 // indirect
-	k8s.io/klog/v2 v2.40.1 // indirect
+	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-aggregator v0.24.0 // indirect
 	k8s.io/kubectl v0.23.1 // indirect
 	k8s.io/kubernetes v1.23.6 // indirect
