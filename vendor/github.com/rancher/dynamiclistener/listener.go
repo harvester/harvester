@@ -345,8 +345,20 @@ func (l *listener) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate,
 			return nil, err
 		}
 	}
-
-	return l.loadCert(newConn)
+	connCert, err := l.loadCert(newConn)
+	if connCert != nil && err == nil && newConn != nil && l.conns != nil {
+		// if we were successfully able to load a cert and are closing connections on cert changes, mark newConn ready
+		// this will allow us to close the connection if a future connection forces the cert to re-load
+		wrapper, ok := newConn.(*closeWrapper)
+		if !ok {
+			logrus.Debugf("will not mark non-close wrapper connection from %s to %s as ready", newConn.RemoteAddr(), newConn.LocalAddr())
+			return connCert, err
+		}
+		l.connLock.Lock()
+		l.conns[wrapper.id].ready = true
+		l.connLock.Unlock()
+	}
+	return connCert, err
 }
 
 func (l *listener) updateCert(cn ...string) error {
@@ -433,7 +445,6 @@ func (l *listener) loadCert(currentConn net.Conn) (*tls.Certificate, error) {
 			}
 			_ = conn.close()
 		}
-		l.conns[currentConn.(*closeWrapper).id].ready = true
 		l.connLock.Unlock()
 	}
 
