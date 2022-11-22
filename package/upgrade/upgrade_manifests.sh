@@ -616,7 +616,7 @@ pause_all_charts() {
 
 upgrade_addons()
 {
- local is_upgrade_required=$(lower_version_check $UPGRADE_PREVIOUS_VERSION v1.1.0)
+ local is_upgrade_required=$(lower_version_check $UPGRADE_PREVIOUS_VERSION v1.1.1)
  if [ ! -z "$is_upgrade_required" ]; then
    wait_for_addons_crd
   addons="vm-import-controller pcidevices-controller"
