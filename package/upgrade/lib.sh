@@ -249,13 +249,11 @@ upgrade_addon()
 {
   local name=$1
   local namespace=$2
-  local version=$3
 
-  version=$(cat /usr/local/share/addons/${name}.yaml | yq e .spec.version)
+  patch=$(cat /usr/local/share/addons/${name}.yaml | yq '{"spec": .spec | pick(["version", "valuesContent"])}')
 
   cat > addon-patch.yaml <<EOF
-spec:
-  version: $version
+$patch
 EOF
 
   item_count=$(kubectl get addons.harvesterhci $name -n $namespace -o  jsonpath='{..name}' || true)
