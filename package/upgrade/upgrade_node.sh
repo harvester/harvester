@@ -497,6 +497,15 @@ upgrade_os() {
     cat "$HOST_DIR$elemental_upgrade_log"
     exit "$ret"
   fi
+
+  # For some firmware (e.g., Dell BOSS adapter 3022), users may get
+  # stuck on the grub file search for about 30 minutes, this can be
+  # mitigated by adding the `grubenv` file.
+  #
+  # PATCH: add /oem/grubenv if it does not exist on upgrade_path
+  GRUBENV_FILE="/oem/grubenv"
+  chroot $HOST_DIR /bin/bash -c "if ! [ -f ${GRUBENV_FILE} ]; then grub2-editenv ${GRUBENV_FILE} create; fi"
+
   umount $target_elemental_cli
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
