@@ -330,6 +330,12 @@ jobs:
             cpu: 250m
             memory: 128Mi
 
+storageClass:
+  ## Specify the default Storage Class of harvester-longhorn.
+  ## Will be set "false" when upgrading for existing default Storage Class.
+  ## defaults to "true".
+  defaultStorageClass: true
+
 harvester-network-controller:
   ## Specify to install harvester network controller,
   ## defaults to "false".

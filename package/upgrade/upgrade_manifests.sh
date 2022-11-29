@@ -394,6 +394,12 @@ EOF
 
   upgrade_managed_chart_from_version $UPGRADE_PREVIOUS_VERSION harvester harvester.yaml
   NEW_VERSION=$REPO_HARVESTER_CHART_VERSION yq e '.spec.version = strenv(NEW_VERSION)' harvester.yaml -i
+
+  local sc=$(kubectl get sc -o json | jq '.items[] | select(.metadata.annotations."storageclass.kubernetes.io/is-default-class" == "true" and .metadata.name != "harvester-longhorn")')
+  if [ -n "$sc" ] && [ "$UPGRADE_PREVIOUS_VERSION" != "v1.0.3" ]; then
+      yq e '.spec.values.storageClass.defaultStorageClass = false' -i harvester.yaml
+  fi
+
   kubectl apply -f ./harvester.yaml
 
   pause_managed_chart harvester "false"
