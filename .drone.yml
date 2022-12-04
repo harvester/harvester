@@ -381,6 +381,23 @@ steps:
     event:
       - push
 
+- name: upload_kernel_initrd_releases
+  image: plugins/github-release
+  settings:
+    prerelease: true
+    checksum:
+      - sha256
+    files:
+    - "dist/artifacts/harvester*initrd-amd64"
+    - "dist/artifacts/harvester*vmlinuz-amd64"
+    api_key:
+      from_secret: gh_token
+  when:
+    instance:
+      - drone-publish.rancher.io
+    event:
+      - tag
+
 trigger:
   event:
     - tag
