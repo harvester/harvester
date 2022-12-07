@@ -86,9 +86,12 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 }
 
 // SetOwnerOfPVCs records the target VirtualMachine as the owner of the PVCs in annotation.
-func (h *VMController) SetOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
-	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
-		return vm, nil
+func (h *VMController) SetOwnerOfPVCs(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	// add harvester finalizers
+	if !util.ContainsFinalizer(vm, harvesterUnsetOwnerOfPVCsFinalizer) {
+		vmCopy := vm.DeepCopy()
+		util.AddFinalizer(vmCopy, harvesterUnsetOwnerOfPVCsFinalizer)
+		return h.vmClient.Update(vmCopy)
 	}
 
 	pvcNames := getPVCNames(&vm.Spec.Template.Spec)
@@ -101,7 +104,6 @@ func (h *VMController) SetOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine) (
 	}
 
 	vmGVK := kubevirtv1.VirtualMachineGroupVersionKind
-	vmAPIVersion, vmKind := vmGVK.ToAPIVersionAndKind()
 	vmGK := vmGVK.GroupKind()
 
 	for _, attachedPVC := range attachedPVCs {
@@ -126,25 +128,8 @@ func (h *VMController) SetOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine) (
 			}
 		}
 
-		// remove volume's ownerReferences
-		isOwned := false
-		ownerReferences := make([]metav1.OwnerReference, 0, len(attachedPVC.OwnerReferences))
-		for _, reference := range attachedPVC.OwnerReferences {
-			if reference.APIVersion == vmAPIVersion && reference.Kind == vmKind && reference.Name == vm.Name {
-				isOwned = true
-				continue
-			}
-			ownerReferences = append(ownerReferences, reference)
-		}
-		if isOwned {
-			if len(ownerReferences) == 0 {
-				ownerReferences = nil
-			}
-			toUpdate.OwnerReferences = ownerReferences
-		}
-
 		// update volume
-		if isAttached || isOwned {
+		if isAttached {
 			if _, err = h.pvcClient.Update(toUpdate); err != nil {
 				return nil, fmt.Errorf("failed to clean schema owners for PVC(%s/%s): %w",
 					attachedPVC.Namespace, attachedPVC.Name, err)
@@ -250,10 +235,7 @@ func (h *VMController) StoreRunStrategy(_ string, vm *kubevirtv1.VirtualMachine)
 }
 
 // OnVMRemove handle related PVC and delete related VMBackup snapshot
-func (h *VMController) OnVMRemove(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
-	if vm == nil || vm.DeletionTimestamp == nil || vm.Spec.Template == nil {
-		return vm, nil
-	}
+func (h *VMController) OnVMRemove(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 
 	if err := h.unsetOwnerOfPVCs(vm); err != nil {
 		return vm, err
@@ -263,7 +245,10 @@ func (h *VMController) OnVMRemove(_ string, vm *kubevirtv1.VirtualMachine) (*kub
 		return vm, err
 	}
 
-	return vm, nil
+	// remove harvester finalizers
+	vmObj := vm.DeepCopy()
+	util.RemoveFinalizer(vmObj, harvesterUnsetOwnerOfPVCsFinalizer)
+	return h.vmClient.Update(vmObj)
 }
 
 // unsetOwnerOfPVCs erases the target VirtualMachine from the owner of the PVCs in annotation.
@@ -368,4 +353,16 @@ func getPVCNames(vmiSpecPtr *kubevirtv1.VirtualMachineInstanceSpec) sets.String 
 	}
 
 	return pvcNames
+}
+
+func (h *VMController) ManageOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	if vm == nil || vm.Spec.Template == nil {
+		return vm, nil
+	}
+
+	if vm.DeletionTimestamp == nil {
+		return h.SetOwnerOfPVCs(vm)
+	}
+
+	return h.OnVMRemove(vm)
 }
