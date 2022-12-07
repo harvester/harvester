@@ -8,11 +8,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	fake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	fakegenerated "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
@@ -30,6 +32,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 		pvcs []*corev1.PersistentVolumeClaim
 	}
 
+	var testFinalizers = []string{harvesterUnsetOwnerOfPVCsFinalizer}
 	var testCases = []struct {
 		name     string
 		given    input
@@ -58,6 +61,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 						Name:              "test",
 						UID:               "fake-vm-uid",
 						DeletionTimestamp: &metav1.Time{},
+						Finalizers:        testFinalizers,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
@@ -118,9 +122,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 				key: "default/test",
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -175,9 +180,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 			expected: output{
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -237,9 +243,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 				key: "default/test",
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 						Annotations: map[string]string{
 							util.AnnotationVolumeClaimTemplates: MustPVCTemplatesToString([]corev1.PersistentVolumeClaim{
 								{
@@ -336,9 +343,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 			expected: output{
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 						Annotations: map[string]string{
 							util.AnnotationVolumeClaimTemplates: MustPVCTemplatesToString([]corev1.PersistentVolumeClaim{
 								{
@@ -503,9 +511,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 			expected: output{
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -568,9 +577,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 				key: "default/test",
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -647,9 +657,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 			expected: output{
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -734,9 +745,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 				key: "default/test",
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -816,9 +828,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 			expected: output{
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -903,9 +916,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 				key: "default/test",
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -1004,9 +1018,10 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 			expected: output{
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Finalizers: testFinalizers,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -1106,20 +1121,31 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		var clientset = fake.NewSimpleClientset()
-		if tc.given.pvcs != nil {
-			for _, dv := range tc.given.pvcs {
-				var err = clientset.Tracker().Add(dv)
-				assert.Nil(t, err, "mock resource should add into fake controller tracker")
+		var pvcobjs, harvobjs []runtime.Object
+		for _, v := range tc.given.pvcs {
+			if tc.given.pvcs != nil {
+				pvcobjs = append(pvcobjs, v)
 			}
 		}
 
-		var ctrl = &VMController{
-			pvcClient: fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
-			pvcCache:  fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+		clientset := fake.NewSimpleClientset(pvcobjs...)
+
+		if tc.given.vm != nil {
+			harvobjs = append(harvobjs, tc.given.vm)
 		}
+
+		harvFakeClient := fakegenerated.NewSimpleClientset(harvobjs...)
+
+		var ctrl = &VMController{
+			pvcClient:      fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
+			pvcCache:       fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+			vmClient:       fakeclients.VirtualMachineClient(harvFakeClient.KubevirtV1().VirtualMachines),
+			vmBackupCache:  fakeclients.VMBackupCache(harvFakeClient.HarvesterhciV1beta1().VirtualMachineBackups),
+			vmBackupClient: fakeclients.VMBackupClient(harvFakeClient.HarvesterhciV1beta1().VirtualMachineBackups),
+		}
+
 		var actual output
-		actual.vm, actual.err = ctrl.SetOwnerOfPVCs(tc.given.key, tc.given.vm)
+		actual.vm, actual.err = ctrl.ManageOwnerOfPVCs(tc.given.key, tc.given.vm)
 		if tc.expected.pvcs != nil {
 			for _, pvc := range tc.expected.pvcs {
 				var pvcStored, err = clientset.Tracker().Get(corev1.SchemeGroupVersion.WithResource("persistentvolumeclaims"), pvc.Namespace, pvc.Name)
@@ -1143,7 +1169,7 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 		err error
 		pvc *corev1.PersistentVolumeClaim
 	}
-	var testFinalizers = []string{"wrangler.cattle.io/VMController.UnsetOwnerOfPVCs"}
+	var testFinalizers = []string{harvesterUnsetOwnerOfPVCsFinalizer}
 
 	var testCases = []struct {
 		name     string
@@ -1957,7 +1983,7 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 			pvcCache:  fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
 		}
 		if tc.given.vm != nil {
-			var hasFinalizer = sets.NewString(tc.given.vm.Finalizers...).Has("wrangler.cattle.io/VMController.UnsetOwnerOfPVCs")
+			var hasFinalizer = sets.NewString(tc.given.vm.Finalizers...).Has(harvesterUnsetOwnerOfPVCsFinalizer)
 			assert.True(t, hasFinalizer, "case %q's input is not a process target", tc.name)
 		}
 		var actual output
