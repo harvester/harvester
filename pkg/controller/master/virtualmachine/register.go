@@ -8,13 +8,13 @@ import (
 
 const (
 	vmControllerCreatePVCsFromAnnotationControllerName = "VMController.CreatePVCsFromAnnotation"
-	vmControllerSetOwnerOfPVCsControllerName           = "VMController.SetOwnerOfPVCs"
-	vmControllerUnsetOwnerOfPVCsControllerName         = "VMController.UnsetOwnerOfPVCs"
 	vmiControllerUnsetOwnerOfPVCsControllerName        = "VMIController.UnsetOwnerOfPVCs"
 	vmiControllerReconcileFromHostLabelsControllerName = "VMIController.ReconcileFromHostLabels"
 	vmControllerSetDefaultManagementNetworkMac         = "VMController.SetDefaultManagementNetworkMacAddress"
 	vmControllerStoreRunStrategyControllerName         = "VMController.StoreRunStrategyToAnnotation"
 	vmControllerSyncLabelsToVmi                        = "VMController.SyncLabelsToVmi"
+	vmControllerManagePVCOwnerControllerName           = "VMController.ManageOwnerOfPVCs"
+	harvesterUnsetOwnerOfPVCsFinalizer                 = "harvesterhci.io/VMController.UnsetOwnerOfPVCs"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -48,10 +48,9 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	virtualMachineClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
-	virtualMachineClient.OnChange(ctx, vmControllerSetOwnerOfPVCsControllerName, vmCtrl.SetOwnerOfPVCs)
+	virtualMachineClient.OnChange(ctx, vmControllerManagePVCOwnerControllerName, vmCtrl.ManageOwnerOfPVCs)
 	virtualMachineClient.OnChange(ctx, vmControllerStoreRunStrategyControllerName, vmCtrl.StoreRunStrategy)
 	virtualMachineClient.OnChange(ctx, vmControllerSyncLabelsToVmi, vmCtrl.SyncLabelsToVmi)
-	virtualMachineClient.OnRemove(ctx, vmControllerUnsetOwnerOfPVCsControllerName, vmCtrl.OnVMRemove)
 
 	// registers the vmi controller
 	var virtualMachineCache = virtualMachineClient.Cache()
