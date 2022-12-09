@@ -86,6 +86,7 @@ func main() {
 					longhornv1.Volume{},
 					longhornv1.Setting{},
 					longhornv1.Backup{},
+					longhornv1.Replica{},
 				},
 				GenerateClients: true,
 			},

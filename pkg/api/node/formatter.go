@@ -1,6 +1,7 @@
 package node
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -12,10 +13,17 @@ import (
 	"github.com/rancher/norman/httperror"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
+	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
+	kubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	longhornv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util/drainhelper"
 )
 
 const (
@@ -24,10 +32,12 @@ const (
 	disableMaintenanceModeAction = "disableMaintenanceMode"
 	cordonAction                 = "cordon"
 	uncordonAction               = "uncordon"
+	listUnhealthyVM              = "listUnhealthyVM"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
-	resource.Actions = make(map[string]string, 1)
+	resource.Actions = make(map[string]string, 2)
+	resource.AddAction(request, listUnhealthyVM)
 	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
 		return
 	}
@@ -46,8 +56,11 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 }
 
 type ActionHandler struct {
-	nodeCache  ctlcorev1.NodeCache
-	nodeClient ctlcorev1.NodeClient
+	nodeCache                   ctlcorev1.NodeCache
+	nodeClient                  ctlcorev1.NodeClient
+	longhornVolumeCache         longhornv1beta1.VolumeCache
+	longhornReplicaCache        longhornv1beta1.ReplicaCache
+	virtualMachineInstanceCache kubevirtv1.VirtualMachineInstanceCache
 }
 
 func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -74,13 +87,23 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	toUpdate := node.DeepCopy()
 	switch action {
 	case enableMaintenanceModeAction:
-		return h.enableMaintenanceMode(toUpdate)
+		var maintenanceInput MaintenanceModeInput
+		if err := json.NewDecoder(req.Body).Decode(&maintenanceInput); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+
+		if maintenanceInput.Force == "true" {
+			logrus.Infof("forced drain requested for node %s", node.Name)
+		}
+		return h.enableMaintenanceMode(toUpdate, maintenanceInput.Force)
 	case disableMaintenanceModeAction:
 		return h.disableMaintenanceMode(name)
 	case cordonAction:
 		return h.cordonUncordonNode(toUpdate, cordonAction, true)
 	case uncordonAction:
 		return h.cordonUncordonNode(toUpdate, uncordonAction, false)
+	case listUnhealthyVM:
+		return h.listUnhealthyVM(rw, toUpdate)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -95,30 +118,23 @@ func (h ActionHandler) cordonUncordonNode(node *corev1.Node, actionName string, 
 	return err
 }
 
-func (h ActionHandler) enableMaintenanceMode(node *corev1.Node) error {
-	node.Spec.Unschedulable = true
-	if !hasDrainTaint(node.Spec.Taints) {
-		node.Spec.Taints = append(node.Spec.Taints, corev1.Taint{
-			Key:    drainKey,
-			Value:  "scheduling",
-			Effect: corev1.TaintEffectNoSchedule,
-		})
-	}
-	if node.Annotations == nil {
-		node.Annotations = make(map[string]string)
-	}
-	node.Annotations[ctlnode.MaintainStatusAnnotationKey] = ctlnode.MaintainStatusRunning
-	_, err := h.nodeClient.Update(node)
-	return err
-}
-
-func hasDrainTaint(taints []corev1.Taint) bool {
-	for _, taint := range taints {
-		if taint.Key == drainKey {
-			return true
+func (h ActionHandler) enableMaintenanceMode(node *corev1.Node, force string) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		nodeObj, err := h.nodeClient.Get(node.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
 		}
-	}
-	return false
+
+		if nodeObj.Annotations == nil {
+			nodeObj.Annotations = make(map[string]string)
+		}
+		nodeObj.Annotations[drainhelper.DrainAnnotation] = "true"
+		if force == "true" {
+			nodeObj.Annotations[drainhelper.ForcedDrain] = "true"
+		}
+		_, err = h.nodeClient.Update(nodeObj)
+		return err
+	})
 }
 
 type maintenanceModeUpdateFunc func(node *corev1.Node)
@@ -132,6 +148,8 @@ func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
 				break
 			}
 		}
+		delete(node.Annotations, drainhelper.DrainAnnotation)
+		delete(node.Annotations, drainhelper.ForcedDrain)
 		delete(node.Annotations, ctlnode.MaintainStatusAnnotationKey)
 	}
 
@@ -160,5 +178,23 @@ func (h ActionHandler) retryMaintenanceModeUpdate(nodeName string, updateFunc ma
 		}
 	}
 
-	return fmt.Errorf("Fail to %s maintenance mode on node:%s", actionName, nodeName)
+	return fmt.Errorf("failed to %s maintenance mode on node:%s", actionName, nodeName)
+}
+
+func (h ActionHandler) listUnhealthyVM(rw http.ResponseWriter, node *corev1.Node) error {
+	ndc := nodedrain.ActionHelper(h.nodeCache, h.virtualMachineInstanceCache, h.longhornVolumeCache, h.longhornReplicaCache)
+	vmList, err := ndc.FindAndListVM(node)
+	if err != nil {
+		return err
+	}
+
+	var respObj ListUnhealthyVM
+
+	if len(vmList) > 0 {
+		respObj.Message = "Following unhealthy VM's will be impacted by the node drain:"
+		respObj.VMs = vmList
+	}
+
+	rw.WriteHeader(http.StatusOK)
+	return json.NewEncoder(rw).Encode(&respObj)
 }
