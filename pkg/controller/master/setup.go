@@ -3,17 +3,17 @@ package master
 import (
 	"context"
 
-	"github.com/harvester/harvester/pkg/controller/master/addon"
-
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/wrangler/pkg/leader"
 
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/controller/master/addon"
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	"github.com/harvester/harvester/pkg/controller/master/image"
 	"github.com/harvester/harvester/pkg/controller/master/keypair"
 	"github.com/harvester/harvester/pkg/controller/master/migration"
 	"github.com/harvester/harvester/pkg/controller/master/node"
+	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
 	"github.com/harvester/harvester/pkg/controller/master/rancher"
 	"github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
@@ -44,6 +44,7 @@ var registerFuncs = []registerFunc{
 	upgrade.Register,
 	addon.Register,
 	storagenetwork.Register,
+	nodedrain.Register,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {

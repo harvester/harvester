@@ -33,6 +33,7 @@ type Interface interface {
 	BackingImage() BackingImageController
 	BackingImageDataSource() BackingImageDataSourceController
 	Backup() BackupController
+	Replica() ReplicaController
 	Setting() SettingController
 	Volume() VolumeController
 }
@@ -55,6 +56,9 @@ func (c *version) BackingImageDataSource() BackingImageDataSourceController {
 }
 func (c *version) Backup() BackupController {
 	return NewBackupController(schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta1", Kind: "Backup"}, "backups", true, c.controllerFactory)
+}
+func (c *version) Replica() ReplicaController {
+	return NewReplicaController(schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta1", Kind: "Replica"}, "replicas", true, c.controllerFactory)
 }
 func (c *version) Setting() SettingController {
 	return NewSettingController(schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta1", Kind: "Setting"}, "settings", true, c.controllerFactory)

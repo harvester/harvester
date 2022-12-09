@@ -17,7 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/yaml"
@@ -37,7 +36,6 @@ var (
 	testCtxCancel         context.CancelFunc
 	harvester             *server.HarvesterServer
 
-	kubeConfig       *restclient.Config
 	KubeClientConfig clientcmd.ClientConfig
 	testCluster      cluster.Cluster
 	options          config.Options
