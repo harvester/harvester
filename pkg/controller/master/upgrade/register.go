@@ -116,7 +116,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 	nodes.OnChange(ctx, nodeControllerName, nodeHandler.OnChanged)
 
-	versionSyncer := newVersionSyncer(ctx, options.Namespace, versions, versions.Cache())
+	versionSyncer := newVersionSyncer(ctx, options.Namespace, versions, nodes)
 
 	settingHandler := settingHandler{
 		versionSyncer: versionSyncer,
