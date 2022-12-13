@@ -44,6 +44,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkStatus":                     schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Addon":                                                            schema_pkg_apis_harvesterhciio_v1beta1_Addon(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonList":                                                        schema_pkg_apis_harvesterhciio_v1beta1_AddonList(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonRef":                                                         schema_pkg_apis_harvesterhciio_v1beta1_AddonRef(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonSpec":                                                        schema_pkg_apis_harvesterhciio_v1beta1_AddonSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonStatus":                                                      schema_pkg_apis_harvesterhciio_v1beta1_AddonStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.BackupTarget":                                                     schema_pkg_apis_harvesterhciio_v1beta1_BackupTarget(ref),
@@ -1333,6 +1334,33 @@ func schema_pkg_apis_harvesterhciio_v1beta1_AddonList(ref common.ReferenceCallba
 	}
 }
 
+func schema_pkg_apis_harvesterhciio_v1beta1_AddonRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"namespace": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"name", "namespace"},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_harvesterhciio_v1beta1_AddonSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1374,10 +1402,25 @@ func schema_pkg_apis_harvesterhciio_v1beta1_AddonSpec(ref common.ReferenceCallba
 							Format:  "",
 						},
 					},
+					"dependsOn": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonRef"),
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"repo", "chart", "version", "enabled", "valuesContent"},
 			},
 		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonRef"},
 	}
 }
 
