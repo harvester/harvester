@@ -385,6 +385,7 @@ steps:
   image: plugins/github-release
   settings:
     prerelease: true
+    draft: true
     checksum:
       - sha256
     files:
