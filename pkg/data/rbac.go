@@ -40,6 +40,11 @@ func addAuthenticatedRoles(apply apply.Apply) error {
 						Resources: []string{"settings"},
 					},
 					{
+						Verbs:     []string{"get", "list", "watch"},
+						APIGroups: []string{"network.harvesterhci.io"},
+						Resources: []string{"clusternetworks"},
+					},
+					{
 						Verbs:         []string{"get", "watch"},
 						APIGroups:     []string{""},
 						Resources:     []string{"namespaces"},
