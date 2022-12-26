@@ -519,7 +519,15 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 	restoreID := getRestoreID(restore)
 	vmCpy := backup.Status.SourceSpec.DeepCopy()
 
-	newAnnotations, err := sanitizeVirtualMachineAnnotationsForRestore(restore, vmCpy.Spec.Template.ObjectMeta.Annotations)
+	newVMAnnotations := map[string]string{
+		lastRestoreAnnotation: restoreID,
+		restoreNameAnnotation: restore.Name,
+	}
+	if reservedMem, ok := vmCpy.ObjectMeta.Annotations[util.AnnotationReservedMemory]; ok {
+		newVMAnnotations[util.AnnotationReservedMemory] = reservedMem
+	}
+
+	newVMSpecAnnotations, err := sanitizeVirtualMachineAnnotationsForRestore(restore, vmCpy.Spec.Template.ObjectMeta.Annotations)
 	if err != nil {
 		return nil, err
 	}
@@ -531,18 +539,15 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      vmName,
-			Namespace: restore.Namespace,
-			Annotations: map[string]string{
-				lastRestoreAnnotation: restoreID,
-				restoreNameAnnotation: restore.Name,
-			},
+			Name:        vmName,
+			Namespace:   restore.Namespace,
+			Annotations: newVMAnnotations,
 		},
 		Spec: kubevirtv1.VirtualMachineSpec{
 			RunStrategy: &defaultRunStrategy,
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Annotations: newAnnotations,
+					Annotations: newVMSpecAnnotations,
 					Labels: map[string]string{
 						vmCreatorLabel: "harvester",
 						vmNameLabel:    vmName,
