@@ -8,7 +8,11 @@ import (
 
 // setLogLevel updates the log level on setting changes
 func (h *Handler) setLogLevel(setting *harvesterv1.Setting) error {
-	level, err := logrus.ParseLevel(setting.Value)
+	value := setting.Value
+	if value == "" {
+		value = setting.Default
+	}
+	level, err := logrus.ParseLevel(value)
 	if err != nil {
 		return err
 	}
