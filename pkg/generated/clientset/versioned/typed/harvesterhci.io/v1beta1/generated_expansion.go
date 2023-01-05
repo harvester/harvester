@@ -30,6 +30,8 @@ type SupportBundleExpansion interface{}
 
 type UpgradeExpansion interface{}
 
+type UpgradeLogExpansion interface{}
+
 type VersionExpansion interface{}
 
 type VirtualMachineBackupExpansion interface{}

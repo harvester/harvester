@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	storagev1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
@@ -35,6 +36,7 @@ func main() {
 					harvesterv1.Preference{},
 					harvesterv1.Setting{},
 					harvesterv1.Upgrade{},
+					harvesterv1.UpgradeLog{},
 					harvesterv1.Version{},
 					harvesterv1.VirtualMachineBackup{},
 					harvesterv1.VirtualMachineRestore{},
@@ -45,6 +47,15 @@ func main() {
 					harvesterv1.Addon{},
 				},
 				GenerateTypes:   true,
+				GenerateClients: true,
+			},
+			loggingv1.GroupVersion.Group: {
+				Types: []interface{}{
+					loggingv1.Logging{},
+					loggingv1.ClusterFlow{},
+					loggingv1.ClusterOutput{},
+				},
+				GenerateTypes:   false,
 				GenerateClients: true,
 			},
 			kubevirtv1.SchemeGroupVersion.Group: {
@@ -124,6 +135,7 @@ func main() {
 	})
 	nadControllerInterfaceRefactor()
 	capiWorkaround()
+	loggingWorkaround()
 }
 
 // NB(GC), nadControllerInterfaceRefactor modify the generated resource name of NetworkAttachmentDefinition controller using a dash-separator,
@@ -157,5 +169,21 @@ func capiWorkaround() {
 
 	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
 		logrus.Fatalf("failed to update the clusters.cluster.x-k8s.io client file: %v", err)
+	}
+}
+
+// loggingWorkaround replaces the variable `SchemeGroupVersion` with `GroupVersion` in logging.banzaicloud.io client because
+// `SchemeGroupVersion` is not declared in the vendor package but wrangler uses it.
+// https://github.com/banzaicloud/logging-operator/blob/e935c5d60604036a6f40cd4ab991420c6eaf096b/pkg/sdk/logging/api/v1beta1/groupversion_info.go#L27
+func loggingWorkaround() {
+	absPath, _ := filepath.Abs("pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/logging.banzaicloud.io_client.go")
+	input, err := ioutil.ReadFile(absPath)
+	if err != nil {
+		logrus.Fatalf("failed to read the logging.banzaicloud.io client file: %v", err)
+	}
+	output := bytes.Replace(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"), -1)
+
+	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
+		logrus.Fatalf("failed to update the logging.banzaicloud.io client file: %v", err)
 	}
 }

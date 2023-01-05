@@ -34,6 +34,7 @@ type HarvesterhciV1beta1Interface interface {
 	SettingsGetter
 	SupportBundlesGetter
 	UpgradesGetter
+	UpgradeLogsGetter
 	VersionsGetter
 	VirtualMachineBackupsGetter
 	VirtualMachineImagesGetter
@@ -69,6 +70,10 @@ func (c *HarvesterhciV1beta1Client) SupportBundles(namespace string) SupportBund
 
 func (c *HarvesterhciV1beta1Client) Upgrades(namespace string) UpgradeInterface {
 	return newUpgrades(c, namespace)
+}
+
+func (c *HarvesterhciV1beta1Client) UpgradeLogs(namespace string) UpgradeLogInterface {
+	return newUpgradeLogs(c, namespace)
 }
 
 func (c *HarvesterhciV1beta1Client) Versions(namespace string) VersionInterface {
