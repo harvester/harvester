@@ -36,6 +36,9 @@ spec:
             properties:
               image:
                 type: string
+              logEnabled:
+                default: true
+                type: boolean
               version:
                 type: string
             type: object
@@ -87,6 +90,8 @@ spec:
               repoInfo:
                 type: string
               singleNode:
+                type: string
+              upgradeLog:
                 type: string
             type: object
         required:

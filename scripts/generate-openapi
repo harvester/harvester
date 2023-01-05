@@ -12,7 +12,7 @@ GO111MODULE=auto openapi-gen --input-dirs k8s.io/apimachinery/pkg/util/intstr,k8
     --go-header-file scripts/boilerplate.go.txt > scripts/known-api-rule-violations.txt
 
 # cleanup +k8s:openapi-gen=true in vendor files.
-git checkout -- vendor
+git checkout -- "${files[@]}"
 
 # generate swagger.json
 go run pkg/genswagger/main.go

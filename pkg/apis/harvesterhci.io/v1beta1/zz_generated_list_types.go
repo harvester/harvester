@@ -94,6 +94,23 @@ func NewUpgrade(namespace, name string, obj Upgrade) *Upgrade {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// UpgradeLogList is a list of UpgradeLog resources
+type UpgradeLogList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []UpgradeLog `json:"items"`
+}
+
+func NewUpgradeLog(namespace, name string, obj UpgradeLog) *UpgradeLog {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("UpgradeLog").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // VersionList is a list of Version resources
 type VersionList struct {
 	metav1.TypeMeta `json:",inline"`

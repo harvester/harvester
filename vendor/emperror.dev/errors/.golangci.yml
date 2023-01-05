@@ -1,0 +1,28 @@
+run:
+    skip-dirs:
+        - tests
+    skip-files:
+        - format_test.go
+        - wrap_go1_12_test.go
+        - wrap_test.go
+
+linters-settings:
+    golint:
+        min-confidence: 0.1
+    goimports:
+        local-prefixes: emperror.dev/errors
+
+linters:
+    enable-all: true
+    disable:
+        - funlen
+        - gomnd
+        - testpackage
+
+        - godox
+
+issues:
+    exclude-rules:
+        -   text: "package comment should not have leading space"
+            linters:
+                - golint

@@ -23,6 +23,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 
 	upgrades := management.HarvesterFactory.Harvesterhci().V1beta1().Upgrade()
+	upgradeLogs := management.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog()
 	versions := management.HarvesterFactory.Harvesterhci().V1beta1().Version()
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	plans := management.UpgradeFactory.Upgrade().V1().Plan()
@@ -38,24 +39,26 @@ func Register(ctx context.Context, management *config.Management, options config
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 
 	controller := &upgradeHandler{
-		ctx:           ctx,
-		jobClient:     jobs,
-		jobCache:      jobs.Cache(),
-		nodeCache:     nodes.Cache(),
-		namespace:     options.Namespace,
-		upgradeClient: upgrades,
-		upgradeCache:  upgrades.Cache(),
-		versionCache:  versions.Cache(),
-		planClient:    plans,
-		planCache:     plans.Cache(),
-		vmImageClient: vmImages,
-		vmImageCache:  vmImages.Cache(),
-		vmClient:      vms,
-		vmCache:       vms.Cache(),
-		serviceClient: services,
-		pvcClient:     pvcs,
-		clusterClient: clusters,
-		clusterCache:  clusters.Cache(),
+		ctx:              ctx,
+		jobClient:        jobs,
+		jobCache:         jobs.Cache(),
+		nodeCache:        nodes.Cache(),
+		namespace:        options.Namespace,
+		upgradeClient:    upgrades,
+		upgradeCache:     upgrades.Cache(),
+		upgradeLogClient: upgradeLogs,
+		upgradeLogCache:  upgradeLogs.Cache(),
+		versionCache:     versions.Cache(),
+		planClient:       plans,
+		planCache:        plans.Cache(),
+		vmImageClient:    vmImages,
+		vmImageCache:     vmImages.Cache(),
+		vmClient:         vms,
+		vmCache:          vms.Cache(),
+		serviceClient:    services,
+		pvcClient:        pvcs,
+		clusterClient:    clusters,
+		clusterCache:     clusters.Cache(),
 	}
 	upgrades.OnChange(ctx, upgradeControllerName, controller.OnChanged)
 	upgrades.OnRemove(ctx, upgradeControllerName, controller.OnRemove)
