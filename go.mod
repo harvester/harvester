@@ -59,6 +59,7 @@ replace (
 
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
+	github.com/banzaicloud/logging-operator/pkg/sdk v0.8.14
 	github.com/containernetworking/cni v1.1.2
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.8.0
@@ -120,6 +121,7 @@ require (
 )
 
 require (
+	emperror.dev/errors v0.8.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.0.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
@@ -188,6 +190,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/honestbee/jobq v1.0.2 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
+	github.com/iancoleman/orderedmap v0.2.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jinzhu/copier v0.3.5 // indirect

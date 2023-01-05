@@ -34,6 +34,7 @@ var (
 	SettingResourceName                       = "settings"
 	SupportBundleResourceName                 = "supportbundles"
 	UpgradeResourceName                       = "upgrades"
+	UpgradeLogResourceName                    = "upgradelogs"
 	VersionResourceName                       = "versions"
 	VirtualMachineBackupResourceName          = "virtualmachinebackups"
 	VirtualMachineImageResourceName           = "virtualmachineimages"
@@ -75,6 +76,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&SupportBundleList{},
 		&Upgrade{},
 		&UpgradeList{},
+		&UpgradeLog{},
+		&UpgradeLogList{},
 		&Version{},
 		&VersionList{},
 		&VirtualMachineBackup{},

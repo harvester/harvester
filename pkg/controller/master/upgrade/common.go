@@ -56,6 +56,13 @@ func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, 
 	}
 }
 
+func setLogReadyCondition(upgrade *harvesterv1.Upgrade, status corev1.ConditionStatus, reason, message string) {
+	harvesterv1.LogReady.SetStatus(upgrade, string(status))
+	harvesterv1.LogReady.Reason(upgrade, reason)
+	harvesterv1.LogReady.Message(upgrade, message)
+	markComplete(upgrade)
+}
+
 func setImageReadyCondition(upgrade *harvesterv1.Upgrade, status corev1.ConditionStatus, reason, message string) {
 	harvesterv1.ImageReady.SetStatus(upgrade, string(status))
 	harvesterv1.ImageReady.Reason(upgrade, reason)
@@ -116,6 +123,21 @@ func markComplete(upgrade *harvesterv1.Upgrade) {
 		harvesterv1.SystemServicesUpgraded.IsFalse(upgrade) || harvesterv1.NodesUpgraded.IsFalse(upgrade) {
 		harvesterv1.UpgradeCompleted.False(upgrade)
 		upgrade.Labels[upgradeStateLabel] = StateFailed
+	}
+}
+
+func prepareUpgradeLog(upgrade *harvesterv1.Upgrade) *harvesterv1.UpgradeLog {
+	return &harvesterv1.UpgradeLog{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-upgradelog", upgrade.Name),
+			Namespace: upgradeNamespace,
+			Labels: map[string]string{
+				harvesterUpgradeLabel: upgrade.Name,
+			},
+		},
+		Spec: harvesterv1.UpgradeLogSpec{
+			Upgrade: upgrade.Name,
+		},
 	}
 }
 
@@ -391,13 +413,14 @@ func getDefaultTolerations() []corev1.Toleration {
 }
 
 const (
-	testJobName      = "test-job"
-	testPlanName     = "test-plan"
-	testNodeName     = "test-node"
-	testUpgradeName  = "test-upgrade"
-	testVersion      = "test-version"
-	testUpgradeImage = "test-upgrade-image"
-	testPlanHash     = "test-hash"
+	testJobName        = "test-job"
+	testPlanName       = "test-plan"
+	testNodeName       = "test-node"
+	testUpgradeName    = "test-upgrade"
+	testUpgradeLogName = "test-upgradelog"
+	testVersion        = "test-version"
+	testUpgradeImage   = "test-upgrade-image"
+	testPlanHash       = "test-hash"
 )
 
 func newTestNodeJobBuilder() *jobBuilder {
@@ -507,6 +530,11 @@ func (p *upgradeBuilder) WithAnnotation(key, value string) *upgradeBuilder {
 	return p
 }
 
+func (p *upgradeBuilder) WithLogEnabled(value bool) *upgradeBuilder {
+	p.upgrade.Spec.LogEnabled = value
+	return p
+}
+
 func (p *upgradeBuilder) WithImage(image string) *upgradeBuilder {
 	p.upgrade.Spec.Image = fmt.Sprintf("%s/%s", upgradeNamespace, image)
 	return p
@@ -514,6 +542,11 @@ func (p *upgradeBuilder) WithImage(image string) *upgradeBuilder {
 
 func (p *upgradeBuilder) Version(version string) *upgradeBuilder {
 	p.upgrade.Spec.Version = version
+	return p
+}
+
+func (p *upgradeBuilder) LogReadyCondition(status corev1.ConditionStatus, reason, message string) *upgradeBuilder {
+	setLogReadyCondition(p.upgrade, status, reason, message)
 	return p
 }
 

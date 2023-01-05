@@ -20,6 +20,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle"
 	"github.com/harvester/harvester/pkg/controller/master/template"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
+	"github.com/harvester/harvester/pkg/controller/master/upgradelog"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
 )
 
@@ -42,6 +43,7 @@ var registerFuncs = []registerFunc{
 	supportbundle.Register,
 	rancher.Register,
 	upgrade.Register,
+	upgradelog.Register,
 	addon.Register,
 	storagenetwork.Register,
 	nodedrain.Register,

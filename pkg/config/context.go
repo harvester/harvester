@@ -30,6 +30,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	cniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
+	loggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io"
 	longhornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
 	monitoringv1 "github.com/harvester/harvester/pkg/generated/controllers/monitoring.coreos.com"
 	"github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io"
@@ -64,6 +65,7 @@ type Scaled struct {
 	BatchFactory             *batchv1.Factory
 	RbacFactory              *rbacv1.Factory
 	CniFactory               *cniv1.Factory
+	LoggingFactory           *loggingv1.Factory
 	SnapshotFactory          *snapshotv1.Factory
 	StorageFactory           *storagev1.Factory
 	LonghornFactory          *longhornv1.Factory
@@ -81,6 +83,7 @@ type Management struct {
 
 	VirtFactory              *kubevirt.Factory
 	HarvesterFactory         *ctlharvesterv1.Factory
+	LoggingFactory           *loggingv1.Factory
 	CoreFactory              *corev1.Factory
 	CniFactory               *cniv1.Factory
 	AppsFactory              *appsv1.Factory
@@ -164,6 +167,13 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 		return nil, nil, err
 	}
 	scaled.CniFactory = cni
+	scaled.starters = append(scaled.starters, cni)
+
+	logging, err := loggingv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.LoggingFactory = logging
 	scaled.starters = append(scaled.starters, cni)
 
 	snapshot, err := snapshotv1.NewFactoryFromConfigWithOptions(restConfig, opts)
@@ -331,6 +341,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.ClusterFactory = cluster
 	management.starters = append(management.starters, cluster)
+
+	logging, err := loggingv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.LoggingFactory = logging
+	management.starters = append(management.starters, logging)
 
 	monitoring, err := monitoringv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
