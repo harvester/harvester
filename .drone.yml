@@ -182,6 +182,11 @@ steps:
     event:
     - tag
 
+trigger:
+  ref:
+    exclude:
+    - mergify/**
+
 volumes:
 - name: docker
   host:
@@ -312,6 +317,11 @@ steps:
     - refs/tags/*
     event:
     - tag
+
+trigger:
+  ref:
+    exclude:
+    - mergify/**
 
 depends_on:
 - amd64
