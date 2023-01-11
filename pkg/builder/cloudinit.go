@@ -73,7 +73,7 @@ func (v *VMBuilder) CloudInit(diskName string, cloudInitSource CloudInitSource) 
 	return v
 }
 
-func (v *VMBuilder) CloudInitDisk(diskName, diskBus string, isCDRom bool, bootOrder int, cloudInitSource CloudInitSource) *VMBuilder {
+func (v *VMBuilder) CloudInitDisk(diskName, diskBus string, isCDRom bool, bootOrder uint, cloudInitSource CloudInitSource) *VMBuilder {
 	return v.Disk(diskName, diskBus, isCDRom, bootOrder).CloudInit(diskName, cloudInitSource)
 }
 
