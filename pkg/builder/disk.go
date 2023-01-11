@@ -43,15 +43,6 @@ type PersistentVolumeClaimOption struct {
 	Annotations      map[string]string
 }
 
-func UintPtr(in int) *uint {
-	var out *uint
-	u := uint(in)
-	if in > 0 {
-		out = &u
-	}
-	return out
-}
-
 func BuildImageStorageClassName(namespace, name string) string {
 	if namespace != "" {
 		return StorageClassNamePrefix + "-" + namespace + "-" + name
@@ -59,7 +50,7 @@ func BuildImageStorageClassName(namespace, name string) string {
 	return StorageClassNamePrefix + "-" + name
 }
 
-func (v *VMBuilder) Disk(diskName, diskBus string, isCDRom bool, bootOrder int) *VMBuilder {
+func (v *VMBuilder) Disk(diskName, diskBus string, isCDRom bool, bootOrder uint) *VMBuilder {
 	var (
 		exist bool
 		index int
@@ -86,8 +77,10 @@ func (v *VMBuilder) Disk(diskName, diskBus string, isCDRom bool, bootOrder int) 
 	}
 	disk := kubevirtv1.Disk{
 		Name:       diskName,
-		BootOrder:  UintPtr(bootOrder),
 		DiskDevice: diskDevice,
+	}
+	if bootOrder > 0 {
+		disk.BootOrder = &bootOrder
 	}
 	if exist {
 		disks[index] = disk
@@ -135,7 +128,7 @@ func (v *VMBuilder) ExistingPVCVolume(diskName, pvcName string, hotpluggable boo
 	})
 }
 
-func (v *VMBuilder) ExistingVolumeDisk(diskName, diskBus string, isCDRom, hotpluggable bool, bootOrder int, pvcName string) *VMBuilder {
+func (v *VMBuilder) ExistingVolumeDisk(diskName, diskBus string, isCDRom, hotpluggable bool, bootOrder uint, pvcName string) *VMBuilder {
 	return v.Disk(diskName, diskBus, isCDRom, bootOrder).ExistingPVCVolume(diskName, pvcName, hotpluggable)
 }
 
@@ -151,7 +144,7 @@ func (v *VMBuilder) ContainerDiskVolume(diskName, imageName, ImagePullPolicy str
 	})
 }
 
-func (v *VMBuilder) ContainerDisk(diskName, diskBus string, isCDRom bool, bootOrder int, imageName, ImagePullPolicy string) *VMBuilder {
+func (v *VMBuilder) ContainerDisk(diskName, diskBus string, isCDRom bool, bootOrder uint, imageName, ImagePullPolicy string) *VMBuilder {
 	return v.Disk(diskName, diskBus, isCDRom, bootOrder).ContainerDiskVolume(diskName, imageName, ImagePullPolicy)
 }
 
@@ -213,6 +206,6 @@ func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, hotpluggable b
 	return v.ExistingPVCVolume(diskName, pvcName, hotpluggable)
 }
 
-func (v *VMBuilder) PVCDisk(diskName, diskBus string, isCDRom, hotpluggable bool, bootOrder int, diskSize, pvcName string, opt *PersistentVolumeClaimOption) *VMBuilder {
+func (v *VMBuilder) PVCDisk(diskName, diskBus string, isCDRom, hotpluggable bool, bootOrder uint, diskSize, pvcName string, opt *PersistentVolumeClaimOption) *VMBuilder {
 	return v.Disk(diskName, diskBus, isCDRom, bootOrder).PVCVolume(diskName, diskSize, pvcName, hotpluggable, opt)
 }
