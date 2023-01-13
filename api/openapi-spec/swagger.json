@@ -6583,6 +6583,10 @@
           "type": "string",
           "default": ""
         },
+        "logEnabled": {
+          "type": "boolean",
+          "default": false
+        },
         "version": {
           "type": "string",
           "default": ""
