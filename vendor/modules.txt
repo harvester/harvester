@@ -93,6 +93,24 @@ github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
+# github.com/banzaicloud/logging-operator/pkg/sdk v0.8.14
+## explicit; go 1.18
+github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1
+github.com/banzaicloud/logging-operator/pkg/sdk/logging/maps/mapstrstr
+github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/common
+github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/filter
+github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/input
+github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/output
+github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/syslogng/filter
+github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/syslogng/output
+github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/types
+# github.com/banzaicloud/operator-tools v0.28.2
+## explicit; go 1.17
+github.com/banzaicloud/operator-tools/pkg/secret
+github.com/banzaicloud/operator-tools/pkg/typeoverride
+github.com/banzaicloud/operator-tools/pkg/types
+github.com/banzaicloud/operator-tools/pkg/utils
+github.com/banzaicloud/operator-tools/pkg/volume
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
@@ -206,7 +224,7 @@ github.com/ehazlett/simplelog
 ## explicit; go 1.13
 github.com/emicklei/go-restful/v3
 github.com/emicklei/go-restful/v3/log
-# github.com/evanphx/json-patch v4.12.0+incompatible
+# github.com/evanphx/json-patch v5.6.0+incompatible
 ## explicit
 github.com/evanphx/json-patch
 # github.com/evanphx/json-patch/v5 v5.6.0

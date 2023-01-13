@@ -46,8 +46,6 @@ type UpgradeSpec struct {
 }
 
 type UpgradeStatus struct {
-	// +optinoal
-	UpgradeLog string `json:"upgradeLog,omitempty"`
 	// +optional
 	PreviousVersion string `json:"previousVersion,omitempty"`
 	// +optional

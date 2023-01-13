@@ -3,12 +3,12 @@ package fakeclients
 import (
 	"context"
 
+	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 
-	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
 	loggingv1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1"
 	ctlloggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io/v1beta1"
 )
@@ -25,10 +25,10 @@ func (c LoggingClient) UpdateStatus(logging *loggingv1.Logging) (*loggingv1.Logg
 	panic("implement me")
 }
 func (c LoggingClient) Delete(name string, options *metav1.DeleteOptions) error {
-	panic("implement me")
+	return c().Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 func (c LoggingClient) Get(name string, options metav1.GetOptions) (*loggingv1.Logging, error) {
-	panic("implement me")
+	return c().Get(context.TODO(), name, metav1.GetOptions{})
 }
 func (c LoggingClient) List(opts metav1.ListOptions) (*loggingv1.LoggingList, error) {
 	panic("implement me")

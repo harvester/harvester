@@ -43,6 +43,18 @@ spec:
             type: object
           status:
             properties:
+              archives:
+                additionalProperties:
+                  properties:
+                    generatedTime:
+                      type: string
+                    ready:
+                      type: boolean
+                    size:
+                      format: int64
+                      type: integer
+                  type: object
+                type: object
               conditions:
                 items:
                   properties:
