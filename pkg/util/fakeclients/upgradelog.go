@@ -43,7 +43,7 @@ func (c UpgradeLogClient) Patch(namespace, name string, pt types.PatchType, data
 type UpgradeLogCache func(string) harv1type.UpgradeLogInterface
 
 func (c UpgradeLogCache) Get(namespace, name string) (*harvesterv1.UpgradeLog, error) {
-	panic("implement me")
+	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 func (c UpgradeLogCache) List(namespace string, selector labels.Selector) ([]*harvesterv1.UpgradeLog, error) {
 	panic("implement me")
