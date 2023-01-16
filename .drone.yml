@@ -183,7 +183,7 @@ steps:
     - tag
 
 trigger:
-  ref:
+  branch:
     exclude:
     - mergify/**
 
@@ -319,7 +319,7 @@ steps:
     - tag
 
 trigger:
-  ref:
+  branch:
     exclude:
     - mergify/**
 
