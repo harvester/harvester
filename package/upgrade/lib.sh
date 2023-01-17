@@ -35,6 +35,7 @@ detect_repo()
   REPO_RKE2_VERSION=$(yq -e e '.kubernetes' $release_file)
   REPO_RANCHER_VERSION=$(yq -e e '.rancher' $release_file)
   REPO_MONITORING_CHART_VERSION=$(yq -e e '.monitoringChart' $release_file)
+  REPO_LOGGING_CHART_VERSION=$(yq -e e '.loggingChart' $release_file)
   REPO_FLEET_CHART_VERSION=$(yq -e e '.rancherDependencies.fleet.chart' $release_file)
   REPO_FLEET_APP_VERSION=$(yq -e e '.rancherDependencies.fleet.app' $release_file)
   REPO_FLEET_CRD_CHART_VERSION=$(yq -e e '.rancherDependencies.fleet-crd.chart' $release_file)
@@ -72,6 +73,11 @@ detect_repo()
 
   if [ -z "$REPO_MONITORING_CHART_VERSION" ]; then
     echo "[ERROR] Fail to get monitoring chart version from upgrade repo."
+    exit 1
+  fi
+
+  if [ -z "$REPO_LOGGING_CHART_VERSION" ]; then
+    echo "[ERROR] Fail to get logging chart version from upgrade repo."
     exit 1
   fi
 
@@ -362,4 +368,32 @@ wait_for_fleet_bundles()
   done
 
   echo "finish wait fleet bundles"
+}
+
+# detect harvester vip from service first, then configmap, skip potential error
+detect_harvester_vip()
+{
+  local EXIT_CODE=0
+  #escape the 'return on error'
+
+  local VIP=$(kubectl get service -n kube-system ingress-expose -o "jsonpath={.spec.loadBalancerIP}") || EXIT_CODE=$?
+  if test $EXIT_CODE = 0; then
+    HARVESTER_VIP=$VIP
+    return 0
+  else
+    echo "kubectl get service -n kube-system ingress-expose failed, will try get from configmap"
+  fi
+
+  EXIT_CODE=0
+  local JSON_DATA=$(kubectl get configmap -n kube-system kubevip -o "jsonpath={.data['kubevip-services']}") || EXIT_CODE=$?
+  if test $EXIT_CODE = 0; then
+    VIP=$(echo $JSON_DATA | jq -r .services[0].vip) || EXIT_CODE=$?
+    if test $EXIT_CODE = 0; then
+      HARVESTER_VIP=$VIP
+    else
+      echo "jq parse kubevip configmap json text failed: $JSON_DATA"
+    fi
+  else
+    echo "kubectl get configmap -n kube-system kubevip failed"
+  fi
 }
