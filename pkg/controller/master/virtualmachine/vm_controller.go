@@ -51,14 +51,34 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 	if err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs); err != nil {
 		return nil, err
 	}
-	for _, pvc := range pvcs {
-		pvc.Namespace = vm.Namespace
-		if _, err := h.pvcCache.Get(vm.Namespace, pvc.Name); apierrors.IsNotFound(err) {
-			if _, err := h.pvcClient.Create(pvc); err != nil {
+
+	var (
+		pvc *corev1.PersistentVolumeClaim
+		err error
+	)
+	for _, pvcAnno := range pvcs {
+		pvcAnno.Namespace = vm.Namespace
+		if pvc, err = h.pvcCache.Get(vm.Namespace, pvcAnno.Name); apierrors.IsNotFound(err) {
+			if _, err = h.pvcClient.Create(pvcAnno); err != nil {
 				return nil, err
 			}
+			continue
 		} else if err != nil {
 			return nil, err
+		}
+
+		// Users also can resize volumes through Volumes page. In that case, we can't track the update in VM annotation.
+		// If storage request in the VM annotation is smaller than or equal to the real PVC, we skip it.
+		if pvcAnno.Spec.Resources.Requests.Storage().Cmp(*pvc.Spec.Resources.Requests.Storage()) <= 0 {
+			continue
+		}
+
+		toUpdate := pvc.DeepCopy()
+		toUpdate.Spec.Resources.Requests = pvcAnno.Spec.Resources.Requests
+		if !reflect.DeepEqual(toUpdate, pvc) {
+			if _, err = h.pvcClient.Update(toUpdate); err != nil {
+				return nil, err
+			}
 		}
 	}
 
