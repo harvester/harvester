@@ -84,7 +84,9 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 			return err
 		}
 	}
-	return nil
+
+	// Check resize volumes
+	return v.checkResizeVolumes(oldVM, newVM)
 }
 
 func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
@@ -138,6 +140,56 @@ func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.Virtual
 	return nil
 }
 
+func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine) error {
+	if oldVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" || newVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" {
+		return nil
+	}
+
+	var oldPvcs, newPvcs []*corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(oldVM.Annotations[util.AnnotationVolumeClaimTemplates]), &oldPvcs); err != nil {
+		return werror.NewInvalidError(fmt.Sprintf("failed to unmarshal %s", oldVM.Annotations[util.AnnotationVolumeClaimTemplates]), fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates))
+	}
+	if err := json.Unmarshal([]byte(newVM.Annotations[util.AnnotationVolumeClaimTemplates]), &newPvcs); err != nil {
+		return werror.NewInvalidError(fmt.Sprintf("failed to unmarshal %s", newVM.Annotations[util.AnnotationVolumeClaimTemplates]), fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates))
+	}
+
+	oldPvcMap, newPvcMap := map[string]*corev1.PersistentVolumeClaim{}, map[string]*corev1.PersistentVolumeClaim{}
+	for _, pvc := range oldPvcs {
+		oldPvcMap[pvc.Name] = pvc
+	}
+	for _, pvc := range newPvcs {
+		newPvcMap[pvc.Name] = pvc
+	}
+
+	isResizeVolume := false
+	for name, oldPvc := range oldPvcMap {
+		newPvc, ok := newPvcMap[name]
+		if !ok || newPvc == nil {
+			continue
+		}
+
+		// ref: https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource#Quantity.Cmp
+		// -1 means newPvc < oldPvc
+		// 1 means newPVC > oldPVC
+		if newPvc.Spec.Resources.Requests.Storage().Cmp(*oldPvc.Spec.Resources.Requests.Storage()) == -1 {
+			return werror.NewInvalidError(fmt.Sprintf("%s PVC requests storage can't be less than previous value", newPvc.Name), fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates))
+		} else if newPvc.Spec.Resources.Requests.Storage().Cmp(*oldPvc.Spec.Resources.Requests.Storage()) == 1 {
+			isResizeVolume = true
+		}
+	}
+
+	if isResizeVolume {
+		runStrategy, err := newVM.RunStrategy()
+		if err != nil {
+			return werror.NewInternalError(fmt.Sprintf("failed to get run strategy, err: %s", err.Error()))
+		}
+		if runStrategy != kubevirtv1.RunStrategyHalted {
+			return werror.NewInvalidError("please stop the VM before resizing volumes", fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates))
+		}
+	}
+	return nil
+}
+
 func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
 	vmID := ref.Construct(vm.Namespace, vm.Name)
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
@@ -147,11 +199,11 @@ func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
 				if apierrors.IsNotFound(err) {
 					continue
 				}
-				return err
+				return werror.NewInternalError(err.Error())
 			}
 			owners, err := ref.GetSchemaOwnersFromAnnotation(pvc)
 			if err != nil {
-				return err
+				return werror.NewInvalidError(err.Error(), "spec.templates.spec.volumes")
 			}
 			ids := owners.List(kubevirtv1.VirtualMachineGroupVersionKind.GroupKind())
 
