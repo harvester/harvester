@@ -80,6 +80,7 @@ func (s *SummaryCache) OnInboundRelationshipChange(ctx context.Context, schema *
 	s.cbs[id] = cb
 
 	go func() {
+		defer close(ret)
 		for rel := range cb {
 			if rel.Kind == kind &&
 				rel.APIVersion == apiVersion &&
@@ -94,7 +95,6 @@ func (s *SummaryCache) OnInboundRelationshipChange(ctx context.Context, schema *
 		s.Lock()
 		defer s.Unlock()
 		close(cb)
-		defer close(ret)
 		delete(s.cbs, id)
 	}()
 

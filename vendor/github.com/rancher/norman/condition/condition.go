@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rancher/norman/controller"
 	"github.com/rancher/norman/objectclient"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	err2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -312,7 +312,6 @@ func getValue(obj interface{}, name ...string) reflect.Value {
 	t := v.Type()
 	if t.Kind() == reflect.Ptr {
 		v = v.Elem()
-		t = v.Type()
 	}
 
 	field := v.FieldByName(name[0])

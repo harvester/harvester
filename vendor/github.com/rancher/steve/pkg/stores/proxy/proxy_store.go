@@ -7,13 +7,16 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"reflect"
 	"regexp"
+	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/attributes"
+	metricsStore "github.com/rancher/steve/pkg/stores/metrics"
 	"github.com/rancher/steve/pkg/stores/partition"
 	"github.com/rancher/wrangler/pkg/data"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
@@ -30,6 +33,8 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
+
+const watchTimeoutEnv = "CATTLE_WATCH_TIMEOUT_SECONDS"
 
 var (
 	lowerChars  = regexp.MustCompile("[a-z]+")
@@ -118,7 +123,7 @@ func toAPI(schema *types.APISchema, obj runtime.Object) types.APIObject {
 }
 
 func (s *Store) byID(apiOp *types.APIRequest, schema *types.APISchema, namespace, id string) (*unstructured.Unstructured, error) {
-	k8sClient, err := s.clientGetter.TableClient(apiOp, schema, namespace)
+	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, namespace))
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +133,7 @@ func (s *Store) byID(apiOp *types.APIRequest, schema *types.APISchema, namespace
 		return nil, err
 	}
 
-	obj, err := k8sClient.Get(apiOp.Context(), id, opts)
+	obj, err := k8sClient.Get(apiOp, id, opts)
 	rowToObject(obj)
 	return obj, err
 }
@@ -256,7 +261,8 @@ func (s *Store) list(apiOp *types.APIRequest, schema *types.APISchema, client dy
 		return types.APIObjectList{}, nil
 	}
 
-	resultList, err := client.List(apiOp.Context(), opts)
+	k8sClient, _ := metricsStore.Wrap(client, nil)
+	resultList, err := k8sClient.List(apiOp, opts)
 	if err != nil {
 		return types.APIObjectList{}, err
 	}
@@ -282,14 +288,24 @@ func returnErr(err error, c chan types.APIEvent) {
 	}
 }
 
-func (s *Store) listAndWatch(apiOp *types.APIRequest, k8sClient dynamic.ResourceInterface, schema *types.APISchema, w types.WatchRequest, result chan types.APIEvent) {
+func (s *Store) listAndWatch(apiOp *types.APIRequest, client dynamic.ResourceInterface, schema *types.APISchema, w types.WatchRequest, result chan types.APIEvent) {
 	rev := w.Revision
 	if rev == "-1" || rev == "0" {
 		rev = ""
 	}
 
 	timeout := int64(60 * 30)
-	watcher, err := k8sClient.Watch(apiOp.Context(), metav1.ListOptions{
+	timeoutSetting := os.Getenv(watchTimeoutEnv)
+	if timeoutSetting != "" {
+		userSetTimeout, err := strconv.Atoi(timeoutSetting)
+		if err != nil {
+			logrus.Debugf("could not parse %s environment variable, error: %v", watchTimeoutEnv, err)
+		} else {
+			timeout = int64(userSetTimeout)
+		}
+	}
+	k8sClient, _ := metricsStore.Wrap(client, nil)
+	watcher, err := k8sClient.Watch(apiOp, metav1.ListOptions{
 		Watch:           true,
 		TimeoutSeconds:  &timeout,
 		ResourceVersion: rev,
@@ -315,6 +331,9 @@ func (s *Store) listAndWatch(apiOp *types.APIRequest, k8sClient dynamic.Resource
 				obj, err := s.byID(apiOp, schema, rel.Namespace, rel.Name)
 				if err == nil {
 					result <- s.toAPIEvent(apiOp, schema, watch.Modified, obj)
+				} else {
+					logrus.Debugf("notifier watch error: %v", err)
+					returnErr(errors.Wrapf(err, "notifier watch error: %v", err), result)
 				}
 			}
 			return fmt.Errorf("closed")
@@ -324,6 +343,12 @@ func (s *Store) listAndWatch(apiOp *types.APIRequest, k8sClient dynamic.Resource
 	eg.Go(func() error {
 		for event := range watcher.ResultChan() {
 			if event.Type == watch.Error {
+				if status, ok := event.Object.(*metav1.Status); ok {
+					logrus.Debugf("event watch error: %s", status.Message)
+					returnErr(fmt.Errorf("event watch error: %s", status.Message), result)
+				} else {
+					logrus.Debugf("event watch error: could not decode event object %T", event.Object)
+				}
 				continue
 			}
 			result <- s.toAPIEvent(apiOp, schema, event.Type, event.Object)
@@ -427,7 +452,7 @@ func (s *Store) Create(apiOp *types.APIRequest, schema *types.APISchema, params 
 	gvk := attributes.GVK(schema)
 	input["apiVersion"], input["kind"] = gvk.ToAPIVersionAndKind()
 
-	k8sClient, err := s.clientGetter.TableClient(apiOp, schema, ns)
+	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, ns))
 	if err != nil {
 		return types.APIObject{}, err
 	}
@@ -437,9 +462,10 @@ func (s *Store) Create(apiOp *types.APIRequest, schema *types.APISchema, params 
 		return types.APIObject{}, err
 	}
 
-	resp, err = k8sClient.Create(apiOp.Context(), &unstructured.Unstructured{Object: input}, opts)
+	resp, err = k8sClient.Create(apiOp, &unstructured.Unstructured{Object: input}, opts)
 	rowToObject(resp)
-	return toAPI(schema, resp), err
+	apiObject := toAPI(schema, resp)
+	return apiObject, err
 }
 
 func (s *Store) Update(apiOp *types.APIRequest, schema *types.APISchema, params types.APIObject, id string) (types.APIObject, error) {
@@ -449,7 +475,7 @@ func (s *Store) Update(apiOp *types.APIRequest, schema *types.APISchema, params 
 	)
 
 	ns := types.Namespace(input)
-	k8sClient, err := s.clientGetter.TableClient(apiOp, schema, ns)
+	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, ns))
 	if err != nil {
 		return types.APIObject{}, err
 	}
@@ -482,7 +508,7 @@ func (s *Store) Update(apiOp *types.APIRequest, schema *types.APISchema, params 
 			}
 		}
 
-		resp, err := k8sClient.Patch(apiOp.Context(), id, pType, bytes, opts)
+		resp, err := k8sClient.Patch(apiOp, id, pType, bytes, opts)
 		if err != nil {
 			return types.APIObject{}, err
 		}
@@ -500,7 +526,7 @@ func (s *Store) Update(apiOp *types.APIRequest, schema *types.APISchema, params 
 		return types.APIObject{}, err
 	}
 
-	resp, err := k8sClient.Update(apiOp.Context(), &unstructured.Unstructured{Object: moveFromUnderscore(input)}, metav1.UpdateOptions{})
+	resp, err := k8sClient.Update(apiOp, &unstructured.Unstructured{Object: moveFromUnderscore(input)}, metav1.UpdateOptions{})
 	if err != nil {
 		return types.APIObject{}, err
 	}
@@ -515,12 +541,12 @@ func (s *Store) Delete(apiOp *types.APIRequest, schema *types.APISchema, id stri
 		return types.APIObject{}, nil
 	}
 
-	k8sClient, err := s.clientGetter.TableClient(apiOp, schema, apiOp.Namespace)
+	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, apiOp.Namespace))
 	if err != nil {
 		return types.APIObject{}, err
 	}
 
-	if err := k8sClient.Delete(apiOp.Context(), id, opts); err != nil {
+	if err := k8sClient.Delete(apiOp, id, opts); err != nil {
 		return types.APIObject{}, err
 	}
 

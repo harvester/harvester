@@ -133,6 +133,8 @@ func newCollection(apiOp *types.APIRequest, list types.APIObjectList) *types.Gen
 			Actions:  map[string]string{},
 			Continue: list.Continue,
 			Revision: list.Revision,
+			Pages:    list.Pages,
+			Count:    list.Count,
 		},
 	}
 

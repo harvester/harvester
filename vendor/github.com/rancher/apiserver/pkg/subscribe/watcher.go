@@ -83,6 +83,7 @@ func (s *WatchSession) stream(ctx context.Context, sub Subscribe, result chan<- 
 	result <- types.APIEvent{
 		Name:         "resource.start",
 		ResourceType: sub.ResourceType,
+		Namespace:    sub.Namespace,
 		ID:           sub.ID,
 		Selector:     sub.Selector,
 	}

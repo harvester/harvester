@@ -1,3 +1,4 @@
+// Package webhook holds shared code related to routing for webhook admission.
 package webhook
 
 import (
@@ -19,10 +20,12 @@ var (
 	jsonPatchType = v1.PatchTypeJSONPatch
 )
 
+// NewRouter returns a newly allocated Router.
 func NewRouter() *Router {
 	return &Router{}
 }
 
+// Router manages request and the calling of matching handlers.
 type Router struct {
 	matches []*RouteMatch
 }
@@ -42,6 +45,7 @@ func writeResponse(rw http.ResponseWriter, review *v1.AdmissionReview) {
 	json.NewEncoder(rw).Encode(review)
 }
 
+// ServeHTTP inspects the http.Request and calls the Admit function on all matching handlers.
 func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	review := &v1.AdmissionReview{}
 	err := json.NewDecoder(req.Body).Decode(review)
@@ -77,7 +81,7 @@ func (r *Router) admit(response *Response, request *v1.AdmissionRequest, req *ht
 			err := m.admit(response, &Request{
 				AdmissionRequest: *request,
 				Context:          req.Context(),
-				objTemplate:      m.getObjType(),
+				ObjTemplate:      m.getObjType(),
 			})
 			logrus.Debugf("admit result: %s %s %s user=%s allowed=%v err=%v", request.Operation, request.Kind.String(), resourceString(request.Namespace, request.Name), request.UserInfo.Username, response.Allowed, err)
 			return err
@@ -92,29 +96,37 @@ func (r *Router) next() *RouteMatch {
 	return match
 }
 
+// Request wrapper for an AdmissionRequest.
 type Request struct {
 	v1.AdmissionRequest
 
 	Context     context.Context
-	objTemplate runtime.Object
+	ObjTemplate runtime.Object
 }
 
+// DecodeOldObject decodes the OldObject in the request into a new runtime.Object of type specified by Type().
+// If Type() was not set the runtime.Object will be of type *unstructured.Unstructured.
 func (r *Request) DecodeOldObject() (runtime.Object, error) {
-	obj := r.objTemplate.DeepCopyObject()
+	obj := r.ObjTemplate.DeepCopyObject()
 	err := json.Unmarshal(r.OldObject.Raw, obj)
 	return obj, err
 }
 
+// DecodeObject decodes the Object in the request into a new runtime.Object of type specified by Type().
+// If Type() was not set the runtime.Object will be of type *unstructured.Unstructured.
 func (r *Request) DecodeObject() (runtime.Object, error) {
-	obj := r.objTemplate.DeepCopyObject()
+	obj := r.ObjTemplate.DeepCopyObject()
 	err := json.Unmarshal(r.Object.Raw, obj)
 	return obj, err
 }
 
+// Response a wrapper for AdmissionResponses object
 type Response struct {
 	v1.AdmissionResponse
 }
 
+// CreatePatch will patch the Object in the request with the given object.
+// An error will be returned if on subsequent calls to the same request.
 func (r *Response) CreatePatch(request *Request, newObj runtime.Object) error {
 	if len(r.Patch) > 0 {
 		return fmt.Errorf("response patch has already been already been assigned")
@@ -135,17 +147,21 @@ func (r *Response) CreatePatch(request *Request, newObj runtime.Object) error {
 	return nil
 }
 
+// The Handler type is an adapter to allow admission checking on a given request.
+// Handlers should update the response to control admission.
 type Handler interface {
 	Admit(resp *Response, req *Request) error
 }
 
+// HandlerFunc type is used to add regular functions as Handler.
 type HandlerFunc func(resp *Response, req *Request) error
 
+// Admit calls the handler function so that the function conforms to the Handler interface.
 func (h HandlerFunc) Admit(resp *Response, req *Request) error {
 	return h(resp, req)
 }
 
-// resourceString returns the resource formatted as a string
+// resourceString returns the resource formatted as a string.
 func resourceString(ns, name string) string {
 	if ns == "" {
 		return name

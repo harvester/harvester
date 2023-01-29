@@ -37,7 +37,7 @@ type GKEClusterConfigSpec struct {
 	Zone                           string                             `json:"zone" norman:"noupdate"`
 	Imported                       bool                               `json:"imported" norman:"noupdate"`
 	Description                    string                             `json:"description"`
-	Labels                         map[string]string                  `json:"labels" norman:"pointer"`
+	Labels                         map[string]string                  `json:"labels"`
 	EnableKubernetesAlpha          *bool                              `json:"enableKubernetesAlpha"`
 	ClusterAddons                  *GKEClusterAddons                  `json:"clusterAddons"`
 	ClusterIpv4CidrBlock           *string                            `json:"clusterIpv4Cidr" norman:"pointer"`
@@ -54,7 +54,7 @@ type GKEClusterConfigSpec struct {
 	PrivateClusterConfig           *GKEPrivateClusterConfig           `json:"privateClusterConfig,omitempty"`
 	IPAllocationPolicy             *GKEIPAllocationPolicy             `json:"ipAllocationPolicy,omitempty"`
 	MasterAuthorizedNetworksConfig *GKEMasterAuthorizedNetworksConfig `json:"masterAuthorizedNetworks,omitempty"`
-	Locations                      []string                           `json:"locations" norman:"pointer"`
+	Locations                      []string                           `json:"locations"`
 	MaintenanceWindow              *string                            `json:"maintenanceWindow,omitempty" norman:"pointer"`
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/attributes"
 	"github.com/rancher/steve/pkg/schema"
+	metricsStore "github.com/rancher/steve/pkg/stores/metrics"
 	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/steve/pkg/summarycache"
 	"github.com/rancher/wrangler/pkg/data"
@@ -22,7 +23,7 @@ func DefaultTemplate(clientGetter proxy.ClientGetter,
 	summaryCache *summarycache.SummaryCache,
 	asl accesscontrol.AccessSetLookup) schema.Template {
 	return schema.Template{
-		Store:     proxy.NewProxyStore(clientGetter, summaryCache, asl),
+		Store:     metricsStore.NewMetricsStore(proxy.NewProxyStore(clientGetter, summaryCache, asl)),
 		Formatter: formatter(summaryCache),
 	}
 }
@@ -92,6 +93,47 @@ func formatter(summarycache *summarycache.SummaryCache) types.Formatter {
 			data.PutValue(unstr.Object, rel, "metadata", "relationships")
 
 			summary.NormalizeConditions(unstr)
+
+			includeFields(request, unstr)
+			excludeFields(request, unstr)
+			excludeValues(request, unstr)
+		}
+
+	}
+}
+
+func includeFields(request *types.APIRequest, unstr *unstructured.Unstructured) {
+	if fields, ok := request.Query["include"]; ok {
+		newObj := map[string]interface{}{}
+		for _, f := range fields {
+			fieldParts := strings.Split(f, ".")
+			if val, ok := data.GetValue(unstr.Object, fieldParts...); ok {
+				data.PutValue(newObj, val, fieldParts...)
+			}
+		}
+		unstr.Object = newObj
+	}
+}
+
+func excludeFields(request *types.APIRequest, unstr *unstructured.Unstructured) {
+	if fields, ok := request.Query["exclude"]; ok {
+		for _, f := range fields {
+			fieldParts := strings.Split(f, ".")
+			data.RemoveValue(unstr.Object, fieldParts...)
+		}
+	}
+}
+
+func excludeValues(request *types.APIRequest, unstr *unstructured.Unstructured) {
+	if values, ok := request.Query["excludeValues"]; ok {
+		for _, f := range values {
+			fieldParts := strings.Split(f, ".")
+			fieldValues := data.GetValueN(unstr.Object, fieldParts...)
+			if obj, ok := fieldValues.(map[string]interface{}); ok {
+				for k := range obj {
+					data.PutValue(unstr.Object, "", append(fieldParts, k)...)
+				}
+			}
 		}
 	}
 }
