@@ -232,9 +232,9 @@ func (m *message) String() string {
 	case RemoveClient:
 		return fmt.Sprintf("%d REMOVECLIENT [%s]", m.id, m.address)
 	case Pause:
-		return fmt.Sprintf("%d PAUSE        [%s]", m.id, m.address)
+		return fmt.Sprintf("%d PAUSE        [%d]", m.id, m.connID)
 	case Resume:
-		return fmt.Sprintf("%d RESUME       [%s]", m.id, m.address)
+		return fmt.Sprintf("%d RESUME       [%d]", m.id, m.connID)
 	}
 	return fmt.Sprintf("%d UNKNOWN[%d]: %d", m.id, m.connID, m.messageType)
 }
