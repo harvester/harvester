@@ -214,11 +214,9 @@ outer:
 		if !cache.WaitForCacheSync(timeoutCtx.Done(), w.informer.HasSynced) {
 			errs = append(errs, fmt.Errorf("failed to sync cache for %v", w.gvk))
 			log.Errorf("failed to sync cache for %v", w.gvk)
-			cancel()
 			w.cancel()
 			delete(c.watchers, w.gvk)
 		}
-		cancel()
 	}
 
 	for _, w := range toWait {

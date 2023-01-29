@@ -38,17 +38,17 @@ type EKSClusterConfigSpec struct {
 	Region                 string            `json:"region" norman:"noupdate"`
 	Imported               bool              `json:"imported" norman:"noupdate"`
 	KubernetesVersion      *string           `json:"kubernetesVersion" norman:"pointer"`
-	Tags                   map[string]string `json:"tags" norman:"pointer"`
+	Tags                   map[string]string `json:"tags"`
 	SecretsEncryption      *bool             `json:"secretsEncryption" norman:"noupdate"`
 	KmsKey                 *string           `json:"kmsKey" norman:"noupdate,pointer"`
 	PublicAccess           *bool             `json:"publicAccess"`
 	PrivateAccess          *bool             `json:"privateAccess"`
-	PublicAccessSources    []string          `json:"publicAccessSources" norman:"pointer"`
-	LoggingTypes           []string          `json:"loggingTypes" norman:"pointer"`
-	Subnets                []string          `json:"subnets" norman:"noupdate,pointer"`
-	SecurityGroups         []string          `json:"securityGroups" norman:"noupdate,pointer"`
+	PublicAccessSources    []string          `json:"publicAccessSources"`
+	LoggingTypes           []string          `json:"loggingTypes"`
+	Subnets                []string          `json:"subnets" norman:"noupdate"`
+	SecurityGroups         []string          `json:"securityGroups" norman:"noupdate"`
 	ServiceRole            *string           `json:"serviceRole" norman:"noupdate,pointer"`
-	NodeGroups             []NodeGroup       `json:"nodeGroups" norman:"pointer"`
+	NodeGroups             []NodeGroup       `json:"nodeGroups"`
 }
 
 type EKSClusterConfigStatus struct {
@@ -70,19 +70,19 @@ type NodeGroup struct {
 	NodegroupName        *string            `json:"nodegroupName" norman:"required,pointer" wrangler:"required"`
 	DiskSize             *int64             `json:"diskSize"`
 	InstanceType         *string            `json:"instanceType" norman:"pointer"`
-	Labels               map[string]*string `json:"labels" norman:"pointer"`
+	Labels               map[string]*string `json:"labels"`
 	Ec2SshKey            *string            `json:"ec2SshKey" norman:"pointer"`
 	DesiredSize          *int64             `json:"desiredSize"`
 	MaxSize              *int64             `json:"maxSize"`
 	MinSize              *int64             `json:"minSize"`
-	Subnets              []string           `json:"subnets" norman:"pointer"`
-	Tags                 map[string]*string `json:"tags" norman:"pointer"`
-	ResourceTags         map[string]*string `json:"resourceTags" norman:"pointer"`
+	Subnets              []string           `json:"subnets"`
+	Tags                 map[string]*string `json:"tags"`
+	ResourceTags         map[string]*string `json:"resourceTags"`
 	UserData             *string            `json:"userData" norman:"pointer"`
 	Version              *string            `json:"version" norman:"pointer"`
 	LaunchTemplate       *LaunchTemplate    `json:"launchTemplate"`
 	RequestSpotInstances *bool              `json:"requestSpotInstances"`
-	SpotInstanceTypes    []*string          `json:"spotInstanceTypes" norman:"pointer"`
+	SpotInstanceTypes    []*string          `json:"spotInstanceTypes"`
 }
 
 type LaunchTemplate struct {
