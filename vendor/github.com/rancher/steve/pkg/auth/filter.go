@@ -2,6 +2,7 @@ package auth
 
 import (
 	"io/ioutil"
+	"k8s.io/client-go/rest"
 	"net/http"
 	"strings"
 	"time"
@@ -31,6 +32,8 @@ var ExistingContext = ToMiddleware(AuthenticatorFunc(func(req *http.Request) (us
 	user, ok := request.UserFrom(req.Context())
 	return user, ok, nil
 }))
+
+const CattleAuthFailed = "X-API-Cattle-Auth-Failed"
 
 type Authenticator interface {
 	Authenticate(req *http.Request) (user.Info, bool, error)
@@ -82,8 +85,8 @@ func WebhookConfigForURL(url string) (string, error) {
 	return tmpFile.Name(), clientcmd.WriteToFile(config, tmpFile.Name())
 }
 
-func NewWebhookAuthenticator(cacheTTL time.Duration, kubeConfigFile string) (Authenticator, error) {
-	wh, err := webhook.New(kubeConfigFile, "v1", nil, WebhookBackoff, nil)
+func NewWebhookAuthenticator(cacheTTL time.Duration, kubeConfig *rest.Config) (Authenticator, error) {
+	wh, err := webhook.New(kubeConfig, "v1", nil, WebhookBackoff)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +102,8 @@ func NewWebhookAuthenticator(cacheTTL time.Duration, kubeConfigFile string) (Aut
 	}, nil
 }
 
-func NewWebhookMiddleware(cacheTTL time.Duration, kubeConfigFile string) (Middleware, error) {
-	auth, err := NewWebhookAuthenticator(cacheTTL, kubeConfigFile)
+func NewWebhookMiddleware(cacheTTL time.Duration, kubeConfig *rest.Config) (Middleware, error) {
+	auth, err := NewWebhookAuthenticator(cacheTTL, kubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +146,7 @@ func ToMiddleware(auth Authenticator) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			info, ok, err := auth.Authenticate(req)
+			ctx := req.Context()
 			if err != nil {
 				info = &user.DefaultInfo{
 					Name: "system:cattle:error",
@@ -152,6 +156,7 @@ func ToMiddleware(auth Authenticator) Middleware {
 						"system:cattle:error",
 					},
 				}
+				ctx = request.WithValue(ctx, CattleAuthFailed, "true")
 			} else if !ok {
 				info = &user.DefaultInfo{
 					Name: "system:unauthenticated",
@@ -161,8 +166,8 @@ func ToMiddleware(auth Authenticator) Middleware {
 					},
 				}
 			}
+			ctx = request.WithUser(ctx, info)
 
-			ctx := request.WithUser(req.Context(), info)
 			req = req.WithContext(ctx)
 			next.ServeHTTP(rw, req)
 		})

@@ -52,13 +52,30 @@ func run(ctx context.Context, namespace, name string, client kubernetes.Interfac
 		Lock:          rl,
 		LeaseDuration: 45 * t,
 		RenewDeadline: 30 * t,
-		RetryPeriod:   2 * t,
+		RetryPeriod:   2 * time.Second,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				go cb(ctx)
 			},
 			OnStoppedLeading: func() {
-				logrus.Fatalf("leaderelection lost for %s", name)
+				select {
+				case <-ctx.Done():
+					// The context has been canceled or is otherwise complete.
+					// This is a request to terminate. Exit 0.
+					// Exiting cleanly is useful when the context is canceled
+					// so that Kubernetes doesn't record it exiting in error
+					// when the exit was requested. For example, the wrangler-cli
+					// package sets up a context that cancels when SIGTERM is
+					// sent in. If a node is shut down this is the type of signal
+					// sent. In that case you want the 0 exit code to mark it as
+					// complete so that everything comes back up correctly after
+					// a restart.
+					// The pattern found here can be found inside the kube-scheduler.
+					logrus.Info("requested to terminate, exiting")
+					os.Exit(0)
+				default:
+					logrus.Fatalf("leaderelection lost for %s", name)
+				}
 			},
 		},
 		ReleaseOnCancel: true,

@@ -1,6 +1,7 @@
 package remotedialer
 
 import (
+	"context"
 	"sync"
 )
 
@@ -8,6 +9,7 @@ type backPressure struct {
 	cond   sync.Cond
 	c      *connection
 	paused bool
+	closed bool
 }
 
 func newBackPressure(c *connection) *backPressure {
@@ -28,6 +30,14 @@ func (b *backPressure) OnPause() {
 	b.cond.Broadcast()
 }
 
+func (b *backPressure) Close() {
+	b.cond.L.Lock()
+	defer b.cond.L.Unlock()
+
+	b.closed = true
+	b.cond.Broadcast()
+}
+
 func (b *backPressure) OnResume() {
 	b.cond.L.Lock()
 	defer b.cond.L.Unlock()
@@ -36,37 +46,32 @@ func (b *backPressure) OnResume() {
 	b.cond.Broadcast()
 }
 
-func (b *backPressure) Pause() error {
+func (b *backPressure) Pause() {
 	b.cond.L.Lock()
 	defer b.cond.L.Unlock()
 	if b.paused {
-		return nil
+		return
 	}
-	if _, err := b.c.Pause(); err != nil {
-		return err
-	}
+	b.c.Pause()
 	b.paused = true
-	return nil
 }
 
-func (b *backPressure) Resume() error {
+func (b *backPressure) Resume() {
 	b.cond.L.Lock()
 	defer b.cond.L.Unlock()
 	if !b.paused {
-		return nil
+		return
 	}
-	if _, err := b.c.Resume(); err != nil {
-		return err
-	}
+	b.c.Resume()
 	b.paused = false
-	return nil
 }
 
-func (b *backPressure) Wait() {
+func (b *backPressure) Wait(cancel context.CancelFunc) {
 	b.cond.L.Lock()
 	defer b.cond.L.Unlock()
 
-	for b.paused {
+	for !b.closed && b.paused {
 		b.cond.Wait()
+		cancel()
 	}
 }

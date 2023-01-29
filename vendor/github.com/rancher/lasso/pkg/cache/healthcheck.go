@@ -21,6 +21,9 @@ type healthcheck struct {
 func (h *healthcheck) ping(ctx context.Context) bool {
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
+	if h.cf == nil {
+		return false
+	}
 	return h.cf.IsHealthy(ctx)
 }
 

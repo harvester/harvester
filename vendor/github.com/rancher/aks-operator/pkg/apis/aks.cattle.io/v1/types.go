@@ -54,8 +54,8 @@ type AKSClusterConfigSpec struct {
 	LinuxSSHPublicKey           *string           `json:"sshPublicKey,omitempty" norman:"pointer"`
 	DNSPrefix                   *string           `json:"dnsPrefix,omitempty" norman:"pointer"`
 	KubernetesVersion           *string           `json:"kubernetesVersion" norman:"pointer"`
-	Tags                        map[string]string `json:"tags" norman:"pointer"`
-	NodePools                   []AKSNodePool     `json:"nodePools" norman:"pointer"`
+	Tags                        map[string]string `json:"tags"`
+	NodePools                   []AKSNodePool     `json:"nodePools"`
 	PrivateCluster              *bool             `json:"privateCluster"`
 	AuthorizedIPRanges          *[]string         `json:"authorizedIpRanges" norman:"pointer"`
 	HTTPApplicationRouting      *bool             `json:"httpApplicationRouting"`

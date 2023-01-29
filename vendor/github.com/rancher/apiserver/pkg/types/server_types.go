@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -156,10 +157,16 @@ func (r *APIRequest) Option(key string) string {
 }
 
 func (r *APIRequest) WriteResponse(code int, obj APIObject) {
+	for _, warning := range obj.Warnings {
+		r.Response.Header().Add("Warning", fmt.Sprintf("%d %s %s", warning.Code, warning.Agent, warning.Text))
+	}
 	r.ResponseWriter.Write(r, code, obj)
 }
 
 func (r *APIRequest) WriteResponseList(code int, list APIObjectList) {
+	for _, warning := range list.Warnings {
+		r.Response.Header().Add("Warning", fmt.Sprintf("%d %s %s", warning.Code, warning.Agent, warning.Text))
+	}
 	r.ResponseWriter.WriteList(r, code, list)
 }
 
@@ -229,16 +236,26 @@ type APIEvent struct {
 	Data interface{} `json:"data,omitempty"`
 }
 
+type Warning struct {
+	Code  int
+	Agent string
+	Text  string
+}
+
 type APIObject struct {
-	Type   string
-	ID     string
-	Object interface{}
+	Type     string
+	ID       string
+	Object   interface{}
+	Warnings []Warning
 }
 
 type APIObjectList struct {
 	Revision string
 	Continue string
+	Pages    int
+	Count    int
 	Objects  []APIObject
+	Warnings []Warning
 }
 
 func (a *APIObject) Data() data.Object {

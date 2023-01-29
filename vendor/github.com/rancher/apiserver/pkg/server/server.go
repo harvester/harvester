@@ -3,9 +3,12 @@ package server
 import (
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/rancher/apiserver/pkg/builtin"
 	"github.com/rancher/apiserver/pkg/handlers"
+	"github.com/rancher/apiserver/pkg/metrics"
 	"github.com/rancher/apiserver/pkg/parse"
 	"github.com/rancher/apiserver/pkg/subscribe"
 	"github.com/rancher/apiserver/pkg/types"
@@ -135,7 +138,11 @@ func (s *Server) handle(apiOp *types.APIRequest, parser parse.Parser) {
 		apiOp.Schema = apiOp.Schema.RequestModifier(apiOp, apiOp.Schema)
 	}
 
-	if code, data, err := s.handleOp(apiOp); err != nil {
+	requestStart := time.Now()
+	var code int
+	var data interface{}
+	var err error
+	if code, data, err = s.handleOp(apiOp); err != nil {
 		apiOp.WriteError(err)
 	} else if obj, ok := data.(types.APIObject); ok {
 		apiOp.WriteResponse(code, obj)
@@ -144,6 +151,7 @@ func (s *Server) handle(apiOp *types.APIRequest, parser parse.Parser) {
 	} else if code > http.StatusOK {
 		apiOp.Response.WriteHeader(code)
 	}
+	metrics.RecordResponseTime(apiOp.Schema.ID, apiOp.Method, strconv.Itoa(code), float64(time.Since(requestStart).Milliseconds()))
 }
 
 func (s *Server) handleOp(apiOp *types.APIRequest) (int, interface{}, error) {
@@ -173,21 +181,21 @@ func (s *Server) handleOp(apiOp *types.APIRequest) (int, interface{}, error) {
 	switch apiOp.Method {
 	case http.MethodGet:
 		if apiOp.Name == "" {
-			data, err := handleList(apiOp, apiOp.Schema.ListHandler, handlers.ListHandler)
+			data, err := handleList(apiOp, apiOp.Schema.ListHandler, handlers.MetricsListHandler("200", handlers.ListHandler))
 			return http.StatusOK, data, err
 		}
-		data, err := handle(apiOp, apiOp.Schema.ByIDHandler, handlers.ByIDHandler)
+		data, err := handle(apiOp, apiOp.Schema.ByIDHandler, handlers.MetricsHandler("200", handlers.ByIDHandler))
 		return http.StatusOK, data, err
 	case http.MethodPatch:
 		fallthrough
 	case http.MethodPut:
-		data, err := handle(apiOp, apiOp.Schema.UpdateHandler, handlers.UpdateHandler)
+		data, err := handle(apiOp, apiOp.Schema.UpdateHandler, handlers.MetricsHandler("200", handlers.UpdateHandler))
 		return http.StatusOK, data, err
 	case http.MethodPost:
-		data, err := handle(apiOp, apiOp.Schema.CreateHandler, handlers.CreateHandler)
+		data, err := handle(apiOp, apiOp.Schema.CreateHandler, handlers.MetricsHandler("201", handlers.CreateHandler))
 		return http.StatusCreated, data, err
 	case http.MethodDelete:
-		data, err := handle(apiOp, apiOp.Schema.DeleteHandler, handlers.DeleteHandler)
+		data, err := handle(apiOp, apiOp.Schema.DeleteHandler, handlers.MetricsHandler("200", handlers.DeleteHandler))
 		return http.StatusOK, data, err
 	}
 
@@ -224,7 +232,12 @@ func (s *Server) CustomAPIUIResponseWriter(cssURL, jsURL, version writer.StringG
 	if !ok {
 		return
 	}
-	w, ok := wi.(*writer.HTMLResponseWriter)
+	gw, ok := wi.(*writer.GzipWriter)
+	if !ok {
+		return
+	}
+
+	w, ok := gw.ResponseWriter.(*writer.HTMLResponseWriter)
 	if !ok {
 		return
 	}

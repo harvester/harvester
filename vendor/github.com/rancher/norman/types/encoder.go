@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	commenter = regexp.MustCompile("(?m)^( *)zzz#\\((.*)\\)\\((.*)\\)([a-z]+.*):(.*)")
+	commenter = regexp.MustCompile(`(?m)^( *)zzz#\\((.*)\\)\\((.*)\\)([a-z]+.*):(.*)`)
 )
 
 func JSONEncoder(writer io.Writer, v interface{}) error {
