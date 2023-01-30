@@ -146,14 +146,14 @@ spec:
                             provider-specific attributes
                           properties:
                             accessModes:
-                              description: 'AccessModes contains the desired access
+                              description: 'accessModes contains the desired access
                                 modes the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
                               items:
                                 type: string
                               type: array
                             dataSource:
-                              description: 'This field can be used to specify either:
-                                * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
+                              description: 'dataSource field can be used to specify
+                                either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
                                 * An existing PVC (PersistentVolumeClaim) If the provisioner
                                 or an external controller can support the specified
                                 data source, it will create a new volume based on
@@ -181,10 +181,10 @@ spec:
                               - name
                               type: object
                             dataSourceRef:
-                              description: 'Specifies the object from which to populate
-                                the volume with data, if a non-empty volume is desired.
-                                This may be any local object from a non-empty API
-                                group (non core object) or a PersistentVolumeClaim
+                              description: 'dataSourceRef specifies the object from
+                                which to populate the volume with data, if a non-empty
+                                volume is desired. This may be any local object from
+                                a non-empty API group (non core object) or a PersistentVolumeClaim
                                 object. When this field is specified, volume binding
                                 will only succeed if the type of the specified object
                                 matches some installed volume populator or dynamic
@@ -201,7 +201,7 @@ spec:
                                 objects. * While DataSource ignores disallowed values
                                 (dropping them), DataSourceRef   preserves all values,
                                 and generates an error if a disallowed value is   specified.
-                                (Alpha) Using this field requires the AnyVolumeDataSource
+                                (Beta) Using this field requires the AnyVolumeDataSource
                                 feature gate to be enabled.'
                               properties:
                                 apiGroup:
@@ -223,7 +223,7 @@ spec:
                               - name
                               type: object
                             resources:
-                              description: 'Resources represents the minimum resources
+                              description: 'resources represents the minimum resources
                                 the volume should have. If RecoverVolumeExpansionFailure
                                 feature is enabled users are allowed to specify resource
                                 requirements that are lower than previous value but
@@ -255,8 +255,8 @@ spec:
                                   type: object
                               type: object
                             selector:
-                              description: A label query over volumes to consider
-                                for binding.
+                              description: selector is a label query over volumes
+                                to consider for binding.
                               properties:
                                 matchExpressions:
                                   description: matchExpressions is a list of label
@@ -302,8 +302,8 @@ spec:
                                   type: object
                               type: object
                             storageClassName:
-                              description: 'Name of the StorageClass required by the
-                                claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
+                              description: 'storageClassName is the name of the StorageClass
+                                required by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
                               type: string
                             volumeMode:
                               description: volumeMode defines what type of volume
@@ -311,7 +311,7 @@ spec:
                                 when not included in claim spec.
                               type: string
                             volumeName:
-                              description: VolumeName is the binding reference to
+                              description: volumeName is the binding reference to
                                 the PersistentVolume backing this claim.
                               type: string
                           type: object

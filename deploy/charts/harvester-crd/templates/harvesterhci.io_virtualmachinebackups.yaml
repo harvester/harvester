@@ -242,18 +242,18 @@ spec:
                                   description: PVC is the PVC specification
                                   properties:
                                     accessModes:
-                                      description: 'AccessModes contains the desired
+                                      description: 'accessModes contains the desired
                                         access modes the volume should have. More
                                         info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
                                       items:
                                         type: string
                                       type: array
                                     dataSource:
-                                      description: 'This field can be used to specify
-                                        either: * An existing VolumeSnapshot object
-                                        (snapshot.storage.k8s.io/VolumeSnapshot) *
-                                        An existing PVC (PersistentVolumeClaim) If
-                                        the provisioner or an external controller
+                                      description: 'dataSource field can be used to
+                                        specify either: * An existing VolumeSnapshot
+                                        object (snapshot.storage.k8s.io/VolumeSnapshot)
+                                        * An existing PVC (PersistentVolumeClaim)
+                                        If the provisioner or an external controller
                                         can support the specified data source, it
                                         will create a new volume based on the contents
                                         of the specified data source. If the AnyVolumeDataSource
@@ -281,17 +281,17 @@ spec:
                                       - name
                                       type: object
                                     dataSourceRef:
-                                      description: 'Specifies the object from which
-                                        to populate the volume with data, if a non-empty
-                                        volume is desired. This may be any local object
-                                        from a non-empty API group (non core object)
-                                        or a PersistentVolumeClaim object. When this
-                                        field is specified, volume binding will only
-                                        succeed if the type of the specified object
-                                        matches some installed volume populator or
-                                        dynamic provisioner. This field will replace
-                                        the functionality of the DataSource field
-                                        and as such if both fields are non-empty,
+                                      description: 'dataSourceRef specifies the object
+                                        from which to populate the volume with data,
+                                        if a non-empty volume is desired. This may
+                                        be any local object from a non-empty API group
+                                        (non core object) or a PersistentVolumeClaim
+                                        object. When this field is specified, volume
+                                        binding will only succeed if the type of the
+                                        specified object matches some installed volume
+                                        populator or dynamic provisioner. This field
+                                        will replace the functionality of the DataSource
+                                        field and as such if both fields are non-empty,
                                         they must have the same value. For backwards
                                         compatibility, both fields (DataSource and
                                         DataSourceRef) will be set to the same value
@@ -304,7 +304,7 @@ spec:
                                         objects. * While DataSource ignores disallowed
                                         values (dropping them), DataSourceRef   preserves
                                         all values, and generates an error if a disallowed
-                                        value is   specified. (Alpha) Using this field
+                                        value is   specified. (Beta) Using this field
                                         requires the AnyVolumeDataSource feature gate
                                         to be enabled.'
                                       properties:
@@ -328,7 +328,7 @@ spec:
                                       - name
                                       type: object
                                     resources:
-                                      description: 'Resources represents the minimum
+                                      description: 'resources represents the minimum
                                         resources the volume should have. If RecoverVolumeExpansionFailure
                                         feature is enabled users are allowed to specify
                                         resource requirements that are lower than
@@ -363,8 +363,8 @@ spec:
                                           type: object
                                       type: object
                                     selector:
-                                      description: A label query over volumes to consider
-                                        for binding.
+                                      description: selector is a label query over
+                                        volumes to consider for binding.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -415,8 +415,9 @@ spec:
                                           type: object
                                       type: object
                                     storageClassName:
-                                      description: 'Name of the StorageClass required
-                                        by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
+                                      description: 'storageClassName is the name of
+                                        the StorageClass required by the claim. More
+                                        info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
                                       type: string
                                     volumeMode:
                                       description: volumeMode defines what type of
@@ -425,7 +426,7 @@ spec:
                                         claim spec.
                                       type: string
                                     volumeName:
-                                      description: VolumeName is the binding reference
+                                      description: volumeName is the binding reference
                                         to the PersistentVolume backing this claim.
                                       type: string
                                   type: object
@@ -1298,9 +1299,6 @@ spec:
                                                     or empty namespaces list means
                                                     "this pod's namespace". An empty
                                                     selector ({}) matches all namespaces.
-                                                    This field is beta-level and is
-                                                    only honored when PodAffinityNamespaceSelector
-                                                    feature is enabled.
                                                   properties:
                                                     matchExpressions:
                                                       description: matchExpressions
@@ -1371,7 +1369,7 @@ spec:
                                                     field and the ones selected by
                                                     namespaceSelector. null or empty
                                                     namespaces list and null namespaceSelector
-                                                    means "this pod's namespace"
+                                                    means "this pod's namespace".
                                                   items:
                                                     type: string
                                                   type: array
@@ -1495,10 +1493,7 @@ spec:
                                                 field. null selector and null or empty
                                                 namespaces list means "this pod's
                                                 namespace". An empty selector ({})
-                                                matches all namespaces. This field
-                                                is beta-level and is only honored
-                                                when PodAffinityNamespaceSelector
-                                                feature is enabled.
+                                                matches all namespaces.
                                               properties:
                                                 matchExpressions:
                                                   description: matchExpressions is
@@ -1564,7 +1559,7 @@ spec:
                                                 in this field and the ones selected
                                                 by namespaceSelector. null or empty
                                                 namespaces list and null namespaceSelector
-                                                means "this pod's namespace"
+                                                means "this pod's namespace".
                                               items:
                                                 type: string
                                               type: array
@@ -1692,9 +1687,6 @@ spec:
                                                     or empty namespaces list means
                                                     "this pod's namespace". An empty
                                                     selector ({}) matches all namespaces.
-                                                    This field is beta-level and is
-                                                    only honored when PodAffinityNamespaceSelector
-                                                    feature is enabled.
                                                   properties:
                                                     matchExpressions:
                                                       description: matchExpressions
@@ -1765,7 +1757,7 @@ spec:
                                                     field and the ones selected by
                                                     namespaceSelector. null or empty
                                                     namespaces list and null namespaceSelector
-                                                    means "this pod's namespace"
+                                                    means "this pod's namespace".
                                                   items:
                                                     type: string
                                                   type: array
@@ -1889,10 +1881,7 @@ spec:
                                                 field. null selector and null or empty
                                                 namespaces list means "this pod's
                                                 namespace". An empty selector ({})
-                                                matches all namespaces. This field
-                                                is beta-level and is only honored
-                                                when PodAffinityNamespaceSelector
-                                                feature is enabled.
+                                                matches all namespaces.
                                               properties:
                                                 matchExpressions:
                                                   description: matchExpressions is
@@ -1958,7 +1947,7 @@ spec:
                                                 in this field and the ones selected
                                                 by namespaceSelector. null or empty
                                                 namespaces list and null namespaceSelector
-                                                means "this pod's namespace"
+                                                means "this pod's namespace".
                                               items:
                                                 type: string
                                               type: array
@@ -3915,14 +3904,15 @@ spec:
                                             to the vmi via qemu. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims'
                                           properties:
                                             claimName:
-                                              description: 'ClaimName is the name
+                                              description: 'claimName is the name
                                                 of a PersistentVolumeClaim in the
                                                 same namespace as the pod using this
                                                 volume. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims'
                                               type: string
                                             readOnly:
-                                              description: Will force the ReadOnly
-                                                setting in VolumeMounts. Default false.
+                                              description: readOnly Will force the
+                                                ReadOnly setting in VolumeMounts.
+                                                Default false.
                                               type: boolean
                                           required:
                                           - claimName
@@ -3962,7 +3952,7 @@ spec:
                                         of the vmi
                                       properties:
                                         claimName:
-                                          description: 'ClaimName is the name of a
+                                          description: 'claimName is the name of a
                                             PersistentVolumeClaim in the same namespace
                                             as the pod using this volume. More info:
                                             https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims'
@@ -3972,8 +3962,8 @@ spec:
                                             the volume can be hotplugged and hotunplugged.
                                           type: boolean
                                         readOnly:
-                                          description: Will force the ReadOnly setting
-                                            in VolumeMounts. Default false.
+                                          description: readOnly Will force the ReadOnly
+                                            setting in VolumeMounts. Default false.
                                           type: boolean
                                       required:
                                       - claimName
@@ -3989,7 +3979,7 @@ spec:
                                         the vmi via qemu. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims'
                                       properties:
                                         claimName:
-                                          description: 'ClaimName is the name of a
+                                          description: 'claimName is the name of a
                                             PersistentVolumeClaim in the same namespace
                                             as the pod using this volume. More info:
                                             https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims'
@@ -3999,8 +3989,8 @@ spec:
                                             the volume can be hotplugged and hotunplugged.
                                           type: boolean
                                         readOnly:
-                                          description: Will force the ReadOnly setting
-                                            in VolumeMounts. Default false.
+                                          description: readOnly Will force the ReadOnly
+                                            setting in VolumeMounts. Default false.
                                           type: boolean
                                       required:
                                       - claimName
@@ -4122,14 +4112,14 @@ spec:
                             provider-specific attributes
                           properties:
                             accessModes:
-                              description: 'AccessModes contains the desired access
+                              description: 'accessModes contains the desired access
                                 modes the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
                               items:
                                 type: string
                               type: array
                             dataSource:
-                              description: 'This field can be used to specify either:
-                                * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
+                              description: 'dataSource field can be used to specify
+                                either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
                                 * An existing PVC (PersistentVolumeClaim) If the provisioner
                                 or an external controller can support the specified
                                 data source, it will create a new volume based on
@@ -4157,10 +4147,10 @@ spec:
                               - name
                               type: object
                             dataSourceRef:
-                              description: 'Specifies the object from which to populate
-                                the volume with data, if a non-empty volume is desired.
-                                This may be any local object from a non-empty API
-                                group (non core object) or a PersistentVolumeClaim
+                              description: 'dataSourceRef specifies the object from
+                                which to populate the volume with data, if a non-empty
+                                volume is desired. This may be any local object from
+                                a non-empty API group (non core object) or a PersistentVolumeClaim
                                 object. When this field is specified, volume binding
                                 will only succeed if the type of the specified object
                                 matches some installed volume populator or dynamic
@@ -4177,7 +4167,7 @@ spec:
                                 objects. * While DataSource ignores disallowed values
                                 (dropping them), DataSourceRef   preserves all values,
                                 and generates an error if a disallowed value is   specified.
-                                (Alpha) Using this field requires the AnyVolumeDataSource
+                                (Beta) Using this field requires the AnyVolumeDataSource
                                 feature gate to be enabled.'
                               properties:
                                 apiGroup:
@@ -4199,7 +4189,7 @@ spec:
                               - name
                               type: object
                             resources:
-                              description: 'Resources represents the minimum resources
+                              description: 'resources represents the minimum resources
                                 the volume should have. If RecoverVolumeExpansionFailure
                                 feature is enabled users are allowed to specify resource
                                 requirements that are lower than previous value but
@@ -4231,8 +4221,8 @@ spec:
                                   type: object
                               type: object
                             selector:
-                              description: A label query over volumes to consider
-                                for binding.
+                              description: selector is a label query over volumes
+                                to consider for binding.
                               properties:
                                 matchExpressions:
                                   description: matchExpressions is a list of label
@@ -4278,8 +4268,8 @@ spec:
                                   type: object
                               type: object
                             storageClassName:
-                              description: 'Name of the StorageClass required by the
-                                claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
+                              description: 'storageClassName is the name of the StorageClass
+                                required by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
                               type: string
                             volumeMode:
                               description: volumeMode defines what type of volume
@@ -4287,7 +4277,7 @@ spec:
                                 when not included in claim spec.
                               type: string
                             volumeName:
-                              description: VolumeName is the binding reference to
+                              description: volumeName is the binding reference to
                                 the PersistentVolume backing this claim.
                               type: string
                           type: object

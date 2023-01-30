@@ -102,6 +102,18 @@ func (c *FakeNetworkPolicies) Update(ctx context.Context, networkPolicy *network
 	return obj.(*networkingv1.NetworkPolicy), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeNetworkPolicies) UpdateStatus(ctx context.Context, networkPolicy *networkingv1.NetworkPolicy, opts v1.UpdateOptions) (*networkingv1.NetworkPolicy, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(networkpoliciesResource, "status", c.ns, networkPolicy), &networkingv1.NetworkPolicy{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*networkingv1.NetworkPolicy), err
+}
+
 // Delete takes name of the networkPolicy and deletes it. Returns an error if one occurs.
 func (c *FakeNetworkPolicies) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
