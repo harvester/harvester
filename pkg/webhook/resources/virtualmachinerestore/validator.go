@@ -73,7 +73,7 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 		return werror.NewInvalidError("Target VM name is empty", fieldTargetName)
 	}
 
-	vmBackup, err := v.getVmBackup(newRestore)
+	vmBackup, err := v.getVMBackup(newRestore)
 	if err != nil {
 		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
 	}
@@ -118,7 +118,7 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	return nil
 }
 
-func (v *restoreValidator) getVmBackup(vmRestore *v1beta1.VirtualMachineRestore) (*v1beta1.VirtualMachineBackup, error) {
+func (v *restoreValidator) getVMBackup(vmRestore *v1beta1.VirtualMachineRestore) (*v1beta1.VirtualMachineBackup, error) {
 	vmBackup, err := v.vmBackup.Get(vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName)
 	if err != nil {
 		return nil, fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName, err)

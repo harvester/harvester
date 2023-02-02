@@ -159,9 +159,8 @@ func (h *Handler) checkHelmChartExists(a *harvesterv1.Addon) (bool, error) {
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return false, nil
-		} else {
-			return false, err
 		}
+		return false, err
 	}
 
 	return true, nil
@@ -210,9 +209,8 @@ func (h *Handler) checkAndDeleteChart(a *harvesterv1.Addon) error {
 		if apierrors.IsNotFound(err) {
 			// chart doesn't exist. Nothing to do
 			return nil
-		} else {
-			return fmt.Errorf("error looking up chart in checkAndDeleteChart: %v", err)
 		}
+		return fmt.Errorf("error looking up chart in checkAndDeleteChart: %v", err)
 	}
 
 	var addonOwned bool

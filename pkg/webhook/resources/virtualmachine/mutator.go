@@ -74,32 +74,32 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 }
 
 func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
-	newVm := newObj.(*kubevirtv1.VirtualMachine)
-	oldVm := oldObj.(*kubevirtv1.VirtualMachine)
+	newVM := newObj.(*kubevirtv1.VirtualMachine)
+	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 
-	logrus.Debugf("update VM %s/%s", newVm.Namespace, newVm.Name)
+	logrus.Debugf("update VM %s/%s", newVM.Namespace, newVM.Name)
 
 	var patchOps types.PatchOps
 	var err error
 
-	if needUpdateResourceOvercommit(oldVm, newVm) {
-		patchOps, err = m.patchResourceOvercommit(newVm)
+	if needUpdateResourceOvercommit(oldVM, newVM) {
+		patchOps, err = m.patchResourceOvercommit(newVM)
 	}
 	if err != nil {
 		return patchOps, err
 	}
 
-	needUpdateRunStrategy, err := needUpdateRunStrategy(oldVm, newVm)
+	needUpdateRunStrategy, err := needUpdateRunStrategy(oldVM, newVM)
 	if err != nil {
 		return patchOps, err
 	}
 
 	if needUpdateRunStrategy {
-		patchOps = patchRunStrategy(newVm, patchOps)
+		patchOps = patchRunStrategy(newVM, patchOps)
 	}
 
-	if needUpdateAffinity(oldVm, newVm) {
-		patchOps, err = m.patchAffinity(oldVm, newVm, patchOps)
+	if needUpdateAffinity(oldVM, newVM) {
+		patchOps, err = m.patchAffinity(oldVM, newVM, patchOps)
 		if err != nil {
 			return nil, err
 		}
@@ -108,18 +108,18 @@ func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj
 	return patchOps, nil
 }
 
-func needUpdateRunStrategy(oldVm, newVm *kubevirtv1.VirtualMachine) (bool, error) {
+func needUpdateRunStrategy(oldVM, newVM *kubevirtv1.VirtualMachine) (bool, error) {
 	// no need to patch the run strategy if user uses the spec.running filed.
-	if newVm.Spec.Running != nil {
+	if newVM.Spec.Running != nil {
 		return false, nil
 	}
 
-	newRunStrategy, err := newVm.RunStrategy()
+	newRunStrategy, err := newVM.RunStrategy()
 	if err != nil {
 		return false, err
 	}
 
-	oldRunStrategy, err := oldVm.RunStrategy()
+	oldRunStrategy, err := oldVM.RunStrategy()
 	if err != nil {
 		return false, err
 	}
@@ -131,8 +131,8 @@ func needUpdateRunStrategy(oldVm, newVm *kubevirtv1.VirtualMachine) (bool, error
 }
 
 // add workaround for the issue https://github.com/kubevirt/kubevirt/issues/7295
-func patchRunStrategy(newVm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) types.PatchOps {
-	runStrategy := newVm.Annotations[util.AnnotationRunStrategy]
+func patchRunStrategy(newVM *kubevirtv1.VirtualMachine, patchOps types.PatchOps) types.PatchOps {
+	runStrategy := newVM.Annotations[util.AnnotationRunStrategy]
 	if string(runStrategy) == "" {
 		runStrategy = string(kubevirtv1.RunStrategyRerunOnFailure)
 	}
@@ -140,23 +140,23 @@ func patchRunStrategy(newVm *kubevirtv1.VirtualMachine, patchOps types.PatchOps)
 	return patchOps
 }
 
-func needUpdateResourceOvercommit(oldVm, newVm *kubevirtv1.VirtualMachine) bool {
+func needUpdateResourceOvercommit(oldVM, newVM *kubevirtv1.VirtualMachine) bool {
 	var newReservedMemory, oldReservedMemory string
-	newLimits := newVm.Spec.Template.Spec.Domain.Resources.Limits
-	newCpu := newLimits.Cpu()
+	newLimits := newVM.Spec.Template.Spec.Domain.Resources.Limits
+	newCPU := newLimits.Cpu()
 	newMem := newLimits.Memory()
-	if newVm.Annotations != nil {
-		newReservedMemory = newVm.Annotations[util.AnnotationReservedMemory]
+	if newVM.Annotations != nil {
+		newReservedMemory = newVM.Annotations[util.AnnotationReservedMemory]
 	}
 
-	oldLimits := oldVm.Spec.Template.Spec.Domain.Resources.Limits
-	oldCpu := oldLimits.Cpu()
+	oldLimits := oldVM.Spec.Template.Spec.Domain.Resources.Limits
+	oldCPU := oldLimits.Cpu()
 	oldMem := oldLimits.Memory()
-	if oldVm.Annotations != nil {
-		oldReservedMemory = oldVm.Annotations[util.AnnotationReservedMemory]
+	if oldVM.Annotations != nil {
+		oldReservedMemory = oldVM.Annotations[util.AnnotationReservedMemory]
 	}
 
-	if !newCpu.IsZero() && (oldCpu.IsZero() || !newCpu.Equal(*oldCpu)) {
+	if !newCPU.IsZero() && (oldCPU.IsZero() || !newCPU.Equal(*oldCPU)) {
 		return true
 	}
 	if !newMem.IsZero() && (oldMem.IsZero() || !newMem.Equal(*oldMem)) {
@@ -181,7 +181,7 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 	}
 
 	if !cpu.IsZero() {
-		newRequest := cpu.MilliValue() * int64(100) / int64(overcommit.Cpu)
+		newRequest := cpu.MilliValue() * int64(100) / int64(overcommit.CPU)
 		quantity := resource.NewMilliQuantity(newRequest, cpu.Format)
 		if requestsMissing {
 			requestsToMutate[v1.ResourceCPU] = *quantity
@@ -248,51 +248,51 @@ func (m *vmMutator) getOvercommit() (*settings.Overcommit, error) {
 	return overcommit, nil
 }
 
-func needUpdateAffinity(oldVm, newVm *kubevirtv1.VirtualMachine) bool {
-	if oldVm.Spec.Template == nil || newVm.Spec.Template == nil {
+func needUpdateAffinity(oldVM, newVM *kubevirtv1.VirtualMachine) bool {
+	if oldVM.Spec.Template == nil || newVM.Spec.Template == nil {
 		return false
 	}
 
-	if isContainMultusNetwork(newVm.Spec.Template.Spec.Networks) {
+	if isContainMultusNetwork(newVM.Spec.Template.Spec.Networks) {
 		return true
 	}
 	// if there are networks removed, update the affinity
-	reducedNetworks := getMultusNetworkIncrement(newVm.Spec.Template.Spec.Networks, oldVm.Spec.Template.Spec.Networks)
+	reducedNetworks := getMultusNetworkIncrement(newVM.Spec.Template.Spec.Networks, oldVM.Spec.Template.Spec.Networks)
 	if len(reducedNetworks) != 0 {
 		return true
 	}
 
-	oldVmAffinity, newVmAffinity := oldVm.Spec.Template.Spec.Affinity, newVm.Spec.Template.Spec.Affinity
+	oldVMAffinity, newVMAffinity := oldVM.Spec.Template.Spec.Affinity, newVM.Spec.Template.Spec.Affinity
 	// the affinity.String() method already checks the nil
-	if oldVmAffinity.String() != newVmAffinity.String() {
+	if oldVMAffinity.String() != newVMAffinity.String() {
 		return true
 	}
 
 	return false
 }
 
-func (m *vmMutator) patchAffinity(oldVm, newVm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
-	if newVm == nil || newVm.Spec.Template == nil {
+func (m *vmMutator) patchAffinity(oldVM, newVM *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
+	if newVM == nil || newVM.Spec.Template == nil {
 		return patchOps, nil
 	}
 
-	affinity := makeAffinityFromVMTemplate(newVm.Spec.Template)
+	affinity := makeAffinityFromVMTemplate(newVM.Spec.Template)
 	nodeSelector := affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 
-	var oldVmNetworks []kubevirtv1.Network
-	if oldVm != nil && oldVm.Spec.Template != nil {
-		oldVmNetworks = oldVm.Spec.Template.Spec.Networks
+	var oldVMNetworks []kubevirtv1.Network
+	if oldVM != nil && oldVM.Spec.Template != nil {
+		oldVMNetworks = oldVM.Spec.Template.Spec.Networks
 	}
-	newVmNetworks := newVm.Spec.Template.Spec.Networks
-	logrus.Debugf("newNetworks: %+v", newVmNetworks)
-	reducedNetworks := getMultusNetworkIncrement(newVmNetworks, oldVmNetworks)
+	newVMNetworks := newVM.Spec.Template.Spec.Networks
+	logrus.Debugf("newNetworks: %+v", newVMNetworks)
+	reducedNetworks := getMultusNetworkIncrement(newVMNetworks, oldVMNetworks)
 	logrus.Debugf("reducedNetworks: %+v", reducedNetworks)
 
-	isAdded, err := m.addNodeSelectorRequirements(newVm.Namespace, nodeSelector, newVmNetworks)
+	isAdded, err := m.addNodeSelectorRequirements(newVM.Namespace, nodeSelector, newVMNetworks)
 	if err != nil {
 		return patchOps, err
 	}
-	isReduced, err := m.deleteNodeNetworkRequirements(newVm.Namespace, nodeSelector, reducedNetworks)
+	isReduced, err := m.deleteNodeNetworkRequirements(newVM.Namespace, nodeSelector, reducedNetworks)
 	if err != nil {
 		return patchOps, err
 	}

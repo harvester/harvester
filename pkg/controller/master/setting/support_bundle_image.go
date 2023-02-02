@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	SupportBundleRespository = "support-bundle-kit"
+	SupportBundleRepository = "support-bundle-kit"
 )
 
 func UpdateSupportBundleImage(settingClient v1beta1.SettingClient, settingCache v1beta1.SettingCache, app *catalogv1api.App) error {
@@ -34,14 +34,14 @@ func UpdateSupportBundleImage(settingClient v1beta1.SettingClient, settingCache 
 	}
 
 	var supportBundleYaml map[string]interface{}
-	if v, ok := values[SupportBundleRespository]; !ok {
-		logrus.Warningf("cant't find %s in apps %s/%s", SupportBundleRespository, app.Namespace, app.Name)
+	v, ok := values[SupportBundleRepository]
+	if !ok {
+		logrus.Warningf("cant't find %s in apps %s/%s", SupportBundleRepository, app.Namespace, app.Name)
 		return nil
-	} else {
-		if supportBundleYaml, ok = v.(map[string]interface{}); !ok {
-			logrus.Warningf("unknown %s yaml struct %+v in apps %s/%s", SupportBundleRespository, v, app.Namespace, app.Name)
-			return nil
-		}
+	}
+	if supportBundleYaml, ok = v.(map[string]interface{}); !ok {
+		logrus.Warningf("unknown %s yaml struct %+v in apps %s/%s", SupportBundleRepository, v, app.Namespace, app.Name)
+		return nil
 	}
 
 	var supportBundle struct {
