@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/longhorn/backupstore"
-	_ "github.com/longhorn/backupstore/nfs"
-	_ "github.com/longhorn/backupstore/s3"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"

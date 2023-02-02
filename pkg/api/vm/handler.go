@@ -268,7 +268,7 @@ func ejectCdRomFromVM(vm *kubevirtv1.VirtualMachine, diskNames []string) error {
 		volumes = append(volumes, vol)
 	}
 
-	if err := removeVolumeClaimTemplatesFromVmAnnotation(vm, toRemoveClaimNames); err != nil {
+	if err := removeVolumeClaimTemplatesFromVMAnnotation(vm, toRemoveClaimNames); err != nil {
 		return err
 	}
 	vm.Spec.Template.Spec.Volumes = volumes
@@ -276,7 +276,7 @@ func ejectCdRomFromVM(vm *kubevirtv1.VirtualMachine, diskNames []string) error {
 	return nil
 }
 
-func removeVolumeClaimTemplatesFromVmAnnotation(vm *kubevirtv1.VirtualMachine, toRemoveDiskNames []string) error {
+func removeVolumeClaimTemplatesFromVMAnnotation(vm *kubevirtv1.VirtualMachine, toRemoveDiskNames []string) error {
 	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
 	if !ok {
 		return nil
@@ -712,8 +712,8 @@ func (h *vmActionHandler) cloneVolumes(newVM *kubevirtv1.VirtualMachine) ([]core
 			}
 
 			annotations := map[string]string{}
-			if imageId, ok := pvc.Annotations[util.AnnotationImageID]; ok {
-				annotations[util.AnnotationImageID] = imageId
+			if imageID, ok := pvc.Annotations[util.AnnotationImageID]; ok {
+				annotations[util.AnnotationImageID] = imageID
 			}
 			newPVC := corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
@@ -758,47 +758,47 @@ func (h *vmActionHandler) cloneVolumes(newVM *kubevirtv1.VirtualMachine) ([]core
 }
 
 func sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kubevirtv1.VirtualMachine) harvesterv1.VirtualMachineSourceSpec {
-	sanitizedVm := removeMacAddresses(vm)
-	sanitizedVm = replaceSecrets(templateVersionName, sanitizedVm)
+	sanitizedVM := removeMacAddresses(vm)
+	sanitizedVM = replaceSecrets(templateVersionName, sanitizedVM)
 
 	return harvesterv1.VirtualMachineSourceSpec{
-		ObjectMeta: sanitizedVm.ObjectMeta,
-		Spec:       sanitizedVm.Spec,
+		ObjectMeta: sanitizedVM.ObjectMeta,
+		Spec:       sanitizedVM.Spec,
 	}
 }
 
 func replaceSecrets(templateVersionName string, vm *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
-	sanitizedVm := vm.DeepCopy()
-	for index, credential := range sanitizedVm.Spec.Template.Spec.AccessCredentials {
+	sanitizedVM := vm.DeepCopy()
+	for index, credential := range sanitizedVM.Spec.Template.Spec.AccessCredentials {
 		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
-			sanitizedVm.Spec.Template.Spec.AccessCredentials[index].SSHPublicKey.Source.Secret.SecretName = getTemplateVersionSSHPublicKeySecretName(templateVersionName, index)
+			sanitizedVM.Spec.Template.Spec.AccessCredentials[index].SSHPublicKey.Source.Secret.SecretName = getTemplateVersionSSHPublicKeySecretName(templateVersionName, index)
 		}
 		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
-			sanitizedVm.Spec.Template.Spec.AccessCredentials[index].UserPassword.Source.Secret.SecretName = getTemplateVersionUserPasswordSecretName(templateVersionName, index)
+			sanitizedVM.Spec.Template.Spec.AccessCredentials[index].UserPassword.Source.Secret.SecretName = getTemplateVersionUserPasswordSecretName(templateVersionName, index)
 		}
 	}
-	for index, volume := range sanitizedVm.Spec.Template.Spec.Volumes {
+	for index, volume := range sanitizedVM.Spec.Template.Spec.Volumes {
 		if volume.CloudInitNoCloud == nil {
 			continue
 		}
 		if volume.CloudInitNoCloud.UserDataSecretRef != nil {
-			sanitizedVm.Spec.Template.Spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getTemplateVersionUserDataSecretName(templateVersionName, volume.Name)
+			sanitizedVM.Spec.Template.Spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getTemplateVersionUserDataSecretName(templateVersionName, volume.Name)
 		}
 		if volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
-			sanitizedVm.Spec.Template.Spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getTemplateVersionNetworkDataSecretName(templateVersionName, volume.Name)
+			sanitizedVM.Spec.Template.Spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getTemplateVersionNetworkDataSecretName(templateVersionName, volume.Name)
 		}
 	}
-	return sanitizedVm
+	return sanitizedVM
 }
 
 // removeMacAddresses replaces the mac address of each device interface with an empty string.
 // This is because macAddresses are unique, and should not reuse the original's.
 func removeMacAddresses(vm *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
-	sanitizedVm := vm.DeepCopy()
-	for index := range sanitizedVm.Spec.Template.Spec.Domain.Devices.Interfaces {
-		sanitizedVm.Spec.Template.Spec.Domain.Devices.Interfaces[index].MacAddress = ""
+	sanitizedVM := vm.DeepCopy()
+	for index := range sanitizedVM.Spec.Template.Spec.Domain.Devices.Interfaces {
+		sanitizedVM.Spec.Template.Spec.Domain.Devices.Interfaces[index].MacAddress = ""
 	}
-	return sanitizedVm
+	return sanitizedVM
 }
 
 // getSSHKeysFromVMITemplateSpec first checks the given VirtualMachineInstanceTemplateSpec
