@@ -107,13 +107,13 @@ func (h *GenerateHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serverUrl, err := h.getServerUrl()
+	serverURL, err := h.getServerURL()
 	if err != nil {
 		util.ResponseError(rw, http.StatusInternalServerError, errors.Wrap(err, "failed to get server url"))
 		return
 	}
 
-	kubeConfig, err := h.generateKubeConfig(secret, serverUrl)
+	kubeConfig, err := h.generateKubeConfig(secret, serverURL)
 	if err != nil {
 		util.ResponseError(rw, http.StatusInternalServerError, errors.Wrap(err, "fail to generate kubeconfig"))
 		return
@@ -122,7 +122,7 @@ func (h *GenerateHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	util.ResponseOKWithBody(rw, kubeConfig)
 }
 
-func (h *GenerateHandler) getServerUrl() (string, error) {
+func (h *GenerateHandler) getServerURL() (string, error) {
 	vipCm, err := h.configMapCache.Get(h.namespace, rancher.VipConfigmapName)
 	if err != nil {
 		return "", err

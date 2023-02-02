@@ -33,7 +33,7 @@ func NewRouter(scaled *config.Scaled, restConfig *rest.Config, options config.Op
 	}, nil
 }
 
-//Routes adds some customize routes to the default router
+// Routes adds some customize routes to the default router
 func (r *Router) Routes(h router.Handlers) http.Handler {
 	m := mux.NewRouter()
 	m.UseEncodedPath()

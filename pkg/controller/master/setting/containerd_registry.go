@@ -113,13 +113,13 @@ func (h *Handler) removeCredentialInSetting(setting *harvesterv1.Setting, regist
 		registry.Configs[configName] = config
 	}
 
-	registryJson, err := json.Marshal(registry)
+	registryJSON, err := json.Marshal(registry)
 	if err != nil {
 		return err
 	}
 
 	toUpdate := setting.DeepCopy()
-	toUpdate.Value = string(registryJson)
+	toUpdate.Value = string(registryJSON)
 	if !reflect.DeepEqual(setting, toUpdate) {
 		if _, err = h.settings.Update(toUpdate); err != nil {
 			return err

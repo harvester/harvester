@@ -41,7 +41,7 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 	}
 }
 
-type ImageHandler struct {
+type Handler struct {
 	httpClient                  http.Client
 	Images                      v1beta1.VirtualMachineImageClient
 	ImageCache                  v1beta1.VirtualMachineImageCache
@@ -49,7 +49,7 @@ type ImageHandler struct {
 	BackingImageDataSourceCache ctllhv1beta1.BackingImageDataSourceCache
 }
 
-func (h ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err := h.do(rw, req); err != nil {
 		status := http.StatusInternalServerError
 		if e, ok := err.(*apierror.APIError); ok {
@@ -62,7 +62,7 @@ func (h ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }
 
-func (h ImageHandler) do(rw http.ResponseWriter, req *http.Request) error {
+func (h Handler) do(rw http.ResponseWriter, req *http.Request) error {
 	vars := mux.Vars(req)
 	if req.Method == http.MethodGet {
 		return h.doGet(vars["link"], rw, req)
@@ -73,7 +73,7 @@ func (h ImageHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
 }
 
-func (h ImageHandler) doGet(link string, rw http.ResponseWriter, req *http.Request) error {
+func (h Handler) doGet(link string, rw http.ResponseWriter, req *http.Request) error {
 	switch link {
 	case actionDownload:
 		return h.downloadImage(rw, req)
@@ -82,7 +82,7 @@ func (h ImageHandler) doGet(link string, rw http.ResponseWriter, req *http.Reque
 	}
 }
 
-func (h ImageHandler) doPost(action string, rw http.ResponseWriter, req *http.Request) error {
+func (h Handler) doPost(action string, rw http.ResponseWriter, req *http.Request) error {
 	switch action {
 	case actionUpload:
 		return h.uploadImage(rw, req)
@@ -91,31 +91,31 @@ func (h ImageHandler) doPost(action string, rw http.ResponseWriter, req *http.Re
 	}
 }
 
-func (h ImageHandler) downloadImage(rw http.ResponseWriter, req *http.Request) error {
+func (h Handler) downloadImage(rw http.ResponseWriter, req *http.Request) error {
 	vars := mux.Vars(req)
 	namespace := vars["namespace"]
 	name := vars["name"]
 	vmImage, err := h.Images.Get(namespace, name, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("Failed to get VMImage with name(%s), ns(%s), error: %w", name, namespace, err)
+		return fmt.Errorf("failed to get VMImage with name(%s), ns(%s), error: %w", name, namespace, err)
 	}
 
 	targetFileName := vmImage.Spec.DisplayName
 	bkimgName := fmt.Sprintf("%s-%s", namespace, name)
-	downloadUrl := fmt.Sprintf("%s/backingimages/%s/download", util.LonghornDefaultManagerURL, bkimgName)
-	downloadReq, err := http.NewRequestWithContext(req.Context(), http.MethodGet, downloadUrl, nil)
+	downloadURL := fmt.Sprintf("%s/backingimages/%s/download", util.LonghornDefaultManagerURL, bkimgName)
+	downloadReq, err := http.NewRequestWithContext(req.Context(), http.MethodGet, downloadURL, nil)
 	if err != nil {
-		return fmt.Errorf("Failed to create the download request with backing Image(%s): %w", bkimgName, err)
+		return fmt.Errorf("failed to create the download request with backing Image(%s): %w", bkimgName, err)
 	}
 
 	downloadResp, err := h.httpClient.Do(downloadReq)
 	if err != nil {
-		return fmt.Errorf("Failed to send the download request with backing Image(%s): %w", bkimgName, err)
+		return fmt.Errorf("failed to send the download request with backing Image(%s): %w", bkimgName, err)
 	}
 	defer downloadResp.Body.Close()
 
 	if downloadResp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Failed with unexpected http Status code %d.", downloadResp.StatusCode)
+		return fmt.Errorf("failed with unexpected http Status code %d", downloadResp.StatusCode)
 	}
 
 	rw.Header().Set("Content-Disposition", "attachment; filename="+targetFileName)
@@ -125,13 +125,13 @@ func (h ImageHandler) downloadImage(rw http.ResponseWriter, req *http.Request) e
 	}
 
 	if _, err := io.Copy(rw, downloadResp.Body); err != nil {
-		return fmt.Errorf("Failed to copy download content to target(%s), err: %w", targetFileName, err)
+		return fmt.Errorf("failed to copy download content to target(%s), err: %w", targetFileName, err)
 	}
 
 	return nil
 }
 
-func (h ImageHandler) uploadImage(rw http.ResponseWriter, req *http.Request) error {
+func (h Handler) uploadImage(rw http.ResponseWriter, req *http.Request) error {
 	vars := mux.Vars(req)
 	namespace := vars["namespace"]
 	name := vars["name"]
@@ -154,8 +154,8 @@ func (h ImageHandler) uploadImage(rw http.ResponseWriter, req *http.Request) err
 		return err
 	}
 
-	uploadUrl := fmt.Sprintf("%s/backingimages/%s-%s", util.LonghornDefaultManagerURL, namespace, name)
-	uploadReq, err := http.NewRequestWithContext(req.Context(), http.MethodPost, uploadUrl, req.Body)
+	uploadURL := fmt.Sprintf("%s/backingimages/%s-%s", util.LonghornDefaultManagerURL, namespace, name)
+	uploadReq, err := http.NewRequestWithContext(req.Context(), http.MethodPost, uploadURL, req.Body)
 	if err != nil {
 		return fmt.Errorf("failed to create the upload request: %w", err)
 	}
@@ -187,7 +187,7 @@ func (h ImageHandler) uploadImage(rw http.ResponseWriter, req *http.Request) err
 	return nil
 }
 
-func (h ImageHandler) waitForBackingImageDataSourceReady(name string) error {
+func (h Handler) waitForBackingImageDataSourceReady(name string) error {
 	retry := 30
 	for i := 0; i < retry; i++ {
 		ds, err := h.BackingImageDataSources.Get(util.LonghornSystemNamespaceName, name, metav1.GetOptions{})
@@ -207,7 +207,7 @@ func (h ImageHandler) waitForBackingImageDataSourceReady(name string) error {
 	return errors.New("timeout waiting for backing image data source to be ready")
 }
 
-func (h ImageHandler) updateImportedConditionOnConflict(image *apisv1beta1.VirtualMachineImage,
+func (h Handler) updateImportedConditionOnConflict(image *apisv1beta1.VirtualMachineImage,
 	status, reason, message string) error {
 	retry := 3
 	for i := 0; i < retry; i++ {

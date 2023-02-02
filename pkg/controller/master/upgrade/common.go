@@ -191,7 +191,7 @@ func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
 	}
 }
 
-func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo, nodeName string, jobType string) *batchv1.Job {
+func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *RepoInfo, nodeName string, jobType string) *batchv1.Job {
 	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
 	imageVersion := repoInfo.Release.Harvester
 	hostPathDirectory := corev1.HostPathDirectory
@@ -296,7 +296,7 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo, nodeN
 	}
 }
 
-func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *UpgradeRepoInfo) *batchv1.Job {
+func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *RepoInfo) *batchv1.Job {
 	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
 	imageVersion := repoInfo.Release.Harvester
 	return &batchv1.Job{

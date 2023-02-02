@@ -44,7 +44,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 ## install golangci
 RUN if [ "${ARCH}" = "amd64" ]; then \
-        curl -sL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b "$(go env GOPATH)/bin" v1.41.1; \
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.49.0; \
     fi
 ## install controller-gen
 RUN if [ "${ARCH}" = "amd64" ]; then \

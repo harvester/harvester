@@ -12,7 +12,7 @@ import (
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
-	imgHandler := ImageHandler{
+	imgHandler := Handler{
 		httpClient:                  http.Client{},
 		Images:                      scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
 		ImageCache:                  scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
