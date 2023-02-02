@@ -4,18 +4,21 @@ import (
 	"math"
 	"testing"
 
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func Test_virtualmachine_mutator(t *testing.T) {
+func TestPatchResourceOvercommit(t *testing.T) {
 	tests := []struct {
 		name        string
 		resourceReq kubevirtv1.ResourceRequirements
@@ -150,5 +153,138 @@ func Test_virtualmachine_mutator(t *testing.T) {
 			assert.Nil(t, err, tc.name)
 			assert.Equal(t, tc.patchOps, actual)
 		})
+	}
+}
+
+func TestPatchAffinity(t *testing.T) {
+	oldVm := &kubevirtv1.VirtualMachine{
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Affinity: &v1.Affinity{
+						NodeAffinity: &v1.NodeAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+								NodeSelectorTerms: []v1.NodeSelectorTerm{
+									{
+										MatchExpressions: []v1.NodeSelectorRequirement{
+											{
+												Key:      "network.harvesterhci.io/test",
+												Operator: v1.NodeSelectorOpIn,
+												Values:   []string{"true"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "default",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/net2",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vm := &kubevirtv1.VirtualMachine{
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "default",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/net1",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	net1 := &cniv1.NetworkAttachmentDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "net1",
+			Namespace: "default",
+			Labels: map[string]string{
+				"network.harvesterhci.io/clusternetwork": "mgmt",
+				"network.harvesterhci.io/type":           "L2VlanNetwork",
+				"network.harvesterhci.io/vlan-id":        "178",
+			},
+		},
+		Spec: cniv1.NetworkAttachmentDefinitionSpec{
+			Config: `{"cniVersion":"0.3.1","name":"vlan178","type":"bridge","bridge":"mgmt-br","promiscMode":true,"vlan":178,"ipam":{}}`,
+		},
+	}
+
+	net2 := &cniv1.NetworkAttachmentDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "net2",
+			Namespace: "default",
+			Labels: map[string]string{
+				"network.harvesterhci.io/clusternetwork": "test",
+				"network.harvesterhci.io/type":           "L2VlanNetwork",
+				"network.harvesterhci.io/vlan-id":        "178",
+			},
+		},
+		Spec: cniv1.NetworkAttachmentDefinitionSpec{
+			Config: `{"cniVersion":"0.3.1","name":"vlan178","type":"bridge","bridge":"test-br","promiscMode":true,"vlan":178,"ipam":{}}`,
+		},
+	}
+
+	clientSet := fake.NewSimpleClientset()
+	nadGvr := schema.GroupVersionResource{
+		Group:    "k8s.cni.cncf.io",
+		Version:  "v1",
+		Resource: "network-attachment-definitions",
+	}
+	if err := clientSet.Tracker().Create(nadGvr, net1.DeepCopy(), net1.Namespace); err != nil {
+		t.Fatalf("failed to add net1 %+v", net1)
+	}
+	if err := clientSet.Tracker().Create(nadGvr, net2.DeepCopy(), net2.Namespace); err != nil {
+		t.Fatalf("failed to add net1 %+v", net2)
+	}
+
+	tests := []struct {
+		name     string
+		oldVm    *kubevirtv1.VirtualMachine
+		newVm    *kubevirtv1.VirtualMachine
+		patchOps types.PatchOps
+	}{
+		{
+			name:  "net1",
+			newVm: vm,
+			patchOps: types.PatchOps{
+				`{"op": "replace", "path": "/spec/template/spec/affinity", "value": {"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"network.harvesterhci.io/mgmt","operator":"In","values":["true"]}]}]}}}}`,
+			},
+		},
+		{
+			name:  "net2ToNet1",
+			oldVm: oldVm,
+			newVm: vm,
+			patchOps: types.PatchOps{
+				`{"op": "replace", "path": "/spec/template/spec/affinity", "value": {"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"network.harvesterhci.io/mgmt","operator":"In","values":["true"]}]}]}}}}`,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		mutator := NewMutator(fakeclients.HarvesterSettingCache(clientSet.HarvesterhciV1beta1().Settings),
+			fakeclients.NetworkAttachmentDefinitionCache(clientSet.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+		patchOps, err := mutator.(*vmMutator).patchAffinity(tc.oldVm, tc.newVm, nil)
+		assert.Nil(t, err, tc.name)
+		assert.Equal(t, tc.patchOps, patchOps)
 	}
 }
