@@ -65,7 +65,7 @@ func (h *Handler) updateTLSSecret(publicCertificate, privateKey string) error {
 	return err
 }
 
-//updateIngressDefaultCertificate updates default ssl certificate of nginx ingress controller
+// updateIngressDefaultCertificate updates default ssl certificate of nginx ingress controller
 func (h *Handler) updateIngressDefaultCertificate(namespace, secretName string) error {
 	secretRef := fmt.Sprintf("%s/%s", namespace, secretName)
 	helmChartConfig, err := h.helmChartConfigCache.Get(util.KubeSystemNamespace, util.Rke2IngressNginxAppName)

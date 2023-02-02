@@ -69,7 +69,7 @@ func (h *ActionHandler) restore(ctx context.Context, snapshotNamespace, snapshot
 
 	sourceStorageClassName := volumeSnapshot.Annotations[util.AnnotationStorageClassName]
 	sourceStorageProvisioner := volumeSnapshot.Annotations[util.AnnotationStorageProvisioner]
-	sourceImageId := volumeSnapshot.Annotations[util.AnnotationImageID]
+	sourceImageID := volumeSnapshot.Annotations[util.AnnotationImageID]
 	// default to using source storageClass
 	if storageClassName == "" {
 		storageClassName = sourceStorageClassName
@@ -81,7 +81,7 @@ func (h *ActionHandler) restore(ctx context.Context, snapshotNamespace, snapshot
 	if sourceStorageProvisioner != "" && sc.Provisioner != sourceStorageProvisioner {
 		return apierror.NewAPIError(validation.InvalidBodyContent, "Can not use different provisioner for restoring volume snapshot")
 	}
-	if sourceImageId != "" && storageClassName != sourceStorageClassName {
+	if sourceImageID != "" && storageClassName != sourceStorageClassName {
 		return apierror.NewAPIError(validation.InvalidBodyContent, "Can not use different storageClass for restoring image volume snapshot")
 	}
 
@@ -115,8 +115,8 @@ func (h *ActionHandler) restore(ctx context.Context, snapshotNamespace, snapshot
 		},
 	}
 
-	if sourceImageId != "" {
-		newPVC.Annotations[util.AnnotationImageID] = sourceImageId
+	if sourceImageID != "" {
+		newPVC.Annotations[util.AnnotationImageID] = sourceImageID
 	}
 
 	if _, err = h.pvcs.Create(newPVC); err != nil {

@@ -39,7 +39,7 @@ var (
 	SupportBundleNamespaces = NewSetting("support-bundle-namespaces", "")
 	SupportBundleTimeout    = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
 	DefaultStorageClass     = NewSetting("default-storage-class", "longhorn")
-	HTTPProxy               = NewSetting(HttpProxySettingName, "{}")
+	HTTPProxy               = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet   = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
 	OvercommitConfig        = NewSetting(OvercommitConfigSettingName, `{"cpu":1600,"memory":150,"storage":200}`)
 	VipPools                = NewSetting(VipPoolsConfigSettingName, "")
@@ -57,7 +57,7 @@ const (
 	BackupTargetSettingName           = "backup-target"
 	VMForceResetPolicySettingName     = "vm-force-reset-policy"
 	SupportBundleTimeoutSettingName   = "support-bundle-timeout"
-	HttpProxySettingName              = "http-proxy"
+	HTTPProxySettingName              = "http-proxy"
 	OvercommitConfigSettingName       = "overcommit-config"
 	SSLCertificatesSettingName        = "ssl-certificates"
 	SSLParametersName                 = "ssl-parameters"
@@ -251,7 +251,7 @@ func DecodeVMForceResetPolicy(value string) (*VMForceResetPolicy, error) {
 }
 
 type Overcommit struct {
-	Cpu     int `json:"cpu"`
+	CPU     int `json:"cpu"`
 	Memory  int `json:"memory"`
 	Storage int `json:"storage"`
 }

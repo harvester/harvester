@@ -92,7 +92,7 @@ var _ = BeforeSuite(func() {
 	select {
 	case <-time.After(harvesterStartTimeOut * time.Second):
 		MustFinallyBeTrue(func() bool {
-			return validateApiIsReady()
+			return validateAPIIsReady()
 		})
 	case err := <-testSuiteStartErrChan:
 		MustNotError(err)
@@ -116,7 +116,7 @@ var _ = AfterSuite(func() {
 })
 
 // validate the v1 api server is ready
-func validateApiIsReady() bool {
+func validateAPIIsReady() bool {
 	apiURL := helper.BuildAPIURL("v1", "", options.HTTPSListenPort)
 	code, _, err := helper.GetResponse(apiURL)
 	if err != nil || code != http.StatusOK {

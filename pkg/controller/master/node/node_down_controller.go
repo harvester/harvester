@@ -30,8 +30,8 @@ type nodeDownHandler struct {
 	virtualMachineInstanceCache v1.VirtualMachineInstanceCache
 }
 
-// NodeDownRegister registers a controller to delete VMI when node is down
-func NodeDownRegister(ctx context.Context, management *config.Management, options config.Options) error {
+// DownRegister registers a controller to delete VMI when node is down
+func DownRegister(ctx context.Context, management *config.Management, options config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
 	pods := management.CoreFactory.Core().V1().Pod()
 	setting := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()

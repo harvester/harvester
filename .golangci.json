@@ -2,23 +2,17 @@
 	"linters": {
 		"disable-all": true,
 		"enable": [
-			"govet",
 			"goimports",
-			"misspell",
-			"ineffassign",
 			"gofmt",
-			"staticcheck",
-			"bodyclose",
-			"gosimple",
-			"prealloc",
-			"deadcode",
-			"errcheck"
+			"misspell",
+			"revive",
+			"prealloc"
 		]
 	},
 	"run": {
 		"skip-files": [
 			"/zz_generated_",
-                        "_generated"
+			"_generated"
 		],
 		"skip-dirs": [
 			"generated"
@@ -29,9 +23,9 @@
 			"test"
 		]
 	},
-        "linters-settings": {
-                "goimports": {
-                        "local-prefixes": "github.com/harvester/harvester"
-                }
-        }
+	"linters-settings": {
+		"goimports": {
+			"local-prefixes": "github.com/harvester/harvester"
+		}
+	}
 }

@@ -274,23 +274,23 @@ func (h *Handler) getCSIDriverMap(backup *harvesterv1.VirtualMachineBackup) (map
 			continue
 		}
 
-		if driverInfo, ok := csiDriverConfig[csiDriverName]; !ok {
+		driverInfo, ok := csiDriverConfig[csiDriverName]
+		if !ok {
 			return nil, nil, fmt.Errorf("can't find CSI driver %s in setting CSIDriverInfo", csiDriverName)
-		} else {
-			volumeSnapshotClassName := ""
-			switch backup.Spec.Type {
-			case harvesterv1.Backup:
-				volumeSnapshotClassName = driverInfo.BackupVolumeSnapshotClassName
-			case harvesterv1.Snapshot:
-				volumeSnapshotClassName = driverInfo.VolumeSnapshotClassName
-			}
-			volumeSnapshotClass, err := h.snapshotClassCache.Get(volumeSnapshotClassName)
-			if err != nil {
-				return nil, nil, fmt.Errorf("can't find volumeSnapshotClass %s for CSI driver %s", volumeSnapshotClassName, csiDriverName)
-			}
-			csiDriverVolumeSnapshotClassNameMap[csiDriverName] = volumeSnapshotClassName
-			csiDriverVolumeSnapshotClassMap[csiDriverName] = *volumeSnapshotClass
 		}
+		volumeSnapshotClassName := ""
+		switch backup.Spec.Type {
+		case harvesterv1.Backup:
+			volumeSnapshotClassName = driverInfo.BackupVolumeSnapshotClassName
+		case harvesterv1.Snapshot:
+			volumeSnapshotClassName = driverInfo.VolumeSnapshotClassName
+		}
+		volumeSnapshotClass, err := h.snapshotClassCache.Get(volumeSnapshotClassName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("can't find volumeSnapshotClass %s for CSI driver %s", volumeSnapshotClassName, csiDriverName)
+		}
+		csiDriverVolumeSnapshotClassNameMap[csiDriverName] = volumeSnapshotClassName
+		csiDriverVolumeSnapshotClassMap[csiDriverName] = *volumeSnapshotClass
 	}
 
 	return csiDriverVolumeSnapshotClassNameMap, csiDriverVolumeSnapshotClassMap, nil

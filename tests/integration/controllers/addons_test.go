@@ -217,9 +217,8 @@ var _ = Describe("addon and helm chart deletion", func() {
 				if err != nil {
 					if apierrors.IsNotFound(err) {
 						return nil
-					} else {
-						return err
 					}
+					return err
 				}
 
 				// default scenario when hc is found
@@ -596,9 +595,8 @@ var _ = Describe("enable and disable successful addon", func() {
 				if err != nil {
 					if apierrors.IsNotFound(err) {
 						return nil
-					} else {
-						return fmt.Errorf("error getting hemChart: %v", err)
 					}
+					return fmt.Errorf("error getting hemChart: %v", err)
 				}
 
 				return fmt.Errorf("waiting for helm chart to be removed")
@@ -687,9 +685,8 @@ var _ = Describe("enable and disable failed addon", func() {
 				if err != nil {
 					if apierrors.IsNotFound(err) {
 						return nil
-					} else {
-						return fmt.Errorf("error getting hemChart: %v", err)
 					}
+					return fmt.Errorf("error getting hemChart: %v", err)
 				}
 
 				return fmt.Errorf("waiting for helm chart to be removed")

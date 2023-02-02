@@ -51,7 +51,7 @@ func (h *Handler) PodResourcesOnChanged(key string, node *corev1.Node) (*corev1.
 }
 
 func (h *Handler) getNonTerminatedPods(node *corev1.Node) ([]*corev1.Pod, error) {
-	var pods []*corev1.Pod
+	var pods = make([]*corev1.Pod, 0)
 
 	fromCache, err := h.podCache.GetByIndex(indexeres.PodByNodeNameIndex, node.Name)
 	if err != nil {

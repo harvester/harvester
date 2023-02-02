@@ -51,7 +51,7 @@ func TestHandler_syncOvercommitConfig(t *testing.T) {
 			Value:      `{"cpu":1300,"memory":1200,"storage":1100}`,
 		}
 		expected := settings.Overcommit{
-			Cpu:     1300,
+			CPU:     1300,
 			Memory:  1200,
 			Storage: 1100,
 		}

@@ -27,7 +27,7 @@ import (
 
 var (
 	upgradeControllerLock sync.Mutex
-	rke2DrainNodes        bool = true
+	rke2DrainNodes        = true
 )
 
 const (
@@ -386,7 +386,7 @@ func (h *upgradeHandler) upgradeKubernetes(kubernetesVersion string) error {
 		toUpdate.Spec.RKEConfig = &provisioningv1.RKEConfig{}
 	}
 
-	toUpdate.Spec.RKEConfig.ProvisionGeneration += 1
+	toUpdate.Spec.RKEConfig.ProvisionGeneration++
 	toUpdate.Spec.RKEConfig.UpgradeStrategy.ControlPlaneConcurrency = "1"
 	toUpdate.Spec.RKEConfig.UpgradeStrategy.WorkerConcurrency = "1"
 	toUpdate.Spec.RKEConfig.UpgradeStrategy.ControlPlaneDrainOptions.DeleteEmptyDirData = rke2DrainNodes
@@ -436,8 +436,8 @@ func ensureSingleUpgrade(namespace string, upgradeCache ctlharvesterv1.UpgradeCa
 	return onGoingUpgrades[0], nil
 }
 
-func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*UpgradeRepoInfo, error) {
-	repoInfo := &UpgradeRepoInfo{}
+func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*RepoInfo, error) {
+	repoInfo := &RepoInfo{}
 	if err := repoInfo.Load(upgrade.Status.RepoInfo); err != nil {
 		return nil, err
 	}

@@ -45,11 +45,11 @@ type HarvesterRelease struct {
 	MinUpgradableVersion string `yaml:"minUpgradableVersion,omitempty"`
 }
 
-type UpgradeRepoInfo struct {
+type RepoInfo struct {
 	Release HarvesterRelease
 }
 
-func (info *UpgradeRepoInfo) Marshall() (string, error) {
+func (info *RepoInfo) Marshall() (string, error) {
 	out, err := yaml.Marshal(info)
 	if err != nil {
 		return "", err
@@ -57,11 +57,11 @@ func (info *UpgradeRepoInfo) Marshall() (string, error) {
 	return string(out), nil
 }
 
-func (info *UpgradeRepoInfo) Load(data string) error {
+func (info *RepoInfo) Load(data string) error {
 	return yaml.Unmarshal([]byte(data), info)
 }
 
-type UpgradeRepo struct {
+type Repo struct {
 	ctx     context.Context
 	upgrade *harvesterv1.Upgrade
 	h       *upgradeHandler
@@ -69,8 +69,8 @@ type UpgradeRepo struct {
 	httpClient *http.Client
 }
 
-func NewUpgradeRepo(ctx context.Context, upgrade *harvesterv1.Upgrade, upgradeHandler *upgradeHandler) *UpgradeRepo {
-	return &UpgradeRepo{
+func NewUpgradeRepo(ctx context.Context, upgrade *harvesterv1.Upgrade, upgradeHandler *upgradeHandler) *Repo {
+	return &Repo{
 		ctx:     ctx,
 		upgrade: upgrade,
 		h:       upgradeHandler,
@@ -80,7 +80,7 @@ func NewUpgradeRepo(ctx context.Context, upgrade *harvesterv1.Upgrade, upgradeHa
 	}
 }
 
-func (r *UpgradeRepo) Bootstrap() error {
+func (r *Repo) Bootstrap() error {
 	image := r.upgrade.Status.ImageID
 	if image == "" {
 		return errors.New("Upgrade repo image is not provided")
@@ -103,7 +103,7 @@ func getISODisplayNameImageName(upgradeName string, version string) string {
 	return fmt.Sprintf("%s-%s", upgradeName, version)
 }
 
-func (r *UpgradeRepo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.VirtualMachineImage, error) {
+func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.VirtualMachineImage, error) {
 	imageSpec := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    harvesterSystemNamespace,
@@ -126,7 +126,7 @@ func (r *UpgradeRepo) CreateImageFromISO(isoURL string, checksum string) (*harve
 	return r.h.vmImageClient.Create(imageSpec)
 }
 
-func (r *UpgradeRepo) GetImage(imageName string) (*harvesterv1.VirtualMachineImage, error) {
+func (r *Repo) GetImage(imageName string) (*harvesterv1.VirtualMachineImage, error) {
 	tokens := strings.Split(imageName, "/")
 	if len(tokens) != 2 {
 		return nil, fmt.Errorf("Invalid image format %s", imageName)
@@ -139,11 +139,11 @@ func (r *UpgradeRepo) GetImage(imageName string) (*harvesterv1.VirtualMachineIma
 	return image, nil
 }
 
-func (r *UpgradeRepo) getVMName() string {
+func (r *Repo) getVMName() string {
 	return fmt.Sprintf("%s%s", repoVMNamePrefix, r.upgrade.Name)
 }
 
-func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.VirtualMachine, error) {
+func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.VirtualMachine, error) {
 	vmName := r.getVMName()
 	vmRun := true
 	var bootOrder uint = 1
@@ -310,7 +310,7 @@ func (r *UpgradeRepo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevir
 	return r.h.vmClient.Create(&vm)
 }
 
-func (r *UpgradeRepo) deleteVM() error {
+func (r *Repo) deleteVM() error {
 	vmName := r.getVMName()
 
 	vm, err := r.h.vmCache.Get(upgradeNamespace, vmName)
@@ -335,7 +335,7 @@ func (r *UpgradeRepo) deleteVM() error {
 // (1) If a PVC based on the image exists, it adds the PVC as the OwnerReference to the repo image.
 // Once the repo VM is deleted and VM's PVC is deleted, the repo image will be garbage collected.
 // (2) If there is no PVCs based on the repo image. We delete the image directly.
-func (r *UpgradeRepo) deleteImage(pvcName string) error {
+func (r *Repo) deleteImage(pvcName string) error {
 	imageID := r.upgrade.Status.ImageID
 	if imageID == "" {
 		logrus.Error("Upgrade repo image is not provided")
@@ -379,11 +379,11 @@ func (r *UpgradeRepo) deleteImage(pvcName string) error {
 	return err
 }
 
-func (r *UpgradeRepo) getRepoServiceName() string {
+func (r *Repo) getRepoServiceName() string {
 	return fmt.Sprintf("%s%s", repoServiceNamePrefix, r.upgrade.Name)
 }
 
-func (r *UpgradeRepo) createService() (*corev1.Service, error) {
+func (r *Repo) createService() (*corev1.Service, error) {
 	service := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: upgradeNamespace,
@@ -415,7 +415,7 @@ func (r *UpgradeRepo) createService() (*corev1.Service, error) {
 	return r.h.serviceClient.Create(&service)
 }
 
-func (r *UpgradeRepo) getInfo() (*UpgradeRepoInfo, error) {
+func (r *Repo) getInfo() (*RepoInfo, error) {
 	releaseURL := fmt.Sprintf("http://%s.%s/harvester-iso/harvester-release.yaml", r.getRepoServiceName(), upgradeNamespace)
 
 	req, err := http.NewRequestWithContext(r.ctx, http.MethodGet, releaseURL, nil)
@@ -438,7 +438,7 @@ func (r *UpgradeRepo) getInfo() (*UpgradeRepoInfo, error) {
 		return nil, err
 	}
 
-	info := UpgradeRepoInfo{}
+	info := RepoInfo{}
 	err = yaml.Unmarshal(body, &info.Release)
 	if err != nil {
 		return nil, err
