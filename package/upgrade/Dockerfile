@@ -1,19 +1,19 @@
-FROM registry.suse.com/bci/bci-base:15.3 AS temp_elemental
+FROM registry.suse.com/bci/bci-base:15.4 AS temp_elemental
 
 RUN zypper rm -y container-suseconnect && \
-    zypper ar --priority=200 http://download.opensuse.org/distribution/leap/15.3/repo/oss repo-oss && \
+    zypper ar --priority=200 http://download.opensuse.org/distribution/leap/15.4/repo/oss repo-oss && \
     zypper --no-gpg-checks ref && \
     zypper in -y curl tar gzip && zypper clean -a
 
 RUN mkdir -p /tmp/elemental_cli && \
     curl -sfL https://github.com/rancher/elemental-cli/releases/download/v0.0.14-harvester1/elemental-v0.0.14-harvester1-Linux-x86_64.tar.gz |tar -xz -C /tmp/elemental_cli
 
-FROM registry.suse.com/bci/bci-base:15.3
+FROM registry.suse.com/bci/bci-base:15.4
 
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
 RUN zypper rm -y container-suseconnect && \
-    zypper ar --priority=200 http://download.opensuse.org/distribution/leap/15.3/repo/oss repo-oss && \
+    zypper ar --priority=200 http://download.opensuse.org/distribution/leap/15.4/repo/oss repo-oss && \
     zypper --no-gpg-checks ref && \
     zypper in -y curl e2fsprogs rsync awk zstd jq helm && zypper clean -a
 
