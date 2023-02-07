@@ -32,7 +32,7 @@ steps:
     path: /var/run/docker.sock
 
 - name: stage-binaries
-  image: rancher/dapper:v0.5.2
+  image: rancher/dapper:v0.5.8
   commands:
   - "cp -r ./bin/* ./package/"
   when:
@@ -349,7 +349,7 @@ steps:
       - tag
 
 - name: build
-  image: rancher/dapper:v0.4.1
+  image: rancher/dapper:v0.5.8
   commands:
   - dapper build-iso
   volumes:
