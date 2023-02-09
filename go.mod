@@ -60,7 +60,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/containernetworking/cni v1.1.2
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
-	github.com/emicklei/go-restful v2.16.0+incompatible
+	github.com/emicklei/go-restful/v3 v3.8.0
 	github.com/gorilla/mux v1.8.0
 	github.com/guonaihong/gout v0.1.3
 	github.com/harvester/harvester-network-controller v0.1.7
@@ -130,7 +130,6 @@ require (
 	github.com/adrg/xdg v0.3.1 // indirect
 	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef // indirect
-	github.com/aws/aws-sdk-go v1.44.83 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
@@ -148,7 +147,6 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/emicklei/go-restful/v3 v3.8.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
@@ -190,7 +188,6 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jinzhu/copier v0.3.5 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jmoiron/sqlx v1.3.4 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
