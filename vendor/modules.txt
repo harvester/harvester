@@ -1721,8 +1721,8 @@ k8s.io/kube-openapi/pkg/util
 k8s.io/kube-openapi/pkg/util/proto
 k8s.io/kube-openapi/pkg/util/proto/validation
 k8s.io/kube-openapi/pkg/validation/spec
-# k8s.io/kubectl v0.24.2 => k8s.io/kubectl v0.24.10
-## explicit; go 1.19
+# k8s.io/kubectl v0.24.2 => k8s.io/kubectl v0.24.2
+## explicit; go 1.16
 k8s.io/kubectl/pkg/cmd/util
 k8s.io/kubectl/pkg/drain
 k8s.io/kubectl/pkg/scheme
@@ -2040,7 +2040,7 @@ sigs.k8s.io/yaml
 # k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.24.10
 # k8s.io/kube-proxy => k8s.io/kube-proxy v0.24.10
 # k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.24.10
-# k8s.io/kubectl => k8s.io/kubectl v0.24.10
+# k8s.io/kubectl => k8s.io/kubectl v0.24.2
 # k8s.io/kubelet => k8s.io/kubelet v0.24.10
 # k8s.io/kubernetes => k8s.io/kubernetes v1.24.10
 # k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.24.10

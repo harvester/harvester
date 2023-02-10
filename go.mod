@@ -40,7 +40,7 @@ replace (
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.24.10
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.24.10
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.24.10
-	k8s.io/kubectl => k8s.io/kubectl v0.24.10
+	k8s.io/kubectl => k8s.io/kubectl v0.24.2
 	k8s.io/kubelet => k8s.io/kubelet v0.24.10
 	k8s.io/kubernetes => k8s.io/kubernetes v1.24.10
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.24.10
@@ -106,7 +106,7 @@ require (
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/gengo v0.0.0-20211129171323-c02415ce4185
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1
-	k8s.io/kubectl v0.23.1
+	k8s.io/kubectl v0.24.2
 	k8s.io/utils v0.0.0-20221011040102-427025108f67
 	kubevirt.io/api v0.54.0
 	kubevirt.io/containerized-data-importer-api v1.47.0
@@ -287,7 +287,6 @@ require (
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-aggregator v0.25.4 // indirect
-	k8s.io/kubectl v0.24.2 // indirect
 	k8s.io/kubernetes v1.24.2 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	oras.land/oras-go v1.1.0 // indirect
