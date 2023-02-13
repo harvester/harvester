@@ -19,9 +19,11 @@ func Register(ctx context.Context, management *config.Management, options config
 	storageClasses := management.StorageFactory.Storage().V1().StorageClass()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	vmImageHandler := &vmImageHandler{
-		backingImages:  backingImages,
-		storageClasses: storageClasses,
-		images:         images,
+		backingImages:     backingImages,
+		backingImageCache: backingImages.Cache(),
+		storageClasses:    storageClasses,
+		images:            images,
+		imageController:   images,
 		httpClient: http.Client{
 			Timeout: 15 * time.Second,
 		},

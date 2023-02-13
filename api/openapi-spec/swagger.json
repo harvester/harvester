@@ -6813,7 +6813,8 @@
       "type": "object",
       "required": [
         "displayName",
-        "sourceType"
+        "sourceType",
+        "retry"
       ],
       "properties": {
         "checksum": {
@@ -6834,6 +6835,11 @@
         "pvcNamespace": {
           "type": "string",
           "default": ""
+        },
+        "retry": {
+          "type": "integer",
+          "format": "int32",
+          "default": 0
         },
         "sourceType": {
           "type": "string",
@@ -6864,6 +6870,14 @@
             "default": {},
             "$ref": "#/definitions/harvesterhci.io.v1beta1.Condition"
           }
+        },
+        "failed": {
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        },
+        "lastFailedTime": {
+          "type": "string"
         },
         "progress": {
           "type": "integer",
