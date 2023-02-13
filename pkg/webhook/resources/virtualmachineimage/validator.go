@@ -161,6 +161,10 @@ func (v *virtualMachineImageValidator) Update(request *types.Request, oldObj run
 		}
 	}
 
+	if oldImage.Spec.URL != newImage.Spec.URL {
+		return werror.NewInvalidError("url cannot be modified", "spec.url")
+	}
+
 	return v.CheckImageDisplayNameAndURL(newImage)
 }
 
