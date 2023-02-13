@@ -198,7 +198,7 @@ var _ = Describe("verify image APIs", func() {
 						Description: "test description update",
 						DisplayName: imageDisplayName,
 						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
-						URL:         "http://harvesterhci.io/test-update.img",
+						URL:         "http://harvesterhci.io/test.img",
 					},
 				}
 
