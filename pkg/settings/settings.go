@@ -41,7 +41,7 @@ var (
 	DefaultStorageClass     = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy               = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet   = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
-	OvercommitConfig        = NewSetting(OvercommitConfigSettingName, `{"cpu":1600,"memory":150,"storage":200}`)
+	OvercommitConfig        = NewSetting(OvercommitConfigSettingName, `{"cpu":1600,"memory":100,"storage":200}`)
 	VipPools                = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths  = NewSetting("auto-disk-provision-paths", "")
 	CSIDriverConfig         = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn"}}`)
