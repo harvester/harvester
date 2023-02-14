@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"sync"
+	"time"
 
 	semverv3 "github.com/Masterminds/semver/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
@@ -52,20 +54,24 @@ const (
 	rke2PostDrainAnnotation = "rke.cattle.io/post-drain"
 
 	upgradeComponentRepo = "repo"
+
+	getRepoRetryCountAnnotation = "harvesterhci.io/getRepoRetryCount"
+	getRepoMaxRetryCount        = 5
 )
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades
 type upgradeHandler struct {
-	ctx           context.Context
-	namespace     string
-	nodeCache     ctlcorev1.NodeCache
-	jobClient     v1.JobClient
-	jobCache      v1.JobCache
-	upgradeClient ctlharvesterv1.UpgradeClient
-	upgradeCache  ctlharvesterv1.UpgradeCache
-	versionCache  ctlharvesterv1.VersionCache
-	planClient    upgradectlv1.PlanClient
-	planCache     upgradectlv1.PlanCache
+	ctx               context.Context
+	namespace         string
+	nodeCache         ctlcorev1.NodeCache
+	jobClient         v1.JobClient
+	jobCache          v1.JobCache
+	upgradeClient     ctlharvesterv1.UpgradeClient
+	upgradeCache      ctlharvesterv1.UpgradeCache
+	upgradeController ctlharvesterv1.UpgradeController
+	versionCache      ctlharvesterv1.VersionCache
+	planClient        upgradectlv1.PlanClient
+	planCache         upgradectlv1.PlanCache
 
 	vmImageClient ctlharvesterv1.VirtualMachineImageClient
 	vmImageCache  ctlharvesterv1.VirtualMachineImageCache
@@ -166,10 +172,34 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 		toUpdate.Status.SingleNode = singleNode
 
 		repoInfo, err := repo.getInfo()
+		// retry repo.getInfo by requeueing
 		if err != nil {
-			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
-			return h.upgradeClient.Update(toUpdate)
+			retryCount := 0
+			if toUpdate.Annotations == nil {
+				toUpdate.Annotations = make(map[string]string)
+				toUpdate.Annotations[getRepoRetryCountAnnotation] = "0"
+			}
+
+			retryCount, err = strconv.Atoi(toUpdate.Annotations[getRepoRetryCountAnnotation])
+			if err != nil {
+				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+				return h.upgradeClient.Update(toUpdate)
+			}
+
+			if retryCount > getRepoMaxRetryCount {
+				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "Retry exceeded")
+				return h.upgradeClient.Update(toUpdate)
+			}
+
+			retryCount++
+			toUpdate.Annotations[getRepoRetryCountAnnotation] = strconv.Itoa(retryCount)
+			if _, err := h.upgradeClient.Update(toUpdate); err != nil {
+				return nil, err
+			}
+			h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, 5*time.Second)
+			return nil, nil
 		}
+
 		repoInfoStr, err := repoInfo.Marshall()
 		if err != nil {
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
