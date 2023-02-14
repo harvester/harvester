@@ -14,6 +14,7 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/sirupsen/logrus"
@@ -909,6 +910,10 @@ func (h *RestoreHandler) mountLonghornVolumes(backup *harvesterv1.VirtualMachine
 		pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
 		if err != nil {
 			return fmt.Errorf("failed to get pvc %s/%s, error: %s", pvcNamespace, pvcName, err.Error())
+		}
+
+		if provisioner := util.GetProvisionedPVCProvisioner(pvc); provisioner != longhorntypes.LonghornDriverName {
+			continue
 		}
 
 		volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
