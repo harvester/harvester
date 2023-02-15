@@ -58,6 +58,8 @@ type UpgradeStatus struct {
 	NodeStatuses map[string]NodeUpgradeStatus `json:"nodeStatuses,omitempty"`
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
+	// +optional
+	UpgradeLog string `json:"upgradeLog,omitempty"`
 }
 
 type NodeUpgradeStatus struct {

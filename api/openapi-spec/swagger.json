@@ -6621,6 +6621,9 @@
         },
         "singleNode": {
           "type": "string"
+        },
+        "upgradeLog": {
+          "type": "string"
         }
       }
     },
