@@ -56,7 +56,7 @@ const (
 	upgradeComponentRepo = "repo"
 
 	getRepoRetryCountAnnotation = "harvesterhci.io/getRepoRetryCount"
-	getRepoMaxRetryCount        = 5
+	getRepoMaxRetryCount        = 30
 )
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades
@@ -196,7 +196,7 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 			if _, err := h.upgradeClient.Update(toUpdate); err != nil {
 				return nil, err
 			}
-			h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, 5*time.Second)
+			h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, 10*time.Second)
 			return nil, nil
 		}
 
