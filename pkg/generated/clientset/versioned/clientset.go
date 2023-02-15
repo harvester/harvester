@@ -28,6 +28,7 @@ import (
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	loggingv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1"
 	longhornv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta1"
+	managementv3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	monitoringv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/monitoring.coreos.com/v1"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1"
 	snapshotv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1"
@@ -45,6 +46,7 @@ type Interface interface {
 	KubevirtV1() kubevirtv1.KubevirtV1Interface
 	LoggingV1beta1() loggingv1beta1.LoggingV1beta1Interface
 	LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface
+	ManagementV3() managementv3.ManagementV3Interface
 	MonitoringV1() monitoringv1.MonitoringV1Interface
 	NetworkingV1() networkingv1.NetworkingV1Interface
 	SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface
@@ -61,6 +63,7 @@ type Clientset struct {
 	kubevirtV1          *kubevirtv1.KubevirtV1Client
 	loggingV1beta1      *loggingv1beta1.LoggingV1beta1Client
 	longhornV1beta1     *longhornv1beta1.LonghornV1beta1Client
+	managementV3        *managementv3.ManagementV3Client
 	monitoringV1        *monitoringv1.MonitoringV1Client
 	networkingV1        *networkingv1.NetworkingV1Client
 	snapshotV1beta1     *snapshotv1beta1.SnapshotV1beta1Client
@@ -95,6 +98,11 @@ func (c *Clientset) LoggingV1beta1() loggingv1beta1.LoggingV1beta1Interface {
 // LonghornV1beta1 retrieves the LonghornV1beta1Client
 func (c *Clientset) LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface {
 	return c.longhornV1beta1
+}
+
+// ManagementV3 retrieves the ManagementV3Client
+func (c *Clientset) ManagementV3() managementv3.ManagementV3Interface {
+	return c.managementV3
 }
 
 // MonitoringV1 retrieves the MonitoringV1Client
@@ -185,6 +193,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.managementV3, err = managementv3.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.monitoringV1, err = monitoringv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -228,6 +240,7 @@ func New(c rest.Interface) *Clientset {
 	cs.kubevirtV1 = kubevirtv1.New(c)
 	cs.loggingV1beta1 = loggingv1beta1.New(c)
 	cs.longhornV1beta1 = longhornv1beta1.New(c)
+	cs.managementV3 = managementv3.New(c)
 	cs.monitoringV1 = monitoringv1.New(c)
 	cs.networkingV1 = networkingv1.New(c)
 	cs.snapshotV1beta1 = snapshotv1beta1.New(c)
