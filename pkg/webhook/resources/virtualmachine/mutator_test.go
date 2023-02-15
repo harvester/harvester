@@ -157,7 +157,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 }
 
 func TestPatchAffinity(t *testing.T) {
-	oldVm := &kubevirtv1.VirtualMachine{
+	oldVM := &kubevirtv1.VirtualMachine{
 		Spec: kubevirtv1.VirtualMachineSpec{
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{},
@@ -259,21 +259,21 @@ func TestPatchAffinity(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		oldVm    *kubevirtv1.VirtualMachine
-		newVm    *kubevirtv1.VirtualMachine
+		oldVM    *kubevirtv1.VirtualMachine
+		newVM    *kubevirtv1.VirtualMachine
 		patchOps types.PatchOps
 	}{
 		{
 			name:  "net1",
-			newVm: vm,
+			newVM: vm,
 			patchOps: types.PatchOps{
 				`{"op": "replace", "path": "/spec/template/spec/affinity", "value": {"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"network.harvesterhci.io/mgmt","operator":"In","values":["true"]}]}]}}}}`,
 			},
 		},
 		{
 			name:  "net2ToNet1",
-			oldVm: oldVm,
-			newVm: vm,
+			oldVM: oldVM,
+			newVM: vm,
 			patchOps: types.PatchOps{
 				`{"op": "replace", "path": "/spec/template/spec/affinity", "value": {"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"network.harvesterhci.io/mgmt","operator":"In","values":["true"]}]}]}}}}`,
 			},
@@ -283,7 +283,7 @@ func TestPatchAffinity(t *testing.T) {
 	for _, tc := range tests {
 		mutator := NewMutator(fakeclients.HarvesterSettingCache(clientSet.HarvesterhciV1beta1().Settings),
 			fakeclients.NetworkAttachmentDefinitionCache(clientSet.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-		patchOps, err := mutator.(*vmMutator).patchAffinity(tc.oldVm, tc.newVm, nil)
+		patchOps, err := mutator.(*vmMutator).patchAffinity(tc.oldVM, tc.newVM, nil)
 		assert.Nil(t, err, tc.name)
 		assert.Equal(t, tc.patchOps, patchOps)
 	}
