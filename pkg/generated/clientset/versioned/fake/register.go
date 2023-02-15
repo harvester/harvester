@@ -25,6 +25,7 @@ import (
 	snapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	longhornv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	managementv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,6 +47,7 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	kubevirtv1.AddToScheme,
 	loggingv1beta1.AddToScheme,
 	longhornv1beta1.AddToScheme,
+	managementv3.AddToScheme,
 	monitoringv1.AddToScheme,
 	networkingv1.AddToScheme,
 	snapshotv1beta1.AddToScheme,

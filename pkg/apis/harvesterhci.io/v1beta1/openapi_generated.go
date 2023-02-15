@@ -2586,6 +2586,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_UpgradeStatus(ref common.ReferenceCa
 							},
 						},
 					},
+					"upgradeLog": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 				},
 			},
 		},

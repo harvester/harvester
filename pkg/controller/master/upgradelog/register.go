@@ -15,16 +15,20 @@ const (
 	jobControllerName           = "harvester-upgradelog-job-controller"
 	loggingControllerName       = "harvester-upgradelog-logging-controller"
 	statefulSetControllerName   = "harvester-upgradelog-statefulset-controller"
+	managedChartControllerName  = "harvester-upgradelog-managedchart-controller"
+	upgradeControllerName       = "harvester-upgradelog-upgrade-controller"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	upgradeLogController := management.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog()
+	addonController := management.HarvesterFactory.Harvesterhci().V1beta1().Addon()
 	clusterFlowController := management.LoggingFactory.Logging().V1beta1().ClusterFlow()
 	clusterOutputController := management.LoggingFactory.Logging().V1beta1().ClusterOutput()
 	daemonSetController := management.AppsFactory.Apps().V1().DaemonSet()
 	deploymentController := management.AppsFactory.Apps().V1().Deployment()
 	jobController := management.BatchFactory.Batch().V1().Job()
 	loggingController := management.LoggingFactory.Logging().V1beta1().Logging()
+	managedChartController := management.RancherManagementFactory.Management().V3().ManagedChart()
 	pvcController := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	statefulSetController := management.AppsFactory.Apps().V1().StatefulSet()
 	upgradeController := management.HarvesterFactory.Harvesterhci().V1beta1().Upgrade()
@@ -32,6 +36,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	handler := &handler{
 		ctx:                 ctx,
 		namespace:           options.Namespace,
+		addonCache:          addonController.Cache(),
 		clusterFlowClient:   clusterFlowController,
 		clusterOutputClient: clusterOutputController,
 		daemonSetClient:     daemonSetController,
@@ -40,6 +45,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		jobClient:           jobController,
 		jobCache:            jobController.Cache(),
 		loggingClient:       loggingController,
+		managedChartClient:  managedChartController,
+		managedChartCache:   managedChartController.Cache(),
 		pvcClient:           pvcController,
 		statefulSetClient:   statefulSetController,
 		statefulSetCache:    statefulSetController.Cache(),
@@ -57,6 +64,8 @@ func Register(ctx context.Context, management *config.Management, options config
 	deploymentController.OnChange(ctx, deploymentControllerName, handler.OnDeploymentChange)
 	jobController.OnChange(ctx, jobControllerName, handler.OnJobChange)
 	statefulSetController.OnChange(ctx, statefulSetControllerName, handler.OnStatefulSetChange)
+	managedChartController.OnChange(ctx, managedChartControllerName, handler.OnManagedChartChange)
+	upgradeController.OnChange(ctx, upgradeControllerName, handler.OnUpgradeChange)
 
 	return nil
 }
