@@ -28,6 +28,21 @@ func newTestExistingVirtualMachineImage(namespace, name string) *harvesterv1.Vir
 	}
 }
 
+func newTestUpgradeLog() *harvesterv1.UpgradeLog {
+	return &harvesterv1.UpgradeLog{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				harvesterUpgradeLabel: testUpgradeName,
+			},
+			Name:      testUpgradeLogName,
+			Namespace: harvesterSystemNamespace,
+		},
+		Spec: harvesterv1.UpgradeLogSpec{
+			Upgrade: testUpgradeName,
+		},
+	}
+}
+
 func newTestVirtualMachineImage() *harvesterv1.VirtualMachineImage {
 	return &harvesterv1.VirtualMachineImage{
 		Spec: harvesterv1.VirtualMachineImageSpec{
@@ -45,10 +60,11 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		nodes   []*v1.Node
 	}
 	type output struct {
-		plan    *upgradeapiv1.Plan
-		upgrade *harvesterv1.Upgrade
-		vmi     *harvesterv1.VirtualMachineImage
-		err     error
+		plan       *upgradeapiv1.Plan
+		upgrade    *harvesterv1.Upgrade
+		upgradeLog *harvesterv1.UpgradeLog
+		vmi        *harvesterv1.VirtualMachineImage
+		err        error
 	}
 	var testCases = []struct {
 		name     string
@@ -78,8 +94,10 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 				vmi:     newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
 			},
 			expected: output{
+				upgradeLog: prepareUpgradeLog(newTestUpgradeBuilder().Build()),
 				upgrade: newTestUpgradeBuilder().WithLogEnabled(true).InitStatus().
 					WithLabel(upgradeStateLabel, StatePreparingLoggingInfra).
+					UpgradeLogStatus(testUpgradeLogName).
 					LogReadyCondition(v1.ConditionUnknown, "", "").Build(),
 			},
 		},
@@ -183,6 +201,14 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.expected.upgrade, actual.upgrade, "case %q", tc.name)
+		}
+
+		if tc.expected.upgradeLog != nil {
+			var err error
+			actual.upgradeLog, err = handler.upgradeLogClient.Get(upgradeNamespace, tc.expected.upgradeLog.Name, metav1.GetOptions{})
+			assert.Nil(t, err)
+
+			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		}
 	}
 }

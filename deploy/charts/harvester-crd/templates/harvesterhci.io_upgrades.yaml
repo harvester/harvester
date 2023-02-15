@@ -91,6 +91,8 @@ spec:
                 type: string
               singleNode:
                 type: string
+              upgradeLog:
+                type: string
             type: object
         required:
         - spec
