@@ -191,7 +191,7 @@ func (h ActionHandler) listUnhealthyVM(rw http.ResponseWriter, node *corev1.Node
 	var respObj ListUnhealthyVM
 
 	if len(vmList) > 0 {
-		respObj.Message = "Following unhealthy VM's will be impacted by the node drain:"
+		respObj.Message = "Following unhealthy VMs will be impacted by the node drain:"
 		respObj.VMs = vmList
 	}
 
