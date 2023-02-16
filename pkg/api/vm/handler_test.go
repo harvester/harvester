@@ -412,10 +412,10 @@ func TestAddVolume(t *testing.T) {
 
 func TestRemoveVolume(t *testing.T) {
 	type input struct {
-		namespace  string
-		name       string
-		input      RemoveVolumeInput
-		vmInstance *kubevirtv1.VirtualMachineInstance
+		namespace string
+		name      string
+		input     RemoveVolumeInput
+		vm        *kubevirtv1.VirtualMachine
 	}
 	type output struct {
 		err error
@@ -435,7 +435,7 @@ func TestRemoveVolume(t *testing.T) {
 				},
 			},
 			expected: output{
-				err: errors.New("virtualmachineinstances.kubevirt.io \"test\" not found"),
+				err: errors.New("virtualmachines.kubevirt.io \"test\" not found"),
 			},
 		},
 		{
@@ -446,15 +446,18 @@ func TestRemoveVolume(t *testing.T) {
 				input: RemoveVolumeInput{
 					DiskName: "not-exist",
 				},
-				vmInstance: &kubevirtv1.VirtualMachineInstance{
+				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      "test",
 					},
-					Spec: kubevirtv1.VirtualMachineInstanceSpec{
-						Volumes: nil,
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Volumes: nil,
+							},
+						},
 					},
-					Status: kubevirtv1.VirtualMachineInstanceStatus{Phase: kubevirtv1.Running, MigrationState: nil},
 				},
 			},
 			expected: output{
@@ -466,13 +469,13 @@ func TestRemoveVolume(t *testing.T) {
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset()
 		var coreclientset = corefake.NewSimpleClientset()
-		if tc.given.vmInstance != nil {
-			err := clientset.Tracker().Add(tc.given.vmInstance)
+		if tc.given.vm != nil {
+			err := clientset.Tracker().Add(tc.given.vm)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 		}
 
 		var handler = &vmActionHandler{
-			vmiCache: fakeVirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+			vmCache:  fakeVirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
 			pvcCache: fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
 		}
 
@@ -486,6 +489,24 @@ func TestRemoveVolume(t *testing.T) {
 			assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
 		}
 	}
+}
+
+type fakeVirtualMachineCache func(string) kubevirttype.VirtualMachineInterface
+
+func (c fakeVirtualMachineCache) Get(namespace, name string) (*kubevirtv1.VirtualMachine, error) {
+	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+}
+
+func (c fakeVirtualMachineCache) List(namespace string, selector labels.Selector) ([]*kubevirtv1.VirtualMachine, error) {
+	panic("implement me")
+}
+
+func (c fakeVirtualMachineCache) AddIndexer(indexName string, indexer kubevirtctrl.VirtualMachineIndexer) {
+	panic("implement me")
+}
+
+func (c fakeVirtualMachineCache) GetByIndex(indexName, key string) ([]*kubevirtv1.VirtualMachine, error) {
+	panic("implement me")
 }
 
 type fakeVirtualMachineInstanceCache func(string) kubevirttype.VirtualMachineInstanceInterface
