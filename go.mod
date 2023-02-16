@@ -89,7 +89,7 @@ require (
 	github.com/rancher/steve v0.0.0-20220805200026-647cba2be744
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210727200656-10b094e30007
 	github.com/rancher/wharfie v0.5.3
-	github.com/rancher/wrangler v1.0.1-0.20221202234327-1cafffeaa9a1
+	github.com/rancher/wrangler v1.0.2
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.0
 	github.com/tidwall/gjson v1.9.3

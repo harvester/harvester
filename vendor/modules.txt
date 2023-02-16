@@ -794,8 +794,8 @@ github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1
 # github.com/rancher/wharfie v0.5.3
 ## explicit; go 1.16
 github.com/rancher/wharfie/pkg/registries
-# github.com/rancher/wrangler v1.0.1-0.20221202234327-1cafffeaa9a1
-## explicit; go 1.19
+# github.com/rancher/wrangler v1.0.2
+## explicit; go 1.17
 github.com/rancher/wrangler/pkg/apply
 github.com/rancher/wrangler/pkg/apply/injectors
 github.com/rancher/wrangler/pkg/broadcast
