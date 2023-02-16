@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strconv"
 	"sync"
 	"time"
 
@@ -19,12 +18,15 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	upgradectlv1 "github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 var (
@@ -54,24 +56,20 @@ const (
 	rke2PostDrainAnnotation = "rke.cattle.io/post-drain"
 
 	upgradeComponentRepo = "repo"
-
-	getRepoRetryCountAnnotation = "harvesterhci.io/getRepoRetryCount"
-	getRepoMaxRetryCount        = 30
 )
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades
 type upgradeHandler struct {
-	ctx               context.Context
-	namespace         string
-	nodeCache         ctlcorev1.NodeCache
-	jobClient         v1.JobClient
-	jobCache          v1.JobCache
-	upgradeClient     ctlharvesterv1.UpgradeClient
-	upgradeCache      ctlharvesterv1.UpgradeCache
-	upgradeController ctlharvesterv1.UpgradeController
-	versionCache      ctlharvesterv1.VersionCache
-	planClient        upgradectlv1.PlanClient
-	planCache         upgradectlv1.PlanCache
+	ctx           context.Context
+	namespace     string
+	nodeCache     ctlcorev1.NodeCache
+	jobClient     v1.JobClient
+	jobCache      v1.JobCache
+	upgradeClient ctlharvesterv1.UpgradeClient
+	upgradeCache  ctlharvesterv1.UpgradeCache
+	versionCache  ctlharvesterv1.VersionCache
+	planClient    upgradectlv1.PlanClient
+	planCache     upgradectlv1.PlanCache
 
 	vmImageClient ctlharvesterv1.VirtualMachineImageClient
 	vmImageCache  ctlharvesterv1.VirtualMachineImageCache
@@ -171,33 +169,23 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 		}
 		toUpdate.Status.SingleNode = singleNode
 
-		repoInfo, err := repo.getInfo()
-		// retry repo.getInfo by requeueing
-		if err != nil {
-			retryCount := 0
-			if toUpdate.Annotations == nil {
-				toUpdate.Annotations = make(map[string]string)
-				toUpdate.Annotations[getRepoRetryCountAnnotation] = "0"
-			}
-
-			retryCount, err = strconv.Atoi(toUpdate.Annotations[getRepoRetryCountAnnotation])
+		backoff := wait.Backoff{
+			Steps:    30,
+			Duration: 10 * time.Second,
+			Factor:   1.0,
+			Jitter:   0.1,
+		}
+		var repoInfo *RepoInfo
+		if err := retry.OnError(backoff, util.IsConnectionRefusedOrTimeout, func() error {
+			repoInfo, err = repo.getInfo()
 			if err != nil {
-				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
-				return h.upgradeClient.Update(toUpdate)
+				logrus.Warnf("Repo info retrieval failed with: %s", err)
+				return err
 			}
-
-			if retryCount > getRepoMaxRetryCount {
-				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "Retry exceeded")
-				return h.upgradeClient.Update(toUpdate)
-			}
-
-			retryCount++
-			toUpdate.Annotations[getRepoRetryCountAnnotation] = strconv.Itoa(retryCount)
-			if _, err := h.upgradeClient.Update(toUpdate); err != nil {
-				return nil, err
-			}
-			h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, 10*time.Second)
-			return nil, nil
+			return nil
+		}); err != nil {
+			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+			return h.upgradeClient.Update(toUpdate)
 		}
 
 		repoInfoStr, err := repoInfo.Marshall()
