@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	volumeapi "github.com/harvester/harvester/pkg/api/volume"
@@ -562,11 +563,42 @@ func (h *vmActionHandler) copySecret(sourceName, targetName string, templateVers
 
 }
 
+func (h *vmActionHandler) updateVMVolumeClaimTemplate(vm *kubevirtv1.VirtualMachine, updateVolumeClaimTemplate func([]corev1.PersistentVolumeClaim) ([]corev1.PersistentVolumeClaim, bool)) error {
+	var volumeClaimTemplates []corev1.PersistentVolumeClaim
+	vmCopy := vm.DeepCopy()
+	anno := vmCopy.GetAnnotations()
+	if volumeClaimTemplatesJSON, ok := anno[util.AnnotationVolumeClaimTemplates]; ok {
+		if err := json.Unmarshal([]byte(volumeClaimTemplatesJSON), &volumeClaimTemplates); err != nil {
+			return fmt.Errorf("failed to unserialize %s, error: %v", util.AnnotationVolumeClaimTemplates, err)
+		}
+	}
+
+	var changed bool
+	volumeClaimTemplates, changed = updateVolumeClaimTemplate(volumeClaimTemplates)
+	if !changed {
+		return nil
+	}
+
+	volumeClaimTemplatesJSON, err := json.Marshal(volumeClaimTemplates)
+	if err != nil {
+		return fmt.Errorf("failed to serialize payload %v, error: %v", volumeClaimTemplates, err)
+	}
+	anno[util.AnnotationVolumeClaimTemplates] = string(volumeClaimTemplatesJSON)
+	vmCopy.SetAnnotations(anno)
+	if !reflect.DeepEqual(vm, vmCopy) {
+		if _, err = h.vms.Update(vmCopy); err != nil {
+			return fmt.Errorf("failed to update vm %s/%s, error: %v", vm.Namespace, vm.Name, err)
+		}
+	}
+	return nil
+}
+
 // addVolume add a hotplug volume with given volume source and disk name.
 func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string, input AddVolumeInput) error {
 	// We only permit volume source from existing PersistentVolumeClaim at this moment.
 	// KubeVirt won't check PVC existence so we validate it on our own.
-	if _, err := h.pvcCache.Get(namespace, input.VolumeSourceName); err != nil {
+	pvc, err := h.pvcCache.Get(namespace, input.VolumeSourceName)
+	if err != nil {
 		return err
 	}
 
@@ -595,7 +627,7 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 	}
 
 	// Ref: https://kubevirt.io/api-reference/v0.44.0/operations.html#_v1vm-addvolume
-	return h.virtSubresourceRestClient.
+	if err = h.virtSubresourceRestClient.
 		Put().
 		Namespace(namespace).
 		Resource(vmResource).
@@ -603,22 +635,58 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 		SubResource(strings.ToLower(addVolume)).
 		Body(body).
 		Do(ctx).
-		Error()
+		Error(); err != nil {
+		return err
+	}
+
+	addVolumeClaimTemplate := func(volumeClaimTemplates []corev1.PersistentVolumeClaim) ([]corev1.PersistentVolumeClaim, bool) {
+		for _, volumeClaimTemplate := range volumeClaimTemplates {
+			if volumeClaimTemplate.Name == input.VolumeSourceName {
+				return volumeClaimTemplates, false
+			}
+		}
+		volumeClaimTemplates = append(volumeClaimTemplates, corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: pvc.Name,
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes:      pvc.Spec.AccessModes,
+				Resources:        pvc.Spec.Resources,
+				VolumeMode:       pvc.Spec.VolumeMode,
+				StorageClassName: pvc.Spec.StorageClassName,
+			},
+		})
+		return volumeClaimTemplates, true
+	}
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// We just updated the VM in the last step, so we get the VM from api-server directly, not local cache.
+		vm, err := h.vms.Get(namespace, name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get vm %s/%s, error: %v", namespace, name, err)
+		}
+
+		return h.updateVMVolumeClaimTemplate(vm, addVolumeClaimTemplate)
+	})
 }
 
 // removeVolume remove a hotplug volume by its disk name
 func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name string, input RemoveVolumeInput) error {
-	vmi, err := h.vmiCache.Get(namespace, name)
+	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
 		return err
 	}
 
 	// Ensure the existence of the disk. KubeVirt will take care of other cases
 	// such as trying to remove a non-hotplug volume.
+	var pvcName string
 	found := false
-	for _, vol := range vmi.Spec.Volumes {
+	for _, vol := range vm.Spec.Template.Spec.Volumes {
 		if vol.Name == input.DiskName {
 			found = true
+			if vol.PersistentVolumeClaim != nil {
+				pvcName = vol.PersistentVolumeClaim.ClaimName
+			}
 		}
 	}
 	if !found {
@@ -633,7 +701,7 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		return fmt.Errorf("failed to serialize payload,: %v", err)
 	}
 	// Ref: https://kubevirt.io/api-reference/v0.44.0/operations.html#_v1vm-removevolume
-	return h.virtSubresourceRestClient.
+	if err = h.virtSubresourceRestClient.
 		Put().
 		Namespace(namespace).
 		Resource(vmResource).
@@ -641,7 +709,34 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		SubResource(strings.ToLower(removeVolume)).
 		Body(body).
 		Do(ctx).
-		Error()
+		Error(); err != nil {
+		return err
+	}
+
+	if pvcName == "" {
+		return nil
+	}
+
+	removeVolumeClaimTemplate := func(volumeClaimTemplates []corev1.PersistentVolumeClaim) ([]corev1.PersistentVolumeClaim, bool) {
+		for i, volumeClaimTemplate := range volumeClaimTemplates {
+			if volumeClaimTemplate.Name == pvcName {
+				volumeClaimTemplates[i], volumeClaimTemplates[len(volumeClaimTemplates)-1] = volumeClaimTemplates[len(volumeClaimTemplates)-1], volumeClaimTemplates[i]
+				volumeClaimTemplates = volumeClaimTemplates[:len(volumeClaimTemplates)-1]
+				return volumeClaimTemplates, true
+			}
+		}
+		return volumeClaimTemplates, false
+	}
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// We just updated the VM in the last step, so we get the VM from api-server directly, not local cache.
+		vm, err = h.vms.Get(namespace, name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		return h.updateVMVolumeClaimTemplate(vm, removeVolumeClaimTemplate)
+	})
 }
 
 // cloneVM creates a VM which uses volume cloning from the source VM.
