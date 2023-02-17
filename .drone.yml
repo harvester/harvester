@@ -402,7 +402,7 @@ steps:
     - "dist/artifacts/harvester*initrd-amd64"
     - "dist/artifacts/harvester*vmlinuz-amd64"
     api_key:
-      from_secret: gh_token
+      from_secret: github_token
   when:
     instance:
       - drone-publish.rancher.io
