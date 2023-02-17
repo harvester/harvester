@@ -33,11 +33,13 @@ const (
 	cordonAction                 = "cordon"
 	uncordonAction               = "uncordon"
 	listUnhealthyVM              = "listUnhealthyVM"
+	maintenancePossible          = "maintenancePossible"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
-	resource.Actions = make(map[string]string, 2)
+	resource.Actions = make(map[string]string, 3)
 	resource.AddAction(request, listUnhealthyVM)
+	resource.AddAction(request, maintenancePossible)
 	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
 		return
 	}
@@ -104,6 +106,8 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 		return h.cordonUncordonNode(toUpdate, uncordonAction, false)
 	case listUnhealthyVM:
 		return h.listUnhealthyVM(rw, toUpdate)
+	case maintenancePossible:
+		return h.maintenancePossible(toUpdate)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -197,4 +201,8 @@ func (h ActionHandler) listUnhealthyVM(rw http.ResponseWriter, node *corev1.Node
 
 	rw.WriteHeader(http.StatusOK)
 	return json.NewEncoder(rw).Encode(&respObj)
+}
+
+func (h ActionHandler) maintenancePossible(node *corev1.Node) error {
+	return drainhelper.DrainPossible(h.nodeCache, node)
 }

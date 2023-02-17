@@ -40,6 +40,34 @@ var _ = Describe("verify host APIs", func() {
 
 		})
 
+		Specify("verify maintenance possible for worker nodes", func() {
+			nodes, respCode, respBody, err := helper.GetCollection(nodesAPI)
+			MustRespCodeIs(http.StatusOK, "get host", err, respCode, respBody)
+			nodeName := nodes.Data[1].ID
+			nodeObjectAPI := fmt.Sprintf("%s/%s", nodesAPI, nodeName)
+
+			By("enable maintenance mode of the host", func() {
+				MustFinallyBeTrue(func() bool {
+					respCode, respBody, err = helper.PostAction(nodeObjectAPI, "maintenancePossible")
+					return CheckRespCodeIs(http.StatusNoContent, "maintenancePossible action", err, respCode, respBody)
+				}, 30*time.Second, 5*time.Second)
+			})
+		})
+
+		Specify("verify maintenance possible for controlplane nodes", func() {
+			nodes, respCode, respBody, err := helper.GetCollection(nodesAPI)
+			MustRespCodeIs(http.StatusOK, "get host", err, respCode, respBody)
+			nodeName := nodes.Data[0].ID
+			nodeObjectAPI := fmt.Sprintf("%s/%s", nodesAPI, nodeName)
+
+			By("enable maintenance mode of the host", func() {
+				MustFinallyBeTrue(func() bool {
+					respCode, respBody, err = helper.PostAction(nodeObjectAPI, "maintenancePossible")
+					return CheckRespCodeIs(http.StatusInternalServerError, "maintenancePossible action", err, respCode, respBody)
+				}, 30*time.Second, 5*time.Second)
+			})
+		})
+
 		Specify("verify host maintenance mode for worker nodes", func() {
 
 			nodes, respCode, respBody, err := helper.GetCollection(nodesAPI)
