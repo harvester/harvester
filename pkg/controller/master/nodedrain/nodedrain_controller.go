@@ -81,13 +81,11 @@ func (ndc *ControllerHandler) OnNodeChange(key string, node *corev1.Node) (*core
 	_, forced := node.Annotations[drainhelper.ForcedDrain]
 
 	if ok {
-		meetsRequirement, err := ndc.meetsControlPlaneRequirements(node)
+		// still running a check in the background to avoid maintenance issues when using object annotations
+		// directly
+		err := drainhelper.DrainPossible(ndc.nodeCache, node)
 		if err != nil {
 			return node, err
-		}
-
-		if !meetsRequirement {
-			return node, fmt.Errorf("unable to place node %s in maintenance mode as this is the only controlplane node, or another controlplane node is already in maintenance mode", node.Name)
 		}
 
 		logrus.Infof("attempting to place node %s in maintenance mode", node.Name)
@@ -256,39 +254,4 @@ func ActionHelper(nodeCache ctlcorev1.NodeCache, virtualMachineInstanceCache ctl
 		longhornVolumeCache:         longhornVolumeCache,
 		longhornReplicaCache:        longhornReplicaCache,
 	}
-}
-
-// isLastNode will check if there are other nodes in cluster which are not in maintenance mode
-func (ndc *ControllerHandler) meetsControlPlaneRequirements(node *corev1.Node) (bool, error) {
-
-	_, cpLabelOK := node.Labels["node-role.kubernetes.io/control-plane"]
-	if !cpLabelOK { // not a controlplane node. no further action needed
-		return true, nil
-	}
-
-	cpSelector := labels.SelectorFromSet(map[string]string{
-		"node-role.kubernetes.io/control-plane": "true",
-	})
-	nodeList, err := ndc.nodeCache.List(cpSelector)
-	if err != nil {
-		return false, fmt.Errorf("error listing nodes matching selector %s: %v", cpSelector.String(), err)
-	}
-
-	// only controlplane node which we are trying to place into maintenance
-	if len(nodeList) == defaultSingleCPCount {
-		return false, nil
-	}
-
-	var availableNodes int
-	for _, v := range nodeList {
-		_, ok := v.Annotations[ctlnode.MaintainStatusAnnotationKey]
-		logrus.Infof("nodeName: %s,  annotation present: %v\n", v.Name, ok)
-		if !ok {
-			availableNodes++
-		}
-	}
-
-	// only 1 node can be placed in maintenance mode at a time. All cp nodes should be available
-	// for a node to be placed in maintenance mode
-	return availableNodes == defaultHACPCount, nil
 }
