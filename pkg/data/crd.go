@@ -54,6 +54,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(provisioningv1.SchemeGroupVersion, "Cluster", provisioningv1.Cluster{}),
 			crd.FromGV(fleetv1alpha1.SchemeGroupVersion, "Cluster", fleetv1alpha1.Cluster{}),
 			crd.FromGV(clusterv1.GroupVersion, "Cluster", clusterv1.Cluster{}),
+			crd.FromGV(clusterv1.GroupVersion, "Machine", clusterv1.Machine{}),
 			crd.FromGV(harvesterv1.SchemeGroupVersion, "Addon", harvesterv1.Addon{}).WithStatus(),
 			crd.FromGV(monitoringv1.SchemeGroupVersion, "Prometheus", monitoringv1.Prometheus{}),
 			crd.FromGV(monitoringv1.SchemeGroupVersion, "Alertmanager", monitoringv1.Alertmanager{}),
