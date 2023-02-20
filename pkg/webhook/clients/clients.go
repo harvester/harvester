@@ -4,6 +4,7 @@ import (
 	"context"
 
 	ctlfleetv1 "github.com/rancher/rancher/pkg/generated/controllers/fleet.cattle.io"
+	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	"github.com/rancher/wrangler/pkg/clients"
 	storagev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage"
 	"github.com/rancher/wrangler/pkg/schemes"
@@ -21,14 +22,15 @@ import (
 type Clients struct {
 	clients.Clients
 
-	HarvesterFactory *ctlharvesterv1.Factory
-	KubevirtFactory  *ctlkubevirtv1.Factory
-	CNIFactory       *ctlcniv1.Factory
-	SnapshotFactory  *ctlsnapshotv1.Factory
-	FleetFactory     *ctlfleetv1.Factory
-	StorageFactory   *storagev1.Factory
-	LonghornFactory  *ctllonghornv1.Factory
-	ClusterFactory   *ctlclusterv1.Factory
+	HarvesterFactory         *ctlharvesterv1.Factory
+	KubevirtFactory          *ctlkubevirtv1.Factory
+	CNIFactory               *ctlcniv1.Factory
+	SnapshotFactory          *ctlsnapshotv1.Factory
+	FleetFactory             *ctlfleetv1.Factory
+	StorageFactory           *storagev1.Factory
+	LonghornFactory          *ctllonghornv1.Factory
+	ClusterFactory           *ctlclusterv1.Factory
+	RancherManagementFactory *rancherv3.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
@@ -105,15 +107,21 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
+	rancherFactory, err := rancherv3.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Clients{
-		Clients:          *clients,
-		HarvesterFactory: harvesterFactory,
-		KubevirtFactory:  kubevirtFactory,
-		CNIFactory:       cniFactory,
-		SnapshotFactory:  snapshotFactory,
-		FleetFactory:     fleetFactory,
-		StorageFactory:   storageFactory,
-		LonghornFactory:  longhornFactory,
-		ClusterFactory:   clusterFactory,
+		Clients:                  *clients,
+		HarvesterFactory:         harvesterFactory,
+		KubevirtFactory:          kubevirtFactory,
+		CNIFactory:               cniFactory,
+		SnapshotFactory:          snapshotFactory,
+		FleetFactory:             fleetFactory,
+		StorageFactory:           storageFactory,
+		LonghornFactory:          longhornFactory,
+		ClusterFactory:           clusterFactory,
+		RancherManagementFactory: rancherFactory,
 	}, nil
 }

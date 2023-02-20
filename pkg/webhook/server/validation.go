@@ -42,6 +42,8 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.Core.Node().Cache(),
 			clients.LonghornFactory.Longhorn().V1beta1().Volume().Cache(),
 			clients.ClusterFactory.Cluster().V1alpha4().Cluster().Cache(),
+			clients.ClusterFactory.Cluster().V1alpha4().Machine().Cache(),
+			clients.RancherManagementFactory.Management().V3().ManagedChart().Cache(),
 		),
 		virtualmachinebackup.NewValidator(
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
