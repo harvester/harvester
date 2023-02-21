@@ -65,7 +65,7 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 		return patchOps, err
 	}
 
-	patchOps, err = m.patchAffinity(nil, vm, patchOps)
+	patchOps, err = m.patchAffinity(vm, patchOps)
 	if err != nil {
 		return nil, err
 	}
@@ -98,11 +98,9 @@ func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj
 		patchOps = patchRunStrategy(newVM, patchOps)
 	}
 
-	if needUpdateAffinity(oldVM, newVM) {
-		patchOps, err = m.patchAffinity(oldVM, newVM, patchOps)
-		if err != nil {
-			return nil, err
-		}
+	patchOps, err = m.patchAffinity(newVM, patchOps)
+	if err != nil {
+		return nil, err
 	}
 
 	return patchOps, nil
@@ -248,64 +246,31 @@ func (m *vmMutator) getOvercommit() (*settings.Overcommit, error) {
 	return overcommit, nil
 }
 
-func needUpdateAffinity(oldVM, newVM *kubevirtv1.VirtualMachine) bool {
-	if oldVM.Spec.Template == nil || newVM.Spec.Template == nil {
-		return false
-	}
-
-	if isContainMultusNetwork(newVM.Spec.Template.Spec.Networks) {
-		return true
-	}
-	// if there are networks removed, update the affinity
-	reducedNetworks := getMultusNetworkIncrement(newVM.Spec.Template.Spec.Networks, oldVM.Spec.Template.Spec.Networks)
-	if len(reducedNetworks) != 0 {
-		return true
-	}
-
-	oldVMAffinity, newVMAffinity := oldVM.Spec.Template.Spec.Affinity, newVM.Spec.Template.Spec.Affinity
-	// the affinity.String() method already checks the nil
-	if oldVMAffinity.String() != newVMAffinity.String() {
-		return true
-	}
-
-	return false
-}
-
-func (m *vmMutator) patchAffinity(oldVM, newVM *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
-	if newVM == nil || newVM.Spec.Template == nil {
+func (m *vmMutator) patchAffinity(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
+	if vm == nil || vm.Spec.Template == nil {
 		return patchOps, nil
 	}
 
-	affinity := makeAffinityFromVMTemplate(newVM.Spec.Template)
+	affinity := makeAffinityFromVMTemplate(vm.Spec.Template)
 	nodeSelector := affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 
-	var oldVMNetworks []kubevirtv1.Network
-	if oldVM != nil && oldVM.Spec.Template != nil {
-		oldVMNetworks = oldVM.Spec.Template.Spec.Networks
-	}
-	newVMNetworks := newVM.Spec.Template.Spec.Networks
+	newVMNetworks := vm.Spec.Template.Spec.Networks
 	logrus.Debugf("newNetworks: %+v", newVMNetworks)
-	reducedNetworks := getMultusNetworkIncrement(newVMNetworks, oldVMNetworks)
-	logrus.Debugf("reducedNetworks: %+v", reducedNetworks)
 
-	isAdded, err := m.addNodeSelectorRequirements(newVM.Namespace, nodeSelector, newVMNetworks)
-	if err != nil {
-		return patchOps, err
-	}
-	isReduced, err := m.deleteNodeNetworkRequirements(newVM.Namespace, nodeSelector, reducedNetworks)
-	if err != nil {
+	if err := m.addNodeSelectorTerms(vm.Namespace, nodeSelector, newVMNetworks); err != nil {
 		return patchOps, err
 	}
 
-	if !(isAdded || isReduced) {
-		return patchOps, nil
+	// The .spec.affinity could not be like `{nodeAffinity:requireDuringSchedulingIgnoreDuringExecution:[]}` if there is not any rules.
+	if len(nodeSelector.NodeSelectorTerms) == 0 {
+		return append(patchOps, fmt.Sprintf(`{"op":"replace","path":"/spec/template/spec/affinity","value":{}}`)), nil
 	}
 
 	bytes, err := json.Marshal(affinity)
 	if err != nil {
 		return patchOps, err
 	}
-	return append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/affinity", "value": %s}`, string(bytes))), nil
+	return append(patchOps, fmt.Sprintf(`{"op":"replace","path":"/spec/template/spec/affinity","value":%s}`, string(bytes))), nil
 }
 
 func (m *vmMutator) getNodeSelectorRequirementFromNetwork(defaultNamespace string, network kubevirtv1.Network) (*v1.NodeSelectorRequirement, error) {
@@ -362,41 +327,29 @@ func makeAffinityFromVMTemplate(template *kubevirtv1.VirtualMachineInstanceTempl
 		affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = &v1.NodeSelector{}
 	}
 
+	// clear node selector terms whose key contains the prefix "network.harvesterhci.io"
+	nodeSelectorTerms := make([]v1.NodeSelectorTerm, 0, len(affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms))
+	for _, term := range affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
+		isNetworkAffinity := false
+		for _, expression := range term.MatchExpressions {
+			if strings.Contains(expression.String(), networkGroup) {
+				isNetworkAffinity = true
+			}
+		}
+		if !isNetworkAffinity {
+			nodeSelectorTerms = append(nodeSelectorTerms, term)
+		}
+	}
+	affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms = nodeSelectorTerms
+
 	return affinity
 }
 
-func getMultusNetworkIncrement(before, after []kubevirtv1.Network) []kubevirtv1.Network {
-	increment := make([]kubevirtv1.Network, 0, len(after))
-
-	for _, a := range after {
-		if a.Multus == nil {
-			continue
-		}
-
-		isExisting := false
-
-		for _, b := range before {
-			if b.Multus != nil && a.Multus.NetworkName == b.Multus.NetworkName {
-				isExisting = true
-				break
-			}
-		}
-
-		if !isExisting {
-			increment = append(increment, a)
-		}
-	}
-
-	return increment
-}
-
-func (m *vmMutator) addNodeSelectorRequirements(defaultNamespace string, nodeSelector *v1.NodeSelector, incrementalNetworks []kubevirtv1.Network) (bool, error) {
-	isChanged := false
-
+func (m *vmMutator) addNodeSelectorTerms(defaultNamespace string, nodeSelector *v1.NodeSelector, incrementalNetworks []kubevirtv1.Network) error {
 	for _, network := range incrementalNetworks {
 		nodeSelectorRequirement, err := m.getNodeSelectorRequirementFromNetwork(defaultNamespace, network)
 		if err != nil {
-			return false, err
+			return err
 		}
 		if nodeSelectorRequirement == nil {
 			continue
@@ -407,7 +360,6 @@ func (m *vmMutator) addNodeSelectorRequirements(defaultNamespace string, nodeSel
 			if _, ok := isContainTargetNodeSelectorRequirement(term, *nodeSelectorRequirement); !ok {
 				term.MatchExpressions = append(term.MatchExpressions, *nodeSelectorRequirement)
 				nodeSelector.NodeSelectorTerms[i] = term
-				isChanged = true
 			}
 		}
 		// If there is no term, initialize one with the cluster network requirement to prove that the cluster network
@@ -416,42 +368,8 @@ func (m *vmMutator) addNodeSelectorRequirements(defaultNamespace string, nodeSel
 			nodeSelector.NodeSelectorTerms = []v1.NodeSelectorTerm{{
 				MatchExpressions: []v1.NodeSelectorRequirement{*nodeSelectorRequirement},
 			}}
-			isChanged = true
 		}
 	}
 
-	return isChanged, nil
-}
-
-func (m *vmMutator) deleteNodeNetworkRequirements(defaultNamespace string, nodeSelector *v1.NodeSelector, reducedNetworks []kubevirtv1.Network) (bool, error) {
-	isChanged := false
-
-	for _, network := range reducedNetworks {
-		nodeSelectorRequirement, err := m.getNodeSelectorRequirementFromNetwork(defaultNamespace, network)
-		if err != nil {
-			return false, err
-		}
-		if nodeSelectorRequirement == nil {
-			continue
-		}
-		for i, term := range nodeSelector.NodeSelectorTerms {
-			if index, ok := isContainTargetNodeSelectorRequirement(term, *nodeSelectorRequirement); ok {
-				term.MatchExpressions = append(term.MatchExpressions[:index], term.MatchExpressions[index+1:]...)
-				nodeSelector.NodeSelectorTerms[i] = term
-				isChanged = true
-			}
-		}
-	}
-
-	return isChanged, nil
-}
-
-func isContainMultusNetwork(networks []kubevirtv1.Network) bool {
-	for _, network := range networks {
-		if network.Multus != nil && network.Multus.NetworkName != "" {
-			return true
-		}
-	}
-
-	return false
+	return nil
 }
