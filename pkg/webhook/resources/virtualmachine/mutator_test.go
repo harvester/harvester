@@ -1,6 +1,8 @@
 package virtualmachine
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
 	"testing"
 
@@ -16,6 +18,11 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
+)
+
+const (
+	replaceOP        = "replace"
+	nodeAffinityPath = "/spec/template/spec/affinity"
 )
 
 func TestPatchResourceOvercommit(t *testing.T) {
@@ -157,7 +164,27 @@ func TestPatchResourceOvercommit(t *testing.T) {
 }
 
 func TestPatchAffinity(t *testing.T) {
-	oldVM := &kubevirtv1.VirtualMachine{
+	vm1 := &kubevirtv1.VirtualMachine{
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "default",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/net1",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vm2 := &kubevirtv1.VirtualMachine{
 		Spec: kubevirtv1.VirtualMachineSpec{
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{},
@@ -169,7 +196,7 @@ func TestPatchAffinity(t *testing.T) {
 									{
 										MatchExpressions: []v1.NodeSelectorRequirement{
 											{
-												Key:      "network.harvesterhci.io/test",
+												Key:      "network.harvesterhci.io/to-delete-after-mutating",
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"true"},
 											},
@@ -184,7 +211,7 @@ func TestPatchAffinity(t *testing.T) {
 							Name: "default",
 							NetworkSource: kubevirtv1.NetworkSource{
 								Multus: &kubevirtv1.MultusNetwork{
-									NetworkName: "default/net2",
+									NetworkName: "default/net1",
 								},
 							},
 						},
@@ -194,17 +221,70 @@ func TestPatchAffinity(t *testing.T) {
 		},
 	}
 
-	vm := &kubevirtv1.VirtualMachine{
+	vm3 := &kubevirtv1.VirtualMachine{
 		Spec: kubevirtv1.VirtualMachineSpec{
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{},
 				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Affinity: &v1.Affinity{
+						NodeAffinity: &v1.NodeAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+								NodeSelectorTerms: []v1.NodeSelectorTerm{
+									{
+										MatchExpressions: []v1.NodeSelectorRequirement{
+											{
+												Key:      "network.harvesterhci.io/bbbb",
+												Operator: v1.NodeSelectorOpIn,
+												Values:   []string{"true"},
+											},
+										},
+									},
+									{
+										MatchExpressions: []v1.NodeSelectorRequirement{
+											{
+												Key:      "just.for.testing",
+												Operator: v1.NodeSelectorOpIn,
+												Values:   []string{"true"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
 					Networks: []kubevirtv1.Network{
 						{
 							Name: "default",
 							NetworkSource: kubevirtv1.NetworkSource{
 								Multus: &kubevirtv1.MultusNetwork{
 									NetworkName: "default/net1",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vm4 := &kubevirtv1.VirtualMachine{
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Affinity: &v1.Affinity{
+						NodeAffinity: &v1.NodeAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+								NodeSelectorTerms: []v1.NodeSelectorTerm{
+									{
+										MatchExpressions: []v1.NodeSelectorRequirement{
+											{
+												Key:      "network.harvesterhci.io/bbbb",
+												Operator: v1.NodeSelectorOpIn,
+												Values:   []string{"true"},
+											},
+										},
+									},
 								},
 							},
 						},
@@ -229,21 +309,6 @@ func TestPatchAffinity(t *testing.T) {
 		},
 	}
 
-	net2 := &cniv1.NetworkAttachmentDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "net2",
-			Namespace: "default",
-			Labels: map[string]string{
-				"network.harvesterhci.io/clusternetwork": "test",
-				"network.harvesterhci.io/type":           "L2VlanNetwork",
-				"network.harvesterhci.io/vlan-id":        "178",
-			},
-		},
-		Spec: cniv1.NetworkAttachmentDefinitionSpec{
-			Config: `{"cniVersion":"0.3.1","name":"vlan178","type":"bridge","bridge":"test-br","promiscMode":true,"vlan":178,"ipam":{}}`,
-		},
-	}
-
 	clientSet := fake.NewSimpleClientset()
 	nadGvr := schema.GroupVersionResource{
 		Group:    "k8s.cni.cncf.io",
@@ -253,38 +318,106 @@ func TestPatchAffinity(t *testing.T) {
 	if err := clientSet.Tracker().Create(nadGvr, net1.DeepCopy(), net1.Namespace); err != nil {
 		t.Fatalf("failed to add net1 %+v", net1)
 	}
-	if err := clientSet.Tracker().Create(nadGvr, net2.DeepCopy(), net2.Namespace); err != nil {
-		t.Fatalf("failed to add net1 %+v", net2)
-	}
 
 	tests := []struct {
 		name     string
-		oldVM    *kubevirtv1.VirtualMachine
-		newVM    *kubevirtv1.VirtualMachine
-		patchOps types.PatchOps
+		vm       *kubevirtv1.VirtualMachine
+		affinity *v1.Affinity
 	}{
 		{
-			name:  "net1",
-			newVM: vm,
-			patchOps: types.PatchOps{
-				`{"op": "replace", "path": "/spec/template/spec/affinity", "value": {"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"network.harvesterhci.io/mgmt","operator":"In","values":["true"]}]}]}}}}`,
+			name: "net1",
+			vm:   vm1,
+			affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{NodeSelectorTerms: []v1.NodeSelectorTerm{
+						{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{
+									Key:      fmt.Sprintf("%s/%s", networkGroup, "mgmt"),
+									Operator: v1.NodeSelectorOpIn,
+									Values:   []string{"true"},
+								},
+							},
+						},
+					},
+					},
+				},
 			},
 		},
 		{
-			name:  "net2ToNet1",
-			oldVM: oldVM,
-			newVM: vm,
-			patchOps: types.PatchOps{
-				`{"op": "replace", "path": "/spec/template/spec/affinity", "value": {"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"network.harvesterhci.io/mgmt","operator":"In","values":["true"]}]}]}}}}`,
+			name: "clearOldAffinity",
+			vm:   vm2,
+			affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{NodeSelectorTerms: []v1.NodeSelectorTerm{
+						{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{
+									Key:      fmt.Sprintf("%s/%s", networkGroup, "mgmt"),
+									Operator: v1.NodeSelectorOpIn,
+									Values:   []string{"true"},
+								},
+							},
+						},
+					},
+					},
+				},
 			},
 		},
+		{
+			name: "addRequirementToExistingTerms",
+			vm:   vm3,
+			affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{NodeSelectorTerms: []v1.NodeSelectorTerm{
+						{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{
+									Key:      "just.for.testing",
+									Operator: v1.NodeSelectorOpIn,
+									Values:   []string{"true"},
+								},
+								{
+									Key:      fmt.Sprintf("%s/%s", networkGroup, "mgmt"),
+									Operator: v1.NodeSelectorOpIn,
+									Values:   []string{"true"},
+								},
+							},
+						},
+					},
+					},
+				},
+			},
+		},
+		{
+			name:     "emptyAffinity",
+			vm:       vm4,
+			affinity: &v1.Affinity{},
+		},
+	}
+
+	type patch struct {
+		Op    string       `json:"op"`
+		Path  string       `json:"path"`
+		Value *v1.Affinity `json:"value"`
 	}
 
 	for _, tc := range tests {
 		mutator := NewMutator(fakeclients.HarvesterSettingCache(clientSet.HarvesterhciV1beta1().Settings),
 			fakeclients.NetworkAttachmentDefinitionCache(clientSet.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-		patchOps, err := mutator.(*vmMutator).patchAffinity(tc.oldVM, tc.newVM, nil)
+		patchOps, err := mutator.(*vmMutator).patchAffinity(tc.vm, nil)
 		assert.Nil(t, err, tc.name)
-		assert.Equal(t, tc.patchOps, patchOps)
+
+		patch := &patch{
+			Op:    replaceOP,
+			Path:  nodeAffinityPath,
+			Value: tc.affinity,
+		}
+
+		bytes, err := json.Marshal(patch)
+		if err != nil {
+			assert.Nil(t, err, tc.name)
+		}
+		assert.Equal(t, types.PatchOps{string(bytes)}, patchOps)
 	}
 }
