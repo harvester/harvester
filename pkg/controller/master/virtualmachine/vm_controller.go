@@ -248,6 +248,7 @@ func (h *VMController) OnVMRemove(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.Vi
 	// remove harvester finalizers
 	vmObj := vm.DeepCopy()
 	util.RemoveFinalizer(vmObj, harvesterUnsetOwnerOfPVCsFinalizer)
+	util.RemoveFinalizer(vmObj, oldWranglerFinalizer) // post upgrade, these are not being cleaned by wrangler so need to be managed by us
 	return h.vmClient.Update(vmObj)
 }
 

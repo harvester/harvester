@@ -15,6 +15,7 @@ const (
 	vmControllerSyncLabelsToVmi                        = "VMController.SyncLabelsToVmi"
 	vmControllerManagePVCOwnerControllerName           = "VMController.ManageOwnerOfPVCs"
 	harvesterUnsetOwnerOfPVCsFinalizer                 = "harvesterhci.io/VMController.UnsetOwnerOfPVCs"
+	oldWranglerFinalizer                               = "wrangler.cattle.io/VMController.UnsetOwnerOfPVCs"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
