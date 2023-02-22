@@ -27,6 +27,7 @@ type MigrateInput struct {
 type CreateTemplateInput struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	WithData    bool   `json:"withData"`
 }
 
 type AddVolumeInput struct {

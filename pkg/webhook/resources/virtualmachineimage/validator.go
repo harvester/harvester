@@ -8,6 +8,7 @@ import (
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,20 +25,26 @@ const (
 	fieldDisplayName = "spec.displayName"
 )
 
-func NewValidator(vmimages ctlharvesterv1.VirtualMachineImageCache, pvcCache ctlcorev1.PersistentVolumeClaimCache, ssar authorizationv1client.SelfSubjectAccessReviewInterface) types.Validator {
+func NewValidator(
+	vmimages ctlharvesterv1.VirtualMachineImageCache,
+	pvcCache ctlcorev1.PersistentVolumeClaimCache,
+	ssar authorizationv1client.SelfSubjectAccessReviewInterface,
+	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache) types.Validator {
 	return &virtualMachineImageValidator{
-		vmimages: vmimages,
-		pvcCache: pvcCache,
-		ssar:     ssar,
+		vmimages:               vmimages,
+		pvcCache:               pvcCache,
+		ssar:                   ssar,
+		vmTemplateVersionCache: vmTemplateVersionCache,
 	}
 }
 
 type virtualMachineImageValidator struct {
 	types.DefaultValidator
 
-	vmimages ctlharvesterv1.VirtualMachineImageCache
-	pvcCache ctlcorev1.PersistentVolumeClaimCache
-	ssar     authorizationv1client.SelfSubjectAccessReviewInterface
+	vmimages               ctlharvesterv1.VirtualMachineImageCache
+	pvcCache               ctlcorev1.PersistentVolumeClaimCache
+	ssar                   authorizationv1client.SelfSubjectAccessReviewInterface
+	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache
 }
 
 func (v *virtualMachineImageValidator) Resource() types.Resource {
@@ -174,6 +181,21 @@ func (v *virtualMachineImageValidator) Delete(request *types.Request, oldObj run
 	if image.Status.StorageClassName == "" {
 		return nil
 	}
+
+	for _, ownerRef := range image.GetOwnerReferences() {
+		if ownerRef.Kind == "VirtualMachineTemplateVersion" {
+			_, err := v.vmTemplateVersionCache.Get(image.Namespace, ownerRef.Name)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					continue
+				}
+				return werror.NewInternalError(err.Error())
+			}
+			message := fmt.Sprintf("Cannot delete image %s/%s: being used by VMTemplateVersion %s", image.Namespace, image.Spec.DisplayName, ownerRef.Name)
+			return werror.NewInvalidError(message, "")
+		}
+	}
+
 	pvcs, err := v.pvcCache.List(corev1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return err
