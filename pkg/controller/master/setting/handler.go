@@ -82,11 +82,13 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 	if toUpdate.Annotations == nil {
 		toUpdate.Annotations = make(map[string]string)
 	}
-	toUpdate.Annotations[util.AnnotationHash] = currentHash
 
 	var err error
 	if syncer, ok := syncers[setting.Name]; ok {
 		err = syncer(setting)
+		if err == nil {
+			toUpdate.Annotations[util.AnnotationHash] = currentHash
+		}
 		if updateErr := h.setConfiguredCondition(toUpdate, err); updateErr != nil {
 			return setting, updateErr
 		}
