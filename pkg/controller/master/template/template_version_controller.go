@@ -1,15 +1,19 @@
 package template
 
 import (
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"sort"
 	"sync"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -22,6 +26,7 @@ type templateVersionHandler struct {
 	templateCache      ctlharvesterv1.VirtualMachineTemplateCache
 	templateVersions   ctlharvesterv1.VirtualMachineTemplateVersionClient
 	templateController ctlharvesterv1.VirtualMachineTemplateController
+	vmImageCache       ctlharvesterv1.VirtualMachineImageCache
 	mu                 sync.RWMutex //use mutex to avoid create duplicated version
 }
 
@@ -63,6 +68,14 @@ func (h *templateVersionHandler) OnChanged(key string, tv *harvesterv1.VirtualMa
 		copyObj.OwnerReferences = append(copyObj.OwnerReferences, ownerRef...)
 	}
 
+	if isReady, err := h.isVMImagesReady(tv); err != nil {
+		return nil, err
+	} else if isReady {
+		harvesterv1.TemplateVersionReady.True(copyObj)
+	} else {
+		harvesterv1.TemplateVersionReady.False(copyObj)
+	}
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -86,6 +99,33 @@ func (h *templateVersionHandler) OnChanged(key string, tv *harvesterv1.VirtualMa
 	}
 
 	return copyObj, nil
+}
+
+func (h *templateVersionHandler) isVMImagesReady(tv *harvesterv1.VirtualMachineTemplateVersion) (bool, error) {
+	volumeClaimTemplatesStr, ok := tv.Spec.VM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplatesStr == "" {
+		return true, nil
+	}
+
+	var volumeClaimTemplates []corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(volumeClaimTemplatesStr), &volumeClaimTemplates); err != nil {
+		return false, fmt.Errorf("can't unmarshal %s annotation, err: %w", util.AnnotationVolumeClaimTemplates, err)
+	}
+
+	for _, volumeClaimTemplate := range volumeClaimTemplates {
+		imageID, ok := volumeClaimTemplate.Annotations[util.AnnotationImageID]
+		if !ok || imageID == "" {
+			continue
+		}
+
+		imageNs, imageName := ref.Parse(imageID)
+		if image, err := h.vmImageCache.Get(imageNs, imageName); err != nil {
+			return false, err
+		} else if !harvesterv1.ImageImported.IsTrue(image) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func getTemplateLatestVersion(templateVersionNs, templateID string, templateVersions ctlharvesterv1.VirtualMachineTemplateVersionClient) (int, *harvesterv1.VirtualMachineTemplateVersion, error) {

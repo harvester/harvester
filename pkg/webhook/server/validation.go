@@ -36,7 +36,8 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		virtualmachineimage.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.Core.PersistentVolumeClaim().Cache(),
-			clients.K8s.AuthorizationV1().SelfSubjectAccessReviews()),
+			clients.K8s.AuthorizationV1().SelfSubjectAccessReviews(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache()),
 		upgrade.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
 			clients.Core.Node().Cache(),
