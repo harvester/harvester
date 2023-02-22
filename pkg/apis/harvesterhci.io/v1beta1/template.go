@@ -7,7 +7,8 @@ import (
 )
 
 var (
-	VersionAssigned condition.Cond = "assigned" // version number was assigned to templateVersion object's status.Version
+	VersionAssigned      condition.Cond = "assigned" // version number was assigned to templateVersion object's status.Version
+	TemplateVersionReady condition.Cond = "ready"    // all images in the template are ready
 )
 
 // +genclient

@@ -2,6 +2,7 @@ package indexeres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/rancher/steve/pkg/server"
@@ -11,26 +12,34 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
-	PVCByVMIndex                = "harvesterhci.io/pvc-by-vm-index"
-	VMByNetworkIndex            = "vm.harvesterhci.io/vm-by-network"
-	PodByNodeNameIndex          = "harvesterhci.io/pod-by-nodename"
-	VMBackupBySourceVMUIDIndex  = "harvesterhci.io/vmbackup-by-source-vm-uid"
-	VMBackupBySourceVMNameIndex = "harvesterhci.io/vmbackup-by-source-vm-name"
+	PVCByVMIndex                    = "harvesterhci.io/pvc-by-vm-index"
+	VMByNetworkIndex                = "vm.harvesterhci.io/vm-by-network"
+	PodByNodeNameIndex              = "harvesterhci.io/pod-by-nodename"
+	VMBackupBySourceVMUIDIndex      = "harvesterhci.io/vmbackup-by-source-vm-uid"
+	VMBackupBySourceVMNameIndex     = "harvesterhci.io/vmbackup-by-source-vm-name"
+	VMTemplateVersionByImageIDIndex = "harvesterhci.io/vmtemplateversion-by-image-id"
 )
 
 func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
 	management := scaled.Management
+
 	pvcInformer := management.CoreFactory.Core().V1().PersistentVolumeClaim().Cache()
 	pvcInformer.AddIndexer(PVCByVMIndex, pvcByVM)
+
 	podInformer := management.CoreFactory.Core().V1().Pod().Cache()
 	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
+
 	vmBackupInformer := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()
 	vmBackupInformer.AddIndexer(VMBackupBySourceVMNameIndex, VMBackupBySourceVMName)
 	vmBackupInformer.AddIndexer(VMBackupBySourceVMUIDIndex, VMBackupBySourceVMUID)
+
+	vmTemplateVersionInformer := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache()
+	vmTemplateVersionInformer.AddIndexer(VMTemplateVersionByImageIDIndex, VMTemplateVersionByImageID)
 	return nil
 }
 
@@ -67,4 +76,26 @@ func VMBackupBySourceVMUID(obj *harvesterv1.VirtualMachineBackup) ([]string, err
 
 func VMBackupBySourceVMName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
 	return []string{obj.Spec.Source.Name}, nil
+}
+
+func VMTemplateVersionByImageID(obj *harvesterv1.VirtualMachineTemplateVersion) ([]string, error) {
+	volumeClaimTemplateStr, ok := obj.Spec.VM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplateStr == "" {
+		return []string{}, nil
+	}
+
+	var volumeClaimTemplates []corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(volumeClaimTemplateStr), &volumeClaimTemplates); err != nil {
+		return []string{}, fmt.Errorf("can't unmarshal %s, err: %w", util.AnnotationVolumeClaimTemplates, err)
+	}
+
+	imageIds := []string{}
+	for _, volumeClaimTemplate := range volumeClaimTemplates {
+		imageID, ok := volumeClaimTemplate.Annotations[util.AnnotationImageID]
+		if !ok || imageID == "" {
+			continue
+		}
+		imageIds = append(imageIds, imageID)
+	}
+	return imageIds, nil
 }
