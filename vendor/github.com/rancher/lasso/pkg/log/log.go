@@ -10,4 +10,7 @@ var (
 	Errorf = func(message string, obj ...interface{}) {
 		log.Printf("ERROR: "+message+"\n", obj...)
 	}
+	Debugf = func(message string, obj ...interface{}) {
+		log.Printf("DEBUG: "+message+"\n", obj...)
+	}
 )

@@ -587,80 +587,84 @@ type WeaveNetworkProvider struct {
 }
 
 type AciNetworkProvider struct {
-	SystemIdentifier                  string   `yaml:"system_id,omitempty" json:"systemId,omitempty"`
-	ApicHosts                         []string `yaml:"apic_hosts" json:"apicHosts,omitempty"`
-	Token                             string   `yaml:"token,omitempty" json:"token,omitempty"`
-	ApicUserName                      string   `yaml:"apic_user_name,omitempty" json:"apicUserName,omitempty"`
-	ApicUserKey                       string   `yaml:"apic_user_key,omitempty" json:"apicUserKey,omitempty"`
-	ApicUserCrt                       string   `yaml:"apic_user_crt,omitempty" json:"apicUserCrt,omitempty"`
-	ApicRefreshTime                   string   `yaml:"apic_refresh_time,omitempty" json:"apicRefreshTime,omitempty" norman:"default=1200"`
-	VmmDomain                         string   `yaml:"vmm_domain,omitempty" json:"vmmDomain,omitempty"`
-	VmmController                     string   `yaml:"vmm_controller,omitempty" json:"vmmController,omitempty"`
-	EncapType                         string   `yaml:"encap_type,omitempty" json:"encapType,omitempty"`
-	NodeSubnet                        string   `yaml:"node_subnet,omitempty" json:"nodeSubnet,omitempty"`
-	McastRangeStart                   string   `yaml:"mcast_range_start,omitempty" json:"mcastRangeStart,omitempty"`
-	McastRangeEnd                     string   `yaml:"mcast_range_end,omitempty" json:"mcastRangeEnd,omitempty"`
-	AEP                               string   `yaml:"aep,omitempty" json:"aep,omitempty"`
-	VRFName                           string   `yaml:"vrf_name,omitempty" json:"vrfName,omitempty"`
-	VRFTenant                         string   `yaml:"vrf_tenant,omitempty" json:"vrfTenant,omitempty"`
-	L3Out                             string   `yaml:"l3out,omitempty" json:"l3out,omitempty"`
-	L3OutExternalNetworks             []string `yaml:"l3out_external_networks" json:"l3outExternalNetworks,omitempty"`
-	DynamicExternalSubnet             string   `yaml:"extern_dynamic,omitempty" json:"externDynamic,omitempty"`
-	StaticExternalSubnet              string   `yaml:"extern_static,omitempty" json:"externStatic,omitempty"`
-	ServiceGraphSubnet                string   `yaml:"node_svc_subnet,omitempty" json:"nodeSvcSubnet,omitempty"`
-	KubeAPIVlan                       string   `yaml:"kube_api_vlan,omitempty" json:"kubeApiVlan,omitempty"`
-	ServiceVlan                       string   `yaml:"service_vlan,omitempty" json:"serviceVlan,omitempty"`
-	InfraVlan                         string   `yaml:"infra_vlan,omitempty" json:"infraVlan,omitempty"`
-	Tenant                            string   `yaml:"tenant,omitempty" json:"tenant,omitempty"`
-	OVSMemoryLimit                    string   `yaml:"ovs_memory_limit,omitempty" json:"ovsMemoryLimit,omitempty"`
-	ImagePullPolicy                   string   `yaml:"image_pull_policy,omitempty" json:"imagePullPolicy,omitempty"`
-	ImagePullSecret                   string   `yaml:"image_pull_secret,omitempty" json:"imagePullSecret,omitempty"`
-	ServiceMonitorInterval            string   `yaml:"service_monitor_interval,omitempty" json:"serviceMonitorInterval,omitempty"`
-	PBRTrackingNonSnat                string   `yaml:"pbr_tracking_non_snat,omitempty" json:"pbrTrackingNonSnat,omitempty"`
-	InstallIstio                      string   `yaml:"install_istio,omitempty" json:"installIstio,omitempty"`
-	IstioProfile                      string   `yaml:"istio_profile,omitempty" json:"istioProfile,omitempty"`
-	DropLogEnable                     string   `yaml:"drop_log_enable,omitempty" json:"dropLogEnable,omitempty"`
-	ControllerLogLevel                string   `yaml:"controller_log_level,omitempty" json:"controllerLogLevel,omitempty"`
-	HostAgentLogLevel                 string   `yaml:"host_agent_log_level,omitempty" json:"hostAgentLogLevel,omitempty"`
-	OpflexAgentLogLevel               string   `yaml:"opflex_log_level,omitempty" json:"opflexLogLevel,omitempty"`
-	UseAciCniPriorityClass            string   `yaml:"use_aci_cni_priority_class,omitempty" json:"useAciCniPriorityClass,omitempty"`
-	NoPriorityClass                   string   `yaml:"no_priority_class,omitempty" json:"noPriorityClass,omitempty"`
-	MaxNodesSvcGraph                  string   `yaml:"max_nodes_svc_graph,omitempty" json:"maxNodesSvcGraph,omitempty"`
-	SnatContractScope                 string   `yaml:"snat_contract_scope,omitempty" json:"snatContractScope,omitempty"`
-	PodSubnetChunkSize                string   `yaml:"pod_subnet_chunk_size,omitempty" json:"podSubnetChunkSize,omitempty"`
-	EnableEndpointSlice               string   `yaml:"enable_endpoint_slice,omitempty" json:"enableEndpointSlice,omitempty"`
-	SnatNamespace                     string   `yaml:"snat_namespace,omitempty" json:"snatNamespace,omitempty"`
-	EpRegistry                        string   `yaml:"ep_registry,omitempty" json:"epRegistry,omitempty"`
-	OpflexMode                        string   `yaml:"opflex_mode,omitempty" json:"opflexMode,omitempty"`
-	SnatPortRangeStart                string   `yaml:"snat_port_range_start,omitempty" json:"snatPortRangeStart,omitempty"`
-	SnatPortRangeEnd                  string   `yaml:"snat_port_range_end,omitempty" json:"snatPortRangeEnd,omitempty"`
-	SnatPortsPerNode                  string   `yaml:"snat_ports_per_node,omitempty" json:"snatPortsPerNode,omitempty"`
-	OpflexClientSSL                   string   `yaml:"opflex_client_ssl,omitempty" json:"opflexClientSsl,omitempty"`
-	UsePrivilegedContainer            string   `yaml:"use_privileged_container,omitempty" json:"usePrivilegedContainer,omitempty"`
-	UseHostNetnsVolume                string   `yaml:"use_host_netns_volume,omitempty" json:"useHostNetnsVolume,omitempty"`
-	UseOpflexServerVolume             string   `yaml:"use_opflex_server_volume,omitempty" json:"useOpflexServerVolume,omitempty"`
-	SubnetDomainName                  string   `yaml:"subnet_domain_name,omitempty" json:"subnetDomainName,omitempty"`
-	KafkaBrokers                      []string `yaml:"kafka_brokers,omitempty" json:"kafkaBrokers,omitempty"`
-	KafkaClientCrt                    string   `yaml:"kafka_client_crt,omitempty" json:"kafkaClientCrt,omitempty"`
-	KafkaClientKey                    string   `yaml:"kafka_client_key,omitempty" json:"kafkaClientKey,omitempty"`
-	CApic                             string   `yaml:"capic,omitempty" json:"capic,omitempty"`
-	UseAciAnywhereCRD                 string   `yaml:"use_aci_anywhere_crd,omitempty" json:"useAciAnywhereCrd,omitempty"`
-	OverlayVRFName                    string   `yaml:"overlay_vrf_name,omitempty" json:"overlayVrfName,omitempty"`
-	GbpPodSubnet                      string   `yaml:"gbp_pod_subnet,omitempty" json:"gbpPodSubnet,omitempty"`
-	RunGbpContainer                   string   `yaml:"run_gbp_container,omitempty" json:"runGbpContainer,omitempty"`
-	RunOpflexServerContainer          string   `yaml:"run_opflex_server_container,omitempty" json:"runOpflexServerContainer,omitempty"`
-	OpflexServerPort                  string   `yaml:"opflex_server_port,omitempty" json:"opflexServerPort,omitempty"`
-	DurationWaitForNetwork            string   `yaml:"duration_wait_for_network,omitempty" json:"durationWaitForNetwork,omitempty"`
-	DisableWaitForNetwork             string   `yaml:"disable_wait_for_network,omitempty" json:"disableWaitForNetwork,omitempty"`
-	ApicSubscriptionDelay             string   `yaml:"apic_subscription_delay,omitempty" json:"apicSubscriptionDelay,omitempty"`
-	ApicRefreshTickerAdjust           string   `yaml:"apic_refresh_ticker_adjust,omitempty" json:"apicRefreshTickerAdjust,omitempty"`
-	DisablePeriodicSnatGlobalInfoSync string   `yaml:"disable_periodic_snat_global_info_sync,omitempty" json:"disablePeriodicSnatGlobalInfoSync,omitempty"`
-	OpflexDeviceDeleteTimeout         string   `yaml:"opflex_device_delete_timeout,omitempty" json:"opflexDeviceDeleteTimeout,omitempty"`
-	MTUHeadRoom                       string   `yaml:"mtu_head_room,omitempty" json:"mtuHeadRoom,omitempty"`
-	NodePodIfEnable                   string   `yaml:"node_pod_if_enable,omitempty" json:"nodePodIfEnable,omitempty"`
-	SriovEnable                       string   `yaml:"sriov_enable,omitempty" json:"sriovEnable,omitempty"`
-	MultusDisable                     string   `yaml:"multus_disable,omitempty" json:"multusDisable,omitempty"`
-	UseClusterRole                    string   `yaml:"use_cluster_role,omitempty" json:"useClusterRole,omitempty"`
+	SystemIdentifier                  string              `yaml:"system_id,omitempty" json:"systemId,omitempty"`
+	ApicHosts                         []string            `yaml:"apic_hosts" json:"apicHosts,omitempty"`
+	Token                             string              `yaml:"token,omitempty" json:"token,omitempty"`
+	ApicUserName                      string              `yaml:"apic_user_name,omitempty" json:"apicUserName,omitempty"`
+	ApicUserKey                       string              `yaml:"apic_user_key,omitempty" json:"apicUserKey,omitempty"`
+	ApicUserCrt                       string              `yaml:"apic_user_crt,omitempty" json:"apicUserCrt,omitempty"`
+	ApicRefreshTime                   string              `yaml:"apic_refresh_time,omitempty" json:"apicRefreshTime,omitempty" norman:"default=1200"`
+	VmmDomain                         string              `yaml:"vmm_domain,omitempty" json:"vmmDomain,omitempty"`
+	VmmController                     string              `yaml:"vmm_controller,omitempty" json:"vmmController,omitempty"`
+	EncapType                         string              `yaml:"encap_type,omitempty" json:"encapType,omitempty"`
+	NodeSubnet                        string              `yaml:"node_subnet,omitempty" json:"nodeSubnet,omitempty"`
+	McastRangeStart                   string              `yaml:"mcast_range_start,omitempty" json:"mcastRangeStart,omitempty"`
+	McastRangeEnd                     string              `yaml:"mcast_range_end,omitempty" json:"mcastRangeEnd,omitempty"`
+	AEP                               string              `yaml:"aep,omitempty" json:"aep,omitempty"`
+	VRFName                           string              `yaml:"vrf_name,omitempty" json:"vrfName,omitempty"`
+	VRFTenant                         string              `yaml:"vrf_tenant,omitempty" json:"vrfTenant,omitempty"`
+	L3Out                             string              `yaml:"l3out,omitempty" json:"l3out,omitempty"`
+	L3OutExternalNetworks             []string            `yaml:"l3out_external_networks" json:"l3outExternalNetworks,omitempty"`
+	DynamicExternalSubnet             string              `yaml:"extern_dynamic,omitempty" json:"externDynamic,omitempty"`
+	StaticExternalSubnet              string              `yaml:"extern_static,omitempty" json:"externStatic,omitempty"`
+	ServiceGraphSubnet                string              `yaml:"node_svc_subnet,omitempty" json:"nodeSvcSubnet,omitempty"`
+	KubeAPIVlan                       string              `yaml:"kube_api_vlan,omitempty" json:"kubeApiVlan,omitempty"`
+	ServiceVlan                       string              `yaml:"service_vlan,omitempty" json:"serviceVlan,omitempty"`
+	InfraVlan                         string              `yaml:"infra_vlan,omitempty" json:"infraVlan,omitempty"`
+	Tenant                            string              `yaml:"tenant,omitempty" json:"tenant,omitempty"`
+	OVSMemoryLimit                    string              `yaml:"ovs_memory_limit,omitempty" json:"ovsMemoryLimit,omitempty"`
+	ImagePullPolicy                   string              `yaml:"image_pull_policy,omitempty" json:"imagePullPolicy,omitempty"`
+	ImagePullSecret                   string              `yaml:"image_pull_secret,omitempty" json:"imagePullSecret,omitempty"`
+	ServiceMonitorInterval            string              `yaml:"service_monitor_interval,omitempty" json:"serviceMonitorInterval,omitempty"`
+	PBRTrackingNonSnat                string              `yaml:"pbr_tracking_non_snat,omitempty" json:"pbrTrackingNonSnat,omitempty"`
+	InstallIstio                      string              `yaml:"install_istio,omitempty" json:"installIstio,omitempty"`
+	IstioProfile                      string              `yaml:"istio_profile,omitempty" json:"istioProfile,omitempty"`
+	DropLogEnable                     string              `yaml:"drop_log_enable,omitempty" json:"dropLogEnable,omitempty"`
+	ControllerLogLevel                string              `yaml:"controller_log_level,omitempty" json:"controllerLogLevel,omitempty"`
+	HostAgentLogLevel                 string              `yaml:"host_agent_log_level,omitempty" json:"hostAgentLogLevel,omitempty"`
+	OpflexAgentLogLevel               string              `yaml:"opflex_log_level,omitempty" json:"opflexLogLevel,omitempty"`
+	UseAciCniPriorityClass            string              `yaml:"use_aci_cni_priority_class,omitempty" json:"useAciCniPriorityClass,omitempty"`
+	NoPriorityClass                   string              `yaml:"no_priority_class,omitempty" json:"noPriorityClass,omitempty"`
+	MaxNodesSvcGraph                  string              `yaml:"max_nodes_svc_graph,omitempty" json:"maxNodesSvcGraph,omitempty"`
+	SnatContractScope                 string              `yaml:"snat_contract_scope,omitempty" json:"snatContractScope,omitempty"`
+	PodSubnetChunkSize                string              `yaml:"pod_subnet_chunk_size,omitempty" json:"podSubnetChunkSize,omitempty"`
+	EnableEndpointSlice               string              `yaml:"enable_endpoint_slice,omitempty" json:"enableEndpointSlice,omitempty"`
+	SnatNamespace                     string              `yaml:"snat_namespace,omitempty" json:"snatNamespace,omitempty"`
+	EpRegistry                        string              `yaml:"ep_registry,omitempty" json:"epRegistry,omitempty"`
+	OpflexMode                        string              `yaml:"opflex_mode,omitempty" json:"opflexMode,omitempty"`
+	SnatPortRangeStart                string              `yaml:"snat_port_range_start,omitempty" json:"snatPortRangeStart,omitempty"`
+	SnatPortRangeEnd                  string              `yaml:"snat_port_range_end,omitempty" json:"snatPortRangeEnd,omitempty"`
+	SnatPortsPerNode                  string              `yaml:"snat_ports_per_node,omitempty" json:"snatPortsPerNode,omitempty"`
+	OpflexClientSSL                   string              `yaml:"opflex_client_ssl,omitempty" json:"opflexClientSsl,omitempty"`
+	UsePrivilegedContainer            string              `yaml:"use_privileged_container,omitempty" json:"usePrivilegedContainer,omitempty"`
+	UseHostNetnsVolume                string              `yaml:"use_host_netns_volume,omitempty" json:"useHostNetnsVolume,omitempty"`
+	UseOpflexServerVolume             string              `yaml:"use_opflex_server_volume,omitempty" json:"useOpflexServerVolume,omitempty"`
+	SubnetDomainName                  string              `yaml:"subnet_domain_name,omitempty" json:"subnetDomainName,omitempty"`
+	KafkaBrokers                      []string            `yaml:"kafka_brokers,omitempty" json:"kafkaBrokers,omitempty"`
+	KafkaClientCrt                    string              `yaml:"kafka_client_crt,omitempty" json:"kafkaClientCrt,omitempty"`
+	KafkaClientKey                    string              `yaml:"kafka_client_key,omitempty" json:"kafkaClientKey,omitempty"`
+	CApic                             string              `yaml:"capic,omitempty" json:"capic,omitempty"`
+	UseAciAnywhereCRD                 string              `yaml:"use_aci_anywhere_crd,omitempty" json:"useAciAnywhereCrd,omitempty"`
+	OverlayVRFName                    string              `yaml:"overlay_vrf_name,omitempty" json:"overlayVrfName,omitempty"`
+	GbpPodSubnet                      string              `yaml:"gbp_pod_subnet,omitempty" json:"gbpPodSubnet,omitempty"`
+	RunGbpContainer                   string              `yaml:"run_gbp_container,omitempty" json:"runGbpContainer,omitempty"`
+	RunOpflexServerContainer          string              `yaml:"run_opflex_server_container,omitempty" json:"runOpflexServerContainer,omitempty"`
+	OpflexServerPort                  string              `yaml:"opflex_server_port,omitempty" json:"opflexServerPort,omitempty"`
+	DurationWaitForNetwork            string              `yaml:"duration_wait_for_network,omitempty" json:"durationWaitForNetwork,omitempty"`
+	DisableWaitForNetwork             string              `yaml:"disable_wait_for_network,omitempty" json:"disableWaitForNetwork,omitempty"`
+	ApicSubscriptionDelay             string              `yaml:"apic_subscription_delay,omitempty" json:"apicSubscriptionDelay,omitempty"`
+	ApicRefreshTickerAdjust           string              `yaml:"apic_refresh_ticker_adjust,omitempty" json:"apicRefreshTickerAdjust,omitempty"`
+	DisablePeriodicSnatGlobalInfoSync string              `yaml:"disable_periodic_snat_global_info_sync,omitempty" json:"disablePeriodicSnatGlobalInfoSync,omitempty"`
+	OpflexDeviceDeleteTimeout         string              `yaml:"opflex_device_delete_timeout,omitempty" json:"opflexDeviceDeleteTimeout,omitempty"`
+	MTUHeadRoom                       string              `yaml:"mtu_head_room,omitempty" json:"mtuHeadRoom,omitempty"`
+	NodePodIfEnable                   string              `yaml:"node_pod_if_enable,omitempty" json:"nodePodIfEnable,omitempty"`
+	SriovEnable                       string              `yaml:"sriov_enable,omitempty" json:"sriovEnable,omitempty"`
+	MultusDisable                     string              `yaml:"multus_disable,omitempty" json:"multusDisable,omitempty"`
+	UseClusterRole                    string              `yaml:"use_cluster_role,omitempty" json:"useClusterRole,omitempty"`
+	NoWaitForServiceEpReadiness       string              `yaml:"no_wait_for_service_ep_readiness,omitempty" json:"noWaitForServiceEpReadiness,omitempty"`
+	AddExternalSubnetsToRdconfig      string              `yaml:"add_external_subnets_to_rdconfig,omitempty" json:"addExternalSubnetsToRdconfig,omitempty"`
+	ServiceGraphEndpointAddDelay      string              `yaml:"service_graph_endpoint_add_delay,omitempty" json:"serviceGraphEndpointAddDelay,omitempty"`
+	ServiceGraphEndpointAddServices   []map[string]string `yaml:"service_graph_endpoint_add_services,omitempty" json:"serviceGraphEndpointAddServices,omitempty"`
 }
 
 type KubernetesServicesOptions struct {
@@ -859,6 +863,8 @@ type AzureCloudProvider struct {
 	// Excludes master nodes (labeled with `node-role.kubernetes.io/master`) from the backend pool of Azure standard loadbalancer, default(nil) to `true`
 	// If want adding the master nodes to ALB, this should be set to `false` and remove the `node-role.kubernetes.io/master` label from master nodes
 	ExcludeMasterFromStandardLB *bool `json:"excludeMasterFromStandardLB,omitempty" yaml:"excludeMasterFromStandardLB,omitempty"`
+	// Tags to be added to shared resources: `foo=bar,bar=foo`
+	Tags string `json:"tags,omitempty" yaml:"tags,omitempty"`
 }
 
 // AWSCloudProvider options

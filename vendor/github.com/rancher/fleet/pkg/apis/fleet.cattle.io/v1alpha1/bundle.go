@@ -131,9 +131,10 @@ type NonReadyResource struct {
 }
 
 var (
-	BundleConditionReady              = "Ready"
-	BundleDeploymentConditionReady    = "Ready"
-	BundleDeploymentConditionDeployed = "Deployed"
+	BundleConditionReady               = "Ready"
+	BundleDeploymentConditionReady     = "Ready"
+	BundleDeploymentConditionInstalled = "Installed"
+	BundleDeploymentConditionDeployed  = "Deployed"
 )
 
 type BundleStatus struct {

@@ -1,7 +1,13 @@
+/*
+Package client provides a client that can be configured to point to a kubernetes cluster's kube-api and creates requests
+for a specified kubernetes resource. Package client also contains functions for a sharedclientfactory which manages the
+multiple clients needed to interact with multiple kubernetes resource types.
+*/
 package client
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -14,7 +20,10 @@ import (
 )
 
 type Client struct {
+	// Default RESTClient
 	RESTClient rest.Interface
+	// Config that can be used to build a RESTClient with custom options
+	Config     rest.Config
 	timeout    time.Duration
 	Namespaced bool
 	GVR        schema.GroupVersionResource
@@ -36,6 +45,20 @@ func IsNamespaced(gvr schema.GroupVersionResource, mapper meta.RESTMapper) (bool
 	}
 
 	return mapping.Scope.Name() == meta.RESTScopeNameNamespace, nil
+}
+
+// WithAgent attempts to return a copy of the Client but
+// with a new restClient created with the passed in userAgent.
+func (c *Client) WithAgent(userAgent string) (*Client, error) {
+	client := *c
+	config := c.Config
+	config.UserAgent = userAgent
+	restClient, err := rest.UnversionedRESTClientFor(&config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to created restClient with userAgent [%s]: %w", userAgent, err)
+	}
+	client.RESTClient = restClient
+	return &client, nil
 }
 
 func NewClient(gvr schema.GroupVersionResource, kind string, namespaced bool, client rest.Interface, defaultTimeout time.Duration) *Client {
