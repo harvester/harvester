@@ -89,6 +89,9 @@ func (c Cond) GetLastUpdated(obj interface{}) string {
 
 func (c Cond) CreateUnknownIfNotExists(obj interface{}) {
 	condSlice := getValue(obj, "Status", "Conditions")
+	if !condSlice.IsValid() {
+		condSlice = getValue(obj, "Conditions")
+	}
 	cond := findCond(obj, condSlice, string(c))
 	if cond == nil {
 		c.Unknown(obj)
