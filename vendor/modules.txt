@@ -111,7 +111,7 @@ github.com/chai2010/gettext-go/gettext
 github.com/chai2010/gettext-go/gettext/mo
 github.com/chai2010/gettext-go/gettext/plural
 github.com/chai2010/gettext-go/gettext/po
-# github.com/containerd/containerd v1.6.6
+# github.com/containerd/containerd v1.6.6 => github.com/containerd/containerd v1.6.18
 ## explicit; go 1.17
 github.com/containerd/containerd/archive/compression
 github.com/containerd/containerd/content
@@ -147,7 +147,7 @@ github.com/docker/cli/cli/config
 github.com/docker/cli/cli/config/configfile
 github.com/docker/cli/cli/config/credentials
 github.com/docker/cli/cli/config/types
-# github.com/docker/distribution v2.8.1+incompatible => github.com/docker/distribution v2.7.1+incompatible
+# github.com/docker/distribution v2.8.1+incompatible => github.com/docker/distribution v2.8.0+incompatible
 ## explicit
 github.com/docker/distribution
 github.com/docker/distribution/digestset
@@ -691,7 +691,7 @@ github.com/rancher/dynamiclistener/storage/memory
 ## explicit; go 1.16
 github.com/rancher/eks-operator/pkg/apis/eks.cattle.io
 github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1
-# github.com/rancher/fleet/pkg/apis v0.0.0-20220916041858-eae202f68985
+# github.com/rancher/fleet/pkg/apis v0.0.0-20230123175930-d296259590be
 ## explicit; go 1.18
 github.com/rancher/fleet/pkg/apis/fleet.cattle.io
 github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1
@@ -703,7 +703,7 @@ github.com/rancher/gke-operator/pkg/apis/gke.cattle.io/v1
 ## explicit; go 1.14
 github.com/rancher/kubernetes-provider-detector
 github.com/rancher/kubernetes-provider-detector/providers
-# github.com/rancher/lasso v0.0.0-20221202205459-e7138f16489c
+# github.com/rancher/lasso v0.0.0-20221227210133-6ea88ca2fbcc
 ## explicit; go 1.19
 github.com/rancher/lasso/pkg/cache
 github.com/rancher/lasso/pkg/client
@@ -724,7 +724,7 @@ github.com/rancher/norman/types/convert
 github.com/rancher/norman/types/definition
 github.com/rancher/norman/types/slice
 github.com/rancher/norman/types/values
-# github.com/rancher/rancher v0.0.0-20221013203903-14a66edd1e20
+# github.com/rancher/rancher v0.0.0-20230124173128-2207cfed1803
 ## explicit; go 1.19
 github.com/rancher/rancher/pkg/auth/settings
 github.com/rancher/rancher/pkg/fleet
@@ -737,7 +737,7 @@ github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3
 github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io
 github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1
 github.com/rancher/rancher/pkg/settings
-# github.com/rancher/rancher/pkg/apis v0.0.0 => github.com/rancher/rancher/pkg/apis v0.0.0-20221013203903-14a66edd1e20
+# github.com/rancher/rancher/pkg/apis v0.0.0 => github.com/rancher/rancher/pkg/apis v0.0.0-20230124173128-2207cfed1803
 ## explicit; go 1.19
 github.com/rancher/rancher/pkg/apis/catalog.cattle.io
 github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1
@@ -753,11 +753,11 @@ github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1
 ## explicit; go 1.17
 github.com/rancher/remotedialer
 github.com/rancher/remotedialer/metrics
-# github.com/rancher/rke v1.3.15
+# github.com/rancher/rke v1.3.18
 ## explicit; go 1.17
 github.com/rancher/rke/types
 github.com/rancher/rke/types/kdm
-# github.com/rancher/steve v0.0.0-20220805200026-647cba2be744
+# github.com/rancher/steve v0.0.0-20221209194631-acf9d31ce0dd
 ## explicit; go 1.13
 github.com/rancher/steve/pkg/accesscontrol
 github.com/rancher/steve/pkg/aggregation
@@ -794,7 +794,7 @@ github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1
 # github.com/rancher/wharfie v0.5.3
 ## explicit; go 1.16
 github.com/rancher/wharfie/pkg/registries
-# github.com/rancher/wrangler v1.0.1-0.20221202234327-1cafffeaa9a1
+# github.com/rancher/wrangler v1.1.0
 ## explicit; go 1.19
 github.com/rancher/wrangler/pkg/apply
 github.com/rancher/wrangler/pkg/apply/injectors
@@ -884,7 +884,7 @@ github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 ## explicit; go 1.12
 github.com/spf13/pflag
-# github.com/stretchr/testify v1.8.0
+# github.com/stretchr/testify v1.8.1
 ## explicit; go 1.13
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
@@ -1026,7 +1026,7 @@ golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.3.1-0.20221206200815-1e63c2f08a10
+# golang.org/x/net v0.7.0
 ## explicit; go 1.17
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -1051,7 +1051,7 @@ golang.org/x/oauth2/internal
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.3.0
+# golang.org/x/sys v0.5.0
 ## explicit; go 1.17
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
@@ -1059,10 +1059,10 @@ golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/term v0.3.0
+# golang.org/x/term v0.5.0
 ## explicit; go 1.17
 golang.org/x/term
-# golang.org/x/text v0.5.0
+# golang.org/x/text v0.7.0
 ## explicit; go 1.17
 golang.org/x/text/cases
 golang.org/x/text/encoding
@@ -2063,15 +2063,16 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.3.0
 ## explicit; go 1.12
 sigs.k8s.io/yaml
-# github.com/docker/distribution => github.com/docker/distribution v2.7.1+incompatible
+# github.com/containerd/containerd => github.com/containerd/containerd v1.6.18
+# github.com/docker/distribution => github.com/docker/distribution v2.8.0+incompatible
 # github.com/docker/docker => github.com/docker/docker v20.10.9+incompatible
 # github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.7.7
 # github.com/knative/pkg => github.com/rancher/pkg v0.0.0-20190514055449-b30ab9de040e
 # github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 # github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c
 # github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
-# github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20221013203903-14a66edd1e20
-# github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20221013203903-14a66edd1e20
+# github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20230124173128-2207cfed1803
+# github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20230124173128-2207cfed1803
 # go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0
 # go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp => go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.20.0
 # go.opentelemetry.io/otel => go.opentelemetry.io/otel v0.20.0
