@@ -40,6 +40,7 @@ type sharedClientFactory struct {
 	clients    map[schema.GroupVersionResource]*Client
 	timeout    time.Duration
 	rest       rest.Interface
+	config     *rest.Config
 
 	Mapper meta.RESTMapper
 	Scheme *runtime.Scheme
@@ -72,6 +73,7 @@ func NewSharedClientFactory(config *rest.Config, opts *SharedClientFactoryOption
 		Scheme:    opts.Scheme,
 		Mapper:    opts.Mapper,
 		rest:      rest,
+		config:    config,
 		discovery: discovery,
 	}, nil
 }
@@ -188,7 +190,9 @@ func (s *sharedClientFactory) ForResourceKind(gvr schema.GroupVersionResource, k
 	}
 
 	client = NewClient(gvr, kind, namespaced, s.rest, s.timeout)
-
+	if s.config != nil {
+		client.Config = *s.config
+	}
 	s.clients[gvr] = client
 	return client
 }

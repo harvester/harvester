@@ -56,6 +56,10 @@ func (f *factory) Init(c *generator.Context, w io.Writer) error {
 	sw.Do("	return New(c.ControllerFactory())\n", m)
 	sw.Do("}\n\n", m)
 
+	sw.Do("\n\nfunc (c *Factory) WithAgent(userAgent string) Interface {\n", m)
+	sw.Do("	return New(controller.NewSharedControllerFactoryWithAgent(userAgent, c.ControllerFactory()))\n", m)
+	sw.Do("}\n\n", m)
+
 	return sw.Error()
 }
 
