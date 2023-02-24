@@ -63,7 +63,7 @@ func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h Handler) do(rw http.ResponseWriter, req *http.Request) error {
-	vars := mux.Vars(req)
+	vars := util.EncodeVars(mux.Vars(req))
 	if req.Method == http.MethodGet {
 		return h.doGet(vars["link"], rw, req)
 	} else if req.Method == http.MethodPost {
@@ -92,7 +92,7 @@ func (h Handler) doPost(action string, rw http.ResponseWriter, req *http.Request
 }
 
 func (h Handler) downloadImage(rw http.ResponseWriter, req *http.Request) error {
-	vars := mux.Vars(req)
+	vars := util.EncodeVars(mux.Vars(req))
 	namespace := vars["namespace"]
 	name := vars["name"]
 	vmImage, err := h.Images.Get(namespace, name, metav1.GetOptions{})
@@ -132,7 +132,7 @@ func (h Handler) downloadImage(rw http.ResponseWriter, req *http.Request) error 
 }
 
 func (h Handler) uploadImage(rw http.ResponseWriter, req *http.Request) error {
-	vars := mux.Vars(req)
+	vars := util.EncodeVars(mux.Vars(req))
 	namespace := vars["namespace"]
 	name := vars["name"]
 	image, err := h.Images.Get(namespace, name, metav1.GetOptions{})

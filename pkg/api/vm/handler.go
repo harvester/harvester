@@ -82,7 +82,7 @@ func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) error {
-	vars := mux.Vars(r)
+	vars := util.EncodeVars(mux.Vars(r))
 	action := vars["action"]
 	namespace := vars["namespace"]
 	name := vars["name"]
