@@ -438,9 +438,9 @@ func (h *Handler) checkPrometheusStatusAndStart() error {
 		logrus.Infof("current prometheus replicas: %v", *prometheus.Spec.Replicas)
 		logrus.Infof("start prometheus")
 		prometheusCopy := prometheus.DeepCopy()
-		replicas, err := strconv.Atoi(replicasStr)
+		replicas, err := strconv.ParseInt(replicasStr, 10, 32)
 		if err != nil {
-			return fmt.Errorf("strconv atoi error %v", err)
+			return fmt.Errorf("strconv ParseInt error %v", err)
 		}
 		*prometheusCopy.Spec.Replicas = int32(replicas)
 		delete(prometheusCopy.Annotations, ReplicaStorageNetworkAnnotation)
@@ -470,9 +470,9 @@ func (h *Handler) checkAlertmanagerStatusAndStart() error {
 		logrus.Infof("current alertmanager replicas: %v", *alertmanager.Spec.Replicas)
 		logrus.Infof("start alertmanager")
 		alertmanagerCopy := alertmanager.DeepCopy()
-		replicas, err := strconv.Atoi(replicasStr)
+		replicas, err := strconv.ParseInt(replicasStr, 10, 32)
 		if err != nil {
-			return fmt.Errorf("strconv atoi error %v", err)
+			return fmt.Errorf("strconv ParseInt error %v", err)
 		}
 		*alertmanagerCopy.Spec.Replicas = int32(replicas)
 		delete(alertmanagerCopy.Annotations, ReplicaStorageNetworkAnnotation)
@@ -502,9 +502,9 @@ func (h *Handler) checkGrafanaStatusAndStart() error {
 		logrus.Infof("current Grafana replicas: %v", *grafana.Spec.Replicas)
 		logrus.Infof("start grafana")
 		grafanaCopy := grafana.DeepCopy()
-		replicas, err := strconv.Atoi(replicasStr)
+		replicas, err := strconv.ParseInt(replicasStr, 10, 32)
 		if err != nil {
-			return fmt.Errorf("strconv atoi error %v", err)
+			return fmt.Errorf("strconv ParseInt error %v", err)
 		}
 		*grafanaCopy.Spec.Replicas = int32(replicas)
 		delete(grafanaCopy.Annotations, ReplicaStorageNetworkAnnotation)
@@ -562,9 +562,9 @@ func (h *Handler) checkVMImportControllerStatusAndStart() error {
 	if replicasStr, ok := vmImportControllerDeploy.Annotations[ReplicaStorageNetworkAnnotation]; ok {
 		logrus.Infof("start vm import controller")
 		vmImportControllerDeployCopy := vmImportControllerDeploy.DeepCopy()
-		replicas, err := strconv.Atoi(replicasStr)
+		replicas, err := strconv.ParseInt(replicasStr, 10, 32)
 		if err != nil {
-			return fmt.Errorf("strconv atoi error %v", err)
+			return fmt.Errorf("strconv ParseInt error %v", err)
 		}
 		*vmImportControllerDeployCopy.Spec.Replicas = int32(replicas)
 		delete(vmImportControllerDeployCopy.Annotations, ReplicaStorageNetworkAnnotation)
