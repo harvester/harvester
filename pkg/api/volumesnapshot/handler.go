@@ -41,7 +41,7 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
-	vars := mux.Vars(r)
+	vars := util.EncodeVars(mux.Vars(r))
 	action := vars["action"]
 	snapshotName := vars["name"]
 	snapshotNamespace := vars["namespace"]
@@ -120,7 +120,7 @@ func (h *ActionHandler) restore(ctx context.Context, snapshotNamespace, snapshot
 	}
 
 	if _, err = h.pvcs.Create(newPVC); err != nil {
-		logrus.Errorf("failed to restore volume snapshot %s/%s to new pvc %s", snapshotNamespace, snapshotName, newPVCName)
+		logrus.Errorf("failed to restore volume snapshot %s/%s", snapshotNamespace, snapshotName)
 		return err
 	}
 

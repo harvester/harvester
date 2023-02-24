@@ -48,7 +48,7 @@ func NewDownloadHandler(scaled *config.Scaled, namespace string) *DownloadHandle
 }
 
 func (h *DownloadHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	bundleName := mux.Vars(r)["bundleName"]
+	bundleName := util.EncodeVars(mux.Vars(r))["bundleName"]
 
 	retainSb := false
 	if retain, err := strconv.ParseBool(r.URL.Query().Get("retain")); err == nil {
