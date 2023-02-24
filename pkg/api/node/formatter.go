@@ -23,6 +23,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	longhornv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
 )
 
@@ -79,7 +80,7 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
-	vars := mux.Vars(req)
+	vars := util.EncodeVars(mux.Vars(req))
 	action := vars["action"]
 	name := vars["name"]
 	node, err := h.nodeCache.Get(name)

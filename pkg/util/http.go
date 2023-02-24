@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
@@ -32,4 +33,18 @@ func ResponseError(rw http.ResponseWriter, statusCode int, err error) {
 func ResponseErrorMsg(rw http.ResponseWriter, statusCode int, errMsg string) {
 	rw.WriteHeader(statusCode)
 	_, _ = rw.Write(ResponseBody(v1beta1.ErrorResponse{Errors: []string{errMsg}}))
+}
+
+func removeNewLineInString(v string) string {
+	escaped := strings.Replace(v, "\n", "", -1)
+	escaped = strings.Replace(escaped, "\r", "", -1)
+	return escaped
+}
+
+func EncodeVars(vars map[string]string) map[string]string {
+	escapedVars := make(map[string]string)
+	for k, v := range vars {
+		escapedVars[k] = removeNewLineInString(v)
+	}
+	return escapedVars
 }

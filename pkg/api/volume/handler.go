@@ -59,7 +59,7 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
-	vars := mux.Vars(r)
+	vars := util.EncodeVars(mux.Vars(r))
 	action := vars["action"]
 	pvcName := vars["name"]
 	pvcNamespace := vars["namespace"]
@@ -265,7 +265,7 @@ func (h *ActionHandler) clone(ctx context.Context, pvcNamespace, pvcName, newPVC
 	}
 
 	if _, err = h.pvcs.Create(newPVC); err != nil {
-		logrus.Errorf("failed to clone volume %s/%s to new pvc %s", pvcNamespace, pvcName, newPVCName)
+		logrus.Errorf("failed to clone volume %s/%s", pvcNamespace, pvcName)
 		return err
 	}
 
@@ -334,7 +334,7 @@ func (h *ActionHandler) snapshot(ctx context.Context, pvcNamespace, pvcName, sna
 	}
 
 	if _, err = h.snapshots.Create(snapshot); err != nil {
-		logrus.Errorf("failed to create volume snapshot %s from volume %s/%s", snapshotName, pvcNamespace, pvcName)
+		logrus.Errorf("failed to create volume snapshot from volume %s/%s", pvcNamespace, pvcName)
 		return err
 	}
 
