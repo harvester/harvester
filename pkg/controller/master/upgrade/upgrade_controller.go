@@ -176,7 +176,7 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 			Jitter:   0.1,
 		}
 		var repoInfo *RepoInfo
-		if err := retry.OnError(backoff, util.IsConnectionRefusedOrTimeout, func() error {
+		if err := retry.OnError(backoff, util.IsRetriableNetworkError, func() error {
 			repoInfo, err = repo.getInfo()
 			if err != nil {
 				logrus.Warnf("Repo info retrieval failed with: %s", err)
