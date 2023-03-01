@@ -456,7 +456,7 @@ kube-vip:
   enabled: false
   image:
     repository: ghcr.io/kube-vip/kube-vip
-    tag: v0.4.4
+    tag: v0.5.10
   nodeSelector:
     node-role.kubernetes.io/control-plane: "true"
 
