@@ -19,6 +19,41 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
+const (
+	testJobName        = "test-job"
+	testPlanName       = "test-plan"
+	testNodeName       = "test-node"
+	testUpgradeName    = "test-upgrade"
+	testUpgradeLogName = "test-upgrade-upgradelog"
+	testVersion        = "test-version"
+	testUpgradeImage   = "test-upgrade-image"
+	testPlanHash       = "test-hash"
+)
+
+func newTestNodeJobBuilder() *jobBuilder {
+	return newJobBuilder(testJobName).
+		WithLabel(upgradePlanLabel, testPlanName).
+		WithLabel(upgradeNodeLabel, testNodeName)
+}
+
+func newTestPlanBuilder() *planBuilder {
+	return newPlanBuilder(testPlanName).
+		Version(testVersion).
+		WithLabel(harvesterUpgradeLabel, testUpgradeName).
+		Hash(testPlanHash)
+}
+
+func newTestChartJobBuilder() *jobBuilder {
+	return newJobBuilder(testJobName).
+		WithLabel(harvesterUpgradeComponentLabel, manifestComponent)
+}
+
+func newTestUpgradeBuilder() *upgradeBuilder {
+	return newUpgradeBuilder(testUpgradeName).
+		WithLabel(harvesterLatestUpgradeLabel, "true").
+		Version(testVersion)
+}
+
 func newTestExistingVirtualMachineImage(namespace, name string) *harvesterv1.VirtualMachineImage {
 	return &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
@@ -38,7 +73,7 @@ func newTestUpgradeLog() *harvesterv1.UpgradeLog {
 			Namespace: harvesterSystemNamespace,
 		},
 		Spec: harvesterv1.UpgradeLogSpec{
-			Upgrade: testUpgradeName,
+			UpgradeName: testUpgradeName,
 		},
 	}
 }

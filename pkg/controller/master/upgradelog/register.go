@@ -30,6 +30,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	loggingController := management.LoggingFactory.Logging().V1beta1().Logging()
 	managedChartController := management.RancherManagementFactory.Management().V3().ManagedChart()
 	pvcController := management.CoreFactory.Core().V1().PersistentVolumeClaim()
+	serviceController := management.CoreFactory.Core().V1().Service()
 	statefulSetController := management.AppsFactory.Apps().V1().StatefulSet()
 	upgradeController := management.HarvesterFactory.Harvesterhci().V1beta1().Upgrade()
 
@@ -48,6 +49,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		managedChartClient:  managedChartController,
 		managedChartCache:   managedChartController.Cache(),
 		pvcClient:           pvcController,
+		serviceClient:       serviceController,
 		statefulSetClient:   statefulSetController,
 		statefulSetCache:    statefulSetController.Cache(),
 		upgradeClient:       upgradeController,
