@@ -21,7 +21,7 @@ github.com/Masterminds/semver/v3
 # github.com/Masterminds/sprig/v3 v3.2.2
 ## explicit; go 1.13
 github.com/Masterminds/sprig/v3
-# github.com/Masterminds/squirrel v1.5.2
+# github.com/Masterminds/squirrel v1.5.3
 ## explicit; go 1.14
 github.com/Masterminds/squirrel
 # github.com/PuerkitoBio/purell v1.1.1
@@ -93,7 +93,7 @@ github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
-# github.com/banzaicloud/logging-operator/pkg/sdk v0.8.14
+# github.com/banzaicloud/logging-operator/pkg/sdk v0.8.16
 ## explicit; go 1.18
 github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1
 github.com/banzaicloud/logging-operator/pkg/sdk/logging/maps/mapstrstr
@@ -104,7 +104,7 @@ github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/output
 github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/syslogng/filter
 github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/syslogng/output
 github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/types
-# github.com/banzaicloud/operator-tools v0.28.2
+# github.com/banzaicloud/operator-tools v0.28.10
 ## explicit; go 1.17
 github.com/banzaicloud/operator-tools/pkg/secret
 github.com/banzaicloud/operator-tools/pkg/typeoverride
@@ -417,7 +417,7 @@ github.com/jinzhu/copier
 # github.com/jmespath/go-jmespath v0.4.0
 ## explicit; go 1.14
 github.com/jmespath/go-jmespath
-# github.com/jmoiron/sqlx v1.3.4
+# github.com/jmoiron/sqlx v1.3.5
 ## explicit; go 1.10
 github.com/jmoiron/sqlx
 github.com/jmoiron/sqlx/reflectx
@@ -458,7 +458,7 @@ github.com/lann/builder
 # github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0
 ## explicit
 github.com/lann/ps
-# github.com/lib/pq v1.10.4
+# github.com/lib/pq v1.10.6
 ## explicit; go 1.13
 github.com/lib/pq
 github.com/lib/pq/oid
@@ -615,7 +615,7 @@ github.com/onsi/ginkgo/v2/internal/parallel_support
 github.com/onsi/ginkgo/v2/internal/testingtproxy
 github.com/onsi/ginkgo/v2/reporters
 github.com/onsi/ginkgo/v2/types
-# github.com/onsi/gomega v1.19.0
+# github.com/onsi/gomega v1.20.1
 ## explicit; go 1.18
 github.com/onsi/gomega
 github.com/onsi/gomega/format
@@ -659,11 +659,11 @@ github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 ## explicit
 github.com/pmezard/go-difflib/difflib
-# github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.52.0
+# github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.62.0
 ## explicit; go 1.17
 github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring
 github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1
-# github.com/prometheus/client_golang v1.12.1
+# github.com/prometheus/client_golang v1.12.2
 ## explicit; go 1.13
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/collectors
@@ -1248,7 +1248,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# helm.sh/helm/v3 v3.9.0 => github.com/rancher/helm/v3 v3.9.0-rancher1
+# helm.sh/helm/v3 v3.9.4 => github.com/rancher/helm/v3 v3.9.0-rancher1
 ## explicit; go 1.17
 helm.sh/helm/v3/internal/fileutil
 helm.sh/helm/v3/internal/ignore
@@ -1836,7 +1836,7 @@ k8s.io/kubernetes/pkg/fieldpath
 k8s.io/kubernetes/pkg/util/hash
 k8s.io/kubernetes/pkg/util/parsers
 k8s.io/kubernetes/pkg/util/taints
-# k8s.io/utils v0.0.0-20221011040102-427025108f67
+# k8s.io/utils v0.0.0-20221108210102-8e77b1f39fe2
 ## explicit; go 1.18
 k8s.io/utils/buffer
 k8s.io/utils/clock
@@ -1870,7 +1870,7 @@ kubevirt.io/controller-lifecycle-operator-sdk/api
 ## explicit; go 1.17
 kubevirt.io/kubevirt/pkg/rest
 kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/rbac
-# oras.land/oras-go v1.1.0
+# oras.land/oras-go v1.2.0
 ## explicit; go 1.17
 oras.land/oras-go/pkg/artifact
 oras.land/oras-go/pkg/auth
@@ -1903,7 +1903,7 @@ sigs.k8s.io/cluster-api/util
 sigs.k8s.io/cluster-api/util/annotations
 sigs.k8s.io/cluster-api/util/conversion
 sigs.k8s.io/cluster-api/util/version
-# sigs.k8s.io/controller-runtime v0.12.3
+# sigs.k8s.io/controller-runtime v0.13.1
 ## explicit; go 1.17
 sigs.k8s.io/controller-runtime
 sigs.k8s.io/controller-runtime/pkg/builder

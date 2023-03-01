@@ -291,6 +291,10 @@ func (base *PodSpecBase) Override(spec corev1.PodSpec) corev1.PodSpec {
 			}
 		}
 	}
+
+	spec.ImagePullSecrets = append(([]corev1.LocalObjectReference)(nil), spec.ImagePullSecrets...)
+	spec.ImagePullSecrets = append(spec.ImagePullSecrets, base.ImagePullSecrets...)
+
 	return spec
 }
 

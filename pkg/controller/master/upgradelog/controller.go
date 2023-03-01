@@ -21,28 +21,10 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlloggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
-	harvesterUpgradeLogLabel            = "harvesterhci.io/upgradeLog"
-	harvesterUpgradeLogComponentLabel   = "harvesterhci.io/upgradeLogComponent"
-	harvesterUpgradeLogStorageClassName = "harvester-longhorn"
-	harvesterUpgradeLogVolumeMode       = corev1.PersistentVolumeFilesystem
-	upgradeLogNamespace                 = "harvester-system"
-	packagerImageRepository             = "rancher/harvester-upgrade"
-	downloaderImageRepository           = "rancher/harvester-upgrade"
-	addonNamespace                      = "cattle-logging-system"
-	managedChartNamespace               = "fleet-local"
-	operatorNamespace                   = "cattle-logging-system"
-	rancherLoggingChart                 = "rancher-logging"
-	rancherLoggingAddonName             = "rancher-logging"
-	rancherLoggingManagedChartName      = "rancher-logging"
-
-	upgradeNamespace                 = "harvester-system"
-	upgradeReadMessageLabel          = "harvesterhci.io/read-message"
-	upgradeStateLabel                = "harvesterhci.io/upgradeState"
-	UpgradeStateLoggingInfraPrepared = "LoggingInfraPrepared"
-
 	// Annotations for the sub-components of logging infrastructure
 	upgradeLogFluentBitAnnotation     = "harvesterhci.io/fluentBit"
 	upgradeLogFluentdAnnotation       = "harvesterhci.io/fluentd"
@@ -52,10 +34,11 @@ const (
 	upgradeLogClusterOutputAnnotation = "harvesterhci.io/clusterOutput"
 	upgradeLogClusterFlowReady        = "ClusterFlowReady"
 	upgradeLogClusterOutputReady      = "ClusterOutputReady"
-	upgradeLogStateAnnotation         = "harvesterhci.io/upgradeLogState"
-	upgradeLogStateCollecting         = "Collecting"
-	upgradeLogStateStopped            = "Stopped"
-	archiveNameAnnotation             = "harvesterhci.io/archiveName"
+
+	// Annotation indicating the state of UpgradeLog
+	upgradeLogStateAnnotation = "harvesterhci.io/upgradeLogState"
+	upgradeLogStateCollecting = "Collecting"
+	upgradeLogStateStopped    = "Stopped"
 
 	// Logging infra images
 	fluentBitImageRepo      = "rancher/mirrored-fluent-fluent-bit"
@@ -81,6 +64,7 @@ type handler struct {
 	managedChartClient  ctlmgmtv3.ManagedChartClient
 	managedChartCache   ctlmgmtv3.ManagedChartCache
 	pvcClient           ctlcorev1.PersistentVolumeClaimClient
+	serviceClient       ctlcorev1.ServiceClient
 	statefulSetClient   ctlappsv1.StatefulSetClient
 	statefulSetCache    ctlappsv1.StatefulSetCache
 	upgradeClient       ctlharvesterv1.UpgradeClient
@@ -93,8 +77,9 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 	if upgradeLog == nil || upgradeLog.DeletionTimestamp != nil {
 		return upgradeLog, nil
 	}
-	logrus.Infof("Processing UpgradeLog %s/%s", upgradeLog.Namespace, upgradeLog.Name)
+	logrus.Debugf("Processing UpgradeLog %s/%s", upgradeLog.Namespace, upgradeLog.Name)
 
+	// Initialize the UpgradeLog resource
 	if harvesterv1.UpgradeLogReady.GetStatus(upgradeLog) == "" {
 		logrus.Info("Initialize UpgradeLog")
 		toUpdate := upgradeLog.DeepCopy()
@@ -102,20 +87,23 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		return h.upgradeLogClient.Update(toUpdate)
 	}
 
-	if harvesterv1.OperatorDeployed.GetStatus(upgradeLog) == "" {
+	// Try to bring up the logging operator by installing rancher-logging ManagedChart
+	if harvesterv1.LoggingOperatorDeployed.GetStatus(upgradeLog) == "" {
 		logrus.Info("Check if there are any existing logging-operator")
 
 		toUpdate := upgradeLog.DeepCopy()
-		harvesterv1.OperatorDeployed.CreateUnknownIfNotExists(toUpdate)
+		harvesterv1.LoggingOperatorDeployed.CreateUnknownIfNotExists(toUpdate)
 
 		// Detect rancher-logging Addon
-		if addon, err := h.addonCache.Get(addonNamespace, rancherLoggingAddonName); err != nil {
+
+		addon, err := h.addonCache.Get(util.CattleLoggingSystemNamespaceName, util.RancherLoggingName)
+		if err != nil {
 			if !apierrors.IsNotFound(err) {
 				return nil, err
 			}
 			logrus.Info("rancher-logging Addon is not installed")
 		} else {
-			if addon.Status.Status == harvesterv1.AddonEnabled {
+			if addon.Spec.Enabled {
 				setOperatorDeployedCondition(toUpdate, corev1.ConditionTrue, "Skipped", "rancher-logging Addon is enabled")
 				return h.upgradeLogClient.Update(toUpdate)
 			}
@@ -123,7 +111,8 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		}
 
 		// Detect the rancher-logging ManagedChart
-		if managedChart, err := h.managedChartCache.Get(managedChartNamespace, rancherLoggingManagedChartName); err != nil {
+		managedChart, err := h.managedChartCache.Get(util.FleetLocalNamespaceName, util.RancherLoggingName)
+		if err != nil {
 			if !apierrors.IsNotFound(err) {
 				return nil, err
 			}
@@ -146,26 +135,30 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		return h.upgradeLogClient.Update(toUpdate)
 	}
 
-	if harvesterv1.OperatorDeployed.IsTrue(upgradeLog) && harvesterv1.InfraScaffolded.GetStatus(upgradeLog) == "" {
-		logrus.Info("Start to scaffold the logging infrastructure for upgrade procedure")
+	// Try to establish the logging infrastructure by creating a customized Logging resource
+	if harvesterv1.LoggingOperatorDeployed.IsTrue(upgradeLog) && harvesterv1.InfraReady.GetStatus(upgradeLog) == "" {
+		logrus.Info("Start to create the logging infrastructure for the upgrade procedure")
 
 		toUpdate := upgradeLog.DeepCopy()
 
+		// The volume acts as a central log storage for fluentd
 		if _, err := h.pvcClient.Create(preparePvc(upgradeLog)); err != nil && !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
+		// The creation of the Logging resource will indirectly bring up fluent-bit DaemonSet and fluentd StatefulSet
 		if _, err := h.loggingClient.Create(prepareLogging(upgradeLog)); err != nil && !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
 
-		harvesterv1.InfraScaffolded.CreateUnknownIfNotExists(toUpdate)
+		harvesterv1.InfraReady.CreateUnknownIfNotExists(toUpdate)
 
 		return h.upgradeLogClient.Update(toUpdate)
-	} else if harvesterv1.OperatorDeployed.IsTrue(upgradeLog) && harvesterv1.InfraScaffolded.IsUnknown(upgradeLog) {
+	} else if harvesterv1.LoggingOperatorDeployed.IsTrue(upgradeLog) && harvesterv1.InfraReady.IsUnknown(upgradeLog) {
 		logrus.Info("Check if the logging infrastructure is ready")
 
 		toUpdate := upgradeLog.DeepCopy()
 
+		// These two annotations denote the readiness of the indirect resources respectively
 		fluentBitAnnotation, ok := upgradeLog.Annotations[upgradeLogFluentBitAnnotation]
 		if !ok {
 			return upgradeLog, nil
@@ -175,16 +168,19 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 			return upgradeLog, nil
 		}
 
-		if isInfraReady := (fluentBitAnnotation == upgradeLogFluentBitReady) && (fluentdAnnotation == upgradeLogFluentdReady); isInfraReady {
-			logrus.Info("Logging infrastructure is ready")
-			setInfraScaffoldedCondition(toUpdate, corev1.ConditionTrue, "", "")
-			return h.upgradeLogClient.Update(toUpdate)
+		// Stay in the same phase until both fluent-bit and fluentd are ready
+		isInfraReady := (fluentBitAnnotation == upgradeLogFluentBitReady) && (fluentdAnnotation == upgradeLogFluentdReady)
+		if !isInfraReady {
+			return upgradeLog, nil
 		}
 
-		return upgradeLog, nil
+		logrus.Info("Logging infrastructure is ready")
+		setInfraReadyCondition(toUpdate, corev1.ConditionTrue, "", "")
+		return h.upgradeLogClient.Update(toUpdate)
 	}
 
-	if harvesterv1.InfraScaffolded.IsTrue(upgradeLog) && harvesterv1.UpgradeLogReady.IsUnknown(upgradeLog) {
+	// Try to install the rules. The desired logs will start to be collected once the rules are active
+	if harvesterv1.InfraReady.IsTrue(upgradeLog) && harvesterv1.UpgradeLogReady.IsUnknown(upgradeLog) {
 		logrus.Info("Check if the log-collecting rules are installed")
 
 		toUpdate := upgradeLog.DeepCopy()
@@ -192,8 +188,14 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		clusterFlowAnnotation := upgradeLog.Annotations[upgradeLogClusterFlowAnnotation]
 		clusterOutputAnnotation := upgradeLog.Annotations[upgradeLogClusterOutputAnnotation]
 
-		if isLogReady := (clusterOutputAnnotation == upgradeLogClusterOutputReady) && (clusterFlowAnnotation == upgradeLogClusterFlowReady); isLogReady {
+		// Move to the next phase if both the ClusterFlow and ClusterOutput are active
+		isLogReady := (clusterOutputAnnotation == upgradeLogClusterOutputReady) && (clusterFlowAnnotation == upgradeLogClusterFlowReady)
+		if isLogReady {
 			logrus.Info("Log-collecting rules exist and are activated")
+			if toUpdate.Annotations == nil {
+				toUpdate.Annotations = make(map[string]string, 1)
+			}
+			toUpdate.Annotations[upgradeLogStateAnnotation] = upgradeLogStateCollecting
 			setUpgradeLogReadyCondition(toUpdate, corev1.ConditionTrue, "", "")
 			return h.upgradeLogClient.Update(toUpdate)
 		}
@@ -208,21 +210,28 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		return upgradeLog, nil
 	}
 
+	// Signal to proceed the original upgrade flow
 	if harvesterv1.UpgradeLogReady.IsTrue(upgradeLog) && harvesterv1.UpgradeEnded.GetStatus(upgradeLog) == "" {
 		logrus.Info("Logging infrastructure is ready, proceed the upgrade procedure")
 
+		toUpdate := upgradeLog.DeepCopy()
+
 		// handle corresponding upgrade resource
-		upgradeName := upgradeLog.Spec.Upgrade
-		upgrade, err := h.upgradeCache.Get(upgradeLogNamespace, upgradeName)
+		upgradeName := upgradeLog.Spec.UpgradeName
+		upgrade, err := h.upgradeCache.Get(util.HarvesterSystemNamespaceName, upgradeName)
 		if err != nil {
+			// if the corresponding upgrade resource is not found, the upgradelog should be torn down immediately
+			if apierrors.IsNotFound(err) {
+				setUpgradeEndedCondition(toUpdate, corev1.ConditionTrue, "", "")
+				return h.upgradeLogClient.Update(toUpdate)
+			}
 			return nil, err
 		}
 		upgradeToUpdate := upgrade.DeepCopy()
-
 		if upgradeToUpdate.Labels == nil {
 			upgradeToUpdate.Labels = map[string]string{}
 		}
-		upgradeToUpdate.Labels[upgradeStateLabel] = UpgradeStateLoggingInfraPrepared
+		upgradeToUpdate.Labels[util.LabelUpgradeState] = util.UpgradeStateLoggingInfraPrepared
 		harvesterv1.LogReady.SetStatus(upgradeToUpdate, string(corev1.ConditionTrue))
 		harvesterv1.LogReady.Reason(upgradeToUpdate, "")
 		harvesterv1.LogReady.Message(upgradeToUpdate, "")
@@ -232,28 +241,27 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		}
 
 		// handle upgradeLog resource
-		toUpdate := upgradeLog.DeepCopy()
-		if toUpdate.Annotations == nil {
-			toUpdate.Annotations = make(map[string]string)
-		}
-		toUpdate.Annotations[upgradeLogStateAnnotation] = upgradeLogStateCollecting
 		harvesterv1.UpgradeEnded.CreateUnknownIfNotExists(toUpdate)
 
 		return h.upgradeLogClient.Update(toUpdate)
 	}
 
+	// Spin up the log downloader to serve the log downloading requests
 	if harvesterv1.UpgradeEnded.IsUnknown(upgradeLog) && harvesterv1.DownloadReady.GetStatus(upgradeLog) == "" {
 		logrus.Info("Spin up downloader")
 
 		// Get image version for log-downloader
-		upgradeName := upgradeLog.Spec.Upgrade
-		upgrade, err := h.upgradeCache.Get(upgradeLogNamespace, upgradeName)
+		upgradeName := upgradeLog.Spec.UpgradeName
+		upgrade, err := h.upgradeCache.Get(util.HarvesterSystemNamespaceName, upgradeName)
 		if err != nil {
 			return nil, err
 		}
 		imageVersion := upgrade.Status.PreviousVersion
 
 		if _, err := h.deploymentClient.Create(prepareLogDownloader(upgradeLog, imageVersion)); err != nil && !apierrors.IsAlreadyExists(err) {
+			return nil, err
+		}
+		if _, err := h.serviceClient.Create(prepareLogDownloaderSvc(upgradeLog)); err != nil && !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
 
@@ -263,6 +271,7 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		return h.upgradeLogClient.Update(toUpdate)
 	}
 
+	// Tear down the loggin infrastructure but keep the log downloader and the archive volume
 	if harvesterv1.UpgradeEnded.IsTrue(upgradeLog) {
 		upgradeLogState, ok := upgradeLog.Annotations[upgradeLogStateAnnotation]
 		if !ok {
@@ -292,16 +301,16 @@ func (h *handler) OnUpgradeLogRemove(_ string, upgradeLog *harvesterv1.UpgradeLo
 }
 
 func (h *handler) OnClusterFlowChange(_ string, clusterFlow *loggingv1.ClusterFlow) (*loggingv1.ClusterFlow, error) {
-	if clusterFlow == nil || clusterFlow.DeletionTimestamp != nil || clusterFlow.Labels == nil || clusterFlow.Namespace != upgradeLogNamespace {
+	if clusterFlow == nil || clusterFlow.DeletionTimestamp != nil || clusterFlow.Labels == nil || clusterFlow.Namespace != util.HarvesterSystemNamespaceName {
 		return clusterFlow, nil
 	}
 	logrus.Debugf("Processing ClusterFlow %s/%s", clusterFlow.Namespace, clusterFlow.Name)
 
-	upgradeLogName, ok := clusterFlow.Labels[harvesterUpgradeLogLabel]
+	upgradeLogName, ok := clusterFlow.Labels[util.LabelUpgradeLog]
 	if !ok {
 		return clusterFlow, nil
 	}
-	upgradeLog, err := h.upgradeLogCache.Get(upgradeLogNamespace, upgradeLogName)
+	upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
 	if err != nil {
 		return clusterFlow, err
 	}
@@ -314,7 +323,7 @@ func (h *handler) OnClusterFlowChange(_ string, clusterFlow *loggingv1.ClusterFl
 	} else if *clusterFlow.Status.Active {
 		logrus.Debugf("ClusterFlow %s/%s is now active", clusterFlow.Namespace, clusterFlow.Name)
 		if toUpdate.Annotations == nil {
-			toUpdate.Annotations = make(map[string]string)
+			toUpdate.Annotations = make(map[string]string, 1)
 		}
 		toUpdate.Annotations[upgradeLogClusterFlowAnnotation] = upgradeLogClusterFlowReady
 	}
@@ -329,16 +338,16 @@ func (h *handler) OnClusterFlowChange(_ string, clusterFlow *loggingv1.ClusterFl
 }
 
 func (h *handler) OnClusterOutputChange(_ string, clusterOutput *loggingv1.ClusterOutput) (*loggingv1.ClusterOutput, error) {
-	if clusterOutput == nil || clusterOutput.DeletionTimestamp != nil || clusterOutput.Labels == nil || clusterOutput.Namespace != upgradeLogNamespace {
+	if clusterOutput == nil || clusterOutput.DeletionTimestamp != nil || clusterOutput.Labels == nil || clusterOutput.Namespace != util.HarvesterSystemNamespaceName {
 		return clusterOutput, nil
 	}
 	logrus.Debugf("Processing ClusterOutput %s/%s", clusterOutput.Namespace, clusterOutput.Name)
 
-	upgradeLogName, ok := clusterOutput.Labels[harvesterUpgradeLogLabel]
+	upgradeLogName, ok := clusterOutput.Labels[util.LabelUpgradeLog]
 	if !ok {
 		return clusterOutput, nil
 	}
-	upgradeLog, err := h.upgradeLogCache.Get(upgradeLogNamespace, upgradeLogName)
+	upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
 	if err != nil {
 		return clusterOutput, err
 	}
@@ -351,7 +360,7 @@ func (h *handler) OnClusterOutputChange(_ string, clusterOutput *loggingv1.Clust
 	} else if *clusterOutput.Status.Active {
 		logrus.Debugf("ClusterOutput %s/%s is now active", clusterOutput.Namespace, clusterOutput.Name)
 		if toUpdate.Annotations == nil {
-			toUpdate.Annotations = make(map[string]string)
+			toUpdate.Annotations = make(map[string]string, 1)
 		}
 		toUpdate.Annotations[upgradeLogClusterOutputAnnotation] = upgradeLogClusterOutputReady
 	}
@@ -366,16 +375,16 @@ func (h *handler) OnClusterOutputChange(_ string, clusterOutput *loggingv1.Clust
 }
 
 func (h *handler) OnDaemonSetChange(_ string, daemonSet *appsv1.DaemonSet) (*appsv1.DaemonSet, error) {
-	if daemonSet == nil || daemonSet.DeletionTimestamp != nil || daemonSet.Labels == nil || daemonSet.Namespace != upgradeLogNamespace {
+	if daemonSet == nil || daemonSet.DeletionTimestamp != nil || daemonSet.Labels == nil || daemonSet.Namespace != util.HarvesterSystemNamespaceName {
 		return daemonSet, nil
 	}
 	logrus.Debugf("Processing DaemonSet %s/%s", daemonSet.Namespace, daemonSet.Name)
 
-	upgradeLogName, ok := daemonSet.Labels[harvesterUpgradeLogLabel]
+	upgradeLogName, ok := daemonSet.Labels[util.LabelUpgradeLog]
 	if !ok {
 		return daemonSet, nil
 	}
-	upgradeLog, err := h.upgradeLogCache.Get(upgradeLogNamespace, upgradeLogName)
+	upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return daemonSet, nil
@@ -392,9 +401,9 @@ func (h *handler) OnDaemonSetChange(_ string, daemonSet *appsv1.DaemonSet) (*app
 
 	toUpdate := upgradeLog.DeepCopy()
 
-	if daemonSet.Status.NumberReady == daemonSet.Status.DesiredNumberScheduled {
+	if daemonSet.Status.DesiredNumberScheduled > 0 && daemonSet.Status.NumberReady == daemonSet.Status.DesiredNumberScheduled {
 		if toUpdate.Annotations == nil {
-			toUpdate.Annotations = make(map[string]string)
+			toUpdate.Annotations = make(map[string]string, 1)
 		}
 		toUpdate.Annotations[upgradeLogFluentBitAnnotation] = upgradeLogFluentBitReady
 	}
@@ -409,16 +418,16 @@ func (h *handler) OnDaemonSetChange(_ string, daemonSet *appsv1.DaemonSet) (*app
 }
 
 func (h *handler) OnDeploymentChange(_ string, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	if deployment == nil || deployment.DeletionTimestamp != nil || deployment.Labels == nil || deployment.Namespace != upgradeLogNamespace {
+	if deployment == nil || deployment.DeletionTimestamp != nil || deployment.Labels == nil || deployment.Namespace != util.HarvesterSystemNamespaceName {
 		return deployment, nil
 	}
 	logrus.Debugf("Processing Deployment %s/%s", deployment.Namespace, deployment.Name)
 
-	upgradeLogName, ok := deployment.Labels[harvesterUpgradeLogLabel]
+	upgradeLogName, ok := deployment.Labels[util.LabelUpgradeLog]
 	if !ok {
 		return deployment, nil
 	}
-	upgradeLog, err := h.upgradeLogCache.Get(upgradeLogNamespace, upgradeLogName)
+	upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return deployment, nil
@@ -449,11 +458,11 @@ func (h *handler) OnJobChange(_ string, job *batchv1.Job) (*batchv1.Job, error) 
 	}
 	logrus.Debugf("Processing Job %s/%s", job.Namespace, job.Name)
 
-	upgradeLogName, ok := job.Labels[harvesterUpgradeLogLabel]
+	upgradeLogName, ok := job.Labels[util.LabelUpgradeLog]
 	if !ok {
 		return job, nil
 	}
-	upgradeLog, err := h.upgradeLogCache.Get(upgradeLogNamespace, upgradeLogName)
+	upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
 	if err != nil {
 		return job, err
 	}
@@ -461,7 +470,7 @@ func (h *handler) OnJobChange(_ string, job *batchv1.Job) (*batchv1.Job, error) 
 
 	toUpdate := upgradeLog.DeepCopy()
 	if job.Status.Succeeded > 0 {
-		archiveName, ok := job.Annotations[archiveNameAnnotation]
+		archiveName, ok := job.Annotations[util.AnnotationArchiveName]
 		if !ok {
 			return job, nil
 		}
@@ -485,11 +494,11 @@ func (h *handler) OnManagedChartChange(_ string, managedChart *mgmtv3.ManagedCha
 	}
 	logrus.Debugf("Processing ManagedChart %s/%s", managedChart.Namespace, managedChart.Name)
 
-	upgradeLogName, ok := managedChart.Labels[harvesterUpgradeLogLabel]
+	upgradeLogName, ok := managedChart.Labels[util.LabelUpgradeLog]
 	if !ok {
 		return managedChart, nil
 	}
-	upgradeLog, err := h.upgradeLogCache.Get(upgradeLogNamespace, upgradeLogName)
+	upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return managedChart, nil
@@ -510,16 +519,16 @@ func (h *handler) OnManagedChartChange(_ string, managedChart *mgmtv3.ManagedCha
 }
 
 func (h *handler) OnStatefulSetChange(_ string, statefulSet *appsv1.StatefulSet) (*appsv1.StatefulSet, error) {
-	if statefulSet == nil || statefulSet.DeletionTimestamp != nil || statefulSet.Labels == nil || statefulSet.Namespace != upgradeLogNamespace {
+	if statefulSet == nil || statefulSet.DeletionTimestamp != nil || statefulSet.Labels == nil || statefulSet.Namespace != util.HarvesterSystemNamespaceName {
 		return statefulSet, nil
 	}
 	logrus.Debugf("Processing StatefulSet %s/%s", statefulSet.Namespace, statefulSet.Name)
 
-	upgradeLogName, ok := statefulSet.Labels[harvesterUpgradeLogLabel]
+	upgradeLogName, ok := statefulSet.Labels[util.LabelUpgradeLog]
 	if !ok {
 		return statefulSet, nil
 	}
-	upgradeLog, err := h.upgradeLogCache.Get(upgradeLogNamespace, upgradeLogName)
+	upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return statefulSet, nil
@@ -538,7 +547,7 @@ func (h *handler) OnStatefulSetChange(_ string, statefulSet *appsv1.StatefulSet)
 
 	if *statefulSet.Spec.Replicas > 0 && statefulSet.Status.ReadyReplicas == *statefulSet.Spec.Replicas {
 		if toUpdate.Annotations == nil {
-			toUpdate.Annotations = make(map[string]string)
+			toUpdate.Annotations = make(map[string]string, 1)
 		}
 		toUpdate.Annotations[upgradeLogFluentdAnnotation] = upgradeLogFluentdReady
 	}
@@ -553,27 +562,31 @@ func (h *handler) OnStatefulSetChange(_ string, statefulSet *appsv1.StatefulSet)
 }
 
 func (h *handler) OnUpgradeChange(_ string, upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
-	if upgrade == nil || upgrade.DeletionTimestamp != nil || upgrade.Labels == nil || upgrade.Namespace != upgradeNamespace {
+	if upgrade == nil || upgrade.DeletionTimestamp != nil || upgrade.Labels == nil || upgrade.Namespace != util.HarvesterSystemNamespaceName {
 		return upgrade, nil
 	}
 	logrus.Debugf("Processing Upgrade %s/%s", upgrade.Namespace, upgrade.Name)
 
-	upgradeLogName := upgrade.Status.UpgradeLog
-	if upgradeLogName == "" {
-		logrus.Info("No related UpgradeLog resource found, skip purging")
+	if !upgrade.Spec.LogEnabled {
 		return upgrade, nil
 	}
-	upgradeLog, err := h.upgradeLogCache.Get(upgradeLogNamespace, upgradeLogName)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			logrus.Debugf("The corresponding UpgradeLog %s/%s is not found, skip purging", upgradeLogNamespace, upgradeLogName)
+
+	if upgrade.Labels[util.LabelUpgradeReadMessage] == "true" {
+		upgradeLogName := upgrade.Status.UpgradeLog
+		if upgradeLogName == "" {
+			logrus.Debug("No related UpgradeLog resource found, skip purging")
 			return upgrade, nil
 		}
-		return nil, err
-	}
+		upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				logrus.Debugf("The corresponding UpgradeLog %s/%s is not found, skip purging", util.HarvesterSystemNamespaceName, upgradeLogName)
+				return upgrade, nil
+			}
+			return nil, err
+		}
 
-	if upgrade.Labels[upgradeReadMessageLabel] == "true" {
-		logrus.Infof("Purging UpgradeLog %s/%s and its relevant sub-components", upgradeLog.Namespace, upgradeLog.Name)
+		logrus.Infof("Purging UpgradeLog %s/%s and its sub-components", upgradeLog.Namespace, upgradeLog.Name)
 		if err := h.upgradeLogClient.Delete(upgradeLog.Namespace, upgradeLog.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 			return upgrade, err
 		}
@@ -588,16 +601,21 @@ func (h *handler) OnUpgradeChange(_ string, upgrade *harvesterv1.Upgrade) (*harv
 func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
 	logrus.Info("Tearing down the logging infrastructure for upgrade procedure")
 
-	if err := h.clusterFlowClient.Delete(upgradeLogNamespace, name.SafeConcatName(upgradeLog.Name, FlowComponent), &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+	var err error
+	err = h.clusterFlowClient.Delete(util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFlowComponent), &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	if err := h.clusterOutputClient.Delete(upgradeLogNamespace, name.SafeConcatName(upgradeLog.Name, OutputComponent), &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+	err = h.clusterOutputClient.Delete(util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOutputComponent), &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	if err := h.loggingClient.Delete(name.SafeConcatName(upgradeLog.Name, InfraComponent), &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+	err = h.loggingClient.Delete(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogInfraComponent), &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	if err := h.managedChartClient.Delete(managedChartNamespace, name.SafeConcatName(upgradeLog.Name, OperatorComponent), &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+	err = h.managedChartClient.Delete(util.FleetLocalNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent), &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
@@ -605,9 +623,25 @@ func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
 }
 
 func (h *handler) cleanup(upgradeLog *harvesterv1.UpgradeLog) error {
-	logrus.Info("Removing logging-operator ManagedChart if any")
+	// Cleanup the relationship from its corresponding Upgrade resource
+	upgradeName := upgradeLog.Spec.UpgradeName
+	upgrade, err := h.upgradeCache.Get(util.HarvesterSystemNamespaceName, upgradeName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	upgradeToUpdate := upgrade.DeepCopy()
+	upgradeToUpdate.Status.UpgradeLog = ""
+	if _, err = h.upgradeClient.Update(upgradeToUpdate); err != nil {
+		return err
+	}
 
-	if err := h.managedChartClient.Delete(managedChartNamespace, name.SafeConcatName(upgradeLog.Name, OperatorComponent), &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+	// Remove the ManagedChart if the UpgradeLog resource is deleted before normal tear down
+	logrus.Info("Removing logging-operator ManagedChart if any")
+	err = h.managedChartClient.Delete(util.FleetLocalNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent), &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 

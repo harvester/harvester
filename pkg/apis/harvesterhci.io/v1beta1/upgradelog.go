@@ -6,17 +6,17 @@ import (
 )
 
 var (
-	OperatorDeployed condition.Cond = "OperatorReady"
-	InfraScaffolded  condition.Cond = "InfraReady"
-	UpgradeLogReady  condition.Cond = "Started"
-	UpgradeEnded     condition.Cond = "Stopped"
-	DownloadReady    condition.Cond = "DownloadReady"
+	LoggingOperatorDeployed condition.Cond = "LoggingOperatorReady"
+	InfraReady              condition.Cond = "InfraReady"
+	UpgradeLogReady         condition.Cond = "Started"
+	UpgradeEnded            condition.Cond = "Stopped"
+	DownloadReady           condition.Cond = "DownloadReady"
 )
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Namespaced
-// +kubebuilder:printcolumn:name="UPGRADE",type="string",JSONPath=`.spec.upgrade`
+// +kubebuilder:printcolumn:name="UPGRADE",type="string",JSONPath=`.spec.upgradeName`
 
 type UpgradeLog struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -28,7 +28,7 @@ type UpgradeLog struct {
 
 type UpgradeLogSpec struct {
 	// +kubebuilder:validation:Required
-	Upgrade string `json:"upgrade,omitempty"`
+	UpgradeName string `json:"upgradeName,omitempty"`
 }
 
 type UpgradeLogStatus struct {

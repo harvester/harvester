@@ -15,7 +15,6 @@ import (
 	"github.com/harvester/harvester/pkg/api/proxy"
 	"github.com/harvester/harvester/pkg/api/supportbundle"
 	"github.com/harvester/harvester/pkg/api/uiinfo"
-	"github.com/harvester/harvester/pkg/api/upgradelog"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/server/ui"
 )
@@ -58,11 +57,6 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 
 	btHealthyHandler := backuptarget.NewHealthyHandler(r.scaled)
 	m.Path("/v1/harvester/backuptarget/healthz").Methods("GET").Handler(btHealthyHandler)
-
-	ulGenerateHandler := upgradelog.NewGenerateHandler(r.scaled)
-	m.Path("/v1/harvester/upgradelog/{upgradeLogName}").Methods("POST").Handler(ulGenerateHandler)
-	ulDownloadHandler := upgradelog.NewDownloadHandler(r.scaled)
-	m.Path("/v1/harvester/upgradelog/{upgradeLogName}/{archiveName}").Methods("GET").Handler(ulDownloadHandler)
 	// --- END of preposition routes ---
 
 	// adds collection action support
