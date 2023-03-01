@@ -25,7 +25,10 @@ import (
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +58,7 @@ type PrometheusController interface {
 type PrometheusClient interface {
 	Create(*v1.Prometheus) (*v1.Prometheus, error)
 	Update(*v1.Prometheus) (*v1.Prometheus, error)
-
+	UpdateStatus(*v1.Prometheus) (*v1.Prometheus, error)
 	Delete(namespace, name string, options *metav1.DeleteOptions) error
 	Get(namespace, name string, options metav1.GetOptions) (*v1.Prometheus, error)
 	List(namespace string, opts metav1.ListOptions) (*v1.PrometheusList, error)
@@ -184,6 +187,11 @@ func (c *prometheusController) Update(obj *v1.Prometheus) (*v1.Prometheus, error
 	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
+func (c *prometheusController) UpdateStatus(obj *v1.Prometheus) (*v1.Prometheus, error) {
+	result := &v1.Prometheus{}
+	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
+}
+
 func (c *prometheusController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
@@ -253,4 +261,116 @@ func (c *prometheusCache) GetByIndex(indexName, key string) (result []*v1.Promet
 		result = append(result, obj.(*v1.Prometheus))
 	}
 	return result, nil
+}
+
+type PrometheusStatusHandler func(obj *v1.Prometheus, status v1.PrometheusStatus) (v1.PrometheusStatus, error)
+
+type PrometheusGeneratingHandler func(obj *v1.Prometheus, status v1.PrometheusStatus) ([]runtime.Object, v1.PrometheusStatus, error)
+
+func RegisterPrometheusStatusHandler(ctx context.Context, controller PrometheusController, condition condition.Cond, name string, handler PrometheusStatusHandler) {
+	statusHandler := &prometheusStatusHandler{
+		client:    controller,
+		condition: condition,
+		handler:   handler,
+	}
+	controller.AddGenericHandler(ctx, name, FromPrometheusHandlerToHandler(statusHandler.sync))
+}
+
+func RegisterPrometheusGeneratingHandler(ctx context.Context, controller PrometheusController, apply apply.Apply,
+	condition condition.Cond, name string, handler PrometheusGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &prometheusGeneratingHandler{
+		PrometheusGeneratingHandler: handler,
+		apply:                       apply,
+		name:                        name,
+		gvk:                         controller.GroupVersionKind(),
+	}
+	if opts != nil {
+		statusHandler.opts = *opts
+	}
+	controller.OnChange(ctx, name, statusHandler.Remove)
+	RegisterPrometheusStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+}
+
+type prometheusStatusHandler struct {
+	client    PrometheusClient
+	condition condition.Cond
+	handler   PrometheusStatusHandler
+}
+
+func (a *prometheusStatusHandler) sync(key string, obj *v1.Prometheus) (*v1.Prometheus, error) {
+	if obj == nil {
+		return obj, nil
+	}
+
+	origStatus := obj.Status.DeepCopy()
+	obj = obj.DeepCopy()
+	newStatus, err := a.handler(obj, obj.Status)
+	if err != nil {
+		// Revert to old status on error
+		newStatus = *origStatus.DeepCopy()
+	}
+
+	if a.condition != "" {
+		if errors.IsConflict(err) {
+			a.condition.SetError(&newStatus, "", nil)
+		} else {
+			a.condition.SetError(&newStatus, "", err)
+		}
+	}
+	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		if a.condition != "" {
+			// Since status has changed, update the lastUpdatedTime
+			a.condition.LastUpdated(&newStatus, time.Now().UTC().Format(time.RFC3339))
+		}
+
+		var newErr error
+		obj.Status = newStatus
+		newObj, newErr := a.client.UpdateStatus(obj)
+		if err == nil {
+			err = newErr
+		}
+		if newErr == nil {
+			obj = newObj
+		}
+	}
+	return obj, err
+}
+
+type prometheusGeneratingHandler struct {
+	PrometheusGeneratingHandler
+	apply apply.Apply
+	opts  generic.GeneratingHandlerOptions
+	gvk   schema.GroupVersionKind
+	name  string
+}
+
+func (a *prometheusGeneratingHandler) Remove(key string, obj *v1.Prometheus) (*v1.Prometheus, error) {
+	if obj != nil {
+		return obj, nil
+	}
+
+	obj = &v1.Prometheus{}
+	obj.Namespace, obj.Name = kv.RSplit(key, "/")
+	obj.SetGroupVersionKind(a.gvk)
+
+	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects()
+}
+
+func (a *prometheusGeneratingHandler) Handle(obj *v1.Prometheus, status v1.PrometheusStatus) (v1.PrometheusStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
+	objs, newStatus, err := a.PrometheusGeneratingHandler(obj, status)
+	if err != nil {
+		return newStatus, err
+	}
+
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects(objs...)
 }

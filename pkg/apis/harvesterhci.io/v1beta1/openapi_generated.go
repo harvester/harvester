@@ -2443,7 +2443,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_UpgradeLogSpec(ref common.ReferenceC
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"upgrade": {
+					"upgradeName": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
