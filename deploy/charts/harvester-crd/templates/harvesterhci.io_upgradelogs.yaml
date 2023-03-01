@@ -17,7 +17,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.upgrade
+    - jsonPath: .spec.upgradeName
       name: UPGRADE
       type: string
     name: v1beta1
@@ -38,7 +38,7 @@ spec:
             type: object
           spec:
             properties:
-              upgrade:
+              upgradeName:
                 type: string
             type: object
           status:
