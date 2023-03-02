@@ -354,6 +354,8 @@ storageClass:
   ## Will be set "false" when upgrading for existing default Storage Class.
   ## defaults to "true".
   defaultStorageClass: true
+  reclaimPolicy: Delete
+  replicaCount: 3
 
 harvester-network-controller:
   ## Specify to install harvester network controller,
