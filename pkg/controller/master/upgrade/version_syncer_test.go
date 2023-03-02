@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -229,5 +230,31 @@ func TestGetUpgradableVersions(t *testing.T) {
 		}
 
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
+	}
+}
+
+func Test_formatQuantityToGi(t *testing.T) {
+	type args struct {
+		qs string
+	}
+	testCases := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "test1",
+			args: args{
+				qs: "32920204Ki",
+			},
+			want: "32Gi",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			q, err := resource.ParseQuantity(tc.args.qs)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.want, formatQuantityToGi(&q))
+		})
 	}
 }
