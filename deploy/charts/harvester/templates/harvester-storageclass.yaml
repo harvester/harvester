@@ -1,4 +1,4 @@
-{{ if .Values.longhorn.enabled -}}
+{{- if .Values.longhorn.enabled -}}
 apiVersion: v1
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
@@ -10,10 +10,10 @@ metadata:
 {{- end }}
 provisioner: driver.longhorn.io
 allowVolumeExpansion: true
-reclaimPolicy: "{{ .Values.longhorn.persistence.reclaimPolicy }}"
+reclaimPolicy: "{{ .Values.storageClass.reclaimPolicy }}"
 volumeBindingMode: Immediate
 parameters:
-  numberOfReplicas: "{{ .Values.longhorn.persistence.defaultClassReplicaCount }}"
+  numberOfReplicas: "{{ .Values.storageClass.replicaCount }}"
   staleReplicaTimeout: "30"
   fromBackup: ""
   baseImage: ""
