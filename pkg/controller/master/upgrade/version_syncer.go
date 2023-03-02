@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -138,7 +139,7 @@ func (s *versionSyncer) getExtraInfo() (map[string]string, error) {
 		memory.Add(*node.Status.Capacity.Memory())
 	}
 	extraInfo[extraInfoCPUCount] = cpu.String()
-	extraInfo[extraInfoMemorySize] = memory.String()
+	extraInfo[extraInfoMemorySize] = formatQuantityToGi(memory)
 	extraInfo[extraInfoNodeCount] = strconv.Itoa(len(nodes.Items))
 	return extraInfo, nil
 }
@@ -231,4 +232,13 @@ func canUpgrade(currentVersion string, newVersion *harvesterv1.Version) bool {
 	default:
 		return false
 	}
+}
+
+func formatQuantityToGi(q *resource.Quantity) string {
+	// 32920204Ki,
+	// q.Value(): 32920204*1024=33710288896
+	// math.Pow(1024, 3): 1024*1024*1024=1073741824
+	// float64(q.Value())/math.Pow(1024, 3): 33710288896/1073741824=31.3951530456543
+	// math.Ceil(31.3951530456543)=32
+	return fmt.Sprintf("%dGi", int64(math.Ceil(float64(q.Value())/math.Pow(1024, 3))))
 }
