@@ -123,6 +123,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				addVolume:           &actionHandler,
 				removeVolume:        &actionHandler,
 				cloneVM:             &actionHandler,
+				forceStopVM:         &actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:    {},
@@ -157,6 +158,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				cloneVM: {
 					Input: "cloneInput",
 				},
+				forceStopVM: {},
 			}
 		},
 		Formatter: vmformatter.formatter,
