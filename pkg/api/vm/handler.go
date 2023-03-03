@@ -203,6 +203,22 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			return err
 		}
 		return nil
+	case forceStopVM:
+		var gracePeriod int64
+		stopOptions := &kubevirtv1.StopOptions{GracePeriod: &gracePeriod}
+		body, err := json.Marshal(stopOptions)
+		if err != nil {
+			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
+		}
+		// The request is equal to "virtctl stop my-vm --grace-period 0 --force"
+		if err := h.virtSubresourceRestClient.Put().Namespace(namespace).Resource(vmResource).SubResource(stopVM).Name(name).Body(body).Do(r.Context()).Error(); err != nil {
+			// Kubevirt returns "Halted does not support manual stop requests" error when VM runStrategy is Halted,
+			// but the request will still forcely stop the VM.
+			if strings.Contains(err.Error(), "Halted does not support manual stop requests") {
+				return nil
+			}
+			return err
+		}
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}

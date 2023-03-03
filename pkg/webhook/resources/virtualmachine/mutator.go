@@ -70,6 +70,11 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 		return nil, err
 	}
 
+	patchOps, err = m.patchTerminationGracePeriodSeconds(vm, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
 	return patchOps, nil
 }
 
@@ -373,4 +378,28 @@ func (m *vmMutator) addNodeSelectorTerms(defaultNamespace string, nodeSelector *
 	}
 
 	return nil
+}
+
+func (m *vmMutator) patchTerminationGracePeriodSeconds(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
+	if vm == nil || vm.Spec.Template == nil {
+		return patchOps, nil
+	}
+
+	if vm.Spec.Template.Spec.TerminationGracePeriodSeconds != nil {
+		return patchOps, nil
+	}
+
+	s, err := m.setting.Get(settings.DefaultVMTerminationGracePeriodSecondsSettingName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return patchOps, nil
+		}
+		return patchOps, err
+	}
+	value := s.Default
+	if s.Value != "" {
+		value = s.Value
+	}
+	patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/terminationGracePeriodSeconds", "value": %s}`, value))
+	return patchOps, nil
 }

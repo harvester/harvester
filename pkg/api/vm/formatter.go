@@ -32,6 +32,7 @@ const (
 	addVolume           = "addVolume"
 	removeVolume        = "removeVolume"
 	cloneVM             = "clone"
+	forceStopVM         = "forceStop"
 )
 
 type vmformatter struct {
@@ -105,6 +106,10 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canCreateTemplate(vmi) {
 		resource.AddAction(request, createTemplate)
+	}
+
+	if vf.canForceStop(vm) {
+		resource.AddAction(request, forceStopVM)
 	}
 }
 
@@ -299,4 +304,15 @@ func (vf *vmformatter) getVMI(vm *kubevirtv1.VirtualMachine) *kubevirtv1.Virtual
 		return vmi
 	}
 	return nil
+}
+
+func (vf *vmformatter) canForceStop(vm *kubevirtv1.VirtualMachine) bool {
+	if vm == nil {
+		return false
+	}
+
+	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopping {
+		return false
+	}
+	return true
 }

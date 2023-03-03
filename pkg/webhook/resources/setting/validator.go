@@ -56,29 +56,31 @@ var supportedSSLProtocols = []string{"SSLv2", "SSLv3", "TLSv1", "TLSv1.1", "TLSv
 type validateSettingFunc func(setting *v1beta1.Setting) error
 
 var validateSettingFuncs = map[string]validateSettingFunc{
-	settings.HTTPProxySettingName:            validateHTTPProxy,
-	settings.VMForceResetPolicySettingName:   validateVMForceResetPolicy,
-	settings.SupportBundleImageName:          validateSupportBundleImage,
-	settings.SupportBundleTimeoutSettingName: validateSupportBundleTimeout,
-	settings.OvercommitConfigSettingName:     validateOvercommitConfig,
-	settings.VipPoolsConfigSettingName:       validateVipPoolsConfig,
-	settings.SSLCertificatesSettingName:      validateSSLCertificates,
-	settings.SSLParametersName:               validateSSLParameters,
-	settings.ContainerdRegistrySettingName:   validateContainerdRegistry,
+	settings.HTTPProxySettingName:                              validateHTTPProxy,
+	settings.VMForceResetPolicySettingName:                     validateVMForceResetPolicy,
+	settings.SupportBundleImageName:                            validateSupportBundleImage,
+	settings.SupportBundleTimeoutSettingName:                   validateSupportBundleTimeout,
+	settings.OvercommitConfigSettingName:                       validateOvercommitConfig,
+	settings.VipPoolsConfigSettingName:                         validateVipPoolsConfig,
+	settings.SSLCertificatesSettingName:                        validateSSLCertificates,
+	settings.SSLParametersName:                                 validateSSLParameters,
+	settings.ContainerdRegistrySettingName:                     validateContainerdRegistry,
+	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateDefaultVMTerminationGracePeriodSeconds,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
 
 var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
-	settings.HTTPProxySettingName:            validateUpdateHTTPProxy,
-	settings.VMForceResetPolicySettingName:   validateUpdateVMForceResetPolicy,
-	settings.SupportBundleImageName:          validateUpdateSupportBundleImage,
-	settings.SupportBundleTimeoutSettingName: validateUpdateSupportBundleTimeout,
-	settings.OvercommitConfigSettingName:     validateUpdateOvercommitConfig,
-	settings.VipPoolsConfigSettingName:       validateUpdateVipPoolsConfig,
-	settings.SSLCertificatesSettingName:      validateUpdateSSLCertificates,
-	settings.SSLParametersName:               validateUpdateSSLParameters,
-	settings.ContainerdRegistrySettingName:   validateUpdateContainerdRegistry,
+	settings.HTTPProxySettingName:                              validateUpdateHTTPProxy,
+	settings.VMForceResetPolicySettingName:                     validateUpdateVMForceResetPolicy,
+	settings.SupportBundleImageName:                            validateUpdateSupportBundleImage,
+	settings.SupportBundleTimeoutSettingName:                   validateUpdateSupportBundleTimeout,
+	settings.OvercommitConfigSettingName:                       validateUpdateOvercommitConfig,
+	settings.VipPoolsConfigSettingName:                         validateUpdateVipPoolsConfig,
+	settings.SSLCertificatesSettingName:                        validateUpdateSSLCertificates,
+	settings.SSLParametersName:                                 validateUpdateSSLParameters,
+	settings.ContainerdRegistrySettingName:                     validateUpdateContainerdRegistry,
+	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateUpdateDefaultVMTerminationGracePeriodSeconds,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -701,4 +703,25 @@ func (v *settingValidator) validateUpdateRancherManagerSupport(oldSetting *v1bet
 	}
 
 	return nil
+}
+
+func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	num, err := strconv.ParseInt(setting.Value, 10, 64)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	if num < 0 {
+		return werror.NewInvalidError("can't be negative", "value")
+	}
+
+	return nil
+}
+
+func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateDefaultVMTerminationGracePeriodSeconds(newSetting)
 }
