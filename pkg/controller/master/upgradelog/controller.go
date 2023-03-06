@@ -2,6 +2,9 @@ package upgradelog
 
 import (
 	"context"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"reflect"
 
 	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
@@ -12,6 +15,7 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -40,18 +44,13 @@ const (
 	upgradeLogStateCollecting = "Collecting"
 	upgradeLogStateStopped    = "Stopped"
 
-	// Logging infra images
-	fluentBitImageRepo      = "rancher/mirrored-fluent-fluent-bit"
-	fluentBitImageTag       = "1.9.5"
-	fluentdImageRepo        = "rancher/mirrored-banzaicloud-fluentd"
-	fluentdImageTag         = "v1.14.6-alpine-5"
-	configReloaderImageRepo = "rancher/mirrored-jimmidyson-configmap-reload"
-	configReloaderImageTag  = "v0.4.0"
+	rancherLoggingChartValuesPath = "charts/rancher-logging/values.yaml"
 )
 
 type handler struct {
 	ctx                 context.Context
 	namespace           string
+	httpClient          *http.Client
 	addonCache          ctlharvesterv1.AddonCache
 	clusterFlowClient   ctlloggingv1.ClusterFlowClient
 	clusterOutputClient ctlloggingv1.ClusterOutputClient
@@ -146,7 +145,12 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 			return nil, err
 		}
 		// The creation of the Logging resource will indirectly bring up fluent-bit DaemonSet and fluentd StatefulSet
-		if _, err := h.loggingClient.Create(prepareLogging(upgradeLog)); err != nil && !apierrors.IsAlreadyExists(err) {
+		url := fmt.Sprintf("http://%s.%s/%s", util.HarvesterClusterRepoSvcName, util.CattleSystemNamespaceName, rancherLoggingChartValuesPath)
+		images, err := h.getImagesFromChart(url)
+		if err != nil {
+			return upgradeLog, err
+		}
+		if _, err := h.loggingClient.Create(prepareLogging(upgradeLog, images)); err != nil && !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
 
@@ -606,6 +610,35 @@ func (h *handler) OnUpgradeChange(_ string, upgrade *harvesterv1.Upgrade) (*harv
 	}
 
 	return upgrade, nil
+}
+
+func (h *handler) getImagesFromChart(url string) (map[string]interface{}, error) {
+	resp, err := h.httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get from the URL: %s", url)
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var data map[string]interface{}
+	err = yaml.Unmarshal(body, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	images, ok := data["images"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("no images node in response")
+	}
+
+	return images, nil
 }
 
 func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
