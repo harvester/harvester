@@ -96,7 +96,13 @@ func prepareOperator(upgradeLog *harvesterv1.UpgradeLog) *mgmtv3.ManagedChart {
 	}
 }
 
-func prepareLogging(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.Logging {
+func getImageInfo(imageName, key string, images map[string]interface{}) string {
+	image := images[imageName].(map[string]interface{})
+	value := image[key]
+	return fmt.Sprintf("%s", value)
+}
+
+func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]interface{}) *loggingv1.Logging {
 	return &loggingv1.Logging{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -117,8 +123,8 @@ func prepareLogging(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.Logging {
 					util.LabelUpgradeLogComponent: util.UpgradeLogShipperComponent,
 				},
 				Image: loggingv1.ImageSpec{
-					Repository: fluentBitImageRepo,
-					Tag:        fluentBitImageTag,
+					Repository: getImageInfo("fluentbit", "repository", images),
+					Tag:        getImageInfo("fluentbit", "tag", images),
 				},
 			},
 			FluentdSpec: &loggingv1.FluentdSpec{
@@ -127,12 +133,12 @@ func prepareLogging(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.Logging {
 					util.LabelUpgradeLogComponent: util.UpgradeLogAggregatorComponent,
 				},
 				Image: loggingv1.ImageSpec{
-					Repository: fluentdImageRepo,
-					Tag:        fluentdImageTag,
+					Repository: getImageInfo("fluentd", "repository", images),
+					Tag:        getImageInfo("fluentd", "tag", images),
 				},
 				ConfigReloaderImage: loggingv1.ImageSpec{
-					Repository: configReloaderImageRepo,
-					Tag:        configReloaderImageTag,
+					Repository: getImageInfo("config_reloader", "repository", images),
+					Tag:        getImageInfo("config_reloader", "tag", images),
 				},
 				DisablePvc: true,
 				ExtraVolumes: []loggingv1.ExtraVolume{
