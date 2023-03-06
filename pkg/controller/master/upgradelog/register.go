@@ -2,6 +2,8 @@ package upgradelog
 
 import (
 	"context"
+	"net/http"
+	"time"
 
 	"github.com/harvester/harvester/pkg/config"
 )
@@ -35,8 +37,11 @@ func Register(ctx context.Context, management *config.Management, options config
 	upgradeController := management.HarvesterFactory.Harvesterhci().V1beta1().Upgrade()
 
 	handler := &handler{
-		ctx:                 ctx,
-		namespace:           options.Namespace,
+		ctx:       ctx,
+		namespace: options.Namespace,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 		addonCache:          addonController.Cache(),
 		clusterFlowClient:   clusterFlowController,
 		clusterOutputClient: clusterOutputController,
