@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"syscall"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -36,7 +37,9 @@ func NewStillExists(qualifiedResource schema.GroupResource, name string) *apierr
 }
 
 func IsRetriableNetworkError(err error) bool {
-	if errors.Is(err, syscall.ENETDOWN) {
+	if os.IsTimeout(err) {
+		return true
+	} else if errors.Is(err, syscall.ENETDOWN) {
 		return true
 	} else if errors.Is(err, syscall.ENETUNREACH) {
 		return true
