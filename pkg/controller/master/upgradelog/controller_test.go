@@ -1,9 +1,11 @@
 package upgradelog
 
 import (
+	"net/http"
 	"testing"
 
 	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
+	"github.com/jarcoal/httpmock"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +38,36 @@ const (
 	testStatefulSetName   = "test-upgrade-upgradelog-fluentd"
 	testArchiveName       = "test-archive"
 	testImageVersion      = "dev"
+	testURL               = "http://harvester-cluster-repo.cattle-system/charts/rancher-logging/values.yaml"
 )
+
+var testImages = map[string]interface{}{
+	"config_reloader": map[string]interface{}{
+		"repository": "test/configmap-reload",
+		"tag":        "dev",
+	},
+	"fluentbit": map[string]interface{}{
+		"repository": "test/fluent-bit",
+		"tag":        "dev",
+	},
+	"fluentd": map[string]interface{}{
+		"repository": "test/fluentd",
+		"tag":        "dev",
+	},
+}
+
+var testYAMLContent = `
+images:
+  config_reloader:
+    repository: test/configmap-reload
+    tag: dev
+  fluentbit:
+    repository: test/fluent-bit
+    tag: dev
+  fluentd:
+    repository: test/fluentd
+    tag: dev
+`
 
 func newTestClusterFlowBuilder() *clusterFlowBuilder {
 	return newClusterFlowBuilder(testClusterFlowName).
@@ -630,7 +661,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 					OperatorDeployedCondition(corev1.ConditionTrue, "", "").Build(),
 			},
 			expected: output{
-				logging: prepareLogging(newTestUpgradeLogBuilder().Build()),
+				logging: prepareLogging(newTestUpgradeLogBuilder().Build(), testImages),
 				pvc:     preparePvc(newTestUpgradeLogBuilder().Build()),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").
@@ -856,6 +887,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 
 		var handler = &handler{
 			namespace:           util.HarvesterSystemNamespaceName,
+			httpClient:          &http.Client{},
 			addonCache:          fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons),
 			clusterFlowClient:   fakeclients.ClusterFlowClient(clientset.LoggingV1beta1().ClusterFlows),
 			clusterOutputClient: fakeclients.ClusterOutputClient(clientset.LoggingV1beta1().ClusterOutputs),
@@ -869,6 +901,11 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			upgradeCache:        fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeLogClient:    fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
 		}
+
+		httpmock.Activate()
+		defer httpmock.DeactivateAndReset()
+
+		httpmock.RegisterResponder("GET", testURL, httpmock.NewStringResponder(200, testYAMLContent))
 
 		var actual output
 		actual.upgradeLog, actual.err = handler.OnUpgradeLogChange(tc.given.key, tc.given.upgradeLog)
