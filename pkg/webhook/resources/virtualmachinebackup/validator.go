@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -11,6 +12,7 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
+	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -22,18 +24,21 @@ const (
 func NewValidator(
 	vms ctlkubevirtv1.VirtualMachineCache,
 	setting ctlharvesterv1.SettingCache,
+	vmrestores ctlharvesterv1.VirtualMachineRestoreCache,
 ) types.Validator {
 	return &virtualMachineBackupValidator{
-		vms:     vms,
-		setting: setting,
+		vms:        vms,
+		setting:    setting,
+		vmrestores: vmrestores,
 	}
 }
 
 type virtualMachineBackupValidator struct {
 	types.DefaultValidator
 
-	vms     ctlkubevirtv1.VirtualMachineCache
-	setting ctlharvesterv1.SettingCache
+	vms        ctlkubevirtv1.VirtualMachineCache
+	setting    ctlharvesterv1.SettingCache
+	vmrestores ctlharvesterv1.VirtualMachineRestoreCache
 }
 
 func (v *virtualMachineBackupValidator) Resource() types.Resource {
@@ -45,6 +50,7 @@ func (v *virtualMachineBackupValidator) Resource() types.Resource {
 		ObjectType: &v1beta1.VirtualMachineBackup{},
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
+			admissionregv1.Delete,
 		},
 	}
 }
@@ -91,5 +97,28 @@ func (v *virtualMachineBackupValidator) checkBackupTarget() error {
 		return fmt.Errorf("backup target is not set")
 	}
 
+	return nil
+}
+
+func (v *virtualMachineBackupValidator) Delete(request *types.Request, obj runtime.Object) error {
+	vmBackup := obj.(*v1beta1.VirtualMachineBackup)
+
+	vmRestores, err := v.vmrestores.GetByIndex(indexeres.VMRestoreByVMBackupNamespaceAndName, fmt.Sprintf("%s-%s", vmBackup.Namespace, vmBackup.Name))
+	if err != nil {
+		return fmt.Errorf("can't get vmrestores from index %s with vmbackup %s/%s, err: %w", indexeres.VMRestoreByVMBackupNamespaceAndName, vmBackup.Namespace, vmBackup.Name, err)
+	}
+	for _, vmRestore := range vmRestores {
+		if vmRestore.DeletionTimestamp != nil || vmRestore.Status == nil {
+			continue
+		}
+		for _, cond := range vmRestore.Status.Conditions {
+			// we use the same condition for backup and restore
+			if cond.Type == v1beta1.BackupConditionProgressing {
+				if cond.Status == corev1.ConditionTrue {
+					return fmt.Errorf("vmrestore %s/%s is in progress", vmRestore.Namespace, vmRestore.Name)
+				}
+			}
+		}
+	}
 	return nil
 }
