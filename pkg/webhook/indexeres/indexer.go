@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	VMBackupBySourceUIDIndex          = "harvesterhci.io/vmbackup-by-source-uid"
-	VMRestoreByTargetNamespaceAndName = "harvesterhci.io/vmrestore-by-target-namespace-and-name"
+	VMBackupBySourceUIDIndex            = "harvesterhci.io/vmbackup-by-source-uid"
+	VMRestoreByTargetNamespaceAndName   = "harvesterhci.io/vmrestore-by-target-namespace-and-name"
+	VMRestoreByVMBackupNamespaceAndName = "harvesterhci.io/vmrestore-by-vmbackup-namespace-and-name"
 )
 
 func RegisterIndexers(clients *clients.Clients) {
@@ -17,6 +18,7 @@ func RegisterIndexers(clients *clients.Clients) {
 	vmRestoreCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache()
 	vmBackupCache.AddIndexer(VMBackupBySourceUIDIndex, vmBackupBySourceUID)
 	vmRestoreCache.AddIndexer(VMRestoreByTargetNamespaceAndName, vmRestoreByTargetNamespaceAndName)
+	vmRestoreCache.AddIndexer(VMRestoreByVMBackupNamespaceAndName, vmRestoreByVMBackupNamespaceAndName)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
@@ -31,4 +33,11 @@ func vmRestoreByTargetNamespaceAndName(obj *harvesterv1.VirtualMachineRestore) (
 		return []string{}, nil
 	}
 	return []string{fmt.Sprintf("%s-%s", obj.Namespace, obj.Spec.Target.Name)}, nil
+}
+
+func vmRestoreByVMBackupNamespaceAndName(obj *harvesterv1.VirtualMachineRestore) ([]string, error) {
+	if obj == nil {
+		return []string{}, nil
+	}
+	return []string{fmt.Sprintf("%s-%s", obj.Spec.VirtualMachineBackupNamespace, obj.Spec.VirtualMachineBackupName)}, nil
 }
