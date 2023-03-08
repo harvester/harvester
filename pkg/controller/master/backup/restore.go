@@ -796,8 +796,6 @@ func (h *RestoreHandler) startVM(vm *kubevirtv1.VirtualMachine) error {
 			}
 		}
 		return h.restClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("start").Name(vm.Name).Do(h.context).Error()
-	case kubevirtv1.RunStrategyHalted:
-		return h.restClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("start").Name(vm.Name).Do(h.context).Error()
 	default:
 		// skip
 	}

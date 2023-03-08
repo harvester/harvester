@@ -3,15 +3,19 @@ package virtualmachinerestore
 import (
 	"fmt"
 
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlbackup "github.com/harvester/harvester/pkg/controller/master/backup"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
+	"github.com/harvester/harvester/pkg/resourcequota"
 	"github.com/harvester/harvester/pkg/settings"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -25,6 +29,7 @@ const (
 )
 
 func NewValidator(
+	ns ctlcorev1.NamespaceCache,
 	vms ctlkubevirtv1.VirtualMachineCache,
 	setting ctlharvesterv1.SettingCache,
 	vmBackup ctlharvesterv1.VirtualMachineBackupCache,
@@ -32,22 +37,28 @@ func NewValidator(
 	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache,
 ) types.Validator {
 	return &restoreValidator{
+		ns:            ns,
 		vms:           vms,
 		setting:       setting,
 		vmBackup:      vmBackup,
 		vmRestore:     vmRestore,
 		snapshotClass: snapshotClass,
+
+		arq: resourcequota.NewAvailableResourceQuota(vms, nil, vmBackup, vmRestore, ns),
 	}
 }
 
 type restoreValidator struct {
 	types.DefaultValidator
 
+	ns            ctlcorev1.NamespaceCache
 	vms           ctlkubevirtv1.VirtualMachineCache
 	setting       ctlharvesterv1.SettingCache
 	vmBackup      ctlharvesterv1.VirtualMachineBackupCache
 	vmRestore     ctlharvesterv1.VirtualMachineRestoreCache
 	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache
+
+	arq *resourcequota.AvailableResourceQuota
 }
 
 func (v *restoreValidator) Resource() types.Resource {
@@ -94,6 +105,9 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	vm, err := v.vms.Get(newRestore.Namespace, targetVM)
 	if err != nil {
 		if newVM && apierrors.IsNotFound(err) {
+			if err := v.checkVMResource(newRestore, vmBackup); err != nil {
+				return werror.NewInternalError(err.Error())
+			}
 			return nil
 		}
 		return werror.NewInvalidError(err.Error(), fieldTargetName)
@@ -176,4 +190,16 @@ func (v *restoreValidator) checkVolumeSnapshotClass(vmBackup *v1beta1.VirtualMac
 		}
 	}
 	return nil
+}
+
+func (v *restoreValidator) checkVMResource(newRetore *v1beta1.VirtualMachineRestore, vmBackup *v1beta1.VirtualMachineBackup) error {
+	// convert vmBackup to simulate vm
+	simulatedVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: newRetore.Namespace,
+			Name:      newRetore.Spec.Target.Name,
+		},
+		Spec: vmBackup.Status.SourceSpec.Spec,
+	}
+	return v.arq.CheckVMAvailableResoruces(simulatedVM)
 }

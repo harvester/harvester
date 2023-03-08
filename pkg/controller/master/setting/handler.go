@@ -19,6 +19,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -58,6 +59,8 @@ type Handler struct {
 	managedChartCache    mgmtv3.ManagedChartCache
 	helmChartConfigs     ctlhelmv1.HelmChartConfigClient
 	helmChartConfigCache ctlhelmv1.HelmChartConfigCache
+	kubevirtConfigs      ctlkubevirtv1.KubeVirtClient
+	kubevirtConfigCache  ctlkubevirtv1.KubeVirtCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

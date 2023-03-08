@@ -24,6 +24,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 	helmChartConfigs := management.HelmFactory.Helm().V1().HelmChartConfig()
+	kubevirtConfigs := management.VirtFactory.Kubevirt().V1().KubeVirt()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -46,6 +47,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		managedChartCache:    managedCharts.Cache(),
 		helmChartConfigs:     helmChartConfigs,
 		helmChartConfigCache: helmChartConfigs.Cache(),
+		kubevirtConfigs:      kubevirtConfigs,
+		kubevirtConfigCache:  kubevirtConfigs.Cache(),
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -68,6 +71,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		"ssl-certificates":          controller.syncSSLCertificate,
 		"ssl-parameters":            controller.syncSSLParameters,
 		"containerd-registry":       controller.syncContainerdRegistry,
+		"migration-config":          controller.syncMigrationConfig,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
 	}

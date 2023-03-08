@@ -6,8 +6,9 @@ import (
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/wrangler/pkg/leader"
 
-	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/master/addon"
+
+	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	"github.com/harvester/harvester/pkg/controller/master/image"
 	"github.com/harvester/harvester/pkg/controller/master/keypair"
@@ -47,6 +48,7 @@ var registerFuncs = []registerFunc{
 	upgradelog.Register,
 	addon.Register,
 	storagenetwork.Register,
+	//namespace.Register,
 	nodedrain.Register,
 	volume.Register,
 }

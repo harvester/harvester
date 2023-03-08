@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	corefake "k8s.io/client-go/kubernetes/fake"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/controller/master/migration"
@@ -163,16 +165,18 @@ func TestMigrateAction(t *testing.T) {
 
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset()
+		var coreclientset = corefake.NewSimpleClientset()
 		if tc.given.vmInstance != nil {
 			err := clientset.Tracker().Add(tc.given.vmInstance)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 		}
 
 		var handler = &vmActionHandler{
-			vmis:      fakeVirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
-			vmiCache:  fakeVirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
-			vmims:     fakeVirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
-			vmimCache: fakeVirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			namespaceCache: fakeNamespaceCache(coreclientset.CoreV1().Namespaces),
+			vmis:           fakeVirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+			vmiCache:       fakeVirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+			vmims:          fakeVirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			vmimCache:      fakeVirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
 		}
 
 		var actual output
@@ -621,4 +625,26 @@ func (c fakeVirtualMachineInstanceMigrationClient) Watch(namespace string, opts 
 
 func (c fakeVirtualMachineInstanceMigrationClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *kubevirtv1.VirtualMachineInstanceMigration, err error) {
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
+}
+
+type fakeNamespaceCache func() typedcorev1.NamespaceInterface
+
+func (c fakeNamespaceCache) Get(name string) (*corev1.Namespace, error) {
+	return &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}, nil
+}
+
+func (c fakeNamespaceCache) List(selector labels.Selector) ([]*corev1.Namespace, error) {
+	panic("implement me")
+}
+
+func (c fakeNamespaceCache) AddIndexer(indexName string, indexer ctlcorev1.NamespaceIndexer) {
+	panic("implement me")
+}
+
+func (c fakeNamespaceCache) GetByIndex(indexName, key string) ([]*corev1.Namespace, error) {
+	panic("implement me")
 }

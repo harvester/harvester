@@ -35,12 +35,20 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	werror "github.com/harvester/harvester/pkg/webhook/error"
 )
 
 const (
 	vmResource    = "virtualmachines"
 	vmiResource   = "virtualmachineinstances"
 	sshAnnotation = "harvesterhci.io/sshNames"
+)
+
+var (
+	ErrMaintenanceAvailableResourceNotEnoughCPU = werror.NewInternalError(
+		"reservation maintenance CPU resource is not enough")
+	ErrMaintenanceAvailableResourceNotEnoughMemory = werror.NewInternalError(
+		"Reservation maintenance memory resource is not enough")
 )
 
 type vmActionHandler struct {
@@ -58,6 +66,7 @@ type vmActionHandler struct {
 	restores                  ctlharvesterv1.VirtualMachineRestoreClient
 	settingCache              ctlharvesterv1.SettingCache
 	nodeCache                 ctlcorev1.NodeCache
+	namespaceCache            ctlcorev1.NamespaceCache
 	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
 	secretClient              ctlcorev1.SecretClient
 	secretCache               ctlcorev1.SecretCache
@@ -340,6 +349,11 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 			VMIName: vmName,
 		},
 	}
+
+	//if err := h.checkMaintenceAvailableResource(namespace, vmi); err != nil {
+	//	return err
+	//}
+
 	if nodeName != "" {
 		// check node name is valid
 		if _, err := h.nodeCache.Get(nodeName); err != nil {
@@ -975,6 +989,80 @@ func (h *vmActionHandler) cloneVolumes(newVM *kubevirtv1.VirtualMachine) ([]core
 	}
 	return newPVCs, secretNameMap, nil
 }
+
+//func (h *vmActionHandler) checkMaintenceAvailableResource(namespace string, vmi *kubevirtv1.VirtualMachineInstance) error {
+//	ns, err := h.namespaceCache.Get(namespace)
+//	if err != nil {
+//		return err
+//	}
+//
+//	maStr, ok := ns.Annotations[util.AnnotationMaintenanceAvailable]
+//	if !ok || maStr == "" {
+//		return nil
+//	}
+//
+//	var ma *harvesterv1.ResourceAvailable
+//	if err := json.Unmarshal([]byte(maStr), &ma); err != nil {
+//		return err
+//	}
+//	migrations, err := h.vmimCache.List(namespace, labels.Everything())
+//	if err != nil {
+//		return err
+//	}
+//
+//	usedResource, err := h.calcUsedMigrationResources(namespace, migrations)
+//	if err != nil {
+//		return werror.NewInternalError(err.Error())
+//	}
+//	if cpus, ok := usedResource[corev1.ResourceCPU]; ok && ma.Limit.LimitsCpu > 0 {
+//		cpus.Add(*vmi.Spec.Domain.Resources.Limits.Cpu())
+//
+//		limitsCPU := resource.NewMilliQuantity(ma.Limit.LimitsCpu, resource.DecimalSI)
+//		if limitsCPU.Cmp(cpus) == -1 {
+//			return ErrMaintenanceAvailableResourceNotEnoughCPU
+//		}
+//	}
+//
+//	if memory, ok := usedResource[corev1.ResourceMemory]; ok && ma.Limit.LimitsMemory > 0 {
+//		memory.Add(*vmi.Spec.Domain.Resources.Limits.Memory())
+//
+//		limitsMemory := resource.NewMilliQuantity(ma.Limit.LimitsMemory, resource.DecimalSI)
+//		if limitsMemory.Cmp(memory) == -1 {
+//			return ErrMaintenanceAvailableResourceNotEnoughMemory
+//		}
+//	}
+//	return nil
+//}
+//
+//func (h *vmActionHandler) calcUsedMigrationResources(
+//	namespace string,
+//	migrations []*kubevirtv1.VirtualMachineInstanceMigration,
+//) (
+//	corev1.ResourceList,
+//	error,
+//) {
+//	usedResource := corev1.ResourceList{}
+//	for _, m := range migrations {
+//		if m.Status.Phase == kubevirtv1.MigrationSucceeded ||
+//			m.Status.Phase == kubevirtv1.MigrationFailed {
+//			continue
+//		}
+//
+//		vm, err := h.vms.Get(namespace, m.Spec.VMIName, metav1.GetOptions{})
+//		if err != nil {
+//			return usedResource, err
+//		}
+//		for name, quantity := range vm.Spec.Template.Spec.Domain.Resources.Limits {
+//			if value, ok := usedResource[name]; !ok {
+//				usedResource[name] = quantity.DeepCopy()
+//			} else {
+//				value.Add(quantity)
+//				usedResource[name] = value
+//			}
+//		}
+//	}
+//	return usedResource, nil
+//}
 
 func (h *vmActionHandler) sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kubevirtv1.VirtualMachine, withData bool) (harvesterv1.VirtualMachineSourceSpec, error) {
 	var err error

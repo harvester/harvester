@@ -11,6 +11,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/bundledeployment"
 	"github.com/harvester/harvester/pkg/webhook/resources/keypair"
 	"github.com/harvester/harvester/pkg/webhook/resources/managedchart"
+	"github.com/harvester/harvester/pkg/webhook/resources/namespace"
 	"github.com/harvester/harvester/pkg/webhook/resources/node"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
 	"github.com/harvester/harvester/pkg/webhook/resources/setting"
@@ -20,6 +21,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
+	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineinstancemigration"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinerestore"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -27,12 +29,21 @@ import (
 func Validation(clients *clients.Clients, options *config.Options) (http.Handler, []types.Resource, error) {
 	resources := []types.Resource{}
 	validators := []types.Validator{
+		namespace.NewValidator(
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache(),
+		),
 		node.NewValidator(clients.Core.Node().Cache()),
 		persistentvolumeclaim.NewValidator(clients.Core.PersistentVolumeClaim().Cache(), clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()),
 		keypair.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
 		virtualmachine.NewValidator(
+			clients.Core.Namespace().Cache(),
 			clients.Core.PersistentVolumeClaim().Cache(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()),
 		virtualmachineimage.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.Core.PersistentVolumeClaim().Cache(),
@@ -52,11 +63,17 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache(),
 		),
 		virtualmachinerestore.NewValidator(
+			clients.Core.Namespace().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache(),
 			clients.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotClass().Cache(),
+		),
+		virtualmachineinstancemigration.NewValidator(
+			clients.Core.Namespace().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache(),
 		),
 		setting.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),

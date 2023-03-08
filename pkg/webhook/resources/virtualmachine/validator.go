@@ -14,7 +14,9 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/resourcequota"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -22,19 +24,31 @@ import (
 )
 
 func NewValidator(
+	nsCache v1.NamespaceCache,
 	pvcCache v1.PersistentVolumeClaimCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
+	vmrCache ctlharvesterv1.VirtualMachineRestoreCache,
+	vmCache ctlkv1.VirtualMachineCache,
 ) types.Validator {
 	return &vmValidator{
+		nsCache:       nsCache,
 		pvcCache:      pvcCache,
 		vmBackupCache: vmBackupCache,
+		vmCache:       vmCache,
+
+		arq: resourcequota.NewAvailableResourceQuota(vmCache, nil, vmBackupCache, vmrCache, nsCache),
 	}
 }
 
 type vmValidator struct {
 	types.DefaultValidator
-	pvcCache      v1.PersistentVolumeClaimCache
-	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
+	nsCache        v1.NamespaceCache
+	pvcCache       v1.PersistentVolumeClaimCache
+	vmBackupCache  ctlharvesterv1.VirtualMachineBackupCache
+	vmRestoreCache ctlharvesterv1.VirtualMachineRestoreCache
+	vmCache        ctlkv1.VirtualMachineCache
+
+	arq *resourcequota.AvailableResourceQuota
 }
 
 func (v *vmValidator) Resource() types.Resource {
@@ -100,7 +114,7 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 	if err := v.checkReservedMemoryAnnotation(vm); err != nil {
 		return err
 	}
-	return nil
+	return v.checkVMResource(vm)
 }
 
 func (v *vmValidator) checkVMStoppingStatus(oldVM *kubevirtv1.VirtualMachine, newVM *kubevirtv1.VirtualMachine) bool {
@@ -251,4 +265,12 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 		return werror.NewInvalidError("reservedMemory cannot be less than 0", field)
 	}
 	return nil
+}
+
+func (v *vmValidator) checkVMResource(vm *kubevirtv1.VirtualMachine) error {
+	if vm == nil || vm.DeletionTimestamp != nil || (vm.Spec.RunStrategy != nil && *vm.Spec.RunStrategy == kubevirtv1.RunStrategyHalted &&
+		(vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusStopped)) {
+		return nil
+	}
+	return v.arq.CheckVMAvailableResoruces(vm)
 }

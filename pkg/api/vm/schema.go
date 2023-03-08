@@ -43,6 +43,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	backups := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 	restores := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore()
 	settings := scaled.HarvesterFactory.Harvesterhci().V1beta1().Setting()
+	namespace := scaled.CoreFactory.Core().V1().Namespace()
 	nodes := scaled.CoreFactory.Core().V1().Node()
 	pvcs := scaled.CoreFactory.Core().V1().PersistentVolumeClaim()
 	secrets := scaled.CoreFactory.Core().V1().Secret()
@@ -77,6 +78,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		backupCache:               backups.Cache(),
 		restores:                  restores,
 		settingCache:              settings.Cache(),
+		namespaceCache:            namespace.Cache(),
 		nodeCache:                 nodes.Cache(),
 		pvcCache:                  pvcs.Cache(),
 		secretClient:              secrets,

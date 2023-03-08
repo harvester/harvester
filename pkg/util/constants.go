@@ -15,6 +15,9 @@ const (
 	AnnotationHash                 = prefix + "/hash"
 	AnnotationRunStrategy          = prefix + "/vmRunStrategy"
 	LabelImageDisplayName          = prefix + "/imageDisplayName"
+	AnnotationMaintenanceQuota     = prefix + "/maintenanceQuota"
+	AnnotationVMAvailable          = prefix + "/vmAvailable"
+	AnnotationMaintenanceAvailable = prefix + "/maintenanceAvailable"
 
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
@@ -64,4 +67,7 @@ const (
 	UpgradeLogOperatorComponent   = "operator"
 	UpgradeLogOutputComponent     = "clusteroutput"
 	UpgradeLogPackagerComponent   = "packager"
+
+	fieldCattlePrefix       = "field.cattle.io"
+	AnnotationResourceQuota = fieldCattlePrefix + "/resourceQuota"
 )
