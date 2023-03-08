@@ -64,6 +64,7 @@ func main() {
 					kubevirtv1.VirtualMachine{},
 					kubevirtv1.VirtualMachineInstance{},
 					kubevirtv1.VirtualMachineInstanceMigration{},
+					kubevirtv1.KubeVirt{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

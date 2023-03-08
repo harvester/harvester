@@ -30,6 +30,7 @@ func init() {
 }
 
 type Interface interface {
+	KubeVirt() KubeVirtController
 	VirtualMachine() VirtualMachineController
 	VirtualMachineInstance() VirtualMachineInstanceController
 	VirtualMachineInstanceMigration() VirtualMachineInstanceMigrationController
@@ -45,6 +46,9 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
+func (c *version) KubeVirt() KubeVirtController {
+	return NewKubeVirtController(schema.GroupVersionKind{Group: "kubevirt.io", Version: "v1", Kind: "KubeVirt"}, "kubevirts", true, c.controllerFactory)
+}
 func (c *version) VirtualMachine() VirtualMachineController {
 	return NewVirtualMachineController(schema.GroupVersionKind{Group: "kubevirt.io", Version: "v1", Kind: "VirtualMachine"}, "virtualmachines", true, c.controllerFactory)
 }
