@@ -61,9 +61,9 @@ After configuration, the VM can only use **50%** of the quota. When the user per
 
 After creating VMs, because the virt-components in the Pod requires a certain memory overhead, resulting in a higher actual quota of Pod memory than expected from the VM configuration, however, there is a risk that the number of VMs created by the user or the number of simultaneous migrations does not meet the expectations.
 
-Calculating the actual memory used by the expected number of VMs, Limit.cpu, Limit.memory, we sort out how Kubevirt calculates the actual memory based on the code on Kubevirt:
+Calculating the actual memory used by the expected number of VMs/Migrations, Limit.CPU, Limit.Memory, we sort out how Kubevirt calculates the actual memory based on the code on Kubevirt:
 
-* Each virtual machine requires a fixed overhead of 180Mi (branch master: 210Mi).
+* Each virtual machine pod requires a fixed overhead of 180Mi (branch master: 210Mi).
 ```go
 VirtLauncherMonitorOverhead = "25Mi" // The `ps` RSS for virt-launcher-monitor
 VirtLauncherOverhead        = "75Mi" // The `ps` RSS for the virt-launcher process
@@ -106,7 +106,7 @@ if domain.Devices.AutoattachGraphicsDevice == nil || *domain.Devices.AutoattachG
 }
 ```
 
-The final formula: `( vcpu * 8Mi + 16Mi + 8Mi + 180Mi * vm_count + memory ) + memory / 512`, the actual value of the final memory limit is calculated according to this formula.
+The final formula: `( vcpu * 8Mi + 16Mi + 8Mi + 180Mi * VM/Migration_Count + memory ) + memory / 512`, the actual value of the final memory limit is calculated according to this formula.
 
 ### Kubevirt migration configuration
 We expose the migration configuration to Settings UI, see the [Kubevirt documentation](https://kubevirt.io/user-guide/operations/live_migration/#changing-cluster-wide-migration-limits) for details.
@@ -116,7 +116,7 @@ We expose the migration configuration to Settings UI, see the [Kubevirt document
 **UI**
 
 Configuring maintain quota only requires the administrator to go to the Harvester cluster operation in the Rancher UI.
-Add VM count field to Namespace UI to separate requested limit parameters from actual limit parameters.
+Add VM/Migration count field to Namespace UI, separate requested limit parameters from actual limit parameters.
 > ResourceQuota is configured after the upgrade and will not be triggered as long as no changes are made to the UI.
 
 Projects/Namespaces → {Target namespace} → Edit Config → Resource Quotas
@@ -183,8 +183,8 @@ If the resources used by a VM in a non-Shutdown state exceed the available VM re
 
 Test based on the following configuration:
 
-1. Create a Project and configure a ResourceQuota with a CPU Limit of 4 cores and Memory Limit of 5Gi.
-2. Create a Namespace for the Project and configure resource limits (CPU Limit of 4 cores and Memory Limit of 5GiB) as well as maintenance resources (CPU Limit of 50% and Memory Limit of 50%).
+1. Create a Project and configure a ResourceQuota with CPU Limit of 4 cores and Memory Limit of 4Gi.
+2. Create a Namespace for the Project and configure resource limits (VM Counts of 4, CPU Limit of 4 cores and Memory Limit of 4GiB) as well as maintenance resources (CPU Limit of 50% and Memory Limit of 50%).
 3. Create two VMs named VM1 and VM2, each with 1 CPU and 1GB memory allocated.
 
 Scenario 1：
@@ -201,30 +201,32 @@ Scenario 2: Operating VM1 while VM2 is successfully migrated
 Scenario 3: Occupancy of VM available resources
 
 1. Create VM3.
-2. Creation fails and returns "VM available resources are insufficient".
-3. Suspend VM1.
+2. Creation fails and returns "limit.CPU resource is not enough".
+3. Pause VM1.
 4. Create VM3.
-5. Creation fails and returns "VM available resources are insufficient".
+5. Creation fails and returns "limit.CPU resource is not enough".
 6. Start and stop VM1.
-7. Create VM3 during the stopping period, and returns "VM available resources are insufficient".
+7. Create VM3 during the stopping period, and returns "limit.CPU resource is not enough".
 
-Scenario 4: Maintenance resource is full
+Scenario 4: Backup and Snapshot Restore
 
-1. Migrate VM1 to another node.
-2. Immediately migrate VM2 to another node during VM1 migration, returning "maintenance resource is insufficient" error.
-
-Scenario 5: Backup and Snapshot Recovery
-
-1. Backup/snapshot VM1.
-2. Recover new VM4, which fails and returns an error.
+1. Backup/Snapshot VM1.
+2. Restore new VM4, which fails and returns an error.
 3. Stop VM2.
-4. Recover new VM4.
-5. Check the status of VM4.
+4. Restore new VM4.
+5. Check the status of VM4 is Running.
 
-Scenario 6: Upgrade
+Scenario 5: Upgrade
 
 1. Upgrade the Harvester cluster.
 2. Observe the status of VM.
+
+Scenario 6: Maintenance resource is full
+
+1. Modify Namespace maintenance resources (CPU Limit of 75% and Memory Limit of 75%).
+2. Migrate VM1 to another node.
+3. Immediately migrate VM2 to another node during VM1 migration, returning "limit.CPU resource is not enough" error.
+
 
 ### Upgrade strategy
 
