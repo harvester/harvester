@@ -5,7 +5,7 @@ type MaintenanceQuota struct {
 }
 
 type MaintenanceQuotaLimit struct {
-	LimitsCpuPercent    int64 `json:"limitsCpuPercent,omitempty"`
+	LimitsCPUPercent    int64 `json:"limitsCpuPercent,omitempty"`
 	LimitsMemoryPercent int64 `json:"LimitsMemoryPercent,omitempty"`
 }
 
@@ -14,6 +14,6 @@ type ResourceAvailable struct {
 }
 
 type AvailableLimit struct {
-	LimitsCpu    int64 `json:"limitsCpu,omitempty"`
+	LimitsCPU    int64 `json:"limitsCpu,omitempty"`
 	LimitsMemory int64 `json:"limitsMemory,omitempty"`
 }

@@ -25,6 +25,7 @@ import (
 )
 
 type vmWithResources struct {
+	name            string
 	runStrategy     kubevirtv1.VirtualMachineRunStrategy
 	limitsCPU       string
 	LimitsMemory    string
@@ -33,25 +34,28 @@ type vmWithResources struct {
 
 var testCalcNonStoppedVMs = []*vmWithResources{
 	// Running
-	{kubevirtv1.RunStrategyRerunOnFailure, "1000m", "4Gi", kubevirtv1.VirtualMachineStatusRunning},
-	{kubevirtv1.RunStrategyRerunOnFailure, "1000m", "4Gi", kubevirtv1.VirtualMachineStatusStarting},
-	{kubevirtv1.RunStrategyRerunOnFailure, "1000m", "4Gi", kubevirtv1.VirtualMachineStatusPaused},
-	{kubevirtv1.RunStrategyHalted, "1000m", "4Gi", kubevirtv1.VirtualMachineStatusStopping},
+	{"vm1", kubevirtv1.RunStrategyRerunOnFailure, "1000m", "4Gi", kubevirtv1.VirtualMachineStatusRunning},
+	{"vm2", kubevirtv1.RunStrategyRerunOnFailure, "1000m", "4Gi", kubevirtv1.VirtualMachineStatusStarting},
+	{"vm3", kubevirtv1.RunStrategyRerunOnFailure, "1000m", "4Gi", kubevirtv1.VirtualMachineStatusPaused},
+	{"vm4", kubevirtv1.RunStrategyHalted, "1000m", "4Gi", kubevirtv1.VirtualMachineStatusStopping},
 
 	// Restarting
-	{kubevirtv1.RunStrategyRerunOnFailure, "2000m", "4Gi", kubevirtv1.VirtualMachineStatusStopped},
+	{"vm5", kubevirtv1.RunStrategyRerunOnFailure, "2000m", "4Gi", kubevirtv1.VirtualMachineStatusStopped},
 
 	// Restoring
-	{kubevirtv1.RunStrategyRerunOnFailure, "2000m", "4Gi", kubevirtv1.VirtualMachineStatusUnschedulable},
+	{"vm6", kubevirtv1.RunStrategyRerunOnFailure, "2000m", "4Gi", kubevirtv1.VirtualMachineStatusUnschedulable},
 
 	// Shutdown
-	{kubevirtv1.RunStrategyHalted, "1000m", "1Gi", kubevirtv1.VirtualMachineStatusStopped},
+	{"vm7", kubevirtv1.RunStrategyHalted, "1000m", "1Gi", kubevirtv1.VirtualMachineStatusStopped},
 }
 
 func getTestCalcNonStoppedVMs() []*kubevirtv1.VirtualMachine {
-	var vms []*kubevirtv1.VirtualMachine
+	var vms = make([]*kubevirtv1.VirtualMachine, 0, len(testCalcNonStoppedVMs))
 	for _, r := range testCalcNonStoppedVMs {
 		vms = append(vms, &kubevirtv1.VirtualMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: r.name,
+			},
 			Spec: kubevirtv1.VirtualMachineSpec{
 				RunStrategy: &r.runStrategy,
 				Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -86,6 +90,7 @@ func Test_vmValidator_checkVMResource(t *testing.T) {
 		vmRestoreCache: fakeVirtualMachineRestoreCache(clientset.HarvesterhciV1beta1().VirtualMachineRestores),
 	}
 	type args struct {
+		name         string
 		namespace    string
 		uid          string
 		limitsCPU    string
@@ -99,6 +104,7 @@ func Test_vmValidator_checkVMResource(t *testing.T) {
 		{
 			name: "basic 1",
 			args: args{
+				name:         "vm8",
 				namespace:    corev1.NamespaceDefault,
 				uid:          "1234567890",
 				limitsCPU:    "1000m",
@@ -107,8 +113,9 @@ func Test_vmValidator_checkVMResource(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "basic 2: non vm availble resource",
+			name: "basic 2: non vm available resource",
 			args: args{
+				name:         "vm8",
 				namespace:    "non-vmavailble",
 				uid:          "1234567890",
 				limitsCPU:    "1000m",
@@ -117,8 +124,9 @@ func Test_vmValidator_checkVMResource(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "basic 3: cpu availble resource",
+			name: "basic 3: cpu available resource",
 			args: args{
+				name:         "vm8",
 				namespace:    "cpu-vmavailble",
 				uid:          "1234567890",
 				limitsCPU:    "1000m",
@@ -129,6 +137,7 @@ func Test_vmValidator_checkVMResource(t *testing.T) {
 		{
 			name: "error 1: exceeded cpu",
 			args: args{
+				name:         "vm8",
 				namespace:    corev1.NamespaceDefault,
 				uid:          "1234567890",
 				limitsCPU:    "3000m",
@@ -139,6 +148,7 @@ func Test_vmValidator_checkVMResource(t *testing.T) {
 		{
 			name: "error 2: exceeded memory",
 			args: args{
+				name:         "vm8",
 				namespace:    corev1.NamespaceDefault,
 				uid:          "1234567890",
 				limitsCPU:    "1000m",
@@ -149,6 +159,7 @@ func Test_vmValidator_checkVMResource(t *testing.T) {
 		{
 			name: "error 3: only exceeded cpu with cpu limit",
 			args: args{
+				name:         "vm8",
 				namespace:    "cpu-vmavailble",
 				uid:          "1234567890",
 				limitsCPU:    "3000m",
@@ -159,6 +170,7 @@ func Test_vmValidator_checkVMResource(t *testing.T) {
 		{
 			name: "error 3: only exceeded memory with memory limit",
 			args: args{
+				name:         "vm8",
 				namespace:    "memory-vmavailble",
 				uid:          "1234567890",
 				limitsCPU:    "1000m",
@@ -181,6 +193,7 @@ func Test_vmValidator_checkVMResource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			newvm := &kubevirtv1.VirtualMachine{
 				ObjectMeta: metav1.ObjectMeta{
+					Name:      tt.args.name,
 					Namespace: tt.args.namespace,
 					UID:       "1234567890",
 				},

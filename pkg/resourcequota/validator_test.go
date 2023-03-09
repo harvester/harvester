@@ -68,7 +68,7 @@ var testMigratingVMIMs = []*vmimWithResources{
 }
 
 func getTestCalcNonStoppedVMs() []*kubevirtv1.VirtualMachine {
-	var vms []*kubevirtv1.VirtualMachine
+	var vms = make([]*kubevirtv1.VirtualMachine, 0, len(testCalcNonStoppedVMs))
 	for _, r := range testCalcNonStoppedVMs {
 		vms = append(vms, &kubevirtv1.VirtualMachine{
 			Spec: kubevirtv1.VirtualMachineSpec{
@@ -95,7 +95,7 @@ func getTestCalcNonStoppedVMs() []*kubevirtv1.VirtualMachine {
 }
 
 func getMigratingVMIMs() []*kubevirtv1.VirtualMachineInstanceMigration {
-	var vms []*kubevirtv1.VirtualMachineInstanceMigration
+	var vms = make([]*kubevirtv1.VirtualMachineInstanceMigration, 0, len(testMigratingVMIMs))
 	for _, r := range testMigratingVMIMs {
 		vms = append(vms, &kubevirtv1.VirtualMachineInstanceMigration{
 			Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
@@ -239,7 +239,7 @@ func TestAvailableResourceQuota_CheckVMAvailableResoruces(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "basic 2: non vm availble resource",
+			name: "basic 2: non vm available resource",
 			args: args{
 				namespace:    "non-vmavailble",
 				uid:          "1234567890",
@@ -249,7 +249,7 @@ func TestAvailableResourceQuota_CheckVMAvailableResoruces(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "basic 3: cpu availble resource",
+			name: "basic 3: cpu available resource",
 			args: args{
 				namespace:    "cpu-vmavailble",
 				uid:          "1234567890",
@@ -365,7 +365,7 @@ func TestAvailableResourceQuota_CheckMaintenanceAvailableResoruces(t *testing.T)
 			wantErr: nil,
 		},
 		{
-			name: "basic 3: cpu availble resource",
+			name: "basic 3: cpu available resource",
 			args: args{
 				namespace: "cpu-vmavailble",
 				vminame:   "vm1",

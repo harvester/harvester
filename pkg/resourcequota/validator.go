@@ -58,10 +58,10 @@ func (q *AvailableResourceQuota) ValidateMaintenanceResourcesField(ns *corev1.Na
 		return err
 	}
 
-	if !(maintQuota.Limit.LimitsCpuPercent >= 0 && maintQuota.Limit.LimitsCpuPercent <= 100) {
+	if !(maintQuota.Limit.LimitsCPUPercent >= 0 && maintQuota.Limit.LimitsCPUPercent <= 100) {
 		return fmt.Errorf(errInvalidQuotaFmt,
-			"LimitsCpuPercent",
-			maintQuota.Limit.LimitsCpuPercent)
+			"LimitsCPUPercent",
+			maintQuota.Limit.LimitsCPUPercent)
 	}
 	if !(maintQuota.Limit.LimitsMemoryPercent >= 0 && maintQuota.Limit.LimitsMemoryPercent <= 100) {
 		return fmt.Errorf(errInvalidQuotaFmt,
@@ -254,11 +254,11 @@ func calcAvailableResources(resourceQuotaStr string, maintQuotaStr string) (
 
 	vmAvail, maintAvail := &ResourceAvailable{}, &ResourceAvailable{}
 
-	if maintQuota.Limit.LimitsCpuPercent > 0 {
+	if maintQuota.Limit.LimitsCPUPercent > 0 {
 		// Calculate the available CPU resources for the VM and the
 		// available CPU resources for maintenance.
-		vmAvail.Limit.LimitsCpu, maintAvail.Limit.LimitsCpu, err = calcResources(resourceQuota.Limit.LimitsCPU,
-			maintQuota.Limit.LimitsCpuPercent)
+		vmAvail.Limit.LimitsCPU, maintAvail.Limit.LimitsCPU, err = calcResources(resourceQuota.Limit.LimitsCPU,
+			maintQuota.Limit.LimitsCPUPercent)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -324,7 +324,7 @@ func calcResources(limitStr string, percent int64) (vmAvail int64, maintAvail in
 		return 0, 0, err
 	}
 
-	vmQty := calcVmResources(quota, maintQty)
+	vmQty := calcVMResources(quota, maintQty)
 	return vmQty.MilliValue(), maintQty.MilliValue(), nil
 }
 
@@ -334,7 +334,7 @@ func calcResources(limitStr string, percent int64) (vmAvail int64, maintAvail in
 func calcMaintResources(quota resource.Quantity, percent int64) (resource.Quantity, error) {
 	ratio := decimal.NewFromInt(percent).Div(decimal.NewFromInt(100))
 
-	// Caclulate the maintenance available resources
+	// Calculate the maintenance available resources
 	maintQty := *resource.NewMilliQuantity(
 		decimal.NewFromInt(quota.MilliValue()).
 			Mul(ratio).
@@ -344,8 +344,8 @@ func calcMaintResources(quota resource.Quantity, percent int64) (resource.Quanti
 	return maintQty, nil
 }
 
-func calcVmResources(quota resource.Quantity, maintQty resource.Quantity) resource.Quantity {
-	// Caclulate the vm available resources
+func calcVMResources(quota resource.Quantity, maintQty resource.Quantity) resource.Quantity {
+	// Calculate the vm available resources
 	quota.Sub(maintQty)
 	return quota
 }
@@ -375,8 +375,8 @@ func cmpResource(avail *ResourceAvailable, usedResource corev1.ResourceList) err
 }
 
 func cmpCPUResource(avail *ResourceAvailable, usedResource corev1.ResourceList) error {
-	if cpus, ok := usedResource[corev1.ResourceCPU]; ok && avail.Limit.LimitsCpu > 0 {
-		limitsCPU := resource.NewMilliQuantity(avail.Limit.LimitsCpu, resource.DecimalSI)
+	if cpus, ok := usedResource[corev1.ResourceCPU]; ok && avail.Limit.LimitsCPU > 0 {
+		limitsCPU := resource.NewMilliQuantity(avail.Limit.LimitsCPU, resource.DecimalSI)
 		if limitsCPU.Cmp(cpus) == -1 {
 			return ErrVMAvailableResourceNotEnoughCPU
 		}

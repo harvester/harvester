@@ -1014,10 +1014,10 @@ func (h *vmActionHandler) cloneVolumes(newVM *kubevirtv1.VirtualMachine) ([]core
 //	if err != nil {
 //		return werror.NewInternalError(err.Error())
 //	}
-//	if cpus, ok := usedResource[corev1.ResourceCPU]; ok && ma.Limit.LimitsCpu > 0 {
+//	if cpus, ok := usedResource[corev1.ResourceCPU]; ok && ma.Limit.LimitsCPU > 0 {
 //		cpus.Add(*vmi.Spec.Domain.Resources.Limits.Cpu())
 //
-//		limitsCPU := resource.NewMilliQuantity(ma.Limit.LimitsCpu, resource.DecimalSI)
+//		limitsCPU := resource.NewMilliQuantity(ma.Limit.LimitsCPU, resource.DecimalSI)
 //		if limitsCPU.Cmp(cpus) == -1 {
 //			return ErrMaintenanceAvailableResourceNotEnoughCPU
 //		}
