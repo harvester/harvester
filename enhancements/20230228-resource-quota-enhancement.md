@@ -77,7 +77,7 @@ overhead.Add(resource.MustParse(VirtlogdOverhead))
 overhead.Add(resource.MustParse(LibvirtdOverhead))
 overhead.Add(resource.MustParse(QemuOverhead))
 ```
-* CPU table overhead, 8Mi per vcpu, plus IOTread overhead fixed at 8Mi.
+* CPU table overhead, 8Mi per vcpu, add IOTread overhead fixed at 8Mi.
 ```go
 coresMemory := resource.MustParse("8Mi")
 ...
@@ -98,9 +98,15 @@ pagetableMemory := resource.NewScaledQuantity(vmiMemoryReq.ScaledValue(resource.
 pagetableMemory.Set(pagetableMemory.Value() / 512)
 overhead.Add(*pagetableMemory)
 ```
-* Reserve 100MiB (104857600 Bytes) for QEMU on guest memory overhead.
 
-The final formula: `180Mi * VMs + vcpu * 8Mi + 8Mi + memory / 512 + memory + 100Mi`, the actual value of the final memory limit is calculated according to this formula.
+* Add video RAM overhead fixed at 16Mi.
+```go
+if domain.Devices.AutoattachGraphicsDevice == nil || *domain.Devices.AutoattachGraphicsDevice == true {
+    overhead.Add(resource.MustParse("16Mi"))
+}
+```
+
+The final formula: `( vcpu * 8Mi + 16Mi + 8Mi + 180Mi * vm_count + memory ) + memory / 512`, the actual value of the final memory limit is calculated according to this formula.
 
 ### User Experience In Detail
 
