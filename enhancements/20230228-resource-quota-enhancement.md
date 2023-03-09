@@ -92,14 +92,15 @@ overhead.Add(coresMemory)
 // static overhead for IOThread
 overhead.Add(resource.MustParse("8Mi"))
 ```
-* Memory pagetables overhead (one bit for every 512b of RAM size), i.e. 1Gi memory requires 2Mi overhead.
+* Memory pagetables overhead (one bit for every 512b of RAM size), use limit memory instead of request memory, i.e. 1Gi memory requires 2Mi overhead.
 ```go
-pagetableMemory := resource.NewScaledQuantity(vmiMemoryReq.ScaledValue(resource.Kilo), resource.Kilo)
+pagetableMemory := resource.NewScaledQuantity(vmiMemoryReq.ScaledValue(resource.Kilo), resource.Kilo) 
 pagetableMemory.Set(pagetableMemory.Value() / 512)
 overhead.Add(*pagetableMemory)
 ```
+* Reserve 100MiB (104857600 Bytes) for QEMU on guest memory overhead.
 
-The formula: `180Mi * VMs + vcpu * 8Mi + 8Mi + memory / 512 + memory`, the actual value of the final memory limit is calculated according to this formula.
+The final formula: `180Mi * VMs + vcpu * 8Mi + 8Mi + memory / 512 + memory + 100Mi`, the actual value of the final memory limit is calculated according to this formula.
 
 ### User Experience In Detail
 
