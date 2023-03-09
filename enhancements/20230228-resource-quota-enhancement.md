@@ -108,12 +108,16 @@ if domain.Devices.AutoattachGraphicsDevice == nil || *domain.Devices.AutoattachG
 
 The final formula: `( vcpu * 8Mi + 16Mi + 8Mi + 180Mi * vm_count + memory ) + memory / 512`, the actual value of the final memory limit is calculated according to this formula.
 
+### Kubevirt migration configuration
+We expose the migration configuration to Settings UI, see the [Kubevirt documentation](https://kubevirt.io/user-guide/operations/live_migration/#changing-cluster-wide-migration-limits) for details.
+
 ### User Experience In Detail
 
 **UI**
 
 Configuring maintain quota only requires the administrator to go to the Harvester cluster operation in the Rancher UI.
 Add VM count field to Namespace UI to separate requested limit parameters from actual limit parameters.
+> ResourceQuota is configured after the upgrade and will not be triggered as long as no changes are made to the UI.
 
 Projects/Namespaces → {Target namespace} → Edit Config → Resource Quotas
 ![](./20230228-resource-quota-enhancement/maintenance-resource-quota.png)
@@ -174,20 +178,6 @@ If the resources used by a VM in a non-Shutdown state exceed the available VM re
 
 - Prohibit the creation or modification of VMs.
 - Allow deletion or shutdown of VM.
-- When unknown issues in insufficient available resources for VMs, the system will add information about the exceeded quota to the annotations of the Namespace.
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  annotations:
-    field.cattle.io/resourceQuota: '{"limit":{"limitsCpu":"10"}}'
-    harvesterhci.io/maintenanceQuota: '{"limit":{"limitsCPUPercent":"50"}}'
-    harvesterhci.io/maintenanceAvailable: '{"limit":{"limitsCpu":5000}}'
-    harvesterhci.io/vmAvailable: '{"limit":{"limitsCpu":5000}}'
-    harvesterhci.io/exceedsQuota: 'true'
-  name: test
-```
 
 ### Test plan
 
