@@ -586,6 +586,13 @@ command_single_node_upgrade() {
   # Add logging related kube-audit policy file
   patch_logging_event_audit
 
+  # During the RKE2 upgrade, the kube-api server will be restarted and fleet-agent will restart.
+  # The fleet agent might not clear applying charts state in this case.
+  # We stop the agent and let it gracefully handle the clearn up.
+  echo "Scale down the fleet agent..."
+  kubectl scale --replicas=0 deployment/fleet-agent -n cattle-fleet-local-system
+  kubectl rollout status deployment fleet-agent -n cattle-fleet-local-system
+
   # Upgarde RKE2
   upgrade_rke2
   wait_rke2_upgrade

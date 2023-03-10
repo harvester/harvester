@@ -37,6 +37,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	machines := management.ClusterFactory.Cluster().V1alpha4().Machine()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
+	deployments := management.AppsFactory.Apps().V1().Deployment()
 
 	controller := &upgradeHandler{
 		ctx:               ctx,
@@ -60,6 +61,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		pvcClient:         pvcs,
 		clusterClient:     clusters,
 		clusterCache:      clusters.Cache(),
+		deploymentClient:  deployments,
 	}
 	upgrades.OnChange(ctx, upgradeControllerName, controller.OnChanged)
 	upgrades.OnRemove(ctx, upgradeControllerName, controller.OnRemove)
