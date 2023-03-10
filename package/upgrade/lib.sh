@@ -317,3 +317,49 @@ shutdown_all_vms()
       virtctl stop $name -n $namespace
     done
 }
+
+wait_for_fleet_bundles()
+{
+  # wait for the changes to be applied to bundle object first
+  # fleet-agent takes time to further apply changes to downstream deployments
+  sleep 10
+
+  # loop wait upto 3 minutes by default, do not block even when some bundles are not ready
+  # that needs manual operation
+  if [ -z $1 ]; then
+    local loop_cnt=18
+  else
+    local loop_cnt=$1
+  fi
+
+  while [ $loop_cnt -gt 0 ]
+  do
+    if [ -f "/tmp/skip-wait-for-fleet-bundles" ]; then
+      echo "Skip waiting for all fleet bundles to be ready."
+      break
+    fi
+
+    local EXIT_CODE=0
+    local bsr=""
+    echo ""
+    date
+
+    kubectl get bundle.fleet.cattle.io -A || true
+    bsr=$(kubectl get bundle.fleet.cattle.io -A -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}') || EXIT_CODE=$?
+    if [ $EXIT_CODE != 0 ]; then
+      echo "get bundle status fail, try again"
+    else
+      if [[ $bsr == *"False"* ]]; then
+        echo "some bundles are not ready"
+      else
+        echo "all bundles are ready"
+        return
+      fi
+    fi
+
+    sleep 10
+    loop_cnt=$((loop_cnt-1))
+  done
+
+  echo "finish wait fleet bundles"
+}
