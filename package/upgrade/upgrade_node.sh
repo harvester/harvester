@@ -429,7 +429,10 @@ remove_rke2_canal_config() {
 }
 
 convert_nodenetwork_to_vlanconfig() {
-  detect_upgrade
+  # sometimes (e.g. apiserver is busy/not ready), the kubectl may fail, use the saved value
+  if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
+    detect_upgrade
+  fi
   detect_node_current_harvester_version
   echo "The UPGRADE_PREVIOUS_VERSION is $UPGRADE_PREVIOUS_VERSION, NODE_CURRENT_HARVESTER_VERSION is $NODE_CURRENT_HARVESTER_VERSION, will check nodenetwork upgrade node option"
 
@@ -586,12 +589,23 @@ command_single_node_upgrade() {
   # Add logging related kube-audit policy file
   patch_logging_event_audit
 
+  echo "wait for fleet bundles before upgrading RKE2"
+  # wait all fleet bundles in limited time
+  wait_for_fleet_bundles
+  # scale down fleet-agent, scale up will be done in upgrade controller
+  echo "scale down fleet-agent"
+  kubectl scale --replicas=0 deployment/fleet-agent -n cattle-fleet-local-system
+  kubectl rollout status deployment fleet-agent -n cattle-fleet-local-system
+
   # Upgarde RKE2
   upgrade_rke2
+
   wait_rke2_upgrade
   clean_rke2_archives
 
   convert_nodenetwork_to_vlanconfig
+
+  # the fleet-agent will be scaled up via the pkg/controller/upgrade/upgrade_controller.go
 
   # Upgrade OS
   upgrade_os
