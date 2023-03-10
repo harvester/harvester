@@ -655,3 +655,5 @@ upgrade_monitoring
 upgrade_logging_event_audit
 apply_extra_manifests
 upgrade_addons
+# wait fleet bundles upto 90 seconds
+wait_for_fleet_bundles 9
