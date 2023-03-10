@@ -221,8 +221,7 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 		}
 
 		logrus.Info("Check minimum upgradable version")
-		minUpgradableVersion := repoInfo.Release.MinUpgradableVersion
-		if err := isVersionUpgradable(toUpdate, minUpgradableVersion); err != nil {
+		if err := isVersionUpgradable(toUpdate.Status.PreviousVersion, repoInfo.Release.MinUpgradableVersion); err != nil {
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
 			return h.upgradeClient.Update(toUpdate)
 		}
@@ -494,26 +493,33 @@ func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*RepoInfo, error) {
 	return repoInfo, nil
 }
 
-func isVersionUpgradable(upgrade *harvesterv1.Upgrade, minUpgradableVersion string) error {
+func isVersionUpgradable(currentVersion, minUpgradableVersion string) error {
 	if minUpgradableVersion == "" {
 		logrus.Debug("No minimum upgradable version specified, continue the upgrading")
-	} else {
-		// to enable comparisons against prerelease versions
-		constraint := fmt.Sprintf(">= %s-z", minUpgradableVersion)
-
-		c, err := semverv3.NewConstraint(constraint)
-		if err != nil {
-			return err
-		}
-		v, err := semverv3.NewVersion(upgrade.Status.PreviousVersion)
-		if err != nil {
-			return err
-		}
-
-		if a := c.Check(v); !a {
-			message := fmt.Sprintf("The current version %s is less than the minimum upgradable version %s.", upgrade.Status.PreviousVersion, minUpgradableVersion)
-			return fmt.Errorf("%s", message)
-		}
+		return nil
 	}
+
+	// short-circuit the equal cases as the library doesn't support the hack applied below
+	if currentVersion == minUpgradableVersion {
+		logrus.Debug("Upgrade from the exact same version as the minimum requirement")
+		return nil
+	}
+	// to enable comparisons against prerelease versions
+	constraint := fmt.Sprintf(">= %s-z", minUpgradableVersion)
+
+	c, err := semverv3.NewConstraint(constraint)
+	if err != nil {
+		return err
+	}
+	v, err := semverv3.NewVersion(currentVersion)
+	if err != nil {
+		return err
+	}
+
+	if a := c.Check(v); !a {
+		message := fmt.Sprintf("The current version %s is less than the minimum upgradable version %s.", currentVersion, minUpgradableVersion)
+		return fmt.Errorf("%s", message)
+	}
+
 	return nil
 }
