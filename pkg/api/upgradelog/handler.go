@@ -41,10 +41,11 @@ cd /archive/logs
 
 for f in *.log
 do
-    cat $f | awk '{$1=$2=""; print $0}' | jq -r .message > $tmpdir/logs/$f
-	if [ $? -eq 4 ]; then
-	    echo "Incomplete JSON format log line, abort processing the file $f."
-	    continue
+	awk '{$1=$2=""; print $0}' $f | jq -r .message > $tmpdir/logs/$f || ret=$?
+	if [ -n "$ret" ]; then
+		echo "Failed to process the file $f with ret=$ret"
+		echo "Copy the original file to the destination"
+		cp $f $tmpdir/logs/$f
 	fi
 done
 
