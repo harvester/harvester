@@ -141,6 +141,8 @@ func TestHandler_OnClusterFlowChange(t *testing.T) {
 			var err error
 			actual.upgradeLog, err = handler.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, testUpgradeLogName)
 			assert.Nil(t, err)
+			emptyConditionsTime(tc.expected.upgradeLog.Status.Conditions)
+			emptyConditionsTime(actual.upgradeLog.Status.Conditions)
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		}
 	}
@@ -201,6 +203,8 @@ func TestHandler_OnClusterOutputChange(t *testing.T) {
 			var err error
 			actual.upgradeLog, err = handler.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, testUpgradeLogName)
 			assert.Nil(t, err)
+			emptyConditionsTime(tc.expected.upgradeLog.Status.Conditions)
+			emptyConditionsTime(actual.upgradeLog.Status.Conditions)
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		}
 	}
@@ -261,6 +265,8 @@ func TestHandler_OnDaemonSetChange(t *testing.T) {
 			var err error
 			actual.upgradeLog, err = handler.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, testUpgradeLogName)
 			assert.Nil(t, err)
+			emptyConditionsTime(tc.expected.upgradeLog.Status.Conditions)
+			emptyConditionsTime(actual.upgradeLog.Status.Conditions)
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		}
 	}
@@ -321,6 +327,8 @@ func TestHandler_OnJobChange(t *testing.T) {
 			var err error
 			actual.upgradeLog, err = handler.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, testUpgradeLogName)
 			assert.Nil(t, err)
+			emptyConditionsTime(tc.expected.upgradeLog.Status.Conditions)
+			emptyConditionsTime(actual.upgradeLog.Status.Conditions)
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		}
 	}
@@ -382,6 +390,8 @@ func TestHandler_OnManagedChartChange(t *testing.T) {
 			var err error
 			actual.upgradeLog, err = handler.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, testUpgradeLogName)
 			assert.Nil(t, err)
+			emptyConditionsTime(tc.expected.upgradeLog.Status.Conditions)
+			emptyConditionsTime(actual.upgradeLog.Status.Conditions)
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		}
 	}
@@ -442,6 +452,8 @@ func TestHandler_OnStatefulSetChange(t *testing.T) {
 			var err error
 			actual.upgradeLog, err = handler.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, testUpgradeLogName)
 			assert.Nil(t, err)
+			emptyConditionsTime(tc.expected.upgradeLog.Status.Conditions)
+			emptyConditionsTime(actual.upgradeLog.Status.Conditions)
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		}
 	}
@@ -507,9 +519,8 @@ func TestHandler_OnUpgradeChange(t *testing.T) {
 		actual.upgrade, actual.err = handler.OnUpgradeChange(tc.given.key, tc.given.upgrade)
 
 		if tc.expected.upgrade != nil {
-			var err error
-			actual.upgrade, err = handler.upgradeCache.Get(util.HarvesterSystemNamespaceName, testUpgradeName)
-			assert.Nil(t, err)
+			emptyConditionsTime(tc.expected.upgrade.Status.Conditions)
+			emptyConditionsTime(actual.upgrade.Status.Conditions)
 			assert.Equal(t, tc.expected.upgrade, actual.upgrade, "case %q", tc.name)
 		}
 
@@ -517,6 +528,8 @@ func TestHandler_OnUpgradeChange(t *testing.T) {
 			var err error
 			actual.upgradeLog, err = handler.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, testUpgradeLogName)
 			assert.Nil(t, err)
+			emptyConditionsTime(tc.expected.upgradeLog.Status.Conditions)
+			emptyConditionsTime(actual.upgradeLog.Status.Conditions)
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		} else {
 			var err error
@@ -935,11 +948,22 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			var err error
 			actual.upgrade, err = handler.upgradeCache.Get(util.HarvesterSystemNamespaceName, testUpgradeName)
 			assert.Nil(t, err)
+			emptyConditionsTime(tc.expected.upgrade.Status.Conditions)
+			emptyConditionsTime(actual.upgrade.Status.Conditions)
 			assert.Equal(t, tc.expected.upgrade, actual.upgrade, "case %q", tc.name)
 		}
 
 		if tc.expected.upgradeLog != nil {
+			emptyConditionsTime(tc.expected.upgradeLog.Status.Conditions)
+			emptyConditionsTime(actual.upgradeLog.Status.Conditions)
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		}
+	}
+}
+
+func emptyConditionsTime(conditions []harvesterv1.Condition) {
+	for k := range conditions {
+		conditions[k].LastTransitionTime = ""
+		conditions[k].LastUpdateTime = ""
 	}
 }
