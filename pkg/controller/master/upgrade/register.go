@@ -38,6 +38,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	secrets := management.CoreFactory.Core().V1().Secret()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
+	lhSettings := management.LonghornFactory.Longhorn().V1beta1().Setting()
 
 	controller := &upgradeHandler{
 		ctx:               ctx,
@@ -62,6 +63,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		clusterClient:     clusters,
 		clusterCache:      clusters.Cache(),
 		deploymentClient:  deployments,
+		lhSettingClient:   lhSettings,
+		lhSettingCache:    lhSettings.Cache(),
 	}
 	upgrades.OnChange(ctx, upgradeControllerName, controller.OnChanged)
 	upgrades.OnRemove(ctx, upgradeControllerName, controller.OnRemove)
