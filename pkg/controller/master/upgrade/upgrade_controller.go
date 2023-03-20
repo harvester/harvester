@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	upgradectlv1 "github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -57,6 +59,10 @@ const (
 	rke2PostDrainAnnotation = "rke.cattle.io/post-drain"
 
 	upgradeComponentRepo = "repo"
+
+	replicaReplenishmentWaitIntervalSetting  = "replica-replenishment-wait-interval"
+	replicaReplenishmentAnnotation           = "harvesterhci.io/" + replicaReplenishmentWaitIntervalSetting
+	extendedReplicaReplenishmentWaitInterval = 1800
 )
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades
@@ -85,6 +91,9 @@ type upgradeHandler struct {
 	clusterClient    provisioningctrl.ClusterClient
 	clusterCache     provisioningctrl.ClusterCache
 	deploymentClient ctlappsv1.DeploymentClient
+
+	lhSettingClient ctllonghornv1.SettingClient
+	lhSettingCache  ctllonghornv1.SettingCache
 }
 
 func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
@@ -272,6 +281,21 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 				return h.upgradeClient.Update(toUpdate)
 			}
 		} else {
+			// save the original value of replica-replenishment-wait-interval setting and extend it with a longer value
+			// skip if the value is already larger than extendedReplicaReplenishmentWaitInterval
+			replicaReplenishmentWaitIntervalValue, err := h.getReplicaReplenishmentValue()
+			if err != nil {
+				return nil, err
+			}
+			if replicaReplenishmentWaitIntervalValue < extendedReplicaReplenishmentWaitInterval {
+				if err := h.saveReplicaReplenishmentToUpgradeAnnotation(toUpdate); err != nil {
+					return nil, err
+				}
+				if err := h.setReplicaReplenishmentValue(extendedReplicaReplenishmentWaitInterval); err != nil {
+					return nil, err
+				}
+			}
+
 			// go with RKE2 pre-drain/post-drain hooks
 			logrus.Infof("Start upgrading Kubernetes runtime to %s", info.Release.Kubernetes)
 			if err := h.upgradeKubernetes(info.Release.Kubernetes); err != nil {
@@ -371,6 +395,13 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 
 		logrus.Debugf("Deleting plan %s/%s", plan.Namespace, plan.Name)
 		if err := h.planClient.Delete(plan.Namespace, plan.Name, &metav1.DeleteOptions{}); err != nil {
+			return err
+		}
+	}
+
+	// restore Longhorn replica-replenishment-wait-interval setting (multi-node cluster only)
+	if upgrade.Status.SingleNode == "" {
+		if err := h.loadReplicaReplenishmentFromUpgradeAnnotation(upgrade); err != nil {
 			return err
 		}
 	}
@@ -541,5 +572,53 @@ func isVersionUpgradable(currentVersion, minUpgradableVersion string) error {
 		return fmt.Errorf("%s", message)
 	}
 
+	return nil
+}
+
+func (h *upgradeHandler) getReplicaReplenishmentValue() (int, error) {
+	replicaReplenishmentWaitInterval, err := h.lhSettingCache.Get(util.LonghornSystemNamespaceName, replicaReplenishmentWaitIntervalSetting)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(replicaReplenishmentWaitInterval.Value)
+}
+
+func (h *upgradeHandler) saveReplicaReplenishmentToUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
+	replicaReplenishmentWaitIntervalValue, err := h.getReplicaReplenishmentValue()
+	if err != nil {
+		return err
+	}
+	if upgrade.Annotations == nil {
+		upgrade.Annotations = make(map[string]string)
+	}
+	upgrade.Annotations[replicaReplenishmentAnnotation] = strconv.Itoa(replicaReplenishmentWaitIntervalValue)
+	return nil
+}
+
+func (h *upgradeHandler) loadReplicaReplenishmentFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
+	str, ok := upgrade.Annotations[replicaReplenishmentAnnotation]
+	if !ok {
+		logrus.Warn("no original replica-replenishment-wait-interval value set")
+		return nil
+	}
+	value, err := strconv.Atoi(str)
+	if err != nil {
+		return err
+	}
+	return h.setReplicaReplenishmentValue(value)
+}
+
+func (h *upgradeHandler) setReplicaReplenishmentValue(value int) error {
+	replicaReplenishmentWaitInterval, err := h.lhSettingCache.Get(util.LonghornSystemNamespaceName, replicaReplenishmentWaitIntervalSetting)
+	if err != nil {
+		return err
+	}
+	toUpdate := replicaReplenishmentWaitInterval.DeepCopy()
+	toUpdate.Value = strconv.Itoa(value)
+	if !reflect.DeepEqual(toUpdate, replicaReplenishmentWaitInterval) {
+		if _, err := h.lhSettingClient.Update(toUpdate); err != nil {
+			return err
+		}
+	}
 	return nil
 }
