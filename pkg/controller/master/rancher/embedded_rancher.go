@@ -91,6 +91,9 @@ func (h *Handler) syncCACert(setting *rancherv3api.Setting) error {
 		}
 		cacert = internalCACerts.Value
 	}
+	// Trim spaces to avoid checksum error in rancher.
+	// Ref: https://github.com/rancher/rancher/blob/a841a9e101ae601a033fa8b39342ad4800c91d85/package/run.sh#L243
+	cacert = strings.TrimSpace(cacert)
 
 	caCertsCopy := setting.DeepCopy()
 	caCertsCopy.Default = cacert
