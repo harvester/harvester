@@ -7,6 +7,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
+	"github.com/harvester/harvester/pkg/webhook/resources/addon"
 	"github.com/harvester/harvester/pkg/webhook/resources/bundle"
 	"github.com/harvester/harvester/pkg/webhook/resources/bundledeployment"
 	"github.com/harvester/harvester/pkg/webhook/resources/keypair"
@@ -87,6 +88,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		),
 		storageclass.NewValidator(clients.StorageFactory.Storage().V1().StorageClass().Cache()),
 		namespace.NewValidator(clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()),
+		addon.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache()),
 	}
 
 	router := webhook.NewRouter()
