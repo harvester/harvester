@@ -3141,7 +3141,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSpec(ref common.R
 						},
 					},
 				},
-				Required: []string{"displayName", "sourceType", "retry"},
+				Required: []string{"displayName", "sourceType"},
 			},
 		},
 	}

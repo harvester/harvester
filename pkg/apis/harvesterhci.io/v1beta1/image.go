@@ -59,7 +59,7 @@ type VirtualMachineImageSpec struct {
 	// +optional
 	StorageClassParameters map[string]string `json:"storageClassParameters"`
 
-	// +optinoal
+	// +optional
 	// +kubebuilder:default:=3
 	// +kubebuilder:validation:Minimum:=0
 	// +kubebuilder:validation:Maximum:=10
@@ -85,7 +85,7 @@ type VirtualMachineImageStatus struct {
 	// +kubebuilder:validation:Minimum:=0
 	Failed int `json:"failed"`
 
-	// +optinoal
+	// +optional
 	// +kubebuilder:validation:Optional
 	LastFailedTime string `json:"lastFailedTime,omitempty"`
 
