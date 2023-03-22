@@ -6820,8 +6820,7 @@
       "type": "object",
       "required": [
         "displayName",
-        "sourceType",
-        "retry"
+        "sourceType"
       ],
       "properties": {
         "checksum": {
