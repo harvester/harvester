@@ -50,6 +50,8 @@ spec:
                       type: string
                     ready:
                       type: boolean
+                    reason:
+                      type: string
                     size:
                       format: int64
                       type: integer
