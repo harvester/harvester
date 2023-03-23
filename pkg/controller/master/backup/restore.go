@@ -160,9 +160,6 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.Virtu
 	}
 
 	if isVMRestoreMissingVolumes(restore) {
-		if err := h.mountLonghornVolumes(backup); err != nil {
-			return nil, h.updateStatusError(restore, err, true)
-		}
 		return nil, h.initVolumesStatus(restore, backup)
 	}
 
@@ -345,6 +342,11 @@ func (h *RestoreHandler) reconcileResources(
 	// reconcile restoring volumes and create new PVC from CSI volumeSnapshot if not exist
 	isVolumesReady, err := h.reconcileVolumeRestores(vmRestore, backup)
 	if err != nil {
+		return nil, false, err
+	}
+
+	// mount volumes after creating PVCs, so detaching volumes controller doesn't detach the volumes
+	if err := h.mountLonghornVolumes(backup); err != nil {
 		return nil, false, err
 	}
 
