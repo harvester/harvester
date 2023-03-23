@@ -46,6 +46,7 @@ do
 		echo "Failed to process the file $f with ret=$ret"
 		echo "Copy the original file to the destination"
 		cp $f $tmpdir/logs/$f
+		unset ret
 	fi
 done
 
