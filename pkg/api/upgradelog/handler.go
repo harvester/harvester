@@ -203,7 +203,7 @@ func (h Handler) generateArchive(rw http.ResponseWriter, req *http.Request) erro
 		return fmt.Errorf("failed to create log packager job for the upgradelog resource (%s/%s): %w", upgradeLogNamespace, upgradeLogName, err)
 	}
 	toUpdate := upgradeLog.DeepCopy()
-	ctlupgradelog.SetUpgradeLogArchive(toUpdate, archiveName, archiveSize, generatedTime, false)
+	ctlupgradelog.SetUpgradeLogArchive(toUpdate, archiveName, archiveSize, generatedTime)
 	if _, err := h.upgradeLogClient.Update(toUpdate); err != nil {
 		return fmt.Errorf("failed to update the upgradelog resource (%s/%s): %w", upgradeLogNamespace, upgradeLogName, err)
 	}
