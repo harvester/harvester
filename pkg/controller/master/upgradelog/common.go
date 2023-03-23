@@ -415,9 +415,10 @@ func setDownloadReadyCondition(upgradeLog *harvesterv1.UpgradeLog, status corev1
 	harvesterv1.DownloadReady.Message(upgradeLog, message)
 }
 
-func setUpgradeLogArchiveReady(upgradeLog *harvesterv1.UpgradeLog, archiveName string, ready bool) error {
+func setUpgradeLogArchiveReady(upgradeLog *harvesterv1.UpgradeLog, archiveName string, ready bool, reason string) error {
 	if archive, ok := upgradeLog.Status.Archives[archiveName]; ok {
 		archive.Ready = ready
+		archive.Reason = reason
 		upgradeLog.Status.Archives[archiveName] = archive
 		return nil
 	}
@@ -508,8 +509,13 @@ func (p *upgradeLogBuilder) Build() *harvesterv1.UpgradeLog {
 	return p.upgradeLog
 }
 
-func (p *upgradeLogBuilder) Archive(name string, size int64, time string, ready bool) *upgradeLogBuilder {
-	SetUpgradeLogArchive(p.upgradeLog, name, size, time, ready)
+func (p *upgradeLogBuilder) Archive(name string, size int64, time string) *upgradeLogBuilder {
+	SetUpgradeLogArchive(p.upgradeLog, name, size, time)
+	return p
+}
+
+func (p *upgradeLogBuilder) ArchiveReady(name string, ready bool, reason string) *upgradeLogBuilder {
+	setUpgradeLogArchiveReady(p.upgradeLog, name, ready, reason)
 	return p
 }
 
@@ -840,7 +846,7 @@ func (p *statefulSetBuilder) Build() *appsv1.StatefulSet {
 	return p.statefulSet
 }
 
-func SetUpgradeLogArchive(upgradeLog *harvesterv1.UpgradeLog, archiveName string, archiveSize int64, generatedTime string, ready bool) {
+func SetUpgradeLogArchive(upgradeLog *harvesterv1.UpgradeLog, archiveName string, archiveSize int64, generatedTime string) {
 	if upgradeLog == nil {
 		return
 	}
@@ -849,12 +855,11 @@ func SetUpgradeLogArchive(upgradeLog *harvesterv1.UpgradeLog, archiveName string
 	}
 
 	if current, ok := upgradeLog.Status.Archives[archiveName]; ok &&
-		current.Size == archiveSize && current.GeneratedTime == generatedTime && current.Ready == ready {
+		current.Size == archiveSize && current.GeneratedTime == generatedTime {
 		return
 	}
 	upgradeLog.Status.Archives[archiveName] = harvesterv1.Archive{
 		Size:          archiveSize,
 		GeneratedTime: generatedTime,
-		Ready:         ready,
 	}
 }
