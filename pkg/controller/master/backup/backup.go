@@ -141,14 +141,19 @@ func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachin
 		if err != nil {
 			return nil, h.setStatusError(vmBackup, err)
 		}
+
+		if err = h.initBackup(vmBackup, sourceVM); err != nil {
+			return nil, h.setStatusError(vmBackup, err)
+		}
+
 		// check if the VM is running, if not make sure the volumes are mounted to the host
 		if !sourceVM.Status.Ready || !sourceVM.Status.Created {
+			// mount volumes after creating VolumeSnapshots, so detaching volumes controller doesn't detach the volumes
 			if err := h.mountLonghornVolumes(sourceVM); err != nil {
 				return nil, h.setStatusError(vmBackup, err)
 			}
 		}
-
-		return nil, h.initBackup(vmBackup, sourceVM)
+		return nil, nil
 	}
 
 	// TODO, make sure status is initialized, and "Lock" the source VM by adding a finalizer and setting snapshotInProgress in status
