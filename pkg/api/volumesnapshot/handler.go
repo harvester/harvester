@@ -8,14 +8,18 @@ import (
 
 	"github.com/gorilla/mux"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -23,6 +27,8 @@ import (
 type ActionHandler struct {
 	pvcs              ctlcorev1.PersistentVolumeClaimClient
 	pvcCache          ctlcorev1.PersistentVolumeClaimCache
+	volumes           ctllonghornv1.VolumeClient
+	volumeCache       ctllonghornv1.VolumeCache
 	snapshotCache     ctlsnapshotv1.VolumeSnapshotCache
 	storageClassCache ctlstoragev1.StorageClassCache
 }
@@ -124,5 +130,40 @@ func (h *ActionHandler) restore(ctx context.Context, snapshotNamespace, snapshot
 		return err
 	}
 
+	if sc.Provisioner == longhorntypes.LonghornDriverName {
+		if err = h.mountSourcePVC(volumeSnapshot); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (h *ActionHandler) mountSourcePVC(volumeSnapshot *snapshotv1.VolumeSnapshot) error {
+	if volumeSnapshot.Spec.Source.PersistentVolumeClaimName == nil {
+		return nil
+	}
+
+	pvc, err := h.pvcCache.Get(volumeSnapshot.Namespace, *volumeSnapshot.Spec.Source.PersistentVolumeClaimName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("can't find pvc %s/%s, err: %w", volumeSnapshot.Namespace, *volumeSnapshot.Spec.Source.PersistentVolumeClaimName, err)
+	}
+
+	volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
+	if err != nil {
+		return fmt.Errorf("failed to get volume %s/%s, error: %s", util.LonghornSystemNamespaceName, pvc.Spec.VolumeName, err.Error())
+	}
+
+	if volume.Status.State == lhv1beta1.VolumeStateDetached || volume.Status.State == lhv1beta1.VolumeStateDetaching {
+		volCpy := volume.DeepCopy()
+		volCpy.Spec.NodeID = volume.Status.OwnerID
+		logrus.Infof("mount detached volume %s to the node %s", volCpy.Name, volCpy.Spec.NodeID)
+		if _, err = h.volumes.Update(volCpy); err != nil {
+			return err
+		}
+	}
 	return nil
 }
