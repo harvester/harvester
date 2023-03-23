@@ -44,5 +44,7 @@ type Archive struct {
 	// +optional
 	GeneratedTime string `json:"generatedTime,omitempty"`
 	// +optional
-	Ready bool `json:"ready,omitempty"`
+	Ready bool `json:"ready"`
+	// +optional
+	Reason string `json:"reason,omitempty"`
 }

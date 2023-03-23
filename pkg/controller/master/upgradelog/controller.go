@@ -474,7 +474,17 @@ func (h *handler) OnJobChange(_ string, job *batchv1.Job) (*batchv1.Job, error) 
 		if !ok {
 			return job, nil
 		}
-		if err := setUpgradeLogArchiveReady(toUpdate, archiveName, true); err != nil {
+		if err := setUpgradeLogArchiveReady(toUpdate, archiveName, true, ""); err != nil {
+			return job, err
+		}
+	}
+
+	if job.Status.Failed > 0 {
+		archiveName, ok := job.Annotations[util.AnnotationArchiveName]
+		if !ok {
+			return job, nil
+		}
+		if err := setUpgradeLogArchiveReady(toUpdate, archiveName, false, "failed to package the logs"); err != nil {
 			return job, err
 		}
 	}
