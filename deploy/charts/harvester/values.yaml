@@ -365,16 +365,16 @@ harvester-network-controller:
     repository: rancher/harvester-network-controller
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.3.2-rc3
+    tag: v0.3.2-rc4
   helper:
     image:
       repository: rancher/harvester-network-helper
-      tag: v0.3.2-rc3
+      tag: v0.3.2-rc4
   webhook:
     image:
       repository: rancher/harvester-network-webhook
       pullPolicy: IfNotPresent
-      tag: v0.3.2-rc3
+      tag: v0.3.2-rc4
 
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
@@ -472,7 +472,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: v0.0.19
+    tag: v0.0.20
 
 generalJob:
   image:
