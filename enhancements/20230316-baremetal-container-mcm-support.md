@@ -94,6 +94,46 @@ If the `multi-cluster` config is enabled, we will automatically set the `contain
 
 ## Design
 
+### single harvester UI change
+1. Supports custom Logo, Favicons, and Private labels.
+![custom-logo.png](./20230316-baremetal-container-mcm-support/custom-logo.png)
+
+### MCM UI change 
+(The local cluster is harvester cluster & setting 'container-and-mcm-support' is true)
+```json
+{
+  "container-management": true, # default to false, enable/disable the container management.
+  "multi-cluster": true # default to false, enable/disable the multi-cluster view.
+}
+```
+1. Add the `Harvester Dashboard` menu above the `Home` menu.
+![Harvester-Dashboard-memu.png](./20230316-baremetal-container-mcm-support/harvester-dashboard.png)
+2. Change the `version` column on the `Virtualization Management` page to the harvester version.  (require backend support)
+![harvester-version.png](./20230316-baremetal-container-mcm-support/harvester-version.png)
+3. Add a `Set as login page` to the header of the harvester dashboard page.
+4. Show the harvester clusters in the `cluster management` & `Continuous Delivery` & `Explore cluster` list
+   - In the `EXPLORE CLUSTER` list, if it is a harvester cluster, we need to show the harvester icon.
+5. global setting:
+   - Sorting out global setting and harvester setting, such as some duplicate setting types (require backend research)
+   - Lock harvester and multi-cluster-management in the `Feature Flags` list like rke2 (add a lock icon)
+6. Home page
+   - Allow users to jump from the home page to the harvester dashboard, add a harvester icon to the left of the name, click on the icon to jump to the harvester Dashboard page.
+   - `Welcome to harvester` on the home page is changed to `Welcome to rancher`
+   - Show all clusters (including harvester) on the home page.
+   - The current local cluster's Provider is shown as custom, but should be shown as harvester, including the cluster management table page
+   ![home-icon.png](./20230316-baremetal-container-mcm-support/home-icon.png)
+7. Cluster Management page:
+   - Add the Explore button to the end of the local cluster
+8. local cluster explorer UI (harvester provider)
+   - `Install Apps` page to hide rancher upgrade button.
+   ![rancher-upgrade-button.png](./20230316-baremetal-container-mcm-support/rancher-upgrade-button.png)
+   - Disable edit/upgrade/delete harvester managed system service (such as monitoring, loggin, harvester...)
+    ![harvester-service.png](./20230316-baremetal-container-mcm-support/harvester-service.png)
+   - `Cluster Tools` page, we should disable operations that affect harvester, such as edit/delete monitor, longhorn, and logging
+    ![cluster-tools.png](./20230316-baremetal-container-mcm-support/cluster-tools.png)
+   - If the `local` cluster is a harvester cluster, we need to hide resources prefixed with `harvesterhci.io.*`, and `kubevirt.io.*`
+    ![harvester-crd.png](./20230316-baremetal-container-mcm-support/harvester-crd.png)
+
 ### Implementation Overview
 1. Turn on the `multi-cluster-management` feature in the embedded Rancher server config.
 3. Add a new setting `container-and-mcm-support` to the Harvester setting page that will allow configuration in both installation and post-installation stage.
