@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,14 +14,20 @@ import (
 	"github.com/rancher/norman/httperror"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
+	"github.com/rancher/wrangler/pkg/slice"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/util/retry"
 
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
+	harvesterctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
@@ -28,25 +35,38 @@ import (
 )
 
 const (
-	drainKey                     = "kubevirt.io/drain"
-	enableMaintenanceModeAction  = "enableMaintenanceMode"
-	disableMaintenanceModeAction = "disableMaintenanceMode"
-	cordonAction                 = "cordon"
-	uncordonAction               = "uncordon"
-	listUnhealthyVM              = "listUnhealthyVM"
-	maintenancePossible          = "maintenancePossible"
+	drainKey                        = "kubevirt.io/drain"
+	enableMaintenanceModeAction     = "enableMaintenanceMode"
+	disableMaintenanceModeAction    = "disableMaintenanceMode"
+	cordonAction                    = "cordon"
+	uncordonAction                  = "uncordon"
+	listUnhealthyVM                 = "listUnhealthyVM"
+	maintenancePossible             = "maintenancePossible"
+	powerAction                     = "powerAction"
+	powerActionPossible             = "powerActionPossible"
+	seederAddonName                 = "harvester-seeder"
+	defaultAddonNamespace           = "harvester-system"
+	defaultPowerActionAnnotationKey = "metal.harvesterhci.io/actionRequested"
+)
+
+var (
+	seederGVR            = schema.GroupVersionResource{Group: "metal.harvesterhci.io", Version: "v1alpha1", Resource: "inventories"}
+	possiblePowerActions = []string{"shutdown", "poweron", "reboot"}
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
 	resource.Actions = make(map[string]string, 3)
 	resource.AddAction(request, listUnhealthyVM)
 	resource.AddAction(request, maintenancePossible)
+	resource.AddAction(request, powerActionPossible)
+
 	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
 		return
 	}
 
 	if resource.APIObject.Data().String("metadata", "annotations", ctlnode.MaintainStatusAnnotationKey) != "" {
 		resource.AddAction(request, disableMaintenanceModeAction)
+		resource.AddAction(request, powerAction)
 	} else {
 		resource.AddAction(request, enableMaintenanceModeAction)
 	}
@@ -64,6 +84,9 @@ type ActionHandler struct {
 	longhornVolumeCache         ctllhv1.VolumeCache
 	longhornReplicaCache        ctllhv1.ReplicaCache
 	virtualMachineInstanceCache kubevirtv1.VirtualMachineInstanceCache
+	addonCache                  harvesterctlv1beta1.AddonCache
+	dynamicClient               dynamic.Interface
+	ctx                         context.Context
 }
 
 func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -92,7 +115,7 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	case enableMaintenanceModeAction:
 		var maintenanceInput MaintenanceModeInput
 		if err := json.NewDecoder(req.Body).Decode(&maintenanceInput); err != nil {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
 		}
 
 		if maintenanceInput.Force == "true" {
@@ -109,6 +132,14 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 		return h.listUnhealthyVM(rw, toUpdate)
 	case maintenancePossible:
 		return h.maintenancePossible(toUpdate)
+	case powerActionPossible:
+		return h.powerActionPossible(rw, name)
+	case powerAction:
+		var input PowerActionInput
+		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
+		}
+		return h.powerAction(toUpdate, input.Operation)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -231,4 +262,90 @@ func (h ActionHandler) listUnhealthyVM(rw http.ResponseWriter, node *corev1.Node
 
 func (h ActionHandler) maintenancePossible(node *corev1.Node) error {
 	return drainhelper.DrainPossible(h.nodeCache, node)
+}
+
+func (h ActionHandler) powerActionPossible(rw http.ResponseWriter, node string) error {
+	addon, err := h.addonCache.Get(defaultAddonNamespace, seederAddonName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logrus.Errorf("addon %s not found", seederAddonName)
+			rw.WriteHeader(http.StatusFailedDependency)
+			return nil
+		}
+		return err
+	}
+
+	if !addon.Spec.Enabled {
+		logrus.Errorf("addon %s is not enabled", seederAddonName)
+		rw.WriteHeader(http.StatusFailedDependency)
+		return nil
+	}
+
+	_, err = h.fetchInventoryObject(node)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logrus.Errorf("inventory %s not found", node)
+			rw.WriteHeader(http.StatusFailedDependency)
+			return nil
+		}
+		return err
+	}
+	rw.WriteHeader(http.StatusOK)
+	return nil
+}
+
+func (h ActionHandler) powerAction(node *corev1.Node, operation string) error {
+	if !slice.ContainsString(possiblePowerActions, operation) {
+		return fmt.Errorf("operation %s is not a valid power opreation. valid values need to be in %v", operation, possiblePowerActions)
+	}
+
+	inventoryObject, err := h.fetchInventoryObject(node.Name)
+	if err != nil {
+		return err
+	}
+
+	iObj := inventoryObject.DeepCopy()
+	powerActionMap, ok, err := unstructured.NestedMap(iObj.Object, "status", "powerAction")
+	if err != nil {
+		return err
+	}
+
+	oldPowerAction, oldPowerActionOk, err := unstructured.NestedString(iObj.Object, "spec", "powerActionRequested")
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		powerActionMap = make(map[string]interface{})
+	}
+
+	// if last power action is not yet completed, do not accept new request
+	if oldPowerActionOk {
+		if val, completed := powerActionMap["actionStatus"]; !completed || val == "" {
+			return fmt.Errorf("waiting for power action status for action %s for node %s to be populated", oldPowerAction, node.Name)
+		}
+	}
+
+	if err := unstructured.SetNestedField(iObj.Object, operation, "spec", "powerActionRequested"); err != nil {
+		return err
+	}
+
+	// update powerActionRequest on inventory object
+	iObjUpdate, err := h.dynamicClient.Resource(seederGVR).Namespace(defaultAddonNamespace).Update(h.ctx, iObj, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
+	// clear lastJobName
+	powerActionMap["lastJobName"] = ""
+	if err := unstructured.SetNestedMap(iObjUpdate.Object, powerActionMap, "status", "powerAction"); err != nil {
+		return err
+	}
+
+	_, err = h.dynamicClient.Resource(seederGVR).Namespace(defaultAddonNamespace).UpdateStatus(h.ctx, iObjUpdate, metav1.UpdateOptions{})
+	return err
+}
+
+func (h ActionHandler) fetchInventoryObject(node string) (*unstructured.Unstructured, error) {
+	return h.dynamicClient.Resource(seederGVR).Namespace(defaultAddonNamespace).Get(h.ctx, node, metav1.GetOptions{})
 }
