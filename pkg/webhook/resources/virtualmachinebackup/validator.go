@@ -1,16 +1,20 @@
 package virtualmachinebackup
 
 import (
+	"encoding/json"
 	"fmt"
 
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -25,11 +29,13 @@ func NewValidator(
 	vms ctlkubevirtv1.VirtualMachineCache,
 	setting ctlharvesterv1.SettingCache,
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache,
+	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 ) types.Validator {
 	return &virtualMachineBackupValidator{
 		vms:        vms,
 		setting:    setting,
 		vmrestores: vmrestores,
+		pvcCache:   pvcCache,
 	}
 }
 
@@ -39,6 +45,7 @@ type virtualMachineBackupValidator struct {
 	vms        ctlkubevirtv1.VirtualMachineCache
 	setting    ctlharvesterv1.SettingCache
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache
+	pvcCache   ctlcorev1.PersistentVolumeClaimCache
 }
 
 func (v *virtualMachineBackupValidator) Resource() types.Resource {
@@ -67,8 +74,11 @@ func (v *virtualMachineBackupValidator) Create(request *types.Request, newObj ru
 	// If VMBackup is from metadata in backup target, we don't check whether the VM is existent,
 	// because the related VM may not exist in a new cluster.
 	if newVMBackup.Status == nil {
-		_, err = v.vms.Get(newVMBackup.Namespace, newVMBackup.Spec.Source.Name)
+		vm, err := v.vms.Get(newVMBackup.Namespace, newVMBackup.Spec.Source.Name)
 		if err != nil {
+			return werror.NewInvalidError(err.Error(), fieldSourceName)
+		}
+		if err = v.checkBackupVolumeSnapshotClass(vm, newVMBackup); err != nil {
 			return werror.NewInvalidError(err.Error(), fieldSourceName)
 		}
 	}
@@ -78,6 +88,61 @@ func (v *virtualMachineBackupValidator) Create(request *types.Request, newObj ru
 	}
 	if err != nil {
 		return werror.NewInvalidError(err.Error(), fieldTypeName)
+	}
+
+	return nil
+}
+
+// checkBackupVolumeSnapshotClass checks if the volumeSnapshotClassName is configured for the provisioner used by the PVCs in the VirtualMachine.
+func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubevirtv1.VirtualMachine, newVMBackup *v1beta1.VirtualMachineBackup) error {
+	// Load CSI driver configuration from settings.
+	csiDriverConfigSetting, err := v.setting.Get(settings.CSIDriverConfigSettingName)
+	if err != nil {
+		return fmt.Errorf("can't get %s setting, err: %w", settings.CSIDriverConfigSettingName, err)
+	}
+	csiDriverConfigSettingValue := csiDriverConfigSetting.Default
+	if csiDriverConfigSetting.Value != "" {
+		csiDriverConfigSettingValue = csiDriverConfigSetting.Value
+	}
+	csiDriverConfig := make(map[string]settings.CSIDriverInfo)
+	if err := json.Unmarshal([]byte(csiDriverConfigSettingValue), &csiDriverConfig); err != nil {
+		return fmt.Errorf("can't parse %s setting, err: %w", settings.CSIDriverConfigSettingName, err)
+	}
+
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		}
+
+		pvcNamespace := vm.Namespace
+		pvcName := volume.PersistentVolumeClaim.ClaimName
+
+		pvc, err := v.pvcCache.Get(pvcNamespace, pvcName)
+		if err != nil {
+			return fmt.Errorf("can't get pvc %s/%s, err: %w", pvcNamespace, pvcName, err)
+		}
+
+		// Get the provisioner used by the PVC and find its configuration in the CSI driver configuration.
+		provisioner := util.GetProvisionedPVCProvisioner(pvc)
+		c, ok := csiDriverConfig[provisioner]
+		if !ok {
+			return fmt.Errorf("provisioner %s is not configured in the csi-driver-config setting", provisioner)
+		}
+
+		// Determine which configuration value is required based on the type of backup.
+		var requiredValue string
+		switch newVMBackup.Spec.Type {
+		case v1beta1.Backup:
+			requiredValue = c.BackupVolumeSnapshotClassName
+		case v1beta1.Snapshot:
+			requiredValue = c.VolumeSnapshotClassName
+		}
+
+		// If the required value is missing, return an error.
+		if requiredValue == "" {
+			return fmt.Errorf("%s's %s is not configured for provisioner %s in the csi-driver-config setting",
+				newVMBackup.Spec.Type, "VolumeSnapshotClassName", provisioner)
+		}
 	}
 
 	return nil
