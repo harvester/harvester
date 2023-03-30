@@ -48,7 +48,6 @@ var registerFuncs = []registerFunc{
 	upgradelog.Register,
 	addon.Register,
 	storagenetwork.Register,
-	//namespace.Register,
 	nodedrain.Register,
 	volume.Register,
 }
