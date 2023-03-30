@@ -16,6 +16,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		volumeClient  = management.LonghornFactory.Longhorn().V1beta1().Volume()
 		volumeCache   = volumeClient.Cache()
 		snapshotCache = management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot().Cache()
+		vmCache       = management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	)
 
 	// registers the volumecontroller
@@ -25,6 +26,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		volumeController: volumeClient,
 		volumeCache:      volumeCache,
 		snapshotCache:    snapshotCache,
+		vmCache:          vmCache,
 	}
 	volumeClient.OnChange(ctx, volumeControllerDetachVolume, volumeCtrl.DetachVolumesOnChange)
 

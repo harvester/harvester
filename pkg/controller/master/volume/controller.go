@@ -8,7 +8,9 @@ import (
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/indexeres"
@@ -25,6 +27,7 @@ type Controller struct {
 	volumeController ctllonghornv1.VolumeController
 	volumeCache      ctllonghornv1.VolumeCache
 	snapshotCache    ctlsnapshotv1.VolumeSnapshotCache
+	vmCache          ctlkubevirtv1.VirtualMachineCache
 }
 
 // Detach unused volumes, so attached volumes don't block node drain.
@@ -75,6 +78,13 @@ func (c *Controller) checkDetachVolume(pvc *corev1.PersistentVolumeClaim) (canDe
 			logrus.Debugf("workload %s/%s is %s, don't detach pvc: %s/%s", volume.Status.KubernetesStatus.Namespace, workload.WorkloadName, workload.PodStatus, pvc.Namespace, pvc.Name)
 			return false, false, nil
 		}
+		if workload.WorkloadType == kubevirtv1.VirtualMachineInstanceGroupVersionKind.Kind {
+			var done bool
+			canDetach, watchAgain, done, err = c.checkVMStatus(volume, workload)
+			if done {
+				return canDetach, watchAgain, err
+			}
+		}
 	}
 
 	// 2. check whether any in progress volume snapshot uses the PVC
@@ -101,6 +111,28 @@ func (c *Controller) checkDetachVolume(pvc *corev1.PersistentVolumeClaim) (canDe
 		}
 	}
 	return true, false, nil
+}
+
+func (c *Controller) checkVMStatus(volume *lhv1beta1.Volume, workload lhv1beta1.WorkloadStatus) (canDetach, watchAgain, done bool, err error) {
+	vmiNamespace := volume.Status.KubernetesStatus.Namespace
+	vmiName := workload.WorkloadName
+	vm, err := c.vmCache.Get(vmiNamespace, vmiName)
+	if err != nil {
+		return false, false, true, err
+	}
+	// if the VM's runStrategy is not Halted, vmi and pod will be recreated, we can't detach the volume
+	runStrategy, err := vm.RunStrategy()
+	if err != nil {
+		return false, false, true, err
+	}
+	if runStrategy != kubevirtv1.RunStrategyHalted {
+		return false, false, true, nil
+	}
+	// if the VM's runStrategy is Halted, we also need to retry util the VM's status become to Stopped
+	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
+		return false, true, true, nil
+	}
+	return false, false, false, nil
 }
 
 func (c *Controller) detachVolume(pvc *corev1.PersistentVolumeClaim) error {
