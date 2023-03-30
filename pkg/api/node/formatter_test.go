@@ -2,6 +2,7 @@ package node
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -9,10 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	fakedynamic "k8s.io/client-go/dynamic/fake"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -269,6 +273,29 @@ var (
 		},
 	}
 
+	seederAddon = &harvesterv1beta1.Addon{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      seederAddonName,
+			Namespace: defaultAddonNamespace,
+		},
+		Spec: harvesterv1beta1.AddonSpec{
+			Enabled: true,
+		},
+	}
+
+	dynamicInventoryObj = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "metal.harvesterhci.io/v1alpha1",
+			"kind":       "Inventory",
+			"metadata": map[string]interface{}{
+				"name":      testNode.Name,
+				"namespace": defaultAddonNamespace,
+			},
+		},
+	}
+
+	scheme = runtime.NewScheme()
+
 	vmWithCDROM = &kubevirtv1.VirtualMachineInstance{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cdrom-vm",
@@ -363,6 +390,90 @@ func Test_listUnhealthyVM(t *testing.T) {
 	err = json.NewDecoder(fakeHTTP.Body).Decode(resp)
 	assert.NoError(err, "expected no error parsing json response")
 	assert.Len(resp.VMs, 1, "expected to find one vm")
+}
+
+func Test_powerActionNotPossible(t *testing.T) {
+	assert := require.New(t)
+
+	err := harvesterv1beta1.AddToScheme(scheme)
+	assert.NoError(err, "expected no error building scheme")
+
+	typedObjects := []runtime.Object{}
+	client := fake.NewSimpleClientset(typedObjects...)
+	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme)
+
+	h := ActionHandler{
+		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+		nodeClient:    fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
+		addonCache:    fakeclients.AddonCache(client.HarvesterhciV1beta1().Addons),
+		dynamicClient: fakeDynamicClient,
+	}
+	fakeHTTP := httptest.NewRecorder()
+	err = h.powerActionPossible(fakeHTTP, testNode.Name)
+	assert.NoError(err, "expected no error while quering powerActionPossible")
+	assert.Equal(fakeHTTP.Result().StatusCode, http.StatusFailedDependency, "expected http NotFound")
+
+}
+
+func Test_powerActionPossible(t *testing.T) {
+	assert := require.New(t)
+
+	err := harvesterv1beta1.AddToScheme(scheme)
+	assert.NoError(err, "expected no error building scheme")
+
+	typedObjects := []runtime.Object{seederAddon}
+	client := fake.NewSimpleClientset(typedObjects...)
+	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme, dynamicInventoryObj)
+
+	h := ActionHandler{
+		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+		nodeClient:    fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
+		addonCache:    fakeclients.AddonCache(client.HarvesterhciV1beta1().Addons),
+		dynamicClient: fakeDynamicClient,
+	}
+	fakeHTTP := httptest.NewRecorder()
+	err = h.powerActionPossible(fakeHTTP, testNode.Name)
+	assert.NoError(err, "expected no error while querying powerActionPossible")
+	assert.Equal(fakeHTTP.Result().StatusCode, http.StatusOK, "expected to find node")
+}
+
+func Test_powerAction(t *testing.T) {
+	assert := require.New(t)
+
+	powerOperation := "shutdown"
+	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme, dynamicInventoryObj)
+	h := ActionHandler{
+		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+		nodeClient:    fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
+		dynamicClient: fakeDynamicClient,
+	}
+
+	err := h.powerAction(testNode, powerOperation)
+	assert.NoError(err, "expected no error performing power action")
+	iObj, err := h.fetchInventoryObject(testNode.Name)
+	assert.NoError(err, "expected no error querying inventory object")
+	powerRequest, ok, err := unstructured.NestedString(iObj.Object, "spec", "powerActionRequested")
+	assert.NoError(err, "expected no error querying power status map")
+	assert.True(ok, "expected to find power status map")
+	assert.Equal(powerRequest, "shutdown", "expected to find power action shutdown")
+}
+
+func Test_invalidPowerAction(t *testing.T) {
+	assert := require.New(t)
+
+	powerOperation := "something"
+	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+
+	h := ActionHandler{
+		nodeCache:  fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+		nodeClient: fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
+	}
+
+	err := h.powerAction(testNode, powerOperation)
+	assert.Error(err, "expected to get error")
 }
 
 func Test_listUnmigratableVM(t *testing.T) {
