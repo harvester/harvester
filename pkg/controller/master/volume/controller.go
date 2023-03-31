@@ -20,6 +20,8 @@ const (
 )
 
 type Controller struct {
+	podCache         v1.PodCache
+	podController    v1.PodController
 	pvcCache         v1.PersistentVolumeClaimCache
 	volumes          ctllonghornv1.VolumeClient
 	volumeController ctllonghornv1.VolumeController
@@ -65,14 +67,13 @@ func (c *Controller) DetachVolumesOnChange(_ string, volume *lhv1beta1.Volume) (
 
 func (c *Controller) checkDetachVolume(pvc *corev1.PersistentVolumeClaim) (canDetach, watchAgain bool, err error) {
 	// 1. check whether any pod uses the PVC
-	volume, err := c.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
+	pods, err := c.podCache.GetByIndex(indexeres.PodByPVCIndex, fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name))
 	if err != nil {
-		return false, false, fmt.Errorf("can't find volume %s/%s, err: %w", util.LonghornSystemNamespaceName, pvc.Spec.VolumeName, err)
+		return false, false, fmt.Errorf("can't get pods by index %s with pvc %s/%s, err: %w", indexeres.PodByPVCIndex, pvc.Namespace, pvc.Name, err)
 	}
-	for _, workload := range volume.Status.KubernetesStatus.WorkloadsStatus {
-		// For running workload, we don't want to watch again
-		if workload.PodStatus == string(corev1.PodRunning) || workload.PodStatus == string(corev1.PodPending) {
-			logrus.Debugf("workload %s/%s is %s, don't detach pvc: %s/%s", volume.Status.KubernetesStatus.Namespace, workload.WorkloadName, workload.PodStatus, pvc.Namespace, pvc.Name)
+	for _, pod := range pods {
+		if pod.Status.Phase == corev1.PodRunning || pod.Status.Phase == corev1.PodPending {
+			logrus.Debugf("pod %s/%s is %s, don't detach pvc: %s/%s", pod.Namespace, pod.Name, pod.Status.Phase, pvc.Namespace, pvc.Name)
 			return false, false, nil
 		}
 	}
@@ -115,6 +116,16 @@ func (c *Controller) detachVolume(pvc *corev1.PersistentVolumeClaim) error {
 		logrus.Infof("detach volume %s", volCpy.Name)
 		if _, err = c.volumes.Update(volCpy); err != nil {
 			return err
+		}
+		// A race condition is that, we detach the volume and create a new pod at the same time.
+		// In this situation, attach-volume-controller may get an attached volume, but the volume is detaching in detach-volume-controller.
+		// So we need to enqueue the pod to make sure the volume can be attached again.
+		pods, err := c.podCache.GetByIndex(indexeres.PodByPVCIndex, fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name))
+		if err != nil {
+			return err
+		}
+		for _, pod := range pods {
+			c.podController.EnqueueAfter(pod.Namespace, pod.Name, attachVolumeEnqueueInterval)
 		}
 	}
 	return nil

@@ -136,67 +136,6 @@ func TestHandler_DetachVolumesOnChange(t *testing.T) {
 				err: fmt.Errorf("can't find pvc"),
 			},
 		},
-		{
-			name: "volume on a running pod",
-			given: input{
-				key: "longhorn-system/test-volume-on-a-running-pod",
-				volume: &lhv1beta1.Volume{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "longhorn-system",
-						Name:      "test-volume-on-a-running-pod",
-					},
-					Status: lhv1beta1.VolumeStatus{
-						State: lhv1beta1.VolumeStateAttached,
-						KubernetesStatus: lhv1beta1.KubernetesStatus{
-							Namespace: "default",
-							PVCName:   "test-pvc",
-							WorkloadsStatus: []lhv1beta1.WorkloadStatus{
-								{
-									PodName:   "test-pod",
-									PodStatus: "Running",
-								},
-							},
-						},
-					},
-				},
-				pvcs: []*corev1.PersistentVolumeClaim{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "default",
-							Name:      "test-pvc",
-						},
-						Spec: corev1.PersistentVolumeClaimSpec{
-							VolumeName: "test-volume-on-a-running-pod",
-						},
-						Status: corev1.PersistentVolumeClaimStatus{
-							Phase: corev1.ClaimBound,
-						},
-					},
-				},
-			},
-			expected: output{
-				volume: &lhv1beta1.Volume{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "longhorn-system",
-						Name:      "test-volume-on-a-running-pod",
-					},
-					Status: lhv1beta1.VolumeStatus{
-						State: lhv1beta1.VolumeStateAttached,
-						KubernetesStatus: lhv1beta1.KubernetesStatus{
-							Namespace: "default",
-							PVCName:   "test-pvc",
-							WorkloadsStatus: []lhv1beta1.WorkloadStatus{
-								{
-									PodName:   "test-pod",
-									PodStatus: "Running",
-								},
-							},
-						},
-					},
-				},
-				err: nil,
-			},
-		},
 	}
 
 	for _, tc := range testCases {

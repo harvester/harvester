@@ -21,6 +21,7 @@ const (
 	PVCByDataSourceVolumeSnapshotIndex = "harvesterhci.io/pvc-by-data-source-volume-snapshot"
 	VMByNetworkIndex                   = "vm.harvesterhci.io/vm-by-network"
 	PodByNodeNameIndex                 = "harvesterhci.io/pod-by-nodename"
+	PodByPVCIndex                      = "harvesterhci.io/pod-by-pvc"
 	VMBackupBySourceVMUIDIndex         = "harvesterhci.io/vmbackup-by-source-vm-uid"
 	VMBackupBySourceVMNameIndex        = "harvesterhci.io/vmbackup-by-source-vm-name"
 	VMTemplateVersionByImageIDIndex    = "harvesterhci.io/vmtemplateversion-by-image-id"
@@ -37,6 +38,7 @@ func Setup(ctx context.Context, server *server.Server, controllers *server.Contr
 
 	podInformer := management.CoreFactory.Core().V1().Pod().Cache()
 	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
+	podInformer.AddIndexer(PodByPVCIndex, PodByPVC)
 
 	volumeSnapshotInformer := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot().Cache()
 	volumeSnapshotInformer.AddIndexer(VolumeSnapshotBySourcePVCIndex, volumeSnapshotBySourcePVC)
@@ -72,6 +74,16 @@ func VMByNetwork(obj *kubevirtv1.VirtualMachine) ([]string, error) {
 
 func PodByNodeName(obj *corev1.Pod) ([]string, error) {
 	return []string{obj.Spec.NodeName}, nil
+}
+
+func PodByPVC(obj *corev1.Pod) ([]string, error) {
+	pvcNames := []string{}
+	for _, volume := range obj.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			pvcNames = append(pvcNames, fmt.Sprintf("%s/%s", obj.Namespace, volume.PersistentVolumeClaim.ClaimName))
+		}
+	}
+	return pvcNames, nil
 }
 
 func pvcByDataSourceVolumeSnapshot(obj *corev1.PersistentVolumeClaim) ([]string, error) {

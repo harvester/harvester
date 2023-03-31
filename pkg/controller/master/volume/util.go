@@ -7,3 +7,7 @@ import (
 func isVolumeDetached(volume *lhv1beta1.Volume) bool {
 	return volume.Status.State == lhv1beta1.VolumeStateDetached || volume.Status.State == lhv1beta1.VolumeStateDetaching
 }
+
+func isVolumeAttached(volume *lhv1beta1.Volume) bool {
+	return volume.Status.State == lhv1beta1.VolumeStateAttached || volume.Status.State == lhv1beta1.VolumeStateAttaching
+}

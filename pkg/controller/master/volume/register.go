@@ -8,10 +8,13 @@ import (
 
 const (
 	volumeControllerDetachVolume = "detach-volume-controller"
+	podControllerAttachVolume    = "attach-volume-controller"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	var (
+		podClient     = management.CoreFactory.Core().V1().Pod()
+		podCache      = podClient.Cache()
 		pvcCache      = management.CoreFactory.Core().V1().PersistentVolumeClaim().Cache()
 		volumeClient  = management.LonghornFactory.Longhorn().V1beta1().Volume()
 		volumeCache   = volumeClient.Cache()
@@ -20,6 +23,8 @@ func Register(ctx context.Context, management *config.Management, options config
 
 	// registers the volumecontroller
 	var volumeCtrl = &Controller{
+		podCache:         podCache,
+		podController:    podClient,
 		pvcCache:         pvcCache,
 		volumes:          volumeClient,
 		volumeController: volumeClient,
@@ -28,5 +33,13 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 	volumeClient.OnChange(ctx, volumeControllerDetachVolume, volumeCtrl.DetachVolumesOnChange)
 
+	// registers the podcontroller
+	var podCtrl = &PodController{
+		podController: podClient,
+		pvcCache:      pvcCache,
+		volumes:       volumeClient,
+		volumeCache:   volumeCache,
+	}
+	podClient.OnChange(ctx, podControllerAttachVolume, podCtrl.AttachVolumesOnChange)
 	return nil
 }
