@@ -22,7 +22,6 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	"github.com/harvester/harvester/pkg/controller/master/upgradelog"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
-	"github.com/harvester/harvester/pkg/controller/master/volume"
 )
 
 type registerFunc func(context.Context, *config.Management, config.Options) error
@@ -34,6 +33,7 @@ var registerFuncs = []registerFunc{
 	node.PromoteRegister,
 	node.MaintainRegister,
 	node.DownRegister,
+	node.VolumeDetachRegister,
 	setting.Register,
 	template.Register,
 	virtualmachine.Register,
@@ -48,7 +48,6 @@ var registerFuncs = []registerFunc{
 	addon.Register,
 	storagenetwork.Register,
 	nodedrain.Register,
-	volume.Register,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {

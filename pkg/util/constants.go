@@ -64,4 +64,7 @@ const (
 	UpgradeLogOperatorComponent   = "operator"
 	UpgradeLogOutputComponent     = "clusteroutput"
 	UpgradeLogPackagerComponent   = "packager"
+
+	UpgradeNodeDrainTaintKey   = "kubevirt.io/drain"
+	UpgradeNodeDrainTaintValue = "draining"
 )
