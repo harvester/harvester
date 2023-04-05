@@ -23,7 +23,7 @@ func (c LonghornVolumeClient) Update(volume *longhornv1.Volume) (*longhornv1.Vol
 	return c(volume.Namespace).Update(context.TODO(), volume, metav1.UpdateOptions{})
 }
 
-func (c LonghornVolumeClient) UpdateStatus(setting *longhornv1.Setting) (*longhornv1.Volume, error) {
+func (c LonghornVolumeClient) UpdateStatus(volume *longhornv1.Volume) (*longhornv1.Volume, error) {
 	panic("implement me")
 }
 
