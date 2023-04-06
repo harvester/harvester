@@ -105,7 +105,7 @@ func (c *nodeVolumeDetachController) OnNodeChanged(key string, node *corev1.Node
 	}
 
 	if len(waitVolumeNames) > 0 {
-		logrus.Debugf("requeue the node %s while waiting for these volumes can be detached: %s", node.Name, strings.Join(waitVolumeNames, ", "))
+		logrus.Infof("requeue the node %s while waiting for these volumes can be detached: %s", node.Name, strings.Join(waitVolumeNames, ", "))
 		c.nodeController.EnqueueAfter(node.Name, nodeVolumeDetachEnqueueInterval)
 	}
 
