@@ -67,6 +67,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/guonaihong/gout v0.1.3
 	github.com/harvester/harvester-network-controller v0.1.7
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/iancoleman/strcase v0.2.0
 	github.com/k3s-io/helm-controller v0.11.7
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
@@ -144,6 +145,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chai2010/gettext-go v0.0.0-20160711120539-c6fed771bfd5 // indirect
 	github.com/containerd/containerd v1.6.6 // indirect
+	github.com/coreos/prometheus-operator v0.38.1-0.20200424145508-7e176fda06cc // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -167,6 +169,7 @@ require (
 	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-gorp/gorp/v3 v3.0.2 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
+	github.com/go-logfmt/logfmt v0.5.0 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.6 // indirect
@@ -174,7 +177,9 @@ require (
 	github.com/gobuffalo/flect v0.2.5 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
@@ -191,7 +196,6 @@ require (
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/honestbee/jobq v1.0.2 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/iancoleman/orderedmap v0.2.0 // indirect
@@ -203,6 +207,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
+	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.6 // indirect
@@ -230,6 +235,7 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.3-0.20220114050600-8b9d41f48198 // indirect
+	github.com/openshift/client-go v0.0.0 // indirect
 	github.com/openshift/custom-resource-status v1.1.2 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
@@ -297,6 +303,7 @@ require (
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-aggregator v0.25.4 // indirect
 	k8s.io/kubernetes v1.24.2 // indirect
+	kubevirt.io/client-go v0.40.0-rc.2 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	oras.land/oras-go v1.2.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.35 // indirect

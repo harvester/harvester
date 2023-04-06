@@ -29,7 +29,9 @@ const (
 )
 
 func NewValidator(
+	node ctlcorev1.NodeCache,
 	ns ctlcorev1.NamespaceCache,
+	pod ctlcorev1.PodCache,
 	vms ctlkubevirtv1.VirtualMachineCache,
 	setting ctlharvesterv1.SettingCache,
 	vmBackup ctlharvesterv1.VirtualMachineBackupCache,
@@ -45,6 +47,8 @@ func NewValidator(
 		snapshotClass: snapshotClass,
 
 		arq: resourcequota.NewAvailableResourceQuota(vms, nil, vmBackup, vmRestore, ns),
+		mtPercentage: resourcequota.NewMaintenancePercentage(
+			node, pod, vms, nil, setting),
 	}
 }
 
@@ -58,7 +62,8 @@ type restoreValidator struct {
 	vmRestore     ctlharvesterv1.VirtualMachineRestoreCache
 	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache
 
-	arq *resourcequota.AvailableResourceQuota
+	arq          *resourcequota.AvailableResourceQuota
+	mtPercentage *resourcequota.MaintenancePercentage
 }
 
 func (v *restoreValidator) Resource() types.Resource {
@@ -192,7 +197,7 @@ func (v *restoreValidator) checkVolumeSnapshotClass(vmBackup *v1beta1.VirtualMac
 	return nil
 }
 
-func (v *restoreValidator) checkVMResource(newRetore *v1beta1.VirtualMachineRestore, vmBackup *v1beta1.VirtualMachineBackup) error {
+func (v *restoreValidator) checkVMResource(newRetore *v1beta1.VirtualMachineRestore, vmBackup *v1beta1.VirtualMachineBackup) (err error) {
 	// convert vmBackup to simulate vm
 	simulatedVM := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
@@ -201,5 +206,7 @@ func (v *restoreValidator) checkVMResource(newRetore *v1beta1.VirtualMachineRest
 		},
 		Spec: vmBackup.Status.SourceSpec.Spec,
 	}
-	return v.arq.CheckVMAvailableResoruces(simulatedVM)
+
+	_, err = v.mtPercentage.IsLessAndEqualThanAvailableResource(simulatedVM)
+	return err
 }

@@ -15,6 +15,7 @@ const (
 	AnnotationHash                 = prefix + "/hash"
 	AnnotationRunStrategy          = prefix + "/vmRunStrategy"
 	LabelImageDisplayName          = prefix + "/imageDisplayName"
+	LabelVMName                    = prefix + "/vmName"
 	AnnotationMaintenanceQuota     = prefix + "/maintenanceQuota"
 	AnnotationVMAvailable          = prefix + "/vmAvailable"
 	AnnotationMaintenanceAvailable = prefix + "/maintenanceAvailable"

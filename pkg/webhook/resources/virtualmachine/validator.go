@@ -24,11 +24,14 @@ import (
 )
 
 func NewValidator(
+	nodeCache v1.NodeCache,
 	nsCache v1.NamespaceCache,
+	podCache v1.PodCache,
 	pvcCache v1.PersistentVolumeClaimCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
 	vmrCache ctlharvesterv1.VirtualMachineRestoreCache,
 	vmCache ctlkv1.VirtualMachineCache,
+	settingCache ctlharvesterv1.SettingCache,
 ) types.Validator {
 	return &vmValidator{
 		nsCache:       nsCache,
@@ -37,6 +40,8 @@ func NewValidator(
 		vmCache:       vmCache,
 
 		arq: resourcequota.NewAvailableResourceQuota(vmCache, nil, vmBackupCache, vmrCache, nsCache),
+		mtPercentage: resourcequota.NewMaintenancePercentage(
+			nodeCache, podCache, vmCache, nil, settingCache),
 	}
 }
 
@@ -48,7 +53,8 @@ type vmValidator struct {
 	vmRestoreCache ctlharvesterv1.VirtualMachineRestoreCache
 	vmCache        ctlkv1.VirtualMachineCache
 
-	arq *resourcequota.AvailableResourceQuota
+	arq          *resourcequota.AvailableResourceQuota
+	mtPercentage *resourcequota.MaintenancePercentage
 }
 
 func (v *vmValidator) Resource() types.Resource {
@@ -272,5 +278,11 @@ func (v *vmValidator) checkVMResource(vm *kubevirtv1.VirtualMachine) error {
 		(vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusStopped)) {
 		return nil
 	}
-	return v.arq.CheckVMAvailableResoruces(vm)
+
+	// Todo remove
+	//return v.arq.CheckVMAvailableResoruces(vm)
+	if _, err := v.mtPercentage.IsLessAndEqualThanAvailableResource(vm); err != nil {
+		return err
+	}
+	return nil
 }

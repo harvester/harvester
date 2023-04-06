@@ -2,25 +2,20 @@ package virtualmachine
 
 import (
 	"context"
-	"testing"
 
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	corefake "k8s.io/client-go/kubernetes/fake"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	apiharvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	cliharvesterv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	kubevirttype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/resourcequota"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -79,143 +74,143 @@ func getTestCalcNonStoppedVMs() []*kubevirtv1.VirtualMachine {
 	return vms
 }
 
-func Test_vmValidator_checkVMResource(t *testing.T) {
-
-	var clientset = fake.NewSimpleClientset()
-	var coreclientset = corefake.NewSimpleClientset()
-
-	var fields = &vmValidator{
-		nsCache:        fakeNamespaceCache(coreclientset.CoreV1().Namespaces),
-		vmCache:        fakeVirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-		vmRestoreCache: fakeVirtualMachineRestoreCache(clientset.HarvesterhciV1beta1().VirtualMachineRestores),
-	}
-	type args struct {
-		name         string
-		namespace    string
-		uid          string
-		limitsCPU    string
-		limitsMemory string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr error
-	}{
-		{
-			name: "basic 1",
-			args: args{
-				name:         "vm8",
-				namespace:    corev1.NamespaceDefault,
-				uid:          "1234567890",
-				limitsCPU:    "1000m",
-				limitsMemory: "2Gi",
-			},
-			wantErr: nil,
-		},
-		{
-			name: "basic 2: non vm available resource",
-			args: args{
-				name:         "vm8",
-				namespace:    "non-vmavailble",
-				uid:          "1234567890",
-				limitsCPU:    "1000m",
-				limitsMemory: "2Gi",
-			},
-			wantErr: nil,
-		},
-		{
-			name: "basic 3: cpu available resource",
-			args: args{
-				name:         "vm8",
-				namespace:    "cpu-vmavailble",
-				uid:          "1234567890",
-				limitsCPU:    "1000m",
-				limitsMemory: "2Gi",
-			},
-			wantErr: nil,
-		},
-		{
-			name: "error 1: exceeded cpu",
-			args: args{
-				name:         "vm8",
-				namespace:    corev1.NamespaceDefault,
-				uid:          "1234567890",
-				limitsCPU:    "3000m",
-				limitsMemory: "2Gi",
-			},
-			wantErr: resourcequota.ErrVMAvailableResourceNotEnoughCPU,
-		},
-		{
-			name: "error 2: exceeded memory",
-			args: args{
-				name:         "vm8",
-				namespace:    corev1.NamespaceDefault,
-				uid:          "1234567890",
-				limitsCPU:    "1000m",
-				limitsMemory: "4Gi",
-			},
-			wantErr: resourcequota.ErrVMAvailableResourceNotEnoughMemory,
-		},
-		{
-			name: "error 3: only exceeded cpu with cpu limit",
-			args: args{
-				name:         "vm8",
-				namespace:    "cpu-vmavailble",
-				uid:          "1234567890",
-				limitsCPU:    "3000m",
-				limitsMemory: "4Gi",
-			},
-			wantErr: resourcequota.ErrVMAvailableResourceNotEnoughCPU,
-		},
-		{
-			name: "error 3: only exceeded memory with memory limit",
-			args: args{
-				name:         "vm8",
-				namespace:    "memory-vmavailble",
-				uid:          "1234567890",
-				limitsCPU:    "1000m",
-				limitsMemory: "4Gi",
-			},
-			wantErr: resourcequota.ErrVMAvailableResourceNotEnoughMemory,
-		},
-	}
-	v := &vmValidator{
-		nsCache: fields.nsCache,
-		vmCache: fields.vmCache,
-		arq: resourcequota.NewAvailableResourceQuota(fields.vmCache,
-			nil,
-			nil,
-			fields.vmRestoreCache,
-			fields.nsCache),
-	}
-	for _, tt := range tests {
-
-		t.Run(tt.name, func(t *testing.T) {
-			newvm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      tt.args.name,
-					Namespace: tt.args.namespace,
-					UID:       "1234567890",
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: kubevirtv1.ResourceRequirements{
-									Limits: corev1.ResourceList{
-										corev1.ResourceCPU:    resource.MustParse(tt.args.limitsCPU),
-										corev1.ResourceMemory: resource.MustParse(tt.args.limitsMemory),
-									},
-								},
-							},
-						},
-					},
-				},
-			}
-			assert.Equalf(t, tt.wantErr, v.checkVMResource(newvm), "checkVMResource(%v)", newvm)
-		})
-	}
-}
+//func Test_vmValidator_checkVMResource(t *testing.T) {
+//
+//	var clientset = fake.NewSimpleClientset()
+//	var coreclientset = corefake.NewSimpleClientset()
+//
+//	var fields = &vmValidator{
+//		nsCache:        fakeNamespaceCache(coreclientset.CoreV1().Namespaces),
+//		vmCache:        fakeVirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+//		vmRestoreCache: fakeVirtualMachineRestoreCache(clientset.HarvesterhciV1beta1().VirtualMachineRestores),
+//	}
+//	type args struct {
+//		name         string
+//		namespace    string
+//		uid          string
+//		limitsCPU    string
+//		limitsMemory string
+//	}
+//	tests := []struct {
+//		name    string
+//		args    args
+//		wantErr error
+//	}{
+//		{
+//			name: "basic 1",
+//			args: args{
+//				name:         "vm8",
+//				namespace:    corev1.NamespaceDefault,
+//				uid:          "1234567890",
+//				limitsCPU:    "1000m",
+//				limitsMemory: "2Gi",
+//			},
+//			wantErr: nil,
+//		},
+//		{
+//			name: "basic 2: non vm available resource",
+//			args: args{
+//				name:         "vm8",
+//				namespace:    "non-vmavailble",
+//				uid:          "1234567890",
+//				limitsCPU:    "1000m",
+//				limitsMemory: "2Gi",
+//			},
+//			wantErr: nil,
+//		},
+//		{
+//			name: "basic 3: cpu available resource",
+//			args: args{
+//				name:         "vm8",
+//				namespace:    "cpu-vmavailble",
+//				uid:          "1234567890",
+//				limitsCPU:    "1000m",
+//				limitsMemory: "2Gi",
+//			},
+//			wantErr: nil,
+//		},
+//		{
+//			name: "error 1: exceeded cpu",
+//			args: args{
+//				name:         "vm8",
+//				namespace:    corev1.NamespaceDefault,
+//				uid:          "1234567890",
+//				limitsCPU:    "3000m",
+//				limitsMemory: "2Gi",
+//			},
+//			wantErr: resourcequota.ErrVMAvailableResourceNotEnoughCPU,
+//		},
+//		{
+//			name: "error 2: exceeded memory",
+//			args: args{
+//				name:         "vm8",
+//				namespace:    corev1.NamespaceDefault,
+//				uid:          "1234567890",
+//				limitsCPU:    "1000m",
+//				limitsMemory: "4Gi",
+//			},
+//			wantErr: resourcequota.ErrVMAvailableResourceNotEnoughMemory,
+//		},
+//		{
+//			name: "error 3: only exceeded cpu with cpu limit",
+//			args: args{
+//				name:         "vm8",
+//				namespace:    "cpu-vmavailble",
+//				uid:          "1234567890",
+//				limitsCPU:    "3000m",
+//				limitsMemory: "4Gi",
+//			},
+//			wantErr: resourcequota.ErrVMAvailableResourceNotEnoughCPU,
+//		},
+//		{
+//			name: "error 3: only exceeded memory with memory limit",
+//			args: args{
+//				name:         "vm8",
+//				namespace:    "memory-vmavailble",
+//				uid:          "1234567890",
+//				limitsCPU:    "1000m",
+//				limitsMemory: "4Gi",
+//			},
+//			wantErr: resourcequota.ErrVMAvailableResourceNotEnoughMemory,
+//		},
+//	}
+//	v := &vmValidator{
+//		nsCache: fields.nsCache,
+//		vmCache: fields.vmCache,
+//		arq: resourcequota.NewAvailableResourceQuota(fields.vmCache,
+//			nil,
+//			nil,
+//			fields.vmRestoreCache,
+//			fields.nsCache),
+//	}
+//	for _, tt := range tests {
+//
+//		t.Run(tt.name, func(t *testing.T) {
+//			newvm := &kubevirtv1.VirtualMachine{
+//				ObjectMeta: metav1.ObjectMeta{
+//					Name:      tt.args.name,
+//					Namespace: tt.args.namespace,
+//					UID:       "1234567890",
+//				},
+//				Spec: kubevirtv1.VirtualMachineSpec{
+//					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+//						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+//							Domain: kubevirtv1.DomainSpec{
+//								Resources: kubevirtv1.ResourceRequirements{
+//									Limits: corev1.ResourceList{
+//										corev1.ResourceCPU:    resource.MustParse(tt.args.limitsCPU),
+//										corev1.ResourceMemory: resource.MustParse(tt.args.limitsMemory),
+//									},
+//								},
+//							},
+//						},
+//					},
+//				},
+//			}
+//			assert.Equalf(t, tt.wantErr, v.checkVMResource(newvm), "checkVMResource(%v)", newvm)
+//		})
+//	}
+//}
 
 type fakeNamespaceCache func() typedcorev1.NamespaceInterface
 

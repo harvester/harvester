@@ -39,11 +39,14 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		persistentvolumeclaim.NewValidator(clients.Core.PersistentVolumeClaim().Cache(), clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()),
 		keypair.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
 		virtualmachine.NewValidator(
+			clients.Core.Node().Cache(),
 			clients.Core.Namespace().Cache(),
+			clients.Core.Pod().Cache(),
 			clients.Core.PersistentVolumeClaim().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache(),
-			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
 		virtualmachineimage.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.Core.PersistentVolumeClaim().Cache(),
@@ -63,7 +66,9 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache(),
 		),
 		virtualmachinerestore.NewValidator(
+			clients.Core.Node().Cache(),
 			clients.Core.Namespace().Cache(),
+			clients.Core.Pod().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
@@ -71,9 +76,12 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotClass().Cache(),
 		),
 		virtualmachineinstancemigration.NewValidator(
+			clients.Core.Node().Cache(),
 			clients.Core.Namespace().Cache(),
+			clients.Core.Pod().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 		),
 		setting.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
