@@ -408,6 +408,7 @@ longhorn:
   ## Specify the namespace to install longhorn.
   namespaceOverride: longhorn-system
 
+
   ## mark `longhorn` does not be default
   persistence:
     defaultClass: false
@@ -420,6 +421,7 @@ longhorn:
   defaultSettings:
     ## Specify the concurrent automatic engine upgrade per node limit
     concurrentAutomaticEngineUpgradePerNodeLimit: 3
+    priorityClass: system-cluster-critical
 
 rancherEmbedded: false
 

@@ -26,6 +26,10 @@ dependencies:
     tags:
       - kubevirt
       - crd
+  - name: longhorn
+    version: 1.3.2
+    repository: file://dependency_charts/longhorn
+    condition: longhorn.enabled
   - name: harvester-network-controller
     version: 0.3.2-rc1
     repository: https://charts.harvesterhci.io
@@ -38,10 +42,6 @@ dependencies:
     version: 0.1.0
     repository: file://dependency_charts/csi-snapshotter
     condition: csi-snapshotter.enabled
-  - name: longhorn
-    version: 1.3.2
-    repository: https://charts.longhorn.io
-    condition: longhorn.enabled
   - name: kube-vip
     version: 0.4.2
     repository: https://kube-vip.github.io/helm-charts
