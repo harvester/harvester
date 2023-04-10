@@ -30,15 +30,16 @@ func (c *ProxyClient) VolumeGet(serviceAddress string) (info *etypes.VolumeInfo,
 	}
 
 	info = &etypes.VolumeInfo{
-		Name:                  resp.Volume.Name,
-		Size:                  resp.Volume.Size,
-		ReplicaCount:          int(resp.Volume.ReplicaCount),
-		Endpoint:              resp.Volume.Endpoint,
-		Frontend:              resp.Volume.Frontend,
-		FrontendState:         resp.Volume.FrontendState,
-		IsExpanding:           resp.Volume.IsExpanding,
-		LastExpansionError:    resp.Volume.LastExpansionError,
-		LastExpansionFailedAt: resp.Volume.LastExpansionFailedAt,
+		Name:                      resp.Volume.Name,
+		Size:                      resp.Volume.Size,
+		ReplicaCount:              int(resp.Volume.ReplicaCount),
+		Endpoint:                  resp.Volume.Endpoint,
+		Frontend:                  resp.Volume.Frontend,
+		FrontendState:             resp.Volume.FrontendState,
+		IsExpanding:               resp.Volume.IsExpanding,
+		LastExpansionError:        resp.Volume.LastExpansionError,
+		LastExpansionFailedAt:     resp.Volume.LastExpansionFailedAt,
+		UnmapMarkSnapChainRemoved: resp.Volume.UnmapMarkSnapChainRemoved,
 	}
 	return info, nil
 }
@@ -116,6 +117,30 @@ func (c *ProxyClient) VolumeFrontendShutdown(serviceAddress string) (err error) 
 		Address: serviceAddress,
 	}
 	_, err = c.service.VolumeFrontendShutdown(getContextWithGRPCTimeout(c.ctx), req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *ProxyClient) VolumeUnmapMarkSnapChainRemovedSet(serviceAddress string, enabled bool) (err error) {
+	input := map[string]string{
+		"serviceAddress": serviceAddress,
+	}
+	if err := validateProxyMethodParameters(input); err != nil {
+		return errors.Wrap(err, "failed to set volume flag UnmapMarkSnapChainRemoved")
+	}
+
+	defer func() {
+		err = errors.Wrapf(err, "%v failed to set UnmapMarkSnapChainRemoved", c.getProxyErrorPrefix(serviceAddress))
+	}()
+
+	req := &rpc.EngineVolumeUnmapMarkSnapChainRemovedSetRequest{
+		ProxyEngineRequest: &rpc.ProxyEngineRequest{Address: serviceAddress},
+		UnmapMarkSnap:      &eptypes.VolumeUnmapMarkSnapChainRemovedSetRequest{Enabled: enabled},
+	}
+	_, err = c.service.VolumeUnmapMarkSnapChainRemovedSet(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}

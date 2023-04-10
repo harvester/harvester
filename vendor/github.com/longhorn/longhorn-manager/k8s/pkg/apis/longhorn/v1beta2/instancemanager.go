@@ -27,6 +27,14 @@ const (
 	InstanceManagerTypeReplica = InstanceManagerType("replica")
 )
 
+const (
+	InstanceConditionTypeInstanceCreation = "InstanceCreation"
+)
+
+const (
+	InstanceConditionReasonInstanceCreationFailure = "InstanceCreationFailure"
+)
+
 type InstanceProcess struct {
 	// +optional
 	Spec InstanceProcessSpec `json:"spec"`
@@ -89,6 +97,9 @@ type InstanceStatus struct {
 	LogFetched bool `json:"logFetched"`
 	// +optional
 	SalvageExecuted bool `json:"salvageExecuted"`
+	// +optional
+	// +nullable
+	Conditions []Condition `json:"conditions"`
 }
 
 type InstanceProcessStatus struct {
@@ -118,7 +129,7 @@ type InstanceManagerSpec struct {
 	NodeID string `json:"nodeID"`
 	// +optional
 	Type InstanceManagerType `json:"type"`
-	// TODO: deprecate this field
+	// Deprecated: This field is useless.
 	// +optional
 	EngineImage string `json:"engineImage"`
 }

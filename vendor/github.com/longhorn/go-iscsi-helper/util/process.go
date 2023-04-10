@@ -48,7 +48,7 @@ func (p *ProcessFinder) FindAncestorByName(ancestorProcess string) (*linuxproc.P
 		}
 	}
 
-	return nil, fmt.Errorf("Failed to find the ancestor process: %s", ancestorProcess)
+	return nil, fmt.Errorf("failed to find the ancestor process: %s", ancestorProcess)
 }
 
 func GetHostNamespacePath(hostProcPath string) string {

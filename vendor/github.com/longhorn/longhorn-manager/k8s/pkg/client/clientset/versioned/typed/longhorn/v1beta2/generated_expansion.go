@@ -50,4 +50,10 @@ type ShareManagerExpansion interface{}
 
 type SnapshotExpansion interface{}
 
+type SupportBundleExpansion interface{}
+
+type SystemBackupExpansion interface{}
+
+type SystemRestoreExpansion interface{}
+
 type VolumeExpansion interface{}

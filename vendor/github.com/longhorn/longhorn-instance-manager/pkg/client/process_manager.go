@@ -42,7 +42,7 @@ func NewProcessManagerClient(serviceURL string, tlsConfig *tls.Config) (*Process
 	getProcessManagerServiceContext := func(serviceUrl string, tlsConfig *tls.Config) (ProcessManagerServiceContext, error) {
 		connection, err := util.Connect(serviceUrl, tlsConfig)
 		if err != nil {
-			return ProcessManagerServiceContext{}, fmt.Errorf("cannot connect to ProcessManagerService %v: %v", serviceUrl, err)
+			return ProcessManagerServiceContext{}, errors.Wrapf(err, "cannot connect to ProcessManagerService %v", serviceUrl)
 		}
 
 		return ProcessManagerServiceContext{
@@ -91,7 +91,7 @@ func (c *ProcessManagerClient) ProcessCreate(name, binary string, portCount int,
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to start process: %v", err)
+		return nil, errors.Wrap(err, "failed to start process")
 	}
 
 	return api.RPCToProcess(p), nil
@@ -110,7 +110,7 @@ func (c *ProcessManagerClient) ProcessDelete(name string) (*api.Process, error) 
 		Name: name,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete process %v: %v", name, err)
+		return nil, errors.Wrapf(err, "failed to delete process %v", name)
 	}
 	return api.RPCToProcess(p), nil
 }
@@ -128,7 +128,7 @@ func (c *ProcessManagerClient) ProcessGet(name string) (*api.Process, error) {
 		Name: name,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get process %v: %v", name, err)
+		return nil, errors.Wrapf(err, "failed to get process %v", name)
 	}
 	return api.RPCToProcess(p), nil
 }
@@ -140,7 +140,7 @@ func (c *ProcessManagerClient) ProcessList() (map[string]*api.Process, error) {
 
 	ps, err := client.ProcessList(ctx, &rpc.ProcessListRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list processes: %v", err)
+		return nil, errors.Wrap(err, "failed to list processes")
 	}
 	return api.RPCToProcessList(ps), nil
 }
@@ -155,7 +155,7 @@ func (c *ProcessManagerClient) ProcessLog(ctx context.Context, name string) (*ap
 		Name: name,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get process log of %v: %v", name, err)
+		return nil, errors.Wrapf(err, "failed to get process log of %v", name)
 	}
 	return api.NewLogStream(stream), nil
 }
@@ -164,7 +164,7 @@ func (c *ProcessManagerClient) ProcessWatch(ctx context.Context) (*api.ProcessSt
 	client := c.getControllerServiceClient()
 	stream, err := client.ProcessWatch(ctx, &empty.Empty{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to open process update stream")
+		return nil, errors.Wrap(err, "failed to open process update stream")
 	}
 
 	return api.NewProcessStream(stream), nil
@@ -175,7 +175,7 @@ func (c *ProcessManagerClient) ProcessReplace(name, binary string, portCount int
 		return nil, fmt.Errorf("failed to start process: missing required parameter")
 	}
 	if terminateSignal != "SIGHUP" {
-		return nil, fmt.Errorf("Unsupported terminate signal %v", terminateSignal)
+		return nil, fmt.Errorf("unsupported terminate signal %v", terminateSignal)
 	}
 
 	client := c.getControllerServiceClient()
@@ -193,7 +193,7 @@ func (c *ProcessManagerClient) ProcessReplace(name, binary string, portCount int
 		TerminateSignal: terminateSignal,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to start process: %v", err)
+		return nil, errors.Wrap(err, "failed to start process")
 	}
 	return api.RPCToProcess(p), nil
 }
@@ -206,7 +206,7 @@ func (c *ProcessManagerClient) VersionGet() (*meta.VersionOutput, error) {
 
 	resp, err := client.VersionGet(ctx, &empty.Empty{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get version: %v", err)
+		return nil, errors.Wrap(err, "failed to get version")
 	}
 
 	return &meta.VersionOutput{

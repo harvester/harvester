@@ -68,11 +68,12 @@ func NewKubernetesConfigMapController(
 		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-kubernetes-configmap-controller"}),
 	}
 
-	ds.ConfigMapInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    kc.enqueueConfigMapChange,
-		UpdateFunc: func(old, cur interface{}) { kc.enqueueConfigMapChange(cur) },
-		DeleteFunc: kc.enqueueConfigMapChange,
-	})
+	ds.ConfigMapInformer.AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    kc.enqueueConfigMapChange,
+			UpdateFunc: func(old, cur interface{}) { kc.enqueueConfigMapChange(cur) },
+			DeleteFunc: kc.enqueueConfigMapChange,
+		}, 0)
 
 	ds.StorageClassInformer.AddEventHandlerWithResyncPeriod(
 		cache.FilteringResourceEventHandler{
@@ -139,7 +140,7 @@ func (kc *KubernetesConfigMapController) handleErr(err error, key interface{}) {
 
 func (kc *KubernetesConfigMapController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync %v", kc.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync %v", kc.name, key)
 	}()
 
 	namespace, cfmName, err := cache.SplitMetaNamespaceKey(key)

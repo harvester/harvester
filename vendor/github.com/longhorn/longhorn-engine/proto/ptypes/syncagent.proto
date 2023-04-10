@@ -25,6 +25,11 @@ service SyncAgentService {
   rpc ReplicaRebuildStatus(google.protobuf.Empty) returns
     (ReplicaRebuildStatusResponse) {}
   rpc SnapshotCloneStatus(google.protobuf.Empty) returns (SnapshotCloneStatusResponse) {}
+  rpc SnapshotHash(SnapshotHashRequest) returns (google.protobuf.Empty) {}
+  rpc SnapshotHashStatus(SnapshotHashStatusRequest) returns
+    (SnapshotHashStatusResponse) {}
+  rpc SnapshotHashCancel(SnapshotHashCancelRequest) returns (google.protobuf.Empty) {}
+  rpc SnapshotHashLockState(google.protobuf.Empty) returns (SnapshotHashLockStateResponse) {}
 }
 
 message FileRemoveRequest {
@@ -47,13 +52,17 @@ message ReceiverLaunchResponse {
 message FileSendRequest {
   string from_file_name = 1;
   string host = 2;
-  int32 port =3;
+  int32 port = 3;
+  bool fast_sync = 4;
+  int32 file_sync_http_client_timeout = 5;
 }
 
 message FilesSyncRequest {
   string from_address = 1;
   string to_host = 2;
   repeated SyncFileInfo sync_file_info_list = 3;
+  bool fast_sync = 4;
+  int32 file_sync_http_client_timeout = 5;
 }
 
 message SnapshotCloneRequest {
@@ -61,6 +70,7 @@ message SnapshotCloneRequest {
     string to_host = 2;
     string snapshot_file_name = 3;
     bool export_backing_image_if_exist = 4;
+    int32 file_sync_http_client_timeout = 5;
 }
 
 message VolumeExportRequest {
@@ -68,6 +78,7 @@ message VolumeExportRequest {
   string host = 2;
   int32 port = 3;
   bool export_backing_image_if_exist = 4;
+  int32 file_sync_http_client_timeout = 5;
 }
 
 message BackupCreateRequest {
@@ -149,4 +160,28 @@ message SnapshotCloneStatusResponse {
   string state = 4;
   string from_replica_address = 5;
   string snapshot_name = 6;
+}
+
+message SnapshotHashRequest {
+  string snapshot_name = 1;
+  bool rehash = 2;
+}
+
+message SnapshotHashStatusRequest {
+  string snapshot_name = 1;
+}
+
+message SnapshotHashStatusResponse {
+  string state = 1;
+  string checksum = 2;
+  string error = 3;
+  bool silently_corrupted = 4;
+}
+
+message SnapshotHashCancelRequest {
+  string snapshot_name = 1;
+}
+
+message SnapshotHashLockStateResponse {
+  bool is_locked = 1;
 }

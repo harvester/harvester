@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -26,6 +27,7 @@ import (
 
 	imapi "github.com/longhorn/longhorn-instance-manager/pkg/api"
 
+	"github.com/longhorn/longhorn-manager/constant"
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/engineapi"
 	"github.com/longhorn/longhorn-manager/types"
@@ -131,8 +133,8 @@ func (rc *ReplicaController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer rc.queue.ShutDown()
 
-	rc.logger.Info("Start Longhorn replica controller")
-	defer rc.logger.Info("Shutting down Longhorn replica controller")
+	rc.logger.Info("Starting Longhorn replica controller")
+	defer rc.logger.Info("Shut down Longhorn replica controller")
 
 	if !cache.WaitForNamedCacheSync("longhorn replicas", stopCh, rc.cacheSyncs...) {
 		return
@@ -257,7 +259,7 @@ func (rc *ReplicaController) UpdateReplicaEvictionStatus(replica *longhorn.Repli
 
 func (rc *ReplicaController) syncReplica(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync replica for %v", key)
+		err = errors.Wrapf(err, "failed to sync replica for %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -396,7 +398,17 @@ func (rc *ReplicaController) CreateInstance(obj interface{}) (*longhorn.Instance
 	}
 	defer c.Close()
 
-	return c.ReplicaProcessCreate(r.Name, r.Spec.EngineImage, dataPath, backingImagePath, r.Spec.VolumeSize, r.Spec.RevisionCounterDisabled)
+	v, err := rc.ds.GetVolume(r.Spec.VolumeName)
+	if err != nil {
+		return nil, err
+	}
+
+	engineCLIAPIVersion, err := rc.ds.GetEngineImageCLIAPIVersion(r.Spec.EngineImage)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.ReplicaProcessCreate(r, dataPath, backingImagePath, v.Spec.DataLocality, engineCLIAPIVersion)
 }
 
 func (rc *ReplicaController) GetBackingImagePathForReplicaStarting(r *longhorn.Replica) (string, error) {
@@ -550,8 +562,13 @@ func (rc *ReplicaController) DeleteInstance(obj interface{}) error {
 		return err
 	}
 	defer c.Close()
+
 	if err := c.ProcessDelete(r.Name); err != nil && !types.ErrorIsNotFound(err) {
 		return err
+	}
+
+	if err := deleteUnixSocketFile(r.Spec.VolumeName); err != nil && !types.ErrorIsNotFound(err) {
+		log.Warnf("Failed to delete unix-domain-socket file for volume %v since %v", r.Spec.VolumeName, err)
 	}
 
 	// Directly remove the instance from the map. Best effort.
@@ -563,6 +580,10 @@ func (rc *ReplicaController) DeleteInstance(obj interface{}) error {
 	}
 
 	return nil
+}
+
+func deleteUnixSocketFile(volumeName string) error {
+	return os.RemoveAll(filepath.Join(types.UnixDomainSocketDirectoryOnHost, volumeName+filepath.Ext(".sock")))
 }
 
 func (rc *ReplicaController) deleteInstanceWithCLIAPIVersionOne(r *longhorn.Replica) (err error) {
@@ -618,10 +639,10 @@ func (rc *ReplicaController) deleteOldReplicaPod(pod *v1.Pod, r *longhorn.Replic
 	}
 
 	if err := rc.kubeClient.CoreV1().Pods(rc.namespace).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{}); err != nil {
-		rc.eventRecorder.Eventf(r, v1.EventTypeWarning, EventReasonFailedStopping, "Error stopping pod for old replica %v: %v", pod.Name, err)
+		rc.eventRecorder.Eventf(r, v1.EventTypeWarning, constant.EventReasonFailedStopping, "Error stopping pod for old replica %v: %v", pod.Name, err)
 		return nil
 	}
-	rc.eventRecorder.Eventf(r, v1.EventTypeNormal, EventReasonStop, "Stops pod for old replica %v", pod.Name)
+	rc.eventRecorder.Eventf(r, v1.EventTypeNormal, constant.EventReasonStop, "Stops pod for old replica %v", pod.Name)
 	return nil
 }
 

@@ -73,3 +73,19 @@ type ReplicaRebuildStatus struct {
 	State              string
 	FromReplicaAddress string
 }
+
+type SnapshotHashStatus struct {
+	State             string
+	Checksum          string
+	Error             string
+	SilentlyCorrupted bool
+}
+
+type Metrics struct {
+	ReadThroughput  uint64
+	WriteThroughput uint64
+	ReadLatency     uint64
+	WriteLatency    uint64
+	ReadIOPS        uint64
+	WriteIOPS       uint64
+}

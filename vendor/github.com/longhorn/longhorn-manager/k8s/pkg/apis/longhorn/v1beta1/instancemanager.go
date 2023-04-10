@@ -85,7 +85,8 @@ type InstanceManagerSpec struct {
 	NodeID string              `json:"nodeID"`
 	Type   InstanceManagerType `json:"type"`
 
-	// TODO: deprecate this field
+	// Deprecated: This field is useless.
+	// +optional
 	EngineImage string `json:"engineImage"`
 }
 

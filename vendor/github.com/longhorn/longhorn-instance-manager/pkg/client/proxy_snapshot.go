@@ -3,15 +3,11 @@ package client
 import (
 	"github.com/pkg/errors"
 
-	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
-
 	etypes "github.com/longhorn/longhorn-engine/pkg/types"
 	eutil "github.com/longhorn/longhorn-engine/pkg/util"
 	eptypes "github.com/longhorn/longhorn-engine/proto/ptypes"
-)
 
-const (
-	VolumeHeadName = "volume-head"
+	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
 func (c *ProxyClient) VolumeSnapshot(serviceAddress, volumeSnapshotName string, labels map[string]string) (snapshotName string, err error) {
@@ -99,7 +95,7 @@ func (c *ProxyClient) SnapshotList(serviceAddress string) (snapshotDiskInfo map[
 	return snapshotDiskInfo, nil
 }
 
-func (c *ProxyClient) SnapshotClone(serviceAddress, name, fromController string) (err error) {
+func (c *ProxyClient) SnapshotClone(serviceAddress, name, fromController string, fileSyncHTTPClientTimeout int) (err error) {
 	input := map[string]string{
 		"serviceAddress": serviceAddress,
 		"name":           name,
@@ -120,6 +116,7 @@ func (c *ProxyClient) SnapshotClone(serviceAddress, name, fromController string)
 		FromController:            fromController,
 		SnapshotName:              name,
 		ExportBackingImageIfExist: false,
+		FileSyncHttpClientTimeout: int32(fileSyncHTTPClientTimeout),
 	}
 	_, err = c.service.SnapshotClone(getContextWithGRPCLongTimeout(c.ctx), req)
 	if err != nil {
@@ -176,8 +173,8 @@ func (c *ProxyClient) SnapshotRevert(serviceAddress string, name string) (err er
 		err = errors.Wrapf(err, "%v failed to revert volume to snapshot %v", c.getProxyErrorPrefix(serviceAddress), name)
 	}()
 
-	if name == VolumeHeadName {
-		err = errors.Errorf("invalid operation: cannot revert to %v", VolumeHeadName)
+	if name == etypes.VolumeHeadName {
+		err = errors.Errorf("invalid operation: cannot revert to %v", etypes.VolumeHeadName)
 		return err
 	}
 
@@ -278,4 +275,68 @@ func (c *ProxyClient) SnapshotRemove(serviceAddress string, names []string) (err
 	}
 
 	return nil
+}
+
+func (c *ProxyClient) SnapshotHash(serviceAddress string, snapshotName string, rehash bool) (err error) {
+	input := map[string]string{
+		"serviceAddress": serviceAddress,
+	}
+	if err := validateProxyMethodParameters(input); err != nil {
+		return errors.Wrap(err, "failed to hash snapshot")
+	}
+
+	defer func() {
+		err = errors.Wrapf(err, "%v failed to hash snapshot", c.getProxyErrorPrefix(serviceAddress))
+	}()
+
+	req := &rpc.EngineSnapshotHashRequest{
+		ProxyEngineRequest: &rpc.ProxyEngineRequest{
+			Address: serviceAddress,
+		},
+		SnapshotName: snapshotName,
+		Rehash:       rehash,
+	}
+	_, err = c.service.SnapshotHash(getContextWithGRPCTimeout(c.ctx), req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *ProxyClient) SnapshotHashStatus(serviceAddress, snapshotName string) (status map[string]*SnapshotHashStatus, err error) {
+	input := map[string]string{
+		"serviceAddress": serviceAddress,
+	}
+	if err := validateProxyMethodParameters(input); err != nil {
+		return nil, errors.Wrap(err, "failed to get snapshot hash status")
+	}
+
+	defer func() {
+		err = errors.Wrapf(err, "%v failed to get snapshot hash status", c.getProxyErrorPrefix(serviceAddress))
+	}()
+
+	req := &rpc.EngineSnapshotHashStatusRequest{
+		ProxyEngineRequest: &rpc.ProxyEngineRequest{
+			Address: serviceAddress,
+		},
+		SnapshotName: snapshotName,
+	}
+
+	recv, err := c.service.SnapshotHashStatus(getContextWithGRPCTimeout(c.ctx), req)
+	if err != nil {
+		return nil, err
+	}
+
+	status = make(map[string]*SnapshotHashStatus)
+	for k, v := range recv.Status {
+		status[k] = &SnapshotHashStatus{
+			State:             v.State,
+			Checksum:          v.Checksum,
+			Error:             v.Error,
+			SilentlyCorrupted: v.SilentlyCorrupted,
+		}
+	}
+
+	return status, nil
 }

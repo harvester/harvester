@@ -35,3 +35,7 @@ func (p *Proxy) VolumeFrontendStart(e *longhorn.Engine) (err error) {
 func (p *Proxy) VolumeFrontendShutdown(e *longhorn.Engine) (err error) {
 	return p.grpcClient.VolumeFrontendShutdown(p.DirectToURL(e))
 }
+
+func (p *Proxy) VolumeUnmapMarkSnapChainRemovedSet(e *longhorn.Engine) error {
+	return p.grpcClient.VolumeUnmapMarkSnapChainRemovedSet(p.DirectToURL(e), e.Spec.UnmapMarkSnapChainRemovedEnabled)
+}

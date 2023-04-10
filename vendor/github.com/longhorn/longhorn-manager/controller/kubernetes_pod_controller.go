@@ -128,9 +128,13 @@ func (kc *KubernetesPodController) handleErr(err error, key interface{}) {
 	utilruntime.HandleError(err)
 }
 
+func getLoggerForPod(logger logrus.FieldLogger, pod *v1.Pod) *logrus.Entry {
+	return logger.WithField("pod", pod.Name)
+}
+
 func (kc *KubernetesPodController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync %v", controllerAgentName, key)
+		err = errors.Wrapf(err, "%v: failed to sync %v", controllerAgentName, key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -202,11 +206,11 @@ func (kc *KubernetesPodController) handlePodDeletionIfNodeDown(pod *v1.Pod, node
 
 	// make sure the volumeattachments of the pods are gone first
 	// ref: https://github.com/longhorn/longhorn/issues/2947
-	vas, err := kc.getVolumeAttachmentsOfPod(pod)
+	volumeAttachments, err := kc.getVolumeAttachmentsOfPod(pod)
 	if err != nil {
 		return err
 	}
-	for _, va := range vas {
+	for _, va := range volumeAttachments {
 		if va.DeletionTimestamp == nil {
 			err := kc.kubeClient.StorageV1().VolumeAttachments().Delete(context.TODO(), va.Name, metav1.DeleteOptions{})
 			if err != nil {
@@ -239,8 +243,8 @@ func (kc *KubernetesPodController) handlePodDeletionIfNodeDown(pod *v1.Pod, node
 }
 
 func (kc *KubernetesPodController) getVolumeAttachmentsOfPod(pod *v1.Pod) ([]*storagev1.VolumeAttachment, error) {
-	res := []*storagev1.VolumeAttachment{}
-	vas, err := kc.ds.ListVolumeAttachmentsRO()
+	var res []*storagev1.VolumeAttachment
+	volumeAttachments, err := kc.ds.ListVolumeAttachmentsRO()
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +266,7 @@ func (kc *KubernetesPodController) getVolumeAttachmentsOfPod(pod *v1.Pod) ([]*st
 		pvs[pvc.Spec.VolumeName] = true
 	}
 
-	for _, va := range vas {
+	for _, va := range volumeAttachments {
 		if va.Spec.NodeName != pod.Spec.NodeName {
 			continue
 		}
@@ -322,6 +326,9 @@ func (kc *KubernetesPodController) handlePodDeletionIfVolumeRequestRemount(pod *
 	podStartTime := pod.Status.StartTime.Time
 	for _, vol := range volumeList {
 		if vol.Status.RemountRequestedAt == "" {
+			continue
+		}
+		if vol.Spec.AccessMode == longhorn.AccessModeReadWriteMany {
 			continue
 		}
 		remountRequestedAt, err := time.Parse(time.RFC3339, vol.Status.RemountRequestedAt)
@@ -423,6 +430,7 @@ func (kc *KubernetesPodController) getAssociatedPersistentVolume(pvc *v1.Persist
 }
 
 func (kc *KubernetesPodController) getAssociatedVolumes(pod *v1.Pod) ([]*longhorn.Volume, error) {
+	log := getLoggerForPod(kc.logger, pod)
 	var volumeList []*longhorn.Volume
 	for _, v := range pod.Spec.Volumes {
 		if v.VolumeSource.PersistentVolumeClaim == nil {
@@ -431,6 +439,7 @@ func (kc *KubernetesPodController) getAssociatedVolumes(pod *v1.Pod) ([]*longhor
 
 		pvc, err := kc.ds.GetPersistentVolumeClaimRO(pod.Namespace, v.VolumeSource.PersistentVolumeClaim.ClaimName)
 		if datastore.ErrorIsNotFound(err) {
+			log.WithError(err).Debugf("Cannot auto-delete Pod when the associated PersistentVolumeClaim is not found")
 			continue
 		}
 		if err != nil {
@@ -439,6 +448,7 @@ func (kc *KubernetesPodController) getAssociatedVolumes(pod *v1.Pod) ([]*longhor
 
 		pv, err := kc.getAssociatedPersistentVolume(pvc)
 		if datastore.ErrorIsNotFound(err) {
+			log.WithError(err).Debugf("Cannot auto-delete Pod when the associated PersistentVolume is not found")
 			continue
 		}
 		if err != nil {
@@ -447,6 +457,10 @@ func (kc *KubernetesPodController) getAssociatedVolumes(pod *v1.Pod) ([]*longhor
 
 		if pv.Spec.CSI != nil && pv.Spec.CSI.Driver == types.LonghornDriverName {
 			vol, err := kc.ds.GetVolume(pv.GetName())
+			if datastore.ErrorIsNotFound(err) {
+				log.WithError(err).Debugf("Cannot auto-delete Pod when the associated Volume is not found")
+				continue
+			}
 			if err != nil {
 				return nil, err
 			}

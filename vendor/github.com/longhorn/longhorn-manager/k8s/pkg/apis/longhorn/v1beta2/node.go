@@ -45,6 +45,11 @@ const (
 	ErrorReplicaScheduleSchedulingFailed                 = "replica scheduling failed"
 )
 
+type SnapshotCheckStatus struct {
+	// +optional
+	LastPeriodicCheckedAt metav1.Time `json:"lastPeriodicCheckedAt"`
+}
+
 type DiskSpec struct {
 	// +optional
 	Path string `json:"path"`
@@ -105,6 +110,8 @@ type NodeStatus struct {
 	Region string `json:"region"`
 	// +optional
 	Zone string `json:"zone"`
+	// +optional
+	SnapshotCheckStatus SnapshotCheckStatus `json:"snapshotCheckStatus"`
 }
 
 // +genclient

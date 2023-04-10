@@ -10,7 +10,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	batchv1 "k8s.io/api/batch/v1"
-	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -98,7 +97,7 @@ func (control *RecurringJobController) Run(workers int, stopCh <-chan struct{}) 
 	defer control.queue.ShutDown()
 
 	logrus.Infof("Starting Longhorn Recurring Job controller")
-	defer logrus.Infof("Shutting down Longhorn Recurring Job controller")
+	defer logrus.Infof("Shut down Longhorn Recurring Job controller")
 
 	if !cache.WaitForNamedCacheSync("longhorn recurring jobs", stopCh, control.cacheSyncs...) {
 		return
@@ -157,7 +156,7 @@ func getLoggerForRecurringJob(logger logrus.FieldLogger, recurringJob *longhorn.
 
 func (control *RecurringJobController) syncRecurringJob(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync recurring job for %v", key)
+		err = errors.Wrapf(err, "failed to sync recurring job for %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -336,7 +335,7 @@ func (control *RecurringJobController) reconcileRecurringJob(recurringJob *longh
 	return nil
 }
 
-func (control *RecurringJobController) createCronJob(cronJob *batchv1beta1.CronJob, recurringJob *longhorn.RecurringJob) error {
+func (control *RecurringJobController) createCronJob(cronJob *batchv1.CronJob, recurringJob *longhorn.RecurringJob) error {
 	var err error
 
 	cronJobSpecB, err := json.Marshal(cronJob.Spec)
@@ -354,7 +353,7 @@ func (control *RecurringJobController) createCronJob(cronJob *batchv1beta1.CronJ
 	return nil
 }
 
-func (control *RecurringJobController) checkAndUpdateCronJob(cronJob, appliedCronJob *batchv1beta1.CronJob) (err error) {
+func (control *RecurringJobController) checkAndUpdateCronJob(cronJob, appliedCronJob *batchv1.CronJob) (err error) {
 	cronJobSpecB, err := json.Marshal(cronJob.Spec)
 	if err != nil {
 		return err
@@ -378,9 +377,18 @@ func (control *RecurringJobController) checkAndUpdateCronJob(cronJob, appliedCro
 	return nil
 }
 
-func (control *RecurringJobController) newCronJob(recurringJob *longhorn.RecurringJob) (*batchv1beta1.CronJob, error) {
+func (control *RecurringJobController) newCronJob(recurringJob *longhorn.RecurringJob) (*batchv1.CronJob, error) {
 	backoffLimit := int32(CronJobBackoffLimit)
-	successfulJobsHistoryLimit := int32(CronJobSuccessfulJobsHistoryLimit)
+	settingSuccessfulJobsHistoryLimit, err := control.ds.GetSettingAsInt(types.SettingNameRecurringSuccessfulJobsHistoryLimit)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get setting of RecurringSuccessfulJobsHistoryLimit")
+	}
+	successfulJobsHistoryLimit := int32(settingSuccessfulJobsHistoryLimit)
+	settingFailedJobsHistoryLimit, err := control.ds.GetSettingAsInt(types.SettingNameRecurringFailedJobsHistoryLimit)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get setting of RecurringFailedJobsHistoryLimit")
+	}
+	failedJobsHistoryLimit := int32(settingFailedJobsHistoryLimit)
 
 	cmd := []string{
 		"longhorn-manager", "-d",
@@ -407,7 +415,7 @@ func (control *RecurringJobController) newCronJob(recurringJob *longhorn.Recurri
 	registrySecret := registrySecretSetting.Value
 
 	// for mounting inside container
-	cronJob := &batchv1beta1.CronJob{
+	cronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      recurringJob.Name,
 			Namespace: recurringJob.Namespace,
@@ -417,11 +425,12 @@ func (control *RecurringJobController) newCronJob(recurringJob *longhorn.Recurri
 			}),
 			OwnerReferences: datastore.GetOwnerReferencesForRecurringJob(recurringJob),
 		},
-		Spec: batchv1beta1.CronJobSpec{
+		Spec: batchv1.CronJobSpec{
 			Schedule:                   recurringJob.Spec.Cron,
-			ConcurrencyPolicy:          batchv1beta1.ForbidConcurrent,
+			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
 			SuccessfulJobsHistoryLimit: &successfulJobsHistoryLimit,
-			JobTemplate: batchv1beta1.JobTemplateSpec{
+			FailedJobsHistoryLimit:     &failedJobsHistoryLimit,
+			JobTemplate: batchv1.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
 					BackoffLimit: &backoffLimit,
 					Template: corev1.PodTemplateSpec{

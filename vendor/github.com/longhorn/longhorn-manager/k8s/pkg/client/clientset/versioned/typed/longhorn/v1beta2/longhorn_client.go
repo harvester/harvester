@@ -42,6 +42,9 @@ type LonghornV1beta2Interface interface {
 	SettingsGetter
 	ShareManagersGetter
 	SnapshotsGetter
+	SupportBundlesGetter
+	SystemBackupsGetter
+	SystemRestoresGetter
 	VolumesGetter
 }
 
@@ -112,6 +115,18 @@ func (c *LonghornV1beta2Client) ShareManagers(namespace string) ShareManagerInte
 
 func (c *LonghornV1beta2Client) Snapshots(namespace string) SnapshotInterface {
 	return newSnapshots(c, namespace)
+}
+
+func (c *LonghornV1beta2Client) SupportBundles(namespace string) SupportBundleInterface {
+	return newSupportBundles(c, namespace)
+}
+
+func (c *LonghornV1beta2Client) SystemBackups(namespace string) SystemBackupInterface {
+	return newSystemBackups(c, namespace)
+}
+
+func (c *LonghornV1beta2Client) SystemRestores(namespace string) SystemRestoreInterface {
+	return newSystemRestores(c, namespace)
 }
 
 func (c *LonghornV1beta2Client) Volumes(namespace string) VolumeInterface {

@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
-	apiextension "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,7 +71,7 @@ func NewUninstallController(
 	ds *datastore.DataStore,
 	stopCh chan struct{},
 	kubeClient clientset.Interface,
-	extensionsClient apiextension.Interface,
+	extensionsClient apiextensionsclientset.Interface,
 ) *UninstallController {
 	c := &UninstallController{
 		baseController: newBaseControllerWithQueue("longhorn-uninstall", logger,
@@ -296,12 +296,15 @@ func (c *UninstallController) uninstall() error {
 		return err
 	}
 
-	if waitForUpdate, err := c.deleteWebhookDeployment(types.LonghornAdmissionWebhookDeploymentName); err != nil || waitForUpdate {
-		return err
+	deployments := []string{
+		types.LonghornRecoveryBackendDeploymentName,
+		types.LonghornAdmissionWebhookDeploymentName,
+		types.LonghornConversionWebhookDeploymentName,
 	}
-
-	if waitForUpdate, err := c.deleteWebhookDeployment(types.LonghornConversionWebhookDeploymentName); err != nil || waitForUpdate {
-		return err
+	for _, deployment := range deployments {
+		if waitForUpdate, err := c.deleteDeployment(deployment); err != nil || waitForUpdate {
+			return err
+		}
 	}
 
 	if err := c.deleteWebhookConfiguration(); err != nil {
@@ -322,6 +325,16 @@ func (c *UninstallController) uninstall() error {
 }
 
 func (c *UninstallController) checkPreconditions() error {
+	confirmationFlag, err := c.ds.GetSettingAsBool(types.SettingNameDeletingConfirmationFlag)
+	if err != nil {
+		return errors.Wrapf(err, "failed to check deleting-confirmation-flag setting")
+	}
+	if !confirmationFlag {
+		return fmt.Errorf("cannot uninstall Longhorn because deleting-confirmation-flag is set to `false`. " +
+			"Please set it to `true` using Longhorn UI or " +
+			"kubectl -n longhorn-system edit settings.longhorn.io deleting-confirmation-flag ")
+	}
+
 	if ready, err := c.managerReady(); err != nil {
 		return err
 	} else if !ready {
@@ -505,12 +518,19 @@ func (c *UninstallController) deleteCRDs() (bool, error) {
 		return true, c.deleteOrphans(orphans)
 	}
 
+	if systemRestores, err := c.ds.ListSystemRestores(); err != nil {
+		return true, err
+	} else if len(systemRestores) > 0 {
+		c.logger.Infof("Found %d SystemRestores remaining", len(systemRestores))
+		return true, c.deleteSystemRestores(systemRestores)
+	}
+
 	return false, nil
 }
 
 func (c *UninstallController) deleteVolumes(vols map[string]*longhorn.Volume) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete volumes")
+		err = errors.Wrapf(err, "failed to delete volumes")
 	}()
 	for _, vol := range vols {
 		log := getLoggerForVolume(c.logger, vol)
@@ -518,13 +538,13 @@ func (c *UninstallController) deleteVolumes(vols map[string]*longhorn.Volume) (e
 		timeout := metav1.NewTime(time.Now().Add(-gracePeriod))
 		if vol.DeletionTimestamp == nil {
 			if err = c.ds.DeleteVolume(vol.Name); err != nil {
-				err = errors.Wrapf(err, "Failed to mark for deletion")
+				err = errors.Wrap(err, "failed to mark for deletion")
 				return
 			}
 			log.Info("Marked for deletion")
 		} else if vol.DeletionTimestamp.Before(&timeout) {
 			if err = c.ds.RemoveFinalizerForVolume(vol); err != nil {
-				err = errors.Wrapf(err, "Failed to remove finalizer")
+				err = errors.Wrapf(err, "failed to remove finalizer")
 				return
 			}
 			log.Info("Removed finalizer")
@@ -535,7 +555,7 @@ func (c *UninstallController) deleteVolumes(vols map[string]*longhorn.Volume) (e
 
 func (c *UninstallController) deleteSnapshots(snapshots map[string]*longhorn.Snapshot) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete snapshots")
+		err = errors.Wrapf(err, "failed to delete snapshots")
 	}()
 	for _, snap := range snapshots {
 		log := getLoggerForSnapshot(c.logger, snap)
@@ -543,13 +563,13 @@ func (c *UninstallController) deleteSnapshots(snapshots map[string]*longhorn.Sna
 		timeout := metav1.NewTime(time.Now().Add(-gracePeriod))
 		if snap.DeletionTimestamp == nil {
 			if err = c.ds.DeleteSnapshot(snap.Name); err != nil {
-				err = errors.Wrapf(err, "Failed to mark for deletion")
+				err = errors.Wrap(err, "failed to mark for deletion")
 				return
 			}
 			log.Info("Marked for deletion")
 		} else if snap.DeletionTimestamp.Before(&timeout) {
 			if err = c.ds.RemoveFinalizerForSnapshot(snap); err != nil {
-				err = errors.Wrapf(err, "Failed to remove finalizer")
+				err = errors.Wrapf(err, "failed to remove finalizer")
 				return
 			}
 			log.Info("Removed finalizer")
@@ -560,7 +580,7 @@ func (c *UninstallController) deleteSnapshots(snapshots map[string]*longhorn.Sna
 
 func (c *UninstallController) deleteEngines(engines map[string]*longhorn.Engine) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete engines")
+		err = errors.Wrapf(err, "failed to delete engines")
 	}()
 	for _, engine := range engines {
 		log := getLoggerForEngine(c.logger, engine)
@@ -568,13 +588,13 @@ func (c *UninstallController) deleteEngines(engines map[string]*longhorn.Engine)
 		timeout := metav1.NewTime(time.Now().Add(-gracePeriod))
 		if engine.DeletionTimestamp == nil {
 			if err = c.ds.DeleteEngine(engine.Name); err != nil {
-				err = errors.Wrapf(err, "Failed to mark for deletion")
+				err = errors.Wrap(err, "failed to mark for deletion")
 				return
 			}
 			log.Info("Marked for deletion")
 		} else if engine.DeletionTimestamp.Before(&timeout) {
 			if err = c.ds.RemoveFinalizerForEngine(engine); err != nil {
-				err = errors.Wrapf(err, "Failed to remove finalizer")
+				err = errors.Wrapf(err, "failed to remove finalizer")
 				return
 			}
 			log.Info("Removed finalizer")
@@ -585,7 +605,7 @@ func (c *UninstallController) deleteEngines(engines map[string]*longhorn.Engine)
 
 func (c *UninstallController) deleteReplicas(replicas map[string]*longhorn.Replica) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete replicas")
+		err = errors.Wrapf(err, "failed to delete replicas")
 	}()
 	for _, replica := range replicas {
 		log := getLoggerForReplica(c.logger, replica)
@@ -593,13 +613,13 @@ func (c *UninstallController) deleteReplicas(replicas map[string]*longhorn.Repli
 		timeout := metav1.NewTime(time.Now().Add(-gracePeriod))
 		if replica.DeletionTimestamp == nil {
 			if err = c.ds.DeleteReplica(replica.Name); err != nil {
-				err = errors.Wrapf(err, "Failed to mark for deletion")
+				err = errors.Wrap(err, "failed to mark for deletion")
 				return
 			}
 			log.Info("Marked for deletion")
 		} else if replica.DeletionTimestamp.Before(&timeout) {
 			if err = c.ds.RemoveFinalizerForReplica(replica); err != nil {
-				err = errors.Wrapf(err, "Failed to remove finalizer")
+				err = errors.Wrapf(err, "failed to remove finalizer")
 				return
 			}
 			log.Info("Removed finalizer")
@@ -610,13 +630,13 @@ func (c *UninstallController) deleteReplicas(replicas map[string]*longhorn.Repli
 
 func (c *UninstallController) deleteBackupTargets(backupTargets map[string]*longhorn.BackupTarget) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete backup targets")
+		err = errors.Wrapf(err, "failed to delete backup targets")
 	}()
 	for _, bt := range backupTargets {
 		log := getLoggerForBackupTarget(c.logger, bt)
 		if bt.DeletionTimestamp == nil {
 			if err = c.ds.DeleteBackupTarget(bt.Name); err != nil {
-				return errors.Wrapf(err, "Failed to mark for deletion")
+				return errors.Wrap(err, "failed to mark for deletion")
 			}
 			log.Info("Marked for deletion")
 		}
@@ -626,7 +646,7 @@ func (c *UninstallController) deleteBackupTargets(backupTargets map[string]*long
 
 func (c *UninstallController) deleteEngineImages(engineImages map[string]*longhorn.EngineImage) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete engine images")
+		err = errors.Wrapf(err, "failed to delete engine images")
 	}()
 	for _, ei := range engineImages {
 		log := getLoggerForEngineImage(c.logger, ei)
@@ -634,7 +654,7 @@ func (c *UninstallController) deleteEngineImages(engineImages map[string]*longho
 		timeout := metav1.NewTime(time.Now().Add(-gracePeriod))
 		if ei.DeletionTimestamp == nil {
 			if err = c.ds.DeleteEngineImage(ei.Name); err != nil {
-				err = errors.Wrapf(err, "Failed to mark for deletion")
+				err = errors.Wrap(err, "failed to mark for deletion")
 				return
 			}
 			log.Info("Marked for deletion")
@@ -642,14 +662,14 @@ func (c *UninstallController) deleteEngineImages(engineImages map[string]*longho
 			dsName := types.GetDaemonSetNameFromEngineImageName(ei.Name)
 			if err = c.ds.DeleteDaemonSet(dsName); err != nil {
 				if !apierrors.IsNotFound(err) {
-					err = errors.Wrapf(err, "Failed to remove daemon set")
+					err = errors.Wrapf(err, "failed to remove daemon set")
 					return
 				}
 				log.Info("Removed daemon set")
 				err = nil
 			}
 			if err = c.ds.RemoveFinalizerForEngineImage(ei); err != nil {
-				err = errors.Wrapf(err, "Failed to remove finalizer")
+				err = errors.Wrapf(err, "failed to remove finalizer")
 				return
 			}
 			log.Info("Removed finalizer")
@@ -660,20 +680,20 @@ func (c *UninstallController) deleteEngineImages(engineImages map[string]*longho
 
 func (c *UninstallController) deleteNodes(nodes map[string]*longhorn.Node) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete nodes")
+		err = errors.Wrapf(err, "failed to delete nodes")
 	}()
 	for _, node := range nodes {
 		log := getLoggerForNode(c.logger, node)
 
 		if node.DeletionTimestamp == nil {
 			if err = c.ds.DeleteNode(node.Name); err != nil {
-				err = errors.Wrapf(err, "Failed to mark for deletion")
+				err = errors.Wrap(err, "failed to mark for deletion")
 				return
 			}
 			log.Info("Marked for deletion")
 		} else {
 			if err = c.ds.RemoveFinalizerForNode(node); err != nil {
-				err = errors.Wrapf(err, "Failed to remove finalizer")
+				err = errors.Wrapf(err, "failed to remove finalizer")
 				return
 			}
 			log.Info("Removed finalizer")
@@ -684,13 +704,13 @@ func (c *UninstallController) deleteNodes(nodes map[string]*longhorn.Node) (err 
 
 func (c *UninstallController) deleteInstanceManagers(instanceManagers map[string]*longhorn.InstanceManager) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete instance managers")
+		err = errors.Wrapf(err, "failed to delete instance managers")
 	}()
 	for _, im := range instanceManagers {
 		log := getLoggerForInstanceManager(c.logger, im)
 		if im.DeletionTimestamp == nil {
 			if err = c.ds.DeleteInstanceManager(im.Name); err != nil {
-				err = errors.Wrapf(err, "Failed to mark for deletion")
+				err = errors.Wrap(err, "failed to mark for deletion")
 				return
 			}
 			log.Info("Marked for deletion")
@@ -701,7 +721,7 @@ func (c *UninstallController) deleteInstanceManagers(instanceManagers map[string
 
 func (c *UninstallController) deleteShareManagers(shareManagers map[string]*longhorn.ShareManager) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete share managers")
+		err = errors.Wrapf(err, "failed to delete share managers")
 	}()
 	for _, sm := range shareManagers {
 		log := getLoggerForShareManager(c.logger, sm)
@@ -709,7 +729,7 @@ func (c *UninstallController) deleteShareManagers(shareManagers map[string]*long
 		timeout := metav1.NewTime(time.Now().Add(-gracePeriod))
 		if sm.DeletionTimestamp == nil {
 			if err = c.ds.DeleteShareManager(sm.Name); err != nil {
-				err = errors.Wrapf(err, "Failed to mark for deletion")
+				err = errors.Wrap(err, "failed to mark for deletion")
 				return
 			}
 			log.Info("Marked for deletion")
@@ -721,7 +741,7 @@ func (c *UninstallController) deleteShareManagers(shareManagers map[string]*long
 			log.Infof("Removing share manager related pod %v", podName)
 
 			if err = c.ds.RemoveFinalizerForShareManager(sm); err != nil {
-				err = errors.Wrapf(err, "Failed to remove finalizer")
+				err = errors.Wrapf(err, "failed to remove finalizer")
 				return
 			}
 			log.Info("Removed finalizer")
@@ -732,7 +752,7 @@ func (c *UninstallController) deleteShareManagers(shareManagers map[string]*long
 
 func (c *UninstallController) deleteBackingImages(backingImages map[string]*longhorn.BackingImage) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete backing images")
+		err = errors.Wrapf(err, "failed to delete backing images")
 	}()
 	for _, bi := range backingImages {
 		log := getLoggerForBackingImage(c.logger, bi)
@@ -740,12 +760,12 @@ func (c *UninstallController) deleteBackingImages(backingImages map[string]*long
 		timeout := metav1.NewTime(time.Now().Add(-gracePeriod))
 		if bi.DeletionTimestamp == nil {
 			if err = c.ds.DeleteBackingImage(bi.Name); err != nil {
-				return errors.Wrapf(err, "Failed to mark for deletion")
+				return errors.Wrap(err, "failed to mark for deletion")
 			}
 			log.Info("Marked for deletion")
 		} else if bi.DeletionTimestamp.Before(&timeout) {
 			if err = c.ds.RemoveFinalizerForBackingImage(bi); err != nil {
-				return errors.Wrapf(err, "Failed to remove finalizer")
+				return errors.Wrapf(err, "failed to remove finalizer")
 			}
 			log.Info("Removed finalizer")
 		}
@@ -755,7 +775,7 @@ func (c *UninstallController) deleteBackingImages(backingImages map[string]*long
 
 func (c *UninstallController) deleteBackingImageManagers(backingImageManagers map[string]*longhorn.BackingImageManager) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete backing image managers")
+		err = errors.Wrapf(err, "failed to delete backing image managers")
 	}()
 	for _, bim := range backingImageManagers {
 		log := getLoggerForBackingImageManager(c.logger, bim)
@@ -763,7 +783,7 @@ func (c *UninstallController) deleteBackingImageManagers(backingImageManagers ma
 		timeout := metav1.NewTime(time.Now().Add(-gracePeriod))
 		if bim.DeletionTimestamp == nil {
 			if err = c.ds.DeleteBackingImageManager(bim.Name); err != nil {
-				return errors.Wrapf(err, "Failed to mark for deletion")
+				return errors.Wrap(err, "failed to mark for deletion")
 			}
 			log.Info("Marked for deletion")
 		} else if bim.DeletionTimestamp.Before(&timeout) {
@@ -771,7 +791,7 @@ func (c *UninstallController) deleteBackingImageManagers(backingImageManagers ma
 				return err
 			}
 			if err = c.ds.RemoveFinalizerForBackingImageManager(bim); err != nil {
-				return errors.Wrapf(err, "Failed to remove finalizer")
+				return errors.Wrapf(err, "failed to remove finalizer")
 			}
 			log.Info("Removed finalizer")
 		}
@@ -781,7 +801,7 @@ func (c *UninstallController) deleteBackingImageManagers(backingImageManagers ma
 
 func (c *UninstallController) deleteBackingImageDataSource(backingImageDataSources map[string]*longhorn.BackingImageDataSource) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete backing image data sources")
+		err = errors.Wrapf(err, "failed to delete backing image data sources")
 	}()
 	for _, bids := range backingImageDataSources {
 		log := getLoggerForBackingImageDataSource(c.logger, bids)
@@ -789,7 +809,7 @@ func (c *UninstallController) deleteBackingImageDataSource(backingImageDataSourc
 		timeout := metav1.NewTime(time.Now().Add(-gracePeriod))
 		if bids.DeletionTimestamp == nil {
 			if err = c.ds.DeleteBackingImageDataSource(bids.Name); err != nil {
-				return errors.Wrapf(err, "Failed to mark for deletion")
+				return errors.Wrap(err, "failed to mark for deletion")
 			}
 			log.Info("Marked for deletion")
 		} else if bids.DeletionTimestamp.Before(&timeout) {
@@ -797,7 +817,7 @@ func (c *UninstallController) deleteBackingImageDataSource(backingImageDataSourc
 				return err
 			}
 			if err = c.ds.RemoveFinalizerForBackingImageDataSource(bids); err != nil {
-				return errors.Wrapf(err, "Failed to remove finalizer")
+				return errors.Wrapf(err, "failed to remove finalizer")
 			}
 			log.Info("Removed finalizer")
 		}
@@ -807,13 +827,13 @@ func (c *UninstallController) deleteBackingImageDataSource(backingImageDataSourc
 
 func (c *UninstallController) deleteRecurringJobs(recurringJobs map[string]*longhorn.RecurringJob) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete recurring jobs")
+		err = errors.Wrapf(err, "failed to delete recurring jobs")
 	}()
 	for _, job := range recurringJobs {
 		log := getLoggerForRecurringJob(c.logger, job)
 		if job.DeletionTimestamp == nil {
 			if err = c.ds.DeleteRecurringJob(job.Name); err != nil {
-				return errors.Wrapf(err, "Failed to mark for deletion")
+				return errors.Wrap(err, "failed to mark for deletion")
 			}
 			log.Info("Marked for deletion")
 		}
@@ -823,13 +843,29 @@ func (c *UninstallController) deleteRecurringJobs(recurringJobs map[string]*long
 
 func (c *UninstallController) deleteOrphans(orphans map[string]*longhorn.Orphan) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "Failed to delete orphans")
+		err = errors.Wrapf(err, "failed to delete orphans")
 	}()
 	for _, orphan := range orphans {
 		log := getLoggerForOrphan(c.logger, orphan)
 		if orphan.DeletionTimestamp == nil {
 			if err = c.ds.DeleteOrphan(orphan.Name); err != nil {
-				return errors.Wrapf(err, "Failed to mark for deletion")
+				return errors.Wrap(err, "failed to mark for deletion")
+			}
+			log.Info("Marked for deletion")
+		}
+	}
+	return nil
+}
+
+func (c *UninstallController) deleteSystemRestores(systemRestores map[string]*longhorn.SystemRestore) (err error) {
+	defer func() {
+		err = errors.Wrapf(err, "failed to delete SystemRestores")
+	}()
+	for _, systemRestore := range systemRestores {
+		log := getLoggerForSystemRestore(c.logger, systemRestore)
+		if systemRestore.DeletionTimestamp == nil {
+			if err = c.ds.DeleteSystemRestore(systemRestore.Name); err != nil {
+				return errors.Wrap(err, "failed to mark for deletion")
 			}
 			log.Info("Marked for deletion")
 		}
@@ -847,7 +883,7 @@ func (c *UninstallController) deleteManager() (bool, error) {
 		return true, err
 	} else if ds.DeletionTimestamp == nil {
 		if err := c.ds.DeleteDaemonSet(types.LonghornManagerDaemonSetName); err != nil {
-			log.Warn("failed to mark for deletion")
+			log.Warn("Failed to mark for deletion")
 			return true, err
 		}
 		log.Info("Marked for deletion")
@@ -857,7 +893,7 @@ func (c *UninstallController) deleteManager() (bool, error) {
 	return true, nil
 }
 
-func (c *UninstallController) deleteWebhookDeployment(deployment string) (bool, error) {
+func (c *UninstallController) deleteDeployment(deployment string) (bool, error) {
 	log := getLoggerForUninstallDeployment(c.logger, deployment)
 
 	if ds, err := c.ds.GetDeployment(deployment); err != nil {
@@ -867,7 +903,7 @@ func (c *UninstallController) deleteWebhookDeployment(deployment string) (bool, 
 		return true, err
 	} else if ds.DeletionTimestamp == nil {
 		if err := c.ds.DeleteDeployment(deployment); err != nil {
-			log.Warn("failed to mark for deletion")
+			log.Warn("Failed to mark for deletion")
 			return true, err
 		}
 		log.Info("Marked for deletion")

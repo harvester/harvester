@@ -88,7 +88,7 @@ type BackingImageList struct {
 	Items           []BackingImage `json:"items"`
 }
 
-// ConvertTo converts from spoke verion (v1beta1) to hub version (v1beta2)
+// ConvertTo converts from spoke version (v1beta1) to hub version (v1beta2)
 func (bi *BackingImage) ConvertTo(dst conversion.Hub) error {
 	switch t := dst.(type) {
 	case *v1beta2.BackingImage:

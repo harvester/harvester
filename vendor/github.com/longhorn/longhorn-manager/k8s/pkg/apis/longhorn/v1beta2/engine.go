@@ -55,6 +55,17 @@ type PurgeStatus struct {
 	State string `json:"state"`
 }
 
+type HashStatus struct {
+	// +optional
+	State string `json:"state"`
+	// +optional
+	Checksum string `json:"checksum"`
+	// +optional
+	Error string `json:"error"`
+	// +optional
+	SilentlyCorrupted bool `json:"silentlyCorrupted"`
+}
+
 type RebuildStatus struct {
 	// +optional
 	Error string `json:"error"`
@@ -124,6 +135,8 @@ type EngineSpec struct {
 	// +optional
 	RevisionCounterDisabled bool `json:"revisionCounterDisabled"`
 	// +optional
+	UnmapMarkSnapChainRemovedEnabled bool `json:"unmapMarkSnapChainRemovedEnabled"`
+	// +optional
 	Active bool `json:"active"`
 }
 
@@ -169,6 +182,8 @@ type EngineStatus struct {
 	LastExpansionError string `json:"lastExpansionError"`
 	// +optional
 	LastExpansionFailedAt string `json:"lastExpansionFailedAt"`
+	// +optional
+	UnmapMarkSnapChainRemovedEnabled bool `json:"unmapMarkSnapChainRemovedEnabled"`
 }
 
 // +genclient

@@ -127,8 +127,8 @@ func (oc *OrphanController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer oc.queue.ShutDown()
 
-	oc.logger.Infof("Start Longhorn Orphan controller")
-	defer oc.logger.Infof("Shutting down Longhorn Orphan controller")
+	oc.logger.Infof("Starting Longhorn Orphan controller")
+	defer oc.logger.Infof("Shut down Longhorn Orphan controller")
 
 	if !cache.WaitForNamedCacheSync(oc.name, stopCh, oc.cacheSyncs...) {
 		return
@@ -177,7 +177,7 @@ func (oc *OrphanController) handleErr(err error, key interface{}) {
 
 func (oc *OrphanController) syncOrphan(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync orphan %v", oc.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync orphan %v", oc.name, key)
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -278,7 +278,7 @@ func (oc *OrphanController) cleanupOrphanedData(orphan *longhorn.Orphan) (err er
 	// Make sure if the orphan nodeID and controller ID are same.
 	// If NO, just delete the orphan resource object and don't touch the data.
 	if orphan.Spec.NodeID != oc.controllerID {
-		log.Infof("Orphan nodeID %v is different from controllerID %v, so just delete the orphan resouce object",
+		log.Infof("Orphan nodeID %v is different from controllerID %v, so just delete the orphan resource object",
 			orphan.Name, oc.controllerID)
 		return nil
 	}

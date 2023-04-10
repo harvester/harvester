@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -25,8 +26,49 @@ const (
 	LonghornKindBackingImage        = "BackingImage"
 	LonghornKindBackingImageManager = "BackingImageManager"
 	LonghornKindRecurringJob        = "RecurringJob"
+	LonghornKindSetting             = "Setting"
+	LonghornKindSupportBundle       = "SupportBundle"
+	LonghornKindSystemRestore       = "SystemRestore"
 
 	LonghornKindBackingImageDataSource = "BackingImageDataSource"
+
+	LonghornKindEngineImageList  = "EngineImageList"
+	LonghornKindRecurringJobList = "RecurringJobList"
+	LonghornKindSettingList      = "SettingList"
+	LonghornKindVolumeList       = "VolumeList"
+
+	KubernetesKindClusterRole           = "ClusterRole"
+	KubernetesKindClusterRoleBinding    = "ClusterRoleBinding"
+	KubernetesKindConfigMap             = "ConfigMap"
+	KubernetesKindDaemonSet             = "DaemonSet"
+	KubernetesKindDeployment            = "Deployment"
+	KubernetesKindJob                   = "Job"
+	KubernetesKindPersistentVolume      = "PersistentVolume"
+	KubernetesKindPersistentVolumeClaim = "PersistentVolumeClaim"
+	KubernetesKindPodSecurityPolicy     = "PodSecurityPolicy"
+	KubernetesKindRole                  = "Role"
+	KubernetesKindRoleBinding           = "RoleBinding"
+	KubernetesKindService               = "Service"
+	KubernetesKindServiceAccount        = "ServiceAccount"
+	KubernetesKindStorageClass          = "StorageClass"
+
+	KubernetesKindClusterRoleList           = "ClusterRoleList"
+	KubernetesKindClusterRoleBindingList    = "ClusterRoleBindingList"
+	KubernetesKindConfigMapList             = "ConfigMapList"
+	KubernetesKindDaemonSetList             = "DaemonSetList"
+	KubernetesKindDeploymentList            = "DeploymentList"
+	KubernetesKindPersistentVolumeList      = "PersistentVolumeList"
+	KubernetesKindPersistentVolumeClaimList = "PersistentVolumeClaimList"
+	KubernetesKindPodSecurityPolicyList     = "PodSecurityPolicyList"
+	KubernetesKindRoleList                  = "RoleList"
+	KubernetesKindRoleBindingList           = "RoleBindingList"
+	KubernetesKindServiceList               = "ServiceList"
+	KubernetesKindServiceAccountList        = "ServiceAccountList"
+	KubernetesKindStorageClassList          = "StorageClassList"
+
+	APIExtensionsKindCustomResourceDefinition = "CustomResourceDefinition"
+
+	APIExtensionsKindCustomResourceDefinitionList = "CustomResourceDefinitionList"
 
 	CRDAPIVersionV1alpha1 = "longhorn.rancher.io/v1alpha1"
 	CRDAPIVersionV1beta1  = "longhorn.io/v1beta1"
@@ -44,10 +86,15 @@ const (
 	ValidatingWebhookName = "longhorn-webhook-validator"
 	MutatingWebhookName   = "longhorn-webhook-mutator"
 
+	DefaultRecoveryBackendServerPort = 9600
+
 	EngineBinaryDirectoryInContainer = "/engine-binaries/"
 	EngineBinaryDirectoryOnHost      = "/var/lib/longhorn/engine-binaries/"
 	ReplicaHostPrefix                = "/host"
 	EngineBinaryName                 = "longhorn"
+
+	UnixDomainSocketDirectoryInContainer = "/host/var/lib/longhorn/unix-domain-socket/"
+	UnixDomainSocketDirectoryOnHost      = "/var/lib/longhorn/unix-domain-socket/"
 
 	BackingImageManagerDirectory = "/backing-images/"
 	BackingImageFileName         = "backing"
@@ -78,32 +125,48 @@ const (
 	KubernetesStatefulSet = "StatefulSet"
 	RecurringJobLabel     = "RecurringJob"
 
+	VolumeRecurringJobInfoLabel     = "VolumeRecurringJobInfo"
+	VolumeRecurringJobRestorePrefix = "restored-recurring-job-"
+
 	LonghornLabelKeyPrefix = "longhorn.io"
 
 	LonghornLabelRecurringJobKeyPrefixFmt = "recurring-%s.longhorn.io"
+	LonghornLabelVolumeSettingKeyPrefix   = "setting.longhorn.io"
 
-	LonghornLabelEngineImage              = "engine-image"
-	LonghornLabelInstanceManager          = "instance-manager"
-	LonghornLabelNode                     = "node"
-	LonghornLabelDiskUUID                 = "disk-uuid"
-	LonghornLabelInstanceManagerType      = "instance-manager-type"
-	LonghornLabelInstanceManagerImage     = "instance-manager-image"
-	LonghornLabelVolume                   = "longhornvolume"
-	LonghornLabelShareManager             = "share-manager"
-	LonghornLabelShareManagerImage        = "share-manager-image"
-	LonghornLabelBackingImage             = "backing-image"
-	LonghornLabelBackingImageManager      = "backing-image-manager"
-	LonghornLabelManagedBy                = "managed-by"
-	LonghornLabelSnapshotForCloningVolume = "for-cloning-volume"
-	LonghornLabelBackingImageDataSource   = "backing-image-data-source"
-	LonghornLabelBackupVolume             = "backup-volume"
-	LonghornLabelRecurringJob             = "job"
-	LonghornLabelRecurringJobGroup        = "job-group"
-	LonghornLabelOrphan                   = "orphan"
-	LonghornLabelOrphanType               = "orphan-type"
-	LonghornLabelCRDAPIVersion            = "crd-api-version"
+	LonghornLabelEngineImage                = "engine-image"
+	LonghornLabelInstanceManager            = "instance-manager"
+	LonghornLabelNode                       = "node"
+	LonghornLabelDiskUUID                   = "disk-uuid"
+	LonghornLabelInstanceManagerType        = "instance-manager-type"
+	LonghornLabelInstanceManagerImage       = "instance-manager-image"
+	LonghornLabelVolume                     = "longhornvolume"
+	LonghornLabelShareManager               = "share-manager"
+	LonghornLabelShareManagerImage          = "share-manager-image"
+	LonghornLabelShareManagerConfigMap      = "share-manager-configmap"
+	LonghornLabelBackingImage               = "backing-image"
+	LonghornLabelBackingImageManager        = "backing-image-manager"
+	LonghornLabelManagedBy                  = "managed-by"
+	LonghornLabelSnapshotForCloningVolume   = "for-cloning-volume"
+	LonghornLabelBackingImageDataSource     = "backing-image-data-source"
+	LonghornLabelBackupVolume               = "backup-volume"
+	LonghornLabelRecurringJob               = "job"
+	LonghornLabelRecurringJobGroup          = "job-group"
+	LonghornLabelOrphan                     = "orphan"
+	LonghornLabelOrphanType                 = "orphan-type"
+	LonghornLabelRecoveryBackend            = "recovery-backend"
+	LonghornLabelCRDAPIVersion              = "crd-api-version"
+	LonghornLabelVolumeAccessMode           = "volume-access-mode"
+	LonghornLabelFollowGlobalSetting        = "follow-global-setting"
+	LonghornLabelSystemRestore              = "system-restore"
+	LonghornLabelLastSkippedSystemRestore   = "last-skipped-system-restored"
+	LonghornLabelLastSkippedSystemRestoreAt = "last-skipped-system-restored-at"
+	LonghornLabelLastSystemRestore          = "last-system-restored"
+	LonghornLabelLastSystemRestoreAt        = "last-system-restored-at"
+	LonghornLabelLastSystemRestoreBackup    = "last-system-restored-backup"
+	LonghornLabelVersion                    = "version"
 
 	LonghornLabelValueEnabled = "enabled"
+	LonghornLabelValueIgnored = "ignored"
 
 	LonghornLabelExportFromVolume                 = "export-from-volume"
 	LonghornLabelSnapshotForExportingBackingImage = "for-exporting-backing-image"
@@ -132,6 +195,19 @@ const (
 
 	CniNetworkNone          = ""
 	StorageNetworkInterface = "lhnet1"
+)
+
+const (
+	SupportBundleNameFmt = "support-bundle-%v"
+
+	SupportBundleManagerApp      = "support-bundle-manager"
+	SupportBundleManagerLabelKey = "rancher/supportbundle"
+
+	SupportBundleURLPort        = 8080
+	SupportBundleURLStatusFmt   = "http://%s:%v/status"
+	SupportBundleURLDownloadFmt = "http://%s:%v/bundle"
+
+	SupportBundleDownloadTimeout = 5 * time.Minute
 )
 
 const (
@@ -170,8 +246,17 @@ const (
 	// DefaultStaleReplicaTimeout in minutes. 48h by default
 	DefaultStaleReplicaTimeout = "2880"
 
-	ImageChecksumNameLength = 8
+	ImageChecksumNameLength             = 8
+	InstanceManagerSuffixChecksumLength = 32
 )
+
+// SettingsRelatedToVolume should match the items in datastore.GetLabelsForVolumesFollowsGlobalSettings
+//   TODO: May need to add the data locality check
+var SettingsRelatedToVolume = map[string]string{
+	string(SettingNameReplicaAutoBalance):                  LonghornLabelValueIgnored,
+	string(SettingNameSnapshotDataIntegrity):               LonghornLabelValueIgnored,
+	string(SettingNameRemoveSnapshotsDuringFilesystemTrim): LonghornLabelValueIgnored,
+}
 
 type NotFoundError struct {
 	Name string
@@ -194,6 +279,7 @@ const (
 	BackingImageDataSourcePodNamePrefix = "backing-image-ds-"
 
 	shareManagerPrefix    = "share-manager-"
+	recoveryBackendPrefix = "recovery-backend-"
 	instanceManagerPrefix = "instance-manager-"
 	engineManagerPrefix   = instanceManagerPrefix + "e-"
 	replicaManagerPrefix  = instanceManagerPrefix + "r-"
@@ -355,6 +441,13 @@ func GetShareManagerLabels(name, image string) map[string]string {
 	return labels
 }
 
+func GetShareManagerConfigMapLabels(name string) map[string]string {
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelKey(LonghornLabelShareManager)] = name
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelShareManagerConfigMap
+	return labels
+}
+
 func GetCronJobLabels(job *longhorn.RecurringJobSpec) map[string]string {
 	labels := GetBaseLabelsForSystemManagedComponent()
 	labels[fmt.Sprintf(LonghornLabelRecurringJobKeyPrefixFmt, LonghornLabelRecurringJob)] = job.Name
@@ -425,6 +518,46 @@ func GetOrphanLabelsForOrphanedDirectory(nodeID, diskUUID string) map[string]str
 	return labels
 }
 
+func GetRecoveryBackendConfigMapLabels() map[string]string {
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelRecoveryBackend
+	return labels
+}
+
+func GetSystemRestoreInProgressLabel() map[string]string {
+	return map[string]string{
+		GetSystemRestoreLabelKey(): string(longhorn.SystemRestoreStateInProgress),
+	}
+}
+
+func GetSystemRestoreLabelKey() string {
+	return GetLonghornLabelKey(LonghornLabelSystemRestore)
+}
+
+func GetLastSystemRestoreLabelKey() string {
+	return GetLonghornLabelKey(LonghornLabelLastSystemRestore)
+}
+
+func GetLastSystemRestoreAtLabelKey() string {
+	return GetLonghornLabelKey(LonghornLabelLastSystemRestoreAt)
+}
+
+func GetLastSkippedSystemRestoreLabelKey() string {
+	return GetLonghornLabelKey(LonghornLabelLastSkippedSystemRestore)
+}
+
+func GetLastSkippedSystemRestoreAtLabelKey() string {
+	return GetLonghornLabelKey(LonghornLabelLastSkippedSystemRestoreAt)
+}
+
+func GetLastSystemRestoreBackupLabelKey() string {
+	return GetLonghornLabelKey(LonghornLabelLastSystemRestoreBackup)
+}
+
+func GetVersionLabelKey() string {
+	return GetLonghornLabelKey(LonghornLabelVersion)
+}
+
 func GetRegionAndZone(labels map[string]string) (string, string) {
 	region := ""
 	zone := ""
@@ -457,6 +590,14 @@ func GetShareManagerPodNameFromShareManagerName(smName string) string {
 	return shareManagerPrefix + smName
 }
 
+func GetConfigMapNameFromShareManagerName(smName string) string {
+	return recoveryBackendPrefix + shareManagerPrefix + smName
+}
+
+func GetConfigMapNameFromHostname(hostname string) string {
+	return recoveryBackendPrefix + hostname
+}
+
 func GetShareManagerNameFromShareManagerPodName(podName string) string {
 	return strings.TrimPrefix(podName, shareManagerPrefix)
 }
@@ -466,12 +607,13 @@ func ValidateEngineImageChecksumName(name string) bool {
 	return matched
 }
 
-func GetInstanceManagerName(imType longhorn.InstanceManagerType) (string, error) {
+func GetInstanceManagerName(imType longhorn.InstanceManagerType, nodeName, image string) (string, error) {
+	hashedSuffix := util.GetStringChecksum(nodeName + image)[:InstanceManagerSuffixChecksumLength]
 	switch imType {
 	case longhorn.InstanceManagerTypeEngine:
-		return engineManagerPrefix + util.RandomID(), nil
+		return engineManagerPrefix + hashedSuffix, nil
 	case longhorn.InstanceManagerTypeReplica:
-		return replicaManagerPrefix + util.RandomID(), nil
+		return replicaManagerPrefix + hashedSuffix, nil
 	}
 	return "", fmt.Errorf("cannot generate name for unknown instance manager type %v", imType)
 }
@@ -505,6 +647,10 @@ func ErrorIsNotFound(err error) bool {
 	return strings.Contains(err.Error(), "cannot find")
 }
 
+func ErrorIsNotSupport(err error) bool {
+	return strings.Contains(err.Error(), "not support")
+}
+
 func ErrorAlreadyExists(err error) bool {
 	return strings.Contains(err.Error(), "already exists")
 }
@@ -512,6 +658,13 @@ func ErrorAlreadyExists(err error) bool {
 func ValidateReplicaCount(count int) error {
 	if count < 1 || count > 20 {
 		return fmt.Errorf("replica count value must between 1 to 20")
+	}
+	return nil
+}
+
+func ValidateDataLocalityAndReplicaCount(mode longhorn.DataLocality, count int) error {
+	if mode == longhorn.DataLocalityStrictLocal && count != 1 {
+		return fmt.Errorf("replica count should be 1 in data locality %v mode", longhorn.DataLocalityStrictLocal)
 	}
 	return nil
 }
@@ -529,7 +682,7 @@ func ValidateReplicaAutoBalance(option longhorn.ReplicaAutoBalance) error {
 }
 
 func ValidateDataLocality(mode longhorn.DataLocality) error {
-	if mode != longhorn.DataLocalityDisabled && mode != longhorn.DataLocalityBestEffort {
+	if mode != longhorn.DataLocalityDisabled && mode != longhorn.DataLocalityBestEffort && mode != longhorn.DataLocalityStrictLocal {
 		return fmt.Errorf("invalid data locality mode: %v", mode)
 	}
 	return nil
@@ -554,12 +707,32 @@ func ValidateStorageNetwork(value string) (err error) {
 	return nil
 }
 
+func ValidateSnapshotDataIntegrity(mode string) error {
+	if mode != string(longhorn.SnapshotDataIntegrityDisabled) &&
+		mode != string(longhorn.SnapshotDataIntegrityEnabled) &&
+		mode != string(longhorn.SnapshotDataIntegrityFastCheck) {
+		return fmt.Errorf("invalid snapshot data integrity mode: %v", mode)
+	}
+	return nil
+}
+
+func ValidateUnmapMarkSnapChainRemoved(unmapValue longhorn.UnmapMarkSnapChainRemoved) error {
+	if unmapValue != longhorn.UnmapMarkSnapChainRemovedIgnored && unmapValue != longhorn.UnmapMarkSnapChainRemovedEnabled && unmapValue != longhorn.UnmapMarkSnapChainRemovedDisabled {
+		return fmt.Errorf("invalid UnmapMarkSnapChainRemoved setting: %v", unmapValue)
+	}
+	return nil
+}
+
 func GetDaemonSetNameFromEngineImageName(engineImageName string) string {
 	return "engine-image-" + engineImageName
 }
 
 func GetEngineImageNameFromDaemonSetName(dsName string) string {
 	return strings.TrimPrefix(dsName, "engine-image-")
+}
+
+func GetVolumeSettingLabelKey(settingName string) string {
+	return fmt.Sprintf("%s/%s", LonghornLabelVolumeSettingKeyPrefix, settingName)
 }
 
 func LabelsToString(labels map[string]string) string {

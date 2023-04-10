@@ -101,9 +101,7 @@ const (
 	VolumeConditionReasonTooManySnapshots              = "TooManySnapshots"
 )
 
-// VolumeRecurringJobSpec is a deprecated struct.
-// TODO: Should be removed when recurringJobs gets removed from the volume
-//       spec.
+// Deprecated: This field is useless.
 type VolumeRecurringJobSpec struct {
 	Name        string            `json:"name"`
 	Groups      []string          `json:"groups,omitempty"`
@@ -226,7 +224,7 @@ type VolumeList struct {
 	Items           []Volume `json:"items"`
 }
 
-// ConvertTo converts from spoke verion (v1beta1) to hub version (v1beta2)
+// ConvertTo converts from spoke version (v1beta1) to hub version (v1beta2)
 func (v *Volume) ConvertTo(dst conversion.Hub) error {
 	switch t := dst.(type) {
 	case *v1beta2.Volume:
@@ -237,6 +235,10 @@ func (v *Volume) ConvertTo(dst conversion.Hub) error {
 		}
 		if err := copier.Copy(&vV1beta2.Status, &v.Status); err != nil {
 			return err
+		}
+
+		if v.Spec.DataLocality == "" {
+			vV1beta2.Spec.DataLocality = v1beta2.DataLocality(DataLocalityDisabled)
 		}
 
 		// Copy status.conditions from map to slice

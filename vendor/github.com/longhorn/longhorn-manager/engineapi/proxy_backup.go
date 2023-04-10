@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/longhorn/backupstore"
+	etypes "github.com/longhorn/longhorn-engine/pkg/types"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
@@ -14,8 +15,8 @@ func (p *Proxy) SnapshotBackup(e *longhorn.Engine,
 	snapshotName, backupName, backupTarget,
 	backingImageName, backingImageChecksum string,
 	labels, credential map[string]string) (string, string, error) {
-	if snapshotName == VolumeHeadName {
-		return "", "", fmt.Errorf("invalid operation: cannot backup %v", VolumeHeadName)
+	if snapshotName == etypes.VolumeHeadName {
+		return "", "", fmt.Errorf("invalid operation: cannot backup %v", etypes.VolumeHeadName)
 	}
 
 	if e == nil {

@@ -35,6 +35,10 @@ var (
 	log = logrus.WithFields(logrus.Fields{"pkg": "backupstore"})
 )
 
+func GetLog() logrus.FieldLogger {
+	return log
+}
+
 func generateError(fields logrus.Fields, format string, v ...interface{}) error {
 	return ErrorWithFields("backupstore", fields, format, v...)
 }
@@ -61,14 +65,14 @@ func unregisterDriver(kind string) error {
 
 func GetBackupStoreDriver(destURL string) (BackupStoreDriver, error) {
 	if destURL == "" {
-		return nil, fmt.Errorf("Destination URL hasn't been specified")
+		return nil, fmt.Errorf("destination URL hasn't been specified")
 	}
 	u, err := url.Parse(destURL)
 	if err != nil {
 		return nil, err
 	}
 	if _, exists := initializers[u.Scheme]; !exists {
-		return nil, fmt.Errorf("Driver %v is not supported!", u.Scheme)
+		return nil, fmt.Errorf("driver %v is not supported", u.Scheme)
 	}
 	return initializers[u.Scheme](destURL)
 }

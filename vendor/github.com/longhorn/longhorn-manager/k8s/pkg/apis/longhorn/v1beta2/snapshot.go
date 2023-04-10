@@ -4,6 +4,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type SnapshotHashStatus string
+
+const (
+	SnapshotHashStatusNew        = SnapshotHashStatus("")
+	SnapshotHashStatusInProgress = SnapshotHashStatus("in_progress")
+	SnapshotHashStatusCompleted  = SnapshotHashStatus("complete")
+	SnapshotHashStatusError      = SnapshotHashStatus("error")
+)
+
 // SnapshotSpec defines the desired state of Longhorn Snapshot
 type SnapshotSpec struct {
 	// the volume that this snapshot belongs to.
@@ -45,6 +54,8 @@ type SnapshotStatus struct {
 	RestoreSize int64 `json:"restoreSize"`
 	// +optional
 	ReadyToUse bool `json:"readyToUse"`
+	// +optional
+	Checksum string `json:"checksum"`
 }
 
 // +genclient

@@ -13,6 +13,7 @@ service ProxyEngineService {
 	rpc VolumeExpand(EngineVolumeExpandRequest) returns (google.protobuf.Empty);
 	rpc VolumeFrontendStart(EngineVolumeFrontendStartRequest) returns (google.protobuf.Empty);
 	rpc VolumeFrontendShutdown(ProxyEngineRequest) returns (google.protobuf.Empty);
+	rpc VolumeUnmapMarkSnapChainRemovedSet(EngineVolumeUnmapMarkSnapChainRemovedSetRequest) returns (google.protobuf.Empty);
 
 	rpc VolumeSnapshot(EngineVolumeSnapshotRequest) returns (EngineVolumeSnapshotProxyResponse);
 	rpc SnapshotList(ProxyEngineRequest) returns (EngineSnapshotListProxyResponse);
@@ -22,6 +23,8 @@ service ProxyEngineService {
 	rpc SnapshotClone(EngineSnapshotCloneRequest) returns (google.protobuf.Empty);
 	rpc SnapshotCloneStatus(ProxyEngineRequest) returns (EngineSnapshotCloneStatusProxyResponse);
 	rpc SnapshotRemove(EngineSnapshotRemoveRequest) returns (google.protobuf.Empty);
+	rpc SnapshotHash(EngineSnapshotHashRequest) returns (google.protobuf.Empty);
+	rpc SnapshotHashStatus(EngineSnapshotHashStatusRequest) returns (EngineSnapshotHashStatusProxyResponse);
 
 	rpc SnapshotBackup(EngineSnapshotBackupRequest) returns (EngineSnapshotBackupProxyResponse);
 	rpc SnapshotBackupStatus(EngineSnapshotBackupStatusRequest) returns (EngineSnapshotBackupStatusProxyResponse);
@@ -33,6 +36,9 @@ service ProxyEngineService {
 	rpc ReplicaRebuildingStatus(ProxyEngineRequest) returns (EngineReplicaRebuildStatusProxyResponse);
 	rpc ReplicaVerifyRebuild(EngineReplicaVerifyRebuildRequest) returns (google.protobuf.Empty);
 	rpc ReplicaRemove(EngineReplicaRemoveRequest) returns (google.protobuf.Empty);
+	rpc ReplicaModeUpdate(EngineReplicaModeUpdateRequest) returns (google.protobuf.Empty);
+
+	rpc MetricsGet(ProxyEngineRequest) returns (EngineMetricsGetProxyResponse);
 }
 
 message ProxyEngineRequest{
@@ -67,6 +73,12 @@ message EngineVolumeSnapshotRequest {
 
 message EngineVolumeSnapshotProxyResponse {
 	ptypes.VolumeSnapshotReply snapshot = 1;
+}
+
+message EngineVolumeUnmapMarkSnapChainRemovedSetRequest {
+	ProxyEngineRequest proxy_engine_request = 1;
+
+	ptypes.VolumeUnmapMarkSnapChainRemovedSetRequest unmap_mark_snap = 2;
 }
 
 message EngineSnapshotListProxyResponse {
@@ -106,6 +118,7 @@ message EngineSnapshotCloneRequest {
 	string from_controller = 2;
 	string snapshot_name = 3;
 	bool export_backing_image_if_exist = 4;
+	int32 file_sync_http_client_timeout = 5;
 }
 
 message EngineSnapshotCloneStatusProxyResponse {
@@ -188,6 +201,10 @@ message EngineReplicaAddRequest {
 
 	string replica_address = 2;
 	bool restore = 3;
+	int64 size = 4;
+	int64 current_size = 5;
+	bool fast_sync = 6;
+	int32 file_sync_http_client_timeout = 7;
 }
 
 message EngineReplicaListProxyResponse {
@@ -208,4 +225,32 @@ message EngineReplicaRemoveRequest {
 	ProxyEngineRequest proxy_engine_request = 1;
 
 	string replica_address = 2;
+}
+
+message EngineReplicaModeUpdateRequest {
+	ProxyEngineRequest proxy_engine_request = 1;
+
+	string replica_address = 2;
+	ptypes.ReplicaMode mode = 3;
+}
+
+message EngineSnapshotHashRequest {
+	ProxyEngineRequest proxy_engine_request = 1;
+
+	string snapshot_name = 2;
+	bool rehash = 3;
+}
+
+message EngineSnapshotHashStatusRequest {
+	ProxyEngineRequest proxy_engine_request = 1;
+
+	string snapshot_name = 2;
+}
+
+message EngineSnapshotHashStatusProxyResponse {
+	map<string, ptypes.SnapshotHashStatusResponse> status = 1;
+}
+
+message EngineMetricsGetProxyResponse {
+	ptypes.Metrics metrics = 1;
 }

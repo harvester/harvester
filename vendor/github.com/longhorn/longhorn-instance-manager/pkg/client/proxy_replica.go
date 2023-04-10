@@ -9,7 +9,7 @@ import (
 	eptypes "github.com/longhorn/longhorn-engine/proto/ptypes"
 )
 
-func (c *ProxyClient) ReplicaAdd(serviceAddress, replicaAddress string, restore bool) (err error) {
+func (c *ProxyClient) ReplicaAdd(serviceAddress, replicaAddress string, restore bool, size, currentSize int64, fileSyncHTTPClientTimeout int, fastSync bool) (err error) {
 	input := map[string]string{
 		"serviceAddress": serviceAddress,
 		"replicaAddress": replicaAddress,
@@ -30,8 +30,12 @@ func (c *ProxyClient) ReplicaAdd(serviceAddress, replicaAddress string, restore 
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
 			Address: serviceAddress,
 		},
-		ReplicaAddress: replicaAddress,
-		Restore:        restore,
+		ReplicaAddress:            replicaAddress,
+		Restore:                   restore,
+		Size:                      size,
+		CurrentSize:               currentSize,
+		FastSync:                  fastSync,
+		FileSyncHttpClientTimeout: int32(fileSyncHTTPClientTimeout),
 	}
 	_, err = c.service.ReplicaAdd(getContextWithGRPCLongTimeout(c.ctx), req)
 	if err != nil {
@@ -151,6 +155,34 @@ func (c *ProxyClient) ReplicaRemove(serviceAddress, replicaAddress string) (err 
 		ReplicaAddress: replicaAddress,
 	}
 	_, err = c.service.ReplicaRemove(getContextWithGRPCTimeout(c.ctx), req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *ProxyClient) ReplicaModeUpdate(serviceAddress, replicaAddress string, mode string) (err error) {
+	input := map[string]string{
+		"serviceAddress": serviceAddress,
+		"replicaAddress": replicaAddress,
+	}
+	if err := validateProxyMethodParameters(input); err != nil {
+		return errors.Wrap(err, "failed to remove replica for volume")
+	}
+
+	defer func() {
+		err = errors.Wrapf(err, "%v failed to update replica %v mode for volume", c.getProxyErrorPrefix(serviceAddress), replicaAddress)
+	}()
+
+	req := &rpc.EngineReplicaModeUpdateRequest{
+		ProxyEngineRequest: &rpc.ProxyEngineRequest{
+			Address: serviceAddress,
+		},
+		ReplicaAddress: replicaAddress,
+		Mode:           eptypes.ReplicaModeToGRPCReplicaMode(etypes.Mode(mode)),
+	}
+	_, err = c.service.ReplicaModeUpdate(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}

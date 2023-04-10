@@ -12,9 +12,9 @@ import (
 type Monitor interface {
 	Start()
 	Close()
-
-	SyncCollectedData() error
+	UpdateConfiguration(map[string]interface{}) error
 	GetCollectedData() (interface{}, error)
+	RunOnce() error
 }
 
 type baseMonitor struct {

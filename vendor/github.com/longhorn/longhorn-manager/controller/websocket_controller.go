@@ -69,6 +69,10 @@ func NewWebsocketController(
 	wc.cacheSyncs = append(wc.cacheSyncs, ds.BackupInformer.HasSynced)
 	ds.RecurringJobInformer.AddEventHandler(wc.notifyWatchersHandler("recurringJob"))
 	wc.cacheSyncs = append(wc.cacheSyncs, ds.RecurringJobInformer.HasSynced)
+	ds.SystemBackupInformer.AddEventHandler(wc.notifyWatchersHandler("systemBackup"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.SystemBackupInformer.HasSynced)
+	ds.SystemRestoreInformer.AddEventHandler(wc.notifyWatchersHandler("systemRestore"))
+	wc.cacheSyncs = append(wc.cacheSyncs, ds.SystemRestoreInformer.HasSynced)
 
 	return wc
 }
@@ -89,8 +93,8 @@ func (wc *WebsocketController) NewWatcher(resources ...string) *Watcher {
 func (wc *WebsocketController) Run(stopCh <-chan struct{}) {
 	defer wc.Close()
 
-	wc.logger.Infof("Start Longhorn websocket controller")
-	defer wc.logger.Infof("Shutting down Longhorn websocket controller")
+	wc.logger.Infof("Starting Longhorn websocket controller")
+	defer wc.logger.Infof("Shut down Longhorn websocket controller")
 
 	if !cache.WaitForNamedCacheSync("longhorn websocket", stopCh, wc.cacheSyncs...) {
 		return

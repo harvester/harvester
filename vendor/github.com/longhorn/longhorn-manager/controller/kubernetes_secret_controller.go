@@ -93,8 +93,8 @@ func (ks *KubernetesSecretController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer ks.queue.ShutDown()
 
-	ks.logger.Info("Start Longhorn Kubernetes secret controller")
-	defer ks.logger.Info("Shutting down Longhorn Kubernetes secret controller")
+	ks.logger.Info("Starting Longhorn Kubernetes secret controller")
+	defer ks.logger.Info("Shut down Longhorn Kubernetes secret controller")
 
 	if !cache.WaitForNamedCacheSync(ks.name, stopCh, ks.cacheSyncs...) {
 		return
@@ -140,7 +140,7 @@ func (ks *KubernetesSecretController) handleErr(err error, key interface{}) {
 
 func (ks *KubernetesSecretController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync %v", ks.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync %v", ks.name, key)
 	}()
 
 	namespace, secretName, err := cache.SplitMetaNamespaceKey(key)

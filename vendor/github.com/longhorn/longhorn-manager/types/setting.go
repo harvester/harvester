@@ -6,8 +6,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
+	"github.com/robfig/cron"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
@@ -34,55 +36,70 @@ const (
 type SettingName string
 
 const (
-	SettingNameBackupTarget                                 = SettingName("backup-target")
-	SettingNameBackupTargetCredentialSecret                 = SettingName("backup-target-credential-secret")
-	SettingNameAllowRecurringJobWhileVolumeDetached         = SettingName("allow-recurring-job-while-volume-detached")
-	SettingNameCreateDefaultDiskLabeledNodes                = SettingName("create-default-disk-labeled-nodes")
-	SettingNameDefaultDataPath                              = SettingName("default-data-path")
-	SettingNameDefaultEngineImage                           = SettingName("default-engine-image")
-	SettingNameDefaultInstanceManagerImage                  = SettingName("default-instance-manager-image")
-	SettingNameDefaultShareManagerImage                     = SettingName("default-share-manager-image")
-	SettingNameDefaultBackingImageManagerImage              = SettingName("default-backing-image-manager-image")
-	SettingNameReplicaSoftAntiAffinity                      = SettingName("replica-soft-anti-affinity")
-	SettingNameReplicaAutoBalance                           = SettingName("replica-auto-balance")
-	SettingNameStorageOverProvisioningPercentage            = SettingName("storage-over-provisioning-percentage")
-	SettingNameStorageMinimalAvailablePercentage            = SettingName("storage-minimal-available-percentage")
-	SettingNameUpgradeChecker                               = SettingName("upgrade-checker")
-	SettingNameCurrentLonghornVersion                       = SettingName("current-longhorn-version")
-	SettingNameLatestLonghornVersion                        = SettingName("latest-longhorn-version")
-	SettingNameStableLonghornVersions                       = SettingName("stable-longhorn-versions")
-	SettingNameDefaultReplicaCount                          = SettingName("default-replica-count")
-	SettingNameDefaultDataLocality                          = SettingName("default-data-locality")
-	SettingNameGuaranteedEngineCPU                          = SettingName("guaranteed-engine-cpu")
-	SettingNameDefaultLonghornStaticStorageClass            = SettingName("default-longhorn-static-storage-class")
-	SettingNameBackupstorePollInterval                      = SettingName("backupstore-poll-interval")
-	SettingNameTaintToleration                              = SettingName("taint-toleration")
-	SettingNameSystemManagedComponentsNodeSelector          = SettingName("system-managed-components-node-selector")
-	SettingNameCRDAPIVersion                                = SettingName("crd-api-version")
-	SettingNameAutoSalvage                                  = SettingName("auto-salvage")
-	SettingNameAutoDeletePodWhenVolumeDetachedUnexpectedly  = SettingName("auto-delete-pod-when-volume-detached-unexpectedly")
-	SettingNameRegistrySecret                               = SettingName("registry-secret")
-	SettingNameDisableSchedulingOnCordonedNode              = SettingName("disable-scheduling-on-cordoned-node")
-	SettingNameReplicaZoneSoftAntiAffinity                  = SettingName("replica-zone-soft-anti-affinity")
-	SettingNameNodeDownPodDeletionPolicy                    = SettingName("node-down-pod-deletion-policy")
-	SettingNameAllowNodeDrainWithLastHealthyReplica         = SettingName("allow-node-drain-with-last-healthy-replica")
-	SettingNameMkfsExt4Parameters                           = SettingName("mkfs-ext4-parameters")
-	SettingNamePriorityClass                                = SettingName("priority-class")
-	SettingNameDisableRevisionCounter                       = SettingName("disable-revision-counter")
-	SettingNameDisableReplicaRebuild                        = SettingName("disable-replica-rebuild")
-	SettingNameReplicaReplenishmentWaitInterval             = SettingName("replica-replenishment-wait-interval")
-	SettingNameConcurrentReplicaRebuildPerNodeLimit         = SettingName("concurrent-replica-rebuild-per-node-limit")
-	SettingNameSystemManagedPodsImagePullPolicy             = SettingName("system-managed-pods-image-pull-policy")
-	SettingNameAllowVolumeCreationWithDegradedAvailability  = SettingName("allow-volume-creation-with-degraded-availability")
-	SettingNameAutoCleanupSystemGeneratedSnapshot           = SettingName("auto-cleanup-system-generated-snapshot")
-	SettingNameConcurrentAutomaticEngineUpgradePerNodeLimit = SettingName("concurrent-automatic-engine-upgrade-per-node-limit")
-	SettingNameBackingImageCleanupWaitInterval              = SettingName("backing-image-cleanup-wait-interval")
-	SettingNameBackingImageRecoveryWaitInterval             = SettingName("backing-image-recovery-wait-interval")
-	SettingNameGuaranteedEngineManagerCPU                   = SettingName("guaranteed-engine-manager-cpu")
-	SettingNameGuaranteedReplicaManagerCPU                  = SettingName("guaranteed-replica-manager-cpu")
-	SettingNameKubernetesClusterAutoscalerEnabled           = SettingName("kubernetes-cluster-autoscaler-enabled")
-	SettingNameOrphanAutoDeletion                           = SettingName("orphan-auto-deletion")
-	SettingNameStorageNetwork                               = SettingName("storage-network")
+	SettingNameBackupTarget                                             = SettingName("backup-target")
+	SettingNameBackupTargetCredentialSecret                             = SettingName("backup-target-credential-secret")
+	SettingNameAllowRecurringJobWhileVolumeDetached                     = SettingName("allow-recurring-job-while-volume-detached")
+	SettingNameCreateDefaultDiskLabeledNodes                            = SettingName("create-default-disk-labeled-nodes")
+	SettingNameDefaultDataPath                                          = SettingName("default-data-path")
+	SettingNameDefaultEngineImage                                       = SettingName("default-engine-image")
+	SettingNameDefaultInstanceManagerImage                              = SettingName("default-instance-manager-image")
+	SettingNameDefaultShareManagerImage                                 = SettingName("default-share-manager-image")
+	SettingNameDefaultBackingImageManagerImage                          = SettingName("default-backing-image-manager-image")
+	SettingNameSupportBundleManagerImage                                = SettingName("support-bundle-manager-image")
+	SettingNameReplicaSoftAntiAffinity                                  = SettingName("replica-soft-anti-affinity")
+	SettingNameReplicaAutoBalance                                       = SettingName("replica-auto-balance")
+	SettingNameStorageOverProvisioningPercentage                        = SettingName("storage-over-provisioning-percentage")
+	SettingNameStorageMinimalAvailablePercentage                        = SettingName("storage-minimal-available-percentage")
+	SettingNameUpgradeChecker                                           = SettingName("upgrade-checker")
+	SettingNameCurrentLonghornVersion                                   = SettingName("current-longhorn-version")
+	SettingNameLatestLonghornVersion                                    = SettingName("latest-longhorn-version")
+	SettingNameStableLonghornVersions                                   = SettingName("stable-longhorn-versions")
+	SettingNameDefaultReplicaCount                                      = SettingName("default-replica-count")
+	SettingNameDefaultDataLocality                                      = SettingName("default-data-locality")
+	SettingNameGuaranteedEngineCPU                                      = SettingName("guaranteed-engine-cpu")
+	SettingNameDefaultLonghornStaticStorageClass                        = SettingName("default-longhorn-static-storage-class")
+	SettingNameBackupstorePollInterval                                  = SettingName("backupstore-poll-interval")
+	SettingNameTaintToleration                                          = SettingName("taint-toleration")
+	SettingNameSystemManagedComponentsNodeSelector                      = SettingName("system-managed-components-node-selector")
+	SettingNameCRDAPIVersion                                            = SettingName("crd-api-version")
+	SettingNameAutoSalvage                                              = SettingName("auto-salvage")
+	SettingNameAutoDeletePodWhenVolumeDetachedUnexpectedly              = SettingName("auto-delete-pod-when-volume-detached-unexpectedly")
+	SettingNameRegistrySecret                                           = SettingName("registry-secret")
+	SettingNameDisableSchedulingOnCordonedNode                          = SettingName("disable-scheduling-on-cordoned-node")
+	SettingNameReplicaZoneSoftAntiAffinity                              = SettingName("replica-zone-soft-anti-affinity")
+	SettingNameNodeDownPodDeletionPolicy                                = SettingName("node-down-pod-deletion-policy")
+	SettingNameAllowNodeDrainWithLastHealthyReplica                     = SettingName("allow-node-drain-with-last-healthy-replica")
+	SettingNameMkfsExt4Parameters                                       = SettingName("mkfs-ext4-parameters")
+	SettingNamePriorityClass                                            = SettingName("priority-class")
+	SettingNameDisableRevisionCounter                                   = SettingName("disable-revision-counter")
+	SettingNameDisableReplicaRebuild                                    = SettingName("disable-replica-rebuild")
+	SettingNameReplicaReplenishmentWaitInterval                         = SettingName("replica-replenishment-wait-interval")
+	SettingNameConcurrentReplicaRebuildPerNodeLimit                     = SettingName("concurrent-replica-rebuild-per-node-limit")
+	SettingNameConcurrentBackupRestorePerNodeLimit                      = SettingName("concurrent-volume-backup-restore-per-node-limit")
+	SettingNameSystemManagedPodsImagePullPolicy                         = SettingName("system-managed-pods-image-pull-policy")
+	SettingNameAllowVolumeCreationWithDegradedAvailability              = SettingName("allow-volume-creation-with-degraded-availability")
+	SettingNameAutoCleanupSystemGeneratedSnapshot                       = SettingName("auto-cleanup-system-generated-snapshot")
+	SettingNameConcurrentAutomaticEngineUpgradePerNodeLimit             = SettingName("concurrent-automatic-engine-upgrade-per-node-limit")
+	SettingNameBackingImageCleanupWaitInterval                          = SettingName("backing-image-cleanup-wait-interval")
+	SettingNameBackingImageRecoveryWaitInterval                         = SettingName("backing-image-recovery-wait-interval")
+	SettingNameGuaranteedEngineManagerCPU                               = SettingName("guaranteed-engine-manager-cpu")
+	SettingNameGuaranteedReplicaManagerCPU                              = SettingName("guaranteed-replica-manager-cpu")
+	SettingNameKubernetesClusterAutoscalerEnabled                       = SettingName("kubernetes-cluster-autoscaler-enabled")
+	SettingNameOrphanAutoDeletion                                       = SettingName("orphan-auto-deletion")
+	SettingNameStorageNetwork                                           = SettingName("storage-network")
+	SettingNameFailedBackupTTL                                          = SettingName("failed-backup-ttl")
+	SettingNameRecurringSuccessfulJobsHistoryLimit                      = SettingName("recurring-successful-jobs-history-limit")
+	SettingNameRecurringFailedJobsHistoryLimit                          = SettingName("recurring-failed-jobs-history-limit")
+	SettingNameSupportBundleFailedHistoryLimit                          = SettingName("support-bundle-failed-history-limit")
+	SettingNameDeletingConfirmationFlag                                 = SettingName("deleting-confirmation-flag")
+	SettingNameEngineReplicaTimeout                                     = SettingName("engine-replica-timeout")
+	SettingNameSnapshotDataIntegrity                                    = SettingName("snapshot-data-integrity")
+	SettingNameSnapshotDataIntegrityImmediateCheckAfterSnapshotCreation = SettingName("snapshot-data-integrity-immediate-check-after-snapshot-creation")
+	SettingNameSnapshotDataIntegrityCronJob                             = SettingName("snapshot-data-integrity-cronjob")
+	SettingNameRestoreVolumeRecurringJobs                               = SettingName("restore-volume-recurring-jobs")
+	SettingNameRemoveSnapshotsDuringFilesystemTrim                      = SettingName("remove-snapshots-during-filesystem-trim")
+	SettingNameFastReplicaRebuildEnabled                                = SettingName("fast-replica-rebuild-enabled")
+	SettingNameReplicaFileSyncHTTPClientTimeout                         = SettingName("replica-file-sync-http-client-timeout")
 )
 
 var (
@@ -96,6 +113,7 @@ var (
 		SettingNameDefaultInstanceManagerImage,
 		SettingNameDefaultShareManagerImage,
 		SettingNameDefaultBackingImageManagerImage,
+		SettingNameSupportBundleManagerImage,
 		SettingNameReplicaSoftAntiAffinity,
 		SettingNameReplicaAutoBalance,
 		SettingNameStorageOverProvisioningPercentage,
@@ -125,6 +143,7 @@ var (
 		SettingNameDisableReplicaRebuild,
 		SettingNameReplicaReplenishmentWaitInterval,
 		SettingNameConcurrentReplicaRebuildPerNodeLimit,
+		SettingNameConcurrentBackupRestorePerNodeLimit,
 		SettingNameSystemManagedPodsImagePullPolicy,
 		SettingNameAllowVolumeCreationWithDegradedAvailability,
 		SettingNameAutoCleanupSystemGeneratedSnapshot,
@@ -136,6 +155,19 @@ var (
 		SettingNameKubernetesClusterAutoscalerEnabled,
 		SettingNameOrphanAutoDeletion,
 		SettingNameStorageNetwork,
+		SettingNameFailedBackupTTL,
+		SettingNameRecurringSuccessfulJobsHistoryLimit,
+		SettingNameRecurringFailedJobsHistoryLimit,
+		SettingNameSupportBundleFailedHistoryLimit,
+		SettingNameDeletingConfirmationFlag,
+		SettingNameEngineReplicaTimeout,
+		SettingNameSnapshotDataIntegrity,
+		SettingNameSnapshotDataIntegrityCronJob,
+		SettingNameSnapshotDataIntegrityImmediateCheckAfterSnapshotCreation,
+		SettingNameRestoreVolumeRecurringJobs,
+		SettingNameRemoveSnapshotsDuringFilesystemTrim,
+		SettingNameFastReplicaRebuildEnabled,
+		SettingNameReplicaFileSyncHTTPClientTimeout,
 	}
 )
 
@@ -147,6 +179,7 @@ const (
 	SettingCategoryOrphan     = SettingCategory("orphan")
 	SettingCategoryScheduling = SettingCategory("scheduling")
 	SettingCategoryDangerZone = SettingCategory("danger Zone")
+	SettingCategorySnapshot   = SettingCategory("snapshot")
 )
 
 type SettingDefinition struct {
@@ -164,55 +197,70 @@ var settingDefinitionsLock sync.RWMutex
 
 var (
 	settingDefinitions = map[SettingName]SettingDefinition{
-		SettingNameBackupTarget:                                 SettingDefinitionBackupTarget,
-		SettingNameBackupTargetCredentialSecret:                 SettingDefinitionBackupTargetCredentialSecret,
-		SettingNameAllowRecurringJobWhileVolumeDetached:         SettingDefinitionAllowRecurringJobWhileVolumeDetached,
-		SettingNameCreateDefaultDiskLabeledNodes:                SettingDefinitionCreateDefaultDiskLabeledNodes,
-		SettingNameDefaultDataPath:                              SettingDefinitionDefaultDataPath,
-		SettingNameDefaultEngineImage:                           SettingDefinitionDefaultEngineImage,
-		SettingNameDefaultInstanceManagerImage:                  SettingDefinitionDefaultInstanceManagerImage,
-		SettingNameDefaultShareManagerImage:                     SettingDefinitionDefaultShareManagerImage,
-		SettingNameDefaultBackingImageManagerImage:              SettingDefinitionDefaultBackingImageManagerImage,
-		SettingNameReplicaSoftAntiAffinity:                      SettingDefinitionReplicaSoftAntiAffinity,
-		SettingNameReplicaAutoBalance:                           SettingDefinitionReplicaAutoBalance,
-		SettingNameStorageOverProvisioningPercentage:            SettingDefinitionStorageOverProvisioningPercentage,
-		SettingNameStorageMinimalAvailablePercentage:            SettingDefinitionStorageMinimalAvailablePercentage,
-		SettingNameUpgradeChecker:                               SettingDefinitionUpgradeChecker,
-		SettingNameCurrentLonghornVersion:                       SettingDefinitionCurrentLonghornVersion,
-		SettingNameLatestLonghornVersion:                        SettingDefinitionLatestLonghornVersion,
-		SettingNameStableLonghornVersions:                       SettingDefinitionStableLonghornVersions,
-		SettingNameDefaultReplicaCount:                          SettingDefinitionDefaultReplicaCount,
-		SettingNameDefaultDataLocality:                          SettingDefinitionDefaultDataLocality,
-		SettingNameGuaranteedEngineCPU:                          SettingDefinitionGuaranteedEngineCPU,
-		SettingNameDefaultLonghornStaticStorageClass:            SettingDefinitionDefaultLonghornStaticStorageClass,
-		SettingNameBackupstorePollInterval:                      SettingDefinitionBackupstorePollInterval,
-		SettingNameTaintToleration:                              SettingDefinitionTaintToleration,
-		SettingNameSystemManagedComponentsNodeSelector:          SettingDefinitionSystemManagedComponentsNodeSelector,
-		SettingNameCRDAPIVersion:                                SettingDefinitionCRDAPIVersion,
-		SettingNameAutoSalvage:                                  SettingDefinitionAutoSalvage,
-		SettingNameAutoDeletePodWhenVolumeDetachedUnexpectedly:  SettingDefinitionAutoDeletePodWhenVolumeDetachedUnexpectedly,
-		SettingNameRegistrySecret:                               SettingDefinitionRegistrySecret,
-		SettingNameDisableSchedulingOnCordonedNode:              SettingDefinitionDisableSchedulingOnCordonedNode,
-		SettingNameReplicaZoneSoftAntiAffinity:                  SettingDefinitionReplicaZoneSoftAntiAffinity,
-		SettingNameNodeDownPodDeletionPolicy:                    SettingDefinitionNodeDownPodDeletionPolicy,
-		SettingNameAllowNodeDrainWithLastHealthyReplica:         SettingDefinitionAllowNodeDrainWithLastHealthyReplica,
-		SettingNameMkfsExt4Parameters:                           SettingDefinitionMkfsExt4Parameters,
-		SettingNamePriorityClass:                                SettingDefinitionPriorityClass,
-		SettingNameDisableRevisionCounter:                       SettingDefinitionDisableRevisionCounter,
-		SettingNameDisableReplicaRebuild:                        SettingDefinitionDisableReplicaRebuild,
-		SettingNameReplicaReplenishmentWaitInterval:             SettingDefinitionReplicaReplenishmentWaitInterval,
-		SettingNameConcurrentReplicaRebuildPerNodeLimit:         SettingDefinitionConcurrentReplicaRebuildPerNodeLimit,
-		SettingNameSystemManagedPodsImagePullPolicy:             SettingDefinitionSystemManagedPodsImagePullPolicy,
-		SettingNameAllowVolumeCreationWithDegradedAvailability:  SettingDefinitionAllowVolumeCreationWithDegradedAvailability,
-		SettingNameAutoCleanupSystemGeneratedSnapshot:           SettingDefinitionAutoCleanupSystemGeneratedSnapshot,
-		SettingNameConcurrentAutomaticEngineUpgradePerNodeLimit: SettingDefinitionConcurrentAutomaticEngineUpgradePerNodeLimit,
-		SettingNameBackingImageCleanupWaitInterval:              SettingDefinitionBackingImageCleanupWaitInterval,
-		SettingNameBackingImageRecoveryWaitInterval:             SettingDefinitionBackingImageRecoveryWaitInterval,
-		SettingNameGuaranteedEngineManagerCPU:                   SettingDefinitionGuaranteedEngineManagerCPU,
-		SettingNameGuaranteedReplicaManagerCPU:                  SettingDefinitionGuaranteedReplicaManagerCPU,
-		SettingNameKubernetesClusterAutoscalerEnabled:           SettingDefinitionKubernetesClusterAutoscalerEnabled,
-		SettingNameOrphanAutoDeletion:                           SettingDefinitionOrphanAutoDeletion,
-		SettingNameStorageNetwork:                               SettingDefinitionStorageNetwork,
+		SettingNameBackupTarget:                                             SettingDefinitionBackupTarget,
+		SettingNameBackupTargetCredentialSecret:                             SettingDefinitionBackupTargetCredentialSecret,
+		SettingNameAllowRecurringJobWhileVolumeDetached:                     SettingDefinitionAllowRecurringJobWhileVolumeDetached,
+		SettingNameCreateDefaultDiskLabeledNodes:                            SettingDefinitionCreateDefaultDiskLabeledNodes,
+		SettingNameDefaultDataPath:                                          SettingDefinitionDefaultDataPath,
+		SettingNameDefaultEngineImage:                                       SettingDefinitionDefaultEngineImage,
+		SettingNameDefaultInstanceManagerImage:                              SettingDefinitionDefaultInstanceManagerImage,
+		SettingNameDefaultShareManagerImage:                                 SettingDefinitionDefaultShareManagerImage,
+		SettingNameDefaultBackingImageManagerImage:                          SettingDefinitionDefaultBackingImageManagerImage,
+		SettingNameSupportBundleManagerImage:                                SettingDefinitionSupportBundleManagerImage,
+		SettingNameReplicaSoftAntiAffinity:                                  SettingDefinitionReplicaSoftAntiAffinity,
+		SettingNameReplicaAutoBalance:                                       SettingDefinitionReplicaAutoBalance,
+		SettingNameStorageOverProvisioningPercentage:                        SettingDefinitionStorageOverProvisioningPercentage,
+		SettingNameStorageMinimalAvailablePercentage:                        SettingDefinitionStorageMinimalAvailablePercentage,
+		SettingNameUpgradeChecker:                                           SettingDefinitionUpgradeChecker,
+		SettingNameCurrentLonghornVersion:                                   SettingDefinitionCurrentLonghornVersion,
+		SettingNameLatestLonghornVersion:                                    SettingDefinitionLatestLonghornVersion,
+		SettingNameStableLonghornVersions:                                   SettingDefinitionStableLonghornVersions,
+		SettingNameDefaultReplicaCount:                                      SettingDefinitionDefaultReplicaCount,
+		SettingNameDefaultDataLocality:                                      SettingDefinitionDefaultDataLocality,
+		SettingNameGuaranteedEngineCPU:                                      SettingDefinitionGuaranteedEngineCPU,
+		SettingNameDefaultLonghornStaticStorageClass:                        SettingDefinitionDefaultLonghornStaticStorageClass,
+		SettingNameBackupstorePollInterval:                                  SettingDefinitionBackupstorePollInterval,
+		SettingNameTaintToleration:                                          SettingDefinitionTaintToleration,
+		SettingNameSystemManagedComponentsNodeSelector:                      SettingDefinitionSystemManagedComponentsNodeSelector,
+		SettingNameCRDAPIVersion:                                            SettingDefinitionCRDAPIVersion,
+		SettingNameAutoSalvage:                                              SettingDefinitionAutoSalvage,
+		SettingNameAutoDeletePodWhenVolumeDetachedUnexpectedly:              SettingDefinitionAutoDeletePodWhenVolumeDetachedUnexpectedly,
+		SettingNameRegistrySecret:                                           SettingDefinitionRegistrySecret,
+		SettingNameDisableSchedulingOnCordonedNode:                          SettingDefinitionDisableSchedulingOnCordonedNode,
+		SettingNameReplicaZoneSoftAntiAffinity:                              SettingDefinitionReplicaZoneSoftAntiAffinity,
+		SettingNameNodeDownPodDeletionPolicy:                                SettingDefinitionNodeDownPodDeletionPolicy,
+		SettingNameAllowNodeDrainWithLastHealthyReplica:                     SettingDefinitionAllowNodeDrainWithLastHealthyReplica,
+		SettingNameMkfsExt4Parameters:                                       SettingDefinitionMkfsExt4Parameters,
+		SettingNamePriorityClass:                                            SettingDefinitionPriorityClass,
+		SettingNameDisableRevisionCounter:                                   SettingDefinitionDisableRevisionCounter,
+		SettingNameDisableReplicaRebuild:                                    SettingDefinitionDisableReplicaRebuild,
+		SettingNameReplicaReplenishmentWaitInterval:                         SettingDefinitionReplicaReplenishmentWaitInterval,
+		SettingNameConcurrentReplicaRebuildPerNodeLimit:                     SettingDefinitionConcurrentReplicaRebuildPerNodeLimit,
+		SettingNameConcurrentBackupRestorePerNodeLimit:                      SettingDefinitionConcurrentVolumeBackupRestorePerNodeLimit,
+		SettingNameSystemManagedPodsImagePullPolicy:                         SettingDefinitionSystemManagedPodsImagePullPolicy,
+		SettingNameAllowVolumeCreationWithDegradedAvailability:              SettingDefinitionAllowVolumeCreationWithDegradedAvailability,
+		SettingNameAutoCleanupSystemGeneratedSnapshot:                       SettingDefinitionAutoCleanupSystemGeneratedSnapshot,
+		SettingNameConcurrentAutomaticEngineUpgradePerNodeLimit:             SettingDefinitionConcurrentAutomaticEngineUpgradePerNodeLimit,
+		SettingNameBackingImageCleanupWaitInterval:                          SettingDefinitionBackingImageCleanupWaitInterval,
+		SettingNameBackingImageRecoveryWaitInterval:                         SettingDefinitionBackingImageRecoveryWaitInterval,
+		SettingNameGuaranteedEngineManagerCPU:                               SettingDefinitionGuaranteedEngineManagerCPU,
+		SettingNameGuaranteedReplicaManagerCPU:                              SettingDefinitionGuaranteedReplicaManagerCPU,
+		SettingNameKubernetesClusterAutoscalerEnabled:                       SettingDefinitionKubernetesClusterAutoscalerEnabled,
+		SettingNameOrphanAutoDeletion:                                       SettingDefinitionOrphanAutoDeletion,
+		SettingNameStorageNetwork:                                           SettingDefinitionStorageNetwork,
+		SettingNameFailedBackupTTL:                                          SettingDefinitionFailedBackupTTL,
+		SettingNameRecurringSuccessfulJobsHistoryLimit:                      SettingDefinitionRecurringSuccessfulJobsHistoryLimit,
+		SettingNameRecurringFailedJobsHistoryLimit:                          SettingDefinitionRecurringFailedJobsHistoryLimit,
+		SettingNameSupportBundleFailedHistoryLimit:                          SettingDefinitionSupportBundleFailedHistoryLimit,
+		SettingNameDeletingConfirmationFlag:                                 SettingDefinitionDeletingConfirmationFlag,
+		SettingNameEngineReplicaTimeout:                                     SettingDefinitionEngineReplicaTimeout,
+		SettingNameSnapshotDataIntegrity:                                    SettingDefinitionSnapshotDataIntegrity,
+		SettingNameSnapshotDataIntegrityImmediateCheckAfterSnapshotCreation: SettingDefinitionSnapshotDataIntegrityImmediateCheckAfterSnapshotCreation,
+		SettingNameSnapshotDataIntegrityCronJob:                             SettingDefinitionSnapshotDataIntegrityCronJob,
+		SettingNameRestoreVolumeRecurringJobs:                               SettingDefinitionRestoreVolumeRecurringJobs,
+		SettingNameRemoveSnapshotsDuringFilesystemTrim:                      SettingDefinitionRemoveSnapshotsDuringFilesystemTrim,
+		SettingNameFastReplicaRebuildEnabled:                                SettingDefinitionFastReplicaRebuildEnabled,
+		SettingNameReplicaFileSyncHTTPClientTimeout:                         SettingDefinitionReplicaFileSyncHTTPClientTimeout,
 	}
 
 	SettingDefinitionBackupTarget = SettingDefinition{
@@ -253,6 +301,34 @@ var (
 		Required:    true,
 		ReadOnly:    false,
 		Default:     "300",
+	}
+
+	SettingDefinitionFailedBackupTTL = SettingDefinition{
+		DisplayName: "Failed Backup Time to Live",
+		Description: "In minutes. This setting determines how long Longhorn will keep the backup resource that was failed. Set to 0 to disable the auto-deletion.\n" +
+			"Failed backups will be checked and cleaned up during backupstore polling which is controlled by **Backupstore Poll Interval** setting.\n" +
+			"Hence this value determines the minimal wait interval of the cleanup. And the actual cleanup interval is multiple of **Backupstore Poll Interval**.\n" +
+			"Disabling **Backupstore Poll Interval** also means to disable failed backup auto-deletion.\n\n",
+		Category: SettingCategoryBackup,
+		Type:     SettingTypeInt,
+		Required: true,
+		ReadOnly: false,
+		Default:  "1440",
+	}
+
+	SettingDefinitionRestoreVolumeRecurringJobs = SettingDefinition{
+		DisplayName: "Restore Volume Recurring Jobs",
+		Description: "Restore recurring jobs from the backup volume on the backup target and create recurring jobs if not exist during a backup restoration.\n\n" +
+			"Longhorn also supports individual volume setting. The setting can be specified on Backup page when making a backup restoration, this overrules the global setting.\n\n" +
+			"The available volume setting options are: \n\n" +
+			"- **ignored**. This is the default option that instructs Longhorn to inherit from the global setting.\n" +
+			"- **enabled**. This option instructs Longhorn to restore recurring jobs/groups from the backup target forcibly.\n" +
+			"- **disabled**. This option instructs Longhorn no restoring recurring jobs/groups should be done.\n",
+		Category: SettingCategoryBackup,
+		Type:     SettingTypeBool,
+		Required: true,
+		ReadOnly: false,
+		Default:  "false",
 	}
 
 	SettingDefinitionCreateDefaultDiskLabeledNodes = SettingDefinition{
@@ -311,6 +387,15 @@ var (
 		Type:        SettingTypeString,
 		Required:    true,
 		ReadOnly:    true,
+	}
+
+	SettingDefinitionSupportBundleManagerImage = SettingDefinition{
+		DisplayName: "Support Bundle Manager Image",
+		Description: "The support bundle manager image for the support bundle generation.",
+		Category:    SettingCategoryGeneral,
+		Type:        SettingTypeString,
+		Required:    true,
+		ReadOnly:    false,
 	}
 
 	SettingDefinitionReplicaSoftAntiAffinity = SettingDefinition{
@@ -422,7 +507,8 @@ var (
 			"This setting specifies the default data locality when a volume is created from the Longhorn UI. For Kubernetes configuration, update the `dataLocality` in the StorageClass\n\n" +
 			"The available modes are: \n\n" +
 			"- **disabled**. This is the default option. There may or may not be a replica on the same node as the attached volume (workload)\n" +
-			"- **best-effort**. This option instructs Longhorn to try to keep a replica on the same node as the attached volume (workload). Longhorn will not stop the volume, even if it cannot keep a replica local to the attached volume (workload) due to environment limitation, e.g. not enough disk space, incompatible disk tags, etc.\n",
+			"- **best-effort**. This option instructs Longhorn to try to keep a replica on the same node as the attached volume (workload). Longhorn will not stop the volume, even if it cannot keep a replica local to the attached volume (workload) due to environment limitation, e.g. not enough disk space, incompatible disk tags, etc.\n" +
+			"- **strict-local**. This option enforces Longhorn keep the only one replica on the same node as the attached volume.\n",
 		Category: SettingCategoryGeneral,
 		Type:     SettingTypeString,
 		Required: true,
@@ -431,6 +517,7 @@ var (
 		Choices: []string{
 			string(longhorn.DataLocalityDisabled),
 			string(longhorn.DataLocalityBestEffort),
+			string(longhorn.DataLocalityStrictLocal),
 		},
 	}
 
@@ -514,8 +601,8 @@ var (
 	}
 
 	SettingDefinitionAutoDeletePodWhenVolumeDetachedUnexpectedly = SettingDefinition{
-		DisplayName: "Automatically Delete Workload Pod when The Volume Is Detached Unexpectedly",
-		Description: "If enabled, Longhorn will automatically delete the workload pod that is managed by a controller (e.g. deployment, statefulset, daemonset, etc...) when Longhorn volume is detached unexpectedly (e.g. during Kubernetes upgrade, Docker reboot, or network disconnect). " +
+		DisplayName: "Automatically Delete Workload Pod when The ReadWriteOnce (RWO) Volume Is Detached Unexpectedly",
+		Description: "If enabled, Longhorn will automatically delete the workload pod that is managed by a controller (e.g. deployment, statefulset, daemonset, etc...) when Longhorn ReadWriteOnce(RWO) volume is detached unexpectedly (e.g. during Kubernetes upgrade, Docker reboot, or network disconnect). " +
 			"By deleting the pod, its controller restarts the pod and Kubernetes handles volume reattachment and remount. \n\n" +
 			"If disabled, Longhorn will not delete the workload pod that is managed by a controller. You will have to manually restart the pod to reattach and remount the volume. \n\n" +
 			"**Note:** This setting doesn't apply to the workload pods that don't have a controller. Longhorn never deletes them.",
@@ -648,6 +735,18 @@ var (
 		Default:  "5",
 	}
 
+	SettingDefinitionConcurrentVolumeBackupRestorePerNodeLimit = SettingDefinition{
+		DisplayName: "Concurrent Volume Backup Restore Per Node Limit",
+		Description: "This setting controls how many volumes on a node can restore the backup concurrently.\n\n" +
+			"Longhorn blocks the backup restore once the restoring volume count exceeds the limit.\n\n" +
+			"Set the value to **0** to disable backup restore.\n\n",
+		Category: SettingCategoryGeneral,
+		Type:     SettingTypeInt,
+		Required: true,
+		ReadOnly: false,
+		Default:  "5",
+	}
+
 	SettingDefinitionSystemManagedPodsImagePullPolicy = SettingDefinition{
 		DisplayName: "System Managed Pod Image Pull Policy",
 		Description: "This setting defines the Image Pull Policy of Longhorn system managed pods, e.g. instance manager, engine image, CSI driver, etc. " +
@@ -677,7 +776,7 @@ var (
 	SettingDefinitionAutoCleanupSystemGeneratedSnapshot = SettingDefinition{
 		DisplayName: "Automatically Cleanup System Generated Snapshot",
 		Description: "This setting enables Longhorn to automatically cleanup the system generated snapshot before and after replica rebuilding.",
-		Category:    SettingCategoryGeneral,
+		Category:    SettingCategorySnapshot,
 		Type:        SettingTypeBool,
 		Required:    true,
 		ReadOnly:    false,
@@ -723,7 +822,7 @@ var (
 		DisplayName: "Guaranteed Engine Manager CPU",
 		Description: "This integer value indicates how many percentage of the total allocatable CPU on each node will be reserved for each engine manager Pod. For example, 10 means 10% of the total CPU on a node will be allocated to each engine manager pod on this node. This will help maintain engine stability during high node workload. \n\n" +
 			"In order to prevent unexpected volume engine crash as well as guarantee a relative acceptable IO performance, you can use the following formula to calculate a value for this setting: \n\n" +
-			"Guaranteed Engine Manager CPU = The estimated max Longhorn volume engine count on a node * 0.1 / The total allocatable CPUs on the node * 100. \n\n" +
+			"`Guaranteed Engine Manager CPU = The estimated max Longhorn volume engine count on a node * 0.1 / The total allocatable CPUs on the node * 100` \n\n" +
 			"The result of above calculation doesn't mean that's the maximum CPU resources the Longhorn workloads require. To fully exploit the Longhorn volume I/O performance, you can allocate/guarantee more CPU resources via this setting. \n\n" +
 			"If it's hard to estimate the usage now, you can leave it with the default value, which is 12%. Then you can tune it when there is no running workload using Longhorn volumes. \n\n" +
 			"WARNING: \n\n" +
@@ -743,7 +842,7 @@ var (
 		DisplayName: "Guaranteed Replica Manager CPU",
 		Description: "This integer value indicates how many percentage of the total allocatable CPU on each node will be reserved for each replica manager Pod. 10 means 10% of the total CPU on a node will be allocated to each replica manager pod on this node. This will help maintain replica stability during high node workload. \n\n" +
 			"In order to prevent unexpected volume replica crash as well as guarantee a relative acceptable IO performance, you can use the following formula to calculate a value for this setting: \n\n" +
-			"Guaranteed Replica Manager CPU = The estimated max Longhorn volume replica count on a node * 0.1 / The total allocatable CPUs on the node * 100. \n\n" +
+			"`Guaranteed Replica Manager CPU = The estimated max Longhorn volume replica count on a node * 0.1 / The total allocatable CPUs on the node * 100` \n\n" +
 			"The result of above calculation doesn't mean that's the maximum CPU resources the Longhorn workloads require. To fully exploit the Longhorn volume I/O performance, you can allocate/guarantee more CPU resources via this setting. \n\n" +
 			"If it's hard to estimate the usage now, you can leave it with the default value, which is 12%. Then you can tune it when there is no running workload using Longhorn volumes. \n\n" +
 			"WARNING: \n\n" +
@@ -798,6 +897,134 @@ var (
 		Required: false,
 		ReadOnly: false,
 		Default:  CniNetworkNone,
+	}
+
+	SettingDefinitionRecurringSuccessfulJobsHistoryLimit = SettingDefinition{
+		DisplayName: "Cronjob Successful Jobs History Limit",
+		Description: "This setting specifies how many successful backup or snapshot job histories should be retained. \n\n" +
+			"History will not be retained if the value is 0.",
+		Category: SettingCategoryBackup,
+		Type:     SettingTypeInt,
+		Required: false,
+		ReadOnly: false,
+		Default:  "1",
+	}
+
+	SettingDefinitionRecurringFailedJobsHistoryLimit = SettingDefinition{
+		DisplayName: "Cronjob Failed Jobs History Limit",
+		Description: "This setting specifies how many failed backup or snapshot job histories should be retained.\n\n" +
+			"History will not be retained if the value is 0.",
+		Category: SettingCategoryBackup,
+		Type:     SettingTypeInt,
+		Required: false,
+		ReadOnly: false,
+		Default:  "1",
+	}
+
+	SettingDefinitionSupportBundleFailedHistoryLimit = SettingDefinition{
+		DisplayName: "SupportBundle Failed History Limit",
+		Description: "This setting specifies how many failed support bundles can exist in the cluster.\n\n" +
+			"The retained failed support bundle is for analysis purposes and needs to clean up manually.\n\n" +
+			"Set this value to **0** to have Longhorn automatically purge all failed support bundles.\n\n",
+		Category: SettingCategoryGeneral,
+		Type:     SettingTypeInt,
+		Required: false,
+		ReadOnly: false,
+		Default:  "1",
+	}
+
+	SettingDefinitionDeletingConfirmationFlag = SettingDefinition{
+		DisplayName: "Deleting Confirmation Flag",
+		Description: "This flag is designed to prevent Longhorn from being accidentally uninstalled which will lead to data lost. \n\n" +
+			"Set this flag to **true** to allow Longhorn uninstallation. " +
+			"If this flag **false**, Longhorn uninstallation job will fail.",
+		Category: SettingCategoryGeneral,
+		Type:     SettingTypeBool,
+		Required: true,
+		ReadOnly: false,
+		Default:  "false",
+	}
+
+	SettingDefinitionEngineReplicaTimeout = SettingDefinition{
+		DisplayName: "Timeout between Engine and Replica",
+		Description: "In seconds. The setting specifies the timeout between the engine and replica(s), and the value should be between 8 to 30 seconds. The default value is 8 seconds.",
+		Category:    SettingCategoryGeneral,
+		Type:        SettingTypeInt,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "8",
+	}
+
+	SettingDefinitionSnapshotDataIntegrity = SettingDefinition{
+		DisplayName: "Snapshot Data Integrity",
+		Description: "This setting allows users to enable or disable snapshot hashing and data integrity checking. \n\n" +
+			"Available options are: \n\n" +
+			"- **disabled**: Disable snapshot disk file hashing and data integrity checking. \n\n" +
+			"- **enabled**: Enables periodic snapshot disk file hashing and data integrity checking. To detect the filesystem-unaware corruption caused by bit rot or other issues in snapshot disk files, Longhorn system periodically hashes files and finds corrupted ones. Hence, the system performance will be impacted during the periodical checking. \n\n" +
+			"- **fast-check**: Enable snapshot disk file hashing and fast data integrity checking. Longhorn system only hashes snapshot disk files if their are not hashed or the modification time are changed. In this mode, filesystem-unaware corruption cannot be detected, but the impact on system performance can be minimized.",
+		Category: SettingCategorySnapshot,
+		Type:     SettingTypeString,
+		Required: true,
+		ReadOnly: false,
+		Default:  string(longhorn.SnapshotDataIntegrityFastCheck),
+		Choices: []string{
+			string(longhorn.SnapshotDataIntegrityDisabled),
+			string(longhorn.SnapshotDataIntegrityEnabled),
+			string(longhorn.SnapshotDataIntegrityFastCheck),
+		},
+	}
+
+	SettingDefinitionSnapshotDataIntegrityImmediateCheckAfterSnapshotCreation = SettingDefinition{
+		DisplayName: "Immediate Snapshot Data Integrity Check After Creating a Snapshot",
+		Description: "Hashing snapshot disk files impacts the performance of the system. The immediate snapshot hashing and checking can be disabled to minimize the impact after creating a snapshot.",
+		Category:    SettingCategorySnapshot,
+		Type:        SettingTypeBool,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "false",
+	}
+
+	SettingDefinitionSnapshotDataIntegrityCronJob = SettingDefinition{
+		DisplayName: "Snapshot Data Integrity Check CronJob",
+		Description: "Unix-cron string format. The setting specifies when Longhorn checks the data integrity of snapshot disk files. \n\n" +
+			"Warning: Hashing snapshot disk files impacts the performance of the system. It is recommended to run data integrity checks during off-peak times and to reduce the frequency of checks.",
+		Category: SettingCategorySnapshot,
+		Type:     SettingTypeString,
+		Required: true,
+		ReadOnly: false,
+		Default:  "0 0 */7 * *",
+	}
+
+	SettingDefinitionRemoveSnapshotsDuringFilesystemTrim = SettingDefinition{
+		DisplayName: "Remove Snapshots During Filesystem Trim",
+		Description: "This setting allows Longhorn filesystem trim feature to automatically mark the latest snapshot and its ancestors as removed and stops at the snapshot containing multiple children.\n\n" +
+			"Since Longhorn filesystem trim feature can be applied to the volume head and the followed continuous removed or system snapshots only, trying to trim a removed file from a valid snapshot will do nothing but the filesystem will discard this kind of in-memory trimmable file info. " +
+			"Later on if you mark the snapshot as removed and want to retry the trim, you may need to unmount and remount the filesystem so that the filesystem can recollect the trimmable file info.",
+		Category: SettingCategoryGeneral,
+		Type:     SettingTypeBool,
+		Required: true,
+		ReadOnly: false,
+		Default:  "false",
+	}
+
+	SettingDefinitionFastReplicaRebuildEnabled = SettingDefinition{
+		DisplayName: "Fast Replica Rebuild Enabled",
+		Description: "This setting enables the fast replica rebuilding feature. It relies on the checksums of snapshot disk files, so setting the snapshot-data-integrity to **enable** or **fast-check** is a prerequisite.",
+		Category:    SettingCategoryGeneral,
+		Type:        SettingTypeBool,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "true",
+	}
+
+	SettingDefinitionReplicaFileSyncHTTPClientTimeout = SettingDefinition{
+		DisplayName: "Timeout of HTTP Client to Replica File Sync Server",
+		Description: "In seconds. The setting specifies the HTTP client timeout to the file sync server.",
+		Category:    SettingCategoryGeneral,
+		Type:        SettingTypeInt,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "30",
 	}
 )
 
@@ -872,6 +1099,14 @@ func ValidateSetting(name, value string) (err error) {
 		fallthrough
 	case SettingNameOrphanAutoDeletion:
 		fallthrough
+	case SettingNameDeletingConfirmationFlag:
+		fallthrough
+	case SettingNameRestoreVolumeRecurringJobs:
+		fallthrough
+	case SettingNameRemoveSnapshotsDuringFilesystemTrim:
+		fallthrough
+	case SettingNameFastReplicaRebuildEnabled:
+		fallthrough
 	case SettingNameUpgradeChecker:
 		if value != "true" && value != "false" {
 			return fmt.Errorf("value %v of setting %v should be true or false", value, sName)
@@ -879,33 +1114,39 @@ func ValidateSetting(name, value string) (err error) {
 
 	case SettingNameStorageOverProvisioningPercentage:
 		if _, err := strconv.Atoi(value); err != nil {
-			return fmt.Errorf("value %v is not a number", value)
+			return errors.Wrapf(err, "value %v is not a number", value)
 		}
 		// additional check whether over provisioning percentage is positive
 		value, err := util.ConvertSize(value)
-		if err != nil || value < 0 {
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse %v as size", value)
+		}
+		if value < 0 {
 			return fmt.Errorf("value %v should be positive", value)
 		}
 	case SettingNameStorageMinimalAvailablePercentage:
 		if _, err := strconv.Atoi(value); err != nil {
-			return fmt.Errorf("value %v is not a number", value)
+			return errors.Wrapf(err, "value %v is not a number", value)
 		}
 		// additional check whether minimal available percentage is between 0 to 100
 		value, err := util.ConvertSize(value)
-		if err != nil || value < 0 || value > 100 {
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse %v as size", value)
+		}
+		if value < 0 || value > 100 {
 			return fmt.Errorf("value %v should between 0 to 100", value)
 		}
 	case SettingNameDefaultReplicaCount:
 		c, err := strconv.Atoi(value)
 		if err != nil {
-			return fmt.Errorf("value %v is not int: %v", SettingNameDefaultReplicaCount, err)
+			return errors.Wrapf(err, "value %v is not number", value)
 		}
 		if err := ValidateReplicaCount(c); err != nil {
-			return fmt.Errorf("value %v: %v", c, err)
+			return errors.Wrapf(err, "failed to validate replica count %v", c)
 		}
 	case SettingNameReplicaAutoBalance:
 		if err := ValidateReplicaAutoBalance(longhorn.ReplicaAutoBalance(value)); err != nil {
-			return fmt.Errorf("value %v: %v", value, err)
+			return errors.Wrapf(err, "failed to validate replica auto balance: %v", value)
 		}
 	case SettingNameGuaranteedEngineCPU:
 		if value != "" {
@@ -919,28 +1160,88 @@ func ValidateSetting(name, value string) (err error) {
 		fallthrough
 	case SettingNameConcurrentReplicaRebuildPerNodeLimit:
 		fallthrough
+	case SettingNameConcurrentBackupRestorePerNodeLimit:
+		fallthrough
 	case SettingNameConcurrentAutomaticEngineUpgradePerNodeLimit:
 		fallthrough
+	case SettingNameSupportBundleFailedHistoryLimit:
+		fallthrough
 	case SettingNameBackupstorePollInterval:
+		value, err := strconv.Atoi(value)
+		if err != nil {
+			errors.Wrapf(err, "value %v is not a number", value)
+		}
+		if value < 0 {
+			return fmt.Errorf("the value %v shouldn't be less than 0", value)
+		}
+	case SettingNameFailedBackupTTL:
 		interval, err := strconv.Atoi(value)
 		if err != nil {
-			return fmt.Errorf("value is not int: %v", err)
+			errors.Wrapf(err, "value %v is not a number", value)
 		}
 		if interval < 0 {
 			return fmt.Errorf("the value %v shouldn't be less than 0", value)
 		}
 	case SettingNameTaintToleration:
 		if _, err = UnmarshalTolerations(value); err != nil {
-			return fmt.Errorf("the value of %v is invalid: %v", sName, err)
+			return errors.Wrapf(err, "the value of %v is invalid", sName)
 		}
 	case SettingNameSystemManagedComponentsNodeSelector:
 		if _, err = UnmarshalNodeSelector(value); err != nil {
-			return fmt.Errorf("the value of %v is invalid: %v", sName, err)
+			return errors.Wrapf(err, "the value of %v is invalid", sName)
 		}
 	case SettingNameStorageNetwork:
 		if err = ValidateStorageNetwork(value); err != nil {
-			return fmt.Errorf("the value of %v is invalid: %v", sName, err)
+			return errors.Wrapf(err, "the value of %v is invalid", sName)
 		}
+	case SettingNameRecurringSuccessfulJobsHistoryLimit:
+		successJobsHistLimit, err := strconv.Atoi(value)
+		if err != nil {
+			return errors.Wrapf(err, "value %v is not a number", value)
+		}
+		if successJobsHistLimit < 0 {
+			return fmt.Errorf("the value %v shouldn't be less than 0", value)
+		}
+	case SettingNameRecurringFailedJobsHistoryLimit:
+		failedJobsHistLimit, err := strconv.Atoi(value)
+		if err != nil {
+			return errors.Wrapf(err, "value %v is not a number", value)
+		}
+		if failedJobsHistLimit < 0 {
+			return fmt.Errorf("the value %v shouldn't be less than 0", value)
+		}
+	case SettingNameReplicaFileSyncHTTPClientTimeout:
+		timeout, err := strconv.Atoi(value)
+		if err != nil {
+			return errors.Wrapf(err, "value %v is not a number", value)
+		}
+
+		if timeout < 5 || timeout > 120 {
+			return fmt.Errorf("the value %v should be between 5 and 120", value)
+		}
+	case SettingNameEngineReplicaTimeout:
+		timeout, err := strconv.Atoi(value)
+		if err != nil {
+			return errors.Wrapf(err, "value %v is not a number", value)
+		}
+
+		if timeout < 8 || timeout > 30 {
+			return fmt.Errorf("the value %v should be between 8 and 30", value)
+		}
+	case SettingNameSnapshotDataIntegrity:
+		if err = ValidateSnapshotDataIntegrity(value); err != nil {
+			return errors.Wrapf(err, "the value of %v is invalid", sName)
+		}
+	case SettingNameSnapshotDataIntegrityCronJob:
+		schedule, err := cron.ParseStandard(value)
+		if err != nil {
+			return errors.Wrapf(err, "invalid cron job format: %v", value)
+		}
+
+		runAt := schedule.Next(time.Unix(0, 0))
+		nextRunAt := schedule.Next(runAt)
+
+		logrus.Debugf("The interval between two data integrity checks is %v seconds", nextRunAt.Sub(runAt).Seconds())
 
 	// multi-choices
 	case SettingNameNodeDownPodDeletionPolicy:
@@ -958,7 +1259,7 @@ func ValidateSetting(name, value string) (err error) {
 	case SettingNameGuaranteedReplicaManagerCPU:
 		i, err := strconv.Atoi(value)
 		if err != nil {
-			return fmt.Errorf("guaranteed engine/replica cpu value %v is not a valid integer: %v", value, err)
+			return errors.Wrapf(err, "guaranteed engine/replica cpu value %v is not a valid integer", value)
 		}
 		if i < 0 || i > 40 {
 			return fmt.Errorf("guaranteed engine/replica cpu value %v should be between 0 to 40", value)
@@ -1099,7 +1400,7 @@ func validateAndUnmarshalLabel(label string) (key, value string, err error) {
 	label = strings.Trim(label, " ")
 	parts := strings.Split(label, ":")
 	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid label %v: should contain the seprator ':'", label)
+		return "", "", fmt.Errorf("invalid label %v: should contain the separator ':'", label)
 	}
 	return strings.Trim(parts[0], " "), strings.Trim(parts[1], " "), nil
 }

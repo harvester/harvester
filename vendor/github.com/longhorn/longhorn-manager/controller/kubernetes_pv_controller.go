@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/controller"
 
+	"github.com/longhorn/longhorn-manager/constant"
 	"github.com/longhorn/longhorn-manager/datastore"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
@@ -150,7 +151,7 @@ func (kc *KubernetesPVController) handleErr(err error, key interface{}) {
 
 func (kc *KubernetesPVController) syncKubernetesStatus(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "kubernetes-controller: fail to sync %v", key)
+		err = errors.Wrapf(err, "kubernetes-controller: failed to sync %v", key)
 	}()
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -207,7 +208,7 @@ func (kc *KubernetesPVController) syncKubernetesStatus(key string) (err error) {
 	// existing volume may be used/reused by pv
 	if volume.Status.KubernetesStatus.PVName != name {
 		volume.Status.KubernetesStatus = longhorn.KubernetesStatus{}
-		kc.eventRecorder.Eventf(volume, v1.EventTypeNormal, EventReasonStart, "Persistent Volume %v started to use/reuse Longhorn volume %v", volume.Name, name)
+		kc.eventRecorder.Eventf(volume, v1.EventTypeNormal, constant.EventReasonStart, "Persistent Volume %v started to use/reuse Longhorn volume %v", volume.Name, name)
 	}
 	ks := &volume.Status.KubernetesStatus
 
@@ -399,7 +400,7 @@ func (kc *KubernetesPVController) cleanupForPVDeletion(pvName string) (bool, err
 		if err != nil {
 			return false, errors.Wrapf(err, "failed to update volume in cleanupForPVDeletion")
 		}
-		kc.eventRecorder.Eventf(volume, v1.EventTypeNormal, EventReasonStop, "Persistent Volume %v stopped to use Longhorn volume %v", pvName, volume.Name)
+		kc.eventRecorder.Eventf(volume, v1.EventTypeNormal, constant.EventReasonStop, "Persistent Volume %v stopped to use Longhorn volume %v", pvName, volume.Name)
 	}
 	kc.pvToVolumeCache.Delete(pvName)
 	return true, nil

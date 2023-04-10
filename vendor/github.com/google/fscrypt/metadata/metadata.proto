@@ -1,0 +1,107 @@
+/*
+ * metadata.proto - File which contains all of the metadata structures which we
+ * write to metadata files. Must be compiled with protoc to use the library.
+ * Compilation can be invoked with go generate.
+ *
+ * Copyright 2017 Google Inc.
+ * Author: Joe Richey (joerichey@google.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
+
+// If you modify this file, be sure to run "go generate" on this package.
+syntax = "proto3";
+package metadata;
+
+// Cost parameters to be used in our hashing functions.
+message HashingCosts {
+  int64 time = 2;
+  int64 memory = 3;
+  int64 parallelism = 4;
+}
+
+// This structure is used for our authenticated wrapping/unwrapping of keys.
+message WrappedKeyData {
+  bytes IV = 1;
+  bytes encrypted_key = 2;
+  bytes hmac = 3;
+}
+
+// Specifies the method in which an outside secret is obtained for a Protector
+enum SourceType {
+  default = 0;
+  pam_passphrase = 1;
+  custom_passphrase = 2;
+  raw_key = 3;
+}
+
+// The associated data for each protector
+message ProtectorData {
+  string protector_descriptor = 1;
+  SourceType source = 2;
+
+  // These are only used by some of the protector types
+  string name = 3;
+  HashingCosts costs = 4;
+  bytes salt = 5;
+  int64 uid = 6;
+
+  WrappedKeyData wrapped_key = 7;
+}
+
+// Encryption policy specifics, corresponds to the fscrypt_policy struct
+message EncryptionOptions {
+  int64 padding = 1;
+
+  // Type of encryption; should match declarations of unix.FSCRYPT_MODE
+  enum Mode {
+    default = 0;
+    AES_256_XTS = 1;
+    AES_256_GCM = 2;
+    AES_256_CBC = 3;
+    AES_256_CTS = 4;
+    AES_128_CBC = 5;
+    AES_128_CTS = 6;
+    Adiantum = 9;
+  }
+
+  Mode contents = 2;
+  Mode filenames = 3;
+
+  int64 policy_version = 4;
+}
+
+message WrappedPolicyKey {
+  string protector_descriptor = 1;
+  WrappedKeyData wrapped_key = 2;
+}
+
+// The associated data for each policy
+message PolicyData {
+  string key_descriptor = 1;
+  EncryptionOptions options = 2;
+  repeated WrappedPolicyKey wrapped_policy_keys = 3;
+}
+
+// Data stored in the config file
+message Config {
+  SourceType source = 1;
+  HashingCosts hash_costs = 2;
+  EncryptionOptions options = 4;
+  bool use_fs_keyring_for_v1_policies = 5;
+  bool allow_cross_user_metadata = 6;
+
+  // reserve the removed field 'string compatibility = 3;'
+  reserved 3;
+  reserved "compatibility";
+}

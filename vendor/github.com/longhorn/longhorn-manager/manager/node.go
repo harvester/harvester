@@ -8,6 +8,7 @@ import (
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
+	"github.com/longhorn/longhorn-manager/util"
 )
 
 func (m *VolumeManager) GetInstanceManager(name string) (*longhorn.InstanceManager, error) {
@@ -28,7 +29,7 @@ func (m *VolumeManager) GetDiskTags() ([]string, error) {
 
 	nodeList, err := m.ListNodesSorted()
 	if err != nil {
-		return nil, errors.Wrapf(err, "fail to list nodes")
+		return nil, errors.Wrapf(err, "failed to list nodes")
 	}
 	for _, node := range nodeList {
 		for _, disk := range node.Spec.Disks {
@@ -49,7 +50,7 @@ func (m *VolumeManager) GetNodeTags() ([]string, error) {
 
 	nodeList, err := m.ListNodesSorted()
 	if err != nil {
-		return nil, errors.Wrapf(err, "fail to list nodes")
+		return nil, errors.Wrapf(err, "failed to list nodes")
 	}
 	for _, node := range nodeList {
 		for _, tag := range node.Spec.Tags {
@@ -90,7 +91,7 @@ func (m *VolumeManager) ListNodesSorted() ([]*longhorn.Node, error) {
 	}
 
 	nodes := make([]*longhorn.Node, len(nodeMap))
-	nodeNames, err := sortKeys(nodeMap)
+	nodeNames, err := util.SortKeys(nodeMap)
 	if err != nil {
 		return []*longhorn.Node{}, err
 	}
