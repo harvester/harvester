@@ -5,9 +5,9 @@ import (
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
 	appslisters "k8s.io/client-go/listers/apps/v1"
-	batchlisters_v1beta1 "k8s.io/client-go/listers/batch/v1beta1"
+	batchlisters_v1 "k8s.io/client-go/listers/batch/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	policylisters "k8s.io/client-go/listers/policy/v1beta1"
+	policylisters "k8s.io/client-go/listers/policy/v1"
 	schedulinglisters "k8s.io/client-go/listers/scheduling/v1"
 	storagelisters_v1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
@@ -15,11 +15,18 @@ import (
 	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
 	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions"
 	lhlisters "github.com/longhorn/longhorn-manager/k8s/pkg/client/listers/longhorn/v1beta2"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
 var (
 	// SkipListerCheck bypass the created longhorn resource validation
 	SkipListerCheck = false
+
+	// SystemBackupTimeout is the timeout for system backup
+	SystemBackupTimeout = 60 * 60 // 1 hours
+
+	// SystemRestoreTimeout is the timeout for system restore
+	SystemRestoreTimeout = 24 * 60 * 60 // 24 hours
 )
 
 // DataStore object
@@ -63,11 +70,17 @@ type DataStore struct {
 	OrphanInformer                 cache.SharedInformer
 	snapLister                     lhlisters.SnapshotLister
 	SnapshotInformer               cache.SharedInformer
+	supportBundleLister            lhlisters.SupportBundleLister
+	SupportBundleInformer          cache.SharedInformer
+	sbLister                       lhlisters.SystemBackupLister
+	SystemBackupInformer           cache.SharedInformer
+	srLister                       lhlisters.SystemRestoreLister
+	SystemRestoreInformer          cache.SharedInformer
 
 	kubeClient                    clientset.Interface
 	pLister                       corelisters.PodLister
 	PodInformer                   cache.SharedInformer
-	cjLister                      batchlisters_v1beta1.CronJobLister
+	cjLister                      batchlisters_v1.CronJobLister
 	CronJobInformer               cache.SharedInformer
 	dsLister                      appslisters.DaemonSetLister
 	DaemonSetInformer             cache.SharedInformer
@@ -95,6 +108,8 @@ type DataStore struct {
 	PodDistrptionBudgetInformer   cache.SharedInformer
 	svLister                      corelisters.ServiceLister
 	ServiceInformer               cache.SharedInformer
+
+	extensionsClient apiextensionsclientset.Interface
 }
 
 // NewDataStore creates new DataStore object
@@ -103,6 +118,7 @@ func NewDataStore(
 	lhClient lhclientset.Interface,
 	kubeInformerFactory informers.SharedInformerFactory,
 	kubeClient clientset.Interface,
+	extensionsClient apiextensionsclientset.Interface,
 	namespace string) *DataStore {
 
 	cacheSyncs := []cache.InformerSynced{}
@@ -141,6 +157,12 @@ func NewDataStore(
 	cacheSyncs = append(cacheSyncs, oInformer.Informer().HasSynced)
 	snapInformer := lhInformerFactory.Longhorn().V1beta2().Snapshots()
 	cacheSyncs = append(cacheSyncs, snapInformer.Informer().HasSynced)
+	supportBundleInformer := lhInformerFactory.Longhorn().V1beta2().SupportBundles()
+	cacheSyncs = append(cacheSyncs, supportBundleInformer.Informer().HasSynced)
+	systemBackupInformer := lhInformerFactory.Longhorn().V1beta2().SystemBackups()
+	cacheSyncs = append(cacheSyncs, systemBackupInformer.Informer().HasSynced)
+	systemRestoreInformer := lhInformerFactory.Longhorn().V1beta2().SystemRestores()
+	cacheSyncs = append(cacheSyncs, systemRestoreInformer.Informer().HasSynced)
 
 	podInformer := kubeInformerFactory.Core().V1().Pods()
 	cacheSyncs = append(cacheSyncs, podInformer.Informer().HasSynced)
@@ -156,7 +178,7 @@ func NewDataStore(
 	cacheSyncs = append(cacheSyncs, configMapInformer.Informer().HasSynced)
 	secretInformer := kubeInformerFactory.Core().V1().Secrets()
 	cacheSyncs = append(cacheSyncs, secretInformer.Informer().HasSynced)
-	cronJobInformer := kubeInformerFactory.Batch().V1beta1().CronJobs()
+	cronJobInformer := kubeInformerFactory.Batch().V1().CronJobs()
 	cacheSyncs = append(cacheSyncs, cronJobInformer.Informer().HasSynced)
 	daemonSetInformer := kubeInformerFactory.Apps().V1().DaemonSets()
 	cacheSyncs = append(cacheSyncs, daemonSetInformer.Informer().HasSynced)
@@ -168,7 +190,7 @@ func NewDataStore(
 	cacheSyncs = append(cacheSyncs, csiDriverInformer.Informer().HasSynced)
 	storageclassInformer := kubeInformerFactory.Storage().V1().StorageClasses()
 	cacheSyncs = append(cacheSyncs, storageclassInformer.Informer().HasSynced)
-	pdbInformer := kubeInformerFactory.Policy().V1beta1().PodDisruptionBudgets()
+	pdbInformer := kubeInformerFactory.Policy().V1().PodDisruptionBudgets()
 	cacheSyncs = append(cacheSyncs, pdbInformer.Informer().HasSynced)
 	serviceInformer := kubeInformerFactory.Core().V1().Services()
 	cacheSyncs = append(cacheSyncs, serviceInformer.Informer().HasSynced)
@@ -213,6 +235,12 @@ func NewDataStore(
 		OrphanInformer:                 oInformer.Informer(),
 		snapLister:                     snapInformer.Lister(),
 		SnapshotInformer:               snapInformer.Informer(),
+		supportBundleLister:            supportBundleInformer.Lister(),
+		SupportBundleInformer:          supportBundleInformer.Informer(),
+		sbLister:                       systemBackupInformer.Lister(),
+		SystemBackupInformer:           systemBackupInformer.Informer(),
+		srLister:                       systemRestoreInformer.Lister(),
+		SystemRestoreInformer:          systemRestoreInformer.Informer(),
 
 		kubeClient:                    kubeClient,
 		pLister:                       podInformer.Lister(),
@@ -245,6 +273,8 @@ func NewDataStore(
 		PodDistrptionBudgetInformer:   pdbInformer.Informer(),
 		svLister:                      serviceInformer.Lister(),
 		ServiceInformer:               serviceInformer.Informer(),
+
+		extensionsClient: extensionsClient,
 	}
 }
 

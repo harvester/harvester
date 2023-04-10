@@ -2,9 +2,8 @@ package manager
 
 import (
 	"fmt"
-	"reflect"
-	"sort"
 	"strconv"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -15,11 +14,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/longhorn/longhorn-manager/datastore"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/scheduler"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
-
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 type VolumeManager struct {
@@ -27,7 +25,6 @@ type VolumeManager struct {
 	scheduler *scheduler.ReplicaScheduler
 
 	currentNodeID string
-	sb            *SupportBundle
 
 	proxyConnCounter util.Counter
 }
@@ -63,27 +60,6 @@ func (m *VolumeManager) List() (map[string]*longhorn.Volume, error) {
 	return m.ds.ListVolumes()
 }
 
-// sortKeys accepts a map with string keys and returns a sorted slice of keys
-func sortKeys(mapObj interface{}) ([]string, error) {
-	if mapObj == nil {
-		return []string{}, fmt.Errorf("BUG: mapObj was nil")
-	}
-	m := reflect.ValueOf(mapObj)
-	if m.Kind() != reflect.Map {
-		return []string{}, fmt.Errorf("BUG: expected map, got %v", m.Kind())
-	}
-
-	keys := make([]string, m.Len())
-	for i, key := range m.MapKeys() {
-		if key.Kind() != reflect.String {
-			return []string{}, fmt.Errorf("BUG: expect map[string]interface{}, got map[%v]interface{}", key.Kind())
-		}
-		keys[i] = key.String()
-	}
-	sort.Strings(keys)
-	return keys, nil
-}
-
 func (m *VolumeManager) ListSorted() ([]*longhorn.Volume, error) {
 	volumeMap, err := m.List()
 	if err != nil {
@@ -91,7 +67,7 @@ func (m *VolumeManager) ListSorted() ([]*longhorn.Volume, error) {
 	}
 
 	volumes := make([]*longhorn.Volume, len(volumeMap))
-	volumeNames, err := sortKeys(volumeMap)
+	volumeNames, err := util.SortKeys(volumeMap)
 	if err != nil {
 		return []*longhorn.Volume{}, err
 	}
@@ -116,7 +92,7 @@ func (m *VolumeManager) GetEnginesSorted(vName string) ([]*longhorn.Engine, erro
 	}
 
 	engines := make([]*longhorn.Engine, len(engineMap))
-	engineNames, err := sortKeys(engineMap)
+	engineNames, err := util.SortKeys(engineMap)
 	if err != nil {
 		return []*longhorn.Engine{}, err
 	}
@@ -137,7 +113,7 @@ func (m *VolumeManager) GetReplicasSorted(vName string) ([]*longhorn.Replica, er
 	}
 
 	replicas := make([]*longhorn.Replica, len(replicaMap))
-	replicaNames, err := sortKeys(replicaMap)
+	replicaNames, err := util.SortKeys(replicaMap)
 	if err != nil {
 		return []*longhorn.Replica{}, err
 	}
@@ -177,23 +153,26 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 			Labels: labels,
 		},
 		Spec: longhorn.VolumeSpec{
-			Size:                    spec.Size,
-			AccessMode:              spec.AccessMode,
-			Migratable:              spec.Migratable,
-			Encrypted:               spec.Encrypted,
-			Frontend:                spec.Frontend,
-			EngineImage:             "",
-			FromBackup:              spec.FromBackup,
-			DataSource:              spec.DataSource,
-			NumberOfReplicas:        spec.NumberOfReplicas,
-			ReplicaAutoBalance:      spec.ReplicaAutoBalance,
-			DataLocality:            spec.DataLocality,
-			StaleReplicaTimeout:     spec.StaleReplicaTimeout,
-			BackingImage:            spec.BackingImage,
-			Standby:                 spec.Standby,
-			DiskSelector:            spec.DiskSelector,
-			NodeSelector:            spec.NodeSelector,
-			RevisionCounterDisabled: spec.RevisionCounterDisabled,
+			Size:                      spec.Size,
+			AccessMode:                spec.AccessMode,
+			Migratable:                spec.Migratable,
+			Encrypted:                 spec.Encrypted,
+			Frontend:                  spec.Frontend,
+			EngineImage:               "",
+			FromBackup:                spec.FromBackup,
+			RestoreVolumeRecurringJob: spec.RestoreVolumeRecurringJob,
+			DataSource:                spec.DataSource,
+			NumberOfReplicas:          spec.NumberOfReplicas,
+			ReplicaAutoBalance:        spec.ReplicaAutoBalance,
+			DataLocality:              spec.DataLocality,
+			StaleReplicaTimeout:       spec.StaleReplicaTimeout,
+			BackingImage:              spec.BackingImage,
+			Standby:                   spec.Standby,
+			DiskSelector:              spec.DiskSelector,
+			NodeSelector:              spec.NodeSelector,
+			RevisionCounterDisabled:   spec.RevisionCounterDisabled,
+			SnapshotDataIntegrity:     spec.SnapshotDataIntegrity,
+			UnmapMarkSnapChainRemoved: spec.UnmapMarkSnapChainRemoved,
 		},
 	}
 
@@ -232,9 +211,9 @@ func (m *VolumeManager) Attach(name, nodeID string, disableFrontend bool, attach
 		return nil, err
 	}
 
-	if isReady, err := m.ds.CheckEngineImageReadyOnAtLeastOneVolumeReplica(v.Spec.EngineImage, v.Name, nodeID); !isReady {
+	if isReady, err := m.ds.CheckEngineImageReadyOnAtLeastOneVolumeReplica(v.Spec.EngineImage, v.Name, nodeID, v.Spec.DataLocality); !isReady {
 		if err != nil {
-			return nil, fmt.Errorf("cannot attach volume %v with image %v: %v", v.Name, v.Spec.EngineImage, err)
+			return nil, errors.Wrapf(err, "cannot attach volume %v with image %v", v.Name, v.Spec.EngineImage)
 		}
 		return nil, fmt.Errorf("cannot attach volume %v because the engine image %v is not deployed on at least one of the the replicas' nodes or the node that the volume is going to attach to", v.Name, v.Spec.EngineImage)
 	}
@@ -492,23 +471,10 @@ func (m *VolumeManager) Activate(volumeName string, frontend string) (v *longhor
 		return nil, err
 	}
 
-	var engine *longhorn.Engine
-	es, err := m.ds.ListVolumeEngines(v.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list engines for volume %v: %v", v.Name, err)
-	}
-	if len(es) != 1 {
-		return nil, fmt.Errorf("found more than 1 engines for volume %v", v.Name)
-	}
-	for _, e := range es {
-		engine = e
-	}
-
-	if v.Status.LastBackup != engine.Status.LastRestoredBackup || engine.Spec.RequestedBackupRestore != engine.Status.LastRestoredBackup {
-		logrus.Infof("Standby volume %v will be activated after finishing restoration, "+
-			"backup volume's latest backup: %v, "+
-			"engine requested backup restore: %v, engine last restored backup: %v",
-			v.Name, v.Status.LastBackup, engine.Spec.RequestedBackupRestore, engine.Status.LastRestoredBackup)
+	// Trigger a backup volume update to get the latest backup
+	// and will confirm recovery completion in volume state reconciliation
+	if err := m.triggerBackupVolumeToSync(v); err != nil {
+		return nil, err
 	}
 
 	v.Spec.Frontend = longhorn.VolumeFrontend(frontend)
@@ -522,6 +488,25 @@ func (m *VolumeManager) Activate(volumeName string, frontend string) (v *longhor
 	return v, nil
 }
 
+func (m *VolumeManager) triggerBackupVolumeToSync(volume *longhorn.Volume) error {
+	backupVolumeName, isExist := volume.Labels[types.LonghornLabelBackupVolume]
+	if !isExist || backupVolumeName == "" {
+		return errors.Errorf("cannot find the backup volume label for volume: %v", volume.Name)
+	}
+
+	backupVolume, err := m.ds.GetBackupVolume(backupVolumeName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get backup volume: %v", backupVolumeName)
+	}
+	requestSyncTime := metav1.Time{Time: time.Now().UTC()}
+	backupVolume.Spec.SyncRequestedAt = requestSyncTime
+	if _, err = m.ds.UpdateBackupVolume(backupVolume); err != nil {
+		return errors.Wrapf(err, "failed to update backup volume: %v", backupVolumeName)
+	}
+
+	return nil
+}
+
 func (m *VolumeManager) Expand(volumeName string, size int64) (v *longhorn.Volume, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "unable to expand volume %v", volumeName)
@@ -532,7 +517,7 @@ func (m *VolumeManager) Expand(volumeName string, size int64) (v *longhorn.Volum
 		return nil, err
 	}
 
-	if v.Status.State != longhorn.VolumeStateDetached {
+	if v.Status.State != longhorn.VolumeStateDetached && v.Status.State != longhorn.VolumeStateAttached {
 		return nil, fmt.Errorf("invalid volume state to expand: %v", v.Status.State)
 	}
 
@@ -562,15 +547,12 @@ func (m *VolumeManager) Expand(volumeName string, size int64) (v *longhorn.Volum
 		return v, nil
 	}
 
-	if err := m.scheduler.CheckReplicasSizeExpansion(v, v.Spec.Size, size); err != nil {
+	if _, err := m.scheduler.CheckReplicasSizeExpansion(v, v.Spec.Size, size); err != nil {
 		return nil, err
 	}
 
 	logrus.Infof("Volume %v expansion from %v to %v requested", v.Name, v.Spec.Size, size)
 	v.Spec.Size = size
-
-	// Support off-line expansion only.
-	v.Spec.DisableFrontend = true
 
 	v, err = m.ds.UpdateVolume(v)
 	if err != nil {
@@ -676,6 +658,25 @@ func (m *VolumeManager) CancelExpansion(volumeName string) (v *longhorn.Volume, 
 
 	logrus.Debugf("Canceling expansion for volume %v", v.Name)
 	return v, nil
+}
+
+func (m *VolumeManager) TrimFilesystem(name string) (v *longhorn.Volume, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "unable to trim filesystem for volume %v", name)
+	}()
+
+	v, err = m.ds.GetVolume(name)
+	if err != nil {
+		return nil, err
+	}
+	if v.Status.State != longhorn.VolumeStateAttached {
+		return nil, fmt.Errorf("volume is not attached")
+	}
+	if v.Status.FrontendDisabled {
+		return nil, fmt.Errorf("volume frontend is disabled")
+	}
+
+	return v, util.TrimFilesystem(name, v.Spec.Encrypted)
 }
 
 func (m *VolumeManager) AddVolumeRecurringJob(volumeName string, name string, isGroup bool) (volumeRecurringJob map[string]*longhorn.VolumeRecurringJob, err error) {
@@ -887,6 +888,27 @@ func (m *VolumeManager) UpdateReplicaCount(name string, count int) (v *longhorn.
 	return v, nil
 }
 
+func (m *VolumeManager) UpdateSnapshotDataIntegrity(name string, value string) (v *longhorn.Volume, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "unable to update snapshot data integrity for volume %v", name)
+	}()
+
+	v, err = m.ds.GetVolume(name)
+	if err != nil {
+		return nil, err
+	}
+
+	oldValue := v.Spec.SnapshotDataIntegrity
+	v.Spec.SnapshotDataIntegrity = longhorn.SnapshotDataIntegrity(value)
+
+	v, err = m.ds.UpdateVolume(v)
+	if err != nil {
+		return nil, err
+	}
+	logrus.Debugf("Updated volume %v snapshot data integrity from %v to %v", v.Name, oldValue, v.Spec.SnapshotDataIntegrity)
+	return v, nil
+}
+
 func (m *VolumeManager) UpdateReplicaAutoBalance(name string, inputSpec longhorn.ReplicaAutoBalance) (v *longhorn.Volume, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "unable to update replica auto-balance for volume %v", name)
@@ -969,6 +991,32 @@ func (m *VolumeManager) UpdateAccessMode(name string, accessMode longhorn.Access
 	return v, nil
 }
 
+func (m *VolumeManager) UpdateUnmapMarkSnapChainRemoved(name string, unmapMarkSnapChainRemoved longhorn.UnmapMarkSnapChainRemoved) (v *longhorn.Volume, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "unable to update field UnmapMarkSnapChainRemoved for volume %v", name)
+	}()
+
+	v, err = m.ds.GetVolume(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if v.Spec.UnmapMarkSnapChainRemoved == unmapMarkSnapChainRemoved {
+		logrus.Debugf("Volume %v already set field UnmapMarkSnapChainRemoved to %v", v.Name, unmapMarkSnapChainRemoved)
+		return v, nil
+	}
+
+	oldUnmapMarkSnapChainRemoved := v.Spec.UnmapMarkSnapChainRemoved
+	v.Spec.UnmapMarkSnapChainRemoved = unmapMarkSnapChainRemoved
+	v, err = m.ds.UpdateVolume(v)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Infof("Updated volume %v field UnmapMarkSnapChainRemoved from %v to %v", v.Name, oldUnmapMarkSnapChainRemoved, unmapMarkSnapChainRemoved)
+	return v, nil
+}
+
 func (m *VolumeManager) verifyDataSourceForVolumeCreation(dataSource longhorn.VolumeDataSource, requestSize int64) (err error) {
 	defer func() {
 		err = errors.Wrapf(err, "failed to verify data source")
@@ -989,7 +1037,7 @@ func (m *VolumeManager) verifyDataSourceForVolumeCreation(dataSource longhorn.Vo
 		}
 
 		if snapName := types.GetSnapshotName(dataSource); snapName != "" {
-			if _, err := m.GetSnapshot(snapName, srcVolName); err != nil {
+			if _, err := m.GetSnapshotInfo(snapName, srcVolName); err != nil {
 				return err
 			}
 		}

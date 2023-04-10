@@ -23,7 +23,7 @@ type BackingImageManagerClient struct {
 	grpcClient *bimclient.BackingImageManagerClient
 }
 
-func CheckBackingImageManagerCompatibilty(bimMinVersion, bimVersion int) error {
+func CheckBackingImageManagerCompatibility(bimMinVersion, bimVersion int) error {
 	if MinBackingImageManagerAPIVersion > bimVersion || CurrentBackingImageManagerAPIVersion < bimMinVersion {
 		return fmt.Errorf("current-min API version used by longhorn manager %v-%v is not compatible with BackingImageManager current-min APIVersion %v-%v",
 			CurrentBackingImageManagerAPIVersion, MinBackingImageManagerAPIVersion, bimVersion, bimMinVersion)
@@ -36,7 +36,7 @@ func NewBackingImageManagerClient(bim *longhorn.BackingImageManager) (*BackingIm
 		return nil, fmt.Errorf("invalid Backing Image Manager %v, state: %v, IP: %v", bim.Name, bim.Status.CurrentState, bim.Status.IP)
 	}
 	if bim.Status.APIMinVersion != UnknownBackingImageManagerAPIVersion {
-		if err := CheckBackingImageManagerCompatibilty(bim.Status.APIMinVersion, bim.Status.APIVersion); err != nil {
+		if err := CheckBackingImageManagerCompatibility(bim.Status.APIMinVersion, bim.Status.APIVersion); err != nil {
 			return nil, fmt.Errorf("cannot launch a client for incompatible backing image manager %v", bim.Name)
 		}
 	}
@@ -68,7 +68,7 @@ func (c *BackingImageManagerClient) parseBackingImageFileInfo(bi *bimapi.Backing
 }
 
 func (c *BackingImageManagerClient) Fetch(name, uuid, checksum, dataSourceAddress string, size int64) (*longhorn.BackingImageFileInfo, error) {
-	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
+	if err := CheckBackingImageManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
 	resp, err := c.grpcClient.Fetch(name, uuid, checksum, dataSourceAddress, size)
@@ -79,7 +79,7 @@ func (c *BackingImageManagerClient) Fetch(name, uuid, checksum, dataSourceAddres
 }
 
 func (c *BackingImageManagerClient) Sync(name, uuid, checksum, fromHost string, size int64) (*longhorn.BackingImageFileInfo, error) {
-	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
+	if err := CheckBackingImageManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
 	resp, err := c.grpcClient.Sync(name, uuid, checksum, fmt.Sprintf("%s:%d", fromHost, BackingImageManagerDefaultPort), size)
@@ -90,21 +90,21 @@ func (c *BackingImageManagerClient) Sync(name, uuid, checksum, fromHost string, 
 }
 
 func (c *BackingImageManagerClient) PrepareDownload(name, uuid string) (string, string, error) {
-	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
+	if err := CheckBackingImageManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
 		return "", "", err
 	}
 	return c.grpcClient.PrepareDownload(name, uuid)
 }
 
 func (c *BackingImageManagerClient) Delete(name, uuid string) error {
-	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
+	if err := CheckBackingImageManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
 		return err
 	}
 	return c.grpcClient.Delete(name, uuid)
 }
 
 func (c *BackingImageManagerClient) Get(name, uuid string) (*longhorn.BackingImageFileInfo, error) {
-	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
+	if err := CheckBackingImageManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
 	backingImage, err := c.grpcClient.Get(name, uuid)
@@ -115,7 +115,7 @@ func (c *BackingImageManagerClient) Get(name, uuid string) (*longhorn.BackingIma
 }
 
 func (c *BackingImageManagerClient) List() (map[string]longhorn.BackingImageFileInfo, error) {
-	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
+	if err := CheckBackingImageManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
 	backingImages, err := c.grpcClient.List()
@@ -130,7 +130,7 @@ func (c *BackingImageManagerClient) List() (map[string]longhorn.BackingImageFile
 }
 
 func (c *BackingImageManagerClient) Watch() (*bimapi.BackingImageStream, error) {
-	if err := CheckBackingImageManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
+	if err := CheckBackingImageManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
 	return c.grpcClient.Watch()

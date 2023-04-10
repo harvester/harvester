@@ -22,6 +22,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/controller"
 
+	systembackupstore "github.com/longhorn/backupstore/systembackup"
+
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/engineapi"
 	"github.com/longhorn/longhorn-manager/types"
@@ -132,8 +134,8 @@ func (btc *BackupTargetController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer btc.queue.ShutDown()
 
-	btc.logger.Infof("Start Longhorn Backup Target controller")
-	defer btc.logger.Infof("Shutting down Longhorn Backup Target controller")
+	btc.logger.Infof("Starting Longhorn Backup Target controller")
+	defer btc.logger.Infof("Shut down Longhorn Backup Target controller")
 
 	if !cache.WaitForNamedCacheSync(btc.name, stopCh, btc.cacheSyncs...) {
 		return
@@ -162,7 +164,7 @@ func (btc *BackupTargetController) processNextWorkItem() bool {
 
 func (btc *BackupTargetController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync %v", btc.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync %v", btc.name, key)
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -220,7 +222,7 @@ func getBackupTarget(controllerID string, backupTarget *longhorn.BackupTarget, d
 		return nil, nil, err
 	}
 
-	backupTargetClient, err = getBackupTargetClient(ds, backupTarget)
+	backupTargetClient, err = newBackupTargetClientFromDefaultEngineImage(ds, backupTarget)
 	if err != nil {
 		engineClientProxy.Close()
 		return nil, nil, err
@@ -229,15 +231,16 @@ func getBackupTarget(controllerID string, backupTarget *longhorn.BackupTarget, d
 	return engineClientProxy, backupTargetClient, nil
 }
 
-func getBackupTargetClient(ds *datastore.DataStore, backupTarget *longhorn.BackupTarget) (*engineapi.BackupTargetClient, error) {
-	defaultEngineImage, err := ds.GetSettingValueExisted(types.SettingNameDefaultEngineImage)
-	if err != nil {
-		return nil, err
-	}
+func newBackupTargetClient(ds *datastore.DataStore, backupTarget *longhorn.BackupTarget, engineImage string) (backupTargetClient *engineapi.BackupTargetClient, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "failed to get %v backup target client on %v", backupTarget.Name, engineImage)
+	}()
+
 	backupType, err := util.CheckBackupType(backupTarget.Spec.BackupTargetURL)
 	if err != nil {
 		return nil, err
 	}
+
 	var credential map[string]string
 	if backupType == types.BackupStoreTypeS3 {
 		if backupTarget.Spec.CredentialSecret == "" {
@@ -248,7 +251,16 @@ func getBackupTargetClient(ds *datastore.DataStore, backupTarget *longhorn.Backu
 			return nil, err
 		}
 	}
-	return engineapi.NewBackupTargetClient(defaultEngineImage, backupTarget.Spec.BackupTargetURL, credential), nil
+	return engineapi.NewBackupTargetClient(engineImage, backupTarget.Spec.BackupTargetURL, credential), nil
+}
+
+func newBackupTargetClientFromDefaultEngineImage(ds *datastore.DataStore, backupTarget *longhorn.BackupTarget) (*engineapi.BackupTargetClient, error) {
+	defaultEngineImage, err := ds.GetSettingValueExisted(types.SettingNameDefaultEngineImage)
+	if err != nil {
+		return nil, err
+	}
+
+	return newBackupTargetClient(ds, backupTarget, defaultEngineImage)
 }
 
 func (btc *BackupTargetController) reconcile(name string) (err error) {
@@ -321,9 +333,16 @@ func (btc *BackupTargetController) reconcile(name string) (err error) {
 			longhorn.BackupTargetConditionReasonUnavailable, "backup target URL is empty")
 		// Clean up all BackupVolume CRs
 		if err := btc.cleanupBackupVolumes(); err != nil {
-			log.WithError(err).Error("Error deleting backup volumes")
+			log.WithError(err).Error("failed to clean up BackupVolumes")
 			return err
 		}
+
+		// Clean up all SystemBackup CRs
+		if err := btc.cleanupSystemBackups(); err != nil {
+			log.WithError(err).Error("failed to clean up SystemBackups")
+			return err
+		}
+
 		return nil
 	}
 
@@ -339,6 +358,21 @@ func (btc *BackupTargetController) reconcile(name string) (err error) {
 	}
 	defer engineClientProxy.Close()
 
+	if err = btc.syncBackupVolume(backupTarget, backupTargetClient, syncTime, log); err != nil {
+		return err
+	}
+
+	if !backupTarget.Status.Available {
+		return nil
+	}
+
+	if err = btc.syncSystemBackup(backupTargetClient, log); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (btc *BackupTargetController) syncBackupVolume(backupTarget *longhorn.BackupTarget, backupTargetClient *engineapi.BackupTargetClient, syncTime metav1.Time, log logrus.FieldLogger) error {
 	// Get a list of all the backup volumes that are stored in the backup target
 	res, err := backupTargetClient.BackupVolumeNameList(backupTargetClient.URL, backupTargetClient.Credential)
 	if err != nil {
@@ -414,6 +448,67 @@ func (btc *BackupTargetController) reconcile(name string) (err error) {
 	return nil
 }
 
+func (btc *BackupTargetController) syncSystemBackup(backupTargetClient *engineapi.BackupTargetClient, log logrus.FieldLogger) error {
+	systemBackupsFromBackupTarget, err := backupTargetClient.ListSystemBackup()
+	if err != nil {
+		return errors.Wrapf(err, "failed to list system backups in %v", backupTargetClient.URL)
+	}
+
+	clusterSystemBackups, err := btc.ds.ListSystemBackups()
+	if err != nil {
+		return errors.Wrap(err, "failed to list SystemBackups")
+	}
+
+	clusterReadySystemBackupNames := sets.NewString()
+	for _, systemBackup := range clusterSystemBackups {
+		if systemBackup.Status.State != longhorn.SystemBackupStateReady {
+			continue
+		}
+		clusterReadySystemBackupNames.Insert(systemBackup.Name)
+	}
+
+	backupstoreSystemBackupNames := sets.NewString(util.GetSortedKeysFromMap(systemBackupsFromBackupTarget)...)
+
+	// Create SystemBackup from the system backups in the backup store if not already exist in the cluster.
+	addSystemBackupsToCluster := backupstoreSystemBackupNames.Difference(clusterReadySystemBackupNames)
+	for name := range addSystemBackupsToCluster {
+		systemBackupURI := systemBackupsFromBackupTarget[systembackupstore.Name(name)]
+		longhornVersion, _, err := parseSystemBackupURI(string(systemBackupURI))
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse system backup URI: %v", systemBackupURI)
+		}
+
+		systemBackup := &longhorn.SystemBackup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+				Labels: map[string]string{
+					// Label with the version to be used by the system-backup controller
+					// to get the config from the backup target.
+					types.GetVersionLabelKey(): longhornVersion,
+				},
+			},
+		}
+		_, err = btc.ds.CreateSystemBackup(systemBackup)
+		if err != nil && !apierrors.IsAlreadyExists(err) {
+			return errors.Wrapf(err, "failed to create SystemBackup %v from remote backup target", name)
+		}
+
+		log.WithField("systemBackup", name).Info("Created SystemBackup from remote backup target")
+	}
+
+	// Delete ready SystemBackup that doesn't exist in the backup store.
+	delSystemBackupsInCluster := clusterReadySystemBackupNames.Difference(backupstoreSystemBackupNames)
+	for name := range delSystemBackupsInCluster {
+		if err = btc.ds.DeleteSystemBackup(name); err != nil {
+			return errors.Wrapf(err, "failed to delete SystemBackup %v not exist in backupstore", name)
+		}
+
+		log.WithField("systemBackup", name).Info("Deleted SystemBackup not exist in backupstore")
+	}
+
+	return nil
+}
+
 func (btc *BackupTargetController) isResponsibleFor(bt *longhorn.BackupTarget, defaultEngineImage string) (bool, error) {
 	var err error
 	defer func() {
@@ -465,4 +560,35 @@ func (btc *BackupTargetController) cleanupBackupVolumes() error {
 		return errors.New(strings.Join(errs, ","))
 	}
 	return nil
+}
+
+// cleanupSystemBackups deletes all SystemBackup CRs
+func (btc *BackupTargetController) cleanupSystemBackups() error {
+	systemBackups, err := btc.ds.ListSystemBackups()
+	if err != nil {
+		return err
+	}
+
+	var errs []string
+	for systemBackup := range systemBackups {
+		if err = btc.ds.DeleteSystemBackup(systemBackup); err != nil && !apierrors.IsNotFound(err) {
+			errs = append(errs, err.Error())
+			continue
+		}
+	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, ","))
+	}
+	return nil
+}
+
+// parseSystemBackupURI and return version and name.
+// Ex: v1.4.0, sample-system-backup, nil = parseSystemBackupURI("backupstore/system-backups/v1.4.0/sample-system-backup")
+func parseSystemBackupURI(uri string) (version, name string, err error) {
+	split := strings.Split(uri, "/")
+	if len(split) < 2 {
+		return "", "", errors.Errorf("invalid system-backup URI: %v", uri)
+	}
+
+	return split[len(split)-2], split[len(split)-1], nil
 }

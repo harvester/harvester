@@ -1,21 +1,22 @@
 package types
 
 type ReplicaInfo struct {
-	Dirty                   bool                `json:"dirty"`
-	Rebuilding              bool                `json:"rebuilding"`
-	Head                    string              `json:"head"`
-	Parent                  string              `json:"parent"`
-	Size                    string              `json:"size"`
-	SectorSize              int64               `json:"sectorSize,string"`
-	BackingFile             string              `json:"backingFile"`
-	State                   string              `json:"state"`
-	Chain                   []string            `json:"chain"`
-	Disks                   map[string]DiskInfo `json:"disks"`
-	RemainSnapshots         int                 `json:"remainsnapshots"`
-	RevisionCounter         int64               `json:"revisioncounter,string"`
-	LastModifyTime          int64               `json:"lastmodifytime"`
-	HeadFileSize            int64               `json:"headfilesize"`
-	RevisionCounterDisabled bool                `json:"revisioncounterdisabled"`
+	Dirty                     bool                `json:"dirty"`
+	Rebuilding                bool                `json:"rebuilding"`
+	Head                      string              `json:"head"`
+	Parent                    string              `json:"parent"`
+	Size                      string              `json:"size"`
+	SectorSize                int64               `json:"sectorSize,string"`
+	BackingFile               string              `json:"backingFile"`
+	State                     string              `json:"state"`
+	Chain                     []string            `json:"chain"`
+	Disks                     map[string]DiskInfo `json:"disks"`
+	RemainSnapshots           int                 `json:"remainsnapshots"`
+	RevisionCounter           int64               `json:"revisioncounter,string"`
+	LastModifyTime            int64               `json:"lastmodifytime"`
+	HeadFileSize              int64               `json:"headfilesize"`
+	RevisionCounterDisabled   bool                `json:"revisioncounterdisabled"`
+	UnmapMarkDiskChainRemoved bool                `json:"unmapMarkDiskChainRemoved"`
 }
 
 type DiskInfo struct {
@@ -36,15 +37,16 @@ type PrepareRemoveAction struct {
 }
 
 type VolumeInfo struct {
-	Name                  string `json:"name"`
-	Size                  int64  `json:"size"`
-	ReplicaCount          int    `json:"replicaCount"`
-	Endpoint              string `json:"endpoint"`
-	Frontend              string `json:"frontend"`
-	FrontendState         string `json:"frontendState"`
-	IsExpanding           bool   `json:"isExpanding"`
-	LastExpansionError    string `json:"lastExpansionError"`
-	LastExpansionFailedAt string `json:"lastExpansionFailedAt"`
+	Name                      string `json:"name"`
+	Size                      int64  `json:"size"`
+	ReplicaCount              int    `json:"replicaCount"`
+	Endpoint                  string `json:"endpoint"`
+	Frontend                  string `json:"frontend"`
+	FrontendState             string `json:"frontendState"`
+	IsExpanding               bool   `json:"isExpanding"`
+	LastExpansionError        string `json:"lastExpansionError"`
+	LastExpansionFailedAt     string `json:"lastExpansionFailedAt"`
+	UnmapMarkSnapChainRemoved bool   `json:"unmapMarkSnapChainRemoved"`
 }
 
 type ControllerReplicaInfo struct {

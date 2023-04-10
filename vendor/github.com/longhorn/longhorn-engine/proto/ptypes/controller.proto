@@ -14,6 +14,7 @@ service ControllerService {
     rpc VolumeExpand(VolumeExpandRequest) returns (Volume);
     rpc VolumeFrontendStart(VolumeFrontendStartRequest) returns (Volume);
     rpc VolumeFrontendShutdown(google.protobuf.Empty) returns (Volume);
+    rpc VolumeUnmapMarkSnapChainRemovedSet(VolumeUnmapMarkSnapChainRemovedSetRequest) returns (Volume);
 
     rpc ReplicaList(google.protobuf.Empty) returns (ReplicaListReply);
     rpc ReplicaGet(ReplicaAddress) returns (ControllerReplica);
@@ -27,7 +28,7 @@ service ControllerService {
 
     rpc VersionDetailGet(google.protobuf.Empty) returns(VersionDetailGetReply);
 
-    rpc MetricGet(google.protobuf.Empty) returns(stream MetricGetReply);
+    rpc MetricsGet(google.protobuf.Empty) returns(MetricsGetReply);
 }
 
 message Volume {
@@ -41,6 +42,8 @@ message Volume {
 
     string last_expansion_error = 8;
     string last_expansion_failed_at = 9;
+
+    bool unmap_mark_snap_chain_removed = 10;
 }
 
 message ReplicaAddress {
@@ -60,6 +63,8 @@ message ControllerReplica {
 
 message VolumeStartRequest {
     repeated string replicaAddresses = 1;
+    int64 size = 2;
+    int64 currentSize = 3;
 }
 
 message VolumeSnapshotRequest {
@@ -81,6 +86,10 @@ message VolumeExpandRequest {
 
 message VolumeFrontendStartRequest {
     string frontend = 1;
+}
+
+message VolumeUnmapMarkSnapChainRemovedSetRequest {
+    bool enabled = 1;
 }
 
 message VolumePrepareRestoreRequest {
@@ -127,14 +136,15 @@ message VersionDetailGetReply {
     VersionOutput version = 1;
 }
 
-message Metric {
-    uint64 readBandwidth = 1;
-    uint64 writeBandwidth = 2;
+message Metrics {
+    uint64 readThroughput = 1;
+    uint64 writeThroughput = 2;
     uint64 readLatency = 3;
     uint64 writeLatency = 4;
-    uint64 iOPS = 5;
+    uint64 readIOPS = 5;
+    uint64 writeIOPS = 6;
 }
 
-message MetricGetReply {
-    Metric metric = 1;
+message MetricsGetReply {
+    Metrics metrics = 1;
 }

@@ -45,7 +45,7 @@ func (c *EngineSimulatorCollection) CreateEngineSimulator(request *EngineSimulat
 		mutex:          &sync.RWMutex{},
 	}
 	for _, addr := range request.ReplicaAddrs {
-		if err := s.ReplicaAdd(&longhorn.Engine{}, addr, false); err != nil {
+		if err := s.ReplicaAdd(&longhorn.Engine{}, addr, false, false, 30); err != nil {
 			return err
 		}
 	}
@@ -121,7 +121,7 @@ func (e *EngineSimulator) ReplicaList(*longhorn.Engine) (map[string]*Replica, er
 	return ret, nil
 }
 
-func (e *EngineSimulator) ReplicaAdd(engine *longhorn.Engine, url string, isRestoreVolume bool) error {
+func (e *EngineSimulator) ReplicaAdd(engine *longhorn.Engine, url string, isRestoreVolume, fastSync bool, replicaFileSyncHTTPClientTimeout int64) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 
@@ -214,7 +214,7 @@ func (e *EngineSimulator) BackupRestore(engine *longhorn.Engine, backupTarget, b
 	return fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotClone(engine *longhorn.Engine, snapshotName, fromControllerAddress string) error {
+func (e *EngineSimulator) SnapshotClone(engine *longhorn.Engine, snapshotName, fromControllerAddress string, fileSyncHTTPClientTimeout int64) error {
 	return fmt.Errorf(ErrNotImplement)
 }
 
@@ -237,6 +237,26 @@ func (e *EngineSimulator) VolumeFrontendShutdown(*longhorn.Engine) error {
 	return fmt.Errorf(ErrNotImplement)
 }
 
+func (e *EngineSimulator) VolumeUnmapMarkSnapChainRemovedSet(*longhorn.Engine) error {
+	return fmt.Errorf(ErrNotImplement)
+}
+
 func (e *EngineSimulator) ReplicaRebuildVerify(engine *longhorn.Engine, url string) error {
 	return fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) SnapshotHash(engine *longhorn.Engine, snapshotName string, rehash bool) error {
+	return fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) SnapshotHashStatus(engine *longhorn.Engine, snapshotName string) (map[string]*longhorn.HashStatus, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) ReplicaModeUpdate(engine *longhorn.Engine, url, mode string) error {
+	return fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) MetricsGet(*longhorn.Engine) (*Metrics, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }

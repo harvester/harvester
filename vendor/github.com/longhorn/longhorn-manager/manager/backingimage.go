@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/longhorn/longhorn-manager/types"
+	"github.com/longhorn/longhorn-manager/util"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
@@ -33,7 +34,7 @@ func (m *VolumeManager) ListBackingImagesSorted() ([]*longhorn.BackingImage, err
 	}
 
 	backingImages := make([]*longhorn.BackingImage, len(backingImageMap))
-	backingImageNames, err := sortKeys(backingImageMap)
+	backingImageNames, err := util.SortKeys(backingImageMap)
 	if err != nil {
 		return []*longhorn.BackingImage{}, err
 	}

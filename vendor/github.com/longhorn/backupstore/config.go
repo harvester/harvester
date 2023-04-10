@@ -33,7 +33,7 @@ func getBackupConfigName(id string) string {
 	return BACKUP_CONFIG_PREFIX + id + CFG_SUFFIX
 }
 
-func loadConfigInBackupStore(filePath string, driver BackupStoreDriver, v interface{}) error {
+func LoadConfigInBackupStore(driver BackupStoreDriver, filePath string, v interface{}) error {
 	if !driver.FileExists(filePath) {
 		return fmt.Errorf("cannot find %v in backupstore", filePath)
 	}
@@ -61,7 +61,7 @@ func loadConfigInBackupStore(filePath string, driver BackupStoreDriver, v interf
 	return nil
 }
 
-func saveConfigInBackupStore(filePath string, driver BackupStoreDriver, v interface{}) error {
+func SaveConfigInBackupStore(driver BackupStoreDriver, filePath string, v interface{}) error {
 	j, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -84,9 +84,51 @@ func saveConfigInBackupStore(filePath string, driver BackupStoreDriver, v interf
 	return nil
 }
 
-func volumeExists(volumeName string, driver BackupStoreDriver) bool {
-	volumeFile := getVolumeFilePath(volumeName)
-	return driver.FileExists(volumeFile)
+func SaveLocalFileToBackupStore(localFilePath, backupStoreFilePath string, driver BackupStoreDriver) error {
+	log := log.WithFields(logrus.Fields{
+		LogFieldReason:   LogReasonStart,
+		LogFieldObject:   LogObjectConfig,
+		LogFieldKind:     driver.Kind(),
+		LogFieldFilepath: localFilePath,
+		LogFieldDestURL:  backupStoreFilePath,
+	})
+	log.Debug()
+
+	if driver.FileExists(backupStoreFilePath) {
+		return fmt.Errorf("%v already exists", backupStoreFilePath)
+	}
+
+	if err := driver.Upload(localFilePath, backupStoreFilePath); err != nil {
+		return err
+	}
+
+	log.WithField(LogFieldReason, LogReasonComplete).Debug()
+	return nil
+}
+
+func SaveBackupStoreToLocalFile(driver BackupStoreDriver, backupStoreFileURL, localFilePath string) error {
+	log := log.WithFields(logrus.Fields{
+		LogFieldReason:    LogReasonStart,
+		LogFieldObject:    LogObjectConfig,
+		LogFieldKind:      driver.Kind(),
+		LogFieldFilepath:  localFilePath,
+		LogFieldSourceURL: backupStoreFileURL,
+	})
+	log.Debug()
+
+	if err := driver.Download(backupStoreFileURL, localFilePath); err != nil {
+		return err
+	}
+
+	log = log.WithFields(logrus.Fields{
+		LogFieldReason: LogReasonComplete,
+	})
+	log.Debug()
+	return nil
+}
+
+func volumeExists(driver BackupStoreDriver, volumeName string) bool {
+	return driver.FileExists(getVolumeFilePath(volumeName))
 }
 
 func getVolumePath(volumeName string) string {
@@ -108,7 +150,7 @@ func getVolumeNames(jobQueues *jobq.WorkerDispatcher, jobQueueTimeout time.Durat
 	volumePathBase := filepath.Join(backupstoreBase, VOLUME_DIRECTORY)
 	lv1Dirs, err := driver.List(volumePathBase)
 	if err != nil {
-		log.Warnf("failed to list first level dirs for path: %v reason: %v", volumePathBase, err)
+		log.WithError(err).Warnf("Failed to list first level dirs for path %v", volumePathBase)
 		return names, err
 	}
 
@@ -122,7 +164,7 @@ func getVolumeNames(jobQueues *jobq.WorkerDispatcher, jobQueueTimeout time.Durat
 		lv1Tracker := jobQueues.QueueTimedFunc(context.Background(), func(ctx context.Context) (interface{}, error) {
 			lv2Dirs, err := driver.List(path)
 			if err != nil {
-				log.Warnf("failed to list second level dirs for path: %v reason: %v", path, err)
+				log.WithError(err).Warnf("Failed to list second level dirs for path %v", path)
 				return nil, err
 			}
 
@@ -148,7 +190,7 @@ func getVolumeNames(jobQueues *jobq.WorkerDispatcher, jobQueueTimeout time.Durat
 			lv2Tracker := jobQueues.QueueTimedFunc(context.Background(), func(ctx context.Context) (interface{}, error) {
 				volumeNames, err := driver.List(path)
 				if err != nil {
-					log.Warnf("failed to list volume names for path: %v reason: %v", path, err)
+					log.WithError(err).Warnf("Failed to list volume names for path %v", path)
 					return nil, err
 				}
 				return volumeNames, nil
@@ -172,24 +214,25 @@ func getVolumeNames(jobQueues *jobq.WorkerDispatcher, jobQueueTimeout time.Durat
 	return names, nil
 }
 
-func loadVolume(volumeName string, driver BackupStoreDriver) (*Volume, error) {
+func loadVolume(driver BackupStoreDriver, volumeName string) (*Volume, error) {
 	v := &Volume{}
 	file := getVolumeFilePath(volumeName)
-	if err := loadConfigInBackupStore(file, driver, v); err != nil {
+	if err := LoadConfigInBackupStore(driver, file, v); err != nil {
 		return nil, err
+	}
+	// Backward compatibility
+	if v.CompressionMethod == "" {
+		log.Infof("Fall back compression method to %v for volume %v", LEGACY_COMPRESSION_METHOD, v.Name)
+		v.CompressionMethod = LEGACY_COMPRESSION_METHOD
 	}
 	return v, nil
 }
 
-func saveVolume(v *Volume, driver BackupStoreDriver) error {
-	file := getVolumeFilePath(v.Name)
-	if err := saveConfigInBackupStore(file, driver, v); err != nil {
-		return err
-	}
-	return nil
+func saveVolume(driver BackupStoreDriver, v *Volume) error {
+	return SaveConfigInBackupStore(driver, getVolumeFilePath(v.Name), v)
 }
 
-func getBackupNamesForVolume(volumeName string, driver BackupStoreDriver) ([]string, error) {
+func getBackupNamesForVolume(driver BackupStoreDriver, volumeName string) ([]string, error) {
 	result := []string{}
 	fileList, err := driver.List(getBackupPath(volumeName))
 	if err != nil {
@@ -213,27 +256,25 @@ func isBackupInProgress(backup *Backup) bool {
 	return backup != nil && backup.CreatedTime == ""
 }
 
-func backupExists(backupName, volumeName string, bsDriver BackupStoreDriver) bool {
-	return bsDriver.FileExists(getBackupConfigPath(backupName, volumeName))
-}
-
-func loadBackup(backupName, volumeName string, bsDriver BackupStoreDriver) (*Backup, error) {
+func loadBackup(bsDriver BackupStoreDriver, backupName, volumeName string) (*Backup, error) {
 	backup := &Backup{}
-	if err := loadConfigInBackupStore(getBackupConfigPath(backupName, volumeName), bsDriver, backup); err != nil {
+	if err := LoadConfigInBackupStore(bsDriver, getBackupConfigPath(backupName, volumeName), backup); err != nil {
 		return nil, err
+	}
+	// Backward compatibility
+	if backup.CompressionMethod == "" {
+		log.Infof("Fall back compression method to %v for backup %v", LEGACY_COMPRESSION_METHOD, backup.Name)
+		backup.CompressionMethod = LEGACY_COMPRESSION_METHOD
 	}
 	return backup, nil
 }
 
-func saveBackup(backup *Backup, bsDriver BackupStoreDriver) error {
+func saveBackup(bsDriver BackupStoreDriver, backup *Backup) error {
 	if backup.VolumeName == "" {
 		return fmt.Errorf("missing volume specifier for backup: %v", backup.Name)
 	}
 	filePath := getBackupConfigPath(backup.Name, backup.VolumeName)
-	if err := saveConfigInBackupStore(filePath, bsDriver, backup); err != nil {
-		return err
-	}
-	return nil
+	return SaveConfigInBackupStore(bsDriver, filePath, backup)
 }
 
 func removeBackup(backup *Backup, bsDriver BackupStoreDriver) error {
@@ -241,6 +282,6 @@ func removeBackup(backup *Backup, bsDriver BackupStoreDriver) error {
 	if err := bsDriver.Remove(filePath); err != nil {
 		return err
 	}
-	log.Debugf("Removed %v on backupstore", filePath)
+	log.Infof("Removed %v on backupstore", filePath)
 	return nil
 }

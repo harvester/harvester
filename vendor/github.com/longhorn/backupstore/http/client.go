@@ -5,6 +5,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/http"
+	"net/url"
+
+	"golang.org/x/net/http/httpproxy"
 )
 
 func getSystemCerts() *x509.CertPool {
@@ -42,6 +45,9 @@ func GetClient(insecure bool, customCerts []byte) (*http.Client, error) {
 	customTransport.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: insecure,
 		RootCAs:            certs,
+	}
+	customTransport.Proxy = func(request *http.Request) (*url.URL, error) {
+		return httpproxy.FromEnvironment().ProxyFunc()(request.URL)
 	}
 	client := &http.Client{Transport: customTransport}
 	return client, nil

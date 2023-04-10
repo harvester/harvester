@@ -120,7 +120,7 @@ func (e *EngineBinary) ReplicaList(*longhorn.Engine) (map[string]*Replica, error
 
 // ReplicaAdd calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
-func (e *EngineBinary) ReplicaAdd(engine *longhorn.Engine, url string, isRestoreVolume bool) error {
+func (e *EngineBinary) ReplicaAdd(engine *longhorn.Engine, url string, isRestoreVolume, fastSync bool, replicaFileSyncHTTPClientTimeout int64) error {
 	if err := ValidateReplicaURL(url); err != nil {
 		return err
 	}
@@ -128,6 +128,26 @@ func (e *EngineBinary) ReplicaAdd(engine *longhorn.Engine, url string, isRestore
 	if isRestoreVolume {
 		cmd = append(cmd, "--restore")
 	}
+
+	version, err := e.VersionGet(engine, true)
+	if err != nil {
+		return err
+	}
+
+	if version.ClientVersion.CLIAPIVersion >= 6 {
+		cmd = append(cmd,
+			"--size", strconv.FormatInt(engine.Spec.VolumeSize, 10),
+			"--current-size", strconv.FormatInt(engine.Status.CurrentSize, 10))
+	}
+
+	if version.ClientVersion.CLIAPIVersion >= 7 {
+		cmd = append(cmd, "--file-sync-http-client-timeout", strconv.FormatInt(replicaFileSyncHTTPClientTimeout, 10))
+
+		if fastSync {
+			cmd = append(cmd, "--fast-sync")
+		}
+	}
+
 	if _, err := e.ExecuteEngineBinaryWithoutTimeout([]string{}, cmd...); err != nil {
 		return errors.Wrapf(err, "failed to add replica address='%s' to controller '%s'", url, e.name)
 	}
@@ -237,6 +257,22 @@ func (e *EngineBinary) VolumeFrontendShutdown(*longhorn.Engine) error {
 	return nil
 }
 
+// VolumeUnmapMarkSnapChainRemovedSet calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) VolumeUnmapMarkSnapChainRemovedSet(engine *longhorn.Engine) error {
+	cmdline := []string{"unmap-mark-snap-chain-removed"}
+	if engine.Spec.UnmapMarkSnapChainRemovedEnabled {
+		cmdline = append(cmdline, "--enable")
+	} else {
+		cmdline = append(cmdline, "--disable")
+	}
+	if _, err := e.ExecuteEngineBinary(cmdline...); err != nil {
+		return errors.Wrapf(err, "error setting volume flag UnmapMarkSnapChainRemoved to %v", engine.Spec.UnmapMarkSnapChainRemovedEnabled)
+	}
+
+	return nil
+}
+
 // ReplicaRebuildVerify calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
 func (e *EngineBinary) ReplicaRebuildVerify(engine *longhorn.Engine, url string) error {
@@ -253,4 +289,18 @@ func (e *EngineBinary) ReplicaRebuildVerify(engine *longhorn.Engine, url string)
 // Close engine proxy client connection.
 // Do not panic this method because this is could be called by the fallback client.
 func (e *EngineBinary) Close() {
+}
+
+// ReplicaModeUpdate calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy
+func (e *EngineBinary) ReplicaModeUpdate(engine *longhorn.Engine, url, mode string) error {
+	_, err := e.ExecuteEngineBinary("update", "--mode", mode, url)
+	if err != nil {
+		return errors.Wrapf(err, "failed to update replica %v mode to %v", url, mode)
+	}
+	return nil
+}
+
+func (e *EngineBinary) MetricsGet(*longhorn.Engine) (*Metrics, error) {
+	return nil, fmt.Errorf(ErrNotImplement)
 }

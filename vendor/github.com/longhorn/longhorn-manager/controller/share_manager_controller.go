@@ -205,8 +205,8 @@ func (c *ShareManagerController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	c.logger.Infof("Start Longhorn share manager controller")
-	defer c.logger.Infof("Shutting down Longhorn share manager controller")
+	c.logger.Infof("Starting Longhorn share manager controller")
+	defer c.logger.Infof("Shut down Longhorn share manager controller")
 
 	if !cache.WaitForNamedCacheSync("longhorn-share-manager-controller", stopCh, c.cacheSyncs...) {
 		return
@@ -252,7 +252,7 @@ func (c *ShareManagerController) handleErr(err error, key interface{}) {
 
 func (c *ShareManagerController) syncShareManager(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync %v", key)
+		err = errors.Wrapf(err, "failed to sync %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -299,6 +299,12 @@ func (c *ShareManagerController) syncShareManager(key string) (err error) {
 		if err := c.cleanupShareManagerPod(sm); err != nil {
 			return err
 		}
+
+		err = c.ds.DeleteConfigMap(c.namespace, types.GetConfigMapNameFromShareManagerName(sm.Name))
+		if err != nil && !datastore.ErrorIsNotFound(err) {
+			return errors.Wrapf(err, "failed to delete the configmap (recovery backend) for share manager %v", sm.Name)
+		}
+
 		return c.ds.RemoveFinalizerForShareManager(sm)
 	}
 
@@ -396,7 +402,7 @@ func (c *ShareManagerController) isShareManagerRequiredForVolume(volume *longhor
 	return true
 }
 
-func (c ShareManagerController) detachShareManagerVolume(sm *longhorn.ShareManager) error {
+func (c *ShareManagerController) detachShareManagerVolume(sm *longhorn.ShareManager) error {
 	log := getLoggerForShareManager(c.logger, sm)
 	volume, err := c.ds.GetVolume(sm.Name)
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -792,7 +798,6 @@ func (c *ShareManagerController) createPodManifest(sm *longhorn.ShareManager, an
 			Tolerations:        util.GetDistinctTolerations(tolerations),
 			NodeSelector:       nodeSelector,
 			PriorityClassName:  priorityClass,
-			NodeName:           sm.Status.OwnerID,
 			Containers: []v1.Container{
 				{
 					Name:            types.LonghornLabelShareManager,

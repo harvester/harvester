@@ -1,6 +1,8 @@
 package v1beta2
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 type VolumeState string
 
@@ -41,12 +43,13 @@ const (
 	VolumeDataSourceTypeVolume   = VolumeDataSourceType("volume")
 )
 
-// +kubebuilder:validation:Enum=disabled;best-effort
+// +kubebuilder:validation:Enum=disabled;best-effort;strict-local
 type DataLocality string
 
 const (
-	DataLocalityDisabled   = DataLocality("disabled")
-	DataLocalityBestEffort = DataLocality("best-effort")
+	DataLocalityDisabled    = DataLocality("disabled")
+	DataLocalityBestEffort  = DataLocality("best-effort")
+	DataLocalityStrictLocal = DataLocality("strict-local")
 )
 
 // +kubebuilder:validation:Enum=rwo;rwx
@@ -65,6 +68,15 @@ const (
 	ReplicaAutoBalanceDisabled    = ReplicaAutoBalance("disabled")
 	ReplicaAutoBalanceLeastEffort = ReplicaAutoBalance("least-effort")
 	ReplicaAutoBalanceBestEffort  = ReplicaAutoBalance("best-effort")
+)
+
+// +kubebuilder:validation:Enum=ignored;disabled;enabled
+type UnmapMarkSnapChainRemoved string
+
+const (
+	UnmapMarkSnapChainRemovedIgnored  = UnmapMarkSnapChainRemoved("ignored")
+	UnmapMarkSnapChainRemovedDisabled = UnmapMarkSnapChainRemoved("disabled")
+	UnmapMarkSnapChainRemovedEnabled  = UnmapMarkSnapChainRemoved("enabled")
 )
 
 type VolumeCloneState string
@@ -99,9 +111,25 @@ const (
 	VolumeConditionReasonTooManySnapshots              = "TooManySnapshots"
 )
 
-// VolumeRecurringJobSpec is a deprecated struct.
-// TODO: Should be removed when recurringJobs gets removed from the volume
-//       spec.
+type SnapshotDataIntegrity string
+
+const (
+	SnapshotDataIntegrityIgnored   = SnapshotDataIntegrity("ignored")
+	SnapshotDataIntegrityDisabled  = SnapshotDataIntegrity("disabled")
+	SnapshotDataIntegrityEnabled   = SnapshotDataIntegrity("enabled")
+	SnapshotDataIntegrityFastCheck = SnapshotDataIntegrity("fast-check")
+)
+
+// +kubebuilder:validation:Enum=ignored;enabled;disabled
+type RestoreVolumeRecurringJobType string
+
+const (
+	RestoreVolumeRecurringJobDefault  = RestoreVolumeRecurringJobType("ignored")
+	RestoreVolumeRecurringJobEnabled  = RestoreVolumeRecurringJobType("enabled")
+	RestoreVolumeRecurringJobDisabled = RestoreVolumeRecurringJobType("disabled")
+)
+
+// Deprecated: This field is useless and has been replaced by the RecurringJob CRD
 type VolumeRecurringJobSpec struct {
 	// +optional
 	Name string `json:"name"`
@@ -160,6 +188,8 @@ type VolumeSpec struct {
 	// +optional
 	FromBackup string `json:"fromBackup"`
 	// +optional
+	RestoreVolumeRecurringJob RestoreVolumeRecurringJobType `json:"restoreVolumeRecurringJob"`
+	// +optional
 	DataSource VolumeDataSource `json:"dataSource"`
 	// +optional
 	DataLocality DataLocality `json:"dataLocality"`
@@ -184,6 +214,8 @@ type VolumeSpec struct {
 	// +optional
 	RevisionCounterDisabled bool `json:"revisionCounterDisabled"`
 	// +optional
+	UnmapMarkSnapChainRemoved UnmapMarkSnapChainRemoved `json:"unmapMarkSnapChainRemoved"`
+	// +optional
 	LastAttachedBy string `json:"lastAttachedBy"`
 	// +optional
 	AccessMode AccessMode `json:"accessMode"`
@@ -195,6 +227,9 @@ type VolumeSpec struct {
 	NumberOfReplicas int `json:"numberOfReplicas"`
 	// +optional
 	ReplicaAutoBalance ReplicaAutoBalance `json:"replicaAutoBalance"`
+	// +kubebuilder:validation:Enum=ignored;disabled;enabled;fast-check
+	// +optional
+	SnapshotDataIntegrity SnapshotDataIntegrity `json:"snapshotDataIntegrity"`
 	// Deprecated. Rename to BackingImage
 	// +optional
 	BaseImage string `json:"baseImage"`

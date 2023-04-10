@@ -102,8 +102,8 @@ func (bvc *BackupVolumeController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer bvc.queue.ShutDown()
 
-	bvc.logger.Infof("Start Longhorn Backup Volume controller")
-	defer bvc.logger.Infof("Shutting down Longhorn Backup Volume controller")
+	bvc.logger.Infof("Starting Longhorn Backup Volume controller")
+	defer bvc.logger.Infof("Shut down Longhorn Backup Volume controller")
 
 	if !cache.WaitForNamedCacheSync(bvc.name, stopCh, bvc.cacheSyncs...) {
 		return
@@ -132,7 +132,7 @@ func (bvc *BackupVolumeController) processNextWorkItem() bool {
 
 func (bvc *BackupVolumeController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync backup volume %v", bvc.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync backup volume %v", bvc.name, key)
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -284,11 +284,24 @@ func (bvc *BackupVolumeController) reconcile(backupVolumeName string) (err error
 		return err
 	}
 
+	// Get `Time to live` after failed backup was marked as `Error` or `Unknown`,
+	failedBackupTTL, err := bvc.ds.GetSettingAsInt(types.SettingNameFailedBackupTTL)
+	if err != nil {
+		log.WithError(err).Warnf("Failed to get %v setting, and it will skip the auto-deletion for the failed backups", types.SettingNameFailedBackupTTL)
+	}
 	clustersSet := sets.NewString()
 	for _, b := range clusterBackups {
 		// Skip the Backup CR which is created from the local cluster and
 		// the snapshot backup hasn't be completed or pulled from the remote backup target yet
 		if b.Spec.SnapshotName != "" && b.Status.State != longhorn.BackupStateCompleted {
+			if b.Status.State == longhorn.BackupStateError || b.Status.State == longhorn.BackupStateUnknown {
+				// Failed backup `LastSyncedAt` should not be updated after it was marked as `Error` or `Unknown`
+				if failedBackupTTL > 0 && time.Now().After(b.Status.LastSyncedAt.Add(time.Duration(failedBackupTTL)*time.Minute)) {
+					if err = bvc.ds.DeleteBackup(b.Name); err != nil {
+						log.WithError(err).Errorf("failed to delete failed backup %s", b.Name)
+					}
+				}
+			}
 			continue
 		}
 		clustersSet.Insert(b.Name)
@@ -301,9 +314,26 @@ func (bvc *BackupVolumeController) reconcile(backupVolumeName string) (err error
 		log.Infof("Found %d backups in the backup target that do not exist in the cluster and need to be pulled", count)
 	}
 	for backupName := range backupsToPull {
+		backupLabelMap := map[string]string{}
+
+		backupURL := backupstore.EncodeBackupURL(backupName, backupVolumeName, backupTargetClient.URL)
+		if backupInfo, err := backupTargetClient.BackupGet(backupURL, backupTargetClient.Credential); err != nil {
+			log.WithError(err).WithFields(logrus.Fields{
+				"backup":       backupName,
+				"backupvolume": backupVolumeName,
+				"backuptarget": backupURL}).Warnf("Failed to get backupInfo from remote backup target")
+		} else {
+			if accessMode, exist := backupInfo.Labels[types.GetLonghornLabelKey(types.LonghornLabelVolumeAccessMode)]; exist {
+				backupLabelMap[types.GetLonghornLabelKey(types.LonghornLabelVolumeAccessMode)] = accessMode
+			}
+		}
+
 		backup := &longhorn.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: backupName,
+			},
+			Spec: longhorn.BackupSpec{
+				Labels: backupLabelMap,
 			},
 		}
 		if _, err = bvc.ds.CreateBackup(backup, backupVolumeName); err != nil && !apierrors.IsAlreadyExists(err) {

@@ -16,6 +16,10 @@ const (
 	ErrorCodeFunctionFailedRollbackFailed    = ErrorCode("FunctionFailedRollbackFailed")
 )
 
+const (
+	CannotRequestHashingSnapshotPrefix = "cannot request hashing snapshot"
+)
+
 type Error struct {
 	Code            ErrorCode `json:"code"`
 	Message         string    `json:"message"`

@@ -13,7 +13,7 @@ import (
 const (
 	// CurrentCLIVersion indicates the default API version manager used to talk with the
 	// engine, including `longhorn-engine` and `longhorn-instance-manager`
-	CurrentCLIVersion = 5
+	CurrentCLIVersion = 7
 	// MinCLIVersion indicates the Min API version manager used to talk with the
 	// engine.
 	MinCLIVersion = 3
@@ -28,8 +28,9 @@ const (
 	BackingImageDataSourceDefaultPort = 8000
 	BackingImageSyncServerDefaultPort = 8001
 
-	DefaultISCSIPort = "3260"
-	DefaultISCSILUN  = "1"
+	EndpointISCSIPrefix = "iscsi://"
+	DefaultISCSIPort    = "3260"
+	DefaultISCSILUN     = "1"
 
 	// MaxPollCount, MinPollCount, PollInterval determines how often
 	// we sync with othersq
@@ -53,6 +54,15 @@ type Controller struct {
 	NodeID string
 }
 
+type Metrics struct {
+	ReadThroughput  uint64
+	WriteThroughput uint64
+	ReadLatency     uint64
+	WriteLatency    uint64
+	ReadIOPS        uint64
+	WriteIOPS       uint64
+}
+
 type EngineClient interface {
 	VersionGet(engine *longhorn.Engine, clientOnly bool) (*EngineVersion, error)
 
@@ -61,12 +71,14 @@ type EngineClient interface {
 
 	VolumeFrontendStart(*longhorn.Engine) error
 	VolumeFrontendShutdown(*longhorn.Engine) error
+	VolumeUnmapMarkSnapChainRemovedSet(engine *longhorn.Engine) error
 
 	ReplicaList(*longhorn.Engine) (map[string]*Replica, error)
-	ReplicaAdd(engine *longhorn.Engine, url string, isRestoreVolume bool) error
+	ReplicaAdd(engine *longhorn.Engine, url string, isRestoreVolume, fastSync bool, replicaFileSyncHTTPClientTimeout int64) error
 	ReplicaRemove(engine *longhorn.Engine, url string) error
 	ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longhorn.RebuildStatus, error)
 	ReplicaRebuildVerify(engine *longhorn.Engine, url string) error
+	ReplicaModeUpdate(engine *longhorn.Engine, url string, mode string) error
 
 	SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string) (string, error)
 	SnapshotList(engine *longhorn.Engine) (map[string]*longhorn.SnapshotInfo, error)
@@ -78,10 +90,14 @@ type EngineClient interface {
 	SnapshotBackup(engine *longhorn.Engine, backupName, snapName, backupTarget, backingImageName, backingImageChecksum string, labels, credential map[string]string) (string, string, error)
 	SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress string) (*longhorn.EngineBackupStatus, error)
 	SnapshotCloneStatus(engine *longhorn.Engine) (map[string]*longhorn.SnapshotCloneStatus, error)
-	SnapshotClone(engine *longhorn.Engine, snapshotName, fromControllerAddress string) error
+	SnapshotClone(engine *longhorn.Engine, snapshotName, fromControllerAddress string, fileSyncHTTPClientTimeout int64) error
+	SnapshotHash(engine *longhorn.Engine, snapshotName string, rehash bool) error
+	SnapshotHashStatus(engine *longhorn.Engine, snapshotName string) (map[string]*longhorn.HashStatus, error)
 
 	BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolume, lastRestored string, credential map[string]string) error
 	BackupRestoreStatus(engine *longhorn.Engine) (map[string]*longhorn.RestoreStatus, error)
+
+	MetricsGet(engine *longhorn.Engine) (*Metrics, error)
 }
 
 type EngineClientRequest struct {
@@ -96,15 +112,16 @@ type EngineClientCollection interface {
 }
 
 type Volume struct {
-	Name                  string `json:"name"`
-	Size                  int64  `json:"size"`
-	ReplicaCount          int    `json:"replicaCount"`
-	Endpoint              string `json:"endpoint"`
-	Frontend              string `json:"frontend"`
-	FrontendState         string `json:"frontendState"`
-	IsExpanding           bool   `json:"isExpanding"`
-	LastExpansionError    string `json:"lastExpansionError"`
-	LastExpansionFailedAt string `json:"lastExpansionFailedAt"`
+	Name                      string `json:"name"`
+	Size                      int64  `json:"size"`
+	ReplicaCount              int    `json:"replicaCount"`
+	Endpoint                  string `json:"endpoint"`
+	Frontend                  string `json:"frontend"`
+	FrontendState             string `json:"frontendState"`
+	IsExpanding               bool   `json:"isExpanding"`
+	LastExpansionError        string `json:"lastExpansionError"`
+	LastExpansionFailedAt     string `json:"lastExpansionFailedAt"`
+	UnmapMarkSnapChainRemoved bool   `json:"unmapMarkSnapChainRemoved"`
 }
 
 type BackupTarget struct {
@@ -210,7 +227,7 @@ func ValidateReplicaURL(url string) error {
 	return nil
 }
 
-func CheckCLICompatibilty(cliVersion, cliMinVersion int) error {
+func CheckCLICompatibility(cliVersion, cliMinVersion int) error {
 	if MinCLIVersion > cliVersion || CurrentCLIVersion < cliMinVersion {
 		return fmt.Errorf("manager current CLI version %v and min CLI version %v is not compatible with CLIVersion %v and CLIMinVersion %v", CurrentCLIVersion, MinCLIVersion, cliVersion, cliMinVersion)
 	}
@@ -247,8 +264,20 @@ func GetEngineEndpoint(volume *Volume, ip string) (string, error) {
 
 		// it will looks like this in the end
 		// iscsi://10.42.0.12:3260/iqn.2014-09.com.rancher:vol-name/1
-		return "iscsi://" + ip + ":" + DefaultISCSIPort + "/" + volume.Endpoint + "/" + DefaultISCSILUN, nil
+		return EndpointISCSIPrefix + ip + ":" + DefaultISCSIPort + "/" + volume.Endpoint + "/" + DefaultISCSILUN, nil
 	}
 
 	return "", fmt.Errorf("unknown frontend %v", volume.Frontend)
+}
+
+func IsEndpointTGTBlockDev(endpoint string) bool {
+	if endpoint == "" {
+		return false
+	}
+
+	if strings.Contains(endpoint, EndpointISCSIPrefix) {
+		return false
+	}
+
+	return true
 }

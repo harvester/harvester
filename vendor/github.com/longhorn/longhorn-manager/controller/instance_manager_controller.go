@@ -12,7 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	v1 "k8s.io/api/core/v1"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
+	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -205,7 +205,7 @@ func (imc *InstanceManagerController) Run(workers int, stopCh <-chan struct{}) {
 	defer imc.queue.ShutDown()
 
 	logrus.Infof("Starting Longhorn instance manager controller")
-	defer logrus.Infof("Shutting down Longhorn instance manager controller")
+	defer logrus.Infof("Shut down Longhorn instance manager controller")
 
 	if !cache.WaitForNamedCacheSync("longhorn instance manager", stopCh, imc.cacheSyncs...) {
 		return
@@ -265,7 +265,7 @@ func getLoggerForInstanceManager(logger logrus.FieldLogger, im *longhorn.Instanc
 
 func (imc *InstanceManagerController) syncInstanceManager(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync instance manager for %v", key)
+		err = errors.Wrapf(err, "failed to sync instance manager for %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -506,7 +506,7 @@ func (imc *InstanceManagerController) syncMonitor(im *longhorn.InstanceManager) 
 	}
 
 	isMonitorRequired := im.Status.CurrentState == longhorn.InstanceManagerStateRunning &&
-		engineapi.CheckInstanceManagerCompatibilty(im.Status.APIMinVersion, im.Status.APIVersion) == nil
+		engineapi.CheckInstanceManagerCompatibility(im.Status.APIMinVersion, im.Status.APIVersion) == nil
 
 	if isMonitorRequired {
 		imc.startMonitoring(im)
@@ -617,7 +617,7 @@ func (imc *InstanceManagerController) cleanUpPDBForNonExistingIM() error {
 		if !datastore.ErrorIsNotFound(err) {
 			return err
 		}
-		imPDBs = make(map[string]*policyv1beta1.PodDisruptionBudget)
+		imPDBs = make(map[string]*policyv1.PodDisruptionBudget)
 	}
 
 	for pdbName, pdb := range imPDBs {
@@ -818,13 +818,13 @@ func (imc *InstanceManagerController) createInstanceManagerPDB(im *longhorn.Inst
 	return nil
 }
 
-func (imc *InstanceManagerController) generateInstanceManagerPDBManifest(im *longhorn.InstanceManager) *policyv1beta1.PodDisruptionBudget {
-	return &policyv1beta1.PodDisruptionBudget{
+func (imc *InstanceManagerController) generateInstanceManagerPDBManifest(im *longhorn.InstanceManager) *policyv1.PodDisruptionBudget {
+	return &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      imc.getPDBName(im),
 			Namespace: imc.namespace,
 		},
-		Spec: policyv1beta1.PodDisruptionBudgetSpec{
+		Spec: policyv1.PodDisruptionBudgetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: types.GetInstanceManagerLabels(imc.controllerID, im.Spec.Image, im.Spec.Type),
 			},
@@ -1117,6 +1117,10 @@ func (imc *InstanceManagerController) createEngineManagerPodSpec(im *longhorn.In
 			MountPropagation: &hostToContainer,
 		},
 		{
+			MountPath: types.UnixDomainSocketDirectoryInContainer,
+			Name:      "unix-domain-socket",
+		},
+		{
 			MountPath: types.TLSDirectoryInContainer,
 			Name:      "longhorn-grpc-tls",
 		},
@@ -1143,6 +1147,14 @@ func (imc *InstanceManagerController) createEngineManagerPodSpec(im *longhorn.In
 			VolumeSource: v1.VolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
 					Path: types.EngineBinaryDirectoryOnHost,
+				},
+			},
+		},
+		{
+			Name: "unix-domain-socket",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: types.UnixDomainSocketDirectoryOnHost,
 				},
 			},
 		},
@@ -1367,7 +1379,7 @@ func (m *InstanceManagerMonitor) pollAndUpdateInstanceMap() (needStop bool) {
 			m.logger.Info("stop monitoring because the instance manager no longer exists")
 			return true
 		}
-		utilruntime.HandleError(errors.Wrapf(err, "fail to get instance manager %v for monitoring", m.Name))
+		utilruntime.HandleError(errors.Wrapf(err, "failed to get instance manager %v for monitoring", m.Name))
 		return false
 	}
 

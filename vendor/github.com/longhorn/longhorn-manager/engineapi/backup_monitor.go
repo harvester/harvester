@@ -2,6 +2,7 @@ package engineapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -12,6 +13,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/clock"
+
+	"github.com/longhorn/longhorn-manager/datastore"
+	"github.com/longhorn/longhorn-manager/types"
+	"github.com/longhorn/longhorn-manager/util"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
@@ -46,7 +51,7 @@ type BackupMonitor struct {
 	retryCount int
 }
 
-func NewBackupMonitor(logger logrus.FieldLogger,
+func NewBackupMonitor(logger logrus.FieldLogger, ds *datastore.DataStore,
 	backup *longhorn.Backup, volume *longhorn.Volume, backupTargetClient *BackupTargetClient,
 	biChecksum string, engine *longhorn.Engine, engineClientProxy EngineClientProxy,
 	syncCallback func(key string)) (*BackupMonitor, error) {
@@ -71,6 +76,15 @@ func NewBackupMonitor(logger logrus.FieldLogger,
 
 	// Call engine API snapshot backup
 	if backup.Status.State == longhorn.BackupStateNew {
+		// volumeRecurringJobInfo could be "".
+		volumeRecurringJobInfo, err := m.getVolumeRecurringJobInfos(ds, volume)
+		if err != nil {
+			return nil, err
+		}
+		// put volume recurring jobs/groups information into backup labels and it would be stored in the file `volume.cfg`
+		if volumeRecurringJobInfo != "" {
+			backup.Spec.Labels[types.VolumeRecurringJobInfoLabel] = volumeRecurringJobInfo
+		}
 		_, replicaAddress, err := engineClientProxy.SnapshotBackup(engine,
 			backup.Spec.SnapshotName, backup.Name, backupTargetClient.URL,
 			volume.Spec.BackingImage, biChecksum,
@@ -107,6 +121,68 @@ func NewBackupMonitor(logger logrus.FieldLogger,
 	go m.monitorBackups()
 
 	return m, nil
+}
+
+// getVolumeRecurringJobInfos get recurring jobs in the volume labels and recurring jobs of groups in the volume labels
+func (m *BackupMonitor) getVolumeRecurringJobInfos(ds *datastore.DataStore, volume *longhorn.Volume) (string, error) {
+	allRecurringJobs, err := ds.ListRecurringJobsRO()
+	if err != nil {
+		m.logger.WithError(err).Warn("Failed to list all recurring jobs")
+		return "", err
+	}
+
+	volumeRecurringJobInfos := make(map[string]longhorn.VolumeRecurringJobInfo)
+	// distinguish volume labels between job and group.
+	volumeSelectedRecurringJobs := datastore.MarshalLabelToVolumeRecurringJob(volume.Labels)
+	for recurringJobName, recurringJob := range allRecurringJobs {
+		for jobName, job := range volumeSelectedRecurringJobs {
+			if job.IsGroup {
+				// add the recurring job from group or update its groups informtaion
+				if volumeRecurringJobInfos, err = addVolumeRecurringJobInfosFromGroup(recurringJobName, jobName, &recurringJob.Spec, volumeRecurringJobInfos); err != nil {
+					m.logger.WithError(err).WithFields(logrus.Fields{"recurringjob": recurringJobName, "group": jobName}).Warn("Failed to add the recurring job")
+					return "", err
+				}
+			} else if recurringJobName == jobName {
+				// save a recurring job information if it is not a group.
+				if recordJob, exist := volumeRecurringJobInfos[recurringJobName]; !exist {
+					volumeRecurringJobInfos[recurringJobName] = longhorn.VolumeRecurringJobInfo{JobSpec: recurringJob.Spec, FromJob: true, FromGroup: []string{}}
+				} else {
+					// recurring job has been saved by groups and update it from job as well.
+					recordJob.FromJob = true
+					volumeRecurringJobInfos[recurringJobName] = recordJob
+				}
+			}
+		}
+	}
+	volumeRecurringJobInfosBytes, err := json.Marshal(volumeRecurringJobInfos)
+	if err != nil {
+		m.logger.WithError(err).Warnf("Marshal volumeRecurringJobInfoMap: %v", volumeRecurringJobInfos)
+		return "", err
+	}
+
+	return string(volumeRecurringJobInfosBytes), nil
+}
+
+// addVolumeRecurringJobInfosFromGroup add recurring jobs in the group and add the group name into the recurring job information
+func addVolumeRecurringJobInfosFromGroup(jobName, groupName string, jobSpec *longhorn.RecurringJobSpec, volumeRecurringJobInfo map[string]longhorn.VolumeRecurringJobInfo) (map[string]longhorn.VolumeRecurringJobInfo, error) {
+	if !util.Contains(jobSpec.Groups, groupName) {
+		// this job is not in this group then do nothing
+		return volumeRecurringJobInfo, nil
+	}
+	if _, exist := volumeRecurringJobInfo[jobName]; !exist {
+		// store new recurring job information in this group
+		volumeRecurringJobInfo[jobName] = longhorn.VolumeRecurringJobInfo{JobSpec: *jobSpec, FromGroup: []string{groupName}}
+		return volumeRecurringJobInfo, nil
+	}
+
+	if !util.Contains(volumeRecurringJobInfo[jobName].FromGroup, groupName) {
+		// this recurring job saved but it is in multiple groups, update its groups information.
+		recordJob := volumeRecurringJobInfo[jobName]
+		recordJob.FromGroup = append(recordJob.FromGroup, groupName)
+		volumeRecurringJobInfo[jobName] = recordJob
+	}
+
+	return volumeRecurringJobInfo, nil
 }
 
 func (m *BackupMonitor) monitorBackups() {
@@ -168,7 +244,7 @@ func (m *BackupMonitor) exponentialBackOffTimer() bool {
 			// Keep in exponential backoff timer
 		case <-ctx.Done():
 			// Give it the last try to prevent if the snapshot backup succeed between
-			// the last trigged backoff time and the max retry period
+			// the last triggered backoff time and the max retry period
 			currentBackupStatus, err := m.syncBackupStatusFromEngineReplica()
 			if err == nil {
 				m.logger.Info("Change to liner timer to monitor it")

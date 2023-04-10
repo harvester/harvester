@@ -6,6 +6,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/longhorn/longhorn-manager/types"
+	"github.com/longhorn/longhorn-manager/util"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
@@ -29,7 +30,7 @@ func (m *VolumeManager) ListSettingsSorted() ([]*longhorn.Setting, error) {
 	}
 
 	settings := make([]*longhorn.Setting, len(settingMap))
-	settingNames, err := sortKeys(settingMap)
+	settingNames, err := util.SortKeys(settingMap)
 	if err != nil {
 		return []*longhorn.Setting{}, err
 	}

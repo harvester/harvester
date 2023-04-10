@@ -25,7 +25,7 @@ func (m *VolumeManager) ListRecurringJobsSorted() ([]*longhorn.RecurringJob, err
 	}
 
 	jobs := make([]*longhorn.RecurringJob, len(jobMap))
-	jobNames, err := sortKeys(jobMap)
+	jobNames, err := util.SortKeys(jobMap)
 	if err != nil {
 		return []*longhorn.RecurringJob{}, err
 	}

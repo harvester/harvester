@@ -146,6 +146,30 @@ type SnapshotListerExpansion interface{}
 // SnapshotNamespaceLister.
 type SnapshotNamespaceListerExpansion interface{}
 
+// SupportBundleListerExpansion allows custom methods to be added to
+// SupportBundleLister.
+type SupportBundleListerExpansion interface{}
+
+// SupportBundleNamespaceListerExpansion allows custom methods to be added to
+// SupportBundleNamespaceLister.
+type SupportBundleNamespaceListerExpansion interface{}
+
+// SystemBackupListerExpansion allows custom methods to be added to
+// SystemBackupLister.
+type SystemBackupListerExpansion interface{}
+
+// SystemBackupNamespaceListerExpansion allows custom methods to be added to
+// SystemBackupNamespaceLister.
+type SystemBackupNamespaceListerExpansion interface{}
+
+// SystemRestoreListerExpansion allows custom methods to be added to
+// SystemRestoreLister.
+type SystemRestoreListerExpansion interface{}
+
+// SystemRestoreNamespaceListerExpansion allows custom methods to be added to
+// SystemRestoreNamespaceLister.
+type SystemRestoreNamespaceListerExpansion interface{}
+
 // VolumeListerExpansion allows custom methods to be added to
 // VolumeLister.
 type VolumeListerExpansion interface{}

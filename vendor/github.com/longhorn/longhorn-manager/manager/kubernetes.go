@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
-	apiv1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
@@ -53,7 +53,7 @@ func (m *VolumeManager) PVCreate(name, pvName, fsType, secretNamespace, secretNa
 			secretNamespace = "longhorn-system"
 		}
 
-		secretRef := &apiv1.SecretReference{
+		secretRef := &corev1.SecretReference{
 			Name:      secretName,
 			Namespace: secretNamespace,
 		}
@@ -96,7 +96,7 @@ func (m *VolumeManager) PVCCreate(name, namespace, pvcName string) (v *longhorn.
 		}
 		ks = v.Status.KubernetesStatus
 		if v.Status.KubernetesStatus.PVName != "" &&
-			(ks.PVStatus == string(apiv1.VolumeAvailable) || ks.PVStatus == string(apiv1.VolumeReleased)) {
+			(ks.PVStatus == string(corev1.VolumeAvailable) || ks.PVStatus == string(corev1.VolumeReleased)) {
 			pvFound = true
 			break
 		}

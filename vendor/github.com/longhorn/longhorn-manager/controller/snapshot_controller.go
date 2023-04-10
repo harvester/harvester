@@ -161,8 +161,6 @@ func (sc *SnapshotController) enqueueEngineChange(oldObj, curObj interface{}) {
 	for _, snap := range snapshots {
 		sc.enqueueSnapshot(snap)
 	}
-
-	return
 }
 
 func filterSnapshotsForEngineEnqueuing(oldEngine, curEngine *longhorn.Engine, snapshots map[string]*longhorn.Snapshot) map[string]*longhorn.Snapshot {
@@ -223,7 +221,7 @@ func (sc *SnapshotController) Run(workers int, stopCh <-chan struct{}) {
 	defer sc.queue.ShutDown()
 
 	sc.logger.Info("Starting Longhorn Snapshot Controller")
-	defer sc.logger.Info("Shutting down Longhorn Snapshot Controller")
+	defer sc.logger.Info("Shut down Longhorn Snapshot Controller")
 
 	if !cache.WaitForNamedCacheSync(sc.name, stopCh, sc.cacheSyncs...) {
 		return
@@ -264,7 +262,7 @@ func (sc *SnapshotController) handlerErr(err error, key interface{}) {
 
 func (sc *SnapshotController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync snapshot %v", sc.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync snapshot %v", sc.name, key)
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -310,7 +308,6 @@ func (sc *SnapshotController) reconcile(snapshotName string) (err error) {
 			return
 		}
 		sc.generatingEventsForSnapshot(existingSnapshot, snapshot)
-		return
 	}()
 
 	// deleting snapshotCR

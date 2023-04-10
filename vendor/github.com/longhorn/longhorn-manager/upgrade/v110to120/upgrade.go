@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	batchv1beta1 "k8s.io/api/batch/v1beta1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -381,7 +381,7 @@ func (run *recurringJobUpgrade) cleanupAppliedVolumeCronJobs() (err error) {
 	run.log.Info(upgradeLogPrefix + "Starting volume cron job cleanup")
 
 	propagation := metav1.DeletePropagationForeground
-	cronJobClient := run.kubeClient.BatchV1beta1().CronJobs(run.namespace)
+	cronJobClient := run.kubeClient.BatchV1().CronJobs(run.namespace)
 	for _, v := range run.volumes.Items {
 		run.log.Debugf(upgradeLogPrefix+"Listing all cron jobs for volume %v", v.Name)
 		appliedCronJobROs, err := listVolumeCronJobROs(v.Name, run.namespace, run.kubeClient)
@@ -467,9 +467,9 @@ func createRecurringJobID(recurringJob longhorn.RecurringJobSpec) (key string, e
 	), nil
 }
 
-func listVolumeCronJobROs(volumeName, namespace string, kubeClient *clientset.Clientset) (map[string]*batchv1beta1.CronJob, error) {
-	itemMap := map[string]*batchv1beta1.CronJob{}
-	list, err := kubeClient.BatchV1beta1().CronJobs(namespace).List(context.TODO(), metav1.ListOptions{
+func listVolumeCronJobROs(volumeName, namespace string, kubeClient *clientset.Clientset) (map[string]*batchv1.CronJob, error) {
+	itemMap := map[string]*batchv1.CronJob{}
+	list, err := kubeClient.BatchV1().CronJobs(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: types.LonghornLabelVolume + "=" + volumeName,
 	})
 	if err != nil {

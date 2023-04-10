@@ -29,3 +29,9 @@ func (me MultiError) Join() string {
 
 	return strings.Join(keys, ";")
 }
+
+func (me MultiError) Reset() {
+	for k := range me {
+		delete(me, k)
+	}
+}

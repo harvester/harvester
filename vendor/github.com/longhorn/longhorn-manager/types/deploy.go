@@ -4,6 +4,7 @@ const (
 	LonghornManagerDaemonSetName            = "longhorn-manager"
 	LonghornAdmissionWebhookDeploymentName  = "longhorn-admission-webhook"
 	LonghornConversionWebhookDeploymentName = "longhorn-conversion-webhook"
+	LonghornRecoveryBackendDeploymentName   = "longhorn-recovery-backend"
 	LonghornUIDeploymentName                = "longhorn-ui"
 
 	DriverDeployerName = "longhorn-driver-deployer"

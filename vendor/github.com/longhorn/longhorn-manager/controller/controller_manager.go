@@ -12,6 +12,7 @@ import (
 	"golang.org/x/time/rate"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
@@ -60,6 +61,11 @@ func StartControllers(logger logrus.FieldLogger, stopCh chan struct{}, controlle
 		return nil, nil, errors.Wrap(err, "unable to get clientset")
 	}
 
+	extensionsClient, err := apiextensionsclientset.NewForConfig(config)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to get k8s extension client")
+	}
+
 	scheme := runtime.NewScheme()
 	if err := longhorn.SchemeBuilder.AddToScheme(scheme); err != nil {
 		return nil, nil, errors.Wrap(err, "unable to create scheme")
@@ -74,7 +80,7 @@ func StartControllers(logger logrus.FieldLogger, stopCh chan struct{}, controlle
 	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	lhInformerFactory := lhinformers.NewSharedInformerFactory(lhClient, time.Second*30)
 
-	ds := datastore.NewDataStore(lhInformerFactory, lhClient, kubeInformerFactory, kubeClient, namespace)
+	ds := datastore.NewDataStore(lhInformerFactory, lhClient, kubeInformerFactory, kubeClient, extensionsClient, namespace)
 
 	rc := NewReplicaController(logger, ds, scheme, kubeClient, namespace, controllerID)
 	ec := NewEngineController(logger, ds, scheme, kubeClient, &engineapi.EngineCollection{}, namespace, controllerID, proxyConnCounter)
@@ -94,6 +100,9 @@ func StartControllers(logger logrus.FieldLogger, stopCh chan struct{}, controlle
 	rjc := NewRecurringJobController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount, managerImage)
 	oc := NewOrphanController(logger, ds, scheme, kubeClient, controllerID, namespace)
 	snapc := NewSnapshotController(logger, ds, scheme, kubeClient, namespace, controllerID, &engineapi.EngineCollection{}, proxyConnCounter)
+	bundlec := NewSupportBundleController(logger, ds, scheme, kubeClient, controllerID, namespace, serviceAccount)
+	sbc := NewSystemBackupController(logger, ds, scheme, kubeClient, namespace, controllerID, managerImage)
+	src := NewSystemRestoreController(logger, ds, scheme, kubeClient, namespace, controllerID)
 	kpvc := NewKubernetesPVController(logger, ds, scheme, kubeClient, controllerID)
 	knc := NewKubernetesNodeController(logger, ds, scheme, kubeClient, controllerID)
 	kpc := NewKubernetesPodController(logger, ds, scheme, kubeClient, controllerID)
@@ -123,6 +132,9 @@ func StartControllers(logger logrus.FieldLogger, stopCh chan struct{}, controlle
 	go rjc.Run(Workers, stopCh)
 	go oc.Run(Workers, stopCh)
 	go snapc.Run(Workers, stopCh)
+	go bundlec.Run(Workers, stopCh)
+	go sbc.Run(Workers, stopCh)
+	go src.Run(Workers, stopCh)
 
 	go kpvc.Run(Workers, stopCh)
 	go knc.Run(Workers, stopCh)

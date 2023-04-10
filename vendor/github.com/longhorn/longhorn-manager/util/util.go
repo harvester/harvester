@@ -30,6 +30,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -51,7 +52,8 @@ const (
 
 	HostProcPath                 = "/host/proc"
 	ReplicaDirectory             = "/replicas/"
-	DeviceDirectory              = "/dev/longhorn/"
+	RegularDeviceDirectory       = "/dev/longhorn/"
+	EncryptedDeviceDirectory     = "/dev/mapper/"
 	TemporaryMountPointDirectory = "/tmp/mnt/"
 
 	DefaultKubernetesTolerationKey = "kubernetes.io"
@@ -658,10 +660,7 @@ func DeleteDiskPathReplicaSubdirectoryAndDiskCfgFile(
 }
 
 func IsKubernetesDefaultToleration(toleration v1.Toleration) bool {
-	if strings.Contains(toleration.Key, DefaultKubernetesTolerationKey) {
-		return true
-	}
-	return false
+	return strings.Contains(toleration.Key, DefaultKubernetesTolerationKey)
 }
 
 func GetAnnotation(obj runtime.Object, annotationKey string) (string, error) {
@@ -894,4 +893,105 @@ func GetVolumeMeta(path string) (*VolumeMeta, error) {
 		return nil, fmt.Errorf("failed to unmarshal %v content %v on host: %v", path, output, err)
 	}
 	return meta, nil
+}
+
+func CapitalizeFirstLetter(input string) string {
+	return strings.ToUpper(input[:1]) + input[1:]
+}
+
+func GetPodIP(pod *v1.Pod) (string, error) {
+	if pod.Status.PodIP == "" {
+		return "", fmt.Errorf("%v pod IP is empty", pod.Name)
+	}
+	return pod.Status.PodIP, nil
+}
+
+func TrimFilesystem(volumeName string, isEncryptedDevice bool) error {
+	nsPath := iscsi_util.GetHostNamespacePath(HostProcPath)
+	nsExec, err := iscsi_util.NewNamespaceExecutor(nsPath)
+	if err != nil {
+		return err
+	}
+
+	deviceDir := RegularDeviceDirectory
+	if isEncryptedDevice {
+		deviceDir = EncryptedDeviceDirectory
+	}
+
+	mountOutput, err := nsExec.Execute("bash", []string{"-c", fmt.Sprintf("cat /proc/mounts | grep %s%s | awk '{print $2}'", deviceDir, volumeName)})
+	if err != nil {
+		return fmt.Errorf("cannot find volume %v mount info on host: %v", volumeName, err)
+	}
+
+	mountList := strings.Split(strings.TrimSpace(mountOutput), "\n")
+
+	var mountpoint string
+	for _, m := range mountList {
+		_, err = nsExec.Execute("stat", []string{m})
+		if err == nil {
+			mountpoint = m
+			break
+		}
+
+		logrus.WithError(err).Warnf("failed to get volume %v mountpoint %v info", volumeName, m)
+	}
+	if mountpoint == "" {
+		return fmt.Errorf("cannot find a valid mountpoint for volume %v", volumeName)
+	}
+
+	_, err = nsExec.Execute("fstrim", []string{mountpoint})
+	if err != nil {
+		return fmt.Errorf("cannot find volume %v mount info on host: %v", volumeName, err)
+	}
+
+	return nil
+}
+
+// SortKeys accepts a map with string keys and returns a sorted slice of keys
+func SortKeys(mapObj interface{}) ([]string, error) {
+	if mapObj == nil {
+		return []string{}, fmt.Errorf("BUG: mapObj was nil")
+	}
+	m := reflect.ValueOf(mapObj)
+	if m.Kind() != reflect.Map {
+		return []string{}, fmt.Errorf("BUG: expected map, got %v", m.Kind())
+	}
+
+	keys := make([]string, m.Len())
+	for i, key := range m.MapKeys() {
+		if key.Kind() != reflect.String {
+			return []string{}, fmt.Errorf("BUG: expect map[string]interface{}, got map[%v]interface{}", key.Kind())
+		}
+		keys[i] = key.String()
+	}
+	sort.Strings(keys)
+	return keys, nil
+}
+
+func EncodeToYAMLFile(obj interface{}, path string) (err error) {
+	defer func() {
+		err = errors.Wrapf(err, "failed to generate %v", path)
+	}()
+
+	err = os.MkdirAll(filepath.Dir(path), os.FileMode(0755))
+	if err != nil {
+		return
+	}
+
+	f, err := os.Create(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	encoder := yaml.NewEncoder(f)
+	if err = encoder.Encode(obj); err != nil {
+		return
+	}
+
+	if err = encoder.Close(); err != nil {
+		return
+	}
+
+	return nil
 }

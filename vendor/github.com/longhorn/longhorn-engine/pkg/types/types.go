@@ -34,15 +34,40 @@ const (
 
 	EngineFrontendBlockDev = "tgt-blockdev"
 	EngineFrontendISCSI    = "tgt-iscsi"
+
+	VolumeHeadName = "volume-head"
 )
 
-type ReaderWriterAt interface {
+type DataServerProtocol string
+
+const (
+	DataServerProtocolTCP  = DataServerProtocol("tcp")
+	DataServerProtocolUNIX = DataServerProtocol("unix")
+)
+
+type ReplicaState string
+
+const (
+	ReplicaStateInitial    = ReplicaState("initial")
+	ReplicaStateOpen       = ReplicaState("open")
+	ReplicaStateClosed     = ReplicaState("closed")
+	ReplicaStateDirty      = ReplicaState("dirty")
+	ReplicaStateRebuilding = ReplicaState("rebuilding")
+	ReplicaStateError      = ReplicaState("error")
+)
+
+type ReaderWriterUnmapperAt interface {
 	io.ReaderAt
 	io.WriterAt
+	UnmapperAt
+}
+
+type UnmapperAt interface {
+	UnmapAt(length uint32, off int64) (n int, err error)
 }
 
 type DiffDisk interface {
-	ReaderWriterAt
+	ReaderWriterUnmapperAt
 	io.Closer
 	Fd() uintptr
 	Size() (int64, error)
@@ -51,7 +76,7 @@ type DiffDisk interface {
 type MonitorChannel chan error
 
 type Backend interface {
-	ReaderWriterAt
+	ReaderWriterUnmapperAt
 	io.Closer
 	Snapshot(name string, userCreated bool, created string, labels map[string]string) error
 	Expand(size int64) error
@@ -60,15 +85,18 @@ type Backend interface {
 	RemainSnapshots() (int, error)
 	GetRevisionCounter() (int64, error)
 	SetRevisionCounter(counter int64) error
+	GetState() (string, error)
 	GetMonitorChannel() MonitorChannel
 	StopMonitoring()
 	IsRevisionCounterDisabled() (bool, error)
 	GetLastModifyTime() (int64, error)
 	GetHeadFileSize() (int64, error)
+	GetUnmapMarkSnapChainRemoved() (bool, error)
+	SetUnmapMarkSnapChainRemoved(enabled bool) error
 }
 
 type BackendFactory interface {
-	Create(address string) (Backend, error)
+	Create(volumeName, address string, dataServerProtocol DataServerProtocol, engineReplicaTimeout time.Duration) (Backend, error)
 }
 
 type Controller interface {
@@ -81,7 +109,7 @@ type Controller interface {
 }
 
 type Server interface {
-	ReaderWriterAt
+	ReaderWriterUnmapperAt
 	Controller
 }
 
@@ -104,16 +132,16 @@ type ReplicaSalvageInfo struct {
 type Frontend interface {
 	FrontendName() string
 	Init(name string, size, sectorSize int64) error
-	Startup(rw ReaderWriterAt) error
+	Startup(rwu ReaderWriterUnmapperAt) error
 	Shutdown() error
 	State() State
 	Endpoint() string
-	Upgrade(name string, size, sectorSize int64, rw ReaderWriterAt) error
+	Upgrade(name string, size, sectorSize int64, rwu ReaderWriterUnmapperAt) error
 	Expand(size int64) error
 }
 
 type DataProcessor interface {
-	ReaderWriterAt
+	ReaderWriterUnmapperAt
 	PingResponse() error
 }
 
@@ -124,8 +152,8 @@ const (
 )
 
 type Metrics struct {
-	Bandwidth    RWMetrics // in byte
-	TotalLatency RWMetrics // in microsecond(us)
+	Throughput   RWMetrics // in byte
+	TotalLatency RWMetrics // in nanoseconds
 	IOPS         RWMetrics
 }
 

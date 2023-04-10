@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"github.com/longhorn/backupstore"
+	etypes "github.com/longhorn/longhorn-engine/pkg/types"
 
+	"github.com/longhorn/longhorn-manager/datastore"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
@@ -29,12 +32,38 @@ type BackupTargetClient struct {
 }
 
 // NewBackupTargetClient returns the backup target client
-func NewBackupTargetClient(defaultEngineImage, url string, credential map[string]string) *BackupTargetClient {
+func NewBackupTargetClient(engineImage, url string, credential map[string]string) *BackupTargetClient {
 	return &BackupTargetClient{
-		Image:      defaultEngineImage,
+		Image:      engineImage,
 		URL:        url,
 		Credential: credential,
 	}
+}
+
+func NewBackupTargetClientFromBackupTarget(backupTarget *longhorn.BackupTarget, ds *datastore.DataStore) (*BackupTargetClient, error) {
+	defaultEngineImage, err := ds.GetSettingValueExisted(types.SettingNameDefaultEngineImage)
+	if err != nil {
+		return nil, err
+	}
+
+	backupType, err := util.CheckBackupType(backupTarget.Spec.BackupTargetURL)
+	if err != nil {
+		return nil, err
+	}
+
+	var credential map[string]string
+	if backupType == types.BackupStoreTypeS3 {
+		if backupTarget.Spec.CredentialSecret == "" {
+			return nil, errors.Errorf("cannot access %s without credential secret", types.BackupStoreTypeS3)
+		}
+
+		credential, err = ds.GetCredentialFromSecret(backupTarget.Spec.CredentialSecret)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return NewBackupTargetClient(defaultEngineImage, backupTarget.Spec.BackupTargetURL, credential), nil
 }
 
 func (btc *BackupTargetClient) LonghornEngineBinary() string {
@@ -83,6 +112,14 @@ func (btc *BackupTargetClient) ExecuteEngineBinary(args ...string) (string, erro
 		return "", err
 	}
 	return util.Execute(envs, btc.LonghornEngineBinary(), args...)
+}
+
+func (btc *BackupTargetClient) ExecuteEngineBinaryWithTimeout(timeout time.Duration, args ...string) (string, error) {
+	envs, err := getBackupCredentialEnv(btc.URL, btc.Credential)
+	if err != nil {
+		return "", err
+	}
+	return util.ExecuteWithTimeout(timeout, envs, btc.LonghornEngineBinary(), args...)
 }
 
 func (btc *BackupTargetClient) ExecuteEngineBinaryWithoutTimeout(args ...string) (string, error) {
@@ -253,8 +290,8 @@ func (e *EngineBinary) SnapshotBackup(engine *longhorn.Engine,
 	snapName, backupName, backupTarget,
 	backingImageName, backingImageChecksum string,
 	labels, credential map[string]string) (string, string, error) {
-	if snapName == VolumeHeadName {
-		return "", "", fmt.Errorf("invalid operation: cannot backup %v", VolumeHeadName)
+	if snapName == etypes.VolumeHeadName {
+		return "", "", fmt.Errorf("invalid operation: cannot backup %v", etypes.VolumeHeadName)
 	}
 	// TODO: update when replacing this function
 	snap, err := e.SnapshotGet(nil, snapName)

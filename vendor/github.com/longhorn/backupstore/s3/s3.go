@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/sirupsen/logrus"
+
 	"github.com/longhorn/backupstore"
 	"github.com/longhorn/backupstore/http"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -56,17 +57,16 @@ func initFunc(destURL string) (backupstore.BackupStoreDriver, error) {
 	}
 	b.path = u.Path
 	if b.service.Bucket == "" || b.path == "" {
-		return nil, fmt.Errorf("Invalid URL. Must be either s3://bucket@region/path/, or s3://bucket/path")
+		return nil, fmt.Errorf("invalid URL. Must be either s3://bucket@region/path/, or s3://bucket/path")
 	}
 
 	// add custom ca to http client that is used by s3 service
-	if customCerts := getCustomCerts(); customCerts != nil {
-		client, err := http.GetClientWithCustomCerts(customCerts)
-		if err != nil {
-			return nil, err
-		}
-		b.service.Client = client
+	customCerts := getCustomCerts()
+	client, err := http.GetClientWithCustomCerts(customCerts)
+	if err != nil {
+		return nil, err
 	}
+	b.service.Client = client
 
 	//Leading '/' can cause mystery problems for s3
 	b.path = strings.TrimLeft(b.path, "/")
@@ -82,7 +82,7 @@ func initFunc(destURL string) (backupstore.BackupStoreDriver, error) {
 	}
 	b.destURL += "/" + b.path
 
-	log.Debugf("Loaded driver for %v", b.destURL)
+	log.Infof("Loaded driver for %v", b.destURL)
 	return b, nil
 }
 
@@ -114,7 +114,7 @@ func (s *BackupStoreDriver) List(listPath string) ([]string, error) {
 	path := s.updatePath(listPath) + "/"
 	contents, prefixes, err := s.service.ListObjects(path, "/")
 	if err != nil {
-		log.Error("Fail to list s3: ", err)
+		log.WithError(err).Error("Failed to list s3")
 		return result, err
 	}
 
@@ -195,11 +195,17 @@ func (s *BackupStoreDriver) Download(src, dst string) error {
 	if _, err := os.Stat(dst); err != nil {
 		os.Remove(dst)
 	}
+
+	if err := os.MkdirAll(filepath.Dir(dst), os.ModeDir|0700); err != nil {
+		return err
+	}
+
 	f, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+
 	path := s.updatePath(src)
 	rc, err := s.service.GetObject(path)
 	if err != nil {
@@ -208,8 +214,5 @@ func (s *BackupStoreDriver) Download(src, dst string) error {
 	defer rc.Close()
 
 	_, err = io.Copy(f, rc)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
