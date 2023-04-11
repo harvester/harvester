@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
@@ -64,6 +65,7 @@ type vmActionHandler struct {
 	nadCache                  ctlcniv1.NetworkAttachmentDefinitionCache
 	nodeCache                 ctlcorev1.NodeCache
 	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
+	pvCache                   ctlcorev1.PersistentVolumeCache
 	secretClient              ctlcorev1.SecretClient
 	secretCache               ctlcorev1.SecretCache
 	virtSubresourceRestClient rest.Interface
@@ -838,12 +840,58 @@ func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMac
 	return nil
 }
 
+// Since the LH volume creation and replica scheduling are asynchronous
+// Even the CreateVolume csi call success, the replica scheduling may still fail
+// However for the sc with VolumeBindingMode is Immediate
+// we could check annotation for corresponding error if it exists
+func (h *vmActionHandler) checkAttachable(pvc *corev1.PersistentVolumeClaim) error {
+	// Even Harvester specify default StorageClass,
+	// we check the sc existence for robustness
+	if pvc.Spec.StorageClassName == nil {
+		return fmt.Errorf("volme %v with empty StorageClass is not permitted", pvc.Name)
+	}
+
+	sc, err := h.storageClassCache.Get(*pvc.Spec.StorageClassName)
+	if err != nil {
+		return err
+	}
+
+	if sc.VolumeBindingMode == nil {
+		return fmt.Errorf("volme %v not specify VolumeBindingMode is not permitted", pvc.Name)
+	}
+
+	if *sc.VolumeBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+		return nil
+	}
+
+	if pvc.Status.Phase != corev1.ClaimBound {
+		return fmt.Errorf("volme %v not bound yet", pvc.Name)
+	}
+
+	pv, err := h.pvCache.Get(pvc.Spec.VolumeName)
+	if err != nil {
+		return err
+	}
+
+	//Even the volume is in degrade mode, it still could be attached
+	scheduleErrAnno := pv.Annotations[longhorntypes.PVAnnotationLonghornVolumeSchedulingError]
+	if scheduleErrAnno != "" && scheduleErrAnno != longhorn.ErrorReplicaScheduleSchedulingFailed {
+		return fmt.Errorf("volme %v with error %v", pvc.Name, scheduleErrAnno)
+	}
+
+	return nil
+}
+
 // addVolume add a hotplug volume with given volume source and disk name.
 func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string, input AddVolumeInput) error {
 	// We only permit volume source from existing PersistentVolumeClaim at this moment.
 	// KubeVirt won't check PVC existence so we validate it on our own.
 	pvc, err := h.pvcCache.Get(namespace, input.VolumeSourceName)
 	if err != nil {
+		return err
+	}
+
+	if err := h.checkAttachable(pvc); err != nil {
 		return err
 	}
 
