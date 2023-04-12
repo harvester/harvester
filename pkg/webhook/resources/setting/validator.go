@@ -18,6 +18,7 @@ import (
 	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
 	_ "github.com/longhorn/backupstore/nfs" //nolint
 	_ "github.com/longhorn/backupstore/s3"  //nolint
+	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	"github.com/rancher/wharfie/pkg/registries"
 	"github.com/rancher/wrangler/pkg/slice"
 	"github.com/sirupsen/logrus"
@@ -39,6 +40,10 @@ import (
 	tlsutil "github.com/harvester/harvester/pkg/util/tls"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
+)
+
+const (
+	mcmFeature = "multi-cluster-management"
 )
 
 var certs = getSystemCerts()
@@ -86,6 +91,7 @@ func NewValidator(
 	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
 	vmRestoreCache ctlv1beta1.VirtualMachineRestoreCache,
 	vmis ctlkubevirtv1.VirtualMachineInstanceCache,
+	featureCache mgmtv3.FeatureCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -93,11 +99,13 @@ func NewValidator(
 		snapshotClassCache: snapshotClassCache,
 		vmRestoreCache:     vmRestoreCache,
 		vmis:               vmis,
+		featureCache:       featureCache,
 	}
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
 	validateSettingFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateVolumeSnapshotClass
 	validateSettingUpdateFuncs[settings.BackupTargetSettingName] = validator.validateUpdateBackupTarget
 	validateSettingUpdateFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateUpdateVolumeSnapshotClass
+	validateSettingUpdateFuncs[settings.RancherManagerSupportSettingName] = validator.validateUpdateRancherManagerSupport
 
 	validateSettingFuncs[settings.StorageNetworkName] = validator.validateStorageNetwork
 	validateSettingUpdateFuncs[settings.StorageNetworkName] = validator.validateUpdateStorageNetwork
@@ -113,6 +121,7 @@ type settingValidator struct {
 	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache
 	vmRestoreCache     ctlv1beta1.VirtualMachineRestoreCache
 	vmis               ctlkubevirtv1.VirtualMachineInstanceCache
+	featureCache       mgmtv3.FeatureCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -663,5 +672,33 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkc
 	if !network.IP.Equal(ip) {
 		return fmt.Errorf("Range should be subnet CIDR %v", network)
 	}
+	return nil
+}
+
+func (v *settingValidator) validateUpdateRancherManagerSupport(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	if newSetting.Value == "" {
+		return nil
+	}
+
+	enableManager, err := strconv.ParseBool(strings.ToLower(newSetting.Value))
+	if err != nil {
+		return werror.NewInvalidError("value should be either true or false", "value")
+	}
+
+	if !enableManager {
+		return nil
+	}
+
+	// check if the multi-cluster-management feature is enabled
+	feature, err := v.featureCache.Get(mcmFeature)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if (feature.Spec.Value == nil && !feature.Status.Default) ||
+		(feature.Spec.Value != nil && !*feature.Spec.Value) {
+		return werror.NewInvalidError("cannot enable Rancher Manager support. The multi-cluster-management feature is not enabled", "value")
+	}
+
 	return nil
 }
