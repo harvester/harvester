@@ -1,8 +1,14 @@
 package util
 
 import (
+	"encoding/json"
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 const (
@@ -21,4 +27,21 @@ func GetProvisionedPVCProvisioner(pvc *corev1.PersistentVolumeClaim) string {
 		provisioner = pvc.Annotations[AnnStorageProvisioner]
 	}
 	return provisioner
+}
+
+// LoadCSIDriverConfig loads the CSI driver configuration from settings.
+func LoadCSIDriverConfig(settingCache ctlharvesterv1.SettingCache) (map[string]settings.CSIDriverInfo, error) {
+	csiDriverConfigSetting, err := settingCache.Get(settings.CSIDriverConfigSettingName)
+	if err != nil {
+		return nil, fmt.Errorf("can't get %s setting, err: %w", settings.CSIDriverConfigSettingName, err)
+	}
+	csiDriverConfigSettingValue := csiDriverConfigSetting.Default
+	if csiDriverConfigSetting.Value != "" {
+		csiDriverConfigSettingValue = csiDriverConfigSetting.Value
+	}
+	csiDriverConfig := make(map[string]settings.CSIDriverInfo)
+	if err := json.Unmarshal([]byte(csiDriverConfigSettingValue), &csiDriverConfig); err != nil {
+		return nil, fmt.Errorf("can't parse %s setting, err: %w", settings.CSIDriverConfigSettingName, err)
+	}
+	return csiDriverConfig, nil
 }
