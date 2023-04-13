@@ -1,7 +1,6 @@
 package virtualmachinebackup
 
 import (
-	"encoding/json"
 	"fmt"
 
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -95,18 +94,9 @@ func (v *virtualMachineBackupValidator) Create(request *types.Request, newObj ru
 
 // checkBackupVolumeSnapshotClass checks if the volumeSnapshotClassName is configured for the provisioner used by the PVCs in the VirtualMachine.
 func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubevirtv1.VirtualMachine, newVMBackup *v1beta1.VirtualMachineBackup) error {
-	// Load CSI driver configuration from settings.
-	csiDriverConfigSetting, err := v.setting.Get(settings.CSIDriverConfigSettingName)
+	csiDriverConfig, err := util.LoadCSIDriverConfig(v.setting)
 	if err != nil {
-		return fmt.Errorf("can't get %s setting, err: %w", settings.CSIDriverConfigSettingName, err)
-	}
-	csiDriverConfigSettingValue := csiDriverConfigSetting.Default
-	if csiDriverConfigSetting.Value != "" {
-		csiDriverConfigSettingValue = csiDriverConfigSetting.Value
-	}
-	csiDriverConfig := make(map[string]settings.CSIDriverInfo)
-	if err := json.Unmarshal([]byte(csiDriverConfigSettingValue), &csiDriverConfig); err != nil {
-		return fmt.Errorf("can't parse %s setting, err: %w", settings.CSIDriverConfigSettingName, err)
+		return err
 	}
 
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
@@ -119,14 +109,14 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubev
 
 		pvc, err := v.pvcCache.Get(pvcNamespace, pvcName)
 		if err != nil {
-			return fmt.Errorf("can't get pvc %s/%s, err: %w", pvcNamespace, pvcName, err)
+			return fmt.Errorf("failed to get PVC %s/%s, err: %w", pvcNamespace, pvcName, err)
 		}
 
 		// Get the provisioner used by the PVC and find its configuration in the CSI driver configuration.
 		provisioner := util.GetProvisionedPVCProvisioner(pvc)
 		c, ok := csiDriverConfig[provisioner]
 		if !ok {
-			return fmt.Errorf("provisioner %s is not configured in the csi-driver-config setting", provisioner)
+			return fmt.Errorf("provisioner %s is not configured in the %s setting", provisioner, settings.CSIDriverConfigSettingName)
 		}
 
 		// Determine which configuration value is required based on the type of backup.
@@ -140,8 +130,8 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubev
 
 		// If the required value is missing, return an error.
 		if requiredValue == "" {
-			return fmt.Errorf("%s's %s is not configured for provisioner %s in the csi-driver-config setting",
-				newVMBackup.Spec.Type, "VolumeSnapshotClassName", provisioner)
+			return fmt.Errorf("%s's %s is not configured for provisioner %s in the %s setting",
+				newVMBackup.Spec.Type, "VolumeSnapshotClassName", provisioner, settings.CSIDriverConfigSettingName)
 		}
 	}
 
