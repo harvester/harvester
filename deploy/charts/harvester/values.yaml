@@ -451,8 +451,8 @@ harvester-load-balancer:
   enabled: false
   image:
     imagePullPolicy: Always
-    repository: rancher/harvester-load-balancer
-    tag: master-head
+    repository: armarny/harvester-load-balancer
+    tag: dev
 
 kube-vip:
   enabled: false
@@ -461,12 +461,6 @@ kube-vip:
     tag: v0.5.10
   nodeSelector:
     node-role.kubernetes.io/control-plane: "true"
-
-kube-vip-cloud-provider:
-  enabled: false
-  image:
-    repository: kubevip/kube-vip-cloud-provider
-    tag: v0.0.1
 
 support-bundle-kit:
   image:
