@@ -51,7 +51,17 @@ func (c ConfigmapCache) Get(namespace, name string) (*v1.ConfigMap, error) {
 }
 
 func (c ConfigmapCache) List(namespace string, selector labels.Selector) ([]*v1.ConfigMap, error) {
-	panic("implement me")
+	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*v1.ConfigMap, 0, len(list.Items))
+	for i := range list.Items {
+		result = append(result, &list.Items[i])
+	}
+	return result, err
 }
 
 func (c ConfigmapCache) AddIndexer(indexName string, indexer ctlcorev1.ConfigMapIndexer) {
