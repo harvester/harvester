@@ -9,7 +9,7 @@ import (
 	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	catalogv1api "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
-	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
+	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
@@ -54,12 +54,12 @@ type Handler struct {
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
 	apps                 catalogv1.AppClient
-	managedCharts        mgmtv3.ManagedChartClient
-	managedChartCache    mgmtv3.ManagedChartCache
+	managedCharts        ctlmgmtv3.ManagedChartClient
+	managedChartCache    ctlmgmtv3.ManagedChartCache
 	helmChartConfigs     ctlhelmv1.HelmChartConfigClient
 	helmChartConfigCache ctlhelmv1.HelmChartConfigCache
-	rancherSettings      mgmtv3.SettingClient
-	rancherSettingCache  mgmtv3.SettingCache
+	rancherSettings      ctlmgmtv3.SettingClient
+	rancherSettingCache  ctlmgmtv3.SettingCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
