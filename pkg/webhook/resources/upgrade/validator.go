@@ -1,7 +1,11 @@
 package upgrade
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strconv"
 	"strings"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -13,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
+	kubeletv1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	clusterv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -22,13 +27,16 @@ import (
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
+	versionWebhook "github.com/harvester/harvester/pkg/webhook/resources/version"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
 const (
-	upgradeStateLabel     = "harvesterhci.io/upgradeState"
-	skipWebhookAnnotation = "harvesterhci.io/skipWebhook"
-	managedChartNamespace = "fleet-local"
+	upgradeStateLabel              = "harvesterhci.io/upgradeState"
+	skipWebhookAnnotation          = "harvesterhci.io/skipWebhook"
+	rkeInternalIPAnnotation        = "rke2.io/internal-ip"
+	managedChartNamespace          = "fleet-local"
+	defaultMinFreeDiskSpace uint64 = 30 * 1024 * 1024 * 1024 // 30GB
 )
 
 func NewValidator(
@@ -38,6 +46,9 @@ func NewValidator(
 	clusters ctlclusterv1.ClusterCache,
 	machines ctlclusterv1.MachineCache,
 	managedChartCache mgmtv3.ManagedChartCache,
+	versionCache ctlharvesterv1.VersionCache,
+	httpClient *http.Client,
+	bearToken string,
 ) types.Validator {
 	return &upgradeValidator{
 		upgrades:          upgrades,
@@ -46,6 +57,9 @@ func NewValidator(
 		clusters:          clusters,
 		machines:          machines,
 		managedChartCache: managedChartCache,
+		versionCache:      versionCache,
+		httpClient:        httpClient,
+		bearToken:         bearToken,
 	}
 }
 
@@ -58,6 +72,9 @@ type upgradeValidator struct {
 	clusters          ctlclusterv1.ClusterCache
 	machines          ctlclusterv1.MachineCache
 	managedChartCache mgmtv3.ManagedChartCache
+	versionCache      ctlharvesterv1.VersionCache
+	httpClient        *http.Client
+	bearToken         string
 }
 
 func (v *upgradeValidator) Resource() types.Resource {
@@ -81,6 +98,15 @@ func (v *upgradeValidator) Create(request *types.Request, newObj runtime.Object)
 		return werror.NewBadRequest("version or image field are not specified.")
 	}
 
+	var version *v1beta1.Version
+	var err error
+	if newUpgrade.Spec.Version != "" && newUpgrade.Spec.Image == "" {
+		version, err = v.versionCache.Get(newUpgrade.Namespace, newUpgrade.Spec.Version)
+		if err != nil {
+			return werror.NewBadRequest(fmt.Sprintf("version %s is not found", newUpgrade.Spec.Version))
+		}
+	}
+
 	req, err := labels.NewRequirement(upgradeStateLabel, selection.NotIn, []string{upgrade.StateSucceeded, upgrade.StateFailed})
 	if err != nil {
 		return werror.NewBadRequest(fmt.Sprintf("%s label is already set as %s or %s", upgradeStateLabel, upgrade.StateSucceeded, upgrade.StateFailed))
@@ -101,10 +127,10 @@ func (v *upgradeValidator) Create(request *types.Request, newObj runtime.Object)
 		}
 	}
 
-	return v.checkResources()
+	return v.checkResources(version)
 }
 
-func (v *upgradeValidator) checkResources() error {
+func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
 	hasDegradedVolume, err := v.hasDegradedVolume()
 	if err != nil {
 		return werror.NewInternalError(err.Error())
@@ -127,7 +153,7 @@ func (v *upgradeValidator) checkResources() error {
 		return err
 	}
 
-	if err := v.checkNodes(); err != nil {
+	if err := v.checkNodes(version); err != nil {
 		return err
 	}
 
@@ -178,10 +204,21 @@ func (v *upgradeValidator) checkManagedCharts() error {
 	return nil
 }
 
-func (v *upgradeValidator) checkNodes() error {
+func (v *upgradeValidator) checkNodes(version *v1beta1.Version) error {
 	nodes, err := v.nodes.List(labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("can't list nodes, err: %+v", err))
+	}
+
+	minFreeDiskSpace := defaultMinFreeDiskSpace
+	if version != nil {
+		if value, ok := version.Annotations[versionWebhook.MinFreeDiskSpaceGBAnnotation]; ok {
+			v, err := strconv.ParseUint(value, 10, 64)
+			if err != nil {
+				return werror.NewBadRequest(fmt.Sprintf("invalid value %s for %s annotation in version %s/%s", value, versionWebhook.MinFreeDiskSpaceGBAnnotation, version.Namespace, version.Name))
+			}
+			minFreeDiskSpace = v * 1024 * 1024 * 1024
+		}
 	}
 
 	for _, node := range nodes {
@@ -197,8 +234,53 @@ func (v *upgradeValidator) checkNodes() error {
 		if node.Spec.Unschedulable {
 			return werror.NewBadRequest(fmt.Sprintf("node %s is unschedulable, please wait for it to be schedulable", node.Name))
 		}
+
+		if err := v.checkDiskSpace(node, minFreeDiskSpace); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace uint64) error {
+	internalIP, ok := node.Annotations[rkeInternalIPAnnotation]
+	if !ok {
+		return werror.NewInternalError(fmt.Sprintf("node %s doesn't have %s annotation", node.Name, rkeInternalIPAnnotation))
+	}
+
+	kubeletPort := node.Status.DaemonEndpoints.KubeletEndpoint.Port
+	kubeletURL := fmt.Sprintf("https://%s:%d/stats/summary", internalIP, kubeletPort)
+	req, err := http.NewRequest("GET", kubeletURL, nil)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("node %s, can't make http.NewRequest to get %s, err: %+v", node.Name, kubeletURL, err))
+	}
+	req.Header.Set("Authorization", "Bearer "+v.bearToken)
+
+	resp, err := v.httpClient.Do(req)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("node %s, can't make http request to get %s, err: %+v", node.Name, kubeletURL, err))
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return werror.NewInternalError(fmt.Sprintf("node %s, http response from %s is %d", node.Name, kubeletURL, resp.StatusCode))
+	}
+
+	var summary kubeletv1.Summary
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("node %s, can't read response from %s, err: %+v", node.Name, kubeletURL, err))
+	}
+	if err = json.Unmarshal(body, &summary); err != nil {
+		return werror.NewInternalError(fmt.Sprintf("node %s, can't parse json response %s, err: %+v", node.Name, string(body), err))
+	}
+	if summary.Node.Fs.AvailableBytes == nil {
+		return werror.NewInternalError(fmt.Sprintf("can't get node %s available bytes from %s, err: %+v", node.Name, kubeletURL, err))
+	}
+	if *summary.Node.Fs.AvailableBytes < minFreeDiskSpace {
+		return werror.NewBadRequest(fmt.Sprintf("minimal free disk space for upgrade is %d, node %s only has %d", minFreeDiskSpace, node.Name, *summary.Node.Fs.AvailableBytes))
+	}
 	return nil
 }
 
