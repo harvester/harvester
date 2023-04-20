@@ -1,7 +1,9 @@
 package server
 
 import (
+	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/rancher/wrangler/pkg/webhook"
 
@@ -19,14 +21,25 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/storageclass"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
 	"github.com/harvester/harvester/pkg/webhook/resources/upgrade"
+	"github.com/harvester/harvester/pkg/webhook/resources/version"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinerestore"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	"github.com/harvester/harvester/pkg/webhook/util"
 )
 
 func Validation(clients *clients.Clients, options *config.Options) (http.Handler, []types.Resource, error) {
+	bearToken, err := ioutil.ReadFile(clients.RESTConfig.BearerTokenFile)
+	if err != nil {
+		return nil, nil, err
+	}
+	transport, err := util.GetHTTPTransportWithCertificates(clients.RESTConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	resources := []types.Resource{}
 	validators := []types.Validator{
 		node.NewValidator(clients.Core.Node().Cache()),
@@ -51,6 +64,12 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.ClusterFactory.Cluster().V1alpha4().Cluster().Cache(),
 			clients.ClusterFactory.Cluster().V1alpha4().Machine().Cache(),
 			clients.RancherManagementFactory.Management().V3().ManagedChart().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Version().Cache(),
+			&http.Client{
+				Transport: transport,
+				Timeout:   time.Second * 20,
+			},
+			string(bearToken),
 		),
 		virtualmachinebackup.NewValidator(
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
@@ -89,6 +108,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		storageclass.NewValidator(clients.StorageFactory.Storage().V1().StorageClass().Cache()),
 		namespace.NewValidator(clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()),
 		addon.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache()),
+		version.NewValidator(),
 	}
 
 	router := webhook.NewRouter()
