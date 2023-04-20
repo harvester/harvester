@@ -3132,6 +3132,7 @@ k8s.io/kube-proxy v0.24.10/go.mod h1:jS6Urc+ORXqOXtUHQIijmjuWCSgIu9oRJoQlO3zO7mg
 k8s.io/kube-scheduler v0.24.10/go.mod h1:6CAEQsMURUjFQ+SojwywYYuwLmBgQOPDu7dKEXV+v3c=
 k8s.io/kubectl v0.24.2 h1:+RfQVhth8akUmIc2Ge8krMl/pt66V7210ka3RE/p0J4=
 k8s.io/kubectl v0.24.2/go.mod h1:+HIFJc0bA6Tzu5O/YcuUt45APAxnNL8LeMuXwoiGsPg=
+k8s.io/kubelet v0.24.10 h1:asUCDUgTemP3YrZjJCuOm8UkxF7h/qJUk5ApKJCgnwM=
 k8s.io/kubelet v0.24.10/go.mod h1:dEUx39WFUv3IFdQgvQj2wEoIDE7l+vkvJ2LnTXILRIA=
 k8s.io/kubernetes v1.24.10 h1:01qxaA3iJB+IoUwOJZKWgB9y1T3yZMhjrWsexRlHqxI=
 k8s.io/kubernetes v1.24.10/go.mod h1:lwCVQhq2jGQVygPye1srOAKexfXPXl3BG2uHJkdzNEg=

@@ -111,6 +111,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1
 	k8s.io/kubectl v0.24.2
 	k8s.io/utils v0.0.0-20221108210102-8e77b1f39fe2
+	k8s.io/kubelet v0.24.10
 	kubevirt.io/api v0.54.0
 	kubevirt.io/containerized-data-importer-api v1.47.0
 	kubevirt.io/kubevirt v0.54.0
