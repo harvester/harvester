@@ -26,6 +26,10 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
+const (
+	checkBackingImageInterval = 1 * time.Second
+)
+
 // vmImageHandler syncs status on vm image changes, and manage a storageclass & a backingimage per vm image
 type vmImageHandler struct {
 	httpClient        http.Client
@@ -64,6 +68,9 @@ func (h *vmImageHandler) OnChanged(_ string, image *harvesterv1.VirtualMachineIm
 			return image, err
 		}
 		needRetry = true
+	} else if backingImage.DeletionTimestamp != nil {
+		h.imageController.EnqueueAfter(image.Namespace, image.Name, checkBackingImageInterval)
+		return image, nil
 	} else {
 		for _, status := range backingImage.Status.DiskFileStatusMap {
 			if status.State == v1beta1.BackingImageStateFailed {
