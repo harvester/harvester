@@ -494,6 +494,15 @@ spec:
 EOF
 }
 
+# issue 2707 is where this default was set, https://github.com/harvester/harvester/issues/2707 
+set_max_pods() {
+  local cfg=$HOST_DIR/etc/rancher/rancherd/config.yaml
+  # if no max-pods is set, then set it to 200
+  if [ $(grep max-pods $cfg | wc -l) -eq 0 ]; then
+	printf "kubelet-arg:\n  max-pods: \"200\"" >> $cfg
+  fi
+}
+
 upgrade_os() {
   # The trap will be only effective from this point to the end of the execution
   trap clean_up_tmp_files EXIT
@@ -597,13 +606,16 @@ command_single_node_upgrade() {
   kubectl scale --replicas=0 deployment/fleet-agent -n cattle-fleet-local-system
   kubectl rollout status deployment fleet-agent -n cattle-fleet-local-system
 
-  # Upgarde RKE2
+  # Upgrade RKE2
   upgrade_rke2
 
   wait_rke2_upgrade
   clean_rke2_archives
 
   convert_nodenetwork_to_vlanconfig
+
+  # Set the RKE2 kubelet's max-pods to 200
+  set_max_pods
 
   # the fleet-agent will be scaled up via the pkg/controller/upgrade/upgrade_controller.go
 
