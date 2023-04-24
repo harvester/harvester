@@ -294,6 +294,48 @@ func TestPatchAffinity(t *testing.T) {
 		},
 	}
 
+	vm5 := &kubevirtv1.VirtualMachine{
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Affinity: &v1.Affinity{
+						NodeAffinity: &v1.NodeAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+								NodeSelectorTerms: []v1.NodeSelectorTerm{
+									{
+										MatchExpressions: []v1.NodeSelectorRequirement{
+											{
+												Key:      fmt.Sprintf("%s/%s", networkGroup, "mgmt"),
+												Operator: v1.NodeSelectorOpIn,
+												Values:   []string{"true"},
+											},
+											{
+												Key:      "just.for.testing",
+												Operator: v1.NodeSelectorOpIn,
+												Values:   []string{"true"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "default",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/net1",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
 	net1 := &cniv1.NetworkAttachmentDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "net1",
@@ -393,6 +435,31 @@ func TestPatchAffinity(t *testing.T) {
 			name:     "emptyAffinity",
 			vm:       vm4,
 			affinity: &v1.Affinity{},
+		},
+		{
+			name: "supportMultiExpressions",
+			vm:   vm5,
+			affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{NodeSelectorTerms: []v1.NodeSelectorTerm{
+						{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{
+									Key:      "just.for.testing",
+									Operator: v1.NodeSelectorOpIn,
+									Values:   []string{"true"},
+								},
+								{
+									Key:      fmt.Sprintf("%s/%s", networkGroup, "mgmt"),
+									Operator: v1.NodeSelectorOpIn,
+									Values:   []string{"true"},
+								},
+							},
+						},
+					},
+					},
+				},
+			},
 		},
 	}
 
