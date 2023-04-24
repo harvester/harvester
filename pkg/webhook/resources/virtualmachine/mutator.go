@@ -330,13 +330,14 @@ func makeAffinityFromVMTemplate(template *kubevirtv1.VirtualMachineInstanceTempl
 	// clear node selector terms whose key contains the prefix "network.harvesterhci.io"
 	nodeSelectorTerms := make([]v1.NodeSelectorTerm, 0, len(affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms))
 	for _, term := range affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
-		isNetworkAffinity := false
+		expressions := make([]v1.NodeSelectorRequirement, 0, len(term.MatchExpressions))
 		for _, expression := range term.MatchExpressions {
-			if strings.Contains(expression.String(), networkGroup) {
-				isNetworkAffinity = true
+			if !strings.HasPrefix(expression.Key, networkGroup) {
+				expressions = append(expressions, expression)
 			}
 		}
-		if !isNetworkAffinity {
+		if len(expressions) != 0 {
+			term.MatchExpressions = expressions
 			nodeSelectorTerms = append(nodeSelectorTerms, term)
 		}
 	}
