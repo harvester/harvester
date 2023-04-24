@@ -1,5 +1,5 @@
 FROM quay.io/costoolkit/releases-green:luet-toolchain-0.21.2 as luet
-FROM quay.io/costoolkit/releases-green:luet-makeiso-toolchain-0.4.0 as makeiso
+FROM quay.io/costoolkit/elemental-cli:v0.2.5 as elemental
 
 FROM golang:1.18.3-buster
 
@@ -34,6 +34,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         gnupg \
+        rsync \
     && rm -rf /var/lib/apt/lists/*; \
     \
     curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - >/dev/null; \
@@ -63,9 +64,9 @@ RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.14.0/kind-linux-amd64 
 # install codecov
 RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/latest/linux/codecov && chmod +x /usr/bin/codecov
 
-# luet & makeiso
+# luet & elemental
 COPY --from=luet /usr/bin/luet /usr/bin/luet
-COPY --from=makeiso /usr/bin/luet-makeiso /usr/bin/luet-makeiso
+COPY --from=elemental /usr/bin/elemental /usr/bin/elemental
 
 # -- for make rules
 
