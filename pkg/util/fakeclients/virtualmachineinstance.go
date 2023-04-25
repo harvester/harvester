@@ -54,7 +54,17 @@ func (c VirtualMachineInstanceCache) Get(namespace, name string) (*kubevirtv1api
 }
 
 func (c VirtualMachineInstanceCache) List(namespace string, selector labels.Selector) ([]*kubevirtv1api.VirtualMachineInstance, error) {
-	panic("implement me")
+	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*kubevirtv1api.VirtualMachineInstance, 0, len(list.Items))
+	for i := range list.Items {
+		result = append(result, &list.Items[i])
+	}
+	return result, err
 }
 
 func (c VirtualMachineInstanceCache) AddIndexer(indexName string, indexer kubevirtctlv1.VirtualMachineInstanceIndexer) {
