@@ -71,17 +71,21 @@ type AKSClusterConfigStatus struct {
 }
 
 type AKSNodePool struct {
-	Name                *string   `json:"name,omitempty" norman:"pointer"`
-	Count               *int32    `json:"count,omitempty"`
-	MaxPods             *int32    `json:"maxPods,omitempty"`
-	VMSize              string    `json:"vmSize,omitempty"`
-	OsDiskSizeGB        *int32    `json:"osDiskSizeGB,omitempty"`
-	OsDiskType          string    `json:"osDiskType,omitempty"`
-	Mode                string    `json:"mode,omitempty"`
-	OsType              string    `json:"osType,omitempty"`
-	OrchestratorVersion *string   `json:"orchestratorVersion,omitempty" norman:"pointer"`
-	AvailabilityZones   *[]string `json:"availabilityZones,omitempty" norman:"pointer"`
-	MaxCount            *int32    `json:"maxCount,omitempty"`
-	MinCount            *int32    `json:"minCount,omitempty"`
-	EnableAutoScaling   *bool     `json:"enableAutoScaling,omitempty"`
+	Name                *string            `json:"name,omitempty" norman:"pointer"`
+	Count               *int32             `json:"count,omitempty"`
+	MaxPods             *int32             `json:"maxPods,omitempty"`
+	VMSize              string             `json:"vmSize,omitempty"`
+	OsDiskSizeGB        *int32             `json:"osDiskSizeGB,omitempty"`
+	OsDiskType          string             `json:"osDiskType,omitempty"`
+	Mode                string             `json:"mode,omitempty"`
+	OsType              string             `json:"osType,omitempty"`
+	OrchestratorVersion *string            `json:"orchestratorVersion,omitempty" norman:"pointer"`
+	AvailabilityZones   *[]string          `json:"availabilityZones,omitempty" norman:"pointer"`
+	MaxSurge            *string            `json:"maxSurge,omitempty"`
+	MaxCount            *int32             `json:"maxCount,omitempty"`
+	MinCount            *int32             `json:"minCount,omitempty"`
+	EnableAutoScaling   *bool              `json:"enableAutoScaling,omitempty"`
+	VnetSubnetID        *string            `json:"vnetSubnetID,omitempty" norman:"pointer"`
+	NodeLabels          map[string]*string `json:"nodeLabels,omitempty"`
+	NodeTaints          *[]string          `json:"nodeTaints,omitempty"`
 }

@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 
-	"github.com/rancher/apiserver/pkg/server"
 	apiserver "github.com/rancher/apiserver/pkg/server"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
@@ -26,7 +25,7 @@ func New(cfg *rest.Config, sf schema.Factory, authMiddleware auth.Middleware, ne
 
 	a := &apiServer{
 		sf:     sf,
-		server: server.DefaultAPIServer(),
+		server: apiserver.DefaultAPIServer(),
 	}
 	a.server.AccessControl = accesscontrol.NewAccessControl()
 
@@ -55,7 +54,7 @@ func New(cfg *rest.Config, sf schema.Factory, authMiddleware auth.Middleware, ne
 
 type apiServer struct {
 	sf     schema.Factory
-	server *server.Server
+	server *apiserver.Server
 }
 
 func (a *apiServer) common(rw http.ResponseWriter, req *http.Request) (*types.APIRequest, bool) {

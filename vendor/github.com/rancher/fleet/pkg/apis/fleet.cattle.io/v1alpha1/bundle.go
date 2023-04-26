@@ -31,6 +31,10 @@ var (
 	}
 )
 
+// MaxHelmReleaseNameLen is the maximum length of a Helm release name.
+// See https://github.com/helm/helm/blob/293b50c65d4d56187cd4e2f390f0ada46b4c4737/pkg/chartutil/validate_name.go#L54-L61
+const MaxHelmReleaseNameLen = 53
+
 type BundleState string
 
 // +genclient
@@ -237,6 +241,9 @@ type HelmOptions struct {
 
 	// Atomic sets the --atomic flag when Helm is performing an upgrade
 	Atomic bool `json:"atomic,omitempty"`
+
+	// DisablePreProcess disables template processing in values
+	DisablePreProcess bool `json:"disablePreProcess,omitempty"`
 }
 
 // Define helm values that can come from configmap, secret or external. Credit: https://github.com/fluxcd/helm-operator/blob/0cfea875b5d44bea995abe7324819432070dfbdc/pkg/apis/helm.fluxcd.io/v1/types_helmrelease.go#L439

@@ -288,6 +288,11 @@ func (in *AKSNodePool) DeepCopyInto(out *AKSNodePool) {
 			copy(*out, *in)
 		}
 	}
+	if in.MaxSurge != nil {
+		in, out := &in.MaxSurge, &out.MaxSurge
+		*out = new(string)
+		**out = **in
+	}
 	if in.MaxCount != nil {
 		in, out := &in.MaxCount, &out.MaxCount
 		*out = new(int32)
@@ -302,6 +307,35 @@ func (in *AKSNodePool) DeepCopyInto(out *AKSNodePool) {
 		in, out := &in.EnableAutoScaling, &out.EnableAutoScaling
 		*out = new(bool)
 		**out = **in
+	}
+	if in.VnetSubnetID != nil {
+		in, out := &in.VnetSubnetID, &out.VnetSubnetID
+		*out = new(string)
+		**out = **in
+	}
+	if in.NodeLabels != nil {
+		in, out := &in.NodeLabels, &out.NodeLabels
+		*out = make(map[string]*string, len(*in))
+		for key, val := range *in {
+			var outVal *string
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = new(string)
+				**out = **in
+			}
+			(*out)[key] = outVal
+		}
+	}
+	if in.NodeTaints != nil {
+		in, out := &in.NodeTaints, &out.NodeTaints
+		*out = new([]string)
+		if **in != nil {
+			in, out := *in, *out
+			*out = make([]string, len(*in))
+			copy(*out, *in)
+		}
 	}
 	return
 }

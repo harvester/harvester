@@ -3,9 +3,10 @@ package types
 import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	apiserverv1alpha1 "k8s.io/apiserver/pkg/apis/apiserver/v1alpha1"
+	apiserverv1 "k8s.io/apiserver/pkg/apis/apiserver/v1"
 	auditv1 "k8s.io/apiserver/pkg/apis/audit/v1"
 	configv1 "k8s.io/apiserver/pkg/apis/config/v1"
+	eventratelimitapi "k8s.io/kubernetes/plugin/pkg/admission/eventratelimit/apis/eventratelimit"
 )
 
 type RancherKubernetesEngineConfig struct {
@@ -153,7 +154,7 @@ type RKESystemImages struct {
 	CalicoControllers string `yaml:"calico_controllers" json:"calicoControllers,omitempty"`
 	// Calicoctl image
 	CalicoCtl string `yaml:"calico_ctl" json:"calicoCtl,omitempty"`
-	//CalicoFlexVol image
+	// CalicoFlexVol image
 	CalicoFlexVol string `yaml:"calico_flexvol" json:"calicoFlexVol,omitempty"`
 	// Canal Node Image
 	CanalNode string `yaml:"canal_node" json:"canalNode,omitempty"`
@@ -161,11 +162,11 @@ type RKESystemImages struct {
 	CanalCNI string `yaml:"canal_cni" json:"canalCni,omitempty"`
 	// Canal Controllers Image needed for Calico/Canal v3.14.0+
 	CanalControllers string `yaml:"canal_controllers" json:"canalControllers,omitempty"`
-	//CanalFlannel image
+	// CanalFlannel image
 	CanalFlannel string `yaml:"canal_flannel" json:"canalFlannel,omitempty"`
-	//CanalFlexVol image
+	// CanalFlexVol image
 	CanalFlexVol string `yaml:"canal_flexvol" json:"canalFlexVol,omitempty"`
-	//Weave Node image
+	// Weave Node image
 	WeaveNode string `yaml:"weave_node" json:"weaveNode,omitempty"`
 	// Weave CNI image
 	WeaveCNI string `yaml:"weave_cni" json:"weaveCni,omitempty"`
@@ -294,6 +295,8 @@ type KubeAPIService struct {
 	ServiceNodePortRange string `yaml:"service_node_port_range" json:"serviceNodePortRange,omitempty" norman:"default=30000-32767"`
 	// Enabled/Disable PodSecurityPolicy
 	PodSecurityPolicy bool `yaml:"pod_security_policy" json:"podSecurityPolicy,omitempty"`
+	// setting the default configuration for PodSecurityAdmission
+	PodSecurityConfiguration string `yaml:"pod_security_configuration" json:"podSecurityConfiguration,omitempty"`
 	// Enable/Disable AlwaysPullImages admissions plugin
 	AlwaysPullImages bool `yaml:"always_pull_images" json:"alwaysPullImages,omitempty"`
 	// Secrets encryption provider config
@@ -301,14 +304,14 @@ type KubeAPIService struct {
 	// Audit Log Configuration
 	AuditLog *AuditLog `yaml:"audit_log" json:"auditLog,omitempty"`
 	// AdmissionConfiguration
-	AdmissionConfiguration *apiserverv1alpha1.AdmissionConfiguration `yaml:"admission_configuration" json:"admissionConfiguration,omitempty" norman:"type=map[json]"`
+	AdmissionConfiguration *apiserverv1.AdmissionConfiguration `yaml:"admission_configuration" json:"admissionConfiguration,omitempty" norman:"type=map[json]"`
 	// Event Rate Limit configuration
 	EventRateLimit *EventRateLimit `yaml:"event_rate_limit" json:"eventRateLimit,omitempty"`
 }
 
 type EventRateLimit struct {
-	Enabled       bool           `yaml:"enabled" json:"enabled,omitempty"`
-	Configuration *Configuration `yaml:"configuration" json:"configuration,omitempty" norman:"type=map[json]"`
+	Enabled       bool                             `yaml:"enabled" json:"enabled,omitempty"`
+	Configuration *eventratelimitapi.Configuration `yaml:"configuration" json:"configuration,omitempty" norman:"type=map[json]"`
 }
 
 type AuditLog struct {
@@ -513,7 +516,7 @@ type Process struct {
 	Env []string `json:"env,omitempty"`
 	// Process docker image
 	Image string `json:"image,omitempty"`
-	//AuthConfig for image private registry
+	// AuthConfig for image private registry
 	ImageRegistryAuthConfig string `json:"imageRegistryAuthConfig,omitempty"`
 	// Process docker image VolumesFrom
 	VolumesFrom []string `json:"volumesFrom,omitempty"`
@@ -554,6 +557,8 @@ type PortCheck struct {
 type CloudProvider struct {
 	// Name of the Cloud Provider
 	Name string `yaml:"name" json:"name,omitempty"`
+	// Only configured for AWS currently, add for other providers as needed
+	UseInstanceMetadataHostname *bool ` yaml:"useInstanceMetadataHostname,omitempty" json:"useInstanceMetadataHostname,omitempty"`
 	// AWSCloudProvider
 	AWSCloudProvider *AWSCloudProvider `yaml:"awsCloudProvider,omitempty" json:"awsCloudProvider,omitempty"`
 	// AzureCloudProvider
@@ -802,6 +807,8 @@ type AzureCloudProvider struct {
 	SubnetName string `json:"subnetName" yaml:"subnetName"`
 	// The name of the security group attached to the cluster's subnet
 	SecurityGroupName string `json:"securityGroupName" yaml:"securityGroupName"`
+	// The name of the resource group that the security group is deployed in
+	SecurityGroupResourceGroup string `json:"securityGroupResourceGroup,omitempty" yaml:"securityGroupResourceGroup,omitempty"`
 	// (Optional in 1.6) The name of the route table attached to the subnet that the cluster is deployed in
 	RouteTableName string `json:"routeTableName" yaml:"routeTableName"`
 	// (Optional) The name of the availability set that should be used as the load balancer backend
@@ -907,29 +914,29 @@ type GlobalAwsOpts struct {
 	// KubernetesClusterID is the cluster id we'll use to identify our cluster resources
 	KubernetesClusterID string `json:"kubernetes-cluster-id" yaml:"kubernetes-cluster-id" ini:"KubernetesClusterID,omitempty"`
 
-	//The aws provider creates an inbound rule per load balancer on the node security
-	//group. However, this can run into the AWS security group rule limit of 50 if
-	//many LoadBalancers are created.
+	// The aws provider creates an inbound rule per load balancer on the node security
+	// group. However, this can run into the AWS security group rule limit of 50 if
+	// many LoadBalancers are created.
 	//
-	//This flag disables the automatic ingress creation. It requires that the user
-	//has setup a rule that allows inbound traffic on kubelet ports from the
-	//local VPC subnet (so load balancers can access it). E.g. 10.82.0.0/16 30000-32000.
+	// This flag disables the automatic ingress creation. It requires that the user
+	// has setup a rule that allows inbound traffic on kubelet ports from the
+	// local VPC subnet (so load balancers can access it). E.g. 10.82.0.0/16 30000-32000.
 	DisableSecurityGroupIngress bool `json:"disable-security-group-ingress" yaml:"disable-security-group-ingress" ini:"DisableSecurityGroupIngress,omitempty"`
 
-	//AWS has a hard limit of 500 security groups. For large clusters creating a security group for each ELB
-	//can cause the max number of security groups to be reached. If this is set instead of creating a new
-	//Security group for each ELB this security group will be used instead.
+	// AWS has a hard limit of 500 security groups. For large clusters creating a security group for each ELB
+	// can cause the max number of security groups to be reached. If this is set instead of creating a new
+	// Security group for each ELB this security group will be used instead.
 	ElbSecurityGroup string `json:"elb-security-group" yaml:"elb-security-group" ini:"ElbSecurityGroup,omitempty"`
 
-	//During the instantiation of an new AWS cloud provider, the detected region
-	//is validated against a known set of regions.
+	// During the instantiation of a new AWS cloud provider, the detected region
+	// is validated against a known set of regions.
 	//
-	//In a non-standard, AWS like environment (e.g. Eucalyptus), this check may
-	//be undesirable.  Setting this to true will disable the check and provide
-	//a warning that the check was skipped.  Please note that this is an
-	//experimental feature and work-in-progress for the moment.  If you find
-	//yourself in an non-AWS cloud and open an issue, please indicate that in the
-	//issue body.
+	// In a non-standard, AWS like environment (e.g. Eucalyptus), this check may
+	// be undesirable.  Setting this to true will disable the check and provide
+	// a warning that the check was skipped.  Please note that this is an
+	// experimental feature and work-in-progress for the moment.  If you find
+	// yourself in a non-AWS cloud and open an issue, please indicate that in the
+	// issue body.
 	DisableStrictZoneCheck bool `json:"disable-strict-zone-check" yaml:"disable-strict-zone-check" ini:"DisableStrictZoneCheck,omitempty"`
 }
 
@@ -1033,7 +1040,7 @@ type NodeDrainInput struct {
 	IgnoreDaemonSets *bool `yaml:"ignore_daemonsets" json:"ignoreDaemonSets,omitempty" norman:"default=true"`
 	// Continue even if there are pods using emptyDir
 	DeleteLocalData bool `yaml:"delete_local_data" json:"deleteLocalData,omitempty"`
-	//Period of time in seconds given to each pod to terminate gracefully.
+	// Period of time in seconds given to each pod to terminate gracefully.
 	// If negative, the default value specified in the pod will be used
 	GracePeriod int `yaml:"grace_period" json:"gracePeriod,omitempty" norman:"default=-1"`
 	// Time to wait (in seconds) before giving up for one try

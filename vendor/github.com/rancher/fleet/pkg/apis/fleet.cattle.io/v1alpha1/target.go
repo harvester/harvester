@@ -66,19 +66,30 @@ type ClusterSpec struct {
 	KubeConfigSecret        string      `json:"kubeConfigSecret,omitempty"`
 	RedeployAgentGeneration int64       `json:"redeployAgentGeneration,omitempty"`
 	AgentEnvVars            []v1.EnvVar `json:"agentEnvVars,omitempty"`
-	AgentNamespace          string      `json:"agentNamespace,omitempty"`
-       PrivateRepoURL          string      `json:"privateRepoURL,omitempty"`
+
+	// AgentNamespace defaults to the system namespace, e.g. cattle-fleet-system
+	AgentNamespace string `json:"agentNamespace,omitempty"`
+	PrivateRepoURL string `json:"privateRepoURL,omitempty"`
+
+	// TemplateValues defines a cluster specific mapping of values to be sent to fleet.yaml values templating
+	TemplateValues *GenericMap `json:"templateValues,omitempty"`
 }
 
 type ClusterStatus struct {
-	Conditions           []genericcondition.GenericCondition `json:"conditions,omitempty"`
-	Namespace            string                              `json:"namespace,omitempty"`
-	Summary              BundleSummary                       `json:"summary,omitempty"`
-	ResourceCounts       GitRepoResourceCounts               `json:"resourceCounts,omitempty"`
-	ReadyGitRepos        int                                 `json:"readyGitRepos"`
-	DesiredReadyGitRepos int                                 `json:"desiredReadyGitRepos"`
+	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
+
+	// Namespace is the cluster namespace, it contains the clusters service
+	// account as well as any bundledeployments. Example:
+	// "cluster-fleet-local-cluster-294db1acfa77-d9ccf852678f"
+	Namespace string `json:"namespace,omitempty"`
+
+	Summary              BundleSummary         `json:"summary,omitempty"`
+	ResourceCounts       GitRepoResourceCounts `json:"resourceCounts,omitempty"`
+	ReadyGitRepos        int                   `json:"readyGitRepos"`
+	DesiredReadyGitRepos int                   `json:"desiredReadyGitRepos"`
 
 	AgentEnvVarsHash        string `json:"agentEnvVarsHash,omitempty"`
+	AgentPrivateRepoURL     string `json:"agentPrivateRepoURL,omitempty"`
 	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`
 	AgentMigrated           bool   `json:"agentMigrated,omitempty"`
 	AgentNamespaceMigrated  bool   `json:"agentNamespaceMigrated,omitempty"`

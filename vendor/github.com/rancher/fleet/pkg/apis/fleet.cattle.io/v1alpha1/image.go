@@ -77,7 +77,7 @@ type ImagePolicyChoice struct {
 	Alphabetical *AlphabeticalPolicy `json:"alphabetical,omitempty"`
 }
 
-// SemVerPolicy specifices a semantic version policy.
+// SemVerPolicy specifies a semantic version policy.
 type SemVerPolicy struct {
 	// Range gives a semver range for the image tag; the highest
 	// version within the range that's a tag yields the latest image.
@@ -85,7 +85,7 @@ type SemVerPolicy struct {
 	Range string `json:"range"`
 }
 
-// AlphabeticalPolicy specifices a alphabetical ordering policy.
+// AlphabeticalPolicy specifies a alphabetical ordering policy.
 type AlphabeticalPolicy struct {
 	// Order specifies the sorting order of the tags. Given the letters of the
 	// alphabet as tags, ascending order would select Z, and descending order
@@ -117,7 +117,7 @@ type ImageScanStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
-	// CannonicalName is the name of the image repository with all the
+	// CanonicalName is the name of the image repository with all the
 	// implied bits made explicit; e.g., `docker.io/library/alpine`
 	// rather than `alpine`.
 	// +optional

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apiserver/pkg/apis/apiserver"
@@ -218,7 +219,7 @@ func (u *udsGRPCConnector) connect(_ context.Context) (proxier, error) {
 		grpc.WithBlock(),
 		grpc.WithReturnConnectionError(),
 		grpc.WithTimeout(30*time.Second), // matches http.DefaultTransport dial timeout
-		grpc.WithInsecure())
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}

@@ -9,11 +9,6 @@ import (
 
 func k8sAPI(sf schema.Factory, apiOp *types.APIRequest) {
 	vars := mux.Vars(apiOp.Request)
-	group := vars["group"]
-	if group == "core" {
-		group = ""
-	}
-
 	apiOp.Name = vars["name"]
 	apiOp.Type = vars["type"]
 
