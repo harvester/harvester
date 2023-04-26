@@ -21,7 +21,7 @@ steps:
       - tag
 
 - name: build
-  image: rancher/dapper:v0.5.8
+  image: rancher/dapper:v0.6.0
   environment:
     CODECOV_TOKEN:
       from_secret: codecov_token
@@ -32,7 +32,7 @@ steps:
     path: /var/run/docker.sock
 
 - name: stage-binaries
-  image: rancher/dapper:v0.5.8
+  image: rancher/dapper:v0.6.0
   commands:
   - "cp -r ./bin/* ./package/"
   when:
@@ -349,7 +349,7 @@ steps:
       - tag
 
 - name: build
-  image: rancher/dapper:v0.5.8
+  image: rancher/dapper:v0.6.0
   commands:
   - dapper build-iso
   volumes:

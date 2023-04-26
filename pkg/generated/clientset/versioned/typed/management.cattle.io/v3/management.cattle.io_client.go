@@ -37,8 +37,6 @@ type ManagementV3Interface interface {
 	CatalogsGetter
 	CatalogTemplatesGetter
 	CatalogTemplateVersionsGetter
-	CisBenchmarkVersionsGetter
-	CisConfigsGetter
 	CloudCredentialsGetter
 	ClustersGetter
 	ClusterAlertsGetter
@@ -49,7 +47,6 @@ type ManagementV3Interface interface {
 	ClusterMonitorGraphsGetter
 	ClusterRegistrationTokensGetter
 	ClusterRoleTemplateBindingsGetter
-	ClusterScansGetter
 	ClusterTemplatesGetter
 	ClusterTemplateRevisionsGetter
 	ComposeConfigsGetter
@@ -80,6 +77,7 @@ type ManagementV3Interface interface {
 	NotifiersGetter
 	OIDCProvidersGetter
 	OpenLdapProvidersGetter
+	PodSecurityAdmissionConfigurationTemplatesGetter
 	PodSecurityPolicyTemplatesGetter
 	PodSecurityPolicyTemplateProjectBindingsGetter
 	PreferencesGetter
@@ -150,14 +148,6 @@ func (c *ManagementV3Client) CatalogTemplateVersions(namespace string) CatalogTe
 	return newCatalogTemplateVersions(c, namespace)
 }
 
-func (c *ManagementV3Client) CisBenchmarkVersions(namespace string) CisBenchmarkVersionInterface {
-	return newCisBenchmarkVersions(c, namespace)
-}
-
-func (c *ManagementV3Client) CisConfigs(namespace string) CisConfigInterface {
-	return newCisConfigs(c, namespace)
-}
-
 func (c *ManagementV3Client) CloudCredentials(namespace string) CloudCredentialInterface {
 	return newCloudCredentials(c, namespace)
 }
@@ -196,10 +186,6 @@ func (c *ManagementV3Client) ClusterRegistrationTokens(namespace string) Cluster
 
 func (c *ManagementV3Client) ClusterRoleTemplateBindings(namespace string) ClusterRoleTemplateBindingInterface {
 	return newClusterRoleTemplateBindings(c, namespace)
-}
-
-func (c *ManagementV3Client) ClusterScans(namespace string) ClusterScanInterface {
-	return newClusterScans(c, namespace)
 }
 
 func (c *ManagementV3Client) ClusterTemplates(namespace string) ClusterTemplateInterface {
@@ -320,6 +306,10 @@ func (c *ManagementV3Client) OIDCProviders() OIDCProviderInterface {
 
 func (c *ManagementV3Client) OpenLdapProviders() OpenLdapProviderInterface {
 	return newOpenLdapProviders(c)
+}
+
+func (c *ManagementV3Client) PodSecurityAdmissionConfigurationTemplates() PodSecurityAdmissionConfigurationTemplateInterface {
+	return newPodSecurityAdmissionConfigurationTemplates(c)
 }
 
 func (c *ManagementV3Client) PodSecurityPolicyTemplates() PodSecurityPolicyTemplateInterface {

@@ -7351,7 +7351,7 @@
       }
     },
     "k8s.io.apimachinery.pkg.api.resource.Quantity": {
-      "description": "Quantity is a fixed-point representation of a number. It provides convenient marshaling/unmarshaling in JSON and YAML, in addition to String() and AsInt64() accessors.\n\nThe serialization format is:\n\n\u003cquantity\u003e        ::= \u003csignedNumber\u003e\u003csuffix\u003e\n\n\t(Note that \u003csuffix\u003e may be empty, from the \"\" case in \u003cdecimalSI\u003e.)\n\n\u003cdigit\u003e           ::= 0 | 1 | ... | 9 \u003cdigits\u003e          ::= \u003cdigit\u003e | \u003cdigit\u003e\u003cdigits\u003e \u003cnumber\u003e          ::= \u003cdigits\u003e | \u003cdigits\u003e.\u003cdigits\u003e | \u003cdigits\u003e. | .\u003cdigits\u003e \u003csign\u003e            ::= \"+\" | \"-\" \u003csignedNumber\u003e    ::= \u003cnumber\u003e | \u003csign\u003e\u003cnumber\u003e \u003csuffix\u003e          ::= \u003cbinarySI\u003e | \u003cdecimalExponent\u003e | \u003cdecimalSI\u003e \u003cbinarySI\u003e        ::= Ki | Mi | Gi | Ti | Pi | Ei\n\n\t(International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)\n\n\u003cdecimalSI\u003e       ::= m | \"\" | k | M | G | T | P | E\n\n\t(Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)\n\n\u003cdecimalExponent\u003e ::= \"e\" \u003csignedNumber\u003e | \"E\" \u003csignedNumber\u003e\n\nNo matter which of the three exponent forms is used, no quantity may represent a number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal places. Numbers larger or more precise will be capped or rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the future if we require larger or smaller quantities.\n\nWhen a Quantity is parsed from a string, it will remember the type of suffix it had, and will use the same type again when it is serialized.\n\nBefore serializing, Quantity will be put in \"canonical form\". This means that Exponent/suffix will be adjusted up or down (with a corresponding increase or decrease in Mantissa) such that:\n\n\ta. No precision is lost\n\tb. No fractional digits will be emitted\n\tc. The exponent (or suffix) is as large as possible.\n\nThe sign will be omitted unless the number is negative.\n\nExamples:\n\n\t1.5 will be serialized as \"1500m\"\n\t1.5Gi will be serialized as \"1536Mi\"\n\nNote that the quantity will NEVER be internally represented by a floating point number. That is the whole point of this exercise.\n\nNon-canonical values will still parse as long as they are well formed, but will be re-emitted in their canonical form. (So always use canonical form, or don't diff.)\n\nThis format is intended to make it difficult to use these numbers without writing some sort of special handling code in the hopes that that will cause implementors to also use a fixed point implementation.",
+      "description": "Quantity is a fixed-point representation of a number. It provides convenient marshaling/unmarshaling in JSON and YAML, in addition to String() and AsInt64() accessors.\n\nThe serialization format is:\n\n``` \u003cquantity\u003e        ::= \u003csignedNumber\u003e\u003csuffix\u003e\n\n\t(Note that \u003csuffix\u003e may be empty, from the \"\" case in \u003cdecimalSI\u003e.)\n\n\u003cdigit\u003e           ::= 0 | 1 | ... | 9 \u003cdigits\u003e          ::= \u003cdigit\u003e | \u003cdigit\u003e\u003cdigits\u003e \u003cnumber\u003e          ::= \u003cdigits\u003e | \u003cdigits\u003e.\u003cdigits\u003e | \u003cdigits\u003e. | .\u003cdigits\u003e \u003csign\u003e            ::= \"+\" | \"-\" \u003csignedNumber\u003e    ::= \u003cnumber\u003e | \u003csign\u003e\u003cnumber\u003e \u003csuffix\u003e          ::= \u003cbinarySI\u003e | \u003cdecimalExponent\u003e | \u003cdecimalSI\u003e \u003cbinarySI\u003e        ::= Ki | Mi | Gi | Ti | Pi | Ei\n\n\t(International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)\n\n\u003cdecimalSI\u003e       ::= m | \"\" | k | M | G | T | P | E\n\n\t(Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)\n\n\u003cdecimalExponent\u003e ::= \"e\" \u003csignedNumber\u003e | \"E\" \u003csignedNumber\u003e ```\n\nNo matter which of the three exponent forms is used, no quantity may represent a number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal places. Numbers larger or more precise will be capped or rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the future if we require larger or smaller quantities.\n\nWhen a Quantity is parsed from a string, it will remember the type of suffix it had, and will use the same type again when it is serialized.\n\nBefore serializing, Quantity will be put in \"canonical form\". This means that Exponent/suffix will be adjusted up or down (with a corresponding increase or decrease in Mantissa) such that:\n\n- No precision is lost - No fractional digits will be emitted - The exponent (or suffix) is as large as possible.\n\nThe sign will be omitted unless the number is negative.\n\nExamples:\n\n- 1.5 will be serialized as \"1500m\" - 1.5Gi will be serialized as \"1536Mi\"\n\nNote that the quantity will NEVER be internally represented by a floating point number. That is the whole point of this exercise.\n\nNon-canonical values will still parse as long as they are well formed, but will be re-emitted in their canonical form. (So always use canonical form, or don't diff.)\n\nThis format is intended to make it difficult to use these numbers without writing some sort of special handling code in the hopes that that will cause implementors to also use a fixed point implementation.",
       "type": "string"
     },
     "k8s.io.apimachinery.pkg.util.intstr.IntOrString": {
@@ -7772,10 +7772,6 @@
             "type": "string",
             "default": ""
           }
-        },
-        "clusterName": {
-          "description": "Deprecated: ClusterName is a legacy field that was always cleared by the system and never used; it will be removed completely in 1.25.\n\nThe name in the go struct is changed to help clients detect accidental use.",
-          "type": "string"
         },
         "creationTimestamp": {
           "description": "CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC.\n\nPopulated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
@@ -9509,6 +9505,10 @@
           "description": "Name is the name of the VirtualMachineFlavor or VirtualMachineClusterFlavor",
           "type": "string",
           "default": ""
+        },
+        "revisionName": {
+          "description": "RevisionName specifies a ControllerRevision containing a specific copy of the VirtualMachineFlavor or VirtualMachineClusterFlavor to be used. This is initially captured the first time the flavor is applied to the VirtualMachineInstance.",
+          "type": "string"
         }
       }
     },
@@ -10115,6 +10115,10 @@
           "description": "Name is the name of the VirtualMachinePreference or VirtualMachineClusterPreference",
           "type": "string",
           "default": ""
+        },
+        "revisionName": {
+          "description": "RevisionName specifies a ControllerRevision containing a specific copy of the VirtualMachinePreference or VirtualMachineClusterPreference to be used. This is initially captured the first time the flavor is applied to the VirtualMachineInstance.",
+          "type": "string"
         }
       }
     },
@@ -10769,6 +10773,21 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationPhaseTransitionTimestamp": {
+      "description": "VirtualMachineInstanceMigrationPhaseTransitionTimestamp gives a timestamp in relation to when a phase is set on a vmi",
+      "type": "object",
+      "properties": {
+        "phase": {
+          "description": "Phase is the status of the VirtualMachineInstanceMigrationPhase in kubernetes world. It is not the VirtualMachineInstanceMigrationPhase status, but partially correlates to it.",
+          "type": "string"
+        },
+        "phaseTransitionTimestamp": {
+          "description": "PhaseTransitionTimestamp is the timestamp of when the phase change occurred",
+          "default": {},
+          "$ref": "#/definitions/k8s.io.v1.Time"
+        }
+      }
+    },
     "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationSpec": {
       "type": "object",
       "properties": {
@@ -10883,6 +10902,15 @@
         },
         "phase": {
           "type": "string"
+        },
+        "phaseTransitionTimestamps": {
+          "description": "PhaseTransitionTimestamp is the timestamp of when the last phase change occurred",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationPhaseTransitionTimestamp"
+          },
+          "x-kubernetes-list-type": "atomic"
         }
       }
     },
@@ -11886,7 +11914,6 @@
     "network.harvesterhci.io.v1beta1.ClusterNetwork": {
       "type": "object",
       "required": [
-        "enable",
         "kind",
         "apiVersion"
       ],
@@ -11895,20 +11922,6 @@
           "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
           "type": "string"
         },
-        "config": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "default": ""
-          }
-        },
-        "description": {
-          "type": "string"
-        },
-        "enable": {
-          "type": "boolean",
-          "default": false
-        },
         "kind": {
           "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
           "type": "string"
@@ -11916,6 +11929,10 @@
         "metadata": {
           "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
+        },
+        "status": {
+          "default": {},
+          "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetworkStatus"
         }
       }
     },
@@ -11947,6 +11964,18 @@
         "metadata": {
           "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.ClusterNetworkStatus": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.Condition"
+          }
         }
       }
     },
@@ -11987,24 +12016,13 @@
     },
     "network.harvesterhci.io.v1beta1.LinkStatus": {
       "type": "object",
+      "required": [
+        "name"
+      ],
       "properties": {
-        "conditions": {
-          "type": "array",
-          "items": {
-            "default": {},
-            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.Condition"
-          }
-        },
         "index": {
           "type": "integer",
           "format": "int32"
-        },
-        "ipv4Address": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "default": ""
-          }
         },
         "mac": {
           "type": "string"
@@ -12013,15 +12031,12 @@
           "type": "integer",
           "format": "int32"
         },
+        "name": {
+          "type": "string",
+          "default": ""
+        },
         "promiscuous": {
           "type": "boolean"
-        },
-        "routes": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "default": ""
-          }
         },
         "state": {
           "type": "string"
@@ -12031,7 +12046,7 @@
         }
       }
     },
-    "network.harvesterhci.io.v1beta1.NIC": {
+    "network.harvesterhci.io.v1beta1.NetworkInterface": {
       "type": "object",
       "required": [
         "index",
@@ -12068,6 +12083,10 @@
         },
         "usedByManagementNetwork": {
           "description": "Specify whether used by management network or not",
+          "type": "boolean"
+        },
+        "usedByVlanNetwork": {
+          "description": "Specify whether used by VLAN network or not",
           "type": "boolean"
         }
       }
@@ -12181,7 +12200,7 @@
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NIC"
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NetworkInterface"
           }
         }
       }

@@ -64,14 +64,6 @@ func (c *FakeManagementV3) CatalogTemplateVersions(namespace string) v3.CatalogT
 	return &FakeCatalogTemplateVersions{c, namespace}
 }
 
-func (c *FakeManagementV3) CisBenchmarkVersions(namespace string) v3.CisBenchmarkVersionInterface {
-	return &FakeCisBenchmarkVersions{c, namespace}
-}
-
-func (c *FakeManagementV3) CisConfigs(namespace string) v3.CisConfigInterface {
-	return &FakeCisConfigs{c, namespace}
-}
-
 func (c *FakeManagementV3) CloudCredentials(namespace string) v3.CloudCredentialInterface {
 	return &FakeCloudCredentials{c, namespace}
 }
@@ -110,10 +102,6 @@ func (c *FakeManagementV3) ClusterRegistrationTokens(namespace string) v3.Cluste
 
 func (c *FakeManagementV3) ClusterRoleTemplateBindings(namespace string) v3.ClusterRoleTemplateBindingInterface {
 	return &FakeClusterRoleTemplateBindings{c, namespace}
-}
-
-func (c *FakeManagementV3) ClusterScans(namespace string) v3.ClusterScanInterface {
-	return &FakeClusterScans{c, namespace}
 }
 
 func (c *FakeManagementV3) ClusterTemplates(namespace string) v3.ClusterTemplateInterface {
@@ -234,6 +222,10 @@ func (c *FakeManagementV3) OIDCProviders() v3.OIDCProviderInterface {
 
 func (c *FakeManagementV3) OpenLdapProviders() v3.OpenLdapProviderInterface {
 	return &FakeOpenLdapProviders{c}
+}
+
+func (c *FakeManagementV3) PodSecurityAdmissionConfigurationTemplates() v3.PodSecurityAdmissionConfigurationTemplateInterface {
+	return &FakePodSecurityAdmissionConfigurationTemplates{c}
 }
 
 func (c *FakeManagementV3) PodSecurityPolicyTemplates() v3.PodSecurityPolicyTemplateInterface {

@@ -36,10 +36,6 @@ type CatalogTemplateExpansion interface{}
 
 type CatalogTemplateVersionExpansion interface{}
 
-type CisBenchmarkVersionExpansion interface{}
-
-type CisConfigExpansion interface{}
-
 type CloudCredentialExpansion interface{}
 
 type ClusterExpansion interface{}
@@ -59,8 +55,6 @@ type ClusterMonitorGraphExpansion interface{}
 type ClusterRegistrationTokenExpansion interface{}
 
 type ClusterRoleTemplateBindingExpansion interface{}
-
-type ClusterScanExpansion interface{}
 
 type ClusterTemplateExpansion interface{}
 
@@ -121,6 +115,8 @@ type NotifierExpansion interface{}
 type OIDCProviderExpansion interface{}
 
 type OpenLdapProviderExpansion interface{}
+
+type PodSecurityAdmissionConfigurationTemplateExpansion interface{}
 
 type PodSecurityPolicyTemplateExpansion interface{}
 

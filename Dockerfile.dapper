@@ -1,64 +1,37 @@
 FROM quay.io/costoolkit/releases-green:luet-toolchain-0.21.2 as luet
 FROM quay.io/costoolkit/releases-green:luet-makeiso-toolchain-0.4.0 as makeiso
 
-FROM golang:1.18.3-buster
+FROM registry.suse.com/bci/bci-base:15.4
 
 ARG DAPPER_HOST_ARCH
 ENV ARCH $DAPPER_HOST_ARCH
 
-RUN apt-get update -qq && apt-get install -y --no-install-recommends \
-        xz-utils \
-        unzip \
-        netcat \
-        zstd \
-        squashfs-tools \
-        xorriso \
-        jq \
-        mtools \
-        dosfstools \
-    && rm -rf /var/lib/apt/lists/*
+RUN zypper -n rm container-suseconnect && \
+    zypper -n install go1.19 go1.19-race git curl docker gzip tar wget zstd squashfs xorriso gawk jq mtools dosfstools ca-certificates
 
 # install yq
-RUN GO111MODULE=on go install github.com/mikefarah/yq/v4@v4.27.5
+RUN curl -sfL https://github.com/mikefarah/yq/releases/download/v4.21.1/yq_linux_${ARCH} -o /usr/bin/yq && chmod +x /usr/bin/yq
+
 # set up helm
-ENV HELM_VERSION v3.5.4
-ENV HELM_URL=https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
-RUN mkdir /usr/tmp && \
-    curl ${HELM_URL} | tar xvzf - --strip-components=1 -C /usr/tmp/ && \
-    mv /usr/tmp/helm /usr/bin/helm
+ENV DESIRED_VERSION v3.11.3
+RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && \
+    chmod 700 get_helm.sh && \
+    ./get_helm.sh
 
 # -- for make rules
-## install docker client
-RUN apt-get update -qq && apt-get install -y --no-install-recommends \
-        apt-transport-https \
-        ca-certificates \
-        curl \
-        gnupg \
-    && rm -rf /var/lib/apt/lists/*; \
-    \
-    curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - >/dev/null; \
-    echo "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/debian buster stable" > /etc/apt/sources.list.d/docker.list; \
-    \
-    apt-get update -qq && apt-get install -y --no-install-recommends \
-        docker-ce=5:20.10.* \
-    && rm -rf /var/lib/apt/lists/*
 ## install golangci
-RUN if [ "${ARCH}" = "amd64" ]; then \
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.49.0; \
+RUN if [ "${ARCH}" == "amd64" ]; then \
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.51.2; \
     fi
-## install controller-gen
-RUN if [ "${ARCH}" = "amd64" ]; then \
-        GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1; \
+
+RUN if [ "${ARCH}" == "amd64" ]; then \
+    GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.11.3 && \
+    GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.9.2 && \
+    GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.25.9; \
     fi
-## install ginkgo
-RUN if [ "${ARCH}" = "amd64" ]; then \
-        GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.4; \
-    fi
-# install openapi-gen
-RUN  GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.23.7
 
 # install kind
-RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.14.0/kind-linux-amd64 && chmod +x /usr/bin/kind
+RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.18.0/kind-linux-amd64 && chmod +x /usr/bin/kind
 
 # install codecov
 RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/latest/linux/codecov && chmod +x /usr/bin/codecov
@@ -71,7 +44,6 @@ COPY --from=makeiso /usr/bin/luet-makeiso /usr/bin/luet-makeiso
 
 # -- for dapper
 ENV DAPPER_RUN_ARGS --privileged --network host -v /run/containerd/containerd.sock:/run/containerd/containerd.sock
-ENV GO111MODULE off
 ENV DAPPER_ENV REPO TAG DRONE_TAG DRONE_BRANCH CROSS GOPROXY PUSH RKE2_IMAGE_REPO CODECOV_TOKEN
 ENV DAPPER_SOURCE /go/src/github.com/harvester/harvester/
 ENV DAPPER_OUTPUT ./bin ./dist ./package
