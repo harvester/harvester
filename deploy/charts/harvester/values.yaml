@@ -420,6 +420,7 @@ longhorn:
   defaultSettings:
     ## Specify the concurrent automatic engine upgrade per node limit
     concurrentAutomaticEngineUpgradePerNodeLimit: 3
+    priorityClass: system-cluster-critical
 
 rancherEmbedded: false
 
