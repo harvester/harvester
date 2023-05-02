@@ -58,6 +58,8 @@ type Handler struct {
 	managedChartCache    mgmtv3.ManagedChartCache
 	helmChartConfigs     ctlhelmv1.HelmChartConfigClient
 	helmChartConfigCache ctlhelmv1.HelmChartConfigCache
+	rancherSettings      mgmtv3.SettingClient
+	rancherSettingCache  mgmtv3.SettingCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
@@ -86,15 +88,22 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 	var err error
 	if syncer, ok := syncers[setting.Name]; ok {
 		err = syncer(setting)
-		if err == nil {
-			toUpdate.Annotations[util.AnnotationHash] = currentHash
-		}
-		if updateErr := h.setConfiguredCondition(toUpdate, err); updateErr != nil {
-			return setting, updateErr
-		}
+	}
+	if err == nil {
+		toUpdate.Annotations[util.AnnotationHash] = currentHash
+	}
+	if updateErr := h.setConfiguredCondition(toUpdate, err); updateErr != nil {
+		return setting, updateErr
+	}
+	if err != nil {
+		return setting, err
 	}
 
-	return setting, err
+	if err := h.syncHarvesterToRancher(setting); err != nil {
+		return setting, err
+	}
+
+	return setting, nil
 }
 
 func (h *Handler) setConfiguredCondition(settingCopy *harvesterv1.Setting, err error) error {
