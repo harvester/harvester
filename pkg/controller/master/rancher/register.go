@@ -40,6 +40,8 @@ type Handler struct {
 	RancherSettingCache      rancherv3.SettingCache
 	RancherSettingController rancherv3.SettingController
 	RancherUserCache         rancherv3.UserCache
+	RancherFeatures          rancherv3.FeatureClient
+	RancherFeatureCache      rancherv3.FeatureCache
 	ingresses                networkingv1.IngressClient
 	Services                 ctlcorev1.ServiceClient
 	Configmaps               ctlcorev1.ConfigMapClient
@@ -63,6 +65,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	if options.RancherEmbedded {
 		rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 		rancherUsers := management.RancherManagementFactory.Management().V3().User()
+		rancherFeatures := management.RancherManagementFactory.Management().V3().Feature()
 		ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 		secrets := management.CoreFactory.Core().V1().Secret()
 		services := management.CoreFactory.Core().V1().Service()
@@ -74,6 +77,8 @@ func Register(ctx context.Context, management *config.Management, options config
 			RancherSettingController: rancherSettings,
 			RancherSettingCache:      rancherSettings.Cache(),
 			RancherUserCache:         rancherUsers.Cache(),
+			RancherFeatures:          rancherFeatures,
+			RancherFeatureCache:      rancherFeatures.Cache(),
 			ingresses:                ingresses,
 			Services:                 services,
 			Configmaps:               configmaps,
@@ -86,6 +91,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
 		secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
+		rancherFeatures.OnChange(ctx, controllerRancherName, h.RancherFeatureOnChange)
 		if err := h.registerExposeService(); err != nil {
 			return err
 		}
