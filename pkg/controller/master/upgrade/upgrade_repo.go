@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -211,6 +212,13 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 							Cores:   1,
 							Sockets: 1,
 							Threads: 1,
+						},
+						Firmware: &kubevirtv1.Firmware{
+							Bootloader: &kubevirtv1.Bootloader{
+								EFI: &kubevirtv1.EFI{
+									SecureBoot: pointer.Bool(false),
+								},
+							},
 						},
 						Devices: kubevirtv1.Devices{
 							Disks: []kubevirtv1.Disk{
