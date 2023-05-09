@@ -33,15 +33,32 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.BondOptions":                           schema_pkg_apis_networkharvesterhciio_v1beta1_BondOptions(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.ClusterNetwork":                        schema_pkg_apis_networkharvesterhciio_v1beta1_ClusterNetwork(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.ClusterNetworkList":                    schema_pkg_apis_networkharvesterhciio_v1beta1_ClusterNetworkList(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.ClusterNetworkStatus":                  schema_pkg_apis_networkharvesterhciio_v1beta1_ClusterNetworkStatus(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition":                             schema_pkg_apis_networkharvesterhciio_v1beta1_Condition(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkAttrs":                             schema_pkg_apis_networkharvesterhciio_v1beta1_LinkAttrs(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitor":                           schema_pkg_apis_networkharvesterhciio_v1beta1_LinkMonitor(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitorList":                       schema_pkg_apis_networkharvesterhciio_v1beta1_LinkMonitorList(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitorSpec":                       schema_pkg_apis_networkharvesterhciio_v1beta1_LinkMonitorSpec(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitorStatus":                     schema_pkg_apis_networkharvesterhciio_v1beta1_LinkMonitorStatus(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkStatus":                            schema_pkg_apis_networkharvesterhciio_v1beta1_LinkStatus(ref),
-		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NIC":                                   schema_pkg_apis_networkharvesterhciio_v1beta1_NIC(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LocalArea":                             schema_pkg_apis_networkharvesterhciio_v1beta1_LocalArea(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NetworkInterface":                      schema_pkg_apis_networkharvesterhciio_v1beta1_NetworkInterface(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetwork":                           schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetwork(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkLinkStatus":                 schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkLinkStatus(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkList":                       schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkList(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkSpec":                       schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkSpec(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkStatus":                     schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkStatus(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.TargetLinkRule":                        schema_pkg_apis_networkharvesterhciio_v1beta1_TargetLinkRule(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Uplink":                                schema_pkg_apis_networkharvesterhciio_v1beta1_Uplink(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlStatus":                              schema_pkg_apis_networkharvesterhciio_v1beta1_VlStatus(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanConfig":                            schema_pkg_apis_networkharvesterhciio_v1beta1_VlanConfig(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanConfigList":                        schema_pkg_apis_networkharvesterhciio_v1beta1_VlanConfigList(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanConfigSpec":                        schema_pkg_apis_networkharvesterhciio_v1beta1_VlanConfigSpec(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanStatus":                            schema_pkg_apis_networkharvesterhciio_v1beta1_VlanStatus(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanStatusList":                        schema_pkg_apis_networkharvesterhciio_v1beta1_VlanStatusList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Addon":                                                            schema_pkg_apis_harvesterhciio_v1beta1_Addon(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonList":                                                        schema_pkg_apis_harvesterhciio_v1beta1_AddonList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonSpec":                                                        schema_pkg_apis_harvesterhciio_v1beta1_AddonSpec(ref),
@@ -212,514 +229,538 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/api/core/v1.AzureDiskVolumeSource":                                                                                         schema_k8sio_api_core_v1_AzureDiskVolumeSource(ref),
 		"k8s.io/api/core/v1.AzureFilePersistentVolumeSource":                                                                               schema_k8sio_api_core_v1_AzureFilePersistentVolumeSource(ref),
 		"k8s.io/api/core/v1.AzureFileVolumeSource":                                                                                         schema_k8sio_api_core_v1_AzureFileVolumeSource(ref),
-		"k8s.io/api/core/v1.Binding":                                                                                                       schema_k8sio_api_core_v1_Binding(ref),
-		"k8s.io/api/core/v1.CSIPersistentVolumeSource":                                                                                     schema_k8sio_api_core_v1_CSIPersistentVolumeSource(ref),
-		"k8s.io/api/core/v1.CSIVolumeSource":                                                                                               schema_k8sio_api_core_v1_CSIVolumeSource(ref),
-		"k8s.io/api/core/v1.Capabilities":                                                                                                  schema_k8sio_api_core_v1_Capabilities(ref),
-		"k8s.io/api/core/v1.CephFSPersistentVolumeSource":                                                                                  schema_k8sio_api_core_v1_CephFSPersistentVolumeSource(ref),
-		"k8s.io/api/core/v1.CephFSVolumeSource":                                                                                            schema_k8sio_api_core_v1_CephFSVolumeSource(ref),
-		"k8s.io/api/core/v1.CinderPersistentVolumeSource":                                                                                  schema_k8sio_api_core_v1_CinderPersistentVolumeSource(ref),
-		"k8s.io/api/core/v1.CinderVolumeSource":                                                                                            schema_k8sio_api_core_v1_CinderVolumeSource(ref),
-		"k8s.io/api/core/v1.ClientIPConfig":                                                                                                schema_k8sio_api_core_v1_ClientIPConfig(ref),
-		"k8s.io/api/core/v1.ComponentCondition":                                                                                            schema_k8sio_api_core_v1_ComponentCondition(ref),
-		"k8s.io/api/core/v1.ComponentStatus":                                                                                               schema_k8sio_api_core_v1_ComponentStatus(ref),
-		"k8s.io/api/core/v1.ComponentStatusList":                                                                                           schema_k8sio_api_core_v1_ComponentStatusList(ref),
-		"k8s.io/api/core/v1.ConfigMap":                                                                                                     schema_k8sio_api_core_v1_ConfigMap(ref),
-		"k8s.io/api/core/v1.ConfigMapEnvSource":                                                                                            schema_k8sio_api_core_v1_ConfigMapEnvSource(ref),
-		"k8s.io/api/core/v1.ConfigMapKeySelector":                                                                                          schema_k8sio_api_core_v1_ConfigMapKeySelector(ref),
-		"k8s.io/api/core/v1.ConfigMapList":                                                                                                 schema_k8sio_api_core_v1_ConfigMapList(ref),
-		"k8s.io/api/core/v1.ConfigMapNodeConfigSource":                                                                                     schema_k8sio_api_core_v1_ConfigMapNodeConfigSource(ref),
-		"k8s.io/api/core/v1.ConfigMapProjection":                                                                                           schema_k8sio_api_core_v1_ConfigMapProjection(ref),
-		"k8s.io/api/core/v1.ConfigMapVolumeSource":                                                                                         schema_k8sio_api_core_v1_ConfigMapVolumeSource(ref),
-		"k8s.io/api/core/v1.Container":                                                                                                     schema_k8sio_api_core_v1_Container(ref),
-		"k8s.io/api/core/v1.ContainerImage":                                                                                                schema_k8sio_api_core_v1_ContainerImage(ref),
-		"k8s.io/api/core/v1.ContainerPort":                                                                                                 schema_k8sio_api_core_v1_ContainerPort(ref),
-		"k8s.io/api/core/v1.ContainerState":                                                                                                schema_k8sio_api_core_v1_ContainerState(ref),
-		"k8s.io/api/core/v1.ContainerStateRunning":                                                                                         schema_k8sio_api_core_v1_ContainerStateRunning(ref),
-		"k8s.io/api/core/v1.ContainerStateTerminated":                                                                                      schema_k8sio_api_core_v1_ContainerStateTerminated(ref),
-		"k8s.io/api/core/v1.ContainerStateWaiting":                                                                                         schema_k8sio_api_core_v1_ContainerStateWaiting(ref),
-		"k8s.io/api/core/v1.ContainerStatus":                                                                                               schema_k8sio_api_core_v1_ContainerStatus(ref),
-		"k8s.io/api/core/v1.DaemonEndpoint":                                                                                                schema_k8sio_api_core_v1_DaemonEndpoint(ref),
-		"k8s.io/api/core/v1.DownwardAPIProjection":                                                                                         schema_k8sio_api_core_v1_DownwardAPIProjection(ref),
-		"k8s.io/api/core/v1.DownwardAPIVolumeFile":                                                                                         schema_k8sio_api_core_v1_DownwardAPIVolumeFile(ref),
-		"k8s.io/api/core/v1.DownwardAPIVolumeSource":                                                                                       schema_k8sio_api_core_v1_DownwardAPIVolumeSource(ref),
-		"k8s.io/api/core/v1.EmptyDirVolumeSource":                                                                                          schema_k8sio_api_core_v1_EmptyDirVolumeSource(ref),
-		"k8s.io/api/core/v1.EndpointAddress":                                                                                               schema_k8sio_api_core_v1_EndpointAddress(ref),
-		"k8s.io/api/core/v1.EndpointPort":                                                                                                  schema_k8sio_api_core_v1_EndpointPort(ref),
-		"k8s.io/api/core/v1.EndpointSubset":                                                                                                schema_k8sio_api_core_v1_EndpointSubset(ref),
-		"k8s.io/api/core/v1.Endpoints":                                                                                                     schema_k8sio_api_core_v1_Endpoints(ref),
-		"k8s.io/api/core/v1.EndpointsList":                                                                                                 schema_k8sio_api_core_v1_EndpointsList(ref),
-		"k8s.io/api/core/v1.EnvFromSource":                                                                                                 schema_k8sio_api_core_v1_EnvFromSource(ref),
-		"k8s.io/api/core/v1.EnvVar":                                                                                                        schema_k8sio_api_core_v1_EnvVar(ref),
-		"k8s.io/api/core/v1.EnvVarSource":                                                                                                  schema_k8sio_api_core_v1_EnvVarSource(ref),
-		"k8s.io/api/core/v1.EphemeralContainer":                                                                                            schema_k8sio_api_core_v1_EphemeralContainer(ref),
-		"k8s.io/api/core/v1.EphemeralContainerCommon":                                                                                      schema_k8sio_api_core_v1_EphemeralContainerCommon(ref),
-		"k8s.io/api/core/v1.EphemeralVolumeSource":                                                                                         schema_k8sio_api_core_v1_EphemeralVolumeSource(ref),
-		"k8s.io/api/core/v1.Event":                                                                                                         schema_k8sio_api_core_v1_Event(ref),
-		"k8s.io/api/core/v1.EventList":                                                                                                     schema_k8sio_api_core_v1_EventList(ref),
-		"k8s.io/api/core/v1.EventSeries":                                                                                                   schema_k8sio_api_core_v1_EventSeries(ref),
-		"k8s.io/api/core/v1.EventSource":                                                                                                   schema_k8sio_api_core_v1_EventSource(ref),
-		"k8s.io/api/core/v1.ExecAction":                                                                                                    schema_k8sio_api_core_v1_ExecAction(ref),
-		"k8s.io/api/core/v1.FCVolumeSource":                                                                                                schema_k8sio_api_core_v1_FCVolumeSource(ref),
-		"k8s.io/api/core/v1.FlexPersistentVolumeSource":                                                                                    schema_k8sio_api_core_v1_FlexPersistentVolumeSource(ref),
-		"k8s.io/api/core/v1.FlexVolumeSource":                                                                                              schema_k8sio_api_core_v1_FlexVolumeSource(ref),
-		"k8s.io/api/core/v1.FlockerVolumeSource":                                                                                           schema_k8sio_api_core_v1_FlockerVolumeSource(ref),
-		"k8s.io/api/core/v1.GCEPersistentDiskVolumeSource":                                                                                 schema_k8sio_api_core_v1_GCEPersistentDiskVolumeSource(ref),
-		"k8s.io/api/core/v1.GRPCAction":                                                                                                    schema_k8sio_api_core_v1_GRPCAction(ref),
-		"k8s.io/api/core/v1.GitRepoVolumeSource":                                                                                           schema_k8sio_api_core_v1_GitRepoVolumeSource(ref),
-		"k8s.io/api/core/v1.GlusterfsPersistentVolumeSource":                                                                               schema_k8sio_api_core_v1_GlusterfsPersistentVolumeSource(ref),
-		"k8s.io/api/core/v1.GlusterfsVolumeSource":                                                                                         schema_k8sio_api_core_v1_GlusterfsVolumeSource(ref),
-		"k8s.io/api/core/v1.HTTPGetAction":                                                                                                 schema_k8sio_api_core_v1_HTTPGetAction(ref),
-		"k8s.io/api/core/v1.HTTPHeader":                                                                                                    schema_k8sio_api_core_v1_HTTPHeader(ref),
-		"k8s.io/api/core/v1.HostAlias":                                                                                                     schema_k8sio_api_core_v1_HostAlias(ref),
-		"k8s.io/api/core/v1.HostPathVolumeSource":                                                                                          schema_k8sio_api_core_v1_HostPathVolumeSource(ref),
-		"k8s.io/api/core/v1.ISCSIPersistentVolumeSource":                                                                                   schema_k8sio_api_core_v1_ISCSIPersistentVolumeSource(ref),
-		"k8s.io/api/core/v1.ISCSIVolumeSource":                                                                                             schema_k8sio_api_core_v1_ISCSIVolumeSource(ref),
-		"k8s.io/api/core/v1.KeyToPath":                                                                                                     schema_k8sio_api_core_v1_KeyToPath(ref),
-		"k8s.io/api/core/v1.Lifecycle":                                                                                                     schema_k8sio_api_core_v1_Lifecycle(ref),
-		"k8s.io/api/core/v1.LifecycleHandler":                                                                                              schema_k8sio_api_core_v1_LifecycleHandler(ref),
-		"k8s.io/api/core/v1.LimitRange":                                                                                                    schema_k8sio_api_core_v1_LimitRange(ref),
-		"k8s.io/api/core/v1.LimitRangeItem":                                                                                                schema_k8sio_api_core_v1_LimitRangeItem(ref),
-		"k8s.io/api/core/v1.LimitRangeList":                                                                                                schema_k8sio_api_core_v1_LimitRangeList(ref),
-		"k8s.io/api/core/v1.LimitRangeSpec":                                                                                                schema_k8sio_api_core_v1_LimitRangeSpec(ref),
-		"k8s.io/api/core/v1.List":                                                                                                          schema_k8sio_api_core_v1_List(ref),
-		"k8s.io/api/core/v1.LoadBalancerIngress":                                                                                           schema_k8sio_api_core_v1_LoadBalancerIngress(ref),
-		"k8s.io/api/core/v1.LoadBalancerStatus":                                                                                            schema_k8sio_api_core_v1_LoadBalancerStatus(ref),
-		"k8s.io/api/core/v1.LocalObjectReference":                                                                                          schema_k8sio_api_core_v1_LocalObjectReference(ref),
-		"k8s.io/api/core/v1.LocalVolumeSource":                                                                                             schema_k8sio_api_core_v1_LocalVolumeSource(ref),
-		"k8s.io/api/core/v1.NFSVolumeSource":                                                                                               schema_k8sio_api_core_v1_NFSVolumeSource(ref),
-		"k8s.io/api/core/v1.Namespace":                                                                                                     schema_k8sio_api_core_v1_Namespace(ref),
-		"k8s.io/api/core/v1.NamespaceCondition":                                                                                            schema_k8sio_api_core_v1_NamespaceCondition(ref),
-		"k8s.io/api/core/v1.NamespaceList":                                                                                                 schema_k8sio_api_core_v1_NamespaceList(ref),
-		"k8s.io/api/core/v1.NamespaceSpec":                                                                                                 schema_k8sio_api_core_v1_NamespaceSpec(ref),
-		"k8s.io/api/core/v1.NamespaceStatus":                                                                                               schema_k8sio_api_core_v1_NamespaceStatus(ref),
-		"k8s.io/api/core/v1.Node":                                                                                                          schema_k8sio_api_core_v1_Node(ref),
-		"k8s.io/api/core/v1.NodeAddress":                                                                                                   schema_k8sio_api_core_v1_NodeAddress(ref),
-		"k8s.io/api/core/v1.NodeAffinity":                                                                                                  schema_k8sio_api_core_v1_NodeAffinity(ref),
-		"k8s.io/api/core/v1.NodeCondition":                                                                                                 schema_k8sio_api_core_v1_NodeCondition(ref),
-		"k8s.io/api/core/v1.NodeConfigSource":                                                                                              schema_k8sio_api_core_v1_NodeConfigSource(ref),
-		"k8s.io/api/core/v1.NodeConfigStatus":                                                                                              schema_k8sio_api_core_v1_NodeConfigStatus(ref),
-		"k8s.io/api/core/v1.NodeDaemonEndpoints":                                                                                           schema_k8sio_api_core_v1_NodeDaemonEndpoints(ref),
-		"k8s.io/api/core/v1.NodeList":                                                                                                      schema_k8sio_api_core_v1_NodeList(ref),
-		"k8s.io/api/core/v1.NodeProxyOptions":                                                                                              schema_k8sio_api_core_v1_NodeProxyOptions(ref),
-		"k8s.io/api/core/v1.NodeResources":                                                                                                 schema_k8sio_api_core_v1_NodeResources(ref),
-		"k8s.io/api/core/v1.NodeSelector":                                                                                                  schema_k8sio_api_core_v1_NodeSelector(ref),
-		"k8s.io/api/core/v1.NodeSelectorRequirement":                                                                                       schema_k8sio_api_core_v1_NodeSelectorRequirement(ref),
-		"k8s.io/api/core/v1.NodeSelectorTerm":                                                                                              schema_k8sio_api_core_v1_NodeSelectorTerm(ref),
-		"k8s.io/api/core/v1.NodeSpec":                                                                                                      schema_k8sio_api_core_v1_NodeSpec(ref),
-		"k8s.io/api/core/v1.NodeStatus":                                                                                                    schema_k8sio_api_core_v1_NodeStatus(ref),
-		"k8s.io/api/core/v1.NodeSystemInfo":                                                                                                schema_k8sio_api_core_v1_NodeSystemInfo(ref),
-		"k8s.io/api/core/v1.ObjectFieldSelector":                                                                                           schema_k8sio_api_core_v1_ObjectFieldSelector(ref),
-		"k8s.io/api/core/v1.ObjectReference":                                                                                               schema_k8sio_api_core_v1_ObjectReference(ref),
-		"k8s.io/api/core/v1.PersistentVolume":                                                                                              schema_k8sio_api_core_v1_PersistentVolume(ref),
-		"k8s.io/api/core/v1.PersistentVolumeClaim":                                                                                         schema_k8sio_api_core_v1_PersistentVolumeClaim(ref),
-		"k8s.io/api/core/v1.PersistentVolumeClaimCondition":                                                                                schema_k8sio_api_core_v1_PersistentVolumeClaimCondition(ref),
-		"k8s.io/api/core/v1.PersistentVolumeClaimList":                                                                                     schema_k8sio_api_core_v1_PersistentVolumeClaimList(ref),
-		"k8s.io/api/core/v1.PersistentVolumeClaimSpec":                                                                                     schema_k8sio_api_core_v1_PersistentVolumeClaimSpec(ref),
-		"k8s.io/api/core/v1.PersistentVolumeClaimStatus":                                                                                   schema_k8sio_api_core_v1_PersistentVolumeClaimStatus(ref),
-		"k8s.io/api/core/v1.PersistentVolumeClaimTemplate":                                                                                 schema_k8sio_api_core_v1_PersistentVolumeClaimTemplate(ref),
-		"k8s.io/api/core/v1.PersistentVolumeClaimVolumeSource":                                                                             schema_k8sio_api_core_v1_PersistentVolumeClaimVolumeSource(ref),
-		"k8s.io/api/core/v1.PersistentVolumeList":                                                                                          schema_k8sio_api_core_v1_PersistentVolumeList(ref),
-		"k8s.io/api/core/v1.PersistentVolumeSource":                                                                                        schema_k8sio_api_core_v1_PersistentVolumeSource(ref),
-		"k8s.io/api/core/v1.PersistentVolumeSpec":                                                                                          schema_k8sio_api_core_v1_PersistentVolumeSpec(ref),
-		"k8s.io/api/core/v1.PersistentVolumeStatus":                                                                                        schema_k8sio_api_core_v1_PersistentVolumeStatus(ref),
-		"k8s.io/api/core/v1.PhotonPersistentDiskVolumeSource":                                                                              schema_k8sio_api_core_v1_PhotonPersistentDiskVolumeSource(ref),
-		"k8s.io/api/core/v1.Pod":                                                                                                           schema_k8sio_api_core_v1_Pod(ref),
-		"k8s.io/api/core/v1.PodAffinity":                                                                                                   schema_k8sio_api_core_v1_PodAffinity(ref),
-		"k8s.io/api/core/v1.PodAffinityTerm":                                                                                               schema_k8sio_api_core_v1_PodAffinityTerm(ref),
-		"k8s.io/api/core/v1.PodAntiAffinity":                                                                                               schema_k8sio_api_core_v1_PodAntiAffinity(ref),
-		"k8s.io/api/core/v1.PodAttachOptions":                                                                                              schema_k8sio_api_core_v1_PodAttachOptions(ref),
-		"k8s.io/api/core/v1.PodCondition":                                                                                                  schema_k8sio_api_core_v1_PodCondition(ref),
-		"k8s.io/api/core/v1.PodDNSConfig":                                                                                                  schema_k8sio_api_core_v1_PodDNSConfig(ref),
-		"k8s.io/api/core/v1.PodDNSConfigOption":                                                                                            schema_k8sio_api_core_v1_PodDNSConfigOption(ref),
-		"k8s.io/api/core/v1.PodExecOptions":                                                                                                schema_k8sio_api_core_v1_PodExecOptions(ref),
-		"k8s.io/api/core/v1.PodIP":                                                                                                         schema_k8sio_api_core_v1_PodIP(ref),
-		"k8s.io/api/core/v1.PodList":                                                                                                       schema_k8sio_api_core_v1_PodList(ref),
-		"k8s.io/api/core/v1.PodLogOptions":                                                                                                 schema_k8sio_api_core_v1_PodLogOptions(ref),
-		"k8s.io/api/core/v1.PodOS":                                                                                                         schema_k8sio_api_core_v1_PodOS(ref),
-		"k8s.io/api/core/v1.PodPortForwardOptions":                                                                                         schema_k8sio_api_core_v1_PodPortForwardOptions(ref),
-		"k8s.io/api/core/v1.PodProxyOptions":                                                                                               schema_k8sio_api_core_v1_PodProxyOptions(ref),
-		"k8s.io/api/core/v1.PodReadinessGate":                                                                                              schema_k8sio_api_core_v1_PodReadinessGate(ref),
-		"k8s.io/api/core/v1.PodSecurityContext":                                                                                            schema_k8sio_api_core_v1_PodSecurityContext(ref),
-		"k8s.io/api/core/v1.PodSignature":                                                                                                  schema_k8sio_api_core_v1_PodSignature(ref),
-		"k8s.io/api/core/v1.PodSpec":                                                                                                       schema_k8sio_api_core_v1_PodSpec(ref),
-		"k8s.io/api/core/v1.PodStatus":                                                                                                     schema_k8sio_api_core_v1_PodStatus(ref),
-		"k8s.io/api/core/v1.PodStatusResult":                                                                                               schema_k8sio_api_core_v1_PodStatusResult(ref),
-		"k8s.io/api/core/v1.PodTemplate":                                                                                                   schema_k8sio_api_core_v1_PodTemplate(ref),
-		"k8s.io/api/core/v1.PodTemplateList":                                                                                               schema_k8sio_api_core_v1_PodTemplateList(ref),
-		"k8s.io/api/core/v1.PodTemplateSpec":                                                                                               schema_k8sio_api_core_v1_PodTemplateSpec(ref),
-		"k8s.io/api/core/v1.PortStatus":                                                                                                    schema_k8sio_api_core_v1_PortStatus(ref),
-		"k8s.io/api/core/v1.PortworxVolumeSource":                                                                                          schema_k8sio_api_core_v1_PortworxVolumeSource(ref),
-		"k8s.io/api/core/v1.PreferAvoidPodsEntry":                                                                                          schema_k8sio_api_core_v1_PreferAvoidPodsEntry(ref),
-		"k8s.io/api/core/v1.PreferredSchedulingTerm":                                                                                       schema_k8sio_api_core_v1_PreferredSchedulingTerm(ref),
-		"k8s.io/api/core/v1.Probe":                                                                                                         schema_k8sio_api_core_v1_Probe(ref),
-		"k8s.io/api/core/v1.ProbeHandler":                                                                                                  schema_k8sio_api_core_v1_ProbeHandler(ref),
-		"k8s.io/api/core/v1.ProjectedVolumeSource":                                                                                         schema_k8sio_api_core_v1_ProjectedVolumeSource(ref),
-		"k8s.io/api/core/v1.QuobyteVolumeSource":                                                                                           schema_k8sio_api_core_v1_QuobyteVolumeSource(ref),
-		"k8s.io/api/core/v1.RBDPersistentVolumeSource":                                                                                     schema_k8sio_api_core_v1_RBDPersistentVolumeSource(ref),
-		"k8s.io/api/core/v1.RBDVolumeSource":                                                                                               schema_k8sio_api_core_v1_RBDVolumeSource(ref),
-		"k8s.io/api/core/v1.RangeAllocation":                                                                                               schema_k8sio_api_core_v1_RangeAllocation(ref),
-		"k8s.io/api/core/v1.ReplicationController":                                                                                         schema_k8sio_api_core_v1_ReplicationController(ref),
-		"k8s.io/api/core/v1.ReplicationControllerCondition":                                                                                schema_k8sio_api_core_v1_ReplicationControllerCondition(ref),
-		"k8s.io/api/core/v1.ReplicationControllerList":                                                                                     schema_k8sio_api_core_v1_ReplicationControllerList(ref),
-		"k8s.io/api/core/v1.ReplicationControllerSpec":                                                                                     schema_k8sio_api_core_v1_ReplicationControllerSpec(ref),
-		"k8s.io/api/core/v1.ReplicationControllerStatus":                                                                                   schema_k8sio_api_core_v1_ReplicationControllerStatus(ref),
-		"k8s.io/api/core/v1.ResourceFieldSelector":                                                                                         schema_k8sio_api_core_v1_ResourceFieldSelector(ref),
-		"k8s.io/api/core/v1.ResourceQuota":                                                                                                 schema_k8sio_api_core_v1_ResourceQuota(ref),
-		"k8s.io/api/core/v1.ResourceQuotaList":                                                                                             schema_k8sio_api_core_v1_ResourceQuotaList(ref),
-		"k8s.io/api/core/v1.ResourceQuotaSpec":                                                                                             schema_k8sio_api_core_v1_ResourceQuotaSpec(ref),
-		"k8s.io/api/core/v1.ResourceQuotaStatus":                                                                                           schema_k8sio_api_core_v1_ResourceQuotaStatus(ref),
-		"k8s.io/api/core/v1.ResourceRequirements":                                                                                          schema_k8sio_api_core_v1_ResourceRequirements(ref),
-		"k8s.io/api/core/v1.SELinuxOptions":                                                                                                schema_k8sio_api_core_v1_SELinuxOptions(ref),
-		"k8s.io/api/core/v1.ScaleIOPersistentVolumeSource":                                                                                 schema_k8sio_api_core_v1_ScaleIOPersistentVolumeSource(ref),
-		"k8s.io/api/core/v1.ScaleIOVolumeSource":                                                                                           schema_k8sio_api_core_v1_ScaleIOVolumeSource(ref),
-		"k8s.io/api/core/v1.ScopeSelector":                                                                                                 schema_k8sio_api_core_v1_ScopeSelector(ref),
-		"k8s.io/api/core/v1.ScopedResourceSelectorRequirement":                                                                             schema_k8sio_api_core_v1_ScopedResourceSelectorRequirement(ref),
-		"k8s.io/api/core/v1.SeccompProfile":                                                                                                schema_k8sio_api_core_v1_SeccompProfile(ref),
-		"k8s.io/api/core/v1.Secret":                                                                                                        schema_k8sio_api_core_v1_Secret(ref),
-		"k8s.io/api/core/v1.SecretEnvSource":                                                                                               schema_k8sio_api_core_v1_SecretEnvSource(ref),
-		"k8s.io/api/core/v1.SecretKeySelector":                                                                                             schema_k8sio_api_core_v1_SecretKeySelector(ref),
-		"k8s.io/api/core/v1.SecretList":                                                                                                    schema_k8sio_api_core_v1_SecretList(ref),
-		"k8s.io/api/core/v1.SecretProjection":                                                                                              schema_k8sio_api_core_v1_SecretProjection(ref),
-		"k8s.io/api/core/v1.SecretReference":                                                                                               schema_k8sio_api_core_v1_SecretReference(ref),
-		"k8s.io/api/core/v1.SecretVolumeSource":                                                                                            schema_k8sio_api_core_v1_SecretVolumeSource(ref),
-		"k8s.io/api/core/v1.SecurityContext":                                                                                               schema_k8sio_api_core_v1_SecurityContext(ref),
-		"k8s.io/api/core/v1.SerializedReference":                                                                                           schema_k8sio_api_core_v1_SerializedReference(ref),
-		"k8s.io/api/core/v1.Service":                                                                                                       schema_k8sio_api_core_v1_Service(ref),
-		"k8s.io/api/core/v1.ServiceAccount":                                                                                                schema_k8sio_api_core_v1_ServiceAccount(ref),
-		"k8s.io/api/core/v1.ServiceAccountList":                                                                                            schema_k8sio_api_core_v1_ServiceAccountList(ref),
-		"k8s.io/api/core/v1.ServiceAccountTokenProjection":                                                                                 schema_k8sio_api_core_v1_ServiceAccountTokenProjection(ref),
-		"k8s.io/api/core/v1.ServiceList":                                                                                                   schema_k8sio_api_core_v1_ServiceList(ref),
-		"k8s.io/api/core/v1.ServicePort":                                                                                                   schema_k8sio_api_core_v1_ServicePort(ref),
-		"k8s.io/api/core/v1.ServiceProxyOptions":                                                                                           schema_k8sio_api_core_v1_ServiceProxyOptions(ref),
-		"k8s.io/api/core/v1.ServiceSpec":                                                                                                   schema_k8sio_api_core_v1_ServiceSpec(ref),
-		"k8s.io/api/core/v1.ServiceStatus":                                                                                                 schema_k8sio_api_core_v1_ServiceStatus(ref),
-		"k8s.io/api/core/v1.SessionAffinityConfig":                                                                                         schema_k8sio_api_core_v1_SessionAffinityConfig(ref),
-		"k8s.io/api/core/v1.StorageOSPersistentVolumeSource":                                                                               schema_k8sio_api_core_v1_StorageOSPersistentVolumeSource(ref),
-		"k8s.io/api/core/v1.StorageOSVolumeSource":                                                                                         schema_k8sio_api_core_v1_StorageOSVolumeSource(ref),
-		"k8s.io/api/core/v1.Sysctl":                                                                                                        schema_k8sio_api_core_v1_Sysctl(ref),
-		"k8s.io/api/core/v1.TCPSocketAction":                                                                                               schema_k8sio_api_core_v1_TCPSocketAction(ref),
-		"k8s.io/api/core/v1.Taint":                                                                                                         schema_k8sio_api_core_v1_Taint(ref),
-		"k8s.io/api/core/v1.Toleration":                                                                                                    schema_k8sio_api_core_v1_Toleration(ref),
-		"k8s.io/api/core/v1.TopologySelectorLabelRequirement":                                                                              schema_k8sio_api_core_v1_TopologySelectorLabelRequirement(ref),
-		"k8s.io/api/core/v1.TopologySelectorTerm":                                                                                          schema_k8sio_api_core_v1_TopologySelectorTerm(ref),
-		"k8s.io/api/core/v1.TopologySpreadConstraint":                                                                                      schema_k8sio_api_core_v1_TopologySpreadConstraint(ref),
-		"k8s.io/api/core/v1.TypedLocalObjectReference":                                                                                     schema_k8sio_api_core_v1_TypedLocalObjectReference(ref),
-		"k8s.io/api/core/v1.Volume":                                                                                                        schema_k8sio_api_core_v1_Volume(ref),
-		"k8s.io/api/core/v1.VolumeDevice":                                                                                                  schema_k8sio_api_core_v1_VolumeDevice(ref),
-		"k8s.io/api/core/v1.VolumeMount":                                                                                                   schema_k8sio_api_core_v1_VolumeMount(ref),
-		"k8s.io/api/core/v1.VolumeNodeAffinity":                                                                                            schema_k8sio_api_core_v1_VolumeNodeAffinity(ref),
-		"k8s.io/api/core/v1.VolumeProjection":                                                                                              schema_k8sio_api_core_v1_VolumeProjection(ref),
-		"k8s.io/api/core/v1.VolumeSource":                                                                                                  schema_k8sio_api_core_v1_VolumeSource(ref),
-		"k8s.io/api/core/v1.VsphereVirtualDiskVolumeSource":                                                                                schema_k8sio_api_core_v1_VsphereVirtualDiskVolumeSource(ref),
-		"k8s.io/api/core/v1.WeightedPodAffinityTerm":                                                                                       schema_k8sio_api_core_v1_WeightedPodAffinityTerm(ref),
-		"k8s.io/api/core/v1.WindowsSecurityContextOptions":                                                                                 schema_k8sio_api_core_v1_WindowsSecurityContextOptions(ref),
-		"k8s.io/apimachinery/pkg/api/resource.Quantity":                                                                                    schema_apimachinery_pkg_api_resource_Quantity(ref),
-		"k8s.io/apimachinery/pkg/api/resource.int64Amount":                                                                                 schema_apimachinery_pkg_api_resource_int64Amount(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                                                                                    schema_pkg_apis_meta_v1_APIGroup(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                                                                                schema_pkg_apis_meta_v1_APIGroupList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                                                                                 schema_pkg_apis_meta_v1_APIResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList":                                                                             schema_pkg_apis_meta_v1_APIResourceList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions":                                                                                 schema_pkg_apis_meta_v1_APIVersions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ApplyOptions":                                                                                schema_pkg_apis_meta_v1_ApplyOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Condition":                                                                                   schema_pkg_apis_meta_v1_Condition(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.CreateOptions":                                                                               schema_pkg_apis_meta_v1_CreateOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                                                                               schema_pkg_apis_meta_v1_DeleteOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                                                                    schema_pkg_apis_meta_v1_Duration(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.FieldsV1":                                                                                    schema_pkg_apis_meta_v1_FieldsV1(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                                                                                  schema_pkg_apis_meta_v1_GetOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                                                                   schema_pkg_apis_meta_v1_GroupKind(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupResource":                                                                               schema_pkg_apis_meta_v1_GroupResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersion":                                                                                schema_pkg_apis_meta_v1_GroupVersion(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery":                                                                    schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind":                                                                            schema_pkg_apis_meta_v1_GroupVersionKind(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionResource":                                                                        schema_pkg_apis_meta_v1_GroupVersionResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.InternalEvent":                                                                               schema_pkg_apis_meta_v1_InternalEvent(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector":                                                                               schema_pkg_apis_meta_v1_LabelSelector(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement":                                                                    schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.List":                                                                                        schema_pkg_apis_meta_v1_List(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta":                                                                                    schema_pkg_apis_meta_v1_ListMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ListOptions":                                                                                 schema_pkg_apis_meta_v1_ListOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ManagedFieldsEntry":                                                                          schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime":                                                                                   schema_pkg_apis_meta_v1_MicroTime(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta":                                                                                  schema_pkg_apis_meta_v1_ObjectMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference":                                                                              schema_pkg_apis_meta_v1_OwnerReference(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.PartialObjectMetadata":                                                                       schema_pkg_apis_meta_v1_PartialObjectMetadata(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.PartialObjectMetadataList":                                                                   schema_pkg_apis_meta_v1_PartialObjectMetadataList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Patch":                                                                                       schema_pkg_apis_meta_v1_Patch(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.PatchOptions":                                                                                schema_pkg_apis_meta_v1_PatchOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions":                                                                               schema_pkg_apis_meta_v1_Preconditions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.RootPaths":                                                                                   schema_pkg_apis_meta_v1_RootPaths(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR":                                                                   schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Status":                                                                                      schema_pkg_apis_meta_v1_Status(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause":                                                                                 schema_pkg_apis_meta_v1_StatusCause(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails":                                                                               schema_pkg_apis_meta_v1_StatusDetails(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Table":                                                                                       schema_pkg_apis_meta_v1_Table(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TableColumnDefinition":                                                                       schema_pkg_apis_meta_v1_TableColumnDefinition(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TableOptions":                                                                                schema_pkg_apis_meta_v1_TableOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TableRow":                                                                                    schema_pkg_apis_meta_v1_TableRow(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TableRowCondition":                                                                           schema_pkg_apis_meta_v1_TableRowCondition(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Time":                                                                                        schema_pkg_apis_meta_v1_Time(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Timestamp":                                                                                   schema_pkg_apis_meta_v1_Timestamp(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta":                                                                                    schema_pkg_apis_meta_v1_TypeMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.UpdateOptions":                                                                               schema_pkg_apis_meta_v1_UpdateOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent":                                                                                  schema_pkg_apis_meta_v1_WatchEvent(ref),
-		"k8s.io/apimachinery/pkg/runtime.RawExtension":                                                                                     schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
-		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                                                                         schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
-		"k8s.io/apimachinery/pkg/runtime.Unknown":                                                                                          schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
-		"k8s.io/apimachinery/pkg/util/intstr.IntOrString":                                                                                  schema_apimachinery_pkg_util_intstr_IntOrString(ref),
-		"kubevirt.io/api/core/v1.AccessCredential":                                                                                         schema_kubevirtio_api_core_v1_AccessCredential(ref),
-		"kubevirt.io/api/core/v1.AccessCredentialSecretSource":                                                                             schema_kubevirtio_api_core_v1_AccessCredentialSecretSource(ref),
-		"kubevirt.io/api/core/v1.AddVolumeOptions":                                                                                         schema_kubevirtio_api_core_v1_AddVolumeOptions(ref),
-		"kubevirt.io/api/core/v1.AuthorizedKeysFile":                                                                                       schema_kubevirtio_api_core_v1_AuthorizedKeysFile(ref),
-		"kubevirt.io/api/core/v1.BIOS":                                                                                                     schema_kubevirtio_api_core_v1_BIOS(ref),
-		"kubevirt.io/api/core/v1.BlockSize":                                                                                                schema_kubevirtio_api_core_v1_BlockSize(ref),
-		"kubevirt.io/api/core/v1.Bootloader":                                                                                               schema_kubevirtio_api_core_v1_Bootloader(ref),
-		"kubevirt.io/api/core/v1.CDRomTarget":                                                                                              schema_kubevirtio_api_core_v1_CDRomTarget(ref),
-		"kubevirt.io/api/core/v1.CPU":                                                                                                      schema_kubevirtio_api_core_v1_CPU(ref),
-		"kubevirt.io/api/core/v1.CPUFeature":                                                                                               schema_kubevirtio_api_core_v1_CPUFeature(ref),
-		"kubevirt.io/api/core/v1.CertConfig":                                                                                               schema_kubevirtio_api_core_v1_CertConfig(ref),
-		"kubevirt.io/api/core/v1.Chassis":                                                                                                  schema_kubevirtio_api_core_v1_Chassis(ref),
-		"kubevirt.io/api/core/v1.ClientPassthroughDevices":                                                                                 schema_kubevirtio_api_core_v1_ClientPassthroughDevices(ref),
-		"kubevirt.io/api/core/v1.Clock":                                                                                                    schema_kubevirtio_api_core_v1_Clock(ref),
-		"kubevirt.io/api/core/v1.ClockOffset":                                                                                              schema_kubevirtio_api_core_v1_ClockOffset(ref),
-		"kubevirt.io/api/core/v1.ClockOffsetUTC":                                                                                           schema_kubevirtio_api_core_v1_ClockOffsetUTC(ref),
-		"kubevirt.io/api/core/v1.CloudInitConfigDriveSource":                                                                               schema_kubevirtio_api_core_v1_CloudInitConfigDriveSource(ref),
-		"kubevirt.io/api/core/v1.CloudInitNoCloudSource":                                                                                   schema_kubevirtio_api_core_v1_CloudInitNoCloudSource(ref),
-		"kubevirt.io/api/core/v1.ClusterProfilerRequest":                                                                                   schema_kubevirtio_api_core_v1_ClusterProfilerRequest(ref),
-		"kubevirt.io/api/core/v1.ClusterProfilerResults":                                                                                   schema_kubevirtio_api_core_v1_ClusterProfilerResults(ref),
-		"kubevirt.io/api/core/v1.ComponentConfig":                                                                                          schema_kubevirtio_api_core_v1_ComponentConfig(ref),
-		"kubevirt.io/api/core/v1.ConfigDriveSSHPublicKeyAccessCredentialPropagation":                                                       schema_kubevirtio_api_core_v1_ConfigDriveSSHPublicKeyAccessCredentialPropagation(ref),
-		"kubevirt.io/api/core/v1.ConfigMapVolumeSource":                                                                                    schema_kubevirtio_api_core_v1_ConfigMapVolumeSource(ref),
-		"kubevirt.io/api/core/v1.ContainerDiskSource":                                                                                      schema_kubevirtio_api_core_v1_ContainerDiskSource(ref),
-		"kubevirt.io/api/core/v1.CustomBlockSize":                                                                                          schema_kubevirtio_api_core_v1_CustomBlockSize(ref),
-		"kubevirt.io/api/core/v1.CustomizeComponents":                                                                                      schema_kubevirtio_api_core_v1_CustomizeComponents(ref),
-		"kubevirt.io/api/core/v1.CustomizeComponentsPatch":                                                                                 schema_kubevirtio_api_core_v1_CustomizeComponentsPatch(ref),
-		"kubevirt.io/api/core/v1.DHCPOptions":                                                                                              schema_kubevirtio_api_core_v1_DHCPOptions(ref),
-		"kubevirt.io/api/core/v1.DHCPPrivateOptions":                                                                                       schema_kubevirtio_api_core_v1_DHCPPrivateOptions(ref),
-		"kubevirt.io/api/core/v1.DataVolumeSource":                                                                                         schema_kubevirtio_api_core_v1_DataVolumeSource(ref),
-		"kubevirt.io/api/core/v1.DataVolumeTemplateDummyStatus":                                                                            schema_kubevirtio_api_core_v1_DataVolumeTemplateDummyStatus(ref),
-		"kubevirt.io/api/core/v1.DataVolumeTemplateSpec":                                                                                   schema_kubevirtio_api_core_v1_DataVolumeTemplateSpec(ref),
-		"kubevirt.io/api/core/v1.DeveloperConfiguration":                                                                                   schema_kubevirtio_api_core_v1_DeveloperConfiguration(ref),
-		"kubevirt.io/api/core/v1.Devices":                                                                                                  schema_kubevirtio_api_core_v1_Devices(ref),
-		"kubevirt.io/api/core/v1.Disk":                                                                                                     schema_kubevirtio_api_core_v1_Disk(ref),
-		"kubevirt.io/api/core/v1.DiskDevice":                                                                                               schema_kubevirtio_api_core_v1_DiskDevice(ref),
-		"kubevirt.io/api/core/v1.DiskTarget":                                                                                               schema_kubevirtio_api_core_v1_DiskTarget(ref),
-		"kubevirt.io/api/core/v1.DiskVerification":                                                                                         schema_kubevirtio_api_core_v1_DiskVerification(ref),
-		"kubevirt.io/api/core/v1.DomainMemoryDumpInfo":                                                                                     schema_kubevirtio_api_core_v1_DomainMemoryDumpInfo(ref),
-		"kubevirt.io/api/core/v1.DomainSpec":                                                                                               schema_kubevirtio_api_core_v1_DomainSpec(ref),
-		"kubevirt.io/api/core/v1.DownwardAPIVolumeSource":                                                                                  schema_kubevirtio_api_core_v1_DownwardAPIVolumeSource(ref),
-		"kubevirt.io/api/core/v1.DownwardMetricsVolumeSource":                                                                              schema_kubevirtio_api_core_v1_DownwardMetricsVolumeSource(ref),
-		"kubevirt.io/api/core/v1.EFI":                                                                                                      schema_kubevirtio_api_core_v1_EFI(ref),
-		"kubevirt.io/api/core/v1.EmptyDiskSource":                                                                                          schema_kubevirtio_api_core_v1_EmptyDiskSource(ref),
-		"kubevirt.io/api/core/v1.EphemeralVolumeSource":                                                                                    schema_kubevirtio_api_core_v1_EphemeralVolumeSource(ref),
-		"kubevirt.io/api/core/v1.FeatureAPIC":                                                                                              schema_kubevirtio_api_core_v1_FeatureAPIC(ref),
-		"kubevirt.io/api/core/v1.FeatureHyperv":                                                                                            schema_kubevirtio_api_core_v1_FeatureHyperv(ref),
-		"kubevirt.io/api/core/v1.FeatureKVM":                                                                                               schema_kubevirtio_api_core_v1_FeatureKVM(ref),
-		"kubevirt.io/api/core/v1.FeatureSpinlocks":                                                                                         schema_kubevirtio_api_core_v1_FeatureSpinlocks(ref),
-		"kubevirt.io/api/core/v1.FeatureState":                                                                                             schema_kubevirtio_api_core_v1_FeatureState(ref),
-		"kubevirt.io/api/core/v1.FeatureVendorID":                                                                                          schema_kubevirtio_api_core_v1_FeatureVendorID(ref),
-		"kubevirt.io/api/core/v1.Features":                                                                                                 schema_kubevirtio_api_core_v1_Features(ref),
-		"kubevirt.io/api/core/v1.Filesystem":                                                                                               schema_kubevirtio_api_core_v1_Filesystem(ref),
-		"kubevirt.io/api/core/v1.FilesystemVirtiofs":                                                                                       schema_kubevirtio_api_core_v1_FilesystemVirtiofs(ref),
-		"kubevirt.io/api/core/v1.Firmware":                                                                                                 schema_kubevirtio_api_core_v1_Firmware(ref),
-		"kubevirt.io/api/core/v1.Flags":                                                                                                    schema_kubevirtio_api_core_v1_Flags(ref),
-		"kubevirt.io/api/core/v1.FlavorMatcher":                                                                                            schema_kubevirtio_api_core_v1_FlavorMatcher(ref),
-		"kubevirt.io/api/core/v1.FreezeUnfreezeTimeout":                                                                                    schema_kubevirtio_api_core_v1_FreezeUnfreezeTimeout(ref),
-		"kubevirt.io/api/core/v1.GPU":                                                                                                      schema_kubevirtio_api_core_v1_GPU(ref),
-		"kubevirt.io/api/core/v1.GenerationStatus":                                                                                         schema_kubevirtio_api_core_v1_GenerationStatus(ref),
-		"kubevirt.io/api/core/v1.GuestAgentCommandInfo":                                                                                    schema_kubevirtio_api_core_v1_GuestAgentCommandInfo(ref),
-		"kubevirt.io/api/core/v1.GuestAgentPing":                                                                                           schema_kubevirtio_api_core_v1_GuestAgentPing(ref),
-		"kubevirt.io/api/core/v1.HPETTimer":                                                                                                schema_kubevirtio_api_core_v1_HPETTimer(ref),
-		"kubevirt.io/api/core/v1.Handler":                                                                                                  schema_kubevirtio_api_core_v1_Handler(ref),
-		"kubevirt.io/api/core/v1.HostDevice":                                                                                               schema_kubevirtio_api_core_v1_HostDevice(ref),
-		"kubevirt.io/api/core/v1.HostDisk":                                                                                                 schema_kubevirtio_api_core_v1_HostDisk(ref),
-		"kubevirt.io/api/core/v1.HotplugVolumeSource":                                                                                      schema_kubevirtio_api_core_v1_HotplugVolumeSource(ref),
-		"kubevirt.io/api/core/v1.HotplugVolumeStatus":                                                                                      schema_kubevirtio_api_core_v1_HotplugVolumeStatus(ref),
-		"kubevirt.io/api/core/v1.Hugepages":                                                                                                schema_kubevirtio_api_core_v1_Hugepages(ref),
-		"kubevirt.io/api/core/v1.HypervTimer":                                                                                              schema_kubevirtio_api_core_v1_HypervTimer(ref),
-		"kubevirt.io/api/core/v1.I6300ESBWatchdog":                                                                                         schema_kubevirtio_api_core_v1_I6300ESBWatchdog(ref),
-		"kubevirt.io/api/core/v1.Input":                                                                                                    schema_kubevirtio_api_core_v1_Input(ref),
-		"kubevirt.io/api/core/v1.Interface":                                                                                                schema_kubevirtio_api_core_v1_Interface(ref),
-		"kubevirt.io/api/core/v1.InterfaceBindingMethod":                                                                                   schema_kubevirtio_api_core_v1_InterfaceBindingMethod(ref),
-		"kubevirt.io/api/core/v1.InterfaceBridge":                                                                                          schema_kubevirtio_api_core_v1_InterfaceBridge(ref),
-		"kubevirt.io/api/core/v1.InterfaceMacvtap":                                                                                         schema_kubevirtio_api_core_v1_InterfaceMacvtap(ref),
-		"kubevirt.io/api/core/v1.InterfaceMasquerade":                                                                                      schema_kubevirtio_api_core_v1_InterfaceMasquerade(ref),
-		"kubevirt.io/api/core/v1.InterfaceSRIOV":                                                                                           schema_kubevirtio_api_core_v1_InterfaceSRIOV(ref),
-		"kubevirt.io/api/core/v1.InterfaceSlirp":                                                                                           schema_kubevirtio_api_core_v1_InterfaceSlirp(ref),
-		"kubevirt.io/api/core/v1.KVMTimer":                                                                                                 schema_kubevirtio_api_core_v1_KVMTimer(ref),
-		"kubevirt.io/api/core/v1.KernelBoot":                                                                                               schema_kubevirtio_api_core_v1_KernelBoot(ref),
-		"kubevirt.io/api/core/v1.KernelBootContainer":                                                                                      schema_kubevirtio_api_core_v1_KernelBootContainer(ref),
-		"kubevirt.io/api/core/v1.KubeVirt":                                                                                                 schema_kubevirtio_api_core_v1_KubeVirt(ref),
-		"kubevirt.io/api/core/v1.KubeVirtCertificateRotateStrategy":                                                                        schema_kubevirtio_api_core_v1_KubeVirtCertificateRotateStrategy(ref),
-		"kubevirt.io/api/core/v1.KubeVirtCondition":                                                                                        schema_kubevirtio_api_core_v1_KubeVirtCondition(ref),
-		"kubevirt.io/api/core/v1.KubeVirtConfiguration":                                                                                    schema_kubevirtio_api_core_v1_KubeVirtConfiguration(ref),
-		"kubevirt.io/api/core/v1.KubeVirtList":                                                                                             schema_kubevirtio_api_core_v1_KubeVirtList(ref),
-		"kubevirt.io/api/core/v1.KubeVirtSelfSignConfiguration":                                                                            schema_kubevirtio_api_core_v1_KubeVirtSelfSignConfiguration(ref),
-		"kubevirt.io/api/core/v1.KubeVirtSpec":                                                                                             schema_kubevirtio_api_core_v1_KubeVirtSpec(ref),
-		"kubevirt.io/api/core/v1.KubeVirtStatus":                                                                                           schema_kubevirtio_api_core_v1_KubeVirtStatus(ref),
-		"kubevirt.io/api/core/v1.KubeVirtWorkloadUpdateStrategy":                                                                           schema_kubevirtio_api_core_v1_KubeVirtWorkloadUpdateStrategy(ref),
-		"kubevirt.io/api/core/v1.LaunchSecurity":                                                                                           schema_kubevirtio_api_core_v1_LaunchSecurity(ref),
-		"kubevirt.io/api/core/v1.LogVerbosity":                                                                                             schema_kubevirtio_api_core_v1_LogVerbosity(ref),
-		"kubevirt.io/api/core/v1.LunTarget":                                                                                                schema_kubevirtio_api_core_v1_LunTarget(ref),
-		"kubevirt.io/api/core/v1.Machine":                                                                                                  schema_kubevirtio_api_core_v1_Machine(ref),
-		"kubevirt.io/api/core/v1.MediatedDevicesConfiguration":                                                                             schema_kubevirtio_api_core_v1_MediatedDevicesConfiguration(ref),
-		"kubevirt.io/api/core/v1.MediatedHostDevice":                                                                                       schema_kubevirtio_api_core_v1_MediatedHostDevice(ref),
-		"kubevirt.io/api/core/v1.Memory":                                                                                                   schema_kubevirtio_api_core_v1_Memory(ref),
-		"kubevirt.io/api/core/v1.MemoryDumpVolumeSource":                                                                                   schema_kubevirtio_api_core_v1_MemoryDumpVolumeSource(ref),
-		"kubevirt.io/api/core/v1.MigrateOptions":                                                                                           schema_kubevirtio_api_core_v1_MigrateOptions(ref),
-		"kubevirt.io/api/core/v1.MigrationConfiguration":                                                                                   schema_kubevirtio_api_core_v1_MigrationConfiguration(ref),
-		"kubevirt.io/api/core/v1.MultusNetwork":                                                                                            schema_kubevirtio_api_core_v1_MultusNetwork(ref),
-		"kubevirt.io/api/core/v1.NUMA":                                                                                                     schema_kubevirtio_api_core_v1_NUMA(ref),
-		"kubevirt.io/api/core/v1.NUMAGuestMappingPassthrough":                                                                              schema_kubevirtio_api_core_v1_NUMAGuestMappingPassthrough(ref),
-		"kubevirt.io/api/core/v1.Network":                                                                                                  schema_kubevirtio_api_core_v1_Network(ref),
-		"kubevirt.io/api/core/v1.NetworkConfiguration":                                                                                     schema_kubevirtio_api_core_v1_NetworkConfiguration(ref),
-		"kubevirt.io/api/core/v1.NetworkSource":                                                                                            schema_kubevirtio_api_core_v1_NetworkSource(ref),
-		"kubevirt.io/api/core/v1.NodeMediatedDeviceTypesConfig":                                                                            schema_kubevirtio_api_core_v1_NodeMediatedDeviceTypesConfig(ref),
-		"kubevirt.io/api/core/v1.NodePlacement":                                                                                            schema_kubevirtio_api_core_v1_NodePlacement(ref),
-		"kubevirt.io/api/core/v1.PITTimer":                                                                                                 schema_kubevirtio_api_core_v1_PITTimer(ref),
-		"kubevirt.io/api/core/v1.PauseOptions":                                                                                             schema_kubevirtio_api_core_v1_PauseOptions(ref),
-		"kubevirt.io/api/core/v1.PciHostDevice":                                                                                            schema_kubevirtio_api_core_v1_PciHostDevice(ref),
-		"kubevirt.io/api/core/v1.PermittedHostDevices":                                                                                     schema_kubevirtio_api_core_v1_PermittedHostDevices(ref),
-		"kubevirt.io/api/core/v1.PersistentVolumeClaimInfo":                                                                                schema_kubevirtio_api_core_v1_PersistentVolumeClaimInfo(ref),
-		"kubevirt.io/api/core/v1.PersistentVolumeClaimVolumeSource":                                                                        schema_kubevirtio_api_core_v1_PersistentVolumeClaimVolumeSource(ref),
-		"kubevirt.io/api/core/v1.PodNetwork":                                                                                               schema_kubevirtio_api_core_v1_PodNetwork(ref),
-		"kubevirt.io/api/core/v1.Port":                                                                                                     schema_kubevirtio_api_core_v1_Port(ref),
-		"kubevirt.io/api/core/v1.PreferenceMatcher":                                                                                        schema_kubevirtio_api_core_v1_PreferenceMatcher(ref),
-		"kubevirt.io/api/core/v1.Probe":                                                                                                    schema_kubevirtio_api_core_v1_Probe(ref),
-		"kubevirt.io/api/core/v1.ProfilerResult":                                                                                           schema_kubevirtio_api_core_v1_ProfilerResult(ref),
-		"kubevirt.io/api/core/v1.QemuGuestAgentSSHPublicKeyAccessCredentialPropagation":                                                    schema_kubevirtio_api_core_v1_QemuGuestAgentSSHPublicKeyAccessCredentialPropagation(ref),
-		"kubevirt.io/api/core/v1.QemuGuestAgentUserPasswordAccessCredentialPropagation":                                                    schema_kubevirtio_api_core_v1_QemuGuestAgentUserPasswordAccessCredentialPropagation(ref),
-		"kubevirt.io/api/core/v1.RESTClientConfiguration":                                                                                  schema_kubevirtio_api_core_v1_RESTClientConfiguration(ref),
-		"kubevirt.io/api/core/v1.RTCTimer":                                                                                                 schema_kubevirtio_api_core_v1_RTCTimer(ref),
-		"kubevirt.io/api/core/v1.RateLimiter":                                                                                              schema_kubevirtio_api_core_v1_RateLimiter(ref),
-		"kubevirt.io/api/core/v1.Realtime":                                                                                                 schema_kubevirtio_api_core_v1_Realtime(ref),
-		"kubevirt.io/api/core/v1.ReloadableComponentConfiguration":                                                                         schema_kubevirtio_api_core_v1_ReloadableComponentConfiguration(ref),
-		"kubevirt.io/api/core/v1.RemoveVolumeOptions":                                                                                      schema_kubevirtio_api_core_v1_RemoveVolumeOptions(ref),
-		"kubevirt.io/api/core/v1.ResourceRequirements":                                                                                     schema_kubevirtio_api_core_v1_ResourceRequirements(ref),
-		"kubevirt.io/api/core/v1.RestartOptions":                                                                                           schema_kubevirtio_api_core_v1_RestartOptions(ref),
-		"kubevirt.io/api/core/v1.Rng":                                                                                                      schema_kubevirtio_api_core_v1_Rng(ref),
-		"kubevirt.io/api/core/v1.SEV":                                                                                                      schema_kubevirtio_api_core_v1_SEV(ref),
-		"kubevirt.io/api/core/v1.SMBiosConfiguration":                                                                                      schema_kubevirtio_api_core_v1_SMBiosConfiguration(ref),
-		"kubevirt.io/api/core/v1.SSHPublicKeyAccessCredential":                                                                             schema_kubevirtio_api_core_v1_SSHPublicKeyAccessCredential(ref),
-		"kubevirt.io/api/core/v1.SSHPublicKeyAccessCredentialPropagationMethod":                                                            schema_kubevirtio_api_core_v1_SSHPublicKeyAccessCredentialPropagationMethod(ref),
-		"kubevirt.io/api/core/v1.SSHPublicKeyAccessCredentialSource":                                                                       schema_kubevirtio_api_core_v1_SSHPublicKeyAccessCredentialSource(ref),
-		"kubevirt.io/api/core/v1.SecretVolumeSource":                                                                                       schema_kubevirtio_api_core_v1_SecretVolumeSource(ref),
-		"kubevirt.io/api/core/v1.ServiceAccountVolumeSource":                                                                               schema_kubevirtio_api_core_v1_ServiceAccountVolumeSource(ref),
-		"kubevirt.io/api/core/v1.SoundDevice":                                                                                              schema_kubevirtio_api_core_v1_SoundDevice(ref),
-		"kubevirt.io/api/core/v1.StartOptions":                                                                                             schema_kubevirtio_api_core_v1_StartOptions(ref),
-		"kubevirt.io/api/core/v1.StopOptions":                                                                                              schema_kubevirtio_api_core_v1_StopOptions(ref),
-		"kubevirt.io/api/core/v1.SyNICTimer":                                                                                               schema_kubevirtio_api_core_v1_SyNICTimer(ref),
-		"kubevirt.io/api/core/v1.SysprepSource":                                                                                            schema_kubevirtio_api_core_v1_SysprepSource(ref),
-		"kubevirt.io/api/core/v1.TPMDevice":                                                                                                schema_kubevirtio_api_core_v1_TPMDevice(ref),
-		"kubevirt.io/api/core/v1.Timer":                                                                                                    schema_kubevirtio_api_core_v1_Timer(ref),
-		"kubevirt.io/api/core/v1.TokenBucketRateLimiter":                                                                                   schema_kubevirtio_api_core_v1_TokenBucketRateLimiter(ref),
-		"kubevirt.io/api/core/v1.TopologyHints":                                                                                            schema_kubevirtio_api_core_v1_TopologyHints(ref),
-		"kubevirt.io/api/core/v1.UnpauseOptions":                                                                                           schema_kubevirtio_api_core_v1_UnpauseOptions(ref),
-		"kubevirt.io/api/core/v1.UserPasswordAccessCredential":                                                                             schema_kubevirtio_api_core_v1_UserPasswordAccessCredential(ref),
-		"kubevirt.io/api/core/v1.UserPasswordAccessCredentialPropagationMethod":                                                            schema_kubevirtio_api_core_v1_UserPasswordAccessCredentialPropagationMethod(ref),
-		"kubevirt.io/api/core/v1.UserPasswordAccessCredentialSource":                                                                       schema_kubevirtio_api_core_v1_UserPasswordAccessCredentialSource(ref),
-		"kubevirt.io/api/core/v1.VGPUDisplayOptions":                                                                                       schema_kubevirtio_api_core_v1_VGPUDisplayOptions(ref),
-		"kubevirt.io/api/core/v1.VGPUOptions":                                                                                              schema_kubevirtio_api_core_v1_VGPUOptions(ref),
-		"kubevirt.io/api/core/v1.VMISelector":                                                                                              schema_kubevirtio_api_core_v1_VMISelector(ref),
-		"kubevirt.io/api/core/v1.VirtualMachine":                                                                                           schema_kubevirtio_api_core_v1_VirtualMachine(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineCondition":                                                                                  schema_kubevirtio_api_core_v1_VirtualMachineCondition(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstance":                                                                                   schema_kubevirtio_api_core_v1_VirtualMachineInstance(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceCondition":                                                                          schema_kubevirtio_api_core_v1_VirtualMachineInstanceCondition(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceFileSystem":                                                                         schema_kubevirtio_api_core_v1_VirtualMachineInstanceFileSystem(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceFileSystemInfo":                                                                     schema_kubevirtio_api_core_v1_VirtualMachineInstanceFileSystemInfo(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceFileSystemList":                                                                     schema_kubevirtio_api_core_v1_VirtualMachineInstanceFileSystemList(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceGuestAgentInfo":                                                                     schema_kubevirtio_api_core_v1_VirtualMachineInstanceGuestAgentInfo(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceGuestOSInfo":                                                                        schema_kubevirtio_api_core_v1_VirtualMachineInstanceGuestOSInfo(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceGuestOSUser":                                                                        schema_kubevirtio_api_core_v1_VirtualMachineInstanceGuestOSUser(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceGuestOSUserList":                                                                    schema_kubevirtio_api_core_v1_VirtualMachineInstanceGuestOSUserList(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceList":                                                                               schema_kubevirtio_api_core_v1_VirtualMachineInstanceList(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigration":                                                                          schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigration(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationCondition":                                                                 schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationCondition(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationList":                                                                      schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationList(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationSpec":                                                                      schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationSpec(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationState":                                                                     schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationState(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationStatus":                                                                    schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationStatus(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceNetworkInterface":                                                                   schema_kubevirtio_api_core_v1_VirtualMachineInstanceNetworkInterface(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstancePhaseTransitionTimestamp":                                                           schema_kubevirtio_api_core_v1_VirtualMachineInstancePhaseTransitionTimestamp(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstancePreset":                                                                             schema_kubevirtio_api_core_v1_VirtualMachineInstancePreset(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstancePresetList":                                                                         schema_kubevirtio_api_core_v1_VirtualMachineInstancePresetList(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstancePresetSpec":                                                                         schema_kubevirtio_api_core_v1_VirtualMachineInstancePresetSpec(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceReplicaSet":                                                                         schema_kubevirtio_api_core_v1_VirtualMachineInstanceReplicaSet(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceReplicaSetCondition":                                                                schema_kubevirtio_api_core_v1_VirtualMachineInstanceReplicaSetCondition(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceReplicaSetList":                                                                     schema_kubevirtio_api_core_v1_VirtualMachineInstanceReplicaSetList(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceReplicaSetSpec":                                                                     schema_kubevirtio_api_core_v1_VirtualMachineInstanceReplicaSetSpec(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceReplicaSetStatus":                                                                   schema_kubevirtio_api_core_v1_VirtualMachineInstanceReplicaSetStatus(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceSpec":                                                                               schema_kubevirtio_api_core_v1_VirtualMachineInstanceSpec(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceStatus":                                                                             schema_kubevirtio_api_core_v1_VirtualMachineInstanceStatus(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineInstanceTemplateSpec":                                                                       schema_kubevirtio_api_core_v1_VirtualMachineInstanceTemplateSpec(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineList":                                                                                       schema_kubevirtio_api_core_v1_VirtualMachineList(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineMemoryDumpRequest":                                                                          schema_kubevirtio_api_core_v1_VirtualMachineMemoryDumpRequest(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineSpec":                                                                                       schema_kubevirtio_api_core_v1_VirtualMachineSpec(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineStartFailure":                                                                               schema_kubevirtio_api_core_v1_VirtualMachineStartFailure(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineStateChangeRequest":                                                                         schema_kubevirtio_api_core_v1_VirtualMachineStateChangeRequest(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineStatus":                                                                                     schema_kubevirtio_api_core_v1_VirtualMachineStatus(ref),
-		"kubevirt.io/api/core/v1.VirtualMachineVolumeRequest":                                                                              schema_kubevirtio_api_core_v1_VirtualMachineVolumeRequest(ref),
-		"kubevirt.io/api/core/v1.Volume":                                                                                                   schema_kubevirtio_api_core_v1_Volume(ref),
-		"kubevirt.io/api/core/v1.VolumeSnapshotStatus":                                                                                     schema_kubevirtio_api_core_v1_VolumeSnapshotStatus(ref),
-		"kubevirt.io/api/core/v1.VolumeSource":                                                                                             schema_kubevirtio_api_core_v1_VolumeSource(ref),
-		"kubevirt.io/api/core/v1.VolumeStatus":                                                                                             schema_kubevirtio_api_core_v1_VolumeStatus(ref),
-		"kubevirt.io/api/core/v1.Watchdog":                                                                                                 schema_kubevirtio_api_core_v1_Watchdog(ref),
-		"kubevirt.io/api/core/v1.WatchdogDevice":                                                                                           schema_kubevirtio_api_core_v1_WatchdogDevice(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDI":                                                            schema_pkg_apis_core_v1beta1_CDI(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig":                                                  schema_pkg_apis_core_v1beta1_CDICertConfig(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfig":                                                      schema_pkg_apis_core_v1beta1_CDIConfig(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigList":                                                  schema_pkg_apis_core_v1beta1_CDIConfigList(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigSpec":                                                  schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigStatus":                                                schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIList":                                                        schema_pkg_apis_core_v1beta1_CDIList(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDISpec":                                                        schema_pkg_apis_core_v1beta1_CDISpec(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIStatus":                                                      schema_pkg_apis_core_v1beta1_CDIStatus(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CertConfig":                                                     schema_pkg_apis_core_v1beta1_CertConfig(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ClaimPropertySet":                                               schema_pkg_apis_core_v1beta1_ClaimPropertySet(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ConditionState":                                                 schema_pkg_apis_core_v1beta1_ConditionState(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCron":                                                 schema_pkg_apis_core_v1beta1_DataImportCron(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronCondition":                                        schema_pkg_apis_core_v1beta1_DataImportCronCondition(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronList":                                             schema_pkg_apis_core_v1beta1_DataImportCronList(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronSpec":                                             schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronStatus":                                           schema_pkg_apis_core_v1beta1_DataImportCronStatus(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSource":                                                     schema_pkg_apis_core_v1beta1_DataSource(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceCondition":                                            schema_pkg_apis_core_v1beta1_DataSourceCondition(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceList":                                                 schema_pkg_apis_core_v1beta1_DataSourceList(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceSource":                                               schema_pkg_apis_core_v1beta1_DataSourceSource(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceSpec":                                                 schema_pkg_apis_core_v1beta1_DataSourceSpec(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceStatus":                                               schema_pkg_apis_core_v1beta1_DataSourceStatus(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolume":                                                     schema_pkg_apis_core_v1beta1_DataVolume(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeBlankImage":                                           schema_pkg_apis_core_v1beta1_DataVolumeBlankImage(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeCheckpoint":                                           schema_pkg_apis_core_v1beta1_DataVolumeCheckpoint(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeCondition":                                            schema_pkg_apis_core_v1beta1_DataVolumeCondition(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeList":                                                 schema_pkg_apis_core_v1beta1_DataVolumeList(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSource":                                               schema_pkg_apis_core_v1beta1_DataVolumeSource(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceHTTP":                                           schema_pkg_apis_core_v1beta1_DataVolumeSourceHTTP(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceImageIO":                                        schema_pkg_apis_core_v1beta1_DataVolumeSourceImageIO(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourcePVC":                                            schema_pkg_apis_core_v1beta1_DataVolumeSourcePVC(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceRef":                                            schema_pkg_apis_core_v1beta1_DataVolumeSourceRef(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceRegistry":                                       schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceS3":                                             schema_pkg_apis_core_v1beta1_DataVolumeSourceS3(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceUpload":                                         schema_pkg_apis_core_v1beta1_DataVolumeSourceUpload(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceVDDK":                                           schema_pkg_apis_core_v1beta1_DataVolumeSourceVDDK(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSpec":                                                 schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeStatus":                                               schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.FilesystemOverhead":                                             schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy":                                                    schema_pkg_apis_core_v1beta1_ImportProxy(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportStatus":                                                   schema_pkg_apis_core_v1beta1_ImportStatus(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransfer":                                                 schema_pkg_apis_core_v1beta1_ObjectTransfer(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferCondition":                                        schema_pkg_apis_core_v1beta1_ObjectTransferCondition(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferList":                                             schema_pkg_apis_core_v1beta1_ObjectTransferList(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferSpec":                                             schema_pkg_apis_core_v1beta1_ObjectTransferSpec(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferStatus":                                           schema_pkg_apis_core_v1beta1_ObjectTransferStatus(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfile":                                                 schema_pkg_apis_core_v1beta1_StorageProfile(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileList":                                             schema_pkg_apis_core_v1beta1_StorageProfileList(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileSpec":                                             schema_pkg_apis_core_v1beta1_StorageProfileSpec(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileStatus":                                           schema_pkg_apis_core_v1beta1_StorageProfileStatus(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageSpec":                                                    schema_pkg_apis_core_v1beta1_StorageSpec(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.TransferSource":                                                 schema_pkg_apis_core_v1beta1_TransferSource(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.TransferTarget":                                                 schema_pkg_apis_core_v1beta1_TransferTarget(ref),
+		"k8s.io/api/core/v1.Binding":                                                                 schema_k8sio_api_core_v1_Binding(ref),
+		"k8s.io/api/core/v1.CSIPersistentVolumeSource":                                               schema_k8sio_api_core_v1_CSIPersistentVolumeSource(ref),
+		"k8s.io/api/core/v1.CSIVolumeSource":                                                         schema_k8sio_api_core_v1_CSIVolumeSource(ref),
+		"k8s.io/api/core/v1.Capabilities":                                                            schema_k8sio_api_core_v1_Capabilities(ref),
+		"k8s.io/api/core/v1.CephFSPersistentVolumeSource":                                            schema_k8sio_api_core_v1_CephFSPersistentVolumeSource(ref),
+		"k8s.io/api/core/v1.CephFSVolumeSource":                                                      schema_k8sio_api_core_v1_CephFSVolumeSource(ref),
+		"k8s.io/api/core/v1.CinderPersistentVolumeSource":                                            schema_k8sio_api_core_v1_CinderPersistentVolumeSource(ref),
+		"k8s.io/api/core/v1.CinderVolumeSource":                                                      schema_k8sio_api_core_v1_CinderVolumeSource(ref),
+		"k8s.io/api/core/v1.ClientIPConfig":                                                          schema_k8sio_api_core_v1_ClientIPConfig(ref),
+		"k8s.io/api/core/v1.ComponentCondition":                                                      schema_k8sio_api_core_v1_ComponentCondition(ref),
+		"k8s.io/api/core/v1.ComponentStatus":                                                         schema_k8sio_api_core_v1_ComponentStatus(ref),
+		"k8s.io/api/core/v1.ComponentStatusList":                                                     schema_k8sio_api_core_v1_ComponentStatusList(ref),
+		"k8s.io/api/core/v1.ConfigMap":                                                               schema_k8sio_api_core_v1_ConfigMap(ref),
+		"k8s.io/api/core/v1.ConfigMapEnvSource":                                                      schema_k8sio_api_core_v1_ConfigMapEnvSource(ref),
+		"k8s.io/api/core/v1.ConfigMapKeySelector":                                                    schema_k8sio_api_core_v1_ConfigMapKeySelector(ref),
+		"k8s.io/api/core/v1.ConfigMapList":                                                           schema_k8sio_api_core_v1_ConfigMapList(ref),
+		"k8s.io/api/core/v1.ConfigMapNodeConfigSource":                                               schema_k8sio_api_core_v1_ConfigMapNodeConfigSource(ref),
+		"k8s.io/api/core/v1.ConfigMapProjection":                                                     schema_k8sio_api_core_v1_ConfigMapProjection(ref),
+		"k8s.io/api/core/v1.ConfigMapVolumeSource":                                                   schema_k8sio_api_core_v1_ConfigMapVolumeSource(ref),
+		"k8s.io/api/core/v1.Container":                                                               schema_k8sio_api_core_v1_Container(ref),
+		"k8s.io/api/core/v1.ContainerImage":                                                          schema_k8sio_api_core_v1_ContainerImage(ref),
+		"k8s.io/api/core/v1.ContainerPort":                                                           schema_k8sio_api_core_v1_ContainerPort(ref),
+		"k8s.io/api/core/v1.ContainerState":                                                          schema_k8sio_api_core_v1_ContainerState(ref),
+		"k8s.io/api/core/v1.ContainerStateRunning":                                                   schema_k8sio_api_core_v1_ContainerStateRunning(ref),
+		"k8s.io/api/core/v1.ContainerStateTerminated":                                                schema_k8sio_api_core_v1_ContainerStateTerminated(ref),
+		"k8s.io/api/core/v1.ContainerStateWaiting":                                                   schema_k8sio_api_core_v1_ContainerStateWaiting(ref),
+		"k8s.io/api/core/v1.ContainerStatus":                                                         schema_k8sio_api_core_v1_ContainerStatus(ref),
+		"k8s.io/api/core/v1.DaemonEndpoint":                                                          schema_k8sio_api_core_v1_DaemonEndpoint(ref),
+		"k8s.io/api/core/v1.DownwardAPIProjection":                                                   schema_k8sio_api_core_v1_DownwardAPIProjection(ref),
+		"k8s.io/api/core/v1.DownwardAPIVolumeFile":                                                   schema_k8sio_api_core_v1_DownwardAPIVolumeFile(ref),
+		"k8s.io/api/core/v1.DownwardAPIVolumeSource":                                                 schema_k8sio_api_core_v1_DownwardAPIVolumeSource(ref),
+		"k8s.io/api/core/v1.EmptyDirVolumeSource":                                                    schema_k8sio_api_core_v1_EmptyDirVolumeSource(ref),
+		"k8s.io/api/core/v1.EndpointAddress":                                                         schema_k8sio_api_core_v1_EndpointAddress(ref),
+		"k8s.io/api/core/v1.EndpointPort":                                                            schema_k8sio_api_core_v1_EndpointPort(ref),
+		"k8s.io/api/core/v1.EndpointSubset":                                                          schema_k8sio_api_core_v1_EndpointSubset(ref),
+		"k8s.io/api/core/v1.Endpoints":                                                               schema_k8sio_api_core_v1_Endpoints(ref),
+		"k8s.io/api/core/v1.EndpointsList":                                                           schema_k8sio_api_core_v1_EndpointsList(ref),
+		"k8s.io/api/core/v1.EnvFromSource":                                                           schema_k8sio_api_core_v1_EnvFromSource(ref),
+		"k8s.io/api/core/v1.EnvVar":                                                                  schema_k8sio_api_core_v1_EnvVar(ref),
+		"k8s.io/api/core/v1.EnvVarSource":                                                            schema_k8sio_api_core_v1_EnvVarSource(ref),
+		"k8s.io/api/core/v1.EphemeralContainer":                                                      schema_k8sio_api_core_v1_EphemeralContainer(ref),
+		"k8s.io/api/core/v1.EphemeralContainerCommon":                                                schema_k8sio_api_core_v1_EphemeralContainerCommon(ref),
+		"k8s.io/api/core/v1.EphemeralVolumeSource":                                                   schema_k8sio_api_core_v1_EphemeralVolumeSource(ref),
+		"k8s.io/api/core/v1.Event":                                                                   schema_k8sio_api_core_v1_Event(ref),
+		"k8s.io/api/core/v1.EventList":                                                               schema_k8sio_api_core_v1_EventList(ref),
+		"k8s.io/api/core/v1.EventSeries":                                                             schema_k8sio_api_core_v1_EventSeries(ref),
+		"k8s.io/api/core/v1.EventSource":                                                             schema_k8sio_api_core_v1_EventSource(ref),
+		"k8s.io/api/core/v1.ExecAction":                                                              schema_k8sio_api_core_v1_ExecAction(ref),
+		"k8s.io/api/core/v1.FCVolumeSource":                                                          schema_k8sio_api_core_v1_FCVolumeSource(ref),
+		"k8s.io/api/core/v1.FlexPersistentVolumeSource":                                              schema_k8sio_api_core_v1_FlexPersistentVolumeSource(ref),
+		"k8s.io/api/core/v1.FlexVolumeSource":                                                        schema_k8sio_api_core_v1_FlexVolumeSource(ref),
+		"k8s.io/api/core/v1.FlockerVolumeSource":                                                     schema_k8sio_api_core_v1_FlockerVolumeSource(ref),
+		"k8s.io/api/core/v1.GCEPersistentDiskVolumeSource":                                           schema_k8sio_api_core_v1_GCEPersistentDiskVolumeSource(ref),
+		"k8s.io/api/core/v1.GRPCAction":                                                              schema_k8sio_api_core_v1_GRPCAction(ref),
+		"k8s.io/api/core/v1.GitRepoVolumeSource":                                                     schema_k8sio_api_core_v1_GitRepoVolumeSource(ref),
+		"k8s.io/api/core/v1.GlusterfsPersistentVolumeSource":                                         schema_k8sio_api_core_v1_GlusterfsPersistentVolumeSource(ref),
+		"k8s.io/api/core/v1.GlusterfsVolumeSource":                                                   schema_k8sio_api_core_v1_GlusterfsVolumeSource(ref),
+		"k8s.io/api/core/v1.HTTPGetAction":                                                           schema_k8sio_api_core_v1_HTTPGetAction(ref),
+		"k8s.io/api/core/v1.HTTPHeader":                                                              schema_k8sio_api_core_v1_HTTPHeader(ref),
+		"k8s.io/api/core/v1.HostAlias":                                                               schema_k8sio_api_core_v1_HostAlias(ref),
+		"k8s.io/api/core/v1.HostPathVolumeSource":                                                    schema_k8sio_api_core_v1_HostPathVolumeSource(ref),
+		"k8s.io/api/core/v1.ISCSIPersistentVolumeSource":                                             schema_k8sio_api_core_v1_ISCSIPersistentVolumeSource(ref),
+		"k8s.io/api/core/v1.ISCSIVolumeSource":                                                       schema_k8sio_api_core_v1_ISCSIVolumeSource(ref),
+		"k8s.io/api/core/v1.KeyToPath":                                                               schema_k8sio_api_core_v1_KeyToPath(ref),
+		"k8s.io/api/core/v1.Lifecycle":                                                               schema_k8sio_api_core_v1_Lifecycle(ref),
+		"k8s.io/api/core/v1.LifecycleHandler":                                                        schema_k8sio_api_core_v1_LifecycleHandler(ref),
+		"k8s.io/api/core/v1.LimitRange":                                                              schema_k8sio_api_core_v1_LimitRange(ref),
+		"k8s.io/api/core/v1.LimitRangeItem":                                                          schema_k8sio_api_core_v1_LimitRangeItem(ref),
+		"k8s.io/api/core/v1.LimitRangeList":                                                          schema_k8sio_api_core_v1_LimitRangeList(ref),
+		"k8s.io/api/core/v1.LimitRangeSpec":                                                          schema_k8sio_api_core_v1_LimitRangeSpec(ref),
+		"k8s.io/api/core/v1.List":                                                                    schema_k8sio_api_core_v1_List(ref),
+		"k8s.io/api/core/v1.LoadBalancerIngress":                                                     schema_k8sio_api_core_v1_LoadBalancerIngress(ref),
+		"k8s.io/api/core/v1.LoadBalancerStatus":                                                      schema_k8sio_api_core_v1_LoadBalancerStatus(ref),
+		"k8s.io/api/core/v1.LocalObjectReference":                                                    schema_k8sio_api_core_v1_LocalObjectReference(ref),
+		"k8s.io/api/core/v1.LocalVolumeSource":                                                       schema_k8sio_api_core_v1_LocalVolumeSource(ref),
+		"k8s.io/api/core/v1.NFSVolumeSource":                                                         schema_k8sio_api_core_v1_NFSVolumeSource(ref),
+		"k8s.io/api/core/v1.Namespace":                                                               schema_k8sio_api_core_v1_Namespace(ref),
+		"k8s.io/api/core/v1.NamespaceCondition":                                                      schema_k8sio_api_core_v1_NamespaceCondition(ref),
+		"k8s.io/api/core/v1.NamespaceList":                                                           schema_k8sio_api_core_v1_NamespaceList(ref),
+		"k8s.io/api/core/v1.NamespaceSpec":                                                           schema_k8sio_api_core_v1_NamespaceSpec(ref),
+		"k8s.io/api/core/v1.NamespaceStatus":                                                         schema_k8sio_api_core_v1_NamespaceStatus(ref),
+		"k8s.io/api/core/v1.Node":                                                                    schema_k8sio_api_core_v1_Node(ref),
+		"k8s.io/api/core/v1.NodeAddress":                                                             schema_k8sio_api_core_v1_NodeAddress(ref),
+		"k8s.io/api/core/v1.NodeAffinity":                                                            schema_k8sio_api_core_v1_NodeAffinity(ref),
+		"k8s.io/api/core/v1.NodeCondition":                                                           schema_k8sio_api_core_v1_NodeCondition(ref),
+		"k8s.io/api/core/v1.NodeConfigSource":                                                        schema_k8sio_api_core_v1_NodeConfigSource(ref),
+		"k8s.io/api/core/v1.NodeConfigStatus":                                                        schema_k8sio_api_core_v1_NodeConfigStatus(ref),
+		"k8s.io/api/core/v1.NodeDaemonEndpoints":                                                     schema_k8sio_api_core_v1_NodeDaemonEndpoints(ref),
+		"k8s.io/api/core/v1.NodeList":                                                                schema_k8sio_api_core_v1_NodeList(ref),
+		"k8s.io/api/core/v1.NodeProxyOptions":                                                        schema_k8sio_api_core_v1_NodeProxyOptions(ref),
+		"k8s.io/api/core/v1.NodeResources":                                                           schema_k8sio_api_core_v1_NodeResources(ref),
+		"k8s.io/api/core/v1.NodeSelector":                                                            schema_k8sio_api_core_v1_NodeSelector(ref),
+		"k8s.io/api/core/v1.NodeSelectorRequirement":                                                 schema_k8sio_api_core_v1_NodeSelectorRequirement(ref),
+		"k8s.io/api/core/v1.NodeSelectorTerm":                                                        schema_k8sio_api_core_v1_NodeSelectorTerm(ref),
+		"k8s.io/api/core/v1.NodeSpec":                                                                schema_k8sio_api_core_v1_NodeSpec(ref),
+		"k8s.io/api/core/v1.NodeStatus":                                                              schema_k8sio_api_core_v1_NodeStatus(ref),
+		"k8s.io/api/core/v1.NodeSystemInfo":                                                          schema_k8sio_api_core_v1_NodeSystemInfo(ref),
+		"k8s.io/api/core/v1.ObjectFieldSelector":                                                     schema_k8sio_api_core_v1_ObjectFieldSelector(ref),
+		"k8s.io/api/core/v1.ObjectReference":                                                         schema_k8sio_api_core_v1_ObjectReference(ref),
+		"k8s.io/api/core/v1.PersistentVolume":                                                        schema_k8sio_api_core_v1_PersistentVolume(ref),
+		"k8s.io/api/core/v1.PersistentVolumeClaim":                                                   schema_k8sio_api_core_v1_PersistentVolumeClaim(ref),
+		"k8s.io/api/core/v1.PersistentVolumeClaimCondition":                                          schema_k8sio_api_core_v1_PersistentVolumeClaimCondition(ref),
+		"k8s.io/api/core/v1.PersistentVolumeClaimList":                                               schema_k8sio_api_core_v1_PersistentVolumeClaimList(ref),
+		"k8s.io/api/core/v1.PersistentVolumeClaimSpec":                                               schema_k8sio_api_core_v1_PersistentVolumeClaimSpec(ref),
+		"k8s.io/api/core/v1.PersistentVolumeClaimStatus":                                             schema_k8sio_api_core_v1_PersistentVolumeClaimStatus(ref),
+		"k8s.io/api/core/v1.PersistentVolumeClaimTemplate":                                           schema_k8sio_api_core_v1_PersistentVolumeClaimTemplate(ref),
+		"k8s.io/api/core/v1.PersistentVolumeClaimVolumeSource":                                       schema_k8sio_api_core_v1_PersistentVolumeClaimVolumeSource(ref),
+		"k8s.io/api/core/v1.PersistentVolumeList":                                                    schema_k8sio_api_core_v1_PersistentVolumeList(ref),
+		"k8s.io/api/core/v1.PersistentVolumeSource":                                                  schema_k8sio_api_core_v1_PersistentVolumeSource(ref),
+		"k8s.io/api/core/v1.PersistentVolumeSpec":                                                    schema_k8sio_api_core_v1_PersistentVolumeSpec(ref),
+		"k8s.io/api/core/v1.PersistentVolumeStatus":                                                  schema_k8sio_api_core_v1_PersistentVolumeStatus(ref),
+		"k8s.io/api/core/v1.PhotonPersistentDiskVolumeSource":                                        schema_k8sio_api_core_v1_PhotonPersistentDiskVolumeSource(ref),
+		"k8s.io/api/core/v1.Pod":                                                                     schema_k8sio_api_core_v1_Pod(ref),
+		"k8s.io/api/core/v1.PodAffinity":                                                             schema_k8sio_api_core_v1_PodAffinity(ref),
+		"k8s.io/api/core/v1.PodAffinityTerm":                                                         schema_k8sio_api_core_v1_PodAffinityTerm(ref),
+		"k8s.io/api/core/v1.PodAntiAffinity":                                                         schema_k8sio_api_core_v1_PodAntiAffinity(ref),
+		"k8s.io/api/core/v1.PodAttachOptions":                                                        schema_k8sio_api_core_v1_PodAttachOptions(ref),
+		"k8s.io/api/core/v1.PodCondition":                                                            schema_k8sio_api_core_v1_PodCondition(ref),
+		"k8s.io/api/core/v1.PodDNSConfig":                                                            schema_k8sio_api_core_v1_PodDNSConfig(ref),
+		"k8s.io/api/core/v1.PodDNSConfigOption":                                                      schema_k8sio_api_core_v1_PodDNSConfigOption(ref),
+		"k8s.io/api/core/v1.PodExecOptions":                                                          schema_k8sio_api_core_v1_PodExecOptions(ref),
+		"k8s.io/api/core/v1.PodIP":                                                                   schema_k8sio_api_core_v1_PodIP(ref),
+		"k8s.io/api/core/v1.PodList":                                                                 schema_k8sio_api_core_v1_PodList(ref),
+		"k8s.io/api/core/v1.PodLogOptions":                                                           schema_k8sio_api_core_v1_PodLogOptions(ref),
+		"k8s.io/api/core/v1.PodOS":                                                                   schema_k8sio_api_core_v1_PodOS(ref),
+		"k8s.io/api/core/v1.PodPortForwardOptions":                                                   schema_k8sio_api_core_v1_PodPortForwardOptions(ref),
+		"k8s.io/api/core/v1.PodProxyOptions":                                                         schema_k8sio_api_core_v1_PodProxyOptions(ref),
+		"k8s.io/api/core/v1.PodReadinessGate":                                                        schema_k8sio_api_core_v1_PodReadinessGate(ref),
+		"k8s.io/api/core/v1.PodSecurityContext":                                                      schema_k8sio_api_core_v1_PodSecurityContext(ref),
+		"k8s.io/api/core/v1.PodSignature":                                                            schema_k8sio_api_core_v1_PodSignature(ref),
+		"k8s.io/api/core/v1.PodSpec":                                                                 schema_k8sio_api_core_v1_PodSpec(ref),
+		"k8s.io/api/core/v1.PodStatus":                                                               schema_k8sio_api_core_v1_PodStatus(ref),
+		"k8s.io/api/core/v1.PodStatusResult":                                                         schema_k8sio_api_core_v1_PodStatusResult(ref),
+		"k8s.io/api/core/v1.PodTemplate":                                                             schema_k8sio_api_core_v1_PodTemplate(ref),
+		"k8s.io/api/core/v1.PodTemplateList":                                                         schema_k8sio_api_core_v1_PodTemplateList(ref),
+		"k8s.io/api/core/v1.PodTemplateSpec":                                                         schema_k8sio_api_core_v1_PodTemplateSpec(ref),
+		"k8s.io/api/core/v1.PortStatus":                                                              schema_k8sio_api_core_v1_PortStatus(ref),
+		"k8s.io/api/core/v1.PortworxVolumeSource":                                                    schema_k8sio_api_core_v1_PortworxVolumeSource(ref),
+		"k8s.io/api/core/v1.PreferAvoidPodsEntry":                                                    schema_k8sio_api_core_v1_PreferAvoidPodsEntry(ref),
+		"k8s.io/api/core/v1.PreferredSchedulingTerm":                                                 schema_k8sio_api_core_v1_PreferredSchedulingTerm(ref),
+		"k8s.io/api/core/v1.Probe":                                                                   schema_k8sio_api_core_v1_Probe(ref),
+		"k8s.io/api/core/v1.ProbeHandler":                                                            schema_k8sio_api_core_v1_ProbeHandler(ref),
+		"k8s.io/api/core/v1.ProjectedVolumeSource":                                                   schema_k8sio_api_core_v1_ProjectedVolumeSource(ref),
+		"k8s.io/api/core/v1.QuobyteVolumeSource":                                                     schema_k8sio_api_core_v1_QuobyteVolumeSource(ref),
+		"k8s.io/api/core/v1.RBDPersistentVolumeSource":                                               schema_k8sio_api_core_v1_RBDPersistentVolumeSource(ref),
+		"k8s.io/api/core/v1.RBDVolumeSource":                                                         schema_k8sio_api_core_v1_RBDVolumeSource(ref),
+		"k8s.io/api/core/v1.RangeAllocation":                                                         schema_k8sio_api_core_v1_RangeAllocation(ref),
+		"k8s.io/api/core/v1.ReplicationController":                                                   schema_k8sio_api_core_v1_ReplicationController(ref),
+		"k8s.io/api/core/v1.ReplicationControllerCondition":                                          schema_k8sio_api_core_v1_ReplicationControllerCondition(ref),
+		"k8s.io/api/core/v1.ReplicationControllerList":                                               schema_k8sio_api_core_v1_ReplicationControllerList(ref),
+		"k8s.io/api/core/v1.ReplicationControllerSpec":                                               schema_k8sio_api_core_v1_ReplicationControllerSpec(ref),
+		"k8s.io/api/core/v1.ReplicationControllerStatus":                                             schema_k8sio_api_core_v1_ReplicationControllerStatus(ref),
+		"k8s.io/api/core/v1.ResourceFieldSelector":                                                   schema_k8sio_api_core_v1_ResourceFieldSelector(ref),
+		"k8s.io/api/core/v1.ResourceQuota":                                                           schema_k8sio_api_core_v1_ResourceQuota(ref),
+		"k8s.io/api/core/v1.ResourceQuotaList":                                                       schema_k8sio_api_core_v1_ResourceQuotaList(ref),
+		"k8s.io/api/core/v1.ResourceQuotaSpec":                                                       schema_k8sio_api_core_v1_ResourceQuotaSpec(ref),
+		"k8s.io/api/core/v1.ResourceQuotaStatus":                                                     schema_k8sio_api_core_v1_ResourceQuotaStatus(ref),
+		"k8s.io/api/core/v1.ResourceRequirements":                                                    schema_k8sio_api_core_v1_ResourceRequirements(ref),
+		"k8s.io/api/core/v1.SELinuxOptions":                                                          schema_k8sio_api_core_v1_SELinuxOptions(ref),
+		"k8s.io/api/core/v1.ScaleIOPersistentVolumeSource":                                           schema_k8sio_api_core_v1_ScaleIOPersistentVolumeSource(ref),
+		"k8s.io/api/core/v1.ScaleIOVolumeSource":                                                     schema_k8sio_api_core_v1_ScaleIOVolumeSource(ref),
+		"k8s.io/api/core/v1.ScopeSelector":                                                           schema_k8sio_api_core_v1_ScopeSelector(ref),
+		"k8s.io/api/core/v1.ScopedResourceSelectorRequirement":                                       schema_k8sio_api_core_v1_ScopedResourceSelectorRequirement(ref),
+		"k8s.io/api/core/v1.SeccompProfile":                                                          schema_k8sio_api_core_v1_SeccompProfile(ref),
+		"k8s.io/api/core/v1.Secret":                                                                  schema_k8sio_api_core_v1_Secret(ref),
+		"k8s.io/api/core/v1.SecretEnvSource":                                                         schema_k8sio_api_core_v1_SecretEnvSource(ref),
+		"k8s.io/api/core/v1.SecretKeySelector":                                                       schema_k8sio_api_core_v1_SecretKeySelector(ref),
+		"k8s.io/api/core/v1.SecretList":                                                              schema_k8sio_api_core_v1_SecretList(ref),
+		"k8s.io/api/core/v1.SecretProjection":                                                        schema_k8sio_api_core_v1_SecretProjection(ref),
+		"k8s.io/api/core/v1.SecretReference":                                                         schema_k8sio_api_core_v1_SecretReference(ref),
+		"k8s.io/api/core/v1.SecretVolumeSource":                                                      schema_k8sio_api_core_v1_SecretVolumeSource(ref),
+		"k8s.io/api/core/v1.SecurityContext":                                                         schema_k8sio_api_core_v1_SecurityContext(ref),
+		"k8s.io/api/core/v1.SerializedReference":                                                     schema_k8sio_api_core_v1_SerializedReference(ref),
+		"k8s.io/api/core/v1.Service":                                                                 schema_k8sio_api_core_v1_Service(ref),
+		"k8s.io/api/core/v1.ServiceAccount":                                                          schema_k8sio_api_core_v1_ServiceAccount(ref),
+		"k8s.io/api/core/v1.ServiceAccountList":                                                      schema_k8sio_api_core_v1_ServiceAccountList(ref),
+		"k8s.io/api/core/v1.ServiceAccountTokenProjection":                                           schema_k8sio_api_core_v1_ServiceAccountTokenProjection(ref),
+		"k8s.io/api/core/v1.ServiceList":                                                             schema_k8sio_api_core_v1_ServiceList(ref),
+		"k8s.io/api/core/v1.ServicePort":                                                             schema_k8sio_api_core_v1_ServicePort(ref),
+		"k8s.io/api/core/v1.ServiceProxyOptions":                                                     schema_k8sio_api_core_v1_ServiceProxyOptions(ref),
+		"k8s.io/api/core/v1.ServiceSpec":                                                             schema_k8sio_api_core_v1_ServiceSpec(ref),
+		"k8s.io/api/core/v1.ServiceStatus":                                                           schema_k8sio_api_core_v1_ServiceStatus(ref),
+		"k8s.io/api/core/v1.SessionAffinityConfig":                                                   schema_k8sio_api_core_v1_SessionAffinityConfig(ref),
+		"k8s.io/api/core/v1.StorageOSPersistentVolumeSource":                                         schema_k8sio_api_core_v1_StorageOSPersistentVolumeSource(ref),
+		"k8s.io/api/core/v1.StorageOSVolumeSource":                                                   schema_k8sio_api_core_v1_StorageOSVolumeSource(ref),
+		"k8s.io/api/core/v1.Sysctl":                                                                  schema_k8sio_api_core_v1_Sysctl(ref),
+		"k8s.io/api/core/v1.TCPSocketAction":                                                         schema_k8sio_api_core_v1_TCPSocketAction(ref),
+		"k8s.io/api/core/v1.Taint":                                                                   schema_k8sio_api_core_v1_Taint(ref),
+		"k8s.io/api/core/v1.Toleration":                                                              schema_k8sio_api_core_v1_Toleration(ref),
+		"k8s.io/api/core/v1.TopologySelectorLabelRequirement":                                        schema_k8sio_api_core_v1_TopologySelectorLabelRequirement(ref),
+		"k8s.io/api/core/v1.TopologySelectorTerm":                                                    schema_k8sio_api_core_v1_TopologySelectorTerm(ref),
+		"k8s.io/api/core/v1.TopologySpreadConstraint":                                                schema_k8sio_api_core_v1_TopologySpreadConstraint(ref),
+		"k8s.io/api/core/v1.TypedLocalObjectReference":                                               schema_k8sio_api_core_v1_TypedLocalObjectReference(ref),
+		"k8s.io/api/core/v1.Volume":                                                                  schema_k8sio_api_core_v1_Volume(ref),
+		"k8s.io/api/core/v1.VolumeDevice":                                                            schema_k8sio_api_core_v1_VolumeDevice(ref),
+		"k8s.io/api/core/v1.VolumeMount":                                                             schema_k8sio_api_core_v1_VolumeMount(ref),
+		"k8s.io/api/core/v1.VolumeNodeAffinity":                                                      schema_k8sio_api_core_v1_VolumeNodeAffinity(ref),
+		"k8s.io/api/core/v1.VolumeProjection":                                                        schema_k8sio_api_core_v1_VolumeProjection(ref),
+		"k8s.io/api/core/v1.VolumeSource":                                                            schema_k8sio_api_core_v1_VolumeSource(ref),
+		"k8s.io/api/core/v1.VsphereVirtualDiskVolumeSource":                                          schema_k8sio_api_core_v1_VsphereVirtualDiskVolumeSource(ref),
+		"k8s.io/api/core/v1.WeightedPodAffinityTerm":                                                 schema_k8sio_api_core_v1_WeightedPodAffinityTerm(ref),
+		"k8s.io/api/core/v1.WindowsSecurityContextOptions":                                           schema_k8sio_api_core_v1_WindowsSecurityContextOptions(ref),
+		"k8s.io/apimachinery/pkg/api/resource.Quantity":                                              schema_apimachinery_pkg_api_resource_Quantity(ref),
+		"k8s.io/apimachinery/pkg/api/resource.int64Amount":                                           schema_apimachinery_pkg_api_resource_int64Amount(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                                              schema_pkg_apis_meta_v1_APIGroup(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                                          schema_pkg_apis_meta_v1_APIGroupList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                                           schema_pkg_apis_meta_v1_APIResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList":                                       schema_pkg_apis_meta_v1_APIResourceList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions":                                           schema_pkg_apis_meta_v1_APIVersions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ApplyOptions":                                          schema_pkg_apis_meta_v1_ApplyOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Condition":                                             schema_pkg_apis_meta_v1_Condition(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.CreateOptions":                                         schema_pkg_apis_meta_v1_CreateOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                                         schema_pkg_apis_meta_v1_DeleteOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                              schema_pkg_apis_meta_v1_Duration(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.FieldsV1":                                              schema_pkg_apis_meta_v1_FieldsV1(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                                            schema_pkg_apis_meta_v1_GetOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                             schema_pkg_apis_meta_v1_GroupKind(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupResource":                                         schema_pkg_apis_meta_v1_GroupResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersion":                                          schema_pkg_apis_meta_v1_GroupVersion(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery":                              schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind":                                      schema_pkg_apis_meta_v1_GroupVersionKind(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionResource":                                  schema_pkg_apis_meta_v1_GroupVersionResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.InternalEvent":                                         schema_pkg_apis_meta_v1_InternalEvent(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector":                                         schema_pkg_apis_meta_v1_LabelSelector(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement":                              schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.List":                                                  schema_pkg_apis_meta_v1_List(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta":                                              schema_pkg_apis_meta_v1_ListMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ListOptions":                                           schema_pkg_apis_meta_v1_ListOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ManagedFieldsEntry":                                    schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime":                                             schema_pkg_apis_meta_v1_MicroTime(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta":                                            schema_pkg_apis_meta_v1_ObjectMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference":                                        schema_pkg_apis_meta_v1_OwnerReference(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.PartialObjectMetadata":                                 schema_pkg_apis_meta_v1_PartialObjectMetadata(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.PartialObjectMetadataList":                             schema_pkg_apis_meta_v1_PartialObjectMetadataList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Patch":                                                 schema_pkg_apis_meta_v1_Patch(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.PatchOptions":                                          schema_pkg_apis_meta_v1_PatchOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions":                                         schema_pkg_apis_meta_v1_Preconditions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.RootPaths":                                             schema_pkg_apis_meta_v1_RootPaths(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR":                             schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Status":                                                schema_pkg_apis_meta_v1_Status(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause":                                           schema_pkg_apis_meta_v1_StatusCause(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails":                                         schema_pkg_apis_meta_v1_StatusDetails(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Table":                                                 schema_pkg_apis_meta_v1_Table(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TableColumnDefinition":                                 schema_pkg_apis_meta_v1_TableColumnDefinition(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TableOptions":                                          schema_pkg_apis_meta_v1_TableOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TableRow":                                              schema_pkg_apis_meta_v1_TableRow(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TableRowCondition":                                     schema_pkg_apis_meta_v1_TableRowCondition(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Time":                                                  schema_pkg_apis_meta_v1_Time(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Timestamp":                                             schema_pkg_apis_meta_v1_Timestamp(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta":                                              schema_pkg_apis_meta_v1_TypeMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.UpdateOptions":                                         schema_pkg_apis_meta_v1_UpdateOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent":                                            schema_pkg_apis_meta_v1_WatchEvent(ref),
+		"k8s.io/apimachinery/pkg/runtime.RawExtension":                                               schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
+		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                                   schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
+		"k8s.io/apimachinery/pkg/runtime.Unknown":                                                    schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
+		"k8s.io/apimachinery/pkg/util/intstr.IntOrString":                                            schema_apimachinery_pkg_util_intstr_IntOrString(ref),
+		"kubevirt.io/api/core/v1.AccessCredential":                                                   schema_kubevirtio_api_core_v1_AccessCredential(ref),
+		"kubevirt.io/api/core/v1.AccessCredentialSecretSource":                                       schema_kubevirtio_api_core_v1_AccessCredentialSecretSource(ref),
+		"kubevirt.io/api/core/v1.AddVolumeOptions":                                                   schema_kubevirtio_api_core_v1_AddVolumeOptions(ref),
+		"kubevirt.io/api/core/v1.AuthorizedKeysFile":                                                 schema_kubevirtio_api_core_v1_AuthorizedKeysFile(ref),
+		"kubevirt.io/api/core/v1.BIOS":                                                               schema_kubevirtio_api_core_v1_BIOS(ref),
+		"kubevirt.io/api/core/v1.BlockSize":                                                          schema_kubevirtio_api_core_v1_BlockSize(ref),
+		"kubevirt.io/api/core/v1.Bootloader":                                                         schema_kubevirtio_api_core_v1_Bootloader(ref),
+		"kubevirt.io/api/core/v1.CDRomTarget":                                                        schema_kubevirtio_api_core_v1_CDRomTarget(ref),
+		"kubevirt.io/api/core/v1.CPU":                                                                schema_kubevirtio_api_core_v1_CPU(ref),
+		"kubevirt.io/api/core/v1.CPUFeature":                                                         schema_kubevirtio_api_core_v1_CPUFeature(ref),
+		"kubevirt.io/api/core/v1.CertConfig":                                                         schema_kubevirtio_api_core_v1_CertConfig(ref),
+		"kubevirt.io/api/core/v1.Chassis":                                                            schema_kubevirtio_api_core_v1_Chassis(ref),
+		"kubevirt.io/api/core/v1.ClientPassthroughDevices":                                           schema_kubevirtio_api_core_v1_ClientPassthroughDevices(ref),
+		"kubevirt.io/api/core/v1.Clock":                                                              schema_kubevirtio_api_core_v1_Clock(ref),
+		"kubevirt.io/api/core/v1.ClockOffset":                                                        schema_kubevirtio_api_core_v1_ClockOffset(ref),
+		"kubevirt.io/api/core/v1.ClockOffsetUTC":                                                     schema_kubevirtio_api_core_v1_ClockOffsetUTC(ref),
+		"kubevirt.io/api/core/v1.CloudInitConfigDriveSource":                                         schema_kubevirtio_api_core_v1_CloudInitConfigDriveSource(ref),
+		"kubevirt.io/api/core/v1.CloudInitNoCloudSource":                                             schema_kubevirtio_api_core_v1_CloudInitNoCloudSource(ref),
+		"kubevirt.io/api/core/v1.ClusterProfilerRequest":                                             schema_kubevirtio_api_core_v1_ClusterProfilerRequest(ref),
+		"kubevirt.io/api/core/v1.ClusterProfilerResults":                                             schema_kubevirtio_api_core_v1_ClusterProfilerResults(ref),
+		"kubevirt.io/api/core/v1.ComponentConfig":                                                    schema_kubevirtio_api_core_v1_ComponentConfig(ref),
+		"kubevirt.io/api/core/v1.ConfigDriveSSHPublicKeyAccessCredentialPropagation":                 schema_kubevirtio_api_core_v1_ConfigDriveSSHPublicKeyAccessCredentialPropagation(ref),
+		"kubevirt.io/api/core/v1.ConfigMapVolumeSource":                                              schema_kubevirtio_api_core_v1_ConfigMapVolumeSource(ref),
+		"kubevirt.io/api/core/v1.ContainerDiskSource":                                                schema_kubevirtio_api_core_v1_ContainerDiskSource(ref),
+		"kubevirt.io/api/core/v1.CustomBlockSize":                                                    schema_kubevirtio_api_core_v1_CustomBlockSize(ref),
+		"kubevirt.io/api/core/v1.CustomizeComponents":                                                schema_kubevirtio_api_core_v1_CustomizeComponents(ref),
+		"kubevirt.io/api/core/v1.CustomizeComponentsPatch":                                           schema_kubevirtio_api_core_v1_CustomizeComponentsPatch(ref),
+		"kubevirt.io/api/core/v1.DHCPOptions":                                                        schema_kubevirtio_api_core_v1_DHCPOptions(ref),
+		"kubevirt.io/api/core/v1.DHCPPrivateOptions":                                                 schema_kubevirtio_api_core_v1_DHCPPrivateOptions(ref),
+		"kubevirt.io/api/core/v1.DataVolumeSource":                                                   schema_kubevirtio_api_core_v1_DataVolumeSource(ref),
+		"kubevirt.io/api/core/v1.DataVolumeTemplateDummyStatus":                                      schema_kubevirtio_api_core_v1_DataVolumeTemplateDummyStatus(ref),
+		"kubevirt.io/api/core/v1.DataVolumeTemplateSpec":                                             schema_kubevirtio_api_core_v1_DataVolumeTemplateSpec(ref),
+		"kubevirt.io/api/core/v1.DeveloperConfiguration":                                             schema_kubevirtio_api_core_v1_DeveloperConfiguration(ref),
+		"kubevirt.io/api/core/v1.Devices":                                                            schema_kubevirtio_api_core_v1_Devices(ref),
+		"kubevirt.io/api/core/v1.Disk":                                                               schema_kubevirtio_api_core_v1_Disk(ref),
+		"kubevirt.io/api/core/v1.DiskDevice":                                                         schema_kubevirtio_api_core_v1_DiskDevice(ref),
+		"kubevirt.io/api/core/v1.DiskTarget":                                                         schema_kubevirtio_api_core_v1_DiskTarget(ref),
+		"kubevirt.io/api/core/v1.DiskVerification":                                                   schema_kubevirtio_api_core_v1_DiskVerification(ref),
+		"kubevirt.io/api/core/v1.DomainMemoryDumpInfo":                                               schema_kubevirtio_api_core_v1_DomainMemoryDumpInfo(ref),
+		"kubevirt.io/api/core/v1.DomainSpec":                                                         schema_kubevirtio_api_core_v1_DomainSpec(ref),
+		"kubevirt.io/api/core/v1.DownwardAPIVolumeSource":                                            schema_kubevirtio_api_core_v1_DownwardAPIVolumeSource(ref),
+		"kubevirt.io/api/core/v1.DownwardMetricsVolumeSource":                                        schema_kubevirtio_api_core_v1_DownwardMetricsVolumeSource(ref),
+		"kubevirt.io/api/core/v1.EFI":                                                                schema_kubevirtio_api_core_v1_EFI(ref),
+		"kubevirt.io/api/core/v1.EmptyDiskSource":                                                    schema_kubevirtio_api_core_v1_EmptyDiskSource(ref),
+		"kubevirt.io/api/core/v1.EphemeralVolumeSource":                                              schema_kubevirtio_api_core_v1_EphemeralVolumeSource(ref),
+		"kubevirt.io/api/core/v1.FeatureAPIC":                                                        schema_kubevirtio_api_core_v1_FeatureAPIC(ref),
+		"kubevirt.io/api/core/v1.FeatureHyperv":                                                      schema_kubevirtio_api_core_v1_FeatureHyperv(ref),
+		"kubevirt.io/api/core/v1.FeatureKVM":                                                         schema_kubevirtio_api_core_v1_FeatureKVM(ref),
+		"kubevirt.io/api/core/v1.FeatureSpinlocks":                                                   schema_kubevirtio_api_core_v1_FeatureSpinlocks(ref),
+		"kubevirt.io/api/core/v1.FeatureState":                                                       schema_kubevirtio_api_core_v1_FeatureState(ref),
+		"kubevirt.io/api/core/v1.FeatureVendorID":                                                    schema_kubevirtio_api_core_v1_FeatureVendorID(ref),
+		"kubevirt.io/api/core/v1.Features":                                                           schema_kubevirtio_api_core_v1_Features(ref),
+		"kubevirt.io/api/core/v1.Filesystem":                                                         schema_kubevirtio_api_core_v1_Filesystem(ref),
+		"kubevirt.io/api/core/v1.FilesystemVirtiofs":                                                 schema_kubevirtio_api_core_v1_FilesystemVirtiofs(ref),
+		"kubevirt.io/api/core/v1.Firmware":                                                           schema_kubevirtio_api_core_v1_Firmware(ref),
+		"kubevirt.io/api/core/v1.Flags":                                                              schema_kubevirtio_api_core_v1_Flags(ref),
+		"kubevirt.io/api/core/v1.FlavorMatcher":                                                      schema_kubevirtio_api_core_v1_FlavorMatcher(ref),
+		"kubevirt.io/api/core/v1.FreezeUnfreezeTimeout":                                              schema_kubevirtio_api_core_v1_FreezeUnfreezeTimeout(ref),
+		"kubevirt.io/api/core/v1.GPU":                                                                schema_kubevirtio_api_core_v1_GPU(ref),
+		"kubevirt.io/api/core/v1.GenerationStatus":                                                   schema_kubevirtio_api_core_v1_GenerationStatus(ref),
+		"kubevirt.io/api/core/v1.GuestAgentCommandInfo":                                              schema_kubevirtio_api_core_v1_GuestAgentCommandInfo(ref),
+		"kubevirt.io/api/core/v1.GuestAgentPing":                                                     schema_kubevirtio_api_core_v1_GuestAgentPing(ref),
+		"kubevirt.io/api/core/v1.HPETTimer":                                                          schema_kubevirtio_api_core_v1_HPETTimer(ref),
+		"kubevirt.io/api/core/v1.Handler":                                                            schema_kubevirtio_api_core_v1_Handler(ref),
+		"kubevirt.io/api/core/v1.HostDevice":                                                         schema_kubevirtio_api_core_v1_HostDevice(ref),
+		"kubevirt.io/api/core/v1.HostDisk":                                                           schema_kubevirtio_api_core_v1_HostDisk(ref),
+		"kubevirt.io/api/core/v1.HotplugVolumeSource":                                                schema_kubevirtio_api_core_v1_HotplugVolumeSource(ref),
+		"kubevirt.io/api/core/v1.HotplugVolumeStatus":                                                schema_kubevirtio_api_core_v1_HotplugVolumeStatus(ref),
+		"kubevirt.io/api/core/v1.Hugepages":                                                          schema_kubevirtio_api_core_v1_Hugepages(ref),
+		"kubevirt.io/api/core/v1.HypervTimer":                                                        schema_kubevirtio_api_core_v1_HypervTimer(ref),
+		"kubevirt.io/api/core/v1.I6300ESBWatchdog":                                                   schema_kubevirtio_api_core_v1_I6300ESBWatchdog(ref),
+		"kubevirt.io/api/core/v1.Input":                                                              schema_kubevirtio_api_core_v1_Input(ref),
+		"kubevirt.io/api/core/v1.Interface":                                                          schema_kubevirtio_api_core_v1_Interface(ref),
+		"kubevirt.io/api/core/v1.InterfaceBindingMethod":                                             schema_kubevirtio_api_core_v1_InterfaceBindingMethod(ref),
+		"kubevirt.io/api/core/v1.InterfaceBridge":                                                    schema_kubevirtio_api_core_v1_InterfaceBridge(ref),
+		"kubevirt.io/api/core/v1.InterfaceMacvtap":                                                   schema_kubevirtio_api_core_v1_InterfaceMacvtap(ref),
+		"kubevirt.io/api/core/v1.InterfaceMasquerade":                                                schema_kubevirtio_api_core_v1_InterfaceMasquerade(ref),
+		"kubevirt.io/api/core/v1.InterfaceSRIOV":                                                     schema_kubevirtio_api_core_v1_InterfaceSRIOV(ref),
+		"kubevirt.io/api/core/v1.InterfaceSlirp":                                                     schema_kubevirtio_api_core_v1_InterfaceSlirp(ref),
+		"kubevirt.io/api/core/v1.KVMTimer":                                                           schema_kubevirtio_api_core_v1_KVMTimer(ref),
+		"kubevirt.io/api/core/v1.KernelBoot":                                                         schema_kubevirtio_api_core_v1_KernelBoot(ref),
+		"kubevirt.io/api/core/v1.KernelBootContainer":                                                schema_kubevirtio_api_core_v1_KernelBootContainer(ref),
+		"kubevirt.io/api/core/v1.KubeVirt":                                                           schema_kubevirtio_api_core_v1_KubeVirt(ref),
+		"kubevirt.io/api/core/v1.KubeVirtCertificateRotateStrategy":                                  schema_kubevirtio_api_core_v1_KubeVirtCertificateRotateStrategy(ref),
+		"kubevirt.io/api/core/v1.KubeVirtCondition":                                                  schema_kubevirtio_api_core_v1_KubeVirtCondition(ref),
+		"kubevirt.io/api/core/v1.KubeVirtConfiguration":                                              schema_kubevirtio_api_core_v1_KubeVirtConfiguration(ref),
+		"kubevirt.io/api/core/v1.KubeVirtList":                                                       schema_kubevirtio_api_core_v1_KubeVirtList(ref),
+		"kubevirt.io/api/core/v1.KubeVirtSelfSignConfiguration":                                      schema_kubevirtio_api_core_v1_KubeVirtSelfSignConfiguration(ref),
+		"kubevirt.io/api/core/v1.KubeVirtSpec":                                                       schema_kubevirtio_api_core_v1_KubeVirtSpec(ref),
+		"kubevirt.io/api/core/v1.KubeVirtStatus":                                                     schema_kubevirtio_api_core_v1_KubeVirtStatus(ref),
+		"kubevirt.io/api/core/v1.KubeVirtWorkloadUpdateStrategy":                                     schema_kubevirtio_api_core_v1_KubeVirtWorkloadUpdateStrategy(ref),
+		"kubevirt.io/api/core/v1.LaunchSecurity":                                                     schema_kubevirtio_api_core_v1_LaunchSecurity(ref),
+		"kubevirt.io/api/core/v1.LogVerbosity":                                                       schema_kubevirtio_api_core_v1_LogVerbosity(ref),
+		"kubevirt.io/api/core/v1.LunTarget":                                                          schema_kubevirtio_api_core_v1_LunTarget(ref),
+		"kubevirt.io/api/core/v1.Machine":                                                            schema_kubevirtio_api_core_v1_Machine(ref),
+		"kubevirt.io/api/core/v1.MediatedDevicesConfiguration":                                       schema_kubevirtio_api_core_v1_MediatedDevicesConfiguration(ref),
+		"kubevirt.io/api/core/v1.MediatedHostDevice":                                                 schema_kubevirtio_api_core_v1_MediatedHostDevice(ref),
+		"kubevirt.io/api/core/v1.Memory":                                                             schema_kubevirtio_api_core_v1_Memory(ref),
+		"kubevirt.io/api/core/v1.MemoryDumpVolumeSource":                                             schema_kubevirtio_api_core_v1_MemoryDumpVolumeSource(ref),
+		"kubevirt.io/api/core/v1.MigrateOptions":                                                     schema_kubevirtio_api_core_v1_MigrateOptions(ref),
+		"kubevirt.io/api/core/v1.MigrationConfiguration":                                             schema_kubevirtio_api_core_v1_MigrationConfiguration(ref),
+		"kubevirt.io/api/core/v1.MultusNetwork":                                                      schema_kubevirtio_api_core_v1_MultusNetwork(ref),
+		"kubevirt.io/api/core/v1.NUMA":                                                               schema_kubevirtio_api_core_v1_NUMA(ref),
+		"kubevirt.io/api/core/v1.NUMAGuestMappingPassthrough":                                        schema_kubevirtio_api_core_v1_NUMAGuestMappingPassthrough(ref),
+		"kubevirt.io/api/core/v1.Network":                                                            schema_kubevirtio_api_core_v1_Network(ref),
+		"kubevirt.io/api/core/v1.NetworkConfiguration":                                               schema_kubevirtio_api_core_v1_NetworkConfiguration(ref),
+		"kubevirt.io/api/core/v1.NetworkSource":                                                      schema_kubevirtio_api_core_v1_NetworkSource(ref),
+		"kubevirt.io/api/core/v1.NodeMediatedDeviceTypesConfig":                                      schema_kubevirtio_api_core_v1_NodeMediatedDeviceTypesConfig(ref),
+		"kubevirt.io/api/core/v1.NodePlacement":                                                      schema_kubevirtio_api_core_v1_NodePlacement(ref),
+		"kubevirt.io/api/core/v1.PITTimer":                                                           schema_kubevirtio_api_core_v1_PITTimer(ref),
+		"kubevirt.io/api/core/v1.PauseOptions":                                                       schema_kubevirtio_api_core_v1_PauseOptions(ref),
+		"kubevirt.io/api/core/v1.PciHostDevice":                                                      schema_kubevirtio_api_core_v1_PciHostDevice(ref),
+		"kubevirt.io/api/core/v1.PermittedHostDevices":                                               schema_kubevirtio_api_core_v1_PermittedHostDevices(ref),
+		"kubevirt.io/api/core/v1.PersistentVolumeClaimInfo":                                          schema_kubevirtio_api_core_v1_PersistentVolumeClaimInfo(ref),
+		"kubevirt.io/api/core/v1.PersistentVolumeClaimVolumeSource":                                  schema_kubevirtio_api_core_v1_PersistentVolumeClaimVolumeSource(ref),
+		"kubevirt.io/api/core/v1.PodNetwork":                                                         schema_kubevirtio_api_core_v1_PodNetwork(ref),
+		"kubevirt.io/api/core/v1.Port":                                                               schema_kubevirtio_api_core_v1_Port(ref),
+		"kubevirt.io/api/core/v1.PreferenceMatcher":                                                  schema_kubevirtio_api_core_v1_PreferenceMatcher(ref),
+		"kubevirt.io/api/core/v1.Probe":                                                              schema_kubevirtio_api_core_v1_Probe(ref),
+		"kubevirt.io/api/core/v1.ProfilerResult":                                                     schema_kubevirtio_api_core_v1_ProfilerResult(ref),
+		"kubevirt.io/api/core/v1.QemuGuestAgentSSHPublicKeyAccessCredentialPropagation":              schema_kubevirtio_api_core_v1_QemuGuestAgentSSHPublicKeyAccessCredentialPropagation(ref),
+		"kubevirt.io/api/core/v1.QemuGuestAgentUserPasswordAccessCredentialPropagation":              schema_kubevirtio_api_core_v1_QemuGuestAgentUserPasswordAccessCredentialPropagation(ref),
+		"kubevirt.io/api/core/v1.RESTClientConfiguration":                                            schema_kubevirtio_api_core_v1_RESTClientConfiguration(ref),
+		"kubevirt.io/api/core/v1.RTCTimer":                                                           schema_kubevirtio_api_core_v1_RTCTimer(ref),
+		"kubevirt.io/api/core/v1.RateLimiter":                                                        schema_kubevirtio_api_core_v1_RateLimiter(ref),
+		"kubevirt.io/api/core/v1.Realtime":                                                           schema_kubevirtio_api_core_v1_Realtime(ref),
+		"kubevirt.io/api/core/v1.ReloadableComponentConfiguration":                                   schema_kubevirtio_api_core_v1_ReloadableComponentConfiguration(ref),
+		"kubevirt.io/api/core/v1.RemoveVolumeOptions":                                                schema_kubevirtio_api_core_v1_RemoveVolumeOptions(ref),
+		"kubevirt.io/api/core/v1.ResourceRequirements":                                               schema_kubevirtio_api_core_v1_ResourceRequirements(ref),
+		"kubevirt.io/api/core/v1.RestartOptions":                                                     schema_kubevirtio_api_core_v1_RestartOptions(ref),
+		"kubevirt.io/api/core/v1.Rng":                                                                schema_kubevirtio_api_core_v1_Rng(ref),
+		"kubevirt.io/api/core/v1.SEV":                                                                schema_kubevirtio_api_core_v1_SEV(ref),
+		"kubevirt.io/api/core/v1.SMBiosConfiguration":                                                schema_kubevirtio_api_core_v1_SMBiosConfiguration(ref),
+		"kubevirt.io/api/core/v1.SSHPublicKeyAccessCredential":                                       schema_kubevirtio_api_core_v1_SSHPublicKeyAccessCredential(ref),
+		"kubevirt.io/api/core/v1.SSHPublicKeyAccessCredentialPropagationMethod":                      schema_kubevirtio_api_core_v1_SSHPublicKeyAccessCredentialPropagationMethod(ref),
+		"kubevirt.io/api/core/v1.SSHPublicKeyAccessCredentialSource":                                 schema_kubevirtio_api_core_v1_SSHPublicKeyAccessCredentialSource(ref),
+		"kubevirt.io/api/core/v1.SecretVolumeSource":                                                 schema_kubevirtio_api_core_v1_SecretVolumeSource(ref),
+		"kubevirt.io/api/core/v1.ServiceAccountVolumeSource":                                         schema_kubevirtio_api_core_v1_ServiceAccountVolumeSource(ref),
+		"kubevirt.io/api/core/v1.SoundDevice":                                                        schema_kubevirtio_api_core_v1_SoundDevice(ref),
+		"kubevirt.io/api/core/v1.StartOptions":                                                       schema_kubevirtio_api_core_v1_StartOptions(ref),
+		"kubevirt.io/api/core/v1.StopOptions":                                                        schema_kubevirtio_api_core_v1_StopOptions(ref),
+		"kubevirt.io/api/core/v1.SyNICTimer":                                                         schema_kubevirtio_api_core_v1_SyNICTimer(ref),
+		"kubevirt.io/api/core/v1.SysprepSource":                                                      schema_kubevirtio_api_core_v1_SysprepSource(ref),
+		"kubevirt.io/api/core/v1.TPMDevice":                                                          schema_kubevirtio_api_core_v1_TPMDevice(ref),
+		"kubevirt.io/api/core/v1.Timer":                                                              schema_kubevirtio_api_core_v1_Timer(ref),
+		"kubevirt.io/api/core/v1.TokenBucketRateLimiter":                                             schema_kubevirtio_api_core_v1_TokenBucketRateLimiter(ref),
+		"kubevirt.io/api/core/v1.TopologyHints":                                                      schema_kubevirtio_api_core_v1_TopologyHints(ref),
+		"kubevirt.io/api/core/v1.UnpauseOptions":                                                     schema_kubevirtio_api_core_v1_UnpauseOptions(ref),
+		"kubevirt.io/api/core/v1.UserPasswordAccessCredential":                                       schema_kubevirtio_api_core_v1_UserPasswordAccessCredential(ref),
+		"kubevirt.io/api/core/v1.UserPasswordAccessCredentialPropagationMethod":                      schema_kubevirtio_api_core_v1_UserPasswordAccessCredentialPropagationMethod(ref),
+		"kubevirt.io/api/core/v1.UserPasswordAccessCredentialSource":                                 schema_kubevirtio_api_core_v1_UserPasswordAccessCredentialSource(ref),
+		"kubevirt.io/api/core/v1.VGPUDisplayOptions":                                                 schema_kubevirtio_api_core_v1_VGPUDisplayOptions(ref),
+		"kubevirt.io/api/core/v1.VGPUOptions":                                                        schema_kubevirtio_api_core_v1_VGPUOptions(ref),
+		"kubevirt.io/api/core/v1.VMISelector":                                                        schema_kubevirtio_api_core_v1_VMISelector(ref),
+		"kubevirt.io/api/core/v1.VirtualMachine":                                                     schema_kubevirtio_api_core_v1_VirtualMachine(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineCondition":                                            schema_kubevirtio_api_core_v1_VirtualMachineCondition(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstance":                                             schema_kubevirtio_api_core_v1_VirtualMachineInstance(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceCondition":                                    schema_kubevirtio_api_core_v1_VirtualMachineInstanceCondition(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceFileSystem":                                   schema_kubevirtio_api_core_v1_VirtualMachineInstanceFileSystem(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceFileSystemInfo":                               schema_kubevirtio_api_core_v1_VirtualMachineInstanceFileSystemInfo(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceFileSystemList":                               schema_kubevirtio_api_core_v1_VirtualMachineInstanceFileSystemList(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceGuestAgentInfo":                               schema_kubevirtio_api_core_v1_VirtualMachineInstanceGuestAgentInfo(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceGuestOSInfo":                                  schema_kubevirtio_api_core_v1_VirtualMachineInstanceGuestOSInfo(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceGuestOSUser":                                  schema_kubevirtio_api_core_v1_VirtualMachineInstanceGuestOSUser(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceGuestOSUserList":                              schema_kubevirtio_api_core_v1_VirtualMachineInstanceGuestOSUserList(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceList":                                         schema_kubevirtio_api_core_v1_VirtualMachineInstanceList(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigration":                                    schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigration(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationCondition":                           schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationCondition(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationList":                                schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationList(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationSpec":                                schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationSpec(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationState":                               schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationState(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationStatus":                              schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationStatus(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceNetworkInterface":                             schema_kubevirtio_api_core_v1_VirtualMachineInstanceNetworkInterface(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstancePhaseTransitionTimestamp":                     schema_kubevirtio_api_core_v1_VirtualMachineInstancePhaseTransitionTimestamp(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstancePreset":                                       schema_kubevirtio_api_core_v1_VirtualMachineInstancePreset(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstancePresetList":                                   schema_kubevirtio_api_core_v1_VirtualMachineInstancePresetList(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstancePresetSpec":                                   schema_kubevirtio_api_core_v1_VirtualMachineInstancePresetSpec(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceReplicaSet":                                   schema_kubevirtio_api_core_v1_VirtualMachineInstanceReplicaSet(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceReplicaSetCondition":                          schema_kubevirtio_api_core_v1_VirtualMachineInstanceReplicaSetCondition(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceReplicaSetList":                               schema_kubevirtio_api_core_v1_VirtualMachineInstanceReplicaSetList(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceReplicaSetSpec":                               schema_kubevirtio_api_core_v1_VirtualMachineInstanceReplicaSetSpec(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceReplicaSetStatus":                             schema_kubevirtio_api_core_v1_VirtualMachineInstanceReplicaSetStatus(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceSpec":                                         schema_kubevirtio_api_core_v1_VirtualMachineInstanceSpec(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceStatus":                                       schema_kubevirtio_api_core_v1_VirtualMachineInstanceStatus(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineInstanceTemplateSpec":                                 schema_kubevirtio_api_core_v1_VirtualMachineInstanceTemplateSpec(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineList":                                                 schema_kubevirtio_api_core_v1_VirtualMachineList(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineMemoryDumpRequest":                                    schema_kubevirtio_api_core_v1_VirtualMachineMemoryDumpRequest(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineSpec":                                                 schema_kubevirtio_api_core_v1_VirtualMachineSpec(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineStartFailure":                                         schema_kubevirtio_api_core_v1_VirtualMachineStartFailure(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineStateChangeRequest":                                   schema_kubevirtio_api_core_v1_VirtualMachineStateChangeRequest(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineStatus":                                               schema_kubevirtio_api_core_v1_VirtualMachineStatus(ref),
+		"kubevirt.io/api/core/v1.VirtualMachineVolumeRequest":                                        schema_kubevirtio_api_core_v1_VirtualMachineVolumeRequest(ref),
+		"kubevirt.io/api/core/v1.Volume":                                                             schema_kubevirtio_api_core_v1_Volume(ref),
+		"kubevirt.io/api/core/v1.VolumeSnapshotStatus":                                               schema_kubevirtio_api_core_v1_VolumeSnapshotStatus(ref),
+		"kubevirt.io/api/core/v1.VolumeSource":                                                       schema_kubevirtio_api_core_v1_VolumeSource(ref),
+		"kubevirt.io/api/core/v1.VolumeStatus":                                                       schema_kubevirtio_api_core_v1_VolumeStatus(ref),
+		"kubevirt.io/api/core/v1.Watchdog":                                                           schema_kubevirtio_api_core_v1_Watchdog(ref),
+		"kubevirt.io/api/core/v1.WatchdogDevice":                                                     schema_kubevirtio_api_core_v1_WatchdogDevice(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDI":                      schema_pkg_apis_core_v1beta1_CDI(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig":            schema_pkg_apis_core_v1beta1_CDICertConfig(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfig":                schema_pkg_apis_core_v1beta1_CDIConfig(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigList":            schema_pkg_apis_core_v1beta1_CDIConfigList(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigSpec":            schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigStatus":          schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIList":                  schema_pkg_apis_core_v1beta1_CDIList(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDISpec":                  schema_pkg_apis_core_v1beta1_CDISpec(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIStatus":                schema_pkg_apis_core_v1beta1_CDIStatus(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CertConfig":               schema_pkg_apis_core_v1beta1_CertConfig(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ClaimPropertySet":         schema_pkg_apis_core_v1beta1_ClaimPropertySet(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ConditionState":           schema_pkg_apis_core_v1beta1_ConditionState(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCron":           schema_pkg_apis_core_v1beta1_DataImportCron(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronCondition":  schema_pkg_apis_core_v1beta1_DataImportCronCondition(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronList":       schema_pkg_apis_core_v1beta1_DataImportCronList(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronSpec":       schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronStatus":     schema_pkg_apis_core_v1beta1_DataImportCronStatus(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSource":               schema_pkg_apis_core_v1beta1_DataSource(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceCondition":      schema_pkg_apis_core_v1beta1_DataSourceCondition(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceList":           schema_pkg_apis_core_v1beta1_DataSourceList(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceSource":         schema_pkg_apis_core_v1beta1_DataSourceSource(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceSpec":           schema_pkg_apis_core_v1beta1_DataSourceSpec(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceStatus":         schema_pkg_apis_core_v1beta1_DataSourceStatus(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolume":               schema_pkg_apis_core_v1beta1_DataVolume(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeBlankImage":     schema_pkg_apis_core_v1beta1_DataVolumeBlankImage(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeCheckpoint":     schema_pkg_apis_core_v1beta1_DataVolumeCheckpoint(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeCondition":      schema_pkg_apis_core_v1beta1_DataVolumeCondition(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeList":           schema_pkg_apis_core_v1beta1_DataVolumeList(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSource":         schema_pkg_apis_core_v1beta1_DataVolumeSource(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceHTTP":     schema_pkg_apis_core_v1beta1_DataVolumeSourceHTTP(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceImageIO":  schema_pkg_apis_core_v1beta1_DataVolumeSourceImageIO(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourcePVC":      schema_pkg_apis_core_v1beta1_DataVolumeSourcePVC(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceRef":      schema_pkg_apis_core_v1beta1_DataVolumeSourceRef(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceRegistry": schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceS3":       schema_pkg_apis_core_v1beta1_DataVolumeSourceS3(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceUpload":   schema_pkg_apis_core_v1beta1_DataVolumeSourceUpload(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceVDDK":     schema_pkg_apis_core_v1beta1_DataVolumeSourceVDDK(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSpec":           schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeStatus":         schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.FilesystemOverhead":       schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy":              schema_pkg_apis_core_v1beta1_ImportProxy(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportStatus":             schema_pkg_apis_core_v1beta1_ImportStatus(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransfer":           schema_pkg_apis_core_v1beta1_ObjectTransfer(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferCondition":  schema_pkg_apis_core_v1beta1_ObjectTransferCondition(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferList":       schema_pkg_apis_core_v1beta1_ObjectTransferList(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferSpec":       schema_pkg_apis_core_v1beta1_ObjectTransferSpec(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferStatus":     schema_pkg_apis_core_v1beta1_ObjectTransferStatus(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfile":           schema_pkg_apis_core_v1beta1_StorageProfile(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileList":       schema_pkg_apis_core_v1beta1_StorageProfileList(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileSpec":       schema_pkg_apis_core_v1beta1_StorageProfileSpec(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileStatus":     schema_pkg_apis_core_v1beta1_StorageProfileStatus(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageSpec":              schema_pkg_apis_core_v1beta1_StorageSpec(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.TransferSource":           schema_pkg_apis_core_v1beta1_TransferSource(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.TransferTarget":           schema_pkg_apis_core_v1beta1_TransferTarget(ref),
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_BondOptions(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"mode": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"miimon": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -749,40 +790,17 @@ func schema_pkg_apis_networkharvesterhciio_v1beta1_ClusterNetwork(ref common.Ref
 							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
 						},
 					},
-					"description": {
+					"status": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"enable": {
-						SchemaProps: spec.SchemaProps{
-							Default: false,
-							Type:    []string{"boolean"},
-							Format:  "",
-						},
-					},
-					"config": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"object"},
-							AdditionalProperties: &spec.SchemaOrBool{
-								Allows: true,
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.ClusterNetworkStatus"),
 						},
 					},
 				},
-				Required: []string{"enable"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.ClusterNetworkStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -832,6 +850,33 @@ func schema_pkg_apis_networkharvesterhciio_v1beta1_ClusterNetworkList(ref common
 		},
 		Dependencies: []string{
 			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.ClusterNetwork", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_ClusterNetworkStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition"},
 	}
 }
 
@@ -892,7 +937,410 @@ func schema_pkg_apis_networkharvesterhciio_v1beta1_Condition(ref common.Referenc
 	}
 }
 
+func schema_pkg_apis_networkharvesterhciio_v1beta1_LinkAttrs(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"mtu": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"txQLen": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"hardwareAddr": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "byte",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_LinkMonitor(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitorSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitorStatus"),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitorSpec", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitorStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_LinkMonitorList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "LinkMonitorList is a list of LinkMonitor resources",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitor"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitor", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_LinkMonitorSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeSelector": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"targetLinkRule": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.TargetLinkRule"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.TargetLinkRule"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_LinkMonitorStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition"),
+									},
+								},
+							},
+						},
+					},
+					"linkStatus": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type: []string{"array"},
+										Items: &spec.SchemaOrArray{
+											Schema: &spec.Schema{
+												SchemaProps: spec.SchemaProps{
+													Default: map[string]interface{}{},
+													Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkStatus"),
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkStatus"},
+	}
+}
+
 func schema_pkg_apis_networkharvesterhciio_v1beta1_LinkStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"index": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"mac": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"promiscuous": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"boolean"},
+							Format: "",
+						},
+					},
+					"state": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"masterIndex": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_LocalArea(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"vlanID": {
+						SchemaProps: spec.SchemaProps{
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int32",
+						},
+					},
+					"cidr": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"vlanID"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_NetworkInterface(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"index": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Index of the NIC",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"masterIndex": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Index of the NIC's master",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name of the NIC",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Interface type of the NIC",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"state": {
+						SchemaProps: spec.SchemaProps{
+							Description: "State of the NIC, up/down/unknown",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"usedByManagementNetwork": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Specify whether used by management network or not",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"usedByVlanNetwork": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Specify whether used by VLAN network or not",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"index", "name", "type", "state"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetwork(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkSpec", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkLinkStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -980,111 +1428,6 @@ func schema_pkg_apis_networkharvesterhciio_v1beta1_LinkStatus(ref common.Referen
 		},
 		Dependencies: []string{
 			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition"},
-	}
-}
-
-func schema_pkg_apis_networkharvesterhciio_v1beta1_NIC(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"index": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Index of the NIC",
-							Default:     0,
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"masterIndex": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Index of the NIC's master",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Name of the NIC",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"type": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Interface type of the NIC",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"state": {
-						SchemaProps: spec.SchemaProps{
-							Description: "State of the NIC, up/down/unknown",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"usedByManagementNetwork": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Specify whether used by management network or not",
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"index", "name", "type", "state"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetwork(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkSpec"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkStatus"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkSpec", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NodeNetworkStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -1215,7 +1558,7 @@ func schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkStatus(ref common.
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NIC"),
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NetworkInterface"),
 									},
 								},
 							},
@@ -1238,7 +1581,369 @@ func schema_pkg_apis_networkharvesterhciio_v1beta1_NodeNetworkStatus(ref common.
 			},
 		},
 		Dependencies: []string{
-			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkStatus", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NIC"},
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkStatus", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.NetworkInterface"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_TargetLinkRule(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"typeRule": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Support regular expression and empty value means matching all",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"nameRule": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Support regular expression and empty value means matching all",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_Uplink(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nics": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"linkAttributes": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkAttrs"),
+						},
+					},
+					"bondOptions": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.BondOptions"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.BondOptions", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkAttrs"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_VlStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"clusterNetwork": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"vlanConfig": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"linkMonitor": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"node": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"localAreas": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LocalArea"),
+									},
+								},
+							},
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"clusterNetwork", "vlanConfig", "linkMonitor", "node"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LocalArea"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_VlanConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanConfigSpec"),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanConfigSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_VlanConfigList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "VlanConfigList is a list of VlanConfig resources",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanConfig"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanConfig", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_VlanConfigSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"clusterNetwork": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"nodeSelector": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"uplink": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Uplink"),
+						},
+					},
+				},
+				Required: []string{"clusterNetwork", "uplink"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Uplink"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_VlanStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlStatus"),
+						},
+					},
+				},
+				Required: []string{"status"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_VlanStatusList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "VlanStatusList is a list of VlanStatus resources",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanStatus"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.VlanStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 

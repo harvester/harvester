@@ -11886,7 +11886,6 @@
     "network.harvesterhci.io.v1beta1.ClusterNetwork": {
       "type": "object",
       "required": [
-        "enable",
         "kind",
         "apiVersion"
       ],
@@ -11895,20 +11894,6 @@
           "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
           "type": "string"
         },
-        "config": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "default": ""
-          }
-        },
-        "description": {
-          "type": "string"
-        },
-        "enable": {
-          "type": "boolean",
-          "default": false
-        },
         "kind": {
           "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
           "type": "string"
@@ -11916,6 +11901,10 @@
         "metadata": {
           "default": {},
           "$ref": "#/definitions/k8s.io.v1.ObjectMeta"
+        },
+        "status": {
+          "default": {},
+          "$ref": "#/definitions/network.harvesterhci.io.v1beta1.ClusterNetworkStatus"
         }
       }
     },
@@ -11947,6 +11936,18 @@
         "metadata": {
           "default": {},
           "$ref": "#/definitions/k8s.io.v1.ListMeta"
+        }
+      }
+    },
+    "network.harvesterhci.io.v1beta1.ClusterNetworkStatus": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.Condition"
+          }
         }
       }
     },
@@ -11987,24 +11988,13 @@
     },
     "network.harvesterhci.io.v1beta1.LinkStatus": {
       "type": "object",
+      "required": [
+        "name"
+      ],
       "properties": {
-        "conditions": {
-          "type": "array",
-          "items": {
-            "default": {},
-            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.Condition"
-          }
-        },
         "index": {
           "type": "integer",
           "format": "int32"
-        },
-        "ipv4Address": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "default": ""
-          }
         },
         "mac": {
           "type": "string"
@@ -12013,15 +12003,12 @@
           "type": "integer",
           "format": "int32"
         },
+        "name": {
+          "type": "string",
+          "default": ""
+        },
         "promiscuous": {
           "type": "boolean"
-        },
-        "routes": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "default": ""
-          }
         },
         "state": {
           "type": "string"
@@ -12031,7 +12018,7 @@
         }
       }
     },
-    "network.harvesterhci.io.v1beta1.NIC": {
+    "network.harvesterhci.io.v1beta1.NetworkInterface": {
       "type": "object",
       "required": [
         "index",
@@ -12068,6 +12055,10 @@
         },
         "usedByManagementNetwork": {
           "description": "Specify whether used by management network or not",
+          "type": "boolean"
+        },
+        "usedByVlanNetwork": {
+          "description": "Specify whether used by VLAN network or not",
           "type": "boolean"
         }
       }
@@ -12181,7 +12172,7 @@
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NIC"
+            "$ref": "#/definitions/network.harvesterhci.io.v1beta1.NetworkInterface"
           }
         }
       }
