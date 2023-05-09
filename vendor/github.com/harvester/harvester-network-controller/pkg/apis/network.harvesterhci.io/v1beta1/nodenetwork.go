@@ -2,18 +2,22 @@ package v1beta1
 
 import (
 	"github.com/rancher/wrangler/pkg/condition"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// NodeNetwork is deprecated from Harvester v1.1.0 and only keep it for upgrade compatibility purpose
+
+const GroupName = "network.harvesterhci.io"
 
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:shortName=nn;nns,scope=Cluster
+// +kubebuilder:deprecatedversion
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=`.spec.description`
 // +kubebuilder:printcolumn:name="NODENAME",type=string,JSONPath=`.spec.nodeName`
 // +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.spec.type`
-// +kubebuilder:printcolumn:name="NIC",type=string,JSONPath=`.spec.nic`
+// +kubebuilder:printcolumn:name="NetworkInterface",type=string,JSONPath=`.spec.nic`
 
 type NodeNetwork struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -33,7 +37,7 @@ type NodeNetworkSpec struct {
 	Type NetworkType `json:"type,omitempty"`
 
 	// +optional
-	NIC string `json:"nic,omitempty"`
+	NetworkInterface string `json:"nic,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=vlan
@@ -51,13 +55,13 @@ type NodeNetworkStatus struct {
 	NetworkLinkStatus map[string]*LinkStatus `json:"networkLinkStatus,omitempty"`
 
 	// +optional
-	NICs []NIC `json:"nics,omitempty"`
+	NetworkInterfaces []NetworkInterface `json:"nics,omitempty"`
 
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
 }
 
-type NIC struct {
+type NetworkInterface struct {
 	// Index of the NIC
 	Index int `json:"index"`
 	// Index of the NIC's master
@@ -70,11 +74,13 @@ type NIC struct {
 	State string `json:"state"`
 	// Specify whether used by management network or not
 	UsedByMgmtNetwork bool `json:"usedByManagementNetwork,omitempty"`
+	// Specify whether used by VLAN network or not
+	UsedByVlanNetwork bool `json:"usedByVlanNetwork,omitempty"`
 }
 
 type NetworkID int
 
-type LinkStatus struct {
+type NodeNetworkLinkStatus struct {
 	// +optional
 	Index int `json:"index,omitempty"`
 
@@ -101,21 +107,6 @@ type LinkStatus struct {
 
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
-}
-
-type Condition struct {
-	// Type of the condition.
-	Type condition.Cond `json:"type"`
-	// Status of the condition, one of True, False, Unknown.
-	Status corev1.ConditionStatus `json:"status"`
-	// The last time this condition was updated.
-	LastUpdateTime string `json:"lastUpdateTime,omitempty"`
-	// Last time the condition transitioned from one status to another.
-	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
-	// The reason for the condition's last transition.
-	Reason string `json:"reason,omitempty"`
-	// Human-readable message indicating details about last transition
-	Message string `json:"message,omitempty"`
 }
 
 var (

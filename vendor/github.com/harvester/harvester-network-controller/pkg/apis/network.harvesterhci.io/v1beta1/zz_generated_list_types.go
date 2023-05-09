@@ -26,6 +26,23 @@ import (
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// ClusterNetworkList is a list of ClusterNetwork resources
+type ClusterNetworkList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ClusterNetwork `json:"items"`
+}
+
+func NewClusterNetwork(namespace, name string, obj ClusterNetwork) *ClusterNetwork {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterNetwork").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // NodeNetworkList is a list of NodeNetwork resources
 type NodeNetworkList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -43,16 +60,50 @@ func NewNodeNetwork(namespace, name string, obj NodeNetwork) *NodeNetwork {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterNetworkList is a list of ClusterNetwork resources
-type ClusterNetworkList struct {
+// VlanConfigList is a list of VlanConfig resources
+type VlanConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []ClusterNetwork `json:"items"`
+	Items []VlanConfig `json:"items"`
 }
 
-func NewClusterNetwork(namespace, name string, obj ClusterNetwork) *ClusterNetwork {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterNetwork").ToAPIVersionAndKind()
+func NewVlanConfig(namespace, name string, obj VlanConfig) *VlanConfig {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VlanConfig").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// VlanStatusList is a list of VlanStatus resources
+type VlanStatusList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []VlanStatus `json:"items"`
+}
+
+func NewVlanStatus(namespace, name string, obj VlanStatus) *VlanStatus {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VlanStatus").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// LinkMonitorList is a list of LinkMonitor resources
+type LinkMonitorList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []LinkMonitor `json:"items"`
+}
+
+func NewLinkMonitor(namespace, name string, obj LinkMonitor) *LinkMonitor {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("LinkMonitor").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj
