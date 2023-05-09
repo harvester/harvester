@@ -66,7 +66,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.8.0
 	github.com/gorilla/mux v1.8.0
 	github.com/guonaihong/gout v0.1.3
-	github.com/harvester/harvester-network-controller v0.1.7
+	github.com/harvester/harvester-network-controller v0.3.1
 	github.com/iancoleman/strcase v0.2.0
 	github.com/k3s-io/helm-controller v0.11.7
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669

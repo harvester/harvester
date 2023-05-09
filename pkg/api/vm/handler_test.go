@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	corefake "k8s.io/client-go/kubernetes/fake"
+	corev1type "k8s.io/client-go/kubernetes/typed/core/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/controller/master/migration"
@@ -161,14 +163,34 @@ func TestMigrateAction(t *testing.T) {
 		},
 	}
 
+	fakeNodeList := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "fake-node1",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "fake-node2",
+			},
+		},
+	}
+
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset()
+		var coreclientset = corefake.NewSimpleClientset()
 		if tc.given.vmInstance != nil {
 			err := clientset.Tracker().Add(tc.given.vmInstance)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 		}
 
+		for _, node := range fakeNodeList {
+			err := coreclientset.Tracker().Add(node)
+			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+		}
+
 		var handler = &vmActionHandler{
+			nodeCache: fakeNodeCache(coreclientset.CoreV1().Nodes),
 			vmis:      fakeVirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
 			vmiCache:  fakeVirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
 			vmims:     fakeVirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
@@ -621,4 +643,240 @@ func (c fakeVirtualMachineInstanceMigrationClient) Watch(namespace string, opts 
 
 func (c fakeVirtualMachineInstanceMigrationClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *kubevirtv1.VirtualMachineInstanceMigration, err error) {
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
+}
+
+type fakeNodeCache func() corev1type.NodeInterface
+
+func (c fakeNodeCache) Get(name string) (*corev1.Node, error) {
+	return c().Get(context.TODO(), name, metav1.GetOptions{})
+}
+
+func (c fakeNodeCache) List(selector labels.Selector) ([]*corev1.Node, error) {
+	list, err := c().List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*corev1.Node, 0, len(list.Items))
+	for i := range list.Items {
+		result = append(result, &list.Items[i])
+	}
+	return result, err
+}
+
+func (c fakeNodeCache) AddIndexer(indexName string, indexer ctlcorev1.NodeIndexer) {
+	panic("implement me")
+}
+
+func (c fakeNodeCache) GetByIndex(indexName, key string) ([]*corev1.Node, error) {
+	panic("implement me")
+}
+
+func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
+	type args struct {
+		vmi *kubevirtv1.VirtualMachineInstance
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+		err  error
+	}{
+		{
+			name: "Get migratable nodes by network affinity",
+			args: args{
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Affinity: &corev1.Affinity{
+							NodeAffinity: &corev1.NodeAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+									NodeSelectorTerms: []corev1.NodeSelectorTerm{
+										{
+											MatchExpressions: []corev1.NodeSelectorRequirement{
+												{
+													Key:      "network",
+													Operator: corev1.NodeSelectorOpIn,
+													Values:   []string{"a"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []string{
+				"node1", "node2",
+			},
+		},
+		{
+			name: "Get migratable nodes by network affinity and zone",
+			args: args{
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Affinity: &corev1.Affinity{
+							NodeAffinity: &corev1.NodeAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+									NodeSelectorTerms: []corev1.NodeSelectorTerm{
+										{
+											MatchExpressions: []corev1.NodeSelectorRequirement{
+												{
+													Key:      "network",
+													Operator: corev1.NodeSelectorOpIn,
+													Values:   []string{"a"},
+												},
+												{
+													Key:      "zone",
+													Operator: corev1.NodeSelectorOpIn,
+													Values:   []string{"zone2"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []string{
+				"node2",
+			},
+		},
+		{
+			name: "User defined custom affinity",
+			args: args{
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Affinity: &corev1.Affinity{
+							NodeAffinity: &corev1.NodeAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+									NodeSelectorTerms: []corev1.NodeSelectorTerm{
+										{
+											MatchExpressions: []corev1.NodeSelectorRequirement{
+												{
+													Key:      "user.custom/label",
+													Operator: corev1.NodeSelectorOpIn,
+													Values:   []string{"a"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []string{
+				"node1", "node3",
+			},
+		},
+	}
+
+	fakeNodeList := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node1",
+				Labels: map[string]string{
+					"user.custom/label": "a",
+					"network":           "a",
+					"zone":              "zone1",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node2",
+				Labels: map[string]string{
+					"network": "a",
+					"zone":    "zone2",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node3",
+				Labels: map[string]string{
+					"user.custom/label": "a",
+					"network":           "b",
+					"zone":              "zone3",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "unschedulable-node",
+				Labels: map[string]string{
+					"network": "a",
+					"zone":    "zone2",
+				},
+			},
+			Spec: corev1.NodeSpec{
+				Unschedulable: true,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "unschedulable-node2",
+				Labels: map[string]string{
+					"user.custom/label": "a",
+					"network":           "a",
+					"zone":              "zone2",
+				},
+			},
+			Spec: corev1.NodeSpec{
+				Taints: []corev1.Taint{
+					{Key: corev1.TaintNodeUnschedulable},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "unreachable-node",
+				Labels: map[string]string{
+					"user.custom/label": "a",
+					"network":           "a",
+					"zone":              "zone2",
+				},
+			},
+			Spec: corev1.NodeSpec{
+				Taints: []corev1.Taint{
+					{Key: corev1.TaintNodeUnreachable},
+				},
+			},
+		},
+	}
+	var coreclientset = corefake.NewSimpleClientset()
+	for _, node := range fakeNodeList {
+		err := coreclientset.Tracker().Add(node)
+		assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+	}
+	var nodeCache = fakeNodeCache(coreclientset.CoreV1().Nodes)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &vmActionHandler{
+				nodeCache: nodeCache,
+			}
+			got, err := h.findMigratableNodesByVMI(tt.args.vmi)
+			if tt.err != nil && err != nil {
+				assert.Equal(t, tt.err.Error(), err.Error(), "case %q", tt.name)
+			}
+			assert.Equalf(t, tt.want, got, "findMigratableNodesByVMI(%v)", tt.args.vmi)
+		})
+	}
 }
