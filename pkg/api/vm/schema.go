@@ -50,6 +50,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	vmtv := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
 	vmImages := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	storageClasses := scaled.StorageFactory.Storage().V1().StorageClass()
+	nads := scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition()
 
 	copyConfig := rest.CopyConfig(server.RESTConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion
@@ -77,6 +78,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		backupCache:               backups.Cache(),
 		restores:                  restores,
 		settingCache:              settings.Cache(),
+		nadCache:                  nads.Cache(),
 		nodeCache:                 nodes.Cache(),
 		pvcCache:                  pvcs.Cache(),
 		secretClient:              secrets,
@@ -105,21 +107,22 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		ID: vmSchemaID,
 		Customize: func(apiSchema *types.APISchema) {
 			apiSchema.ActionHandlers = map[string]http.Handler{
-				startVM:        &actionHandler,
-				stopVM:         &actionHandler,
-				restartVM:      &actionHandler,
-				softReboot:     &actionHandler,
-				ejectCdRom:     &actionHandler,
-				pauseVM:        &actionHandler,
-				unpauseVM:      &actionHandler,
-				migrate:        &actionHandler,
-				abortMigration: &actionHandler,
-				backupVM:       &actionHandler,
-				restoreVM:      &actionHandler,
-				createTemplate: &actionHandler,
-				addVolume:      &actionHandler,
-				removeVolume:   &actionHandler,
-				cloneVM:        &actionHandler,
+				startVM:             &actionHandler,
+				stopVM:              &actionHandler,
+				restartVM:           &actionHandler,
+				softReboot:          &actionHandler,
+				ejectCdRom:          &actionHandler,
+				pauseVM:             &actionHandler,
+				unpauseVM:           &actionHandler,
+				migrate:             &actionHandler,
+				abortMigration:      &actionHandler,
+				findMigratableNodes: &actionHandler,
+				backupVM:            &actionHandler,
+				restoreVM:           &actionHandler,
+				createTemplate:      &actionHandler,
+				addVolume:           &actionHandler,
+				removeVolume:        &actionHandler,
+				cloneVM:             &actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:    {},
@@ -131,7 +134,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				migrate: {
 					Input: "migrateInput",
 				},
-				abortMigration: {},
+				abortMigration:      {},
+				findMigratableNodes: {},
 				ejectCdRom: {
 					Input: "ejectCdRomActionInput",
 				},

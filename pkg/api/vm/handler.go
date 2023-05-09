@@ -21,6 +21,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/rest"
@@ -32,6 +33,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/builder"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -57,6 +59,7 @@ type vmActionHandler struct {
 	backupCache               ctlharvesterv1.VirtualMachineBackupCache
 	restores                  ctlharvesterv1.VirtualMachineRestoreClient
 	settingCache              ctlharvesterv1.SettingCache
+	nadCache                  ctlcniv1.NetworkAttachmentDefinitionCache
 	nodeCache                 ctlcorev1.NodeCache
 	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
 	secretClient              ctlcorev1.SecretClient
@@ -107,6 +110,8 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		return h.migrate(r.Context(), namespace, name, input.NodeName)
 	case abortMigration:
 		return h.abortMigration(namespace, name)
+	case findMigratableNodes:
+		return h.findMigratableNodes(rw, namespace, name)
 	case startVM, stopVM, restartVM:
 		if err := h.subresourceOperate(r.Context(), vmResource, namespace, name, action); err != nil {
 			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
@@ -320,6 +325,10 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 	if !canMigrate(vmi) {
 		return errors.New("The VM is already in migrating state")
 	}
+	if isSpecificNodeFromVMINodeSelector(vmi) {
+		return errors.New("The VM has been configured to run on a specific node, can't migrate it")
+	}
+
 	// functions in formatter only return bool, the disk.Name is also needed, check them directly here
 	for _, disk := range vmi.Spec.Domain.Devices.Disks {
 		if disk.CDRom != nil {
@@ -331,6 +340,13 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 			return fmt.Errorf("Volume %s is container disk, needs to be removed before migration", volume.Name)
 		}
 	}
+
+	if ok, err := h.isMigratableNode(nodeName, vmi); err != nil {
+		return fmt.Errorf("can't migrate the VM to the node %s: %s", nodeName, err.Error())
+	} else if !ok {
+		return errors.New("The target node is non-migratable")
+	}
+
 	vmim := &kubevirtv1.VirtualMachineInstanceMigration{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: vmName + "-",
@@ -342,9 +358,6 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 	}
 	if nodeName != "" {
 		// check node name is valid
-		if _, err := h.nodeCache.Get(nodeName); err != nil {
-			return err
-		}
 		if nodeName == vmi.Status.NodeName {
 			return apierror.NewAPIError(validation.InvalidBodyContent, "The VM is currently running on the target node")
 		}
@@ -367,6 +380,23 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 
 	_, err = h.vmims.Create(vmim)
 	return err
+}
+
+func (h *vmActionHandler) isMigratableNode(targetNode string, vmi *kubevirtv1.VirtualMachineInstance) (bool, error) {
+	if targetNode == "" {
+		return true, nil
+	}
+
+	nodes, err := h.findMigratableNodesByVMI(vmi)
+	if err != nil {
+		return false, err
+	}
+
+	if len(nodes) == 0 {
+		return false, errors.New("no migration nodes")
+	}
+
+	return slice.ContainsString(nodes, targetNode), nil
 }
 
 func (h *vmActionHandler) abortMigration(namespace, name string) error {
@@ -395,6 +425,93 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 		}
 	}
 	return nil
+}
+
+func (h *vmActionHandler) findMigratableNodes(rw http.ResponseWriter, namespace, name string) error {
+	vmi, err := h.vmiCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	if !canMigrate(vmi) {
+		return errors.New("The VM is already in migrating state")
+	}
+	if isSpecificNodeFromVMINodeSelector(vmi) {
+		return errors.New("The VM is configured to run on a specific node, can't migrate it")
+	}
+
+	nodes, err := h.findMigratableNodesByVMI(vmi)
+	if err != nil {
+		return err
+	}
+	resp := GetMigratableNodesOutput{
+		Nodes: nodes,
+	}
+
+	util.ResponseOKWithBody(rw, resp)
+	return nil
+}
+
+func (h *vmActionHandler) findMigratableNodesByVMI(vmi *kubevirtv1.VirtualMachineInstance) ([]string, error) {
+	nodeSelector, err := h.getNodeSelectorRequirementFromVMI(vmi)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes, err := h.nodeCache.List(nodeSelector)
+	if err != nil || len(nodes) == 0 {
+		return nil, err
+	}
+
+	// ignore the node where the VM is running
+	migratableNodes := make([]string, 0, len(nodes)-1)
+	for _, node := range nodes {
+		if vmi.Status.NodeName == node.Name {
+			continue
+		}
+
+		if isDrained(node) {
+			continue
+		}
+
+		migratableNodes = append(migratableNodes, node.Name)
+	}
+	return migratableNodes, nil
+}
+
+func isDrained(node *corev1.Node) bool {
+	if node.Spec.Unschedulable {
+		return true
+	}
+	if node.Spec.Taints != nil {
+		for _, taint := range node.Spec.Taints {
+			if taint.Key == corev1.TaintNodeUnreachable || taint.Key == corev1.TaintNodeUnschedulable {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.VirtualMachineInstance) (labels.Selector, error) {
+	if vmi == nil {
+		return nil, nil
+	}
+
+	nodeSelector := labels.NewSelector()
+
+	terms := vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+	for _, term := range terms {
+		for _, e := range term.MatchExpressions {
+			r, err := convertNodeSelectorRequirementToSelector(e)
+			if err != nil {
+				return nil, err
+			}
+			nodeSelector = nodeSelector.Add(*r)
+		}
+	}
+
+	return nodeSelector, nil
 }
 
 func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input BackupInput) error {
@@ -1129,4 +1246,23 @@ func getClonedVMYamlFromSourceVM(newVMName string, sourceVM *kubevirtv1.VirtualM
 		newVM.Spec.Template.Spec.Domain.Devices.Interfaces[i].MacAddress = ""
 	}
 	return newVM
+}
+
+func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement) (*labels.Requirement, error) {
+	switch req.Operator {
+	case corev1.NodeSelectorOpIn:
+		return labels.NewRequirement(req.Key, selection.In, req.Values)
+	case corev1.NodeSelectorOpNotIn:
+		return labels.NewRequirement(req.Key, selection.NotIn, req.Values)
+	case corev1.NodeSelectorOpExists:
+		return labels.NewRequirement(req.Key, selection.Exists, nil)
+	case corev1.NodeSelectorOpDoesNotExist:
+		return labels.NewRequirement(req.Key, selection.DoesNotExist, nil)
+	case corev1.NodeSelectorOpGt:
+		return labels.NewRequirement(req.Key, selection.GreaterThan, req.Values)
+	case corev1.NodeSelectorOpLt:
+		return labels.NewRequirement(req.Key, selection.LessThan, req.Values)
+	default:
+		return &labels.Requirement{}, fmt.Errorf("unsupported operator: %v", req.Operator)
+	}
 }

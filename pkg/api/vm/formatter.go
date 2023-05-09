@@ -16,21 +16,22 @@ import (
 )
 
 const (
-	startVM        = "start"
-	stopVM         = "stop"
-	restartVM      = "restart"
-	softReboot     = "softreboot"
-	pauseVM        = "pause"
-	unpauseVM      = "unpause"
-	ejectCdRom     = "ejectCdRom"
-	migrate        = "migrate"
-	abortMigration = "abortMigration"
-	backupVM       = "backup"
-	restoreVM      = "restore"
-	createTemplate = "createTemplate"
-	addVolume      = "addVolume"
-	removeVolume   = "removeVolume"
-	cloneVM        = "clone"
+	startVM             = "start"
+	stopVM              = "stop"
+	restartVM           = "restart"
+	softReboot          = "softreboot"
+	pauseVM             = "pause"
+	unpauseVM           = "unpause"
+	ejectCdRom          = "ejectCdRom"
+	migrate             = "migrate"
+	abortMigration      = "abortMigration"
+	findMigratableNodes = "findMigratableNodes"
+	backupVM            = "backup"
+	restoreVM           = "restore"
+	createTemplate      = "createTemplate"
+	addVolume           = "addVolume"
+	removeVolume        = "removeVolume"
+	cloneVM             = "clone"
 )
 
 type vmformatter struct {
@@ -87,6 +88,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if canMigrate(vmi) {
 		resource.AddAction(request, migrate)
+		resource.AddAction(request, findMigratableNodes)
 	}
 
 	if canAbortMigrate(vmi) {
@@ -224,6 +226,13 @@ func canAbortMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
 		return true
 	}
 	return false
+}
+
+func isSpecificNodeFromVMINodeSelector(vmi *kubevirtv1.VirtualMachineInstance) bool {
+	if vmi.Spec.NodeSelector == nil {
+		return false
+	}
+	return true
 }
 
 func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
