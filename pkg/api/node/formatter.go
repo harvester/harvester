@@ -188,12 +188,25 @@ func (h ActionHandler) retryMaintenanceModeUpdate(nodeName string, updateFunc ma
 
 func (h ActionHandler) listUnhealthyVM(rw http.ResponseWriter, node *corev1.Node) error {
 	ndc := nodedrain.ActionHelper(h.nodeCache, h.virtualMachineInstanceCache, h.longhornVolumeCache, h.longhornReplicaCache)
-	vmList, err := ndc.FindAndListVM(node)
+
+	var respObj ListUnhealthyVM
+
+	nonMigrtableVMList, err := ndc.FindAndListNonMigratableVM(node)
 	if err != nil {
 		return err
 	}
 
-	var respObj ListUnhealthyVM
+	if len(nonMigrtableVMList) > 0 {
+		respObj.Message = "Please detach CDROM or ContainerDisk from following VMs:"
+		respObj.VMs = nonMigrtableVMList
+		rw.WriteHeader(http.StatusOK)
+		return json.NewEncoder(rw).Encode(&respObj)
+	}
+
+	vmList, err := ndc.FindAndListVM(node)
+	if err != nil {
+		return err
+	}
 
 	if len(vmList) > 0 {
 		respObj.Message = "Following unhealthy VMs will be impacted by the node drain:"

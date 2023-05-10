@@ -246,6 +246,27 @@ func (ndc *ControllerHandler) FindAndListVM(node *corev1.Node) ([]string, error)
 	return impactedVMDetails, nil
 }
 
+// FindAndListNonMigratableVM is called by action handler to leverage caches to find VM's which may have a cdrom or container disk
+// attached to vmi
+func (ndc *ControllerHandler) FindAndListNonMigratableVM(node *corev1.Node) ([]string, error) {
+	labelSelector, err := labels.Parse(fmt.Sprintf("%s in (%s)", kubevirtv1.NodeNameLabel, node.Name))
+	if err != nil {
+		return nil, err
+	}
+	vmiList, err := ndc.virtualMachineInstanceCache.List("", labelSelector)
+	if err != nil {
+		return nil, fmt.Errorf("error listing VMI: %v", err)
+	}
+
+	var impactedVMI []string
+	for _, v := range vmiList {
+		if vmContainsCDRomOrContainerDisk(v) {
+			impactedVMI = append(impactedVMI, fmt.Sprintf("%s/%s", v.Namespace, v.Name))
+		}
+	}
+	return impactedVMI, nil
+}
+
 func ActionHelper(nodeCache ctlcorev1.NodeCache, virtualMachineInstanceCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	longhornVolumeCache longhornv1beta1.VolumeCache, longhornReplicaCache longhornv1beta1.ReplicaCache) *ControllerHandler {
 	return &ControllerHandler{
@@ -254,4 +275,19 @@ func ActionHelper(nodeCache ctlcorev1.NodeCache, virtualMachineInstanceCache ctl
 		longhornVolumeCache:         longhornVolumeCache,
 		longhornReplicaCache:        longhornReplicaCache,
 	}
+}
+
+func vmContainsCDRomOrContainerDisk(vmi *kubevirtv1.VirtualMachineInstance) bool {
+	for _, disk := range vmi.Spec.Domain.Devices.Disks {
+		if disk.CDRom != nil {
+			return true
+		}
+	}
+
+	for _, volume := range vmi.Spec.Volumes {
+		if volume.VolumeSource.ContainerDisk != nil {
+			return true
+		}
+	}
+	return false
 }
