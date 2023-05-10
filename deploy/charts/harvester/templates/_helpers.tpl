@@ -76,11 +76,6 @@ nodeAffinity:
   requiredDuringSchedulingIgnoredDuringExecution:
     nodeSelectorTerms:
       - matchExpressions:
-          - key: beta.kubernetes.io/os
-            operator: In
-            values:
-              - linux
-      - matchExpressions:
           - key: kubernetes.io/os
             operator: In
             values:
