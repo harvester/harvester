@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 
+	ctlnodeharvester "github.com/harvester/node-manager/pkg/generated/controllers/node.harvesterhci.io"
 	helmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
 	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/rancher/lasso/pkg/controller"
@@ -102,6 +103,7 @@ type Management struct {
 	NetworkingFactory *networking.Factory
 	UpgradeFactory    *upgrade.Factory
 	ClusterFactory    *cluster.Factory
+	NodeConfigFactory *ctlnodeharvester.Factory
 
 	ClientSet  *kubernetes.Clientset
 	RestConfig *rest.Config
@@ -363,6 +365,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.MonitoringFactory = monitoring
 	management.starters = append(management.starters, monitoring)
+
+	nodeconfig, err := ctlnodeharvester.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.NodeConfigFactory = nodeconfig
+	management.starters = append(management.starters, nodeconfig)
 
 	management.RestConfig = restConfig
 	management.ClientSet, err = kubernetes.NewForConfig(restConfig)

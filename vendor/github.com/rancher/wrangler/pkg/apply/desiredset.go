@@ -39,7 +39,6 @@ type desiredSet struct {
 	noDeleteGVK              map[schema.GroupVersionKind]struct{}
 	setID                    string
 	objs                     *objectset.ObjectSet
-	codeVersion              string
 	owner                    runtime.Object
 	injectors                []injectors.ConfigInjector
 	ratelimitingQps          float32

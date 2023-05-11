@@ -10,6 +10,8 @@ import (
 	"time"
 	"unicode"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -235,7 +237,8 @@ func EncodeToMap(obj interface{}) (map[string]interface{}, error) {
 func ToJSONKey(str string) string {
 	parts := strings.Split(str, "_")
 	for i := 1; i < len(parts); i++ {
-		parts[i] = strings.Title(parts[i])
+		caser := cases.Title(language.English)
+		parts[i] = caser.String(parts[i])
 	}
 
 	return strings.Join(parts, "")

@@ -42,7 +42,7 @@ func (m Move) ModifySchema(s *types.Schema, schemas *types.Schemas) error {
 		return fmt.Errorf("failed to find field %s on schema %s", m.From, s.ID)
 	}
 
-	toSchema, toFieldName, _, ok, err := getField(s, schemas, m.To)
+	toSchema, toFieldName, _, _, err := getField(s, schemas, m.To)
 	if err != nil {
 		return err
 	}
