@@ -1,3 +1,4 @@
+
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -13,6 +14,9 @@ spec:
     kind: VolumeSnapshotContent
     listKind: VolumeSnapshotContentList
     plural: volumesnapshotcontents
+    shortNames:
+      - vsc
+      - vscs
     singular: volumesnapshotcontent
   scope: Cluster
   versions:
@@ -40,6 +44,10 @@ spec:
         - description: Name of the VolumeSnapshot object to which this VolumeSnapshotContent object is bound.
           jsonPath: .spec.volumeSnapshotRef.name
           name: VolumeSnapshot
+          type: string
+        - description: Namespace of the VolumeSnapshot object to which this VolumeSnapshotContent object is bound.
+          jsonPath: .spec.volumeSnapshotRef.namespace
+          name: VolumeSnapshotNamespace
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -148,7 +156,7 @@ spec:
             - spec
           type: object
       served: true
-      storage: false
+      storage: true
       subresources:
         status: {}
     - additionalPrinterColumns:
@@ -176,10 +184,19 @@ spec:
           jsonPath: .spec.volumeSnapshotRef.name
           name: VolumeSnapshot
           type: string
+        - description: Namespace of the VolumeSnapshot object to which this VolumeSnapshotContent object is bound.
+          jsonPath: .spec.volumeSnapshotRef.namespace
+          name: VolumeSnapshotNamespace
+          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
       name: v1beta1
+      # This indicates the v1beta1 version of the custom resource is deprecated.
+      # API requests to this version receive a warning in the server response.
+      deprecated: true
+      # This overrides the default warning returned to clients making v1beta1 API requests.
+      deprecationWarning: "snapshot.storage.k8s.io/v1beta1 VolumeSnapshotContent is deprecated; use snapshot.storage.k8s.io/v1 VolumeSnapshotContent"
       schema:
         openAPIV3Schema:
           description: VolumeSnapshotContent represents the actual "on-disk" snapshot object in the underlying storage system
@@ -280,7 +297,7 @@ spec:
             - spec
           type: object
       served: true
-      storage: true
+      storage: false
       subresources:
         status: {}
 status:
