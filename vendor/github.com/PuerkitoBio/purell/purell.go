@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/PuerkitoBio/urlesc"
 	"golang.org/x/net/idna"
 	"golang.org/x/text/unicode/norm"
 	"golang.org/x/text/width"
@@ -180,7 +179,7 @@ func NormalizeURL(u *url.URL, f NormalizationFlags) string {
 			flags[k](u)
 		}
 	}
-	return urlesc.Escape(u)
+	return escapeURL(u)
 }
 
 func lowercaseScheme(u *url.URL) {
@@ -311,7 +310,7 @@ func sortQuery(u *url.URL) {
 				if buf.Len() > 0 {
 					buf.WriteRune('&')
 				}
-				buf.WriteString(fmt.Sprintf("%s=%s", k, urlesc.QueryEscape(v)))
+				buf.WriteString(fmt.Sprintf("%s=%s", k, url.QueryEscape(v)))
 			}
 		}
 
