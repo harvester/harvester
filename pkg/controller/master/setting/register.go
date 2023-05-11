@@ -25,6 +25,8 @@ func Register(ctx context.Context, management *config.Management, options config
 	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 	helmChartConfigs := management.HelmFactory.Helm().V1().HelmChartConfig()
 	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
+	nodeConfigs := management.NodeConfigFactory.Node().V1beta1().NodeConfig()
+	node := management.CoreFactory.Core().V1().Node()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -49,6 +51,10 @@ func Register(ctx context.Context, management *config.Management, options config
 		helmChartConfigCache: helmChartConfigs.Cache(),
 		rancherSettings:      rancherSettings,
 		rancherSettingCache:  rancherSettings.Cache(),
+		nodeConfigs:          nodeConfigs,
+		nodeConfigsCache:     nodeConfigs.Cache(),
+		nodeClient:           node,
+		nodeCache:            node.Cache(),
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -72,6 +78,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		"ssl-parameters":            controller.syncSSLParameters,
 		"containerd-registry":       controller.syncContainerdRegistry,
 		"rancher-manager-support":   controller.syncRancherManagerSupport,
+		"ntp-servers":               controller.syncNTPServer,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
 	}

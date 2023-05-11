@@ -223,7 +223,6 @@ func getValue(obj interface{}, name ...string) reflect.Value {
 	t := v.Type()
 	if t.Kind() == reflect.Ptr {
 		v = v.Elem()
-		t = v.Type()
 	}
 
 	field := v.FieldByName(name[0])

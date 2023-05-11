@@ -3,7 +3,6 @@ package controllergen
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -46,7 +45,7 @@ func Run(opts cgargs.Options) {
 	genericArgs.InputDirs = parseTypes(customArgs)
 
 	if genericArgs.OutputBase == "./" { //go modules
-		tempDir, err := ioutil.TempDir("", "")
+		tempDir, err := os.MkdirTemp("", "")
 		if err != nil {
 			return
 		}
@@ -123,7 +122,7 @@ func sourcePackagePath(customArgs *cgargs.CustomArgs, pkgName string) string {
 	return pkg
 }
 
-//until k8s code-gen supports gopath
+// until k8s code-gen supports gopath
 func copyGoPathToModules(customArgs *cgargs.CustomArgs) error {
 
 	pathsToCopy := map[string]bool{}
@@ -137,7 +136,7 @@ func copyGoPathToModules(customArgs *cgargs.CustomArgs) error {
 	pkg := sourcePackagePath(customArgs, customArgs.Package)
 	pathsToCopy[pkg] = true
 
-	for pkg, _ := range pathsToCopy {
+	for pkg := range pathsToCopy {
 		if _, err := os.Stat(pkg); os.IsNotExist(err) {
 			continue
 		}

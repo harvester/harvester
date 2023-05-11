@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	ctlnodev1 "github.com/harvester/node-manager/pkg/generated/controllers/node.harvesterhci.io/v1beta1"
 	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	catalogv1api "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
@@ -61,6 +62,10 @@ type Handler struct {
 	helmChartConfigCache ctlhelmv1.HelmChartConfigCache
 	rancherSettings      ctlmgmtv3.SettingClient
 	rancherSettingCache  ctlmgmtv3.SettingCache
+	nodeClient           ctlcorev1.NodeClient
+	nodeCache            ctlcorev1.NodeCache
+	nodeConfigs          ctlnodev1.NodeConfigClient
+	nodeConfigsCache     ctlnodev1.NodeConfigCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

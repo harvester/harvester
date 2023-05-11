@@ -42,7 +42,10 @@ func (r *Router) sendError(rw http.ResponseWriter, review *v1.AdmissionReview, e
 
 func writeResponse(rw http.ResponseWriter, review *v1.AdmissionReview) {
 	rw.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(rw).Encode(review)
+	err := json.NewEncoder(rw).Encode(review)
+	if err != nil {
+		logrus.Errorf("Failed to write response: %s", err)
+	}
 }
 
 // ServeHTTP inspects the http.Request and calls the Admit function on all matching handlers.
