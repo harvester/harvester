@@ -208,7 +208,8 @@ func canMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
 		vmi.Annotations[util.AnnotationMigrationUID] == "" {
 		return true
 	}
-	return false
+
+	return vmi.Spec.NodeSelector == nil
 }
 
 func isReady(vmi *kubevirtv1.VirtualMachineInstance) bool {
@@ -226,13 +227,6 @@ func canAbortMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
 		return true
 	}
 	return false
-}
-
-func isSpecificNodeFromVMINodeSelector(vmi *kubevirtv1.VirtualMachineInstance) bool {
-	if vmi.Spec.NodeSelector == nil {
-		return false
-	}
-	return true
 }
 
 func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {

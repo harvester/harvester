@@ -43,6 +43,6 @@ type CloneInput struct {
 	TargetVM string `json:"targetVm"`
 }
 
-type GetMigratableNodesOutput struct {
+type FindMigratableNodesOutput struct {
 	Nodes []string `json:"nodes"`
 }

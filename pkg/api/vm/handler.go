@@ -32,11 +32,13 @@ import (
 	volumeapi "github.com/harvester/harvester/pkg/api/volume"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/builder"
+	nodecontroller "github.com/harvester/harvester/pkg/controller/master/node"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/drainhelper"
 )
 
 const (
@@ -323,10 +325,7 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 		return errors.New("Can't migrate the VM, the VM is not in ready status")
 	}
 	if !canMigrate(vmi) {
-		return errors.New("The VM is already in migrating state")
-	}
-	if isSpecificNodeFromVMINodeSelector(vmi) {
-		return errors.New("The VM has been configured to run on a specific node, can't migrate it")
+		return errors.New("The VM is not migratable")
 	}
 
 	// functions in formatter only return bool, the disk.Name is also needed, check them directly here
@@ -393,7 +392,7 @@ func (h *vmActionHandler) isMigratableNode(targetNode string, vmi *kubevirtv1.Vi
 	}
 
 	if len(nodes) == 0 {
-		return false, errors.New("no migration nodes")
+		return false, errors.New("no matching migratable nodes found")
 	}
 
 	return slice.ContainsString(nodes, targetNode), nil
@@ -434,17 +433,14 @@ func (h *vmActionHandler) findMigratableNodes(rw http.ResponseWriter, namespace,
 	}
 
 	if !canMigrate(vmi) {
-		return errors.New("The VM is already in migrating state")
-	}
-	if isSpecificNodeFromVMINodeSelector(vmi) {
-		return errors.New("The VM is configured to run on a specific node, can't migrate it")
+		return errors.New("The VM is not migratable")
 	}
 
 	nodes, err := h.findMigratableNodesByVMI(vmi)
 	if err != nil {
 		return err
 	}
-	resp := GetMigratableNodesOutput{
+	resp := FindMigratableNodesOutput{
 		Nodes: nodes,
 	}
 
@@ -480,6 +476,12 @@ func (h *vmActionHandler) findMigratableNodesByVMI(vmi *kubevirtv1.VirtualMachin
 }
 
 func isDrained(node *corev1.Node) bool {
+	if _, ok := node.Annotations[nodecontroller.MaintainStatusAnnotationKey]; ok {
+		return ok
+	}
+	if _, ok := node.Annotations[drainhelper.DrainAnnotation]; ok {
+		return ok
+	}
 	if node.Spec.Unschedulable {
 		return true
 	}
@@ -490,6 +492,7 @@ func isDrained(node *corev1.Node) bool {
 			}
 		}
 	}
+
 	return false
 }
 
