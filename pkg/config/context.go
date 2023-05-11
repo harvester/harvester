@@ -174,7 +174,7 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 		return nil, nil, err
 	}
 	scaled.LoggingFactory = logging
-	scaled.starters = append(scaled.starters, cni)
+	scaled.starters = append(scaled.starters, logging)
 
 	snapshot, err := snapshotv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
