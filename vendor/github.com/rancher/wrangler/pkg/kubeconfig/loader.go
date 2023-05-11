@@ -2,7 +2,6 @@ package kubeconfig
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -51,7 +50,7 @@ func GetLoadingRules(kubeConfig string) *clientcmd.ClientConfigLoadingRules {
 
 func canRead(files []string) (result []string) {
 	for _, f := range files {
-		_, err := ioutil.ReadFile(f)
+		_, err := os.ReadFile(f)
 		if err == nil {
 			result = append(result, f)
 		}

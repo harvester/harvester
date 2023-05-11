@@ -54,7 +54,6 @@ func (in *SummarizedObjectList) DeepCopyInto(out *SummarizedObjectList) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	return
 }
 
 func (in *SummarizedObjectList) DeepCopy() *SummarizedObjectList {
@@ -78,7 +77,6 @@ func (in *SummarizedObject) DeepCopyInto(out *SummarizedObject) {
 	out.TypeMeta = in.TypeMeta
 	out.ObjectMeta = *in.ObjectMeta.DeepCopy()
 	out.Summary = *in.Summary.DeepCopy()
-	return
 }
 
 func (in *SummarizedObject) DeepCopy() *SummarizedObject {

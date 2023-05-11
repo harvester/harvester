@@ -103,7 +103,7 @@ func (c *Factory) setControllerFactoryWithLock() error {
 
 func (c *Factory) Sync(ctx context.Context) error {
 	if c.cacheFactory != nil {
-		c.cacheFactory.Start(ctx)
+		_ = c.cacheFactory.Start(ctx)
 		c.cacheFactory.WaitForCacheSync(ctx)
 	}
 	return nil

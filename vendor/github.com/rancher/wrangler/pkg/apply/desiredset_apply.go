@@ -144,7 +144,7 @@ func (o *desiredSet) debugID() string {
 func (o *desiredSet) collect(objList []runtime.Object) objectset.ObjectByGVK {
 	result := objectset.ObjectByGVK{}
 	for _, obj := range objList {
-		result.Add(obj)
+		_, _ = result.Add(obj)
 	}
 	return result
 }

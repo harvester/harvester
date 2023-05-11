@@ -345,9 +345,7 @@ func (s *Schemas) processFieldsMappers(t reflect.Type, fieldName string, schema 
 		parts := strings.SplitN(fieldMapper, "=", 2)
 		name = parts[0]
 		if len(parts) == 2 {
-			for _, opt := range strings.Split(parts[1], "|") {
-				opts = append(opts, opt)
-			}
+			opts = append(opts, strings.Split(parts[1], "|")...)
 		}
 
 		factory, ok := s.fieldMappers[name]

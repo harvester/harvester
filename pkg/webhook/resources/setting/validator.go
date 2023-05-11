@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -53,6 +54,10 @@ var certs = getSystemCerts()
 // - http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_protocols
 var supportedSSLProtocols = []string{"SSLv2", "SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3"}
 
+// Borrow from github.com/cilium/cilium
+var FQDNMatchNameRegexString = `^([-a-zA-Z0-9_]+[.]?)+$`
+var FQDNMatchPatternRegexString = `^([-a-zA-Z0-9_*]+[.]?)+$`
+
 type validateSettingFunc func(setting *v1beta1.Setting) error
 
 var validateSettingFuncs = map[string]validateSettingFunc{
@@ -66,6 +71,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.SSLParametersName:                                 validateSSLParameters,
 	settings.ContainerdRegistrySettingName:                     validateContainerdRegistry,
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateDefaultVMTerminationGracePeriodSeconds,
+	settings.NTPServersSettingName:                             validateNTPServers,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -81,6 +87,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.SSLParametersName:                                 validateUpdateSSLParameters,
 	settings.ContainerdRegistrySettingName:                     validateUpdateContainerdRegistry,
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateUpdateDefaultVMTerminationGracePeriodSeconds,
+	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -402,6 +409,77 @@ func (v *settingValidator) customizeTransport() error {
 	}
 
 	return nil
+}
+
+func validateNTPServers(setting *v1beta1.Setting) error {
+	logrus.Infof("Prepare to validate NTP servers: %s", setting.Value)
+	if setting.Value == "" {
+		return nil
+	}
+
+	ntpSettings := &util.NTPSettings{}
+	if err := json.Unmarshal([]byte(setting.Value), ntpSettings); err != nil {
+		return fmt.Errorf("failed to parse NTP settings: %v", err)
+	}
+	if ntpSettings.NTPServers == nil {
+		return fmt.Errorf("NTP servers can't be empty")
+	}
+	logrus.Infof("ntpSettings: %+v", ntpSettings)
+
+	fqdnNameValidator, err := regexp.Compile(FQDNMatchNameRegexString)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to compile fqdnName regexp: %v", err)
+		logrus.Errorf(errMsg)
+		return fmt.Errorf(errMsg)
+	}
+	fqdnPatternValidator, err := regexp.Compile(FQDNMatchPatternRegexString)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to compile fqdnPattern regexp: %v", err)
+		logrus.Errorf(errMsg)
+		return fmt.Errorf(errMsg)
+	}
+	startWithHTTP, err := regexp.Compile("^http?://.*")
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to compile startWithHttp regexp: %v", err)
+		logrus.Errorf(errMsg)
+		return fmt.Errorf(errMsg)
+	}
+
+	for _, server := range ntpSettings.NTPServers {
+		if startWithHTTP.MatchString(server) {
+			errMsg := fmt.Sprintf("ntp server %s should not start with http:// or https:// .", server)
+			logrus.Errorf(errMsg)
+			return fmt.Errorf(errMsg)
+		}
+		if !validateNTPServer(server, fqdnNameValidator, fqdnPatternValidator) {
+			errMsg := fmt.Sprintf("invalid NTP server: %s", server)
+			logrus.Errorf(errMsg)
+			return fmt.Errorf(errMsg)
+		}
+	}
+	logrus.Infof("NTP servers validation passed")
+
+	return nil
+}
+
+func validateNTPServer(server string, nameValidator, patternValidator *regexp.Regexp) bool {
+	if server == "" {
+		logrus.Warnf("NTP server should not be empty, just skip")
+		return true
+	}
+
+	// check IPv4/IPv6 format, or FQDN format
+	if validatedIP := net.ParseIP(server); validatedIP == nil {
+		if !nameValidator.MatchString(server) || !patternValidator.MatchString(server) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func validateUpdateNTPServers(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateNTPServers(newSetting)
 }
 
 func validateVipPoolsConfig(setting *v1beta1.Setting) error {
