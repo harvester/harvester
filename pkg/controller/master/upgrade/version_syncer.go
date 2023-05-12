@@ -23,6 +23,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -31,6 +32,7 @@ const (
 	extraInfoNodeCount  = "nodeCount"
 	extraInfoCPUCount   = "cpuCount"
 	extraInfoMemorySize = "memorySize"
+	extraInfoClusterUID = "clusterUID"
 )
 
 type CheckUpgradeRequest struct {
@@ -54,24 +56,21 @@ type versionSyncer struct {
 	namespace  string
 	httpClient *http.Client
 
-	versionClient ctlharvesterv1.VersionClient
-	versionCache  ctlharvesterv1.VersionCache
-
-	nodeClient ctlcorev1.NodeClient
-	nodeCache  ctlcorev1.NodeCache
+	versionClient   ctlharvesterv1.VersionClient
+	nodeClient      ctlcorev1.NodeClient
+	namespaceClient ctlcorev1.NamespaceClient
 }
 
-func newVersionSyncer(ctx context.Context, namespace string, versions ctlharvesterv1.VersionController, nodes ctlcorev1.NodeController) *versionSyncer {
+func newVersionSyncer(ctx context.Context, namespace string, versions ctlharvesterv1.VersionController, nodes ctlcorev1.NodeController, namespaces ctlcorev1.NamespaceController) *versionSyncer {
 	return &versionSyncer{
 		ctx:       ctx,
 		namespace: namespace,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		versionClient: versions,
-		versionCache:  versions.Cache(),
-		nodeClient:    nodes,
-		nodeCache:     nodes.Cache(),
+		versionClient:   versions,
+		nodeClient:      nodes,
+		namespaceClient: namespaces,
 	}
 }
 
@@ -131,6 +130,10 @@ func (s *versionSyncer) getExtraInfo() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	sysNamespace, err := s.namespaceClient.Get(util.HarvesterSystemNamespaceName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
 	extraInfo := map[string]string{}
 	cpu := resource.NewQuantity(0, resource.BinarySI)
 	memory := resource.NewQuantity(0, resource.BinarySI)
@@ -141,6 +144,7 @@ func (s *versionSyncer) getExtraInfo() (map[string]string, error) {
 	extraInfo[extraInfoCPUCount] = cpu.String()
 	extraInfo[extraInfoMemorySize] = formatQuantityToGi(memory)
 	extraInfo[extraInfoNodeCount] = strconv.Itoa(len(nodes.Items))
+	extraInfo[extraInfoClusterUID] = string(sysNamespace.UID)
 	return extraInfo, nil
 }
 
