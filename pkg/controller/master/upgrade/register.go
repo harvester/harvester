@@ -33,6 +33,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	vmImages := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	services := management.CoreFactory.Core().V1().Service()
+	namespaces := management.CoreFactory.Core().V1().Namespace()
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
 	machines := management.ClusterFactory.Cluster().V1alpha4().Machine()
 	secrets := management.CoreFactory.Core().V1().Secret()
@@ -125,7 +126,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 	nodes.OnChange(ctx, nodeControllerName, nodeHandler.OnChanged)
 
-	versionSyncer := newVersionSyncer(ctx, options.Namespace, versions, nodes)
+	versionSyncer := newVersionSyncer(ctx, options.Namespace, versions, nodes, namespaces)
 
 	settingHandler := settingHandler{
 		versionSyncer: versionSyncer,
