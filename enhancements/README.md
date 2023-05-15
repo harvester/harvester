@@ -1,11 +1,11 @@
 # Harvester Enhancement Proposal (HEP)
 
-This directory collects Harvester Enhancement Proposals (HEP). HEPs are used to describe highlighted features, enhancements, or bug fixes that require significant changes to the code or architecture. You can use the [template](./YYYYMMDD-template.md) to create a HEP pull request.
+This directory serves as a collection of Harvester Enhancement Proposals (HEPs). HEPs are used to describe highlighted features, enhancements, or bug fixes that require substantial changes to the code or architecture. To create a HEP, you can use the provided [template](./YYYYMMDD-template.md) and submit a pull request.
 
 The following steps describe how HEPs are involved in the development process:
 
-1. An Engineer or contributor gets assigned a Github issue. The GitHub issue should have the `require/HEP` label.
-1. When the assignee decides to work on it (which likely means it’s now targeting the next minor release), they will start working on the HEP if HEP is required. It might take a while because it also involves POC and lots of discussions.
-1. Once the assignee has an initial design, he or she will submit a PR containing the HEP to the `harvester/harvester` GitHub repo, `enhancements` directory. For example https://github.com/harvester/harvester/pull/3673.
-1. More discussion will start on the HEP, now it’s time we can get feedback from the community or team.
-1. HEP might be not getting merged for a while. The assignee might decide to implement the feature more and come back on updating the HEP. It’s generally required HEP to be merged when the feature is merged, so the HEP is at least going to reflect how the first iteration of works.
+1. An engineer or contributor is assigned a GitHub issue. The GitHub issue should have the `require/HEP` label.
+1. Once the assignee decides to work on the issue (typically targeting the next minor release), they will begin working on the HEP first. This process may involve proof of concept and extensive discussions.
+1. After the assignee has a preliminary design, they will submit a pull request containing the HEP to the `harvester/harvester` GitHub repository's `enhancements` directory. For example, you can find a HEP pull request at https://github.com/harvester/harvester/pull/3673.
+1. The HEP will undergo further discussion, allowing for feedback from the community or team.
+1. The HEP may not be merged immediately. The assignee may choose to implement the feature further before updating the HEP. Generally, it is required to merge the HEP when the feature itself is merged, and the HEP will ensure that at least it reflects the initial iteration of work."
