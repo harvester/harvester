@@ -204,12 +204,25 @@ func (vf *vmformatter) canStop(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.Vi
 }
 
 func canMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
-	if vmi != nil && vmi.IsRunning() &&
-		vmi.Annotations[util.AnnotationMigrationUID] == "" {
-		return true
+	if vmi == nil {
+		return false
 	}
 
-	return vmi.Spec.NodeSelector == nil
+	if !vmi.IsRunning() {
+		return false
+	}
+
+	// The VM is already in migrating state
+	if vmi.Annotations[util.AnnotationMigrationUID] != "" {
+		return false
+	}
+
+	// The VM is set to run on a specific node
+	if vmi.Spec.NodeSelector != nil && vmi.Spec.NodeSelector[corev1.LabelHostname] != "" {
+		return false
+	}
+
+	return true
 }
 
 func isReady(vmi *kubevirtv1.VirtualMachineInstance) bool {
