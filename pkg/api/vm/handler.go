@@ -497,12 +497,11 @@ func isDrained(node *corev1.Node) bool {
 }
 
 func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.VirtualMachineInstance) (labels.Selector, error) {
-	if vmi == nil {
-		return nil, nil
+	if vmi == nil || vmi.Spec.Affinity == nil || vmi.Spec.Affinity.NodeAffinity == nil || vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+		return labels.Everything(), nil
 	}
 
 	nodeSelector := labels.NewSelector()
-
 	terms := vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
 	for _, term := range terms {
 		for _, e := range term.MatchExpressions {
