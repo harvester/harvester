@@ -458,16 +458,21 @@ harvester-load-balancer:
 kube-vip:
   enabled: false
   image:
-    repository: ghcr.io/kube-vip/kube-vip
-    tag: v0.5.12
+    repository: ghcr.io/kube-vip/kube-vip-iptables
+    tag: v0.6.0
   nodeSelector:
     node-role.kubernetes.io/control-plane: "true"
-
-kube-vip-cloud-provider:
-  enabled: false
-  image:
-    repository: kubevip/kube-vip-cloud-provider
-    tag: v0.0.1
+  # https://github.com/kube-vip/kube-vip/blob/main/pkg/kubevip/config_envvar.go
+  env:
+    vip_interface: ""
+    vip_arp: "true"
+    lb_enable: "true"
+    lb_port: "6443"
+    vip_cidr: "32"
+    cp_enable: "false"
+    svc_enable: "true"
+    vip_leaderelection: "false"
+    enable_service_security: "true"
 
 support-bundle-kit:
   image:
