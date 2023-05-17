@@ -30,9 +30,15 @@ const (
 	systemNamespacesSetting  = "system-namespaces"
 	tlsCNPrefix              = "listener.cattle.io/cn-"
 
+	keyKubevipRequestIP             = "kube-vip.io/requestedIP"
+	keyKubevipHwaddr                = "kube-vip.io/hwaddr"
+	keyKubevipIgnoreServiceSecurity = "kube-vip.io/ignore-service-security"
+	keyKubevipLoadBalancerIPs       = "kube-vip.io/loadbalancerIPs"
+
 	VipConfigmapName      = "vip"
 	vipDHCPMode           = "dhcp"
 	vipDHCPLoadBalancerIP = "0.0.0.0"
+	trueStr               = "true"
 )
 
 type Handler struct {
@@ -105,7 +111,7 @@ func Register(ctx context.Context, management *config.Management, options config
 // registerExposeService help to create ingress-expose svc in the kube-system namespace,
 // by default it is nodePort, if the VIP is enabled it will be set to LoadBalancer type service.
 func (h *Handler) registerExposeService() error {
-	_, err := h.Services.Get(util.KubeSystemNamespace, ingressExposeServiceName, v1.GetOptions{})
+	svc, err := h.Services.Get(util.KubeSystemNamespace, ingressExposeServiceName, v1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
@@ -119,6 +125,9 @@ func (h *Handler) registerExposeService() error {
 			ObjectMeta: v1.ObjectMeta{
 				Name:      ingressExposeServiceName,
 				Namespace: util.KubeSystemNamespace,
+				Annotations: map[string]string{
+					keyKubevipIgnoreServiceSecurity: trueStr,
+				},
 			},
 			Spec: corev1.ServiceSpec{
 				Type: corev1.ServiceTypeNodePort,
@@ -149,15 +158,13 @@ func (h *Handler) registerExposeService() error {
 		}
 		if enabled && vip.ServiceType == corev1.ServiceTypeLoadBalancer {
 			svc.Spec.Type = vip.ServiceType
-			svc.Spec.LoadBalancerIP = vip.LoadBalancerIP
+			// After kube-vip v0.5.2, it uses annotation kube-vip.io/loadbalancerIPs to set the loadBalancerIP
 			if strings.ToLower(vip.Mode) == vipDHCPMode {
-				svc.Annotations = map[string]string{
-					"kube-vip.io/requestedIP": vip.IP,
-					"kube-vip.io/hwaddr":      vip.HwAddress,
-				}
-				svc.Spec.LoadBalancerIP = vipDHCPLoadBalancerIP
+				svc.Annotations[keyKubevipRequestIP] = vip.IP
+				svc.Annotations[keyKubevipHwaddr] = vip.HwAddress
+				svc.Annotations[keyKubevipLoadBalancerIPs] = vipDHCPLoadBalancerIP
 			} else {
-				svc.Spec.LoadBalancerIP = vip.IP
+				svc.Annotations[keyKubevipLoadBalancerIPs] = vip.IP
 			}
 		}
 
@@ -165,6 +172,21 @@ func (h *Handler) registerExposeService() error {
 			return err
 		}
 	}
+	// Update annotations of the ingress-expose service created before Harvester v1.2.0
+	if svc.Annotations == nil || svc.Annotations[keyKubevipIgnoreServiceSecurity] != trueStr {
+		svcCopy := svc.DeepCopy()
+		if svc.Annotations == nil {
+			svcCopy.Annotations = make(map[string]string)
+		}
+		svcCopy.Annotations[keyKubevipIgnoreServiceSecurity] = trueStr
+		if _, ok := svcCopy.Annotations[keyKubevipLoadBalancerIPs]; !ok {
+			svcCopy.Annotations[keyKubevipLoadBalancerIPs] = svc.Spec.LoadBalancerIP
+		}
+		if _, err := h.Services.Update(svcCopy); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
