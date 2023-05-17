@@ -269,11 +269,13 @@ func ejectCdRomFromVM(vm *kubevirtv1.VirtualMachine, diskNames []string) error {
 	volumes := make([]kubevirtv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
 	toRemoveClaimNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
 	for _, vol := range vm.Spec.Template.Spec.Volumes {
-		if vol.VolumeSource.PersistentVolumeClaim != nil && slice.ContainsString(diskNames, vol.Name) {
-			toRemoveClaimNames = append(toRemoveClaimNames, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
+		if !slice.ContainsString(diskNames, vol.Name) {
+			volumes = append(volumes, vol)
 			continue
 		}
-		volumes = append(volumes, vol)
+		if vol.VolumeSource.PersistentVolumeClaim != nil {
+			toRemoveClaimNames = append(toRemoveClaimNames, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
+		}
 	}
 
 	if err := removeVolumeClaimTemplatesFromVMAnnotation(vm, toRemoveClaimNames); err != nil {
