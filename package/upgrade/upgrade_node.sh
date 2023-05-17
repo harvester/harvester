@@ -566,6 +566,8 @@ command_post_drain() {
   wait_repo
   detect_repo
 
+  # update max-pods to 200 #
+  set_max_pods
   # A post-drain signal from Rancher doesn't mean RKE2 agent/server is already patched and restarted
   # Let's wait until the RKE2 settled.
   wait_rke2_upgrade
@@ -574,8 +576,6 @@ command_post_drain() {
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME kubevirt.io/drain- || true
 
   convert_nodenetwork_to_vlanconfig
-  # update max-pods to 200 #
-  set_max_pods
 
   upgrade_os
 }
@@ -607,6 +607,8 @@ command_single_node_upgrade() {
   kubectl scale --replicas=0 deployment/fleet-agent -n cattle-fleet-local-system
   kubectl rollout status deployment fleet-agent -n cattle-fleet-local-system
 
+  # update max-pods to 200 #
+  set_max_pods
   # Upgarde RKE2
   upgrade_rke2
 
@@ -615,8 +617,6 @@ command_single_node_upgrade() {
 
   convert_nodenetwork_to_vlanconfig
 
-  # update max-pods to 200 #
-  set_max_pods
   # the fleet-agent will be scaled up via the pkg/controller/upgrade/upgrade_controller.go
 
   # Upgrade OS
