@@ -494,6 +494,14 @@ spec:
 EOF
 }
 
+# host / is mounted under /host in the upgrade pod
+set_max_pods() {
+cat > /host/etc/rancher/rke2/config.yaml.d/99-max-pods.yaml <<EOF
+kubelet-arg:
+- "max-pods=200"
+EOF
+}
+
 upgrade_os() {
   # The trap will be only effective from this point to the end of the execution
   trap clean_up_tmp_files EXIT
@@ -566,6 +574,8 @@ command_post_drain() {
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME kubevirt.io/drain- || true
 
   convert_nodenetwork_to_vlanconfig
+  # update max-pods to 200 #
+  set_max_pods
 
   upgrade_os
 }
@@ -605,6 +615,8 @@ command_single_node_upgrade() {
 
   convert_nodenetwork_to_vlanconfig
 
+  # update max-pods to 200 #
+  set_max_pods
   # the fleet-agent will be scaled up via the pkg/controller/upgrade/upgrade_controller.go
 
   # Upgrade OS
