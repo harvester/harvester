@@ -4,7 +4,7 @@ import (
 	"context"
 
 	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
-	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
@@ -50,11 +50,11 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(harvesterv1.SchemeGroupVersion, "SupportBundle", harvesterv1.SupportBundle{}),
 			// The BackingImage struct is not compatible with wrangler schemas generation, pass nil as the workaround.
 			// The expected CRD will be applied by Longhorn chart.
-			crd.FromGV(longhornv1.SchemeGroupVersion, "BackingImage", nil),
-			crd.FromGV(longhornv1.SchemeGroupVersion, "BackingImageDataSource", longhornv1.BackingImageDataSource{}),
-			crd.FromGV(longhornv1.SchemeGroupVersion, "Backup", longhornv1.Backup{}),
-			crd.FromGV(longhornv1.SchemeGroupVersion, "Volume", longhornv1.Volume{}),
-			crd.FromGV(longhornv1.SchemeGroupVersion, "Setting", longhornv1.Setting{}),
+			crd.FromGV(lhv1beta2.SchemeGroupVersion, "BackingImage", nil),
+			crd.FromGV(lhv1beta2.SchemeGroupVersion, "BackingImageDataSource", lhv1beta2.BackingImageDataSource{}),
+			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Backup", lhv1beta2.Backup{}),
+			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Volume", lhv1beta2.Volume{}),
+			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Setting", lhv1beta2.Setting{}),
 			crd.FromGV(provisioningv1.SchemeGroupVersion, "Cluster", provisioningv1.Cluster{}),
 			crd.FromGV(fleetv1alpha1.SchemeGroupVersion, "Cluster", fleetv1alpha1.Cluster{}),
 			crd.FromGV(clusterv1.GroupVersion, "Cluster", clusterv1.Cluster{}),

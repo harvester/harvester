@@ -13,7 +13,7 @@ import (
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
@@ -32,7 +32,7 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
@@ -80,9 +80,9 @@ type RestoreHandler struct {
 	snapshotCache        ctlsnapshotv1.VolumeSnapshotCache
 	snapshotContents     ctlsnapshotv1.VolumeSnapshotContentClient
 	snapshotContentCache ctlsnapshotv1.VolumeSnapshotContentCache
-	lhbackupCache        ctllonghornv1.BackupCache
-	volumeCache          ctllonghornv1.VolumeCache
-	volumes              ctllonghornv1.VolumeClient
+	lhbackupCache        ctllhv1.BackupCache
+	volumeCache          ctllhv1.VolumeCache
+	volumes              ctllhv1.VolumeClient
 
 	recorder   record.EventRecorder
 	restClient *rest.RESTClient
@@ -97,8 +97,8 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 	secrets := management.CoreFactory.Core().V1().Secret()
 	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
 	snapshotContents := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotContent()
-	lhbackups := management.LonghornFactory.Longhorn().V1beta1().Backup()
-	volumes := management.LonghornFactory.Longhorn().V1beta1().Volume()
+	lhbackups := management.LonghornFactory.Longhorn().V1beta2().Backup()
+	volumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 
 	copyConfig := rest.CopyConfig(management.RestConfig)
 	copyConfig.GroupVersion = &k8sschema.GroupVersion{Group: kubevirtv1.SubresourceGroupName, Version: kubevirtv1.ApiLatestVersion}
@@ -922,7 +922,7 @@ func (h *RestoreHandler) mountLonghornVolumes(backup *harvesterv1.VirtualMachine
 		}
 
 		volCpy := volume.DeepCopy()
-		if volume.Status.State == lhv1beta1.VolumeStateDetached || volume.Status.State == lhv1beta1.VolumeStateDetaching {
+		if volume.Status.State == lhv1beta2.VolumeStateDetached || volume.Status.State == lhv1beta2.VolumeStateDetaching {
 			volCpy.Spec.NodeID = volume.Status.OwnerID
 		}
 

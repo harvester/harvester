@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,15 +28,15 @@ var (
 			Namespace: "default",
 		},
 	}
-	workingVolume = &longhornv1.Volume{
+	workingVolume = &lhv1beta2.Volume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "healthy-volume",
 			Namespace: "longhorn-system",
 		},
-		Status: longhornv1.VolumeStatus{
-			KubernetesStatus: longhornv1.KubernetesStatus{
+		Status: lhv1beta2.VolumeStatus{
+			KubernetesStatus: lhv1beta2.KubernetesStatus{
 				Namespace: "default",
-				WorkloadsStatus: []longhornv1.WorkloadStatus{
+				WorkloadsStatus: []lhv1beta2.WorkloadStatus{
 					{
 						WorkloadName: "healthy-vm",
 						WorkloadType: "VirtualMachineInstance",
@@ -46,55 +46,55 @@ var (
 		},
 	}
 
-	workingReplica1 = &longhornv1.Replica{
+	workingReplica1 = &lhv1beta2.Replica{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "healthy-volume-r-1",
 			Namespace: "longhorn-system",
 		},
-		Spec: longhornv1.ReplicaSpec{
-			InstanceSpec: longhornv1.InstanceSpec{
+		Spec: lhv1beta2.ReplicaSpec{
+			InstanceSpec: lhv1beta2.InstanceSpec{
 				VolumeName: workingVolume.Name,
 				NodeID:     testNode.Name,
 			},
 		},
-		Status: longhornv1.ReplicaStatus{
-			InstanceStatus: longhornv1.InstanceStatus{
+		Status: lhv1beta2.ReplicaStatus{
+			InstanceStatus: lhv1beta2.InstanceStatus{
 				Started: true,
 			},
 		},
 	}
 
-	workingReplica2 = &longhornv1.Replica{
+	workingReplica2 = &lhv1beta2.Replica{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "healthy-volume-r-2",
 			Namespace: "longhorn-system",
 		},
-		Spec: longhornv1.ReplicaSpec{
-			InstanceSpec: longhornv1.InstanceSpec{
+		Spec: lhv1beta2.ReplicaSpec{
+			InstanceSpec: lhv1beta2.InstanceSpec{
 				VolumeName: workingVolume.Name,
 				NodeID:     "harvester-1111",
 			},
 		},
-		Status: longhornv1.ReplicaStatus{
-			InstanceStatus: longhornv1.InstanceStatus{
+		Status: lhv1beta2.ReplicaStatus{
+			InstanceStatus: lhv1beta2.InstanceStatus{
 				Started: true,
 			},
 		},
 	}
 
-	workingReplica3 = &longhornv1.Replica{
+	workingReplica3 = &lhv1beta2.Replica{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "healthy-volume-r-3",
 			Namespace: "longhorn-system",
 		},
-		Spec: longhornv1.ReplicaSpec{
-			InstanceSpec: longhornv1.InstanceSpec{
+		Spec: lhv1beta2.ReplicaSpec{
+			InstanceSpec: lhv1beta2.InstanceSpec{
 				VolumeName: workingVolume.Name,
 				NodeID:     "harvester-2222",
 			},
 		},
-		Status: longhornv1.ReplicaStatus{
-			InstanceStatus: longhornv1.InstanceStatus{
+		Status: lhv1beta2.ReplicaStatus{
+			InstanceStatus: lhv1beta2.InstanceStatus{
 				Started: true,
 			},
 		},
@@ -107,15 +107,15 @@ var (
 			Namespace: "default",
 		},
 	}
-	failingVolume = &longhornv1.Volume{
+	failingVolume = &lhv1beta2.Volume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "failing-volume",
 			Namespace: "longhorn-system",
 		},
-		Status: longhornv1.VolumeStatus{
-			KubernetesStatus: longhornv1.KubernetesStatus{
+		Status: lhv1beta2.VolumeStatus{
+			KubernetesStatus: lhv1beta2.KubernetesStatus{
 				Namespace: "default",
-				WorkloadsStatus: []longhornv1.WorkloadStatus{
+				WorkloadsStatus: []lhv1beta2.WorkloadStatus{
 					{
 						WorkloadName: failingVM.Name,
 						WorkloadType: "VirtualMachineInstance",
@@ -125,55 +125,55 @@ var (
 		},
 	}
 
-	failingReplica1 = &longhornv1.Replica{
+	failingReplica1 = &lhv1beta2.Replica{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "failing-volume-r-1",
 			Namespace: "longhorn-system",
 		},
-		Spec: longhornv1.ReplicaSpec{
-			InstanceSpec: longhornv1.InstanceSpec{
+		Spec: lhv1beta2.ReplicaSpec{
+			InstanceSpec: lhv1beta2.InstanceSpec{
 				VolumeName: failingVolume.Name,
 				NodeID:     testNode.Name,
 			},
 		},
-		Status: longhornv1.ReplicaStatus{
-			InstanceStatus: longhornv1.InstanceStatus{
+		Status: lhv1beta2.ReplicaStatus{
+			InstanceStatus: lhv1beta2.InstanceStatus{
 				Started: true,
 			},
 		},
 	}
 
-	failingReplica2 = &longhornv1.Replica{
+	failingReplica2 = &lhv1beta2.Replica{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "failing-volume-r-2",
 			Namespace: "longhorn-system",
 		},
-		Spec: longhornv1.ReplicaSpec{
-			InstanceSpec: longhornv1.InstanceSpec{
+		Spec: lhv1beta2.ReplicaSpec{
+			InstanceSpec: lhv1beta2.InstanceSpec{
 				VolumeName: failingVolume.Name,
 				NodeID:     "harvester-1111",
 			},
 		},
-		Status: longhornv1.ReplicaStatus{
-			InstanceStatus: longhornv1.InstanceStatus{
+		Status: lhv1beta2.ReplicaStatus{
+			InstanceStatus: lhv1beta2.InstanceStatus{
 				Started: false,
 			},
 		},
 	}
 
-	failingReplica3 = &longhornv1.Replica{
+	failingReplica3 = &lhv1beta2.Replica{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "failing-volume-r-3",
 			Namespace: "longhorn-system",
 		},
-		Spec: longhornv1.ReplicaSpec{
-			InstanceSpec: longhornv1.InstanceSpec{
+		Spec: lhv1beta2.ReplicaSpec{
+			InstanceSpec: lhv1beta2.InstanceSpec{
 				VolumeName: failingVolume.Name,
 				NodeID:     "harvester-2222",
 			},
 		},
-		Status: longhornv1.ReplicaStatus{
-			InstanceStatus: longhornv1.InstanceStatus{
+		Status: lhv1beta2.ReplicaStatus{
+			InstanceStatus: lhv1beta2.InstanceStatus{
 				Started: false,
 			},
 		},
@@ -186,15 +186,15 @@ var (
 			Namespace: "default",
 		},
 	}
-	failingVolume2 = &longhornv1.Volume{
+	failingVolume2 = &lhv1beta2.Volume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "failing-volume2",
 			Namespace: "longhorn-system",
 		},
-		Status: longhornv1.VolumeStatus{
-			KubernetesStatus: longhornv1.KubernetesStatus{
+		Status: lhv1beta2.VolumeStatus{
+			KubernetesStatus: lhv1beta2.KubernetesStatus{
 				Namespace: "default",
-				WorkloadsStatus: []longhornv1.WorkloadStatus{
+				WorkloadsStatus: []lhv1beta2.WorkloadStatus{
 					{
 						WorkloadName: failingVM2.Name,
 						WorkloadType: "VirtualMachineInstance",
@@ -204,55 +204,55 @@ var (
 		},
 	}
 
-	failingReplica12 = &longhornv1.Replica{
+	failingReplica12 = &lhv1beta2.Replica{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "failing-volume2-r-1",
 			Namespace: "longhorn-system",
 		},
-		Spec: longhornv1.ReplicaSpec{
-			InstanceSpec: longhornv1.InstanceSpec{
+		Spec: lhv1beta2.ReplicaSpec{
+			InstanceSpec: lhv1beta2.InstanceSpec{
 				VolumeName: failingVolume2.Name,
 				NodeID:     "harvester-1111",
 			},
 		},
-		Status: longhornv1.ReplicaStatus{
-			InstanceStatus: longhornv1.InstanceStatus{
+		Status: lhv1beta2.ReplicaStatus{
+			InstanceStatus: lhv1beta2.InstanceStatus{
 				Started: true,
 			},
 		},
 	}
 
-	failingReplica22 = &longhornv1.Replica{
+	failingReplica22 = &lhv1beta2.Replica{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "failing-volume2-r-2",
 			Namespace: "longhorn-system",
 		},
-		Spec: longhornv1.ReplicaSpec{
-			InstanceSpec: longhornv1.InstanceSpec{
+		Spec: lhv1beta2.ReplicaSpec{
+			InstanceSpec: lhv1beta2.InstanceSpec{
 				VolumeName: failingVolume2.Name,
 				NodeID:     "harvester-1111",
 			},
 		},
-		Status: longhornv1.ReplicaStatus{
-			InstanceStatus: longhornv1.InstanceStatus{
+		Status: lhv1beta2.ReplicaStatus{
+			InstanceStatus: lhv1beta2.InstanceStatus{
 				Started: false,
 			},
 		},
 	}
 
-	failingReplica32 = &longhornv1.Replica{
+	failingReplica32 = &lhv1beta2.Replica{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "failing-volume2-r-3",
 			Namespace: "longhorn-system",
 		},
-		Spec: longhornv1.ReplicaSpec{
-			InstanceSpec: longhornv1.InstanceSpec{
+		Spec: lhv1beta2.ReplicaSpec{
+			InstanceSpec: lhv1beta2.InstanceSpec{
 				VolumeName: failingVolume2.Name,
 				NodeID:     "harvester-2222",
 			},
 		},
-		Status: longhornv1.ReplicaStatus{
-			InstanceStatus: longhornv1.InstanceStatus{
+		Status: lhv1beta2.ReplicaStatus{
+			InstanceStatus: lhv1beta2.InstanceStatus{
 				Started: false,
 			},
 		},
@@ -273,8 +273,8 @@ func Test_listVMI(t *testing.T) {
 		virtualMachineInstanceCache:  fakeclients.VirtualMachineInstanceCache(client.KubevirtV1().VirtualMachineInstances),
 		virtualMachineClient:         fakeclients.VirtualMachineClient(client.KubevirtV1().VirtualMachines),
 		virtualMachineCache:          fakeclients.VirtualMachineCache(client.KubevirtV1().VirtualMachines),
-		longhornVolumeCache:          fakeclients.LonghornVolumeCache(client.LonghornV1beta1().Volumes),
-		longhornReplicaCache:         fakeclients.LonghornReplicaCache(client.LonghornV1beta1().Replicas),
+		longhornVolumeCache:          fakeclients.LonghornVolumeCache(client.LonghornV1beta2().Volumes),
+		longhornReplicaCache:         fakeclients.LonghornReplicaCache(client.LonghornV1beta2().Replicas),
 		restConfig:                   nil,
 		context:                      context.TODO(),
 	}

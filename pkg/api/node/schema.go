@@ -24,8 +24,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	nodeHandler := ActionHandler{
 		nodeClient:                  scaled.Management.CoreFactory.Core().V1().Node(),
 		nodeCache:                   scaled.Management.CoreFactory.Core().V1().Node().Cache(),
-		longhornReplicaCache:        scaled.Management.LonghornFactory.Longhorn().V1beta1().Replica().Cache(),
-		longhornVolumeCache:         scaled.Management.LonghornFactory.Longhorn().V1beta1().Volume().Cache(),
+		longhornReplicaCache:        scaled.Management.LonghornFactory.Longhorn().V1beta2().Replica().Cache(),
+		longhornVolumeCache:         scaled.Management.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
 		virtualMachineInstanceCache: scaled.Management.VirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 	}
 

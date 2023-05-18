@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -15,7 +15,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/util"
@@ -32,8 +32,8 @@ type nodeVolumeDetachController struct {
 	nodeController ctlcorev1.NodeController
 	podCache       ctlcorev1.PodCache
 	pvcCache       ctlcorev1.PersistentVolumeClaimCache
-	volumes        ctllonghornv1.VolumeClient
-	volumeCache    ctllonghornv1.VolumeCache
+	volumes        ctllhv1.VolumeClient
+	volumeCache    ctllhv1.VolumeCache
 	snapshotCache  ctlsnapshotv1.VolumeSnapshotCache
 	upgradeCache   ctlharvesterv1.UpgradeCache
 }
@@ -43,7 +43,7 @@ func VolumeDetachRegister(ctx context.Context, management *config.Management, op
 	nodes := management.CoreFactory.Core().V1().Node()
 	pods := management.CoreFactory.Core().V1().Pod()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
-	volumes := management.LonghornFactory.Longhorn().V1beta1().Volume()
+	volumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
 	upgrades := management.HarvesterFactory.Harvesterhci().V1beta1().Upgrade()
 	nodeVolumeDetachController := &nodeVolumeDetachController{
@@ -80,9 +80,9 @@ func (c *nodeVolumeDetachController) OnNodeChanged(key string, node *corev1.Node
 	waitVolumeNames := make([]string, 0, len(volumes))
 	for _, volume := range volumes {
 		switch volume.Status.State {
-		case lhv1beta1.VolumeStateCreating, lhv1beta1.VolumeStateAttaching, lhv1beta1.VolumeStateDetaching:
+		case lhv1beta2.VolumeStateCreating, lhv1beta2.VolumeStateAttaching, lhv1beta2.VolumeStateDetaching:
 			waitVolumeNames = append(waitVolumeNames, volume.Name)
-		case lhv1beta1.VolumeStateAttached:
+		case lhv1beta2.VolumeStateAttached:
 			pvc, err := c.getPVCByVolume(volume)
 			if err != nil {
 				return node, err
@@ -131,13 +131,13 @@ func (c *nodeVolumeDetachController) isInUpgradePreDraining(node *corev1.Node) (
 }
 
 // getNodePVCVolumes gets the volumes created by PVCs on the node
-func (c *nodeVolumeDetachController) getNodePVCVolumes(node *corev1.Node) ([]*lhv1beta1.Volume, error) {
+func (c *nodeVolumeDetachController) getNodePVCVolumes(node *corev1.Node) ([]*lhv1beta2.Volume, error) {
 	volumes, err := c.volumeCache.GetByIndex(indexeres.VolumeByNodeIndex, node.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	pvcVolumes := make([]*lhv1beta1.Volume, 0, len(volumes))
+	pvcVolumes := make([]*lhv1beta2.Volume, 0, len(volumes))
 
 	for _, volume := range volumes {
 		if volume.Status.KubernetesStatus.PVCName == "" {
@@ -151,7 +151,7 @@ func (c *nodeVolumeDetachController) getNodePVCVolumes(node *corev1.Node) ([]*lh
 }
 
 // getPVCByVolume gets the PVC of the volume
-func (c *nodeVolumeDetachController) getPVCByVolume(volume *lhv1beta1.Volume) (*corev1.PersistentVolumeClaim, error) {
+func (c *nodeVolumeDetachController) getPVCByVolume(volume *lhv1beta2.Volume) (*corev1.PersistentVolumeClaim, error) {
 	return c.pvcCache.Get(volume.Status.KubernetesStatus.Namespace, volume.Status.KubernetesStatus.PVCName)
 }
 

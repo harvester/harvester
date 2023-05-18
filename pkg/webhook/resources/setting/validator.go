@@ -383,6 +383,7 @@ func (v *settingValidator) customizeTransport() error {
 		return fmt.Errorf("failed to get additional CA setting: %v", err)
 	}
 	if caSetting.Value != "" {
+		os.Setenv(backup.AWSCERT, caSetting.Value)
 		if ok := certs.AppendCertsFromPEM([]byte(caSetting.Value)); !ok {
 			return fmt.Errorf("failed to append custom certificates: %v", caSetting.Value)
 		}

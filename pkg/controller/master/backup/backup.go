@@ -37,7 +37,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -67,8 +67,8 @@ func RegisterBackup(ctx context.Context, management *config.Management, opts con
 	secrets := management.CoreFactory.Core().V1().Secret()
 	storageClasses := management.StorageFactory.Storage().V1().StorageClass()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
-	volumes := management.LonghornFactory.Longhorn().V1beta1().Volume()
-	lhbackups := management.LonghornFactory.Longhorn().V1beta1().Backup()
+	volumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
+	lhbackups := management.LonghornFactory.Longhorn().V1beta2().Backup()
 	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
 	snapshotContents := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotContent()
 	snapshotClass := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotClass()
@@ -111,9 +111,9 @@ type Handler struct {
 	pvcCache             ctlcorev1.PersistentVolumeClaimCache
 	secretCache          ctlcorev1.SecretCache
 	storageClassCache    ctlstoragev1.StorageClassCache
-	volumeCache          ctllonghornv1.VolumeCache
-	volumes              ctllonghornv1.VolumeClient
-	lhbackupCache        ctllonghornv1.BackupCache
+	volumeCache          ctllhv1.VolumeCache
+	volumes              ctllhv1.VolumeClient
+	lhbackupCache        ctllhv1.BackupCache
 	snapshots            ctlsnapshotv1.VolumeSnapshotClient
 	snapshotCache        ctlsnapshotv1.VolumeSnapshotCache
 	snapshotContents     ctlsnapshotv1.VolumeSnapshotContentClient

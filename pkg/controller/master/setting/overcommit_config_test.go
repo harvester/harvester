@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 
-	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorn "github.com/longhorn/longhorn-manager/types"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,8 +32,8 @@ func TestHandler_syncOvercommitConfig(t *testing.T) {
 	createHandler := func(clientset *fake.Clientset) *Handler {
 		return &Handler{
 			namespace:            namespace,
-			longhornSettings:     fakeclients.LonghornSettingClient(clientset.LonghornV1beta1().Settings),
-			longhornSettingCache: fakeclients.LonghornSettingCache(clientset.LonghornV1beta1().Settings),
+			longhornSettings:     fakeclients.LonghornSettingClient(clientset.LonghornV1beta2().Settings),
+			longhornSettingCache: fakeclients.LonghornSettingCache(clientset.LonghornV1beta2().Settings),
 		}
 	}
 
@@ -43,7 +43,7 @@ func TestHandler_syncOvercommitConfig(t *testing.T) {
 		clientset := fake.NewSimpleClientset()
 		longhornSettingName := string(longhorn.SettingNameStorageOverProvisioningPercentage)
 		handler := createHandler(clientset)
-		originalSetting := &longhornv1.Setting{ObjectMeta: metav1.ObjectMeta{Namespace: util.LonghornSystemNamespaceName, Name: longhornSettingName}}
+		originalSetting := &lhv1beta2.Setting{ObjectMeta: metav1.ObjectMeta{Namespace: util.LonghornSystemNamespaceName, Name: longhornSettingName}}
 		err := clientset.Tracker().Add(originalSetting)
 		assert.Nil(t, err, "mock resource should add into fake controller tracker")
 		inputSetting := &harvesterv1.Setting{

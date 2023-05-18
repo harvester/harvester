@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -19,7 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -41,7 +41,7 @@ const (
 func RegisterBackupTarget(ctx context.Context, management *config.Management, opts config.Options) error {
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	secrets := management.CoreFactory.Core().V1().Secret()
-	longhornSettings := management.LonghornFactory.Longhorn().V1beta1().Setting()
+	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 
 	backupTargetController := &TargetHandler{
@@ -166,7 +166,7 @@ func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget
 			return err
 		}
 
-		if _, err := h.longhornSettings.Create(&longhornv1.Setting{
+		if _, err := h.longhornSettings.Create(&lhv1beta2.Setting{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      longhornBackupTargetSettingName,
 				Namespace: util.LonghornSystemNamespaceName,
@@ -264,7 +264,7 @@ func (h *TargetHandler) updateLonghornBackupTargetSecretSetting(target *settings
 			return err
 		}
 
-		if _, err := h.longhornSettings.Create(&longhornv1.Setting{
+		if _, err := h.longhornSettings.Create(&lhv1beta2.Setting{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      longhornBackupTargetSecretSettingName,
 				Namespace: util.LonghornSystemNamespaceName,

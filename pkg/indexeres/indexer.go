@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/steve/pkg/server"
 	corev1 "k8s.io/api/core/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -42,7 +42,7 @@ func Setup(ctx context.Context, server *server.Server, controllers *server.Contr
 	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
 	podInformer.AddIndexer(PodByPVCIndex, PodByPVC)
 
-	volumeInformer := management.LonghornFactory.Longhorn().V1beta1().Volume().Cache()
+	volumeInformer := management.LonghornFactory.Longhorn().V1beta2().Volume().Cache()
 	volumeInformer.AddIndexer(VolumeByNodeIndex, VolumeByNodeName)
 
 	volumeSnapshotInformer := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot().Cache()
@@ -138,6 +138,6 @@ func volumeSnapshotBySourcePVC(obj *snapshotv1.VolumeSnapshot) ([]string, error)
 	return []string{fmt.Sprintf("%s/%s", obj.Namespace, *obj.Spec.Source.PersistentVolumeClaimName)}, nil
 }
 
-func VolumeByNodeName(obj *longhornv1.Volume) ([]string, error) {
+func VolumeByNodeName(obj *lhv1beta2.Volume) ([]string, error) {
 	return []string{obj.Spec.NodeID}, nil
 }

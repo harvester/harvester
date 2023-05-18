@@ -19,7 +19,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -49,8 +49,8 @@ type Handler struct {
 	deploymentCache      v1.DeploymentCache
 	ingresses            networkingv1.IngressClient
 	ingressCache         networkingv1.IngressCache
-	longhornSettings     ctllonghornv1.SettingClient
-	longhornSettingCache ctllonghornv1.SettingCache
+	longhornSettings     ctllhv1.SettingClient
+	longhornSettingCache ctllhv1.SettingCache
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
 	apps                 catalogv1.AppClient
