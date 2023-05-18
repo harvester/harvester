@@ -14,7 +14,7 @@ const (
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
-	backingImages := management.LonghornFactory.Longhorn().V1beta1().BackingImage()
+	backingImages := management.LonghornFactory.Longhorn().V1beta2().BackingImage()
 	images := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	storageClasses := management.StorageFactory.Storage().V1().StorageClass()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()

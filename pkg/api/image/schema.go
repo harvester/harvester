@@ -16,8 +16,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		httpClient:                  http.Client{},
 		Images:                      scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
 		ImageCache:                  scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
-		BackingImageDataSources:     scaled.LonghornFactory.Longhorn().V1beta1().BackingImageDataSource(),
-		BackingImageDataSourceCache: scaled.LonghornFactory.Longhorn().V1beta1().BackingImageDataSource().Cache(),
+		BackingImageDataSources:     scaled.LonghornFactory.Longhorn().V1beta2().BackingImageDataSource(),
+		BackingImageDataSourceCache: scaled.LonghornFactory.Longhorn().V1beta2().BackingImageDataSource().Cache(),
 	}
 
 	t := schema.Template{

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -15,7 +15,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	longhornv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
 )
@@ -38,8 +38,8 @@ type ControllerHandler struct {
 	virtualMachineInstanceClient ctlkubevirtv1.VirtualMachineInstanceClient
 	virtualMachineClient         ctlkubevirtv1.VirtualMachineClient
 	virtualMachineCache          ctlkubevirtv1.VirtualMachineCache
-	longhornVolumeCache          longhornv1beta1.VolumeCache
-	longhornReplicaCache         longhornv1beta1.ReplicaCache
+	longhornVolumeCache          ctllhv1.VolumeCache
+	longhornReplicaCache         ctllhv1.ReplicaCache
 	restConfig                   *rest.Config
 	context                      context.Context
 }
@@ -48,8 +48,8 @@ func Register(ctx context.Context, management *config.Management, options config
 	nodes := management.CoreFactory.Core().V1().Node()
 	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
-	lhv := management.LonghornFactory.Longhorn().V1beta1().Volume()
-	lhr := management.LonghornFactory.Longhorn().V1beta1().Replica()
+	lhv := management.LonghornFactory.Longhorn().V1beta2().Volume()
+	lhr := management.LonghornFactory.Longhorn().V1beta2().Replica()
 	ndc := &ControllerHandler{
 		nodes:                        nodes,
 		nodeCache:                    nodes.Cache(),
@@ -176,11 +176,11 @@ func (ndc *ControllerHandler) listVMI(node *corev1.Node) ([]*kubevirtv1.VirtualM
 
 // listVolumeNames will filter on all loghorn volumes, and identify volumes with only 1 working replica
 // which is currently on the node in scope for drain.
-func (ndc *ControllerHandler) listVolumeNames(node *corev1.Node) ([]*longhornv1.Volume, error) {
+func (ndc *ControllerHandler) listVolumeNames(node *corev1.Node) ([]*lhv1beta2.Volume, error) {
 	type internalVolumeDetails struct {
 		healthy   int
 		unhealthy int
-		replicas  []*longhornv1.Replica
+		replicas  []*lhv1beta2.Replica
 	}
 	volumeMap := map[string]internalVolumeDetails{}
 
@@ -217,7 +217,7 @@ func (ndc *ControllerHandler) listVolumeNames(node *corev1.Node) ([]*longhornv1.
 		}
 	}
 
-	volList := make([]*longhornv1.Volume, 0, len(possibleVolumeNames))
+	volList := make([]*lhv1beta2.Volume, 0, len(possibleVolumeNames))
 	for _, v := range possibleVolumeNames {
 		vObj, err := ndc.longhornVolumeCache.Get(util.LonghornSystemNamespaceName, v)
 		if err != nil {
@@ -247,7 +247,7 @@ func (ndc *ControllerHandler) FindAndListVM(node *corev1.Node) ([]string, error)
 }
 
 func ActionHelper(nodeCache ctlcorev1.NodeCache, virtualMachineInstanceCache ctlkubevirtv1.VirtualMachineInstanceCache,
-	longhornVolumeCache longhornv1beta1.VolumeCache, longhornReplicaCache longhornv1beta1.ReplicaCache) *ControllerHandler {
+	longhornVolumeCache ctllhv1.VolumeCache, longhornReplicaCache ctllhv1.ReplicaCache) *ControllerHandler {
 	return &ControllerHandler{
 		nodeCache:                   nodeCache,
 		virtualMachineInstanceCache: virtualMachineInstanceCache,

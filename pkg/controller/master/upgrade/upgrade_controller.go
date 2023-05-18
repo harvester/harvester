@@ -26,7 +26,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	upgradectlv1 "github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -92,8 +92,8 @@ type upgradeHandler struct {
 	clusterCache     provisioningctrl.ClusterCache
 	deploymentClient ctlappsv1.DeploymentClient
 
-	lhSettingClient ctllonghornv1.SettingClient
-	lhSettingCache  ctllonghornv1.SettingCache
+	lhSettingClient ctllhv1.SettingClient
+	lhSettingCache  ctllhv1.SettingCache
 }
 
 func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {

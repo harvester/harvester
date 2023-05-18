@@ -8,7 +8,7 @@ import (
 
 	"github.com/gorilla/mux"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -19,7 +19,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -27,8 +27,8 @@ import (
 type ActionHandler struct {
 	pvcs              ctlcorev1.PersistentVolumeClaimClient
 	pvcCache          ctlcorev1.PersistentVolumeClaimCache
-	volumes           ctllonghornv1.VolumeClient
-	volumeCache       ctllonghornv1.VolumeCache
+	volumes           ctllhv1.VolumeClient
+	volumeCache       ctllhv1.VolumeCache
 	snapshotCache     ctlsnapshotv1.VolumeSnapshotCache
 	storageClassCache ctlstoragev1.StorageClassCache
 }
@@ -157,7 +157,7 @@ func (h *ActionHandler) mountSourcePVC(volumeSnapshot *snapshotv1.VolumeSnapshot
 		return fmt.Errorf("failed to get volume %s/%s, error: %s", util.LonghornSystemNamespaceName, pvc.Spec.VolumeName, err.Error())
 	}
 
-	if volume.Status.State == lhv1beta1.VolumeStateDetached || volume.Status.State == lhv1beta1.VolumeStateDetaching {
+	if volume.Status.State == lhv1beta2.VolumeStateDetached || volume.Status.State == lhv1beta2.VolumeStateDetaching {
 		volCpy := volume.DeepCopy()
 		volCpy.Spec.NodeID = volume.Status.OwnerID
 		logrus.Infof("mount detached volume %s to the node %s", volCpy.Name, volCpy.Spec.NodeID)

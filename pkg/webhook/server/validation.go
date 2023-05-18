@@ -41,7 +41,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		upgrade.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
 			clients.Core.Node().Cache(),
-			clients.LonghornFactory.Longhorn().V1beta1().Volume().Cache(),
+			clients.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
 			clients.ClusterFactory.Cluster().V1alpha4().Cluster().Cache(),
 			clients.ClusterFactory.Cluster().V1alpha4().Machine().Cache(),
 			clients.RancherManagementFactory.Management().V3().ManagedChart().Cache(),

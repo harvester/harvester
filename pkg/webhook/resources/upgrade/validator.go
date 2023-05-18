@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	longhornv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -19,7 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1alpha4"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -34,7 +34,7 @@ const (
 func NewValidator(
 	upgrades ctlharvesterv1.UpgradeCache,
 	nodes v1.NodeCache,
-	lhVolumes ctllonghornv1.VolumeCache,
+	lhVolumes ctllhv1.VolumeCache,
 	clusters ctlclusterv1.ClusterCache,
 	machines ctlclusterv1.MachineCache,
 	managedChartCache mgmtv3.ManagedChartCache,
@@ -54,7 +54,7 @@ type upgradeValidator struct {
 
 	upgrades          ctlharvesterv1.UpgradeCache
 	nodes             v1.NodeCache
-	lhVolumes         ctllonghornv1.VolumeCache
+	lhVolumes         ctllhv1.VolumeCache
 	clusters          ctlclusterv1.ClusterCache
 	machines          ctlclusterv1.MachineCache
 	managedChartCache mgmtv3.ManagedChartCache
@@ -150,7 +150,7 @@ func (v *upgradeValidator) hasDegradedVolume() (bool, error) {
 	}
 
 	for _, volume := range volumes {
-		if volume.Status.Robustness == longhornv1beta1.VolumeRobustnessDegraded {
+		if volume.Status.Robustness == lhv1beta2.VolumeRobustnessDegraded {
 			return true, nil
 		}
 	}

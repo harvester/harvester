@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
@@ -21,7 +21,7 @@ import (
 
 	apisv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	ctllhv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -45,8 +45,8 @@ type Handler struct {
 	httpClient                  http.Client
 	Images                      v1beta1.VirtualMachineImageClient
 	ImageCache                  v1beta1.VirtualMachineImageCache
-	BackingImageDataSources     ctllhv1beta1.BackingImageDataSourceClient
-	BackingImageDataSourceCache ctllhv1beta1.BackingImageDataSourceCache
+	BackingImageDataSources     ctllhv1.BackingImageDataSourceClient
+	BackingImageDataSourceCache ctllhv1.BackingImageDataSourceCache
 }
 
 func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -195,10 +195,10 @@ func (h Handler) waitForBackingImageDataSourceReady(name string) error {
 			return fmt.Errorf("failed waiting for backing image data source to be ready: %w", err)
 		}
 		if err == nil {
-			if ds.Status.CurrentState == lhv1beta1.BackingImageStatePending {
+			if ds.Status.CurrentState == lhv1beta2.BackingImageStatePending {
 				return nil
 			}
-			if ds.Status.CurrentState == lhv1beta1.BackingImageStateFailed {
+			if ds.Status.CurrentState == lhv1beta2.BackingImageStateFailed {
 				return errors.New(ds.Status.Message)
 			}
 		}

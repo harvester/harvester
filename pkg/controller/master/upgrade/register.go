@@ -39,7 +39,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	secrets := management.CoreFactory.Core().V1().Secret()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
-	lhSettings := management.LonghornFactory.Longhorn().V1beta1().Setting()
+	lhSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 
 	controller := &upgradeHandler{
 		ctx:               ctx,

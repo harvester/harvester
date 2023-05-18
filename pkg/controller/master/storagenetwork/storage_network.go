@@ -22,7 +22,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlmonitoringv1 "github.com/harvester/harvester/pkg/generated/controllers/monitoring.coreos.com/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -107,9 +107,9 @@ func NewBridgeConfig() *BridgeConfig {
 type Handler struct {
 	ctx                               context.Context
 	settings                          ctlharvesterv1.SettingClient
-	longhornSettings                  ctllonghornv1.SettingClient
-	longhornSettingCache              ctllonghornv1.SettingCache
-	longhornVolumeCache               ctllonghornv1.VolumeCache
+	longhornSettings                  ctllhv1.SettingClient
+	longhornSettingCache              ctllhv1.SettingCache
+	longhornVolumeCache               ctllhv1.VolumeCache
 	prometheus                        ctlmonitoringv1.PrometheusClient
 	prometheusCache                   ctlmonitoringv1.PrometheusCache
 	alertmanager                      ctlmonitoringv1.AlertmanagerClient
@@ -125,8 +125,8 @@ type Handler struct {
 // register the setting controller and reconsile longhorn setting when storage network changed
 func Register(ctx context.Context, management *config.Management, opts config.Options) error {
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
-	longhornSettings := management.LonghornFactory.Longhorn().V1beta1().Setting()
-	longhornVolumes := management.LonghornFactory.Longhorn().V1beta1().Volume()
+	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
+	longhornVolumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 	prometheus := management.MonitoringFactory.Monitoring().V1().Prometheus()
 	alertmanager := management.MonitoringFactory.Monitoring().V1().Alertmanager()
 	deployments := management.AppsFactory.Apps().V1().Deployment()

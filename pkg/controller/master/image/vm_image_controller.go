@@ -6,7 +6,7 @@ import (
 	"time"
 
 	lhcontroller "github.com/longhorn/longhorn-manager/controller"
-	"github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhmanager "github.com/longhorn/longhorn-manager/manager"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/norman/condition"
@@ -21,7 +21,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	lhv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -36,8 +36,8 @@ type vmImageHandler struct {
 	storageClasses    ctlstoragev1.StorageClassClient
 	images            ctlharvesterv1.VirtualMachineImageClient
 	imageController   ctlharvesterv1.VirtualMachineImageController
-	backingImages     lhv1beta1.BackingImageClient
-	backingImageCache lhv1beta1.BackingImageCache
+	backingImages     ctllhv1.BackingImageClient
+	backingImageCache ctllhv1.BackingImageCache
 	pvcCache          ctlcorev1.PersistentVolumeClaimCache
 }
 
@@ -73,7 +73,7 @@ func (h *vmImageHandler) OnChanged(_ string, image *harvesterv1.VirtualMachineIm
 		return image, nil
 	} else {
 		for _, status := range backingImage.Status.DiskFileStatusMap {
-			if status.State == v1beta1.BackingImageStateFailed {
+			if status.State == lhv1beta2.BackingImageStateFailed {
 				needRetry = true
 				break
 			}
@@ -166,7 +166,7 @@ func (h *vmImageHandler) createBackingImageAndStorageClass(image *harvesterv1.Vi
 }
 
 func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineImage) error {
-	bi := &v1beta1.BackingImage{
+	bi := &lhv1beta2.BackingImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      util.GetBackingImageName(image),
 			Namespace: util.LonghornSystemNamespaceName,
@@ -174,14 +174,14 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 				util.AnnotationImageID: ref.Construct(image.Namespace, image.Name),
 			},
 		},
-		Spec: v1beta1.BackingImageSpec{
-			SourceType:       v1beta1.BackingImageDataSourceType(image.Spec.SourceType),
+		Spec: lhv1beta2.BackingImageSpec{
+			SourceType:       lhv1beta2.BackingImageDataSourceType(image.Spec.SourceType),
 			SourceParameters: map[string]string{},
 			Checksum:         image.Spec.Checksum,
 		},
 	}
 	if image.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeDownload {
-		bi.Spec.SourceParameters[v1beta1.DataSourceTypeDownloadParameterURL] = image.Spec.URL
+		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeDownloadParameterURL] = image.Spec.URL
 	}
 
 	if image.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeExportVolume {

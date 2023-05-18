@@ -22,7 +22,7 @@ import (
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	longhornv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
 )
@@ -61,8 +61,8 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 type ActionHandler struct {
 	nodeCache                   ctlcorev1.NodeCache
 	nodeClient                  ctlcorev1.NodeClient
-	longhornVolumeCache         longhornv1beta1.VolumeCache
-	longhornReplicaCache        longhornv1beta1.ReplicaCache
+	longhornVolumeCache         ctllhv1.VolumeCache
+	longhornReplicaCache        ctllhv1.ReplicaCache
 	virtualMachineInstanceCache kubevirtv1.VirtualMachineInstanceCache
 }
 

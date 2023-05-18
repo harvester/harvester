@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"reflect"
 
-	lhv1beta1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/norman/condition"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	ctllhv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -19,11 +19,11 @@ import (
 type backingImageHandler struct {
 	vmImages          ctlharvesterv1beta1.VirtualMachineImageClient
 	vmImageCache      ctlharvesterv1beta1.VirtualMachineImageCache
-	backingImages     ctllhv1beta1.BackingImageClient
-	backingImageCache ctllhv1beta1.BackingImageCache
+	backingImages     ctllhv1.BackingImageClient
+	backingImageCache ctllhv1.BackingImageCache
 }
 
-func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta1.BackingImage) (*lhv1beta1.BackingImage, error) {
+func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.BackingImage) (*lhv1beta2.BackingImage, error) {
 	if backingImage == nil || backingImage.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -42,10 +42,10 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta1.Backin
 	}
 	toUpdate := vmImage.DeepCopy()
 	for _, status := range backingImage.Status.DiskFileStatusMap {
-		if status.State == lhv1beta1.BackingImageStateFailed {
+		if status.State == lhv1beta2.BackingImageStateFailed {
 			toUpdate = handleFail(toUpdate, condition.Cond(harvesterv1beta1.ImageImported), fmt.Errorf(status.Message))
 			toUpdate.Status.Progress = status.Progress
-		} else if status.State == lhv1beta1.BackingImageStateReady || status.State == lhv1beta1.BackingImageStateReadyForTransfer {
+		} else if status.State == lhv1beta2.BackingImageStateReady || status.State == lhv1beta2.BackingImageStateReadyForTransfer {
 			harvesterv1beta1.ImageImported.True(toUpdate)
 			harvesterv1beta1.ImageImported.Reason(toUpdate, "Imported")
 			harvesterv1beta1.ImageImported.Message(toUpdate, status.Message)

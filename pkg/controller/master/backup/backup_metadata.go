@@ -25,7 +25,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -62,7 +62,7 @@ func RegisterBackupMetadata(ctx context.Context, management *config.Management, 
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
 	secrets := management.CoreFactory.Core().V1().Secret()
-	longhornSettings := management.LonghornFactory.Longhorn().V1beta1().Setting()
+	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 
 	backupMetadataController := &MetadataHandler{
