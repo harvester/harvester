@@ -30,7 +30,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmiCache       = vmiClient.Cache()
 		vmBackupClient = management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 		vmBackupCache  = vmBackupClient.Cache()
-		snapshotClient = management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
+		snapshotClient = management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
 		snapshotCache  = snapshotClient.Cache()
 	)
 
