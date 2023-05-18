@@ -10,10 +10,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/sirupsen/logrus"
-
 	"github.com/longhorn/backupstore"
 	"github.com/longhorn/backupstore/http"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -57,7 +56,7 @@ func initFunc(destURL string) (backupstore.BackupStoreDriver, error) {
 	}
 	b.path = u.Path
 	if b.service.Bucket == "" || b.path == "" {
-		return nil, fmt.Errorf("invalid URL. Must be either s3://bucket@region/path/, or s3://bucket/path")
+		return nil, fmt.Errorf("Invalid URL. Must be either s3://bucket@region/path/, or s3://bucket/path")
 	}
 
 	// add custom ca to http client that is used by s3 service

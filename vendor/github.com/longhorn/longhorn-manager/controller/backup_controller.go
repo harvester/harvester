@@ -451,15 +451,6 @@ func (bc *BackupController) isResponsibleFor(b *longhorn.Backup, defaultEngineIm
 
 	isResponsible := isControllerResponsibleFor(bc.controllerID, bc.ds, b.Name, "", b.Status.OwnerID)
 
-	readyNodesWithReadyEI, err := bc.ds.ListReadyNodesWithReadyEngineImage(defaultEngineImage)
-	if err != nil {
-		return false, err
-	}
-	// No node in the system has the default engine image in ready state
-	if len(readyNodesWithReadyEI) == 0 {
-		return false, nil
-	}
-
 	currentOwnerEngineAvailable, err := bc.ds.CheckEngineImageReadiness(defaultEngineImage, b.Status.OwnerID)
 	if err != nil {
 		return false, err

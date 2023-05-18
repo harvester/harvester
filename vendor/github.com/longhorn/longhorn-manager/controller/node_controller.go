@@ -205,12 +205,12 @@ func (nc *NodeController) isResponsibleForSnapshot(obj interface{}) bool {
 	}
 	volumeName, ok := snapshot.Labels[types.LonghornLabelVolume]
 	if !ok {
-		logrus.Warnf("cannot get volume name from snapshot %v", snapshot.Name)
+		logrus.Warnf("Cannot find volume name from snapshot %v", snapshot.Name)
 		return false
 	}
 	volume, err := nc.ds.GetVolumeRO(volumeName)
 	if err != nil {
-		logrus.Warnf("failed to get volume %v since %v", snapshot.Name, err)
+		logrus.WithError(err).Warnf("Failed to get volume for snapshot %v", snapshot.Name)
 		return false
 	}
 	if volume.Status.OwnerID != nc.controllerID {
@@ -223,7 +223,7 @@ func (nc *NodeController) isResponsibleForSnapshot(obj interface{}) bool {
 func (nc *NodeController) snapshotHashRequired(volume *longhorn.Volume) bool {
 	dataIntegrityImmediateChecking, err := nc.ds.GetSettingAsBool(types.SettingNameSnapshotDataIntegrityImmediateCheckAfterSnapshotCreation)
 	if err != nil {
-		logrus.Warnf("failed to get %v setting since %v", types.SettingNameSnapshotDataIntegrityImmediateCheckAfterSnapshotCreation, err)
+		logrus.WithError(err).Warnf("Failed to get %v setting", types.SettingNameSnapshotDataIntegrityImmediateCheckAfterSnapshotCreation)
 		return false
 	}
 	if !dataIntegrityImmediateChecking {

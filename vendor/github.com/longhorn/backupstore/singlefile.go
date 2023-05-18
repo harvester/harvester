@@ -3,11 +3,11 @@ package backupstore
 import (
 	"path/filepath"
 
+	"github.com/longhorn/backupstore/util"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	. "github.com/longhorn/backupstore/logging"
-	"github.com/longhorn/backupstore/util"
 )
 
 const (
@@ -29,11 +29,11 @@ func CreateSingleFileBackup(volume *Volume, snapshot *Snapshot, filePath, destUR
 		return "", err
 	}
 
-	if err := addVolume(driver, volume); err != nil {
+	if err := addVolume(volume, driver); err != nil {
 		return "", err
 	}
 
-	volume, err = loadVolume(driver, volume.Name)
+	volume, err = loadVolume(volume.Name, driver)
 	if err != nil {
 		return "", err
 	}
@@ -51,7 +51,6 @@ func CreateSingleFileBackup(volume *Volume, snapshot *Snapshot, filePath, destUR
 		VolumeName:        volume.Name,
 		SnapshotName:      snapshot.Name,
 		SnapshotCreatedAt: snapshot.CreatedTime,
-		CompressionMethod: volume.CompressionMethod,
 	}
 	backup.SingleFile.FilePath = getSingleFileBackupFilePath(backup)
 
@@ -60,7 +59,7 @@ func CreateSingleFileBackup(volume *Volume, snapshot *Snapshot, filePath, destUR
 	}
 
 	backup.CreatedTime = util.Now()
-	if err := saveBackup(driver, backup); err != nil {
+	if err := saveBackup(backup, driver); err != nil {
 		return "", err
 	}
 
@@ -85,14 +84,14 @@ func RestoreSingleFileBackup(backupURL, path string) (string, error) {
 		return "", err
 	}
 
-	if _, err := loadVolume(driver, srcVolumeName); err != nil {
+	if _, err := loadVolume(srcVolumeName, driver); err != nil {
 		return "", generateError(logrus.Fields{
 			LogFieldVolume:    srcVolumeName,
 			LogEventBackupURL: backupURL,
 		}, "Volume doesn't exist in backupstore: %v", err)
 	}
 
-	backup, err := loadBackup(driver, srcBackupName, srcVolumeName)
+	backup, err := loadBackup(srcBackupName, srcVolumeName, driver)
 	if err != nil {
 		return "", err
 	}
@@ -116,12 +115,12 @@ func DeleteSingleFileBackup(backupURL string) error {
 		return err
 	}
 
-	_, err = loadVolume(driver, volumeName)
+	_, err = loadVolume(volumeName, driver)
 	if err != nil {
 		return errors.Wrapf(err, "cannot find volume %v in backupstore", volumeName)
 	}
 
-	backup, err := loadBackup(driver, backupName, volumeName)
+	backup, err := loadBackup(backupName, volumeName, driver)
 	if err != nil {
 		return err
 	}

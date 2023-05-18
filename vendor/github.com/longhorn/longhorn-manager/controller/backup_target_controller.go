@@ -272,6 +272,15 @@ func (btc *BackupTargetController) reconcile(name string) (err error) {
 		return nil
 	}
 
+	log := getLoggerForBackupTarget(btc.logger, backupTarget)
+
+	// Every controller should do the clean up even it is not responsible for the CR
+	if backupTarget.Spec.BackupTargetURL == "" {
+		if err := btc.cleanUpAllMounts(backupTarget); err != nil {
+			log.WithError(err).Warn("Failed to clean up all mount points")
+		}
+	}
+
 	// Check the responsible node
 	defaultEngineImage, err := btc.ds.GetSettingValueExisted(types.SettingNameDefaultEngineImage)
 	if err != nil {
@@ -295,8 +304,6 @@ func (btc *BackupTargetController) reconcile(name string) (err error) {
 			return err
 		}
 	}
-
-	log := getLoggerForBackupTarget(btc.logger, backupTarget)
 
 	// Check the controller should run synchronization
 	if !backupTarget.Status.LastSyncedAt.IsZero() &&
@@ -370,6 +377,17 @@ func (btc *BackupTargetController) reconcile(name string) (err error) {
 		return err
 	}
 	return nil
+}
+
+func (btc *BackupTargetController) cleanUpAllMounts(backupTarget *longhorn.BackupTarget) (err error) {
+	log := getLoggerForBackupTarget(btc.logger, backupTarget)
+	engineClientProxy, backupTargetClient, err := getBackupTarget(btc.controllerID, backupTarget, btc.ds, log, btc.proxyConnCounter)
+	if err != nil {
+		return err
+	}
+	defer engineClientProxy.Close()
+	err = backupTargetClient.BackupCleanUpAllMounts()
+	return err
 }
 
 func (btc *BackupTargetController) syncBackupVolume(backupTarget *longhorn.BackupTarget, backupTargetClient *engineapi.BackupTargetClient, syncTime metav1.Time, log logrus.FieldLogger) error {
@@ -516,15 +534,6 @@ func (btc *BackupTargetController) isResponsibleFor(bt *longhorn.BackupTarget, d
 	}()
 
 	isResponsible := isControllerResponsibleFor(btc.controllerID, btc.ds, bt.Name, "", bt.Status.OwnerID)
-
-	readyNodesWithReadyEI, err := btc.ds.ListReadyNodesWithReadyEngineImage(defaultEngineImage)
-	if err != nil {
-		return false, err
-	}
-	// No node in the system has the default engine image in ready state
-	if len(readyNodesWithReadyEI) == 0 {
-		return false, nil
-	}
 
 	currentOwnerEngineAvailable, err := btc.ds.CheckEngineImageReadiness(defaultEngineImage, bt.Status.OwnerID)
 	if err != nil {

@@ -10,19 +10,20 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
-	"github.com/google/fscrypt/filesystem"
 	"github.com/google/uuid"
-	lz4 "github.com/pierrec/lz4/v4"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/multierr"
+	"golang.org/x/sys/unix"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	mount "k8s.io/mount-utils"
@@ -40,13 +41,14 @@ var (
 	forceCleanupMountTimeout = 30 * time.Second
 )
 
-// NopCloser wraps an io.Witer as io.WriteCloser
-// with noop Close
-type NopCloser struct {
-	io.Writer
+func fstypeToKind(fstype int64) (string, error) {
+	switch fstype {
+	case unix.NFS_SUPER_MAGIC:
+		return "nfs", nil
+	default:
+		return "", fmt.Errorf("unknown fstype %v", fstype)
+	}
 }
-
-func (NopCloser) Close() error { return nil }
 
 // GenerateName generates a 16-byte name
 func GenerateName(prefix string) string {
@@ -82,35 +84,24 @@ func GetFileChecksum(filePath string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// CompressData compresses the given data using the specified compression method
-func CompressData(method string, data []byte) (io.ReadSeeker, error) {
-	if method == "none" {
-		return bytes.NewReader(data), nil
-	}
-
-	var buffer bytes.Buffer
-
-	w, err := newCompressionWriter(method, &buffer)
-	if err != nil {
-		return nil, err
-	}
-
+func CompressData(data []byte) (io.ReadSeeker, error) {
+	var b bytes.Buffer
+	w := gzip.NewWriter(&b)
 	if _, err := w.Write(data); err != nil {
 		w.Close()
 		return nil, err
 	}
 	w.Close()
-	return bytes.NewReader(buffer.Bytes()), nil
+	return bytes.NewReader(b.Bytes()), nil
 }
 
-// DecompressAndVerify decompresses the given data and verifies the data integrity
-func DecompressAndVerify(method string, src io.Reader, checksum string) (io.Reader, error) {
-	r, err := newDecompressionReader(method, src)
+func DecompressAndVerify(src io.Reader, checksum string) (io.Reader, error) {
+	r, err := gzip.NewReader(src)
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-	block, err := io.ReadAll(r)
+	block, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
@@ -118,30 +109,6 @@ func DecompressAndVerify(method string, src io.Reader, checksum string) (io.Read
 		return nil, fmt.Errorf("checksum verification failed for block")
 	}
 	return bytes.NewReader(block), nil
-}
-
-func newCompressionWriter(method string, buffer io.Writer) (io.WriteCloser, error) {
-	switch method {
-	case "gzip":
-		return gzip.NewWriter(buffer), nil
-	case "lz4":
-		return lz4.NewWriter(buffer), nil
-	default:
-		return nil, fmt.Errorf("unsupported compression method: %v", method)
-	}
-}
-
-func newDecompressionReader(method string, r io.Reader) (io.ReadCloser, error) {
-	switch method {
-	case "none":
-		return io.NopCloser(r), nil
-	case "gzip":
-		return gzip.NewReader(r)
-	case "lz4":
-		return io.NopCloser(lz4.NewReader(r)), nil
-	default:
-		return nil, fmt.Errorf("unsupported decompression method: %v", method)
-	}
 }
 
 func Now() string {
@@ -313,19 +280,25 @@ func EnsureMountPoint(Kind, mountPoint string, mounter mount.Interface, log logr
 		return false, nil
 	}
 
-	mnt, err := filesystem.GetMount(mountPoint)
-	if err != nil {
-		return true, errors.Wrapf(err, "failed to get mount for %v", mountPoint)
+	var stat syscall.Statfs_t
+
+	if err := syscall.Statfs(mountPoint, &stat); err != nil {
+		return true, errors.Wrapf(err, "failed to statfs for mount point %v", mountPoint)
 	}
 
-	if strings.Contains(mnt.FilesystemType, Kind) {
+	kind, err := fstypeToKind(int64(stat.Type))
+	if err != nil {
+		return true, errors.Wrapf(err, "failed to get kind for mount point %v", mountPoint)
+	}
+
+	if strings.Contains(kind, Kind) {
 		return true, nil
 	}
 
-	log.Warnf("Cleaning up the mount point %v because the fstype %v is changed to %v", mountPoint, mnt.FilesystemType, Kind)
+	log.Warnf("Cleaning up the mount point %v because the fstype %v is changed to %v", mountPoint, kind, Kind)
 
 	if mntErr := cleanupMount(mountPoint, mounter, log); mntErr != nil {
-		return true, errors.Wrapf(mntErr, "failed to clean up mount point %v (%v) for %v protocol", mnt.FilesystemType, mountPoint, Kind)
+		return true, errors.Wrapf(mntErr, "failed to clean up mount point %v (%v) for %v protocol", kind, mountPoint, Kind)
 	}
 
 	return false, nil

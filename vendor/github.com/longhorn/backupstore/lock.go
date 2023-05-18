@@ -164,7 +164,7 @@ func (lock *FileLock) Unlock() error {
 func loadLock(volumeName string, name string, driver BackupStoreDriver) (*FileLock, error) {
 	lock := &FileLock{}
 	file := getLockFilePath(volumeName, name)
-	if err := LoadConfigInBackupStore(driver, file, lock); err != nil {
+	if err := LoadConfigInBackupStore(file, driver, lock); err != nil {
 		return nil, err
 	}
 	lock.serverTime = driver.FileTime(file)
@@ -183,7 +183,7 @@ func removeLock(lock *FileLock) error {
 
 func saveLock(lock *FileLock) error {
 	file := getLockFilePath(lock.volume, lock.Name)
-	if err := SaveConfigInBackupStore(lock.driver, file, lock); err != nil {
+	if err := SaveConfigInBackupStore(file, lock.driver, lock); err != nil {
 		return err
 	}
 	lock.serverTime = lock.driver.FileTime(file)

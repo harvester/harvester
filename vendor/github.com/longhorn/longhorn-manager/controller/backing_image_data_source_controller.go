@@ -194,13 +194,13 @@ func (c *BackingImageDataSourceController) handleErr(err error, key interface{})
 	}
 
 	if c.queue.NumRequeues(key) < maxRetries {
-		logrus.Warnf("Error syncing Longhorn backing image data source %v: %v", key, err)
+		logrus.WithError(err).Warnf("Error syncing Longhorn backing image data source %v", key)
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	logrus.Warnf("Dropping Longhorn backing image data source %v out of the queue: %v", key, err)
+	logrus.WithError(err).Warnf("Dropping Longhorn backing image data source %v out of the queue", key)
 	c.queue.Forget(key)
 }
 
@@ -233,7 +233,7 @@ func (c *BackingImageDataSourceController) getEngineClientProxy(e *longhorn.Engi
 
 func (c *BackingImageDataSourceController) syncBackingImageDataSource(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "BackingImageDataSourceController failed to sync %v", key)
+		err = errors.Wrapf(err, "failed to sync backing image data source for %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -249,7 +249,7 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSource(key string
 			c.logger.WithField("backingImageDataSource", name).WithError(err).Error("Failed to retrieve backing image data source from datastore")
 			return err
 		}
-		c.logger.WithField("backingImageDataSource", name).Debug("Can't find backing image data source, may have been deleted")
+		c.logger.WithField("backingImageDataSource", name).Warn("Failed to find backing image data source, may have been deleted")
 		return nil
 	}
 
@@ -268,20 +268,39 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSource(key string
 			}
 			return err
 		}
-		log.Debugf("BackingImageDataSourceController on node %v picked up backing image data source %v", c.controllerID, name)
+		log.Infof("Backing image data source got new owner %v", c.controllerID)
 	}
 
 	if bids.DeletionTimestamp != nil {
 		if err := c.cleanup(bids); err != nil {
 			return err
 		}
+
+		// if it is not transferred, we need to wait until it is failed-and-cleanup
+		if !bids.Spec.FileTransferred {
+			if bids.Status.CurrentState == longhorn.BackingImageStateFailedAndCleanUp {
+				return c.ds.RemoveFinalizerForBackingImageDataSource(bids)
+			}
+
+			// if bids is not transferred
+			// mark the status to failed so manager can clean up the tmp file and mark it as failed-and-cleanup
+			bids.Status.Message = "backing image is deleted, requesting manager to clean up the tmp file of backing image data source"
+			bids.Status.CurrentState = longhorn.BackingImageStateFailed
+			if _, err = c.ds.UpdateBackingImageDataSourceStatus(bids); err != nil {
+				return err
+			}
+
+			return nil
+		}
+
+		// if it is transferred, we don't need to clean up
 		return c.ds.RemoveFinalizerForBackingImageDataSource(bids)
 	}
 
 	existingBIDS := bids.DeepCopy()
 	defer func() {
 		if err != nil && strings.Contains(err.Error(), "need to wait for volume") {
-			log.Infof("Need to wait for volume attachment before handling key %v: %v", key, err)
+			log.WithError(err).Warnf("Need to wait for volume attachment before handling key %v", key)
 			// Should ignore this error and continue update
 			err = nil
 		}
@@ -289,7 +308,7 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSource(key string
 			_, err = c.ds.UpdateBackingImageDataSourceStatus(bids)
 		}
 		if apierrors.IsConflict(errors.Cause(err)) {
-			log.Debugf("Requeue %v due to conflict: %v", key, err)
+			log.WithError(err).Warnf("Requeue %v due to conflict", key)
 			c.enqueueBackingImageDataSource(bids)
 			err = nil
 		}
@@ -325,6 +344,8 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSource(key string
 }
 
 func (c *BackingImageDataSourceController) cleanup(bids *longhorn.BackingImageDataSource) (err error) {
+	log := getLoggerForBackingImageDataSource(c.logger, bids)
+
 	if c.isMonitoring(bids.Name) {
 		c.stopMonitoring(bids.Name)
 	}
@@ -334,8 +355,7 @@ func (c *BackingImageDataSourceController) cleanup(bids *longhorn.BackingImageDa
 		return errors.Wrapf(err, "failed to get pod for backing image data source %v", bids.Name)
 	}
 	if pod != nil && pod.DeletionTimestamp == nil {
-		log := getLoggerForBackingImageDataSource(c.logger, bids)
-		log.Info("Start to clean up pod for backing image data source")
+		log.Info("Cleaning up pod for backing image data source")
 		if err := c.ds.DeletePod(pod.Name); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -437,7 +457,8 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 	} else {
 		bids.Status.StorageIP = ""
 		bids.Status.IP = ""
-		if bids.Status.CurrentState != longhorn.BackingImageStateFailed {
+		if bids.Status.CurrentState != longhorn.BackingImageStateFailed &&
+			bids.Status.CurrentState != longhorn.BackingImageStateFailedAndCleanUp {
 			if podFailed {
 				podLog := ""
 				podLogBytes, err := c.ds.GetPodContainerLog(podName, BackingImageDataSourcePodContainerName)
@@ -449,7 +470,7 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 				} else {
 					podLog = string(podLogBytes)
 				}
-				log.Errorf("Backing Image Data Source was state %v but the pod failed, the state will be updated to %v, message: %s", bids.Status.CurrentState, longhorn.BackingImageStateFailed, podLog)
+				log.Errorf("Backing image data source was state %v but the pod failed, the state will be updated to %v, message: %s", bids.Status.CurrentState, longhorn.BackingImageStateFailed, podLog)
 				bids.Status.Message = fmt.Sprintf("the pod dedicated to prepare the first backing image file failed: %s", podLog)
 				bids.Status.CurrentState = longhorn.BackingImageStateFailed
 			} else {
@@ -460,7 +481,7 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 						bids.Status.CurrentState == longhorn.BackingImageStateReadyForTransfer ||
 						bids.Status.CurrentState == longhorn.BackingImageStateReady
 				if fileProcessingStarted || bids.Status.CurrentState == longhorn.BackingImageStateUnknown {
-					log.Errorf("Backing Image Data Source was state %v but the pod became not ready, the state will be updated to %v, message: %v", bids.Status.CurrentState, longhorn.BackingImageStateFailed, podNotReadyMessage)
+					log.Errorf("Backing image data source was state %v but the pod became not ready, the state will be updated to %v, message: %v", bids.Status.CurrentState, longhorn.BackingImageStateFailed, podNotReadyMessage)
 					bids.Status.Message = podNotReadyMessage
 					bids.Status.CurrentState = longhorn.BackingImageStateFailed
 				}
@@ -471,7 +492,8 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 		}
 	}
 
-	if bids.Status.CurrentState == longhorn.BackingImageStateFailed {
+	if bids.Status.CurrentState == longhorn.BackingImageStateFailed ||
+		bids.Status.CurrentState == longhorn.BackingImageStateFailedAndCleanUp {
 		if err := c.cleanup(bids); err != nil {
 			return err
 		}
@@ -485,7 +507,7 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 		if !newBackingImageDataSource && isValidTypeForRetry {
 			if !c.backoff.IsInBackOffSinceUpdate(bids.Name, time.Now()) {
 				isInBackoffWindow = false
-				log.Infof("Prepare to recreate pod for image data source %v since the backoff window is already passed", bids.Name)
+				log.Infof("Preparing to recreate pod for image data source %v since the backoff window is already passed", bids.Name)
 			} else {
 				log.Infof("Failed backing image data source %v is still in the backoff window, Longhorn cannot recreate pod for it", bids.Name)
 			}
@@ -517,7 +539,7 @@ func (c *BackingImageDataSourceController) createBackingImageDataSourcePod(bids 
 
 	log := getLoggerForBackingImageDataSource(c.logger, bids)
 
-	log.Infof("Start to create backing image data source pod")
+	log.Info("Creating backing image data source pod")
 
 	podManifest, err := c.generateBackingImageDataSourcePodManifest(bids)
 	if err != nil {
@@ -527,7 +549,7 @@ func (c *BackingImageDataSourceController) createBackingImageDataSourcePod(bids 
 		return err
 	}
 
-	log.Infof("Created backing image data source pod")
+	log.Info("Created backing image data source pod")
 
 	return nil
 }
@@ -567,7 +589,7 @@ func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodMani
 		return nil, err
 	}
 	if bi.Status.UUID == "" {
-		return nil, fmt.Errorf("cannot start backing image data source pod since the backing image UUID is not set")
+		return nil, fmt.Errorf("failed to start backing image data source pod since the backing image UUID is not set")
 	}
 
 	cmd := []string{
@@ -753,7 +775,7 @@ func (c *BackingImageDataSourceController) prepareRunningParameters(bids *longho
 func (c *BackingImageDataSourceController) enqueueBackingImageDataSource(backingImageDataSource interface{}) {
 	key, err := controller.KeyFunc(backingImageDataSource)
 	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", backingImageDataSource, err))
+		utilruntime.HandleError(fmt.Errorf("failed to get key for object %#v: %v", backingImageDataSource, err))
 		return
 	}
 
@@ -800,7 +822,7 @@ func (c *BackingImageDataSourceController) enqueueForBackingImage(obj interface{
 		if apierrors.IsNotFound(err) {
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("couldn't get backing image data source %v: %v ", backingImage.Name, err))
+		utilruntime.HandleError(fmt.Errorf("failed to get backing image data source %v: %v ", backingImage.Name, err))
 		return
 	}
 	c.enqueueBackingImageDataSource(backingImageDataSource)
@@ -825,7 +847,7 @@ func (c *BackingImageDataSourceController) enqueueForVolume(obj interface{}) {
 
 	bidsMap, err := c.ds.ListBackingImageDataSourcesExportingFromVolume(volume.Name)
 	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("couldn't list backing image data source based on volume %v: %v ", volume.Name, err))
+		utilruntime.HandleError(fmt.Errorf("failed to list backing image data source based on volume %v: %v ", volume.Name, err))
 		return
 	}
 	for _, bids := range bidsMap {
@@ -857,17 +879,17 @@ func (c *BackingImageDataSourceController) enqueueForLonghornNode(obj interface{
 			// node (e.g. controller/etcd node). Skip it
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("couldn't get node %v: %v ", node.Name, err))
+		utilruntime.HandleError(fmt.Errorf("failed to get node %v: %v ", node.Name, err))
 		return
 	}
 
 	bidss, err := c.ds.ListBackingImageDataSourcesByNode(node.Name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			c.logger.WithField("node", node.Name).Warnf("Can't list backing image data sources for a node, may be deleted")
+			c.logger.WithField("node", node.Name).Warn("Failed to list backing image data sources for a node, may be deleted")
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("couldn't get backing image data source: %v", err))
+		utilruntime.HandleError(fmt.Errorf("failed to get backing image data source: %v", err))
 		return
 	}
 
@@ -900,10 +922,10 @@ func (c *BackingImageDataSourceController) enqueueForBackingImageDataSourcePod(o
 	bids, err := c.ds.GetBackingImageDataSource(bidsName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			c.logger.WithField("pod", pod.Name).Warnf("Can't find backing image data source %v for pod, may be deleted", bidsName)
+			c.logger.WithField("pod", pod.Name).Warnf("Failed to find backing image data source %v for pod, may be deleted", bidsName)
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("couldn't get backing image data source: %v", err))
+		utilruntime.HandleError(fmt.Errorf("failed to get backing image data source: %v", err))
 		return
 	}
 	c.enqueueBackingImageDataSource(bids)
@@ -941,12 +963,12 @@ func (c *BackingImageDataSourceController) startMonitoring(bids *longhorn.Backin
 	defer c.lock.Unlock()
 
 	if _, ok := c.monitorMap[bids.Name]; ok {
-		log.Error("BUG: Monitoring goroutine already exists")
+		log.Error("Monitor goroutine already exists")
 		return
 	}
 
 	if bids.Status.IP == "" {
-		log.Errorf("No backing image data source pod IP before launching the monitor")
+		log.Errorf("Failed to get backing image data source pod IP before launching the monitor")
 		return
 	}
 
@@ -962,7 +984,7 @@ func (c *BackingImageDataSourceController) startMonitoring(bids *longhorn.Backin
 	}
 	c.monitorMap[bids.Name] = stopCh
 
-	log.Infof("Start monitoring")
+	log.Info("Starting monitoring")
 
 	// TODO: refactor this monitor. ref: https://github.com/longhorn/longhorn/issues/2441
 	go wait.Until(m.sync, engineapi.BackingImageDataSourcePollInterval, stopCh)
@@ -979,7 +1001,7 @@ func (m *BackingImageDataSourceMonitor) sync() {
 			m.retryCount++
 			if m.retryCount == engineapi.MaxMonitorRetryCount {
 				m.stopCh <- struct{}{}
-				m.log.Warnf("Stop monitoring since monitor %v sync reaches the max retry count %v", m.Name, engineapi.MaxMonitorRetryCount)
+				m.log.Warnf("Stopped monitoring since monitor %v sync reaches the max retry count %v", m.Name, engineapi.MaxMonitorRetryCount)
 				return
 			}
 		} else {
@@ -992,7 +1014,7 @@ func (m *BackingImageDataSourceMonitor) sync() {
 	if err != nil {
 		if datastore.ErrorIsNotFound(err) {
 			m.stopCh <- struct{}{}
-			m.log.Warnf("Stop monitoring since backing image data source %v is not found", m.Name)
+			m.log.Warnf("Stopped monitoring since backing image data source %v is not found", m.Name)
 			return
 		}
 		syncErr = errors.Wrapf(err, "failed to get backing image data source %v during monitor sync", m.Name)
@@ -1001,11 +1023,11 @@ func (m *BackingImageDataSourceMonitor) sync() {
 	}
 	if bids.Status.OwnerID != m.controllerID {
 		m.stopCh <- struct{}{}
-		m.log.Warnf("Stop monitoring since backing image data source %v owner %v is not the same as monitor current controller %v", m.Name, bids.Status.OwnerID, m.controllerID)
+		m.log.Warnf("Stopped monitoring since backing image data source %v owner %v is not the same as monitor current controller %v", m.Name, bids.Status.OwnerID, m.controllerID)
 		return
 	}
 	if bids.Status.IP == "" {
-		m.log.Warnf("Stop monitoring since backing image data source %v current IP is empty", m.Name)
+		m.log.Warnf("Stopped monitoring since backing image data source %v current IP is empty", m.Name)
 		return
 	}
 
@@ -1017,7 +1039,7 @@ func (m *BackingImageDataSourceMonitor) sync() {
 	}
 
 	if fileInfo.State == string(longhorn.BackingImageStateFailed) && fileInfo.Message != "" {
-		m.log.Errorf("Backing image data source failed to prepare the file, error message: %v", fileInfo.Message)
+		m.log.Errorf("Failed to prepare the file for backing image data source, error message: %v", fileInfo.Message)
 	}
 
 	existingBIDS := bids.DeepCopy()

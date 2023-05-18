@@ -425,8 +425,19 @@ func (rcs *ReplicaScheduler) getDiskWithMostUsableStorage(disks map[string]*Disk
 
 	return diskWithMostUsableStorage
 }
+func filterActiveReplicas(replicas map[string]*longhorn.Replica) map[string]*longhorn.Replica {
+	result := map[string]*longhorn.Replica{}
+	for _, r := range replicas {
+		if r.Spec.Active {
+			result[r.Name] = r
+		}
+	}
+	return result
+}
 
 func (rcs *ReplicaScheduler) CheckAndReuseFailedReplica(replicas map[string]*longhorn.Replica, volume *longhorn.Volume, hardNodeAffinity string) (*longhorn.Replica, error) {
+	replicas = filterActiveReplicas(replicas)
+
 	allNodesInfo, err := rcs.getNodeInfo()
 	if err != nil {
 		return nil, err

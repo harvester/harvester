@@ -258,6 +258,17 @@ func (c *InstanceManagerClient) ProcessGet(name string) (*longhorn.InstanceProce
 	return c.parseProcess(process), nil
 }
 
+func (c *InstanceManagerClient) ProcessGetBinary(name string) (string, error) {
+	if err := CheckInstanceManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
+		return "", err
+	}
+	process, err := c.grpcClient.ProcessGet(name)
+	if err != nil {
+		return "", err
+	}
+	return process.Binary, nil
+}
+
 // ProcessLog returns a grpc stream that will be closed when the passed context is cancelled or the underlying grpc client is closed
 func (c *InstanceManagerClient) ProcessLog(ctx context.Context, name string) (*imapi.LogStream, error) {
 	if err := CheckInstanceManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
