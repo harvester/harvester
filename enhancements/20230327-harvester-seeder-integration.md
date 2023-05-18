@@ -2,15 +2,15 @@
 
 ## Summary
 
-We have been running and developing [Seeder](https://github.com/harvester/seeder) for provisioning and managing the lifecycle of baremetal clusters in our internal labs.
+We have been running and developing [Seeder](https://github.com/harvester/seeder) for provisioning and managing the lifecycle of bare-metal clusters in our internal labs.
 
-With version 1.2.0, we plan to introduce an embedded mode of Seeder, which will allow deployment of Seeder to an existing cluster via Harvester Addons.
+With version 1.2.0, we plan to introduce an embedded mode of Seeder, which will allow deployment of Seeder to an existing cluster via **Harvester Addons**.
 
-In embedded mode, the addon will enable end-users to define Inventory objects that map the Harvester nodes to the corresponding baremetal nodes. The baremetal interaction will be through IPMI and Redfish protocols.
+In embedded mode, the addon will enable end-users to define inventory objects that map the Harvester nodes to the corresponding bare-metal nodes. The bare-metal interaction will be through IPMI and Redfish protocols.
 
-Once defined, seeder in embedded mode, will leverage the cluster event controllers to query underlying hardware and propagate that information to the corresponding node objects.
+Once defined, Seeder in embedded mode leverages the cluster event controllers to query underlying hardware and propagate that information to the corresponding node objects.
 
-In addition, the users will be able to perform underlying hardware power cycle operations via the Harvester UI.
+In addition, users will be able to perform underlying hardware power cycle operations via the Harvester UI.
 
 
 ### Related Issues
@@ -39,9 +39,9 @@ Provisioning of additional hardware.
 
 A Harvester user wants to discover underlying hardware information from Harvester.
 
-Currently, this is not possible, however once the seeder addon is enabled, the user can defined inventory objects for their Harvester nodes, to map individual Harvester nodes to the underlying hardware.
+Discovering underlying hardware information from Harvester is not currently possible. However, once the seeder addon is enabled, the user can define inventory objects for their Harvester nodes to map individual Harvester nodes to the underlying hardware.
 
-Once the addon is enabled, and the Inventory object is defined the end user can see underlying hardware information in the Harvester UI.
+Once the addon is enabled and the inventory object is defined, the end user can see underlying hardware information in the Harvester UI.
 
 This will include information such as (but not limited to):
 * Hardware manufacture
@@ -56,29 +56,29 @@ This will include information such as (but not limited to):
 
 #### Power cycle nodes via Harvester
 
-A Harvester user wishes to reboot/shutdown/power-on underlying hardware from harvester.
+A Harvester user wishes to reboot, shutdown, or power-on underlying hardware from Harvester.
 
-Once the Seeder addon is enabled, the users can power cycle underlying nodes by using the additional power action options available in UI.
+Once the Seeder addon is enabled, users can power cycle the underlying nodes by using the additional power action options available in the Harvester UI.
 
 ### API changes
-Similar to PCIDeviceClaims, the UI will allow end users to define a secret for BMC credentials as well as associated inventory objects.
+Like PCIDeviceClaims, the Harvester UI will allow end users to define a secret for BMC credentials and associated inventory objects.
 
-The above two changes can be handled directly by the UI.
+The two changes explained above can be handled directly by the Harvester UI.
 
-Once and inventory is associated with a node, the associated nodeObject needs to be annotated with additional information:
+Once an inventory is associated with a node, the associated nodeObject needs to be annotated with additional information:
 
 `harvesterhci.io/inventoryName: inventoryName`
 
-There will be changes to the node api: https://github.com/harvester/harvester/blob/master/pkg/api/node/formatter.go#L40
+There will be changes to the node API: https://github.com/harvester/harvester/blob/master/pkg/api/node/formatter.go#L40
 
-Changes will involve additional resource Actions:
+Changes will involve additional resource actions:
 
-* if node is in `maintenanceMode`, user can invoke `powerActionPossible` to check if power actions are possible on this node.
-* if api call `powerActionPossible` returns HTTP status 200, the user can invoke `powerAction` to trigger the correct powerAction on the node
+* If the node is in `maintenanceMode`, users can invoke `powerActionPossible` to check if power actions are possible on this node.
+* If an API call `powerActionPossible` returns `HTTP status 200`, the user can invoke `powerAction` to trigger the correct `powerAction` on the node.
 
 
 ## Design
-The Seeder addon will introduce a few new CRDs, however only the following are used in embedded mode:
+The Seeder addon will introduce a few new CRDs. However, only the following are used in embedded mode:
 
 * inventories.metal.harvesterhci.io
 * clusters.metal.harvesterhci.io
@@ -92,7 +92,7 @@ Seeder will run as a deployment in the `harvester-system` namespace in the clust
 
 The addon will deploy Seeder with `EMBEDDED_MODE` set to `true`.
 
-In this mode the provisioning controllers are not bootstrapped, however the following controllers are bootstrapped
+In this mode, the provisioning controllers are not bootstrapped. However, the following controllers are bootstrapped:
 
 * local cluster controller
 * local node contorller
@@ -101,7 +101,7 @@ In this mode the provisioning controllers are not bootstrapped, however the foll
 * rufio task controller
 * cluster event controller
 
-On boot in embedded mode, Seeder will create a `local` cluster for `cluster.metal` objects pointing to the K8s default service as the cluster endpoint address.
+When booting in embedded mode, Seeder will create a `local` cluster for `cluster.metal` objects pointing to the K8s default service as the cluster endpoint address.
 
 This is a placeholder for `inventory` objects as they are added to the cluster.
 
@@ -134,7 +134,7 @@ status:
   status: clusterRunning
 ```
 
-The UI will allow users to create secrets and inventory definition corresponding to existing nodes.
+The Harvester UI will allow users to create secrets and inventory definition corresponding to existing nodes.
 
 sample secret creation call to endpoint: `${ENDPOINT}/v1/harvester/secrets`
 ```json
@@ -185,7 +185,7 @@ sample inventory creation call to endpoint: `${ENDPOINT}/v1/harvester/metal.harv
 }
 ```
 
-Since no actual provisioning is performed by Seeder, the node name the inventory is associated with is passed via the annotation `metal.harvesterhci.io/localNodeName`. The local cluster controller in seeder will use this annotation to query the k8s node object, and generate the correct inventory status.
+Since no actual provisioning is performed by Seeder, the node name the inventory is associated with is passed via the annotation `metal.harvesterhci.io/localNodeName`. The local cluster controller in Seeder will use this annotation to query the k8s node object and generate the correct inventory status.
 
 ```json
 {
@@ -207,16 +207,16 @@ Since no actual provisioning is performed by Seeder, the node name the inventory
 
 Once the inventory object is created, the `local cluster controller`, will add the inventory to the `local` cluster object in the `harvester-system` namespace.
 
-The `cluster event controller` will now regularly reconcile inventory objects and query underlying hardware for hardware details and events, and trigger updates to the Harvester nodes.
+The `cluster event controller` will now regularly reconcile inventory objects, query underlying hardware for hardware details and events, and trigger updates to the Harvester nodes.
 
-The `inventory controller`, will also watch nodes for power action requests via updates to the powerActionStatus in the status resource for inventory object.
+The `inventory controller` will also watch nodes for power action requests via updates to the `powerActionStatus` in the status resource for the inventory object.
 
-Once a power action is complete the associated powerStatus field LastPowerAction status will be updated with the associated status.
+Once a power action is complete, the associated `powerStatus` field, `LastPowerAction`, will be updated with the associated status.
 
 ### Test plan
 
-* Enable Seeder addon integration
-* Define valid inventory and secrets for node
+* Enable Seeder addon integration.
+* Define valid inventory and secrets for node.
 * Wait for additional node labels to be propagated on the node.
 * Wait for additional hardware events to be generated for the node.
 * Perform node power actions via Harvester UI.
