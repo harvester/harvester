@@ -15,7 +15,7 @@ import (
 	"reflect"
 	"time"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/longhorn/backupstore"
 
 	// Although we don't use following drivers directly, we need to import them to register drivers.
@@ -37,8 +37,8 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
-	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
+	ctllonghornv2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -69,9 +69,9 @@ func RegisterBackup(ctx context.Context, management *config.Management, opts con
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	volumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 	lhbackups := management.LonghornFactory.Longhorn().V1beta2().Backup()
-	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
-	snapshotContents := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotContent()
-	snapshotClass := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotClass()
+	snapshots := management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
+	snapshotContents := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotContent()
+	snapshotClass := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotClass()
 
 	vmBackupController := &Handler{
 		vmBackups:            vmBackups,
@@ -111,9 +111,9 @@ type Handler struct {
 	pvcCache             ctlcorev1.PersistentVolumeClaimCache
 	secretCache          ctlcorev1.SecretCache
 	storageClassCache    ctlstoragev1.StorageClassCache
-	volumeCache          ctllhv1.VolumeCache
-	volumes              ctllhv1.VolumeClient
-	lhbackupCache        ctllhv1.BackupCache
+	volumeCache          ctllonghornv2.VolumeCache
+	volumes              ctllonghornv2.VolumeClient
+	lhbackupCache        ctllonghornv2.BackupCache
 	snapshots            ctlsnapshotv1.VolumeSnapshotClient
 	snapshotCache        ctlsnapshotv1.VolumeSnapshotCache
 	snapshotContents     ctlsnapshotv1.VolumeSnapshotContentClient

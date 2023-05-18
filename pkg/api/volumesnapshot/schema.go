@@ -22,7 +22,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		pvcCache:          scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
 		volumes:           scaled.LonghornFactory.Longhorn().V1beta2().Volume(),
 		volumeCache:       scaled.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
-		snapshotCache:     scaled.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot().Cache(),
+		snapshotCache:     scaled.SnapshotFactory.Snapshot().V1().VolumeSnapshot().Cache(),
 		storageClassCache: scaled.StorageFactory.Storage().V1().StorageClass().Cache(),
 	}
 	t := schema.Template{

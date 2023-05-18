@@ -16,7 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
-	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -44,7 +44,7 @@ func VolumeDetachRegister(ctx context.Context, management *config.Management, op
 	pods := management.CoreFactory.Core().V1().Pod()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	volumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
-	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
+	snapshots := management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
 	upgrades := management.HarvesterFactory.Harvesterhci().V1beta1().Upgrade()
 	nodeVolumeDetachController := &nodeVolumeDetachController{
 		nodeController: nodes,

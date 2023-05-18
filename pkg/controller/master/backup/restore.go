@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -33,7 +33,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
-	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1beta1"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -95,8 +95,8 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	secrets := management.CoreFactory.Core().V1().Secret()
-	snapshots := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshot()
-	snapshotContents := management.SnapshotFactory.Snapshot().V1beta1().VolumeSnapshotContent()
+	snapshots := management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
+	snapshotContents := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotContent()
 	lhbackups := management.LonghornFactory.Longhorn().V1beta2().Backup()
 	volumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 
