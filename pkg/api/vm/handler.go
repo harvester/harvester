@@ -18,6 +18,7 @@ import (
 	wranglername "github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/rancher/wrangler/pkg/slice"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -857,7 +858,8 @@ func (h *vmActionHandler) checkAttachable(pvc *corev1.PersistentVolumeClaim) err
 	}
 
 	if sc.VolumeBindingMode == nil {
-		return fmt.Errorf("volme %v not specify VolumeBindingMode is not permitted", pvc.Name)
+		logrus.Infof("volme %v not specify VolumeBindingMode", pvc.Name)
+		return nil
 	}
 
 	if *sc.VolumeBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
