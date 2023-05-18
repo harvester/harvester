@@ -47,6 +47,12 @@ const (
 	sshAnnotation = "harvesterhci.io/sshNames"
 )
 
+var (
+	cloneVMAnnotationKeys = []string{
+		util.AnnotationReservedMemory,
+	}
+)
+
 type vmActionHandler struct {
 	namespace                 string
 	vms                       ctlkubevirtv1.VirtualMachineClient
@@ -1243,6 +1249,11 @@ func getClonedVMYamlFromSourceVM(newVMName string, sourceVM *kubevirtv1.VirtualM
 			Labels:      sourceVM.Labels,
 		},
 		Spec: *sourceVM.Spec.DeepCopy(),
+	}
+	for _, cloneVMAnnoKey := range cloneVMAnnotationKeys {
+		if sourceAnnoValue, keyExist := sourceVM.Annotations[cloneVMAnnoKey]; keyExist {
+			newVM.Annotations[cloneVMAnnoKey] = sourceAnnoValue
+		}
 	}
 	newVM.Spec.Template.Spec.Hostname = newVM.Name
 	newVM.Spec.Template.ObjectMeta.Labels[builder.LabelKeyVirtualMachineName] = newVM.Name
