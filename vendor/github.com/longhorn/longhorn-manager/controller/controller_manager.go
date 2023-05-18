@@ -108,6 +108,7 @@ func StartControllers(logger logrus.FieldLogger, stopCh chan struct{}, controlle
 	kpc := NewKubernetesPodController(logger, ds, scheme, kubeClient, controllerID)
 	kcfmc := NewKubernetesConfigMapController(logger, ds, scheme, kubeClient, controllerID, namespace)
 	ksc := NewKubernetesSecretController(logger, ds, scheme, kubeClient, controllerID, namespace)
+	kpdbc := NewKubernetesPDBController(logger, ds, kubeClient, controllerID, namespace)
 
 	go kubeInformerFactory.Start(stopCh)
 	go lhInformerFactory.Start(stopCh)
@@ -141,6 +142,7 @@ func StartControllers(logger logrus.FieldLogger, stopCh chan struct{}, controlle
 	go kpc.Run(Workers, stopCh)
 	go kcfmc.Run(Workers, stopCh)
 	go ksc.Run(Workers, stopCh)
+	go kpdbc.Run(Workers, stopCh)
 
 	return ds, ws, nil
 }

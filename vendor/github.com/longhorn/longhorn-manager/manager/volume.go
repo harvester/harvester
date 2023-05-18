@@ -9,7 +9,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -551,13 +550,15 @@ func (m *VolumeManager) Expand(volumeName string, size int64) (v *longhorn.Volum
 		return nil, err
 	}
 
-	logrus.Infof("Volume %v expansion from %v to %v requested", v.Name, v.Spec.Size, size)
+	previousSize := v.Spec.Size
 	v.Spec.Size = size
 
 	v, err = m.ds.UpdateVolume(v)
 	if err != nil {
 		return nil, err
 	}
+
+	logrus.Infof("Expanding volume %v from %v to %v requested", v.Name, previousSize, size)
 
 	return v, nil
 }
@@ -566,21 +567,6 @@ func (m *VolumeManager) checkAndExpandPVC(namespace string, pvcName string, size
 	pvc, err := m.ds.GetPersistentVolumeClaim(namespace, pvcName)
 	if err != nil {
 		return false, -1, err
-	}
-
-	longhornStaticStorageClass, err := m.ds.GetSettingValueExisted(types.SettingNameDefaultLonghornStaticStorageClass)
-	if err != nil {
-		return false, -1, err
-	}
-
-	pvcSCName := *pvc.Spec.StorageClassName
-	if pvcSCName == longhornStaticStorageClass {
-		if _, err := m.ds.GetStorageClassRO(pvcSCName); err != nil {
-			if !apierrors.IsNotFound(err) {
-				return false, -1, err
-			}
-			return false, size, nil
-		}
 	}
 
 	// TODO: Should check for pvc.Spec.Resources.Requests.Storage() here, once upgrade API to v0.18.x.
@@ -650,13 +636,14 @@ func (m *VolumeManager) CancelExpansion(volumeName string) (v *longhorn.Volume, 
 		return nil, fmt.Errorf("the engine expansion is already complete")
 	}
 
+	previousSize := v.Spec.Size
 	v.Spec.Size = engine.Status.CurrentSize
 	v, err = m.ds.UpdateVolume(v)
 	if err != nil {
 		return nil, err
 	}
 
-	logrus.Debugf("Canceling expansion for volume %v", v.Name)
+	logrus.Infof("Canceling volume %v expansion from %v to %v requested", v.Name, previousSize, v.Spec.Size)
 	return v, nil
 }
 

@@ -284,6 +284,15 @@ func (btc *BackupTargetClient) BackupDelete(backupURL string, credential map[str
 	return nil
 }
 
+// BackupCleanUpAllMounts clean up all mount points of backup store on the node
+func (btc *BackupTargetClient) BackupCleanUpAllMounts() (err error) {
+	_, err = btc.ExecuteEngineBinary("backup", "cleanup-all-mounts")
+	if err != nil {
+		return errors.Wrapf(err, "error clean up all mount points")
+	}
+	return nil
+}
+
 // SnapshotBackup calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
 func (e *EngineBinary) SnapshotBackup(engine *longhorn.Engine,

@@ -1585,11 +1585,19 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 					continue
 				}
 
-				// Whenever the engine isn't attached, if the node goes down, the replica can be marked as failed.
-				// In the attached mode, we can determine whether the replica can fail by relying on the data plane's
-				// connectivity status.
-				if v.Status.State != longhorn.VolumeStateAttached {
-					log.WithField("replica", r.Name).Warnf("Replica %v is marked as failed since the volume %v is not attached because the instance manager is unable to launch the replica", r.Name, v.Name)
+				// If the engine isn't attached or the node goes down, the replica can be marked as failed.
+				// In the attached mode, we can determine whether the replica can fail by relying on the data plane's connectivity status.
+				nodeDeleted, err := vc.ds.IsNodeDeleted(r.Spec.NodeID)
+				if err != nil {
+					return err
+				}
+
+				if v.Status.State != longhorn.VolumeStateAttached || nodeDeleted {
+					msg := fmt.Sprintf("Replica %v is marked as failed since the volume %v is not attached because the instance manager is unable to launch the replica", r.Name, v.Name)
+					if nodeDeleted {
+						msg = fmt.Sprintf("Replica %v is marked as failed since the node %v is deleted.", r.Name, r.Spec.NodeID)
+					}
+					log.WithField("replica", r.Name).Warn(msg)
 					if r.Spec.FailedAt == "" {
 						r.Spec.FailedAt = vc.nowHandler()
 					}
@@ -1829,7 +1837,6 @@ func (vc *VolumeController) replenishReplicas(v *longhorn.Volume, e *longhorn.En
 	if (!newVolume && replenishCount > 0) || hardNodeAffinity != "" {
 		replenishCount = 1
 	}
-
 	for i := 0; i < replenishCount; i++ {
 		reusableFailedReplica, err := vc.scheduler.CheckAndReuseFailedReplica(rs, v, hardNodeAffinity)
 		if err != nil {
@@ -2220,7 +2227,7 @@ func (vc *VolumeController) getReplenishReplicasCount(v *longhorn.Volume, rs map
 			continue
 		}
 		// Skip the replica has been requested eviction.
-		if r.Spec.FailedAt == "" && (!r.Status.EvictionRequested) {
+		if r.Spec.FailedAt == "" && (!r.Status.EvictionRequested) && r.Spec.Active {
 			usableCount++
 		}
 	}
@@ -2391,7 +2398,7 @@ func (vc *VolumeController) getNodeCandidatesForAutoBalanceZone(v *longhorn.Volu
 func (vc *VolumeController) hasEngineStatusSynced(e *longhorn.Engine, rs map[string]*longhorn.Replica) bool {
 	connectedReplicaCount := 0
 	for _, r := range rs {
-		if r.Spec.FailedAt == "" && r.Spec.NodeID != "" {
+		if r.Spec.FailedAt == "" && r.Spec.NodeID != "" && r.Spec.Active {
 			connectedReplicaCount++
 		}
 	}
@@ -2475,6 +2482,9 @@ func (vc *VolumeController) upgradeEngineForVolume(v *longhorn.Volume, es map[st
 
 	volumeAndReplicaNodes := []string{v.Status.CurrentNodeID}
 	for _, r := range rs {
+		if r.Spec.NodeID == "" {
+			continue
+		}
 		volumeAndReplicaNodes = append(volumeAndReplicaNodes, r.Spec.NodeID)
 	}
 
@@ -2579,7 +2589,7 @@ func (vc *VolumeController) upgradeEngineForVolume(v *longhorn.Volume, es map[st
 	}
 
 	if err := vc.switchActiveReplicas(rs, func(r *longhorn.Replica, engineImage string) bool {
-		return r.Spec.EngineImage == engineImage
+		return r.Spec.EngineImage == engineImage && r.DeletionTimestamp.IsZero()
 	}, v.Spec.EngineImage); err != nil {
 		return err
 	}
@@ -2937,10 +2947,10 @@ func (vc *VolumeController) checkForAutoDetachment(v *longhorn.Volume, e *longho
 	// so that the engine restores with the latest backup before the volume is detached
 	if backupVolumeName, isExist := v.Labels[types.LonghornLabelBackupVolume]; isExist && backupVolumeName != "" {
 		backupVolume, err := vc.ds.GetBackupVolumeRO(backupVolumeName)
-		if err != nil {
+		if err != nil && !datastore.ErrorIsNotFound(err) {
 			return errors.Wrapf(err, "failed to get backup volume: %v", v.Name)
 		}
-		if backupVolume.Status.LastSyncedAt.Before(&backupVolume.Spec.SyncRequestedAt) {
+		if backupVolume != nil && backupVolume.Status.LastSyncedAt.Before(&backupVolume.Spec.SyncRequestedAt) {
 			return nil
 		}
 	}

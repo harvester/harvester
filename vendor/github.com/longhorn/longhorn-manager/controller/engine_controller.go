@@ -316,7 +316,7 @@ func (ec *EngineController) syncEngine(key string) (err error) {
 
 	syncReplicaAddressMap := false
 	if len(engine.Spec.UpgradedReplicaAddressMap) != 0 && engine.Status.CurrentImage != engine.Spec.EngineImage {
-		if err := ec.Upgrade(engine); err != nil {
+		if err := ec.Upgrade(engine, log); err != nil {
 			// Engine live upgrade failure shouldn't block the following engine state update.
 			log.WithError(err).Error("failed to run engine live upgrade")
 			// Sync replica address map as usual when the upgrade fails.
@@ -326,7 +326,7 @@ func (ec *EngineController) syncEngine(key string) (err error) {
 		syncReplicaAddressMap = true
 	}
 	if syncReplicaAddressMap && !reflect.DeepEqual(engine.Status.CurrentReplicaAddressMap, engine.Spec.ReplicaAddressMap) {
-		log.Debug("Updating engine current replica address map")
+		log.Infof("Updating engine current replica address map to %+v", engine.Spec.ReplicaAddressMap)
 		engine.Status.CurrentReplicaAddressMap = engine.Spec.ReplicaAddressMap
 		// Make sure the CurrentReplicaAddressMap persist in the etcd before continue
 		return nil
@@ -464,19 +464,19 @@ func (ec *EngineController) CreateInstance(obj interface{}) (*longhorn.InstanceP
 	return c.EngineProcessCreate(e, frontend, engineReplicaTimeout, fileSyncHTTPClientTimeout, v.Spec.DataLocality, engineCLIAPIVersion)
 }
 
-func (ec *EngineController) DeleteInstance(obj interface{}) error {
+func (ec *EngineController) DeleteInstance(obj interface{}) (err error) {
 	e, ok := obj.(*longhorn.Engine)
 	if !ok {
 		return fmt.Errorf("BUG: invalid object for engine process deletion: %v", obj)
 	}
 	log := getLoggerForEngine(ec.logger, e)
 
-	if err := ec.deleteInstanceWithCLIAPIVersionOne(e); err != nil {
+	err = ec.deleteInstanceWithCLIAPIVersionOne(e)
+	if err != nil {
 		return err
 	}
 
 	var im *longhorn.InstanceManager
-	var err error
 	// Not assigned or not updated, try best to delete
 	if e.Status.InstanceManagerName == "" {
 		if e.Spec.NodeID == "" {
@@ -527,19 +527,43 @@ func (ec *EngineController) DeleteInstance(obj interface{}) error {
 
 	logrus.Infof("Deleting engine instance %v", e.Name)
 
+	defer func() {
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to delete engine %v for volume %v", e.Name, v.Name)
+		}
+		if isRWXVolume && im.Status.CurrentState != longhorn.InstanceManagerStateRunning {
+			// Try the best to delete engine instance.
+			// To prevent that the volume is stuck at detaching state, ignore the error when volume is
+			// a RWX volume and the instance manager is not running.
+			//
+			// If the engine instance of a RWX volume is not deleted successfully:
+			// If a RWX volume is on node A and the network of this node is partitioned,
+			// the owner of the share manager (SM) is transferred to node B. The engine instance and
+			// the block device (/dev/longhorn/pvc-xxx) on the node A become orphaned.
+			// If the network of the node A gets back to normal, the SM can be shifted back to node A.
+			// After shifting to node A, the first reattachment fail due to the IO error resulting from the
+			// orphaned engine instance and block device. Then, the detachment will trigger the teardown of the
+			// problematic engine process and block device. The next reattachment then will succeed.
+			logrus.Warnf("Ignored the failure of deleting engine %v for volume %v", e.Name, v.Name)
+			err = nil
+		}
+	}()
+
 	// For the engine process in instance manager v0.7.0, we need to use the cmdline to delete the process
 	// and stop the iscsi
 	if im.Status.APIVersion == engineapi.IncompatibleInstanceManagerAPIVersion {
 		url := imutil.GetURL(im.Status.IP, engineapi.InstanceManagerDefaultPort)
 		args := []string{"--url", url, "engine", "delete", "--name", e.Name}
 
-		if _, err := util.ExecuteWithoutTimeout([]string{}, engineapi.GetDeprecatedInstanceManagerBinary(e.Status.CurrentImage), args...); err != nil && !types.ErrorIsNotFound(err) {
+		_, err = util.ExecuteWithoutTimeout([]string{}, engineapi.GetDeprecatedInstanceManagerBinary(e.Status.CurrentImage), args...)
+		if err != nil && !types.ErrorIsNotFound(err) {
 			return err
 		}
 
 		// Directly remove the instance from the map. Best effort.
 		delete(im.Status.Instances, e.Name)
-		if _, err := ec.ds.UpdateInstanceManagerStatus(im); err != nil {
+		_, err = ec.ds.UpdateInstanceManagerStatus(im)
+		if err != nil {
 			return err
 		}
 		return nil
@@ -550,7 +574,9 @@ func (ec *EngineController) DeleteInstance(obj interface{}) error {
 		return err
 	}
 	defer c.Close()
-	if err := c.ProcessDelete(e.Name); err != nil && !types.ErrorIsNotFound(err) {
+
+	err = c.ProcessDelete(e.Name)
+	if err != nil && !types.ErrorIsNotFound(err) {
 		return err
 	}
 
@@ -1705,7 +1731,7 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replicaName, add
 					"Failed to start snapshot purge for engine %v and volume %v before rebuilding: %v", e.Name, e.Spec.VolumeName, err)
 				return
 			}
-			logrus.Debug("Started snapshot purge before rebuilding, will wait for the purge complete")
+			log.Debug("Started snapshot purge before rebuilding, will wait for the purge complete")
 
 			purgeDone := false
 			endTime := time.Now().Add(time.Duration(purgeWaitIntervalInSecond) * time.Second)
@@ -1744,6 +1770,28 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replicaName, add
 				return
 			}
 			log.Debug("Finished snapshot purge, will start rebuilding then")
+		}
+
+		// It has been at least 10 seconds (2 * EnginePollInterval) since we were asked to rebuild.
+		// Should we still communicate with addr?
+		// TODO: Remove this check in versions that include a completed longhorn/longhorn#5845.
+		updatedEngine, err := ec.ds.GetEngineRO(e.Name)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Warn("Cannot proceed to rebuild since engine is not found")
+				return
+			}
+			log.WithError(err).Error("Failed to get latest engine spec before rebuilding")
+			return
+		}
+		updatedAddr, ok := updatedEngine.Spec.ReplicaAddressMap[replicaName]
+		if !ok {
+			log.Warnf("Refusing to rebuild since replica %v is no longer in the replicaAddressMap", replicaName)
+			return
+		}
+		if addr != updatedAddr {
+			log.Warnf("Refusing to rebuild since the address for replica %v has been updated from %v to %v", replicaName, addr, updatedAddr)
+			return
 		}
 
 		replica, err := ec.ds.GetReplica(replicaName)
@@ -1828,7 +1876,7 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replicaName, add
 					"Failed to start snapshot purge for engine %v and volume %v after rebuilding: %v", e.Name, e.Spec.VolumeName, err)
 				return
 			}
-			logrus.Debug("Started snapshot purge after rebuilding")
+			log.Debug("Started snapshot purge after rebuilding")
 		}
 	}()
 
@@ -1893,12 +1941,10 @@ func getReplicaRebuildFailedReasonFromError(errMsg string) (string, longhorn.Con
 	}
 }
 
-func (ec *EngineController) Upgrade(e *longhorn.Engine) (err error) {
+func (ec *EngineController) Upgrade(e *longhorn.Engine, log *logrus.Entry) (err error) {
 	defer func() {
 		err = errors.Wrapf(err, "cannot live upgrade image for %v", e.Name)
 	}()
-
-	log := ec.logger.WithField("volume", e.Spec.VolumeName)
 
 	engineClientProxy, err := ec.getEngineClientProxy(e, e.Spec.EngineImage)
 	if err != nil {
@@ -1916,7 +1962,7 @@ func (ec *EngineController) Upgrade(e *longhorn.Engine) (err error) {
 	if version.ClientVersion.GitCommit != version.ServerVersion.GitCommit {
 		log.Debugf("Trying to upgrade engine from %v to %v",
 			e.Status.CurrentImage, e.Spec.EngineImage)
-		if err := ec.UpgradeEngineProcess(e); err != nil {
+		if err := ec.UpgradeEngineProcess(e, log); err != nil {
 			return err
 		}
 	}
@@ -1930,7 +1976,7 @@ func (ec *EngineController) Upgrade(e *longhorn.Engine) (err error) {
 	return nil
 }
 
-func (ec *EngineController) UpgradeEngineProcess(e *longhorn.Engine) error {
+func (ec *EngineController) UpgradeEngineProcess(e *longhorn.Engine, log *logrus.Entry) error {
 	frontend := e.Spec.Frontend
 	if e.Spec.DisableFrontend {
 		frontend = longhorn.VolumeFrontendEmpty
@@ -1964,6 +2010,15 @@ func (ec *EngineController) UpgradeEngineProcess(e *longhorn.Engine) error {
 	engineCLIAPIVersion, err := ec.ds.GetEngineImageCLIAPIVersion(e.Spec.EngineImage)
 	if err != nil {
 		return err
+	}
+
+	processBinary, err := c.ProcessGetBinary(e.Name)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get the binary of the current engine process")
+	}
+	if strings.Contains(processBinary, types.GetImageCanonicalName(e.Spec.EngineImage)) {
+		log.Infof("The existing engine process already has the new engine image %v", e.Spec.EngineImage)
+		return nil
 	}
 
 	engineProcess, err := c.EngineProcessUpgrade(e, frontend, engineReplicaTimeout, fileSyncHTTPClientTimeout, v.Spec.DataLocality, engineCLIAPIVersion)

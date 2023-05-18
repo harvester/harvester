@@ -393,13 +393,20 @@ func (c *ShareManagerController) isShareManagerRequiredForVolume(volume *longhor
 	}
 
 	// no active workload, there is no need to keep the share manager around
-	hasActiveWorkload := volume.Status.KubernetesStatus.LastPodRefAt == "" && volume.Status.KubernetesStatus.LastPVCRefAt == "" &&
-		len(volume.Status.KubernetesStatus.WorkloadsStatus) > 0
-	if !hasActiveWorkload {
+	if !hasActiveWorkload(volume) {
 		return false
 	}
 
 	return true
+}
+
+func hasActiveWorkload(vol *longhorn.Volume) bool {
+	if vol == nil {
+		return false
+	}
+	return vol.Status.KubernetesStatus.LastPodRefAt == "" &&
+		vol.Status.KubernetesStatus.LastPVCRefAt == "" &&
+		len(vol.Status.KubernetesStatus.WorkloadsStatus) > 0
 }
 
 func (c *ShareManagerController) detachShareManagerVolume(sm *longhorn.ShareManager) error {

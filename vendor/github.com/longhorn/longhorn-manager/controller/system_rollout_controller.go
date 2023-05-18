@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -620,7 +619,7 @@ func (c *SystemRolloutController) cacheLonghornResources() error {
 func (c *SystemRolloutController) cacheResourcesFromDirectory(name string, scheme *runtime.Scheme) error {
 	codecs := serializer.NewCodecFactory(scheme)
 
-	files, err := ioutil.ReadDir(name)
+	files, err := os.ReadDir(name)
 	if err != nil {
 		if errors.Is(err, unix.ENOENT) {
 			return nil

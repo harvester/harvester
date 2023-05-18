@@ -69,6 +69,7 @@ const (
 	SettingNameReplicaZoneSoftAntiAffinity                              = SettingName("replica-zone-soft-anti-affinity")
 	SettingNameNodeDownPodDeletionPolicy                                = SettingName("node-down-pod-deletion-policy")
 	SettingNameAllowNodeDrainWithLastHealthyReplica                     = SettingName("allow-node-drain-with-last-healthy-replica")
+	SettingNameNodeDrainPolicy                                          = SettingName("node-drain-policy")
 	SettingNameMkfsExt4Parameters                                       = SettingName("mkfs-ext4-parameters")
 	SettingNamePriorityClass                                            = SettingName("priority-class")
 	SettingNameDisableRevisionCounter                                   = SettingName("disable-revision-counter")
@@ -137,6 +138,7 @@ var (
 		SettingNameReplicaZoneSoftAntiAffinity,
 		SettingNameNodeDownPodDeletionPolicy,
 		SettingNameAllowNodeDrainWithLastHealthyReplica,
+		SettingNameNodeDrainPolicy,
 		SettingNameMkfsExt4Parameters,
 		SettingNamePriorityClass,
 		SettingNameDisableRevisionCounter,
@@ -230,6 +232,7 @@ var (
 		SettingNameReplicaZoneSoftAntiAffinity:                              SettingDefinitionReplicaZoneSoftAntiAffinity,
 		SettingNameNodeDownPodDeletionPolicy:                                SettingDefinitionNodeDownPodDeletionPolicy,
 		SettingNameAllowNodeDrainWithLastHealthyReplica:                     SettingDefinitionAllowNodeDrainWithLastHealthyReplica,
+		SettingNameNodeDrainPolicy:                                          SettingDefinitionNodeDrainPolicy,
 		SettingNameMkfsExt4Parameters:                                       SettingDefinitionMkfsExt4Parameters,
 		SettingNamePriorityClass:                                            SettingDefinitionPriorityClass,
 		SettingNameDisableRevisionCounter:                                   SettingDefinitionDisableRevisionCounter,
@@ -661,7 +664,7 @@ var (
 	}
 
 	SettingDefinitionAllowNodeDrainWithLastHealthyReplica = SettingDefinition{
-		DisplayName: "Allow Node Drain with the Last Healthy Replica",
+		DisplayName: "Allow Node Drain with the Last Healthy Replica (Deprecated)",
 		Description: "By default, Longhorn will block `kubectl drain` action on a node if the node contains the last healthy replica of a volume.\n\n" +
 			"If this setting is enabled, Longhorn will **not** block `kubectl drain` action on a node even if the node contains the last healthy replica of a volume.",
 		Category: SettingCategoryGeneral,
@@ -669,6 +672,24 @@ var (
 		Required: true,
 		ReadOnly: false,
 		Default:  "false",
+	}
+
+	SettingDefinitionNodeDrainPolicy = SettingDefinition{
+		DisplayName: "Node Drain Policy",
+		Description: "Define the policy to use when a node with the last healthy replica of a volume is drained. \n" +
+			"- **block-if-contains-last-replica** Longhorn will block the drain when the node contains the last healthy replica of a volume.\n" +
+			"- **allow-if-replica-is-stopped** Longhorn will allow the drain when the node contains the last healthy replica of a volume but the replica is stopped. WARNING: possible data loss if the node is removed after draining. Select this option if you want to drain the node and do in-place upgrade/maintenance.\n" +
+			"- **always-allow** Longhorn will allow the drain even though the node contains the last healthy replica of a volume. WARNING: possible data loss if the node is removed after draining. Also possible data corruption if the last replica was running during the draining.\n",
+		Category: SettingCategoryGeneral,
+		Type:     SettingTypeString,
+		Required: true,
+		ReadOnly: false,
+		Default:  string(NodeDrainPolicyBlockIfContainsLastReplica),
+		Choices: []string{
+			string(NodeDrainPolicyBlockIfContainsLastReplica),
+			string(NodeDrainPolicyAllowIfReplicaIsStopped),
+			string(NodeDrainPolicyAlwaysAllow),
+		},
 	}
 
 	SettingDefinitionMkfsExt4Parameters = SettingDefinition{
@@ -1037,6 +1058,14 @@ const (
 	NodeDownPodDeletionPolicyDeleteBothStatefulsetAndDeploymentPod = NodeDownPodDeletionPolicy("delete-both-statefulset-and-deployment-pod")
 )
 
+type NodeWithLastHealthyReplicaDrainPolicy string
+
+const (
+	NodeDrainPolicyBlockIfContainsLastReplica = NodeWithLastHealthyReplicaDrainPolicy("block-if-contains-last-replica")
+	NodeDrainPolicyAllowIfReplicaIsStopped    = NodeWithLastHealthyReplicaDrainPolicy("allow-if-replica-is-stopped")
+	NodeDrainPolicyAlwaysAllow                = NodeWithLastHealthyReplicaDrainPolicy("always-allow")
+)
+
 type SystemManagedPodsImagePullPolicy string
 
 const (
@@ -1248,6 +1277,8 @@ func ValidateSetting(name, value string) (err error) {
 		fallthrough
 	case SettingNameDefaultDataLocality:
 		fallthrough
+	case SettingNameNodeDrainPolicy:
+		fallthrough
 	case SettingNameSystemManagedPodsImagePullPolicy:
 		definition, _ := GetSettingDefinition(sName)
 		choices := definition.Choices
@@ -1346,54 +1377,55 @@ func getDefaultSettingFromYAML(defaultSettingYAMLData []byte) (map[string]string
 	return defaultSettings, nil
 }
 
-func ValidateAndUnmarshalToleration(s string) (*v1.Toleration, error) {
-	toleration := &v1.Toleration{}
+func UnmarshalTolerations(tolerationSetting string) ([]v1.Toleration, error) {
+	tolerations := []v1.Toleration{}
 
-	// The schema should be `key=value:effect` or `key:effect`
-	s = strings.Trim(s, " ")
-	parts := strings.Split(s, ":")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid toleration setting %v: should contain both effect and key/value pair", s)
+	tolerationSetting = strings.ReplaceAll(tolerationSetting, " ", "")
+	if tolerationSetting == "" {
+		return tolerations, nil
 	}
 
-	effect := v1.TaintEffect(strings.Trim(parts[1], " "))
-	if effect != v1.TaintEffectNoExecute && effect != v1.TaintEffectNoSchedule && effect != v1.TaintEffectPreferNoSchedule && effect != v1.TaintEffect("") {
-		return nil, fmt.Errorf("invalid toleration setting %v: invalid effect", parts[1])
-	}
-	toleration.Effect = effect
-
-	if strings.Contains(parts[0], "=") {
-		pair := strings.Split(parts[0], "=")
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid toleration setting %v: invalid key/value pair", parts[0])
+	tolerationList := strings.Split(tolerationSetting, ";")
+	for _, toleration := range tolerationList {
+		toleration, err := parseToleration(toleration)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to parse toleration: %s", toleration)
 		}
-		toleration.Key = strings.Trim(pair[0], " ")
-		toleration.Value = strings.Trim(pair[1], " ")
-		toleration.Operator = v1.TolerationOpEqual
-	} else {
-		toleration.Key = strings.Trim(parts[0], " ")
-		toleration.Operator = v1.TolerationOpExists
+		tolerations = append(tolerations, *toleration)
 	}
-
-	return toleration, nil
+	return tolerations, nil
 }
 
-func UnmarshalTolerations(tolerationSetting string) ([]v1.Toleration, error) {
-	res := []v1.Toleration{}
-
-	tolerationSetting = strings.Trim(tolerationSetting, " ")
-	if tolerationSetting != "" {
-		tolerationList := strings.Split(tolerationSetting, ";")
-		for _, t := range tolerationList {
-			toleration, err := ValidateAndUnmarshalToleration(t)
-			if err != nil {
-				return nil, err
-			}
-			res = append(res, *toleration)
-		}
+func parseToleration(taintToleration string) (*v1.Toleration, error) {
+	// The schema should be `key=value:effect` or `key:effect`
+	parts := strings.Split(taintToleration, ":")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("missing key/value and effect pair")
 	}
 
-	return res, nil
+	// parse `key=value` or `key`
+	key, value, operator := "", "", v1.TolerationOperator("")
+	pair := strings.Split(parts[0], "=")
+	switch len(pair) {
+	case 1:
+		key, value, operator = parts[0], "", v1.TolerationOpExists
+	case 2:
+		key, value, operator = pair[0], pair[1], v1.TolerationOpEqual
+	}
+
+	effect := v1.TaintEffect(parts[1])
+	switch effect {
+	case "", v1.TaintEffectNoExecute, v1.TaintEffectNoSchedule, v1.TaintEffectPreferNoSchedule:
+	default:
+		return nil, fmt.Errorf("invalid effect: %v", parts[1])
+	}
+
+	return &v1.Toleration{
+		Key:      key,
+		Value:    value,
+		Operator: operator,
+		Effect:   effect,
+	}, nil
 }
 
 func validateAndUnmarshalLabel(label string) (key, value string, err error) {

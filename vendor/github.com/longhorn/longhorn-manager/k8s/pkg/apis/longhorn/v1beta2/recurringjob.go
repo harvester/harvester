@@ -2,14 +2,16 @@ package v1beta2
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-// +kubebuilder:validation:Enum=snapshot;snapshot-cleanup;snapshot-delete;backup
+// +kubebuilder:validation:Enum=snapshot;snapshot-force-create;snapshot-cleanup;snapshot-delete;backup;backup-force-create
 type RecurringJobType string
 
 const (
-	RecurringJobTypeSnapshot        = RecurringJobType("snapshot")         // periodically create snapshots
-	RecurringJobTypeSnapshotCleanup = RecurringJobType("snapshot-cleanup") // periodically purge removable snapshots and system snapshots
-	RecurringJobTypeSnapshotDelete  = RecurringJobType("snapshot-delete")  // periodically remove and purge all kinds of snapshots that exceed the retention count
-	RecurringJobTypeBackup          = RecurringJobType("backup")           // periodically create snapshots then do backups
+	RecurringJobTypeSnapshot            = RecurringJobType("snapshot")              // periodically create snapshots except for old snapshots cleanup failed before creating new snapshots
+	RecurringJobTypeSnapshotForceCreate = RecurringJobType("snapshot-force-create") // periodically create snapshots even if old snapshots cleanup failed
+	RecurringJobTypeSnapshotCleanup     = RecurringJobType("snapshot-cleanup")      // periodically purge removable snapshots and system snapshots
+	RecurringJobTypeSnapshotDelete      = RecurringJobType("snapshot-delete")       // periodically remove and purge all kinds of snapshots that exceed the retention count
+	RecurringJobTypeBackup              = RecurringJobType("backup")                // periodically create snapshots then do backups
+	RecurringJobTypeBackupForceCreate   = RecurringJobType("backup-force-create")   // periodically create snapshots then do backups even if old snapshots cleanup failed
 
 	RecurringJobGroupDefault = "default"
 )
@@ -35,7 +37,7 @@ type RecurringJobSpec struct {
 	// +optional
 	Groups []string `json:"groups,omitempty"`
 	// The recurring job task.
-	// Can be "snapshot", "snapshot-cleanup", "snapshot-delete" or "backup".
+	// Can be "snapshot", "snapshot-force-create", "snapshot-cleanup", "snapshot-delete", "backup" or "backup-force-create".
 	// +optional
 	Task RecurringJobType `json:"task"`
 	// The cron setting.
@@ -65,7 +67,7 @@ type RecurringJobStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Groups",type=string,JSONPath=`.spec.groups`,description="Sets groupings to the jobs. When set to \"default\" group will be added to the volume label when no other job label exist in volume"
-// +kubebuilder:printcolumn:name="Task",type=string,JSONPath=`.spec.task`,description="Should be one of \"snapshot\", \"snapshot-cleanup\", \"snapshot-delete\" or \"backup\""
+// +kubebuilder:printcolumn:name="Task",type=string,JSONPath=`.spec.task`,description="Should be one of \"snapshot\", \"snapshot-force-create\", \"snapshot-cleanup\", \"snapshot-delete\", \"backup\" or \"backup-force-create\""
 // +kubebuilder:printcolumn:name="Cron",type=string,JSONPath=`.spec.cron`,description="The cron expression represents recurring job scheduling"
 // +kubebuilder:printcolumn:name="Retain",type=integer,JSONPath=`.spec.retain`,description="The number of snapshots/backups to keep for the volume"
 // +kubebuilder:printcolumn:name="Concurrency",type=integer,JSONPath=`.spec.concurrency`,description="The concurrent job to run by each cron job"

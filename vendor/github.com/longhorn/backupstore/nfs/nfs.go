@@ -87,17 +87,13 @@ func initFunc(destURL string) (backupstore.BackupStoreDriver, error) {
 func (b *BackupStoreDriver) mount() error {
 	mounter := mount.New("")
 
+	// EnsureMountPoint check if the mount point is already mounted and clean up the corrupted mount point.
 	mounted, err := util.EnsureMountPoint(KIND, b.mountDir, mounter, log)
 	if err != nil {
 		return err
 	}
 	if mounted {
 		return nil
-	}
-
-	err = util.CleanUpMountPoints(mounter, log)
-	if err != nil {
-		log.WithError(err).Warnf("Failed to clean up mount points")
 	}
 
 	retErr := errors.New("cannot mount using NFSv4")

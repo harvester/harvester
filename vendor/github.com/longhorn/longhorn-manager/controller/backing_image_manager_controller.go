@@ -203,13 +203,13 @@ func (c *BackingImageManagerController) handleErr(err error, key interface{}) {
 	}
 
 	if c.queue.NumRequeues(key) < maxRetries {
-		logrus.Warnf("Error syncing Longhorn backing image manager %v: %v", key, err)
+		logrus.WithError(err).Warnf("Error syncing Longhorn backing image manager %v", key)
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	logrus.Warnf("Dropping Longhorn backing image manager %v out of the queue: %v", key, err)
+	logrus.WithError(err).Warnf("Dropping Longhorn backing image manager %v out of the queue", key)
 	c.queue.Forget(key)
 }
 
@@ -241,7 +241,7 @@ func (c *BackingImageManagerController) syncBackingImageManager(key string) (err
 			c.logger.WithField("backingImageManager", name).WithError(err).Error("Failed to retrieve backing image manager from datastore")
 			return err
 		}
-		c.logger.WithField("backingImageManager", name).Debug("Can't find backing image manager, may have been deleted")
+		c.logger.WithField("backingImageManager", name).Warn("Can't find backing image manager, may have been deleted")
 		return nil
 	}
 
@@ -260,7 +260,7 @@ func (c *BackingImageManagerController) syncBackingImageManager(key string) (err
 			}
 			return err
 		}
-		log.Debugf("BackingImageManagerController on node %v picked up backing image manager", c.controllerID)
+		log.Infof("Backing image manager got new owner %v", c.controllerID)
 	}
 
 	if bim.DeletionTimestamp != nil {
@@ -276,7 +276,7 @@ func (c *BackingImageManagerController) syncBackingImageManager(key string) (err
 			_, err = c.ds.UpdateBackingImageManagerStatus(bim)
 		}
 		if apierrors.IsConflict(errors.Cause(err)) {
-			logrus.Debugf("Requeue %v due to conflict: %v", key, err)
+			logrus.WithError(err).Warnf("Requeue %v due to conflict", key)
 			c.enqueueBackingImageManager(bim)
 			err = nil
 		}
@@ -339,7 +339,7 @@ func (c *BackingImageManagerController) cleanupBackingImageManager(bim *longhorn
 		if err != nil {
 			log.WithError(err).Warnf("Failed to launch a gRPC client during cleanup, will skip deleting all files")
 		} else {
-			log.Infof("Start to delete all backing image files during cleanup")
+			log.Infof("Deleting all backing image files during cleanup")
 			for biName, biFileInfo := range bim.Status.BackingImageFileMap {
 				if err := cli.Delete(biName, biFileInfo.UUID); err != nil {
 					log.WithError(err).Warnf("Failed to launch a gRPC client during cleanup, will skip deleting the file for backing image %v(%v)", biName, biFileInfo.UUID)
@@ -519,10 +519,11 @@ func (c *BackingImageManagerController) syncBackingImageManagerPod(bim *longhorn
 			return err
 		}
 		if pod != nil && pod.DeletionTimestamp == nil {
+			log.Info("Deleting pod before recreation")
 			if err := c.ds.DeletePod(pod.Name); err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}
-			log.Info("Deleting pod before recreation")
+			log.Info("Deleted pod")
 		} else if pod == nil {
 			// Similar to InstanceManagerController.
 			// Longhorn shouldn't create the pod when users set taints with NoExecute effect on a node the bim is preferred.
@@ -589,7 +590,7 @@ func (c *BackingImageManagerController) deleteInvalidBackingImages(bim *longhorn
 				return err
 			}
 			deleteRequired = true
-			log.Warnf("Cannot find backing image %v during invalid backing image cleanup, will skip it", biName)
+			log.Warnf("Failed to find backing image %v during invalid backing image cleanup, will skip it", biName)
 		}
 		if bi != nil && bi.Status.UUID == "" {
 			continue
@@ -625,13 +626,13 @@ func (c *BackingImageManagerController) deleteInvalidBackingImages(bim *longhorn
 			continue
 		}
 
-		log.Debugf("Start to delete the file for invalid backing image %v, in backing image manager spec UUID %v, backing image correct UUID %v", biName, bim.Spec.BackingImages[biName], biFileInfo.UUID)
+		log.Infof("Deleting the file for invalid backing image %v, in backing image manager spec UUID %v, backing image correct UUID %v", biName, bim.Spec.BackingImages[biName], biFileInfo.UUID)
 		if err := cli.Delete(biName, biFileInfo.UUID); err != nil && !types.ErrorIsNotFound(err) {
 			return err
 		}
 		delete(bim.Status.BackingImageFileMap, biName)
 		backoff.DeleteEntry(biName)
-		log.Debugf("Deleted the file for invalid backing image %v", biName)
+		log.Infof("Deleted the file for invalid backing image %v", biName)
 		c.eventRecorder.Eventf(bim, v1.EventTypeNormal, constant.EventReasonDelete, "Deleted backing image %v in disk %v on node %v", biName, bim.Spec.DiskUUID, bim.Spec.NodeID)
 	}
 
@@ -664,18 +665,32 @@ func (c *BackingImageManagerController) prepareBackingImageFiles(currentBIM *lon
 		bi, err := c.ds.GetBackingImage(biName)
 		if err != nil {
 			if !apierrors.IsNotFound(err) {
-				log.Errorf("failed to get backing image before preparing files, will skip handling this backing image: %v", err)
+				log.WithError(err).Error("Failed to get backing image before preparing files, will skip handling this backing image")
 			}
 			continue
 		}
 		bids, err := c.ds.GetBackingImageDataSource(biName)
 		if err != nil {
-			log.Errorf("failed to get backing image data source before preparing files, will skip handling this backing image: %v", err)
+			log.WithError(err).Error("Failed to get backing image data source before preparing files, will skip handling this backing image")
 			continue
 		}
 
 		// Manager waits and fetches the 1st available file from BackingImageDataSource
 		if !bids.Spec.FileTransferred {
+
+			// If bids is failed and not transferred, orphan tmp file might be left on the host.
+			// Clean up and set the state to failed-and-cleanup
+			if bids.Status.CurrentState == longhorn.BackingImageStateFailed {
+				if err := cli.Delete(bi.Name, bi.Status.UUID); err != nil {
+					return err
+				}
+				bids.Status.CurrentState = longhorn.BackingImageStateFailedAndCleanUp
+				if _, err = c.ds.UpdateBackingImageDataSourceStatus(bids); err != nil {
+					return err
+				}
+				continue
+			}
+
 			if bids.Status.CurrentState != longhorn.BackingImageStateReadyForTransfer {
 				continue
 			}
@@ -683,25 +698,25 @@ func (c *BackingImageManagerController) prepareBackingImageFiles(currentBIM *lon
 				continue
 			}
 			if bids.Status.StorageIP == "" {
-				log.Debugf("Backing image data source %v does not contain the storage IP, cannot start transfer the file to the backing image manager", bids.Name)
+				log.Warnf("Failed to get backing image data source %v storage IP, cannot start transfer the file to the backing image manager", bids.Name)
 				continue
 			}
-			log.Debugf("Start to fetch the data source file from the backing image data source work directory %v", bimtypes.DataSourceDirectoryName)
+			log.Infof("Starting to fetch the data source file from the backing image data source work directory %v", bimtypes.DataSourceDirectoryName)
 			if _, err := cli.Fetch(bi.Name, bi.Status.UUID, bids.Status.Checksum, fmt.Sprintf("%s:%d", bids.Status.StorageIP, engineapi.BackingImageDataSourceDefaultPort), bids.Status.Size); err != nil {
 				if types.ErrorAlreadyExists(err) {
-					log.Debugf("Backing image already exists, no need to fetch it again")
+					log.Info("Backing image already exists, no need to fetch it again")
 					continue
 				}
 				return err
 			}
 			// No backoff when fetching the 1st file.
-			log.Debugf("Fetched the first file from BackingImageDataSource")
+			log.Info("Fetched the first file from BackingImageDataSource")
 			c.eventRecorder.Eventf(currentBIM, v1.EventTypeNormal, constant.EventReasonFetching, "Fetched the first file for backing image %v in disk %v on node %v", bi.Name, currentBIM.Spec.DiskUUID, currentBIM.Spec.NodeID)
 			continue
 		}
 
 		if backoff.IsInBackOffSinceUpdate(bi.Name, time.Now()) {
-			log.Infof("Cannot re-fetch or re-sync backing image file %v immediately since it is still in the backoff window", bi.Name)
+			log.Warnf("Failed to re-fetch or re-sync backing image file %v immediately since it is still in the backoff window", bi.Name)
 			continue
 		}
 
@@ -736,30 +751,30 @@ func (c *BackingImageManagerController) prepareBackingImageFiles(currentBIM *lon
 			// Empty source file name means trying to find and reuse the file in the work directory.
 			if _, err := cli.Fetch(bi.Name, bi.Status.UUID, bi.Status.Checksum, "", size); err != nil {
 				if types.ErrorAlreadyExists(err) {
-					log.Debugf("Backing image already exists, no need to check and reuse file")
+					log.Warn("Backing image already exists, no need to check and reuse file")
 					continue
 				}
 				backoff.Next(bi.Name, time.Now())
 				return err
 			}
 			backoff.Next(bi.Name, time.Now())
-			log.Debugf("Reuse the existing file in the work directory")
+			log.Info("Reusing the existing file in the work directory")
 			c.eventRecorder.Eventf(currentBIM, v1.EventTypeNormal, constant.EventReasonFetching, "Reuse the existing file for backing image %v in disk %v on node %v", bi.Name, currentBIM.Spec.DiskUUID, currentBIM.Spec.NodeID)
 			continue
 		}
 
 		if senderCandidate != nil {
-			log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.StorageIP, "size": bi.Status.Size}).Debugf("Start to sync backing image")
+			log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.StorageIP, "size": bi.Status.Size}).Info("Requesting syncing backing image")
 			if _, err := cli.Sync(biName, bi.Status.UUID, bi.Status.Checksum, senderCandidate.Status.StorageIP, bi.Status.Size); err != nil {
 				if types.ErrorAlreadyExists(err) {
-					log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.StorageIP, "size": bi.Status.Size}).Debugf("Backing image already exists, no need to sync from others")
+					log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.StorageIP, "size": bi.Status.Size}).Warn("Backing image already exists, no need to sync from others")
 					continue
 				}
 				backoff.Next(bi.Name, time.Now())
 				return err
 			}
 			backoff.Next(bi.Name, time.Now())
-			log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.StorageIP, "size": bi.Status.Size}).Debugf("Syncing backing image")
+			log.WithFields(logrus.Fields{"fromHost": senderCandidate.Status.StorageIP, "size": bi.Status.Size}).Info("Requested syncing backing image")
 			c.eventRecorder.Eventf(currentBIM, v1.EventTypeNormal, constant.EventReasonSyncing, "Syncing backing image %v in disk %v on node %v from %v(%v)", bi.Name, currentBIM.Spec.DiskUUID, currentBIM.Spec.NodeID, senderCandidate.Name, senderCandidate.Status.StorageIP)
 			continue
 		}
@@ -775,7 +790,7 @@ func (c *BackingImageManagerController) createBackingImageManagerPod(bim *longho
 
 	log := getLoggerForBackingImageManager(c.logger, bim)
 
-	log.Infof("Start to create backing image manager pod")
+	log.Info("Creating backing image manager pod")
 
 	tolerations, err := c.ds.GetSettingTaintToleration()
 	if err != nil {
@@ -799,7 +814,7 @@ func (c *BackingImageManagerController) createBackingImageManagerPod(bim *longho
 		return err
 	}
 
-	log.Infof("Created backing image manager pod")
+	log.Info("Created backing image manager pod")
 
 	return nil
 }
@@ -912,7 +927,7 @@ func (c *BackingImageManagerController) generateBackingImageManagerPodManifest(b
 func (c *BackingImageManagerController) enqueueBackingImageManager(backingImageManager interface{}) {
 	key, err := controller.KeyFunc(backingImageManager)
 	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", backingImageManager, err))
+		utilruntime.HandleError(fmt.Errorf("failed to get key for object %#v: %v", backingImageManager, err))
 		return
 	}
 
@@ -962,17 +977,17 @@ func (c *BackingImageManagerController) enqueueForBackingImage(obj interface{}) 
 		if apierrors.IsNotFound(err) {
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("couldn't get backing image %v: %v ", backingImage.Name, err))
+		utilruntime.HandleError(fmt.Errorf("failed to get backing image %v: %v ", backingImage.Name, err))
 		return
 	}
 
 	bims, err := c.ds.ListBackingImageManagers()
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			c.logger.WithField("backingImage", backingImage.Name).Warnf("Can't list backing image managers for a backing image, may be deleted")
+			c.logger.WithField("backingImage", backingImage.Name).Warn("Failed to list backing image managers for a backing image, may be deleted")
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("couldn't list backing image manager: %v", err))
+		utilruntime.HandleError(fmt.Errorf("failed to list backing image manager: %v", err))
 		return
 	}
 
@@ -1007,7 +1022,7 @@ func (c *BackingImageManagerController) enqueueForLonghornNode(obj interface{}) 
 			// node (e.g. controller/etcd node). Skip it
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("Couldn't get node %v: %v ", node.Name, err))
+		utilruntime.HandleError(fmt.Errorf("failed to get node %v: %v ", node.Name, err))
 		return
 	}
 
@@ -1017,7 +1032,7 @@ func (c *BackingImageManagerController) enqueueForLonghornNode(obj interface{}) 
 			c.logger.WithField("node", node.Name).Warnf("Can't list backing image managers for a node, may be deleted")
 			return
 		}
-		utilruntime.HandleError(fmt.Errorf("couldn't get backing image manager: %v", err))
+		utilruntime.HandleError(fmt.Errorf("failed to get backing image manager: %v", err))
 		return
 	}
 
@@ -1046,7 +1061,7 @@ func (c *BackingImageManagerController) enqueueForBackingImageManagerPod(obj int
 	bim, err := c.ds.GetBackingImageManager(pod.Name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			c.logger.WithField("pod", pod.Name).Warnf("Can't find backing image manager for pod, may be deleted")
+			c.logger.WithField("pod", pod.Name).Warnf("Failed to find backing image manager for pod, may be deleted")
 			return
 		}
 		utilruntime.HandleError(fmt.Errorf("couldn't get backing image manager: %v", err))
@@ -1062,7 +1077,7 @@ func (c *BackingImageManagerController) startMonitoring(bim *longhorn.BackingIma
 	defer c.lock.Unlock()
 
 	if _, ok := c.monitorMap[bim.Name]; ok {
-		log.Error("BUG: Monitoring goroutine already exists")
+		log.Error("Monitoring goroutine already exists")
 		return
 	}
 
@@ -1109,7 +1124,7 @@ func (c *BackingImageManagerController) stopMonitoring(bimName string) {
 	defer c.lock.Unlock()
 
 	log := c.logger.WithField("backingImageManager", bimName)
-	log.Infof("Stopping monitoring")
+	log.Info("Stopping monitoring")
 	stopCh, ok := c.monitorMap[bimName]
 	if !ok {
 		log.Warn("No monitor goroutine for stopping")
@@ -1123,7 +1138,7 @@ func (c *BackingImageManagerController) stopMonitoring(bimName string) {
 	}
 
 	delete(c.monitorMap, bimName)
-	log.Infof("Stopped monitoring")
+	log.Info("Stopped monitoring")
 
 }
 
@@ -1136,11 +1151,11 @@ func (c *BackingImageManagerController) isMonitoring(bimName string) bool {
 }
 
 func (m *BackingImageManagerMonitor) Run() {
-	m.log.Debugf("Start monitoring")
+	m.log.Info("Starting monitoring")
 	defer func() {
-		m.log.Debugf("Stop monitoring")
+		m.log.Info("Stopped monitoring")
 		if err := m.stream.Close(); err != nil {
-			m.log.Errorf("Failed to close streaming when stopping monitoring")
+			m.log.Error("Failed to close streaming when stopping monitoring")
 		}
 		close(m.monitorVoluntaryStopCh)
 	}()
@@ -1157,7 +1172,7 @@ func (m *BackingImageManagerMonitor) Run() {
 			}
 
 			if err := m.stream.Recv(); err != nil {
-				m.log.WithError(err).Errorf("error receiving next item")
+				m.log.WithError(err).Error("Error receiving next item")
 				continuousFailureCount++
 				time.Sleep(engineapi.MinPollCount * engineapi.PollInterval)
 			} else {
@@ -1214,7 +1229,7 @@ func (m *BackingImageManagerMonitor) pollAndUpdateBackingImageFileMap() (needSto
 	bim, err := m.ds.GetBackingImageManager(m.Name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			m.log.Info("stop monitoring because the backing image manager no longer exists")
+			m.log.Info("Stopping monitoring because the backing image manager no longer exists")
 			return true
 		}
 		monitorErr = err
@@ -1222,7 +1237,7 @@ func (m *BackingImageManagerMonitor) pollAndUpdateBackingImageFileMap() (needSto
 	}
 
 	if bim.Status.OwnerID != m.controllerID {
-		m.log.Info("stop monitoring because the backing image manager owner ID becomes %v", bim.Status.OwnerID)
+		m.log.Infof("Stopping monitoring because the backing image manager owner ID becomes %v", bim.Status.OwnerID)
 		return true
 	}
 

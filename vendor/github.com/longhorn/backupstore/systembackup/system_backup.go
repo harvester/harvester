@@ -55,7 +55,7 @@ func Upload(localFilePath string, cfg *Config) error {
 	}
 
 	cfgURI := getSystemBackupConfigURI(cfg)
-	if err := backupstore.SaveConfigInBackupStore(driver, cfgURI, cfg); err != nil {
+	if err := backupstore.SaveConfigInBackupStore(cfgURI, driver, cfg); err != nil {
 		log.WithError(err).Errorf("Failed to upload system backup config %v", cfg.Name)
 		return err
 	}
@@ -79,7 +79,7 @@ func Download(localFilePath string, cfg *Config) error {
 		return fmt.Errorf("system backup %v doesn't exist", remoteBackupURI)
 	}
 
-	err = backupstore.SaveBackupStoreToLocalFile(driver, remoteBackupURI, localFilePath)
+	err = backupstore.SaveBackupStoreToLocalFile(remoteBackupURI, localFilePath, driver)
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func LoadConfig(name, longhornVersion, backupTargetURL string) (*Config, error) 
 		LonghornVersion: longhornVersion,
 		BackupTargetURL: backupTargetURL,
 	})
-	if err := backupstore.LoadConfigInBackupStore(driver, cfgURI, config); err != nil {
+	if err := backupstore.LoadConfigInBackupStore(cfgURI, driver, config); err != nil {
 		return nil, err
 	}
 	return config, nil

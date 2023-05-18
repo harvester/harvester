@@ -277,14 +277,26 @@ func (m *BackupMonitor) syncCallBack(currentBackupStatus longhorn.BackupStatus) 
 	}
 }
 
-func (m *BackupMonitor) syncBackupStatusFromEngineReplica() (longhorn.BackupStatus, error) {
-	currentBackupStatus := longhorn.BackupStatus{}
+func (m *BackupMonitor) syncBackupStatusFromEngineReplica() (currentBackupStatus longhorn.BackupStatus, err error) {
+	currentBackupStatus = longhorn.BackupStatus{}
+	var engineBackupStatus *longhorn.EngineBackupStatus
+
+	defer func() {
+		if err == nil && engineBackupStatus != nil {
+			currentBackupStatus.Progress = engineBackupStatus.Progress
+			currentBackupStatus.URL = engineBackupStatus.BackupURL
+			currentBackupStatus.Error = engineBackupStatus.Error
+			currentBackupStatus.SnapshotName = engineBackupStatus.SnapshotName
+			currentBackupStatus.State = ConvertEngineBackupState(engineBackupStatus.State)
+			currentBackupStatus.ReplicaAddress = engineBackupStatus.ReplicaAddress
+		}
+	}()
 
 	m.backupStatusLock.RLock()
 	m.backupStatus.DeepCopyInto(&currentBackupStatus)
 	m.backupStatusLock.RUnlock()
 
-	engineBackupStatus, err := m.engineClientProxy.SnapshotBackupStatus(m.engine, m.backupName, m.replicaAddress)
+	engineBackupStatus, err = m.engineClientProxy.SnapshotBackupStatus(m.engine, m.backupName, m.replicaAddress)
 	if err != nil {
 		return currentBackupStatus, err
 	}
@@ -297,12 +309,6 @@ func (m *BackupMonitor) syncBackupStatusFromEngineReplica() (longhorn.BackupStat
 		return currentBackupStatus, err
 	}
 
-	currentBackupStatus.Progress = engineBackupStatus.Progress
-	currentBackupStatus.URL = engineBackupStatus.BackupURL
-	currentBackupStatus.Error = engineBackupStatus.Error
-	currentBackupStatus.SnapshotName = engineBackupStatus.SnapshotName
-	currentBackupStatus.State = ConvertEngineBackupState(engineBackupStatus.State)
-	currentBackupStatus.ReplicaAddress = engineBackupStatus.ReplicaAddress
 	return currentBackupStatus, nil
 }
 
