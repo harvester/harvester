@@ -30,8 +30,8 @@ import (
 	fakekubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1/fake"
 	loggingv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1"
 	fakeloggingv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake"
-	longhornv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta1"
-	fakelonghornv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta1/fake"
+	longhornv1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
+	fakelonghornv1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2/fake"
 	managementv3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	fakemanagementv3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3/fake"
 	monitoringv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/monitoring.coreos.com/v1"
@@ -124,9 +124,9 @@ func (c *Clientset) LoggingV1beta1() loggingv1beta1.LoggingV1beta1Interface {
 	return &fakeloggingv1beta1.FakeLoggingV1beta1{Fake: &c.Fake}
 }
 
-// LonghornV1beta1 retrieves the LonghornV1beta1Client
-func (c *Clientset) LonghornV1beta1() longhornv1beta1.LonghornV1beta1Interface {
-	return &fakelonghornv1beta1.FakeLonghornV1beta1{Fake: &c.Fake}
+// LonghornV1beta2 retrieves the LonghornV1beta2Client
+func (c *Clientset) LonghornV1beta2() longhornv1beta2.LonghornV1beta2Interface {
+	return &fakelonghornv1beta2.FakeLonghornV1beta2{Fake: &c.Fake}
 }
 
 // ManagementV3 retrieves the ManagementV3Client
