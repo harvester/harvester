@@ -2,9 +2,9 @@
 
 ## Summary
 
-When a user has used up all the ResourceQuota quota, it is not possible to perform VM migration. This is because ResourceQuota limits the quota usage for the entire namespace, and migration requires the creation of a Pod equivalent to the VM being migrated. As Kubernetes considers exceeding the quota to result in the inability to create Pods, migration cannot proceed.
+When a user has used the `ResourceQuota` quota, performing a VM migration isn't possible. A resource quota, defined by a `ResourceQuota` object, limits aggregate resource usage for the entire namespace. A VM migration requires the creation of a pod with equivalent resources to the VM you are migrating. In Kubernetes, if the resources needed for pod creation exceed the resource quota, the quota system rejects pod creation, and the VM migration cannot proceed.
 
-It should be noted that migration logic is controlled by Kubevirt, not a native behavior of Kubernetes. Additionally, Kubevirt does not provide a solution between ResourceQuota and migration.
+Kubevirt controls migration logic, and it is not the native behavior of Kubernetes. Additionally, Kubevirt does not provide a solution between ResourceQuota and migration.
 
 ### Related Issues
 
@@ -14,59 +14,59 @@ It should be noted that migration logic is controlled by Kubevirt, not a native 
 
 ### Goals
 
-- It is possible to perform VM migration even after ResourceQuota has been exhausted.
+- It is possible to perform VM migration even after `ResourceQuota` has been exhausted.
 
 ### Non-Goals
 
-The calculation of resource usage for Hybrid Pods encompasses both VM and non-VM Pods that are deployed within the same namespace.
+- Don't form a calculation of resource usage for hybrid pods deployed within the same namespace that encompasses both VM and non-VM pods.
 
 ## Proposal
 
-Increase the resource limit of ResourceQuota based on the specifications of the target VM before migration, and restore (decrease) the resource limit to its previous value after the migration is complete.
+Increase the resource limit of `ResourceQuota` based on the specifications of the target VM before migration, and restore (decrease) the resource limit to its previous value after the migration is complete.
 
 ### User Stories
 
 **VM Migration**
 
-Users need to migrate VMs in Harvester, but the migration fails due to exhausted resources. When VM migration is in Pending, Harvester should automatically scale up ResourceQuota to meet the resource requirements for VM migration. After the VM migration is completed, Harvester should automatically scale down the quota.
+Users need to migrate VMs in Harvester, but the migration fails due to exhausted resources. When VM migration is **Pending**, Harvester should automatically scale up `ResourceQuota` to meet the resource requirements for VM migration. After the VM migration completes, Harvester should automatically scale down the quota.
 
 When creating, starting, or restoring VMs, Harvester should verify whether the resources are sufficient. If resources are insufficient, the system should prompt the user that the operation cannot be completed.
 
 **Upgrade**
 
-When performing a Harvester node Upgrade operation, Harvester needs to ensure that all VMs within the node have been migrated to other nodes.
+When performing a Harvester node **Upgrade** operation, Harvester must ensure that all VMs within the node successfully migrate to other nodes.
 
 **Maintenance**
 
-For a Harvester node performing maintenance, if the Force parameter is checked, Harvester should properly shut down single-replica VMs and migrate multiple-replica VMs to other nodes. Since single-replica VMs have already been shut down, they will not be counted towards resource scaling.
+For a Harvester node performing maintenance, if the user checks the **Force** parameter, Harvester should adequately shut down single-replica VMs and migrate multiple-replica VMs to other nodes. Since single-replica VMs have been shut down, they will not be counted toward resource scaling.
 
 **Change ResourceQuota**
 
-When a VM is being migrated, users may attempt to modify the ResourceQuota. In such cases, Harvester should reject the request and inform the user that the ResourceQuota cannot be modified while the VM is being migrated.
+Users may attempt to modify the `ResourceQuota` during a VM migration. In such cases, Harvester should reject the request and inform the user that the `ResourceQuota` cannot be modified during the VM migration.
 
-Rancher's ResourceQuota is managed through the Rancher Namespace Controller. If an administrator attempts to modify the ResourceQuota from the UI, the ResourceQuota Annotation of the Namespace CR is modified. The current design does not allow changes to be made while a VM is being migrated to avoid conflicts with upstream logic. Additionally, ResourceQuota is not a resource that is frequently modified ([see the Rancher ResourceQuota documentation](https://ranchermanager.docs.rancher.com/how-to-guides/advanced-user-guides/manage-projects/manage-project-resource-quotas/about-project-resource-quotas)).
+Rancher's `ResourceQuota` is managed through the Rancher Namespace Controller. If an administrator attempts to modify the `ResourceQuota` from the UI, the `ResourceQuota` Annotation of the Namespace compute resources (CR) is changed. The current design does not allow making changes during a VM migration to avoid conflicts with upstream logic. Additionally, `ResourceQuota` is not a resource that is frequently modified. For more information, refer to the ([Rancher ResourceQuota](https://ranchermanager.docs.rancher.com/how-to-guides/advanced-user-guides/manage-projects/manage-project-resource-quotas/about-project-resource-quotas)) documentation.
 
 **VM Overhead**
 
-Harvester needs to add Overhead resources to each Pod instance created for a VM. During VM migration, the target Pod also needs to include Overhead resources([Overhead documentation](https://kubevirt.io/user-guide/virtual_machines/virtual_hardware/#memory-overhead)).
+Harvester must add Overhead resources to each pod instance created for a VM. During VM migration, the target pod must also include Memory Overhead resources. For more information, refer to the ([Memory Overhead](https://kubevirt.io/user-guide/virtual_machines/virtual_hardware/#memory-overhead)) documentation.
 
 **Hybrid Pods**
 
-For Hybrid Pods scenarios, Harvester only calculates the used resources based on the `status.used` field in the ResourceQuota, which includes the used resources of all Pods in the namespace.
+For hybrid pods scenarios, Harvester only calculates the used resources based on the `status.used` field in the `ResourceQuota`, which includes the used resources of all pods in the namespace.
 
 ### User Experience In Detail
 
-This feature will only be executed when the ResourceQuota resource limits have been configured.
+This feature will execute after the `ResourceQuota` resource limits have been configured.
 
-Administrators or tenants do not need to configure this, as all actions are automated. Users can simply pay attention to the prompt messages during the operation or check the event records of the VM.
+Administrators or tenants do not need to configure this, as all actions are automated. Users just need to pay attention to the prompt messages during the operation or check the event records of the VM.
 
 ### API changes
 
-Add a new annotation to ResourceQuota：`harvesterhci.io/migratingVMs`.
+Add a new annotation to `ResourceQuota`：`harvesterhci.io/migratingVMs`.
 
-`harvesterhci.io/migratingVMs` represents the VM instances that are being migrated. When the migration is in Pending, the Controller will retrieve the resource specifications of the target VM Pod, temporarily increase it to the `spec.hard.limits` field of the ResourceQuota, and record it in `harvesterhci.io/migratingVMs`. After the migration is completed, the Controller will reduce the resource limits of the ResourceQuota according to the resource specifications of that VM and delete the record from `harvesterhci.io/migratingVMs`.
+`harvesterhci.io/migratingVMs` represents the VM instances that are being migrated. When the migration is in **Pending**, the Controller will retrieve the resource specifications of the target VM pod, temporarily increase it to the `spec.hard.limits` field of the ResourceQuota, and record it in `harvesterhci.io/migratingVMs`.  After the migration is complete, the Controller will reduce the resource limits of the `ResourceQuota` according to the resource specifications of that VM and delete the record from `harvesterhci.io/migratingVMs`.
 
-`[harvesterhci.io/migratingVMs](http://harvesterhci.io/migratingVMs)` it's a type of `map[string]ResourceList`, where the key is the VM name, and the value is the Kubernetes core resource list type.(`[ResourceList` struct](https://github.com/kubernetes/api/blob/8360d82aecbc72aa039281a394ebed2eaf0c0ccc/core/v1/types.go#L5548-L5549)).
+`[harvesterhci.io/migratingVMs](http://harvesterhci.io/migratingVMs)` is a type of `map[string]ResourceList`, where the key is the VM name, and the value is the Kubernetes core resource list type. For details, refer to ['ResourceList` struct](https://github.com/kubernetes/api/blob/8360d82aecbc72aa039281a394ebed2eaf0c0ccc/core/v1/types.go#L5548-L5549).
 
 ## Design
 
@@ -74,11 +74,11 @@ Add a new annotation to ResourceQuota：`harvesterhci.io/migratingVMs`.
 
 **VM Migration**
 
-The Migration Controller watches the status of the migration process. When the migration status is Pending, it automatically scales up the ResourceQuota to meet the resource requirements of the VM migration. After the migration is complete, it automatically scales down the quota.
+The Migration Controller watches the status of the migration process. When the migration status is **Pending**, it automatically scales up the `ResourceQuota` to meet the resource requirements of the VM migration. After the migration is complete, it automatically scales down the quota.
 
-In addition, validators are added to the VM and Restore CRs to ensure that there are sufficient resources to create, start, or restore a VM.
+In addition, validators are also added to the VM and Restore CRs to ensure sufficient resources to create, start, or restore a VM.
 
-When a migration is created, the Migration Controller adds an annotation to the ResourceQuota in its namespace, as follows:
+When VM migration is created, the Migration Controller adds an annotation to the `ResourceQuota` in its namespace, as follows:
 
 ```yaml
 apiVersion: v1
@@ -104,35 +104,35 @@ status:
     limits.memory: 5068112Ki
 ```
 
-The key is `vm_name` with a value of the corresponding VM's Pod resources limits. When Migration is in Pending, Harvester should automatically scale up the ResourceQuota to meet the resource requirements for the VM migration. Once the VM migration is complete, Harvester should automatically scale down and delete the key.
+The key is `vm_name` with a value of the corresponding VM's pod resources limits. When the VM migration is **Pending**, Harvester should automatically scale up the `ResourceQuota` to meet the resource requirements for the VM migration. Once the VM migration is complete, Harvester should automatically scale down and delete the key.
 
-Due to the unreliability of the Webhook, the VM Controller will perform a second verification for VMs. If the resources are insufficient, the VM's RunStrategy will be changed to Halted, and an event will be sent indicating the lack of resources.
+Due to the unreliability of the Webhook, the VM Controller performs a second verification for VMs. If the resources are insufficient, the VM's RunStrategy changes to **Halted**, and an event is sent to indicate the lack of resources.
 
 **Upgrade**
 
-The implementation is similar to the above. If a large number of VM migrations occur in a node, causing the ResourceQuota to scale up and Migration to be in Pending, the VMs that are already started may race for resources. To avoid this situation, the actual available resources for the VMs are calculated using the formula: actual limit - (used - migrations), and the result is compared to see if there are enough resources for the VM to start.
+The implementation is similar to the above. If many VM migrations occur in a node, causing the `ResourceQuota` to scale up and the VM Migration is **Pending**, the VMs that already started may race for resources. To avoid this situation, calculate the actual available resources for the VMs using this formula: **actual limit - (used - migrations)**. Compare this result with the resource quota to see if there are enough resources for the VM to start.
 
 **Maintenance**
 
-Similar to Upgrade, but if there are single replica VMs in the node, the system will shut them down, and they will not be counted toward used resources, so no processing is needed.
+Similar to an upgrade, if there are single replica VMs in the node, the system will shut them down, and they will not be counted toward used resources, so no processing is needed.
 
 **Changing ResourceQuota**
 
-When a user changes ResourceQuota, the system checks whether there are any migrating VMs in the annotations. If there are, the user will be prompted that they cannot change the ResourceQuota while the VM is being migrated.
+When a user changes `ResourceQuota`, the system checks in the annotations whether any VMs are migrating. If there are, the user is notified that they cannot change the `ResourceQuota` while the VM is being migrated.
 
 **Overhead**
 
-Before creating a Pod instance for each VM, the upstream first calculates the Overhead resources of the VM and adds them to the VM Pod before deployment. During VM migration, the target Pod already contains the Overhead resources and the resource specifications of that Pod are obtained during migration. In addition, the Overhead is calculated before the VM is started([calculation](https://github.com/kubevirt/kubevirt/blob/2bb88c3d35d33177ea16c0f1e9fffdef1fd350c6/pkg/virt-controller/services/template.go#L1804-L1893)) And overlay it with the VM resource specifications and verify that it can be started.
+Before creating a pod instance for each VM, the upstream first calculates the Overhead resources of the VM and adds them to the VM pod before deployment. During VM migration, the target pod already contains the Overhead resources, and that pod's resource specifications are obtained during migration. In addition, the Overhead resources are calculated before the VM starts and then overlayed with the VM resource specifications to verify that it can be started. For details, refer to [GetMemoryOverhead](https://github.com/kubevirt/kubevirt/blob/2bb88c3d35d33177ea16c0f1e9fffdef1fd350c6/pkg/virt-controller/services/template.go#L1804-L1893).
 
 **Hybrid Pods**
 
-For the Hybrid Pods scenario, only the used resources under `status.used` in ResourceQuota will be counted, to include the used resources of all Pods in the Namespace.
+For the hybrid pod scenario, only the used resources under `status.used` in `ResourceQuota` are counted to include the used resources of all pods in the namespace.
 
-**For the same Namespace, if a non-VM Pod is in Pending while Migration is also in Pending, the non-VM Pod may race for resources and cause the migration to fail. We do not recommend deploying VMs and non-VM Pods in the same Namespace.**
+**Note:** For the same namespace, if a non-VM pod is **Pending**, the VM migration is also in **Pending**. The non-VM Pod may race for resources and cause the migration to fail. We do not recommend deploying VMs and non-VM Pods in the same namespace.
 
 ### Test plan
 
-Aim to verify the functionality of resource quota adjustment during migration. This will involve migrating VMs in Harvester and adjusting resource quotas before and after migration. We will ensure that the migration operation can be completed, even when the resource quota is exhausted.
+Aim to verify the functionality of resource quota adjustments during migration. This involves migrating VMs in Harvester and adjusting resource quotas before and after migration. We will ensure the migration operation can complete, even when the resource quota is exhausted.
 
 **Environment**
 
