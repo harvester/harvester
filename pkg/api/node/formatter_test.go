@@ -345,8 +345,8 @@ func Test_listUnmigratableVM(t *testing.T) {
 	h := ActionHandler{
 		nodeCache:                   fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
 		nodeClient:                  fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
-		longhornVolumeCache:         fakeclients.LonghornVolumeCache(client.LonghornV1beta1().Volumes),
-		longhornReplicaCache:        fakeclients.LonghornReplicaCache(client.LonghornV1beta1().Replicas),
+		longhornVolumeCache:         fakeclients.LonghornVolumeCache(client.LonghornV1beta2().Volumes),
+		longhornReplicaCache:        fakeclients.LonghornReplicaCache(client.LonghornV1beta2().Replicas),
 		virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(client.KubevirtV1().VirtualMachineInstances),
 	}
 
