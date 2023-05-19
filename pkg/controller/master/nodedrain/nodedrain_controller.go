@@ -249,19 +249,20 @@ func (ndc *ControllerHandler) FindAndListVM(node *corev1.Node) ([]string, error)
 // FindAndListNonMigratableVM is called by action handler to leverage caches to find VM's which may have a cdrom or container disk
 // attached to vmi
 func (ndc *ControllerHandler) FindAndListNonMigratableVM(node *corev1.Node) ([]string, error) {
-	labelSelector, err := labels.Parse(fmt.Sprintf("%s in (%s)", kubevirtv1.NodeNameLabel, node.Name))
-	if err != nil {
-		return nil, err
+	labelsMap := map[string]string{
+		kubevirtv1.NodeNameLabel: node.Name,
 	}
-	vmiList, err := ndc.virtualMachineInstanceCache.List("", labelSelector)
+	labelSelector := labels.SelectorFromSet(labelsMap)
+
+	vmiList, err := ndc.virtualMachineInstanceCache.List(corev1.NamespaceAll, labelSelector)
 	if err != nil {
 		return nil, fmt.Errorf("error listing VMI: %v", err)
 	}
 
 	var impactedVMI []string
-	for _, v := range vmiList {
-		if vmContainsCDRomOrContainerDisk(v) {
-			impactedVMI = append(impactedVMI, fmt.Sprintf("%s/%s", v.Namespace, v.Name))
+	for _, vmi := range vmiList {
+		if vmContainsCDRomOrContainerDisk(vmi) {
+			impactedVMI = append(impactedVMI, fmt.Sprintf("%s/%s", vmi.Namespace, vmi.Name))
 		}
 	}
 	return impactedVMI, nil
