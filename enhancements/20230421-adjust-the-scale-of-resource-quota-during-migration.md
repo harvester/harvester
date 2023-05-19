@@ -171,29 +171,9 @@ First, create a project and configure resource quotas by adding CPU and Memory l
 **Test the impact of maintenance operations on VM migration. Ensure that single-replica VMs have stopped and multi-replica VMs have been migrated to other nodes when resources are limited.**
 
 1. Configure ResourceQuota with CPU limit of 3000ms and memory limit of 3714MiB.
-2. Ensure that you have at least three nodes running Harvester, and have created three VMs and specified that they run on the same node. After creating one VM, access Longhorn Volume and change the number of VM replicas to 1, then delete other replicas except for the running node.
-   Use the following script to perform these operations:
-
-    ```bash
-    #!/bin/bash
-    namespace="<namespace>"
-    vm_name="<vm_name>"
-    # Get VM PVC's spec.volumeName
-    pvc_name=$(kubectl -n${namespace} get vm ${vm_name} -ojson | jq -r '.spec.template.spec.volumes[0].persistentVolumeClaim.claimName')
-    
-    volume_name=$(kubectl -n${namespace} get pvc ${pvc_name} -ojson | jq -r '.spec.volumeName')
-    
-    # update VM volume replicas to 1
-    kubectl -nlonghorn-system patch volumes ${volume_name} --type=json -p '[{"op": "replace", "path": "/spec/numberOfReplicas", "value": 1}]'
-    
-    # remove replicas of nodes that are not VM running
-    node_name=$(kubectl -n${namespace} get vmi ${vm_name} -ojson | jq -r '.status.nodeName')
-    kubectl -nlonghorn-system get replicas -l longhornvolume=${volume_name} --no-headers=true \
-    	| grep -v ${node_name} \
-      | awk '{print $1}' \
-      | xargs -I {} kubectl -nlonghorn-system delete replicas {}
-    ```
-
+2. Ensure that you have at least three nodes running Harvester, and have created three VMs with single replica of image and specified that they run on the same node.
+> Note: See the [single-replica `StorageClass`](https://docs.harvesterhci.io/v1.1/advanced/storageclass/#parameters-tab) creation documentation for details.
+> Use `StorageClass` node selector to ensure that the VMs are running on the same node, see the [documentation](https://docs.harvesterhci.io/v1.1/host/#storage-tags) for details.
 3. Then perform maintenance on the node running the VMs.
 4. Wait a few minutes until the maintenance operation is completed and confirm that the multi-replica ****VMs on that node have been migrated to other nodes.
 5. Confirm that the single-replica VMs have stopped running.
