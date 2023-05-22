@@ -62,11 +62,11 @@ Administrators or tenants do not need to configure this, as all actions are auto
 
 ### API changes
 
-Add a new annotation to `ResourceQuota`：`harvesterhci.io/migratingVMs`.
+Add a new annotation to `ResourceQuota`：`harvesterhci.io/migrating-{vm-name}`.
 
-`harvesterhci.io/migratingVMs` represents the VM instances that are being migrated. When the migration is in **Pending**, the Controller will retrieve the resource specifications of the target VM pod, temporarily increase it to the `spec.hard.limits` field of the ResourceQuota, and record it in `harvesterhci.io/migratingVMs`.  After the migration is complete, the Controller will reduce the resource limits of the `ResourceQuota` according to the resource specifications of that VM and delete the record from `harvesterhci.io/migratingVMs`.
+`harvesterhci.io/migrating-{vm-name}` represents the VM instances that are being migrated. When the migration is in **Pending**, the Controller will retrieve the resource specifications of the target VM pod, temporarily increase it to the `spec.hard.limits` field of the ResourceQuota, and record it in `harvesterhci.io/migrating-{vm-name}`.  After the migration is complete, the Controller will reduce the resource limits of the `ResourceQuota` according to the resource specifications of that VM and delete the record from `harvesterhci.io/migrating-{vm-name}`.
 
-`[harvesterhci.io/migratingVMs](http://harvesterhci.io/migratingVMs)` is a type of `map[string]ResourceList`, where the key is the VM name, and the value is the Kubernetes core resource list type. For details, refer to ['ResourceList` struct](https://github.com/kubernetes/api/blob/8360d82aecbc72aa039281a394ebed2eaf0c0ccc/core/v1/types.go#L5548-L5549).
+`harvesterhci.io/migrating-{vm-name}` is a type of `ResourceList`, the value is the Kubernetes core resource list type. For details, refer to ['ResourceList` struct](https://github.com/kubernetes/api/blob/8360d82aecbc72aa039281a394ebed2eaf0c0ccc/core/v1/types.go#L5548-L5549).
 
 ## Design
 
@@ -85,7 +85,7 @@ apiVersion: v1
 kind: ResourceQuota
 metadata:
   annotations:
-    harvesterhci.io/migratingVMs: '{"vm-01":{"limits.cpu":"1","limits.memory":"1267028Ki"}}'
+    harvesterhci.io/migrating-vm-01: '{"limits.cpu":"1","limits.memory":"1267028Ki"}'
   labels:
     cattle.io/creator: norman
     resourcequota.management.cattle.io/default-resource-quota: "true"
