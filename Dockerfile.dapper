@@ -73,7 +73,7 @@ COPY --from=elemental /usr/bin/elemental /usr/bin/elemental
 # -- for dapper
 ENV DAPPER_RUN_ARGS --privileged --network host -v /run/containerd/containerd.sock:/run/containerd/containerd.sock
 ENV GO111MODULE off
-ENV DAPPER_ENV REPO TAG DRONE_TAG DRONE_BRANCH CROSS GOPROXY PUSH RKE2_IMAGE_REPO CODECOV_TOKEN
+ENV DAPPER_ENV REPO TAG DRONE_TAG DRONE_BRANCH CROSS GOPROXY PUSH RKE2_IMAGE_REPO USE_LOCAL_IMAGES CODECOV_TOKEN
 ENV DAPPER_SOURCE /go/src/github.com/harvester/harvester/
 ENV DAPPER_OUTPUT ./bin ./dist ./package
 ENV DAPPER_DOCKER_SOCKET true
