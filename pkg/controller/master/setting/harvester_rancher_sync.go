@@ -12,7 +12,7 @@ import (
 func (h *Handler) syncHarvesterToRancher(setting *harvesterv1.Setting) error {
 	switch setting.Name {
 	case settings.UIIndexSettingName:
-		return h.copyHarvesterToRancher(setting, ranchersettings.UIIndex.Name)
+		return h.copyHarvesterToRancher(setting, ranchersettings.UIDashboardIndex.Name)
 	case settings.UISourceSettingName:
 		return h.copyUISourceToRancher(setting)
 	}
