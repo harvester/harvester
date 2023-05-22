@@ -16,7 +16,7 @@ func (h *Handler) rancherSettingOnChange(_ string, rancherSetting *mgmtv3.Settin
 
 	var err error
 	switch rancherSetting.Name {
-	case ranchersettings.UIIndex.Name:
+	case ranchersettings.UIDashboardIndex.Name:
 		err = h.copyRancherToHarvester(rancherSetting, settings.UIIndexSettingName)
 	case ranchersettings.UIOfflinePreferred.Name:
 		err = h.copyUIOfflinePreferredToHarvester(rancherSetting)
