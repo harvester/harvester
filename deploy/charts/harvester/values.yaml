@@ -454,6 +454,11 @@ harvester-load-balancer:
     imagePullPolicy: Always
     repository: rancher/harvester-load-balancer
     tag: master-head
+  webhook:
+    image:
+      imagePullPolicy: IfNotPresent
+      repository: rancher/harvester-load-balancer-webhook
+      tag: master-head
 
 kube-vip:
   enabled: false
