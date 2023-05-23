@@ -10,24 +10,33 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/runtime"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/resourcequota"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
 
 func NewValidator(
+	nsCache v1.NamespaceCache,
+	podCache v1.PodCache,
 	pvcCache v1.PersistentVolumeClaimCache,
+	rqCache ctlharvestercorev1.ResourceQuotaCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
+	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 ) types.Validator {
 	return &vmValidator{
 		pvcCache:      pvcCache,
 		vmBackupCache: vmBackupCache,
+
+		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache),
 	}
 }
 
@@ -35,6 +44,8 @@ type vmValidator struct {
 	types.DefaultValidator
 	pvcCache      v1.PersistentVolumeClaimCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
+
+	rqCalculator *resourcequota.Calculator
 }
 
 func (v *vmValidator) Resource() types.Resource {
@@ -100,7 +111,7 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 	if err := v.checkReservedMemoryAnnotation(vm); err != nil {
 		return err
 	}
-	return nil
+	return v.rqCalculator.CheckIfVMCanStartByResourceQuota(vm)
 }
 
 func (v *vmValidator) checkVMStoppingStatus(oldVM *kubevirtv1.VirtualMachine, newVM *kubevirtv1.VirtualMachine) bool {

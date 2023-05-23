@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 )
 
@@ -19,6 +20,9 @@ func RegisterIndexers(clients *clients.Clients) {
 	vmBackupCache.AddIndexer(VMBackupBySourceUIDIndex, vmBackupBySourceUID)
 	vmRestoreCache.AddIndexer(VMRestoreByTargetNamespaceAndName, vmRestoreByTargetNamespaceAndName)
 	vmRestoreCache.AddIndexer(VMRestoreByVMBackupNamespaceAndName, vmRestoreByVMBackupNamespaceAndName)
+
+	podInformer := clients.CoreFactory.Core().V1().Pod().Cache()
+	podInformer.AddIndexer(indexeres.PodByVMNameIndex, indexeres.PodByVMName)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
