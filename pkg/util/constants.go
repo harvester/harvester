@@ -15,10 +15,15 @@ const (
 	AnnotationHash                 = prefix + "/hash"
 	AnnotationRunStrategy          = prefix + "/vmRunStrategy"
 	LabelImageDisplayName          = prefix + "/imageDisplayName"
+	LabelVMName                    = prefix + "/vmName"
 
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
+
+	// AnnotationMigratingPrefix is used to store the migrating vm in the annotation of ResourceQuota
+	// eg: harvesterhci.io/migrating-vm1: jsonOfResourceList, harvesterhci.io/migrating-vm2: jsonOfResourceList
+	AnnotationMigratingPrefix = prefix + "/migrating-"
 
 	AnnotationDefaultUserdataSecret = prefix + "/default-userdata-secret"
 
@@ -67,4 +72,10 @@ const (
 
 	UpgradeNodeDrainTaintKey   = "kubevirt.io/drain"
 	UpgradeNodeDrainTaintValue = "draining"
+
+	FieldCattlePrefix             = "field.cattle.io"
+	CattleAnnotationResourceQuota = FieldCattlePrefix + "/resourceQuota"
+
+	ManagementCattlePrefix              = "management.cattle.io"
+	LabelManagementDefaultResourceQuota = "resourcequota." + ManagementCattlePrefix + "/default-resource-quota"
 )

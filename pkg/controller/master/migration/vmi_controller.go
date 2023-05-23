@@ -11,16 +11,19 @@ import (
 	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
-	ctlv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
+	ctlvirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 // Handler resets vmi annotations and nodeSelector when a migration completes
 type Handler struct {
 	namespace  string
-	vmiCache   ctlv1.VirtualMachineInstanceCache
-	vms        ctlv1.VirtualMachineClient
-	vmCache    ctlv1.VirtualMachineCache
+	rqs        ctlharvcorev1.ResourceQuotaClient
+	rqCache    ctlharvcorev1.ResourceQuotaCache
+	vmiCache   ctlvirtv1.VirtualMachineInstanceCache
+	vms        ctlvirtv1.VirtualMachineClient
+	vmCache    ctlvirtv1.VirtualMachineCache
 	podCache   ctlcorev1.PodCache
 	pods       ctlcorev1.PodClient
 	restClient rest.Interface

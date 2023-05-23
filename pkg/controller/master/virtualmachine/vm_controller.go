@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/record"
 	kubevirt "kubevirt.io/api/core"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -23,19 +24,22 @@ import (
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
+	rqutils "github.com/harvester/harvester/pkg/util/resourcequota"
 )
 
 type VMController struct {
 	pvcClient      v1.PersistentVolumeClaimClient
 	pvcCache       v1.PersistentVolumeClaimCache
 	vmClient       ctlkubevirtv1.VirtualMachineClient
-	vmCache        ctlkubevirtv1.VirtualMachineCache
 	vmiCache       ctlkubevirtv1.VirtualMachineInstanceCache
 	vmiClient      ctlkubevirtv1.VirtualMachineInstanceClient
 	vmBackupClient ctlharvesterv1.VirtualMachineBackupClient
 	vmBackupCache  ctlharvesterv1.VirtualMachineBackupCache
 	snapshotClient ctlsnapshotv1.VolumeSnapshotClient
 	snapshotCache  ctlsnapshotv1.VolumeSnapshotCache
+	recorder       record.EventRecorder
+
+	vmrCalculator *rqutils.Calculator
 }
 
 // createPVCsFromAnnotation creates PVCs defined in the volumeClaimTemplates annotation if they don't exist.
@@ -366,4 +370,36 @@ func (h *VMController) ManageOwnerOfPVCs(_ string, vm *kubevirtv1.VirtualMachine
 	}
 
 	return h.OnVMRemove(vm)
+}
+
+func (h *VMController) SetHaltIfInsufficientResourceQuota(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
+		return vm, nil
+	}
+
+	if err := h.vmrCalculator.CheckIfVMCanStartByResourceQuota(vm); err == nil {
+		return vm, nil
+	} else if !rqutils.IsInsufficientResourceError(err) {
+		return nil, err
+	}
+
+	if err := h.stopVM(vm); err != nil {
+		return nil, err
+	}
+
+	h.recorder.Eventf(vm, corev1.EventTypeWarning, "InsufficientResourceQuota", "Set runStrategy to %s", kubevirtv1.RunStrategyHalted)
+	return vm, nil
+}
+
+func (h *VMController) stopVM(vm *kubevirtv1.VirtualMachine) error {
+	vmCpy := vm.DeepCopy()
+
+	runStrategy := kubevirtv1.RunStrategyHalted
+	vmCpy.Spec.RunStrategy = &runStrategy
+	_, err := h.vmClient.Update(vmCpy)
+	if err != nil {
+		return fmt.Errorf("error updating run strategy for vm %s in namespace %s: %v", vmCpy.Name, vmCpy.Namespace, err)
+	}
+
+	return nil
 }

@@ -23,6 +23,7 @@ const (
 	VMByNetworkIndex                   = "vm.harvesterhci.io/vm-by-network"
 	PodByNodeNameIndex                 = "harvesterhci.io/pod-by-nodename"
 	PodByPVCIndex                      = "harvesterhci.io/pod-by-pvc"
+	PodByVMNameIndex                   = "harvesterhci.io/pod-by-vmname"
 	VolumeByNodeIndex                  = "harvesterhci.io/volume-by-node"
 	VMBackupBySourceVMUIDIndex         = "harvesterhci.io/vmbackup-by-source-vm-uid"
 	VMBackupBySourceVMNameIndex        = "harvesterhci.io/vmbackup-by-source-vm-name"
@@ -41,6 +42,7 @@ func Setup(ctx context.Context, server *server.Server, controllers *server.Contr
 	podInformer := management.CoreFactory.Core().V1().Pod().Cache()
 	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
 	podInformer.AddIndexer(PodByPVCIndex, PodByPVC)
+	podInformer.AddIndexer(PodByVMNameIndex, PodByVMName)
 
 	volumeInformer := management.LonghornFactory.Longhorn().V1beta2().Volume().Cache()
 	volumeInformer.AddIndexer(VolumeByNodeIndex, VolumeByNodeName)
@@ -89,6 +91,14 @@ func PodByPVC(obj *corev1.Pod) ([]string, error) {
 		}
 	}
 	return pvcNames, nil
+}
+
+func PodByVMName(obj *corev1.Pod) ([]string, error) {
+	vmName, ok := obj.Labels[util.LabelVMName]
+	if !ok {
+		return []string{}, nil
+	}
+	return []string{fmt.Sprintf("%s/%s", obj.Namespace, vmName)}, nil
 }
 
 func pvcByDataSourceVolumeSnapshot(obj *corev1.PersistentVolumeClaim) ([]string, error) {

@@ -20,12 +20,15 @@ func Register(ctx context.Context, management *config.Management, options config
 	if err != nil {
 		return err
 	}
+	rqs := management.HarvesterCoreFactory.Core().V1().ResourceQuota()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	pods := management.CoreFactory.Core().V1().Pod()
 	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	vmims := management.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration()
 	handler := &Handler{
 		namespace:  options.Namespace,
+		rqs:        rqs,
+		rqCache:    rqs.Cache(),
 		vmiCache:   vmis.Cache(),
 		vms:        vms,
 		vmCache:    vms.Cache(),

@@ -1,0 +1,77 @@
+package fakeclients
+
+import (
+	"context"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
+	corev1type "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
+)
+
+type ResourceQuotaCache func(string) corev1type.ResourceQuotaInterface
+
+func (c ResourceQuotaCache) Get(namespace, name string) (*v1.ResourceQuota, error) {
+	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+}
+
+func (c ResourceQuotaCache) List(namespace string, selector labels.Selector) ([]*v1.ResourceQuota, error) {
+	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*v1.ResourceQuota, 0, len(list.Items))
+	for _, quota := range list.Items {
+		obj := quota
+		result = append(result, &obj)
+	}
+	return result, err
+}
+
+func (c ResourceQuotaCache) AddIndexer(indexName string, indexer ctlharvcorev1.ResourceQuotaIndexer) {
+	panic("implement me")
+}
+
+func (c ResourceQuotaCache) GetByIndex(indexName, key string) ([]*v1.ResourceQuota, error) {
+	panic("implement me")
+}
+
+type ResourceQuotaClient func(string) corev1type.ResourceQuotaInterface
+
+func (c ResourceQuotaClient) Update(quota *v1.ResourceQuota) (*v1.ResourceQuota, error) {
+	return c(quota.Namespace).Update(context.TODO(), quota, metav1.UpdateOptions{})
+}
+
+func (c ResourceQuotaClient) Get(namespace string, name string, options metav1.GetOptions) (*v1.ResourceQuota, error) {
+	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+}
+
+func (c ResourceQuotaClient) Create(quota *v1.ResourceQuota) (*v1.ResourceQuota, error) {
+	return c(quota.Namespace).Create(context.TODO(), quota, metav1.CreateOptions{})
+}
+
+func (c ResourceQuotaClient) Delete(namespace string, name string, options *metav1.DeleteOptions) error {
+	panic("implement me")
+}
+
+func (c ResourceQuotaClient) List(namespace string, opts metav1.ListOptions) (*v1.ResourceQuotaList, error) {
+	panic("implement me")
+}
+
+func (c ResourceQuotaClient) UpdateStatus(*v1.ResourceQuota) (*v1.ResourceQuota, error) {
+	panic("implement me")
+}
+
+func (c ResourceQuotaClient) Watch(namespace string, pts metav1.ListOptions) (watch.Interface, error) {
+	panic("implement me")
+}
+
+func (c ResourceQuotaClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.ResourceQuota, err error) {
+	panic("implement me")
+}

@@ -3,16 +3,21 @@ package virtualmachinerestore
 import (
 	"fmt"
 
+	ctlv1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlbackup "github.com/harvester/harvester/pkg/controller/master/backup"
+	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util/resourcequota"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
@@ -25,10 +30,14 @@ const (
 )
 
 func NewValidator(
+	nss ctlv1.NamespaceCache,
+	pods ctlv1.PodCache,
+	rqs ctlharvestercorev1.ResourceQuotaCache,
 	vms ctlkubevirtv1.VirtualMachineCache,
 	setting ctlharvesterv1.SettingCache,
 	vmBackup ctlharvesterv1.VirtualMachineBackupCache,
 	vmRestore ctlharvesterv1.VirtualMachineRestoreCache,
+	vmims ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache,
 ) types.Validator {
 	return &restoreValidator{
@@ -37,6 +46,8 @@ func NewValidator(
 		vmBackup:      vmBackup,
 		vmRestore:     vmRestore,
 		snapshotClass: snapshotClass,
+
+		vmrCalculator: resourcequota.NewCalculator(nss, pods, rqs, vmims),
 	}
 }
 
@@ -48,6 +59,8 @@ type restoreValidator struct {
 	vmBackup      ctlharvesterv1.VirtualMachineBackupCache
 	vmRestore     ctlharvesterv1.VirtualMachineRestoreCache
 	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache
+
+	vmrCalculator *resourcequota.Calculator
 }
 
 func (v *restoreValidator) Resource() types.Resource {
@@ -94,7 +107,7 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	vm, err := v.vms.Get(newRestore.Namespace, targetVM)
 	if err != nil {
 		if newVM && apierrors.IsNotFound(err) {
-			return nil
+			return v.handleNewVM(newRestore, targetVM, vmBackup)
 		}
 		return werror.NewInvalidError(err.Error(), fieldTargetName)
 	}
@@ -104,6 +117,10 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 		return werror.NewInvalidError(fmt.Sprintf("VM %s is already exists", vm.Name), fieldNewVM)
 	}
 
+	return v.handleExistVM(newVM, vm)
+}
+
+func (v *restoreValidator) handleExistVM(newVM bool, vm *kubevirtv1.VirtualMachine) error {
 	// restore an existing vm but the vm is still running
 	if !newVM && vm.Status.Ready {
 		return werror.NewInvalidError(fmt.Sprintf("Please stop the VM %q before doing a restore", vm.Name), fieldTargetName)
@@ -115,6 +132,28 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 		return werror.NewInvalidError(fmt.Sprintf("Please wait for the previous VM restore on the %s/%s to be complete first.", vm.Namespace, vm.Name), fieldTargetName)
 	}
 
+	if err := v.vmrCalculator.CheckIfVMCanStartByResourceQuota(vm); err != nil {
+		return werror.NewInternalError(fmt.Sprintf("Failed to restore the exist vm, err: %+v", err))
+	}
+
+	return nil
+}
+
+func (v *restoreValidator) handleNewVM(newRestore *v1beta1.VirtualMachineRestore, targetVM string, vmBackup *v1beta1.VirtualMachineBackup) error {
+	vm := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: newRestore.Namespace,
+			Name:      targetVM,
+		},
+		Spec: vmBackup.Status.SourceSpec.Spec,
+	}
+	// when the backup vm run strategy is Halt, the new vm should be Halt too, will skip the resource checking,
+	// here it is set to RunStrategyRerunOnFailure for resource checking.
+	runStrategy := kubevirtv1.RunStrategyRerunOnFailure
+	vm.Spec.RunStrategy = &runStrategy
+	if err := v.vmrCalculator.CheckIfVMCanStartByResourceQuota(vm); err != nil {
+		return werror.NewInternalError(fmt.Sprintf("Failed to restore the new vm, err: %+v", err))
+	}
 	return nil
 }
 

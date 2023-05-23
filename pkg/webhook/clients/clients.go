@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
+	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
@@ -24,6 +25,7 @@ type Clients struct {
 	clients.Clients
 
 	HarvesterFactory         *ctlharvesterv1.Factory
+	HarvesterCoreFactory     *ctlharvestercorev1.Factory
 	KubevirtFactory          *ctlkubevirtv1.Factory
 	CNIFactory               *ctlcniv1.Factory
 	SnapshotFactory          *ctlsnapshotv1.Factory
@@ -51,6 +53,15 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 	}
 
 	if err = harvesterFactory.Start(ctx, threadiness); err != nil {
+		return nil, err
+	}
+
+	harvesterCoreFactory, err := ctlharvestercorev1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = harvesterCoreFactory.Start(ctx, threadiness); err != nil {
 		return nil, err
 	}
 
@@ -122,6 +133,7 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 	return &Clients{
 		Clients:                  *clients,
 		HarvesterFactory:         harvesterFactory,
+		HarvesterCoreFactory:     harvesterCoreFactory,
 		KubevirtFactory:          kubevirtFactory,
 		CNIFactory:               cniFactory,
 		SnapshotFactory:          snapshotFactory,

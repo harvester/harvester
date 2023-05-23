@@ -1,7 +1,6 @@
 FROM registry.suse.com/bci/bci-base:15.4 AS temp_elemental
 
 RUN zypper rm -y container-suseconnect && \
-    zypper ar --priority=200 http://download.opensuse.org/distribution/leap/15.4/repo/oss repo-oss && \
     zypper --no-gpg-checks ref && \
     zypper in -y curl tar gzip && zypper clean -a
 
@@ -14,7 +13,6 @@ FROM registry.suse.com/bci/bci-base:15.4
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
 RUN zypper rm -y container-suseconnect && \
-    zypper ar --priority=200 http://download.opensuse.org/distribution/leap/15.4/repo/oss repo-oss && \
     zypper --no-gpg-checks ref && \
     zypper in -y curl e2fsprogs rsync awk zstd jq helm zip unzip nginx && zypper clean -a
 
