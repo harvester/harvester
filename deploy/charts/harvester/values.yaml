@@ -166,7 +166,7 @@ containers:
 
       ## Specify the pull policy of image.
       ##
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
 
       ## Specify the repository of image.
       ##
@@ -174,7 +174,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: master-head
+      tag: v1.2-head
 
     ## Specify whether to run in HCI mode. This option enables additional controllers.
     ## defaults to "false", this will be enabled in ISO mode installation.
@@ -365,16 +365,16 @@ harvester-network-controller:
     repository: rancher/harvester-network-controller
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: master-head
+    tag: v0.3.2
   helper:
     image:
       repository: rancher/harvester-network-helper
-      tag: master-head
+      tag: v0.3.2
   webhook:
     image:
       repository: rancher/harvester-network-webhook
       pullPolicy: IfNotPresent
-      tag: master-head
+      tag: v0.3.2
 
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
@@ -386,9 +386,9 @@ harvester-node-disk-manager:
 
   image:
     repository: rancher/harvester-node-disk-manager
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: master-head
+    tag: v0.4.11
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter
@@ -431,7 +431,7 @@ webhook:
 
     ## Specify the pull policy of image.
     ##
-    imagePullPolicy: Always
+    imagePullPolicy: IfNotPresent
 
     ## Specify the repository of image.
     ##
@@ -439,7 +439,7 @@ webhook:
 
     ## Specify the tag of image.
     ##
-    tag: master-head
+    tag: v1.2-head
 
   httpsPort: 9443
 
@@ -451,14 +451,14 @@ upgrade:
 harvester-load-balancer:
   enabled: false
   image:
-    imagePullPolicy: Always
+    imagePullPolicy: IfNotPresent
     repository: rancher/harvester-load-balancer
-    tag: master-head
+    tag: v0.2.0-rc1
   webhook:
     image:
       imagePullPolicy: IfNotPresent
       repository: rancher/harvester-load-balancer-webhook
-      tag: master-head
+      tag: v0.2.0-rc1
 
 kube-vip:
   enabled: false
@@ -483,7 +483,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: master-head
+    tag: v0.0.24
 
 generalJob:
   image:
@@ -502,5 +502,5 @@ harvester-node-manager:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/harvester-node-manager
-    tag: master-head
+    tag: v0.1.4
 
