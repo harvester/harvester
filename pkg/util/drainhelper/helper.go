@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	errSingleControlPlaneNode = errors.New("single controlplane cluster, cannot plance controlplane in maintenance mode")
+	errSingleControlPlaneNode = errors.New("single controlplane cluster, cannot place controlplane in maintenance mode")
 	errHAControlPlaneNode     = errors.New("another controlplane is already in maintenance mode, cannot place current node in maintenance mode")
 )
 
