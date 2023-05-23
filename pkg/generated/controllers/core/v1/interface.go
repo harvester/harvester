@@ -31,6 +31,7 @@ func init() {
 
 type Interface interface {
 	PersistentVolume() PersistentVolumeController
+	ResourceQuota() ResourceQuotaController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -45,4 +46,7 @@ type version struct {
 
 func (c *version) PersistentVolume() PersistentVolumeController {
 	return NewPersistentVolumeController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolume"}, "persistentvolumes", false, c.controllerFactory)
+}
+func (c *version) ResourceQuota() ResourceQuotaController {
+	return NewResourceQuotaController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ResourceQuota"}, "resourcequotas", true, c.controllerFactory)
 }

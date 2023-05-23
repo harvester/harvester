@@ -120,6 +120,7 @@ func main() {
 			corev1.GroupName: {
 				Types: []interface{}{
 					corev1.PersistentVolume{},
+					corev1.ResourceQuota{},
 				},
 				InformersPackage: "k8s.io/client-go/informers",
 				ClientSetPackage: "k8s.io/client-go/kubernetes",
