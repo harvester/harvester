@@ -146,7 +146,14 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 			}
 
 			image, err := repo.CreateImageFromISO(version.Spec.ISOURL, version.Spec.ISOChecksum)
-			if err != nil && !apierrors.IsAlreadyExists(err) {
+			if err != nil && apierrors.IsAlreadyExists(err) {
+				image, err = h.vmImageClient.Get(harvesterSystemNamespace, upgrade.Name, metav1.GetOptions{})
+				if err != nil {
+					setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+					return h.upgradeClient.Update(toUpdate)
+				}
+				logrus.Infof("Reuse the existing image: %s/%s", image.Namespace, image.Name)
+			} else if err != nil && !apierrors.IsAlreadyExists(err) {
 				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
 				return h.upgradeClient.Update(toUpdate)
 			}
