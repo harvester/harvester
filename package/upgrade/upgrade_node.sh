@@ -387,6 +387,7 @@ command_pre_drain() {
   patch_logging_event_audit
 
   remove_rke2_canal_config
+  disable_rke2_charts
 }
 
 get_node_rke2_version() {
@@ -426,6 +427,17 @@ clean_rke2_archives() {
 
 remove_rke2_canal_config() {
   rm -f "$HOST_DIR/var/lib/rancher/rke2/server/manifests/rke2-canal-config.yaml"
+}
+
+# Disable snapshot-controller related charts because we manage them in Harvester.
+# RKE2 enables these charts by default after v1.25.7 (https://github.com/rancher/rke2/releases/tag/v1.25.7%2Brke2r1)
+disable_rke2_charts() {
+  cat > "$HOST_DIR/etc/rancher/rke2/config.yaml.d/40-disable-charts.yaml" <<EOF
+disable:
+- rke2-snapshot-controller
+- rke2-snapshot-controller-crd
+- rke2-snapshot-validation-webhook
+EOF
 }
 
 convert_nodenetwork_to_vlanconfig() {
@@ -587,6 +599,7 @@ command_single_node_upgrade() {
   detect_repo
 
   remove_rke2_canal_config
+  disable_rke2_charts
 
   # Copy OS things, we need to shutdown repo VMs.
   NEW_OS_SQUASHFS_IMAGE_FILE=$(mktemp -p $UPGRADE_TMP_DIR)
