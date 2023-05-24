@@ -107,8 +107,8 @@ func getISODisplayNameImageName(upgradeName string, version string) string {
 func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.VirtualMachineImage, error) {
 	imageSpec := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace:    harvesterSystemNamespace,
-			GenerateName: "harvester-iso-",
+			Namespace: harvesterSystemNamespace,
+			Name:      r.upgrade.Name,
 			Labels: map[string]string{
 				harvesterUpgradeLabel: r.upgrade.Name,
 			},
