@@ -25,6 +25,9 @@ const (
 	// eg: harvesterhci.io/migrating-vm1: jsonOfResourceList, harvesterhci.io/migrating-vm2: jsonOfResourceList
 	AnnotationMigratingPrefix = prefix + "/migrating-"
 
+	// AnnotationInsufficientResourceQuota is indicated the resource is insufficient of Namespace
+	AnnotationInsufficientResourceQuota = prefix + "/insufficientResourceQuota"
+
 	AnnotationDefaultUserdataSecret = prefix + "/default-userdata-secret"
 
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
