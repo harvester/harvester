@@ -44,6 +44,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	var vmCtrl = &VMController{
 		pvcClient:      pvcClient,
 		pvcCache:       pvcCache,
+		vms:            management.VirtFactory.Kubevirt().V1().VirtualMachine(),
 		vmClient:       vmClient,
 		vmiClient:      vmiClient,
 		vmiCache:       vmiCache,
