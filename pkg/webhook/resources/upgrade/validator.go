@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/docker/go-units"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
@@ -279,7 +280,9 @@ func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace ui
 		return werror.NewInternalError(fmt.Sprintf("can't get node %s available bytes from %s, err: %+v", node.Name, kubeletURL, err))
 	}
 	if *summary.Node.Fs.AvailableBytes < minFreeDiskSpace {
-		return werror.NewBadRequest(fmt.Sprintf("minimal free disk space for upgrade is %d, node %s only has %d", minFreeDiskSpace, node.Name, *summary.Node.Fs.AvailableBytes))
+		min := units.BytesSize(float64(minFreeDiskSpace))
+		avail := units.BytesSize(float64(*summary.Node.Fs.AvailableBytes))
+		return werror.NewBadRequest(fmt.Sprintf("Node %q has insufficient free space (%s). An upgrade requires at least %s of free space.", node.Name, avail, min))
 	}
 	return nil
 }
