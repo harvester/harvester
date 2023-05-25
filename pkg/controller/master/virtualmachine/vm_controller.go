@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/slice"
@@ -30,6 +31,7 @@ import (
 type VMController struct {
 	pvcClient      v1.PersistentVolumeClaimClient
 	pvcCache       v1.PersistentVolumeClaimCache
+	vms            ctlkubevirtv1.VirtualMachineController
 	vmClient       ctlkubevirtv1.VirtualMachineClient
 	vmiCache       ctlkubevirtv1.VirtualMachineInstanceCache
 	vmiClient      ctlkubevirtv1.VirtualMachineInstanceClient
@@ -377,22 +379,35 @@ func (h *VMController) SetHaltIfInsufficientResourceQuota(_ string, vm *kubevirt
 		return vm, nil
 	}
 
-	if err := h.vmrCalculator.CheckIfVMCanStartByResourceQuota(vm); err == nil {
-		return vm, nil
+	err := h.vmrCalculator.CheckIfVMCanStartByResourceQuota(vm)
+	if err == nil {
+		if vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusStarting {
+			logrus.Debugf("VM %s in namespace %s is starting", vm.Name, vm.Namespace)
+			h.vms.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
+			return vm, nil
+		}
+		return vm, h.cleanUpInsufficientResourceAnnotation(vm)
 	} else if !rqutils.IsInsufficientResourceError(err) {
 		return nil, err
 	}
 
-	if err := h.stopVM(vm); err != nil {
+	if err := h.stopVM(vm, err.Error()); err != nil {
 		return nil, err
 	}
 
-	h.recorder.Eventf(vm, corev1.EventTypeWarning, "InsufficientResourceQuota", "Set runStrategy to %s", kubevirtv1.RunStrategyHalted)
+	h.recorder.Eventf(vm, corev1.EventTypeWarning, "InsufficientResourceQuota", "Set runStrategy to %s: %s", kubevirtv1.RunStrategyHalted, err.Error())
 	return vm, nil
 }
 
-func (h *VMController) stopVM(vm *kubevirtv1.VirtualMachine) error {
+func (h *VMController) stopVM(vm *kubevirtv1.VirtualMachine, errMsg string) error {
+	logrus.Debugf("VM %s in namespace %s is stopped due to insufficient resource quota: %s", vm.Name, vm.Namespace, errMsg)
+
 	vmCpy := vm.DeepCopy()
+
+	if vmCpy.Annotations == nil {
+		vmCpy.Annotations = make(map[string]string)
+	}
+	vmCpy.ObjectMeta.Annotations[util.AnnotationInsufficientResourceQuota] = errMsg
 
 	runStrategy := kubevirtv1.RunStrategyHalted
 	vmCpy.Spec.RunStrategy = &runStrategy
@@ -402,4 +417,32 @@ func (h *VMController) stopVM(vm *kubevirtv1.VirtualMachine) error {
 	}
 
 	return nil
+}
+
+func (h *VMController) cleanUpInsufficientResourceAnnotation(vm *kubevirtv1.VirtualMachine) error {
+	if vm.Annotations == nil {
+		return nil
+	} else if _, ok := vm.Annotations[util.AnnotationInsufficientResourceQuota]; !ok {
+		return nil
+	}
+
+	if runStrategy, err := vm.RunStrategy(); err != nil {
+		return err
+	} else if runStrategy == kubevirtv1.RunStrategyHalted {
+		logrus.Debugf("VM %s in namespace %s is halted, skip cleaning up insufficient resource annotation", vm.Name, vm.Namespace)
+		return nil
+	}
+
+	if vmi, err := h.vmiCache.Get(vm.Namespace, vm.Name); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	} else if err != nil || !vmi.IsRunning() {
+		logrus.Debugf("VM %s in namespace %s is not running, skip cleaning up insufficient resource annotation", vm.Name, vm.Namespace)
+		return nil
+	}
+
+	vmCpy := vm.DeepCopy()
+	delete(vmCpy.Annotations, util.AnnotationInsufficientResourceQuota)
+	_, err := h.vmClient.Update(vmCpy)
+
+	return err
 }
