@@ -2,9 +2,9 @@
 
 ## Summary
 
-When a user has used the `ResourceQuota` quota, performing a VM migration isn't possible. A resource quota, defined by a `ResourceQuota` object, limits aggregate resource usage for the entire namespace. A VM migration requires the creation of a pod with equivalent resources to the VM you are migrating. In Kubernetes, if the resources needed for pod creation exceed the resource quota, the quota system rejects pod creation, and the VM migration cannot proceed.
+VM migration is impossible in the current implementation when the resource quota defined by a `ResourceQuota` object has been exhausted. The migration requires creating a pod with equivalent resources to the VM being migrated, and if the resources needed for pod creation exceed the quota, the migration cannot proceed. 
 
-Kubevirt controls migration logic, and it is not the native behavior of Kubernetes. Additionally, Kubevirt does not provide a solution between ResourceQuota and migration.
+Kubevirt is responsible for the migration logic and is not a native feature of Kubernetes. However, it is essential to address the interaction between `ResourceQuota` and migration within Harvester itself. Since Kubevirt does not provide a built-in solution for handling this interaction, it becomes necessary to address this aspect appropriately on the Harvester side.
 
 ### Related Issues
 
@@ -14,7 +14,7 @@ Kubevirt controls migration logic, and it is not the native behavior of Kubernet
 
 ### Goals
 
-- It is possible to perform VM migration even after `ResourceQuota` has been exhausted.
+- Enable VM migration even when the resource quota has been exhausted.
 
 ### Non-Goals
 
@@ -106,7 +106,7 @@ status:
 
 The key is `vm_name` with a value of the corresponding VM's pod resources limits. When the VM migration is **Pending**, Harvester should automatically scale up the `ResourceQuota` to meet the resource requirements for the VM migration. Once the VM migration is complete, Harvester should automatically scale down and delete the key.
 
-Due to the unreliability of the Webhook, the VM Controller performs a second verification for VMs. If the resources are insufficient, the VM's RunStrategy changes to **Halted**, and an event is sent to indicate the lack of resources.
+Because the webhook is not reliable for exceptional cases like high concurrency or timing problems, the VM controller will perform a secondary verification for VMs. If the resources are insufficient, the VM's RunStrategy will be automatically changed to **Halted**, and an event will be recorded to reflect its lack of resources.
 
 **Upgrade**
 
@@ -196,4 +196,4 @@ Anything that requires if user want to upgrade to this enhancement
 
 ## Note [optional]
 
-Additional nodes.
+N/A
