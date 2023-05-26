@@ -11,8 +11,10 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/rancher/lasso/pkg/controller"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
+	managementv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/rancher/wrangler/pkg/generic"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +27,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/master/addon"
+	"github.com/harvester/harvester/pkg/controller/master/mcmsettings"
 	"github.com/harvester/harvester/pkg/server"
 	"github.com/harvester/harvester/tests/framework/cluster"
 	. "github.com/harvester/harvester/tests/framework/dsl"
@@ -44,7 +47,7 @@ var (
 	scaled           *config.Scaled
 	testEnv          *envtest.Environment
 	scheme           = runtime.NewScheme()
-	crdList          = []string{"./manifest/helm-crd.yaml", "./manifest/app-crd.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml"}
+	crdList          = []string{"./manifest/helm-crd.yaml", "./manifest/app-crd.yaml", "./manifest/ranchersettings-crd.yaml", "./manifest/clusterrepos-crd.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml"}
 )
 
 const (
@@ -63,15 +66,21 @@ var _ = BeforeSuite(func() {
 	testCtx, testCtxCancel = context.WithCancel(context.Background())
 	var err error
 
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{"../../../deploy/charts/harvester-crd/templates", "./manifest"},
-	}
-
 	By("starting test cluster")
 	KubeClientConfig, testCluster, err = cluster.Start(GinkgoWriter)
 	MustNotError(err)
 
 	cfg, err = KubeClientConfig.ClientConfig()
+	MustNotError(err)
+
+	var crds []apiextensionsv1.CustomResourceDefinition
+
+	for _, v := range crdList {
+		objs, err := generateObjects(v)
+		MustNotError(err)
+		crds = append(crds, objs)
+	}
+	err = applyObj(crds)
 	MustNotError(err)
 
 	err = helmv1.AddToScheme(scheme)
@@ -81,6 +90,15 @@ var _ = BeforeSuite(func() {
 	MustNotError(err)
 
 	err = batchv1.AddToScheme(scheme)
+	MustNotError(err)
+
+	err = catalogv1.AddToScheme(scheme)
+	MustNotError(err)
+
+	err = managementv3.AddToScheme(scheme)
+	MustNotError(err)
+
+	err = corev1.AddToScheme(scheme)
 	MustNotError(err)
 
 	err = catalogv1.AddToScheme(scheme)
@@ -96,20 +114,11 @@ var _ = BeforeSuite(func() {
 	testCtx, scaled, err = config.SetupScaled(testCtx, cfg, factoryOpts, options.Namespace)
 	MustNotError(err)
 
-	var crds []apiextensionsv1.CustomResourceDefinition
-
-	for _, v := range crdList {
-		objs, err := generateObjects(v)
-		MustNotError(err)
-		crds = append(crds, objs)
-	}
-
-	err = applyObj(crds)
-	MustNotError(err)
-
 	err = addon.Register(testCtx, scaled.Management, config.Options{})
 	MustNotError(err)
 
+	err = mcmsettings.Register(testCtx, scaled.Management, config.Options{})
+	MustNotError(err)
 	// fake job controller to patch statuses
 	err = fake.RegisterFakeControllers(testCtx, scaled.Management, config.Options{})
 	MustNotError(err)
@@ -125,7 +134,8 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 
 	By("tearing down test cluster")
-	testEnv.Stop()
+	err := cluster.Stop(GinkgoWriter)
+	MustNotError(err)
 
 	By("tearing down harvester server")
 	if testCtxCancel != nil {
