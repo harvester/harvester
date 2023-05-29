@@ -192,7 +192,10 @@ First, create a project and configure resource quotas by adding CPU and Memory l
 
 ### Upgrade strategy
 
-Anything that requires if user want to upgrade to this enhancement
+- No effect on new cluster installations.
+- After upgrading an existing cluster.
+  - No effect if no configured ResourceQuota.
+  - If the ResourceQuota quota is less than the used quota(Used is the current observed total usage of the resource in the namespace, see the [documentation](https://kubernetes.io/docs/concepts/policy/resource-quotas/).), the migration will also fail, and the ResourceQuota will need to be adjusted.
 
 ## Note [optional]
 
