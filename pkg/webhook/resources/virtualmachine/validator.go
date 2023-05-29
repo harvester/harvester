@@ -108,6 +108,9 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 	if err := v.checkOccupiedPVCs(vm); err != nil {
 		return err
 	}
+	if err := v.checkTerminationGracePeriodSeconds(vm); err != nil {
+		return err
+	}
 	if err := v.checkReservedMemoryAnnotation(vm); err != nil {
 		return err
 	}
@@ -236,6 +239,24 @@ func (v *vmValidator) checkVMBackup(vm *kubevirtv1.VirtualMachine) error {
 	} else if exist {
 		return werror.NewBadRequest(fmt.Sprintf("there is vmbackup in progress for vm %s/%s, please wait for the vmbackup or remove it before stop/restart the vm", vm.Namespace, vm.Name))
 	}
+	return nil
+}
+
+func (v *vmValidator) checkTerminationGracePeriodSeconds(vm *kubevirtv1.VirtualMachine) error {
+	terminationGracePeriodSeconds := vm.Spec.Template.Spec.TerminationGracePeriodSeconds
+
+	//During vm's "TerminationGracePeriodSeconds" field is not specified,
+	//vm mutator will set this field as "default-vm-termination-grace-period-seconds" from settings.
+	//However, we still check it for robustness.
+	if terminationGracePeriodSeconds == nil {
+		return nil
+	}
+
+	if *terminationGracePeriodSeconds < 0 {
+		return werror.NewInvalidError("Termination grace period can't be negative",
+			"spec.Template.Spec.TerminationGracePeriodSeconds")
+	}
+
 	return nil
 }
 
