@@ -108,6 +108,11 @@ func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj
 		return nil, err
 	}
 
+	patchOps, err = m.patchTerminationGracePeriodSeconds(newVM, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
 	return patchOps, nil
 }
 
@@ -401,6 +406,7 @@ func (m *vmMutator) patchTerminationGracePeriodSeconds(vm *kubevirtv1.VirtualMac
 	if s.Value != "" {
 		value = s.Value
 	}
+
 	patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/terminationGracePeriodSeconds", "value": %s}`, value))
 	return patchOps, nil
 }
