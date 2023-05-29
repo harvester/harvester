@@ -1,17 +1,20 @@
 package namespace
 
 import (
+	"encoding/json"
 	"fmt"
 
+	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	harvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	"github.com/harvester/harvester/pkg/util"
-	resourcequotautil "github.com/harvester/harvester/pkg/util/resourcequota"
+	rqutils "github.com/harvester/harvester/pkg/util/resourcequota"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -59,8 +62,53 @@ func (v *namespaceValidator) Update(_ *types.Request, oldObj runtime.Object, new
 		return nil
 	}
 
-	if resourcequotautil.HasMigratingVM(rss[0]) {
+	if rqutils.HasMigratingVM(rss[0]) {
 		return fmt.Errorf("namespace %s has migrating VMs, so you can't change resource quotas", newNamespace.Name)
 	}
+
+	if err := v.checkIfUsedResourceQuotaLargerThanNew(rss[0], rqNew); err != nil {
+		return fmt.Errorf("namespace %s has used resource quota larger than new resource quota, so you can't change resource quotas: %s",
+			newNamespace.Name,
+			err)
+	}
+
+	return nil
+}
+
+// CheckIfUsedLargerThanNew Check if used resource quota lager than new resource quota
+func (v *namespaceValidator) checkIfUsedResourceQuotaLargerThanNew(rq *corev1.ResourceQuota, nrqStr string) error {
+	var nrq *v3.NamespaceResourceQuota
+	if err := json.Unmarshal([]byte(nrqStr), &nrq); err != nil {
+		return err
+	}
+
+	if nrq.Limit.LimitsCPU == "" && nrq.Limit.LimitsMemory == "" {
+		logrus.Debugf("namespace %s resource quota has no limit, skip checking", rq.Namespace)
+		return nil
+	}
+
+	usedCPU := rq.Status.Used.Name(corev1.ResourceLimitsCPU, resource.DecimalSI)
+	usedMem := rq.Status.Used.Name(corev1.ResourceLimitsMemory, resource.BinarySI)
+
+	if nrq.Limit.LimitsCPU != "" {
+		newCPU, err := resource.ParseQuantity(nrq.Limit.LimitsCPU)
+		if err != nil {
+			return err
+		}
+		if usedCPU.Cmp(newCPU) == 1 {
+			return fmt.Errorf("ResourceQuota used CPU %s larger than new CPU %s", usedCPU.String(), newCPU.String())
+		}
+	}
+
+	if nrq.Limit.LimitsMemory != "" {
+		newMemory, err := resource.ParseQuantity(nrq.Limit.LimitsMemory)
+		if err != nil {
+			return err
+		}
+		if usedMem.Cmp(newMemory) == 1 {
+			return fmt.Errorf("ResourceQuota used Memory %s larger than new Memory %s", usedMem.String(), newMemory.String())
+		}
+	}
+
 	return nil
 }
