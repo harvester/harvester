@@ -1061,9 +1061,24 @@ apply_extra_manifests()
   echo "Applying extra manifests"
 
   shopt -s nullglob
-  for manifest in /usr/local/share/extra_manifests/*.yaml; do
-    kubectl apply -f $manifest
-  done
+
+  # from v1.1.2, extra manifests are controlled by version
+  # related files should be put under specific version path, e.g. extra_manifests/v1.1.3/some_manifest.yaml
+  if [[ $(is_formal_release $UPGRADE_PREVIOUS_VERSION) = "true" ]] && [[ "$UPGRADE_PREVIOUS_VERSION" < "v1.1.2" ]]; then
+    local rootpath="/usr/local/share/extra_manifests/untilv1.1.1"
+  else
+    local rootpath="/usr/local/share/extra_manifests/$UPGRADE_PREVIOUS_VERSION"
+  fi
+
+  if [ -d "$rootpath" ]; then
+    for manifest in $rootpath/*.yaml; do
+      echo "Apply $manifest"
+      kubectl apply -f $manifest
+    done
+  else
+    echo "No extra manifests in $rootpath to apply"
+  fi
+
   shopt -u nullglob
 }
 
