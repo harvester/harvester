@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	HarvesterServiceAccount = "harvester"
+	HarvesterServiceAccount   = "harvester"
+	AdditionalTaintToleration = ":"
 )
 
 type Manager struct {
@@ -118,6 +119,10 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy
 								{
 									Name:  "SUPPORT_BUNDLE_EXTRA_COLLECTORS",
 									Value: m.getExtraCollectors(),
+								},
+								{
+									Name:  "SUPPORT_BUNDLE_TAINT_TOLERATION",
+									Value: AdditionalTaintToleration,
 								},
 							},
 							Ports: []corev1.ContainerPort{
