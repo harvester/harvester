@@ -16,23 +16,24 @@ import (
 )
 
 const (
-	startVM             = "start"
-	stopVM              = "stop"
-	restartVM           = "restart"
-	softReboot          = "softreboot"
-	pauseVM             = "pause"
-	unpauseVM           = "unpause"
-	ejectCdRom          = "ejectCdRom"
-	migrate             = "migrate"
-	abortMigration      = "abortMigration"
-	findMigratableNodes = "findMigratableNodes"
-	backupVM            = "backup"
-	restoreVM           = "restore"
-	createTemplate      = "createTemplate"
-	addVolume           = "addVolume"
-	removeVolume        = "removeVolume"
-	cloneVM             = "clone"
-	forceStopVM         = "forceStop"
+	startVM                          = "start"
+	stopVM                           = "stop"
+	restartVM                        = "restart"
+	softReboot                       = "softreboot"
+	pauseVM                          = "pause"
+	unpauseVM                        = "unpause"
+	ejectCdRom                       = "ejectCdRom"
+	migrate                          = "migrate"
+	abortMigration                   = "abortMigration"
+	findMigratableNodes              = "findMigratableNodes"
+	backupVM                         = "backup"
+	restoreVM                        = "restore"
+	createTemplate                   = "createTemplate"
+	addVolume                        = "addVolume"
+	removeVolume                     = "removeVolume"
+	cloneVM                          = "clone"
+	forceStopVM                      = "forceStop"
+	dismissInsufficientResourceQuota = "dismissInsufficientResourceQuota"
 )
 
 type vmformatter struct {
@@ -110,6 +111,10 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canForceStop(vm) {
 		resource.AddAction(request, forceStopVM)
+	}
+
+	if canDismissInsufficientResourceQuota(vm) {
+		resource.AddAction(request, dismissInsufficientResourceQuota)
 	}
 }
 
@@ -312,6 +317,17 @@ func (vf *vmformatter) canForceStop(vm *kubevirtv1.VirtualMachine) bool {
 	}
 
 	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopping {
+		return false
+	}
+	return true
+}
+
+func canDismissInsufficientResourceQuota(vm *kubevirtv1.VirtualMachine) bool {
+	if vm.Annotations == nil {
+		return false
+	}
+
+	if _, ok := vm.Annotations[util.AnnotationInsufficientResourceQuota]; !ok {
 		return false
 	}
 	return true
