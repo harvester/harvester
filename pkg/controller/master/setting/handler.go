@@ -32,6 +32,7 @@ var (
 	// bootstrapSettings are the setting that syncs on bootstrap
 	bootstrapSettings = []string{
 		settings.SSLCertificatesSettingName,
+		settings.RancherManagerSupportSettingName,
 	}
 )
 
