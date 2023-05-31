@@ -225,6 +225,8 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			}
 			return err
 		}
+	case dismissInsufficientResourceQuota:
+		return h.dismissInsufficientResourceQuota(name, namespace)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -1252,6 +1254,24 @@ func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevir
 	}
 	sanitizedVM.Annotations[util.AnnotationVolumeClaimTemplates] = string(volumeCliamTemplatesJSON)
 	return sanitizedVM, nil
+}
+
+func (h *vmActionHandler) dismissInsufficientResourceQuota(name, namespace string) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return fmt.Errorf("cannot get vm %s/%s, err: %w", namespace, name, err)
+	}
+
+	if !canDismissInsufficientResourceQuota(vm) {
+		return errors.New("cannot dismiss insufficient resource quota message")
+	}
+
+	vmCpy := vm.DeepCopy()
+	delete(vmCpy.Annotations, util.AnnotationInsufficientResourceQuota)
+	if _, err = h.vms.Update(vmCpy); err != nil {
+		return fmt.Errorf("failed to update vm %s/%s, error: %v", vm.Namespace, vm.Name, err)
+	}
+	return nil
 }
 
 // removeMacAddresses replaces the mac address of each device interface with an empty string.
