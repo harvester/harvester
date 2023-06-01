@@ -292,3 +292,23 @@ func vmContainsCDRomOrContainerDisk(vmi *kubevirtv1.VirtualMachineInstance) bool
 	}
 	return false
 }
+
+func (ndc *ControllerHandler) FindAndListVMWithPCIDevices(node *corev1.Node) ([]string, error) {
+	labelsMap := map[string]string{
+		kubevirtv1.NodeNameLabel: node.Name,
+	}
+	labelSelector := labels.SelectorFromSet(labelsMap)
+
+	vmiList, err := ndc.virtualMachineInstanceCache.List(corev1.NamespaceAll, labelSelector)
+	if err != nil {
+		return nil, fmt.Errorf("error listing VMI: %v", err)
+	}
+
+	var impactedVMI []string
+	for _, vmi := range vmiList {
+		if len(vmi.Spec.Domain.Devices.HostDevices) != 0 {
+			impactedVMI = append(impactedVMI, fmt.Sprintf("%s/%s", vmi.Namespace, vmi.Name))
+		}
+	}
+	return impactedVMI, nil
+}

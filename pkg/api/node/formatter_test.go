@@ -310,6 +310,35 @@ var (
 			},
 		},
 	}
+
+	vmWithPCIDevice = &kubevirtv1.VirtualMachineInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pcidevice-vm",
+			Namespace: "default",
+			Labels: map[string]string{
+				kubevirtv1.NodeNameLabel: testNode.Name,
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineInstanceSpec{
+			Domain: kubevirtv1.DomainSpec{
+				Devices: kubevirtv1.Devices{
+					HostDevices: []kubevirtv1.HostDevice{
+						{
+							Name:       "fake-pcidevice",
+							DeviceName: "fakevendor.com/FAKE_DEVICE_NAME",
+						},
+					},
+				},
+			},
+			Volumes: []kubevirtv1.Volume{
+				{
+					VolumeSource: kubevirtv1.VolumeSource{
+						ContainerDisk: &kubevirtv1.ContainerDiskSource{},
+					},
+				},
+			},
+		},
+	}
 )
 
 func Test_listUnhealthyVM(t *testing.T) {
@@ -357,4 +386,27 @@ func Test_listUnmigratableVM(t *testing.T) {
 	err = json.NewDecoder(fakeHTTP.Body).Decode(resp)
 	assert.NoError(err, "expected no error parsing json response")
 	assert.Len(resp.VMs, 2, "expected to find two vms")
+}
+
+func Test_vmWithPCIDevices(t *testing.T) {
+	assert := require.New(t)
+	typedObjects := []runtime.Object{workingVM, vmWithPCIDevice}
+	client := fake.NewSimpleClientset(typedObjects...)
+	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+
+	h := ActionHandler{
+		nodeCache:                   fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+		nodeClient:                  fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
+		longhornVolumeCache:         fakeclients.LonghornVolumeCache(client.LonghornV1beta2().Volumes),
+		longhornReplicaCache:        fakeclients.LonghornReplicaCache(client.LonghornV1beta2().Replicas),
+		virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(client.KubevirtV1().VirtualMachineInstances),
+	}
+
+	fakeHTTP := httptest.NewRecorder()
+	err := h.listUnhealthyVM(fakeHTTP, testNode)
+	assert.NoError(err, "expected no error while listing unhealthy VM's")
+	resp := &ListUnhealthyVM{}
+	err = json.NewDecoder(fakeHTTP.Body).Decode(resp)
+	assert.NoError(err, "expected no error parsing json response")
+	assert.Len(resp.VMs, 1, "expected to find two vms")
 }
