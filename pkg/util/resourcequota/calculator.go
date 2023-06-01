@@ -59,19 +59,36 @@ func (c *Calculator) VMPodsExist(namespace, vmName string) (bool, error) {
 
 // CheckIfVMCanStartByResourceQuota checks if the VM can be started based on the resource quota limits
 func (c *Calculator) CheckIfVMCanStartByResourceQuota(vm *kubevirtv1.VirtualMachine) error {
+	// return if the VM status is empty.
+	if vm.Status.PrintableStatus == "" {
+		return nil
+	}
+
 	strategy, err := vm.RunStrategy()
-	if err != nil || strategy == kubevirtv1.RunStrategyHalted {
+	if err != nil {
 		return err
+	}
+	if strategy == kubevirtv1.RunStrategyHalted {
+		logrus.Debugf("CheckIfVMCanStartByResourceQuota: VM %s/%s is halted, skip check", vm.Namespace, vm.Name)
+		return nil
 	}
 
 	exist, err := c.VMPodsExist(vm.Namespace, vm.Name)
-	if err != nil || exist {
+	if err != nil {
 		return err
+	}
+	if exist {
+		logrus.Debugf("CheckIfVMCanStartByResourceQuota: VM %s/%s has running pod, skip check", vm.Namespace, vm.Name)
+		return nil
 	}
 
 	nrq, err := c.getNamespaceResourceQuota(vm)
-	if err != nil || nrq == nil {
+	if err != nil {
 		return err
+	}
+	if nrq == nil {
+		logrus.Debugf("CheckIfVMCanStartByResourceQuota: skipping check, resource quota not found in the namespace %s", vm.Namespace)
+		return nil
 	}
 
 	// get resource quota limits from ResourceQuota

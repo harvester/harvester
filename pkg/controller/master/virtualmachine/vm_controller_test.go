@@ -1140,6 +1140,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 			pvcClient:      fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
 			pvcCache:       fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
 			vmClient:       fakeclients.VirtualMachineClient(harvFakeClient.KubevirtV1().VirtualMachines),
+			vmController:   fakeclients.VirtualMachineClient(harvFakeClient.KubevirtV1().VirtualMachines),
 			vmBackupCache:  fakeclients.VMBackupCache(harvFakeClient.HarvesterhciV1beta1().VirtualMachineBackups),
 			vmBackupClient: fakeclients.VMBackupClient(harvFakeClient.HarvesterhciV1beta1().VirtualMachineBackups),
 		}

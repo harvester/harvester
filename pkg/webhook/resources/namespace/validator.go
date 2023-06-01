@@ -66,8 +66,8 @@ func (v *namespaceValidator) Update(_ *types.Request, oldObj runtime.Object, new
 		return fmt.Errorf("namespace %s has migrating VMs, so you can't change resource quotas", newNamespace.Name)
 	}
 
-	if err := v.checkIfUsedResourceQuotaLargerThanNew(rss[0], rqNew); err != nil {
-		return fmt.Errorf("namespace %s has used resource quota larger than new resource quota, so you can't change resource quotas: %s",
+	if err := v.checkIfNewResourceQuotaIsSufficient(rss[0], rqNew); err != nil {
+		return fmt.Errorf("cannot update the resource quota of namespace %s, error: %s",
 			newNamespace.Name,
 			err)
 	}
@@ -76,7 +76,7 @@ func (v *namespaceValidator) Update(_ *types.Request, oldObj runtime.Object, new
 }
 
 // CheckIfUsedLargerThanNew Check if used resource quota lager than new resource quota
-func (v *namespaceValidator) checkIfUsedResourceQuotaLargerThanNew(rq *corev1.ResourceQuota, nrqStr string) error {
+func (v *namespaceValidator) checkIfNewResourceQuotaIsSufficient(rq *corev1.ResourceQuota, nrqStr string) error {
 	var nrq *v3.NamespaceResourceQuota
 	if err := json.Unmarshal([]byte(nrqStr), &nrq); err != nil {
 		return err
@@ -96,17 +96,21 @@ func (v *namespaceValidator) checkIfUsedResourceQuotaLargerThanNew(rq *corev1.Re
 			return err
 		}
 		if usedCPU.Cmp(newCPU) == 1 {
-			return fmt.Errorf("ResourceQuota used CPU %s larger than new CPU %s", usedCPU.String(), newCPU.String())
+			return fmt.Errorf("new CPU limit %s is lower than the current used CPU limit %s",
+				newCPU.String(),
+				usedCPU.String())
 		}
 	}
 
 	if nrq.Limit.LimitsMemory != "" {
-		newMemory, err := resource.ParseQuantity(nrq.Limit.LimitsMemory)
+		newMem, err := resource.ParseQuantity(nrq.Limit.LimitsMemory)
 		if err != nil {
 			return err
 		}
-		if usedMem.Cmp(newMemory) == 1 {
-			return fmt.Errorf("ResourceQuota used Memory %s larger than new Memory %s", usedMem.String(), newMemory.String())
+		if usedMem.Cmp(newMem) == 1 {
+			return fmt.Errorf("new Memory limit %s is lower than the current used Memory limit %s",
+				newMem.String(),
+				usedMem.String())
 		}
 	}
 
