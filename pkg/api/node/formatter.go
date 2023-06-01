@@ -203,6 +203,18 @@ func (h ActionHandler) listUnhealthyVM(rw http.ResponseWriter, node *corev1.Node
 		return json.NewEncoder(rw).Encode(&respObj)
 	}
 
+	vmWithPCIDevicesList, err := ndc.FindAndListVMWithPCIDevices(node)
+	if err != nil {
+		return err
+	}
+
+	if len(vmWithPCIDevicesList) > 0 {
+		respObj.Message = "Following VMs have PCIDevices attached and are non-migratable. Please power these off:"
+		respObj.VMs = vmWithPCIDevicesList
+		rw.WriteHeader(http.StatusOK)
+		return json.NewEncoder(rw).Encode(&respObj)
+	}
+
 	vmList, err := ndc.FindAndListVM(node)
 	if err != nil {
 		return err
