@@ -2,11 +2,15 @@ package fakeclients
 
 import (
 	"context"
+	"time"
 
+	"github.com/rancher/wrangler/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
 	kubevirtv1api "kubevirt.io/api/core/v1"
 
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
@@ -44,6 +48,46 @@ func (c VirtualMachineClient) Watch(namespace string, opts metav1.ListOptions) (
 }
 
 func (c VirtualMachineClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *kubevirtv1api.VirtualMachine, err error) {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) Informer() cache.SharedIndexInformer {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) GroupVersionKind() schema.GroupVersionKind {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) Updater() generic.Updater {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) OnChange(ctx context.Context, name string, sync kubevirtctlv1.VirtualMachineHandler) {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) OnRemove(ctx context.Context, name string, sync kubevirtctlv1.VirtualMachineHandler) {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) Enqueue(namespace, name string) {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) EnqueueAfter(namespace, name string, duration time.Duration) {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) Cache() kubevirtctlv1.VirtualMachineCache {
 	panic("implement me")
 }
 

@@ -26,7 +26,7 @@ const (
 	AnnotationMigratingPrefix = prefix + "/migrating-"
 
 	// AnnotationInsufficientResourceQuota is indicated the resource is insufficient of Namespace
-	AnnotationInsufficientResourceQuota = prefix + "/insufficientResourceQuota"
+	AnnotationInsufficientResourceQuota = prefix + "/insufficient-resource-quota"
 
 	AnnotationDefaultUserdataSecret = prefix + "/default-userdata-secret"
 
