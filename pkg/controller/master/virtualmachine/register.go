@@ -16,6 +16,7 @@ const (
 	vmControllerSyncLabelsToVmi                                  = "VMController.SyncLabelsToVmi"
 	vmControllerManagePVCOwnerControllerName                     = "VMController.ManageOwnerOfPVCs"
 	vmControllerSetHaltIfInsufficientResourceQuotaControllerName = "VMController.SetHaltIfInsufficientResourceQuota"
+	vmiControllerSetHaltIfOccurExceededQuotaControllerName       = "VMIController.StopVMIfExceededQuota"
 	harvesterUnsetOwnerOfPVCsFinalizer                           = "harvesterhci.io/VMController.UnsetOwnerOfPVCs"
 	oldWranglerFinalizer                                         = "wrangler.cattle.io/VMController.UnsetOwnerOfPVCs"
 )
@@ -38,21 +39,22 @@ func Register(ctx context.Context, management *config.Management, options config
 		snapshotClient = management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
 		vmimCache      = management.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
 		snapshotCache  = snapshotClient.Cache()
+		recorder       = management.NewRecorder(vmControllerSetHaltIfInsufficientResourceQuotaControllerName, "", "")
 	)
 
 	// registers the vm controller
 	var vmCtrl = &VMController{
 		pvcClient:      pvcClient,
 		pvcCache:       pvcCache,
-		vms:            management.VirtFactory.Kubevirt().V1().VirtualMachine(),
 		vmClient:       vmClient,
+		vmController:   vmClient,
 		vmiClient:      vmiClient,
 		vmiCache:       vmiCache,
 		vmBackupClient: vmBackupClient,
 		vmBackupCache:  vmBackupCache,
 		snapshotClient: snapshotClient,
 		snapshotCache:  snapshotCache,
-		recorder:       management.NewRecorder(vmControllerSetHaltIfInsufficientResourceQuotaControllerName, "", ""),
+		recorder:       recorder,
 
 		vmrCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache),
 	}
@@ -67,14 +69,17 @@ func Register(ctx context.Context, management *config.Management, options config
 	var virtualMachineCache = virtualMachineClient.Cache()
 	var virtualMachineInstanceClient = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	var vmiCtrl = &VMIController{
+		vmClient:            vmClient,
 		virtualMachineCache: virtualMachineCache,
 		vmiClient:           virtualMachineInstanceClient,
 		nodeCache:           nodeCache,
 		pvcClient:           pvcClient,
 		pvcCache:            pvcCache,
+		recorder:            recorder,
 	}
 	virtualMachineInstanceClient.OnRemove(ctx, vmiControllerUnsetOwnerOfPVCsControllerName, vmiCtrl.UnsetOwnerOfPVCs)
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerReconcileFromHostLabelsControllerName, vmiCtrl.ReconcileFromHostLabels)
+	virtualMachineInstanceClient.OnChange(ctx, vmiControllerSetHaltIfOccurExceededQuotaControllerName, vmiCtrl.StopVMIfExceededQuota)
 
 	// register the vm network controller upon the VMI changes
 	var vmNetworkCtl = &VMNetworkController{

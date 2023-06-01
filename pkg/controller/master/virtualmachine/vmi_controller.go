@@ -3,12 +3,15 @@ package virtualmachine
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/record"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/builder"
@@ -25,11 +28,13 @@ var hostLabelsReconcileMapping = []string{
 }
 
 type VMIController struct {
+	vmClient            kubevirtctrl.VirtualMachineClient
 	virtualMachineCache kubevirtctrl.VirtualMachineCache
 	vmiClient           kubevirtctrl.VirtualMachineInstanceClient
 	nodeCache           ctlcorev1.NodeCache
 	pvcClient           ctlcorev1.PersistentVolumeClaimClient
 	pvcCache            ctlcorev1.PersistentVolumeClaimCache
+	recorder            record.EventRecorder
 }
 
 // UnsetOwnerOfPVCs erases the target VirtualMachine from the owner of the PVCs in annotation.
@@ -142,4 +147,28 @@ func (h *VMIController) ReconcileFromHostLabels(_ string, vmi *kubevirtv1.Virtua
 	}
 
 	return vmi, nil
+}
+
+func (h *VMIController) StopVMIfExceededQuota(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
+	if vmi == nil || vmi.DeletionTimestamp != nil || vmi.Status.Conditions == nil {
+		return vmi, nil
+	}
+
+	for _, condition := range vmi.Status.Conditions {
+		if condition.Type == kubevirtv1.VirtualMachineInstanceSynchronized &&
+			condition.Status == corev1.ConditionFalse &&
+			strings.Contains(condition.Message, "exceeded quota") {
+
+			vm, err := h.virtualMachineCache.Get(vmi.Namespace, vmi.Name)
+			if err != nil {
+				return vmi, err
+			}
+			return vmi, h.stopVM(vm, condition.Message)
+		}
+	}
+	return vmi, nil
+}
+
+func (h *VMIController) stopVM(vm *kubevirtv1.VirtualMachine, errMsg string) error {
+	return stopVM(h.vmClient, h.recorder, vm, errMsg)
 }
