@@ -184,7 +184,8 @@ func (s *versionSyncer) cleanupVersions(currentVersion string) error {
 		return err
 	}
 
-	for _, v := range versions.Items {
+	for i := range versions.Items {
+		v := versions.Items[i]
 		if !canUpgrade(currentVersion, &v) {
 			if err := s.versionClient.Delete(v.Namespace, v.Name, &metav1.DeleteOptions{}); err != nil {
 				return err

@@ -35,7 +35,8 @@ func createSecrets(mgmt *config.Management) error {
 			},
 		},
 	}
-	for _, defaultSecret := range defaultSecrets {
+	for i := range defaultSecrets {
+		defaultSecret := defaultSecrets[i]
 		if _, err := secrets.Create(&defaultSecret); err != nil && !apierrors.IsAlreadyExists(err) {
 			return errors.Wrapf(err, "Failed to create secret %s/%s", defaultSecret.Namespace, defaultSecret.Name)
 		}
