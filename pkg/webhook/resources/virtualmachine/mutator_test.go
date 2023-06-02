@@ -335,7 +335,32 @@ func TestPatchAffinity(t *testing.T) {
 			},
 		},
 	}
-
+	vm6 := &kubevirtv1.VirtualMachine{
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Affinity: &v1.Affinity{
+						PodAffinity: &v1.PodAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+								{
+									TopologyKey: "topology.kubernetes.io/zone",
+								},
+							},
+						},
+					},
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "default",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Pod: &kubevirtv1.PodNetwork{},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 	net1 := &cniv1.NetworkAttachmentDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "net1",
@@ -457,6 +482,19 @@ func TestPatchAffinity(t *testing.T) {
 							},
 						},
 					},
+					},
+				},
+			},
+		},
+		{
+			name: "keep pod affinity",
+			vm:   vm6,
+			affinity: &v1.Affinity{
+				PodAffinity: &v1.PodAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+						{
+							TopologyKey: "topology.kubernetes.io/zone",
+						},
 					},
 				},
 			},
