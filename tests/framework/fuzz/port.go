@@ -16,6 +16,7 @@ func FreePorts(amount int) ([]int, error) {
 		if set.Len() >= amount {
 			break
 		}
+		// #nosec G102
 		lis, err := net.Listen("tcp", ":0")
 		if err != nil {
 			return nil, fmt.Errorf("failed to get free ports, %v", err)

@@ -27,8 +27,8 @@ func (c VirtualMachineInstanceMigrationCache) List(namespace string, selector la
 		return nil, err
 	}
 	result := make([]*kubevirtv1.VirtualMachineInstanceMigration, 0, len(list.Items))
-	for _, vmim := range list.Items {
-		result = append(result, &vmim)
+	for i := range list.Items {
+		result = append(result, &list.Items[i])
 	}
 	return result, err
 }
