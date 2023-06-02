@@ -147,7 +147,8 @@ func (h *nodeDownHandler) OnVMForceResetPolicyChanged(key string, setting *harve
 
 func getNodeCondition(conditions []corev1.NodeCondition, conditionType corev1.NodeConditionType) *corev1.NodeCondition {
 	var cond *corev1.NodeCondition
-	for _, c := range conditions {
+	for i := range conditions {
+		c := conditions[i]
 		if c.Type == conditionType {
 			cond = &c
 			break

@@ -72,8 +72,8 @@ func (c PersistentVolumeClaimCache) GetByIndex(indexName, key string) ([]*corev1
 			return nil, err
 		}
 		var pvcs []*corev1.PersistentVolumeClaim
-		for _, pvc := range pvcList.Items {
-			pvcs = append(pvcs, &pvc)
+		for i := range pvcList.Items {
+			pvcs = append(pvcs, &pvcList.Items[i])
 		}
 		return pvcs, nil
 	default:
