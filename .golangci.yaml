@@ -1,0 +1,33 @@
+linters:
+  disable-all: true
+  enable:
+    - goimports
+    - gofmt
+    - misspell
+    - revive
+    - gosec
+    - prealloc
+run:
+  skip-files:
+    - /zz_generated_
+    - _generated
+  skip-dirs:
+    - generated
+  deadline: 5m
+  tests: true
+  build-tags:
+    - test
+linters-settings:
+  goimports:
+    local-prefixes: github.com/harvester/harvester
+  gosec:
+    # https://github.com/securego/gosec#available-rules
+    excludes:
+      - G101 # Look for hard coded credentials
+      - G108 # Profiling endpoint is automatically exposed on /debug/pprof
+      - G401 # Use of weak cryptographic primitive
+      - G402 # TLS InsecureSkipVerify set true
+      - G505 # Blocklisted import crypto/md5: weak cryptographic primitive
+    config:
+      G306: "0644" # Poor file permissions used when writing to a new file
+
