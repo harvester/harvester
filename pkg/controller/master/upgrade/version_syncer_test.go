@@ -225,8 +225,8 @@ func TestGetUpgradableVersions(t *testing.T) {
 	for _, tc := range testCases {
 		var actual output
 
-		for _, newV := range tc.given.newVersions {
-			actual.canUpgrades = append(actual.canUpgrades, canUpgrade(tc.given.currentVersion, &newV))
+		for i := range tc.given.newVersions {
+			actual.canUpgrades = append(actual.canUpgrades, canUpgrade(tc.given.currentVersion, &tc.given.newVersions[i]))
 		}
 
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)

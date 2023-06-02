@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/ehazlett/simplelog"
 	"github.com/sirupsen/logrus"
@@ -80,7 +81,13 @@ func initProfiling(options *config.CommonOptions) {
 	// enable profiler
 	if options.ProfilerAddress != "" {
 		go func() {
-			log.Println(http.ListenAndServe(options.ProfilerAddress, nil))
+			server := http.Server{
+				Addr: options.ProfilerAddress,
+				// fix G114: Use of net/http serve function that has no support for setting timeouts (gosec)
+				// refer to https://app.deepsource.com/directory/analyzers/go/issues/GO-S2114
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+			log.Println(server.ListenAndServe())
 		}()
 	}
 }

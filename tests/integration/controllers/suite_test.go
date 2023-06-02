@@ -164,8 +164,8 @@ func applyObj(obj []apiextensionsv1.CustomResourceDefinition) error {
 		return err
 	}
 
-	for _, v := range obj {
-		if _, err := apiClient.ApiextensionsV1().CustomResourceDefinitions().Create(testCtx, &v, metav1.CreateOptions{}); err != nil {
+	for i := range obj {
+		if _, err := apiClient.ApiextensionsV1().CustomResourceDefinitions().Create(testCtx, &obj[i], metav1.CreateOptions{}); err != nil {
 			return err
 		}
 	}

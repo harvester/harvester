@@ -72,7 +72,8 @@ func (c VMBackupCache) GetByIndex(indexName, key string) ([]*harvesterv1beta1.Vi
 			return nil, err
 		}
 		var backups []*harvesterv1beta1.VirtualMachineBackup
-		for _, b := range backupList.Items {
+		for i := range backupList.Items {
+			b := backupList.Items[i]
 			if b.Spec.Source.Name == key {
 				backups = append(backups, &b)
 			}
