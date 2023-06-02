@@ -6,6 +6,7 @@
 			"gofmt",
 			"misspell",
 			"revive",
+			"gosec",
 			"prealloc"
 		]
 	},
@@ -26,6 +27,18 @@
 	"linters-settings": {
 		"goimports": {
 			"local-prefixes": "github.com/harvester/harvester"
+		},
+		"gosec": {
+			"excludes": [
+				"G101",
+				"G108",
+				"G401",
+				"G402",
+				"G505"
+			],
+			"config": {
+				"G306": "0644"
+			}
 		}
 	}
 }

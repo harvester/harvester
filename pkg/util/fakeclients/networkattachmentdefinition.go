@@ -26,8 +26,8 @@ func (c NetworkAttachmentDefinitionCache) List(namespace string, selector labels
 	}
 
 	nads := []*cniv1.NetworkAttachmentDefinition{}
-	for _, item := range nadList.Items {
-		nads = append(nads, &item)
+	for i := range nadList.Items {
+		nads = append(nads, &nadList.Items[i])
 	}
 
 	return nads, nil
