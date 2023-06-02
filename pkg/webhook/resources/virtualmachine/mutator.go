@@ -262,18 +262,19 @@ func (m *vmMutator) patchAffinity(vm *kubevirtv1.VirtualMachine, patchOps types.
 	}
 
 	affinity := makeAffinityFromVMTemplate(vm.Spec.Template)
-	nodeSelector := affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	requiredNodeSelector := affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	preferredNodeSelector := affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
 
 	newVMNetworks := vm.Spec.Template.Spec.Networks
 	logrus.Debugf("newNetworks: %+v", newVMNetworks)
 
-	if err := m.addNodeSelectorTerms(vm.Namespace, nodeSelector, newVMNetworks); err != nil {
+	if err := m.addNodeSelectorTerms(vm.Namespace, requiredNodeSelector, newVMNetworks); err != nil {
 		return patchOps, err
 	}
 
 	// The .spec.affinity could not be like `{nodeAffinity:requireDuringSchedulingIgnoreDuringExecution:[]}` if there is not any rules.
-	if len(nodeSelector.NodeSelectorTerms) == 0 {
-		return append(patchOps, fmt.Sprintf(`{"op":"replace","path":"/spec/template/spec/affinity","value":{}}`)), nil
+	if len(requiredNodeSelector.NodeSelectorTerms) == 0 && len(preferredNodeSelector) == 0 {
+		affinity.NodeAffinity = nil
 	}
 
 	bytes, err := json.Marshal(affinity)
