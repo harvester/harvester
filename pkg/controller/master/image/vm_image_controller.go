@@ -217,7 +217,8 @@ func (h *vmImageHandler) createStorageClass(image *harvesterv1.VirtualMachineIma
 }
 
 func (h *vmImageHandler) deleteBackingImage(image *harvesterv1.VirtualMachineImage) error {
-	return h.backingImages.Delete(util.LonghornSystemNamespaceName, util.GetBackingImageName(image), &metav1.DeleteOptions{})
+	propagation := metav1.DeletePropagationForeground
+	return h.backingImages.Delete(util.LonghornSystemNamespaceName, util.GetBackingImageName(image), &metav1.DeleteOptions{PropagationPolicy: &propagation})
 }
 
 func (h *vmImageHandler) deleteStorageClass(image *harvesterv1.VirtualMachineImage) error {
