@@ -44,7 +44,7 @@ func (r *project) Resource() types.Resource {
 		Scope:          admissionregv1.NamespacedScope,
 		APIGroup:       "management.cattle.io",
 		APIVersion:     "v3",
-		ObjectType:     &managementv3.ProjectRoleTemplateBinding{},
+		ObjectType:     &managementv3.Project{},
 		OperationTypes: []admissionregv1.OperationType{"*"},
 	}
 }
