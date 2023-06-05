@@ -22,7 +22,9 @@ import (
 )
 
 const (
-	HarvesterServiceAccount   = "harvester"
+	HarvesterServiceAccount = "harvester"
+	//AdditionalTaintToleration value when passed to SUPPORT_BUNDLE_TAINT_TOLERATION env variable, is processed as v1.TolerationOpExists
+	//which allows the support-bundle-kit pods to be scheduled on nodes with custom taints
 	AdditionalTaintToleration = ":"
 )
 
