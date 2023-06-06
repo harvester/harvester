@@ -32,6 +32,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			createLonghornVolumeCRD(),
 			createLonghornReplicaCRD(),
 			createClusterRepoCRD(),
+			createClusterManagementCRD(),
 		).
 		BatchWait()
 }
@@ -96,4 +97,12 @@ func createClusterRepoCRD() wcrd.CRD {
 	clusterrepo.PluralName = "clusterrepos"
 	clusterrepo.SingularName = "clusterrepo"
 	return clusterrepo
+}
+
+func createClusterManagementCRD() wcrd.CRD {
+	cluster := crd.FromGV(mgmtv3.SchemeGroupVersion, "Cluster", mgmtv3.Cluster{})
+	cluster.SingularName = "cluster"
+	cluster.PluralName = "clusters"
+	cluster.NonNamespace = true
+	return cluster
 }

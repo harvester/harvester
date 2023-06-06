@@ -13,9 +13,6 @@ import (
 	"strings"
 
 	"github.com/longhorn/backupstore"
-	// Although we don't use following drivers directly, we need to import them to register drivers.
-	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
-	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
 	_ "github.com/longhorn/backupstore/nfs" //nolint
 	_ "github.com/longhorn/backupstore/s3"  //nolint
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
@@ -94,6 +91,7 @@ func NewValidator(
 	vmRestoreCache ctlv1beta1.VirtualMachineRestoreCache,
 	vmis ctlkubevirtv1.VirtualMachineInstanceCache,
 	featureCache mgmtv3.FeatureCache,
+	clusterCache mgmtv3.ClusterCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -102,6 +100,7 @@ func NewValidator(
 		vmRestoreCache:     vmRestoreCache,
 		vmis:               vmis,
 		featureCache:       featureCache,
+		clusterCache:       clusterCache,
 	}
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
 	validateSettingFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateVolumeSnapshotClass
@@ -112,6 +111,8 @@ func NewValidator(
 	validateSettingFuncs[settings.StorageNetworkName] = validator.validateStorageNetwork
 	validateSettingUpdateFuncs[settings.StorageNetworkName] = validator.validateUpdateStorageNetwork
 	validateSettingDeleteFuncs[settings.StorageNetworkName] = validator.validateDeleteStorageNetwork
+
+	validateSettingUpdateFuncs[settings.ClusterRegistrationURL.Name] = validator.validateClusterRegistrationPossible
 	return validator
 }
 
@@ -124,6 +125,7 @@ type settingValidator struct {
 	vmRestoreCache     ctlv1beta1.VirtualMachineRestoreCache
 	vmis               ctlkubevirtv1.VirtualMachineInstanceCache
 	featureCache       mgmtv3.FeatureCache
+	clusterCache       mgmtv3.ClusterCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -683,12 +685,28 @@ func (v *settingValidator) validateUpdateRancherManagerSupport(oldSetting *v1bet
 		return nil
 	}
 
+	var oldEnableManager bool
+
 	enableManager, err := strconv.ParseBool(strings.ToLower(newSetting.Value))
 	if err != nil {
 		return werror.NewInvalidError("value should be either true or false", "value")
 	}
 
-	if !enableManager {
+	if oldSetting.Value != "" {
+		oldEnableManager, err = strconv.ParseBool(strings.ToLower(oldSetting.Value))
+		if err != nil {
+			return werror.NewInvalidError("value should be either true or false", "value")
+		}
+	}
+
+	// setting changed from enabled to disabled
+	if oldEnableManager && !enableManager {
+		// check if any locally provisioned clusters exist
+		return v.additionalClustersExist()
+	}
+
+	// no change to setting
+	if !oldEnableManager && !enableManager {
 		return nil
 	}
 
@@ -703,6 +721,14 @@ func (v *settingValidator) validateUpdateRancherManagerSupport(oldSetting *v1bet
 		return werror.NewInvalidError("cannot enable Rancher Manager support. The multi-cluster-management feature is not enabled", "value")
 	}
 
+	clusterRegistrationURLValue, err := v.settingCache.Get(settings.ClusterRegistrationURL.Name)
+	if err != nil {
+		werror.NewInternalError(err.Error())
+	}
+
+	if clusterRegistrationURLValue.Value != "" {
+		werror.NewMethodNotAllowed(fmt.Sprintf("unable to enable %s, as cluster is already managed by another rancher", settings.RancherManagerSupport.Name))
+	}
 	return nil
 }
 
@@ -725,4 +751,39 @@ func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) er
 
 func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateDefaultVMTerminationGracePeriodSeconds(newSetting)
+}
+
+func (v *settingValidator) additionalClustersExist() error {
+	clusterList, err := v.clusterCache.List(labels.NewSelector())
+	if err != nil {
+		return err
+	}
+
+	if len(clusterList) > 1 {
+		return werror.NewMethodNotAllowed(fmt.Sprintf("unable to disable setting: %s, additional %d clusters provisioned by rancher", settings.RancherManagerSupportSettingName, len(clusterList)))
+	}
+
+	return nil
+}
+
+func (v *settingValidator) validateClusterRegistrationPossible(oldSetting, newSetting *v1beta1.Setting) error {
+	if newSetting.Value == "" {
+		return nil
+	}
+
+	rancherManagementSupportSetting, err := v.settingCache.Get(settings.RancherManagerSupportSettingName)
+	if err != nil {
+		werror.NewInternalError(err.Error())
+	}
+
+	enableManager, err := strconv.ParseBool(strings.ToLower(rancherManagementSupportSetting.Value))
+	if err != nil {
+		return werror.NewInvalidError("value should be either true or false", "value")
+	}
+
+	if enableManager {
+		return werror.NewMethodNotAllowed(fmt.Sprintf("unable to set %s, as %s is enabled", settings.ClusterRegistrationURL.Name, settings.RancherManagerSupportSettingName))
+	}
+
+	return nil
 }
