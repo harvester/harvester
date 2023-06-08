@@ -397,3 +397,99 @@ detect_harvester_vip()
     echo "kubectl get configmap -n kube-system kubevip failed"
   fi
 }
+
+# formal release like v1.2.0
+# the "true" / "false" are the "return" value, DO NOT echo anything else
+is_formal_release()
+{
+  local REGEX='^v[0-9]{1}[\.][0-9]{1}[\.][0-9]{1}$'
+  if [[ $1 =~ $REGEX ]]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# rc release like v1.2.0-rc2
+# the "true" / "false" are the "return" value, DO NOT echo anything else
+is_rc_release()
+{
+  local REGEX='^v[0-9]{1}[\.][0-9]{1}[\.][0-9]{1}-rc.*$'
+  if [[ $1 =~ $REGEX ]]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# upgrade addon, the only operation is to upgrade the chart version
+upgrade_addon_try_patch_version_only()
+{
+  local name=$1
+  local namespace=$2
+  local newversion=$3
+  echo "try to patch addon $name in $namespace $newversion"
+
+  # check if addon is there
+  local version=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.spec.version}' || true)
+  if [[ -z "$version" ]]; then
+    echo "addon is not found, nothing to do"
+    return 0
+  fi
+
+  # check if version is updated
+  if [[ "$version" = "$newversion" ]]; then
+    echo "addon has already been $newversion, nothing to do"
+    return 0
+  fi
+
+  # patch version
+  local patchfile=addon-patch-temp.yaml
+  cat > $patchfile <<EOF
+spec:
+  version: "$newversion"
+EOF
+  echo "to be patched file content"
+  cat ./$patchfile
+
+  local enabled=""
+  local curstatus=""
+  enabled=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.spec.enabled}' || true)
+  if [[ $enabled = "true" ]]; then
+    curstatus=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.status.status}' || true)
+  fi
+
+  kubectl patch addons.harvesterhci.io $name -n $namespace --patch-file ./$patchfile --type merge
+  rm -f ./$patchfile
+
+  # wait status only when enabled and already AddonDeploySuccessful
+  if [[ $enabled = "true" ]]; then
+    if [[ "$curstatus" = "AddonDeploySuccessful" ]]; then
+      echo "wait addon status to be AddonDeploySuccessful"
+      local status=""
+      status=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.status.status}' || true)
+      while [[ "$status" != "AddonDeploySuccessful" ]]
+      do
+        # echo "$status"
+        echo "wait for addon status to be AddonDeploySuccessful, current is $status"
+        sleep 5
+        status=""
+        status=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.status.status}' || true)
+      done
+      echo "addon status is AddonDeploySuccessful"
+    else
+      if [[ -z $curstatus ]]; then
+        echo "addon status is failed to fetch, do not wait"
+      else
+        echo "addon status is $curstatus, do not wait"
+      fi
+    fi
+  else
+    if [[ -z $enabled ]]; then
+      echo "addon enabled is failed to fetch, do not wait"
+    else
+      echo "addon enabled is $enabled, do not wait"
+    fi
+  fi
+}
+
