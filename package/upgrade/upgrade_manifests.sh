@@ -517,15 +517,21 @@ EOF
 }
 
 upgrade_monitoring() {
-  if [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.1.1" ]] && [[ "$UPGRADE_PREVIOUS_VERSION" < "v1.2.0" ]]; then
+  if [[ $(is_formal_release $UPGRADE_PREVIOUS_VERSION) = "true" ]]; then
+    if [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.1.1" ]] && [[ "$UPGRADE_PREVIOUS_VERSION" < "v1.2.0" ]]; then
+      upgrade_managedchart_monitoring_crd
+      convert_monitoring_to_addon
+    elif [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.2.0" ]] || [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.2.0" ]]; then
+      # from v1.2.0, only crd here, rancher-monitoring is upgraded in addons
+      upgrade_managedchart_monitoring_crd
+    else
+      # legacy, upgrade both
+      upgrade_managedchart_monitoring_and_crd
+    fi
+  else
+   # for version like v1.2.0/v1.1.2 master-head to master-head/rc/formal release, try convert anyway
     upgrade_managedchart_monitoring_crd
     convert_monitoring_to_addon
-  elif [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.2.0" ]] || [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.2.0" ]]; then
-    # from v1.2.0, only crd here, rancher-monitoring is upgraded in addons
-    upgrade_managedchart_monitoring_crd
-  else
-    # legacy, upgrade both
-    upgrade_managedchart_monitoring_and_crd
   fi
 }
 
@@ -975,17 +981,23 @@ upgrade_logging_event_audit() {
   # from v1.0.3, logging, event, audit are enabled by default
   echo "The current version is $UPGRADE_PREVIOUS_VERSION, will check Logging Event Audit upgrade manifest option"
 
-  if [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.0.3" ]]; then
-    upgrade_logging_event_audit_new_feature
-  elif [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.1.1" ]] && [[ "$UPGRADE_PREVIOUS_VERSION" < "v1.2.0" ]]; then
-    # from v1.1.2 to potential v1.1.3,v1.1.4 ...
+  if [[ $(is_formal_release $UPGRADE_PREVIOUS_VERSION) = "true" ]]; then
+    if [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.0.3" ]]; then
+      upgrade_logging_event_audit_new_feature
+    elif [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.1.1" ]] && [[ "$UPGRADE_PREVIOUS_VERSION" < "v1.2.0" ]]; then
+      # from v1.1.2 to potential v1.1.3,v1.1.4 ...
+      upgrade_managedchart_logging_crd
+      convert_logging_audit_to_addon
+    elif [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.2.0" ]] || [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.2.0" ]]; then
+      # from v1.2.0, only crd here, rancher-logging is upgraded in addons
+      upgrade_managedchart_logging_crd
+    else
+      echo "Logging Event Audit: nothing to do in $UPGRADE_PREVIOUS_VERSION"
+    fi
+  else
+    # for version like v1.2.0/v1.1.2 master-head to master-head/rc/formal release, try convert anyway
     upgrade_managedchart_logging_crd
     convert_logging_audit_to_addon
-  elif [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.2.0" ]] || [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.2.0" ]]; then
-    # from v1.2.0, only crd here, rancher-logging is upgraded in addons
-    upgrade_managedchart_logging_crd
-  else
-    echo "Logging Event Audit: nothing to do in $UPGRADE_PREVIOUS_VERSION"
   fi
 }
 
@@ -1042,15 +1054,29 @@ pause_all_charts() {
 # NOTE: review in each release, add corresponding process
 upgrade_addon_rancher_monitoring()
 {
-  echo "upgrade of addon rancher_monitoring"
-  echo ".spec.valuesContent has dynamic fields, cannot merge simply, review in each release"
+  echo "upgrade addon rancher_monitoring"
+  if [[ $(is_formal_release $UPGRADE_PREVIOUS_VERSION) = "true" ]]; then
+    if [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.2.0" ]] || [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.2.0" ]]; then
+      echo ".spec.valuesContent has dynamic fields, cannot merge simply, review in each release"
+    fi
+  else
+    # the addon may be existing in v1.2.0 master-head release and the chart version is bumped, then the addon is upgraded to new version
+    upgrade_addon_try_patch_version_only "rancher-monitoring" "cattle-monitoring-system" $REPO_MONITORING_CHART_VERSION
+  fi
 }
 
 # NOTE: review in each release, add corresponding process
 upgrade_addon_rancher_logging()
 {
-  echo "upgrade of addon rancher_logging"
-  echo ".spec.valuesContent has dynamic fields, cannot merge simply, review in each release"
+  echo "upgrade addon rancher_logging"
+  if [[ $(is_formal_release $UPGRADE_PREVIOUS_VERSION) = "true" ]]; then
+    if [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.2.0" ]] || [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.2.0" ]]; then
+      echo ".spec.valuesContent has dynamic fields, cannot merge simply, review in each release"
+    fi
+  else
+    # the addon may be existing in v1.2.0 master-head release and the chart version is bumped, then the addon is upgraded to new version
+    upgrade_addon_try_patch_version_only "rancher-logging" "cattle-logging-system" $REPO_LOGGING_CHART_VERSION
+  fi
 }
 
 upgrade_addons()
@@ -1063,10 +1089,8 @@ upgrade_addons()
 
   # those 2 addons are not simply installed, they are converted from managedchart, above code is no reused
   # from v1.2.0, they are upgraded per following
-  if [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.2.0" ]] || [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.2.0" ]]; then
-    upgrade_addon_rancher_monitoring
-    upgrade_addon_rancher_logging
-  fi
+  upgrade_addon_rancher_monitoring
+  upgrade_addon_rancher_logging
 }
 
 reuse_vlan_cn() {
