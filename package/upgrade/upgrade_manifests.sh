@@ -278,6 +278,41 @@ upgrade_rancher() {
   wait_capi_cluster fleet-local local $pre_generation
 }
 
+update_local_rke_state_secret() {
+  # Starting from Rancher v2.7, the local-rke-state Secret needs to be in type of "rke.cattle.io/current-state"
+  # Need to convert it from the "Opaque" type; otherwise, the following RKE2 upgrades won't start
+  # Ref: https://github.com/rancher/rancher/pull/41088
+  readonly secret_name="local-rke-state"
+  readonly new_secret_type="rke.cattle.io/cluster-state"
+
+  echo "Check current local-rke-state secret type..."
+  local secret_file
+  secret_file=$(mktemp -p "$UPGRADE_TMP_DIR")
+  kubectl -n fleet-local get secrets "$secret_name" -o yaml > "$secret_file"
+  local current_secret_type
+  current_secret_type=$(yq '.type' "$secret_file")
+  if [ "$current_secret_type" = "Opaque" ]; then
+    secret_type="$new_secret_type" yq -e '.type = strenv(secret_type)' "$secret_file" -i
+  else
+    echo "Current secret type is: $current_secret_type, skip update"
+    return
+  fi
+
+  echo "Scale down Rancher deployment to 0"
+  local rancher_deployment_replica_count
+  rancher_deployment_replica_count=$(kubectl -n cattle-system get deployment rancher -o jsonpath='{.spec.replicas}')
+  kubectl -n cattle-system scale deployment rancher --replicas=0
+
+  echo "Remove old secret and apply new one"
+  kubectl -n fleet-local delete secret local-rke-state
+  kubectl -n fleet-local apply -f "$secret_file"
+
+  echo "Scale up Rancher deployment to original replica count"
+  kubectl -n cattle-system scale deployment rancher --replicas="$rancher_deployment_replica_count"
+  echo "Wait for Rancher deployment becoming ready"
+  wait_rollout cattle-system deployment rancher
+}
+
 upgrade_harvester_cluster_repo() {
   echo "Upgrading Harvester Cluster Repo"
 
@@ -645,6 +680,7 @@ check_version
 pre_upgrade_manifest
 pause_all_charts
 upgrade_rancher
+update_local_rke_state_secret
 upgrade_harvester_cluster_repo
 upgrade_network
 upgrade_harvester
