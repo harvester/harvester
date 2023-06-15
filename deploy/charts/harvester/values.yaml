@@ -453,12 +453,12 @@ harvester-load-balancer:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/harvester-load-balancer
-    tag: v0.2.0-rc2
+    tag: v0.2.0-rc3
   webhook:
     image:
       imagePullPolicy: IfNotPresent
       repository: rancher/harvester-load-balancer-webhook
-      tag: v0.2.0-rc2
+      tag: v0.2.0-rc3
 
 kube-vip:
   enabled: false
@@ -502,5 +502,5 @@ harvester-node-manager:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/harvester-node-manager
-    tag: v0.1.4
+    tag: v0.1.5
 
