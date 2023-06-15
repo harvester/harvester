@@ -53,5 +53,5 @@ dependencies:
     repository: file://dependency_charts/whereabouts
     condition: whereabouts.enabled
   - name: harvester-node-manager
-    version: 0.1.4
+    version: 0.1.5
     repository: https://charts.harvesterhci.io
