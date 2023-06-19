@@ -1,13 +1,25 @@
 package util
 
-import "strings"
+import (
+	"strings"
+
+	"golang.org/x/exp/slices"
+)
 
 type NTPSettings struct {
 	NTPServers []string `json:"ntpServers,omitempty"`
 }
 
-func GetNTPServers(ntpSettings *NTPSettings) string {
-	ntpServers := ntpSettings.NTPServers
+func ReGenerateNTPServers(ntpSettings *NTPSettings, curNTPServers []string) string {
+	parsedNTPServers := make([]string, 0)
+	if len(curNTPServers) == 0 {
+		curNTPServers = parsedNTPServers
+	}
 
-	return strings.Join(ntpServers, " ")
+	for _, ntpServer := range ntpSettings.NTPServers {
+		if !slices.Contains(curNTPServers, ntpServer) {
+			curNTPServers = append(curNTPServers, ntpServer)
+		}
+	}
+	return strings.Join(curNTPServers, " ")
 }
