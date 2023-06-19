@@ -10,6 +10,9 @@ const (
 	AddonEnabled  AddonState = "AddonEnabled"
 	AddonDeployed AddonState = "AddonDeploySuccessful"
 	AddonFailed   AddonState = "AddonDeployFailed"
+	//	AddonDisabled AddonState = "AddonDisabled"
+	AddonDisabling    AddonState = "AddonDisabling"
+	AddonDisableFaild AddonState = "AddonDisableFailed"
 )
 
 // +genclient
