@@ -723,11 +723,11 @@ func (v *settingValidator) validateUpdateRancherManagerSupport(oldSetting *v1bet
 
 	clusterRegistrationURLValue, err := v.settingCache.Get(settings.ClusterRegistrationURL.Name)
 	if err != nil {
-		werror.NewInternalError(err.Error())
+		return werror.NewInternalError(err.Error())
 	}
 
 	if clusterRegistrationURLValue.Value != "" {
-		werror.NewMethodNotAllowed(fmt.Sprintf("unable to enable %s, as cluster is already managed by another rancher", settings.RancherManagerSupport.Name))
+		return werror.NewMethodNotAllowed(fmt.Sprintf("unable to enable %s, as cluster is already managed by another rancher", settings.RancherManagerSupport.Name))
 	}
 	return nil
 }
@@ -773,7 +773,7 @@ func (v *settingValidator) validateClusterRegistrationPossible(oldSetting, newSe
 
 	rancherManagementSupportSetting, err := v.settingCache.Get(settings.RancherManagerSupportSettingName)
 	if err != nil {
-		werror.NewInternalError(err.Error())
+		return werror.NewInternalError(err.Error())
 	}
 
 	enableManager, err := strconv.ParseBool(strings.ToLower(rancherManagementSupportSetting.Value))
