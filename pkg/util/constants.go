@@ -31,23 +31,35 @@ const (
 
 	AnnotationDefaultUserdataSecret = prefix + "/default-userdata-secret"
 
+	// Add to objects to record upgrade previous version
+	AnnotationUpgradePreviousVersion = prefix + "/upgrade-previous-version"
+
+	// Add to rancher-monitoring addon to record grafana pv name
+	AnnotationGrafanaPVName = prefix + "/grafana-pv-name"
+
+	AnnotationAddonLastOperation          = prefix + "/addon-last-operation"
+	AnnotationAddonLastOperationTimestamp = prefix + "/addon-last-operation-timestamp"
+
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
 
-	BackupTargetSecretName            = "harvester-backup-target-secret"
-	InternalTLSSecretName             = "tls-rancher-internal"
-	Rke2IngressNginxAppName           = "rke2-ingress-nginx"
-	CattleSystemNamespaceName         = "cattle-system"
-	LonghornSystemNamespaceName       = "longhorn-system"
-	LonghornDefaultManagerURL         = "http://longhorn-backend.longhorn-system:9500/v1"
-	KubeSystemNamespace               = "kube-system"
-	FleetLocalNamespaceName           = "fleet-local"
-	LocalClusterName                  = "local"
-	HarvesterSystemNamespaceName      = "harvester-system"
-	RancherLoggingName                = "rancher-logging"
-	CattleLoggingSystemNamespaceName  = "cattle-logging-system"
-	HarvesterUpgradeImageRepository   = "rancher/harvester-upgrade"
-	HarvesterLonghornStorageClassName = "harvester-longhorn"
+	BackupTargetSecretName              = "harvester-backup-target-secret"
+	InternalTLSSecretName               = "tls-rancher-internal"
+	Rke2IngressNginxAppName             = "rke2-ingress-nginx"
+	CattleSystemNamespaceName           = "cattle-system"
+	LonghornSystemNamespaceName         = "longhorn-system"
+	LonghornDefaultManagerURL           = "http://longhorn-backend.longhorn-system:9500/v1"
+	KubeSystemNamespace                 = "kube-system"
+	FleetLocalNamespaceName             = "fleet-local"
+	LocalClusterName                    = "local"
+	HarvesterSystemNamespaceName        = "harvester-system"
+	RancherLoggingName                  = "rancher-logging"
+	CattleLoggingSystemNamespaceName    = "cattle-logging-system"
+	HarvesterUpgradeImageRepository     = "rancher/harvester-upgrade"
+	HarvesterLonghornStorageClassName   = "harvester-longhorn"
+	GrafanaPVCName                      = "rancher-monitoring-grafana"
+	RancherMonitoringName               = "rancher-monitoring"
+	CattleMonitoringSystemNamespaceName = "cattle-monitoring-system"
 
 	HTTPProxyEnv  = "HTTP_PROXY"
 	HTTPSProxyEnv = "HTTPS_PROXY"
