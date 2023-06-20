@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	// corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -100,6 +99,72 @@ func Test_validateUpdatedAddon(t *testing.T) {
 				},
 			},
 			expectedError: true,
+		},
+		{
+			name: "cannot change disabling addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.DisablingAddon,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1-changed",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.DisablingAddon,
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "disable addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.DisablingAddon,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{},
+			},
+			expectedError: false,
 		},
 	}
 

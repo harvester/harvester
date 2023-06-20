@@ -7,9 +7,10 @@ import (
 type AddonState string
 
 const (
-	AddonEnabled  AddonState = "AddonEnabled"
-	AddonDeployed AddonState = "AddonDeploySuccessful"
-	AddonFailed   AddonState = "AddonDeployFailed"
+	AddonEnabled   AddonState = "AddonEnabled"
+	AddonDeployed  AddonState = "AddonDeploySuccessful"
+	AddonFailed    AddonState = "AddonDeployFailed"
+	DisablingAddon AddonState = "DisablingAddon"
 )
 
 // +genclient

@@ -75,5 +75,9 @@ func validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) erro
 		return werror.NewBadRequest("chart field cannot be changed.")
 	}
 
+	if oldAddon.Status.Status == v1beta1.DisablingAddon && newAddon.Spec.Enabled {
+		return werror.NewBadRequest("addon is currently disabling and cannot be enabled")
+	}
+
 	return nil
 }

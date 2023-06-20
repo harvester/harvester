@@ -167,6 +167,14 @@ func (h *Handler) OnAddonChange(key string, a *harvesterv1.Addon) (*harvesterv1.
 	}
 
 	if !a.Spec.Enabled && ok {
+		// update status to DisablingAddon
+		// this is used by validating webhook to ensure no changes can be done to addon
+		// while until uninstall is complete
+		if a.Status.Status != harvesterv1.DisablingAddon {
+			aCopy := a.DeepCopy()
+			aCopy.Status.Status = harvesterv1.DisablingAddon
+			return h.addon.UpdateStatus(aCopy)
+		}
 		return h.removeHelmChart(a)
 	}
 	return nil, nil

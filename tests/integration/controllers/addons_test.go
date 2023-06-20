@@ -631,6 +631,20 @@ var _ = Describe("enable and disable successful addon", func() {
 			}, "30s", "5s").ShouldNot(HaveOccurred())
 		})
 
+		By("check addon gets to DisablingAddon state", func() {
+			Eventually(func() error {
+				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("error fetching addon: %v", err)
+				}
+
+				if aObj.Status.Status != harvesterv1.DisablingAddon && aObj.Status.Status != "" {
+					return fmt.Errorf("waiting for addon to be disabled, current state is :%s", aObj.Status.Status)
+				}
+				return nil
+			}, "30s", "5s").ShouldNot(HaveOccurred())
+		})
+
 		By("helm chart is missing", func() {
 			Eventually(func() error {
 				_, err := helmController.Get(a.Namespace, a.Name, metav1.GetOptions{})
