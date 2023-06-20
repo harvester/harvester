@@ -852,12 +852,36 @@ convert_monitoring_to_addon() {
   local enabled=false
   local pod_cnt=0
 
+  local pvname=""
+  local removeClaimRef=false
+
   if [ "$cnt" -gt 0 ]; then
     # in v1.1.2, the monitoring is enabled
     enabled=true
     saved_config=$(kubectl get managedchart -n fleet-local "$chart_name" -o yaml | yq -e ".spec.values")
     echo "saved managedchart config:"
     echo "$saved_config"
+
+    # try to retain grafana PV
+    # when grafana pvc is not enabled, pvc is not existing, kubectl will return 1
+    # pv name is like pvc-e2983b67-035a-485e-bb44-fbf6309389cb
+    pvname=$(kubectl get pvc -n "$namespace" rancher-monitoring-grafana -o jsonpath={".spec.volumeName"}) || true
+    removeClaimRef=false
+    if [ ! -z $pvname ]; then
+      local rp=$(kubectl get pv $pvname -o jsonpath={".spec.persistentVolumeReclaimPolicy"}) || true
+      if [ ! -z $rp ]; then
+        if [ ! $rp = "Retain" ]; then
+          echo "patch ReclaimPolicy of grafana pv $pvname from $rp to Retain"
+          kubectl patch pv $pvname -p "{\"spec\":{\"persistentVolumeReclaimPolicy\":\"Retain\"}}"
+        fi
+        removeClaimRef=true
+      else
+        echo "did not find grafana pv, or spec.persistentVolumeReclaimPolicy is empty"
+      fi
+    else
+      echo "did not find grafana pvc"
+    fi
+
     pod_cnt=$(kubectl get pods -n "$namespace" --no-headers | wc -l)
     echo "there are $pod_cnt pods in $namespace will be replaced"
     echo "delete managedchart $chart_name"
@@ -874,6 +898,31 @@ convert_monitoring_to_addon() {
         break
       fi
     done
+
+    # remove pv CliamRef when it is status 'Released', and after that, it becomes 'Available'
+    if [ $removeClaimRef = true ]; then
+      local phase=$(kubectl get pv $pvname -o jsonpath="{.status.phase}") || true
+      if [ $phase = "Released" ]; then
+        echo "patch ClaimRef of grafana pv, current status is Released"
+        echo "current ClaimRef is"
+        kubectl get pv $pvname -o jsonpath={".spec.claimRef"} && echo ""
+        # remove uid is enough
+        kubectl patch pv $pvname --type json -p '[{"op": "remove", "path": "/spec/claimRef/uid"}]'
+        sleep 2
+        echo "after patch, ClaimRef is"
+        kubectl get pv $pvname -o jsonpath={".spec.claimRef"} && echo ""
+        echo "the new status is"
+        kubectl get pv $pvname -o jsonpath="{.status.phase}" && echo ""
+      elif [ $phase = "Available" ]; then
+        echo "grafana pv status has already been Available, do not patch ClaimRef"
+        echo "current ClaimRef is"
+        kubectl get pv $pvname -o jsonpath={".spec.claimRef"} && echo ""
+      else
+        # CAN NOT simply remove the ClaimRef
+        echo "the status.phase of grafana pv is $phase, CAN NOT patch ClaimRef"
+        removeClaimRef=false
+      fi
+    fi
   fi
 
   # create tmp addon yaml file
@@ -894,7 +943,7 @@ convert_monitoring_to_addon() {
       echo "replace the 'replace_with_vip' with $HARVESTER_VIP in $target_file"
       sed -i "s/replace_with_vip/$HARVESTER_VIP/" $target_file
     else
-      echo "detect vip fail, does not replace the 'replace_with_vip' in $target_file"
+      echo "detect vip fail, do not replace the 'replace_with_vip' in $target_file"
     fi
   fi
 
@@ -910,6 +959,14 @@ convert_monitoring_to_addon() {
   if [ ! -z $REPO_MONITORING_CHART_VERSION ]; then
     echo "replace addon chart version to target: $REPO_MONITORING_CHART_VERSION"
     values="$REPO_MONITORING_CHART_VERSION" yq -i e '.spec.version=strenv(values)' $target_file
+  fi
+
+  values="$UPGRADE_PREVIOUS_VERSION" yq -i e '.metadata.annotations["harvesterhci.io/upgrade-previous-version"]=strenv(values)' $target_file
+
+  if [ $removeClaimRef = true ]; then
+    # annotation pv name for future usage on controller side, when addon is disabled, will also try to keep grafana pv
+    echo "annotate addon with grafana pv name"
+    values="$pvname" yq -i e '.metadata.annotations["harvesterhci.io/grafana-pv-name"]=strenv(values)' $target_file
   fi
 
   echo "final monitoring addon yaml file"
