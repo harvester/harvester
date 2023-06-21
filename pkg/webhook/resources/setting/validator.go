@@ -19,8 +19,10 @@ import (
 	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
 	_ "github.com/longhorn/backupstore/nfs" //nolint
 	_ "github.com/longhorn/backupstore/s3"  //nolint
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	"github.com/rancher/wharfie/pkg/registries"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/slice"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
@@ -35,6 +37,7 @@ import (
 	storagenetworkctl "github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctllhv1b2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -44,7 +47,12 @@ import (
 )
 
 const (
-	mcmFeature = "multi-cluster-management"
+	mcmFeature                        = "multi-cluster-management"
+	labelAppNameKey                   = "app.kubernetes.io/name"
+	labelAppNameValuePrometheus       = "prometheus"
+	labelAppNameValueAlertManager     = "alertmanager"
+	labelAppNameValueGrafana          = "grafana"
+	labelAppNameValueImportController = "harvester-vm-import-controller"
 )
 
 var certs = getSystemCerts()
@@ -101,6 +109,8 @@ func NewValidator(
 	vmRestoreCache ctlv1beta1.VirtualMachineRestoreCache,
 	vmis ctlkubevirtv1.VirtualMachineInstanceCache,
 	featureCache mgmtv3.FeatureCache,
+	lhVolumeCache ctllhv1b2.VolumeCache,
+	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -109,6 +119,8 @@ func NewValidator(
 		vmRestoreCache:     vmRestoreCache,
 		vmis:               vmis,
 		featureCache:       featureCache,
+		lhVolumeCache:      lhVolumeCache,
+		pvcCache:           pvcCache,
 	}
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
 	validateSettingFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateVolumeSnapshotClass
@@ -131,6 +143,8 @@ type settingValidator struct {
 	vmRestoreCache     ctlv1beta1.VirtualMachineRestoreCache
 	vmis               ctlkubevirtv1.VirtualMachineInstanceCache
 	featureCache       mgmtv3.FeatureCache
+	lhVolumeCache      ctllhv1b2.VolumeCache
+	pvcCache           ctlcorev1.PersistentVolumeClaimCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -709,6 +723,96 @@ func (v *settingValidator) validateDeleteStorageNetwork(setting *v1beta1.Setting
 	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.StorageNetworkName))
 }
 
+func (v *settingValidator) findVolumesByLabelAppName(namespace string, labelAppNameValue string) ([]string, error) {
+	volumes := make([]string, 0)
+	sets := labels.Set{
+		labelAppNameKey: labelAppNameValue,
+	}
+
+	pvcs, err := v.pvcCache.List(namespace, sets.AsSelector())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pvc := range pvcs {
+		if pvc.Spec.VolumeName == "" {
+			continue
+		}
+		logrus.Debugf("Get system volume %v", pvc.Spec.VolumeName)
+		volumes = append(volumes, pvc.Spec.VolumeName)
+	}
+
+	return volumes, nil
+}
+
+type getVolumesFunc func() ([]string, error)
+
+func (v *settingValidator) getPrometheusVolumes() ([]string, error) {
+	return v.findVolumesByLabelAppName(util.CattleMonitoringSystemNamespace, labelAppNameValuePrometheus)
+}
+
+func (v *settingValidator) getAlertManagerVolumes() ([]string, error) {
+	return v.findVolumesByLabelAppName(util.CattleMonitoringSystemNamespace, labelAppNameValueAlertManager)
+}
+
+func (v *settingValidator) getGrafanaVolumes() ([]string, error) {
+	return v.findVolumesByLabelAppName(util.CattleMonitoringSystemNamespace, labelAppNameValueGrafana)
+}
+
+func (v *settingValidator) getVMImportControllerVolumes() ([]string, error) {
+	return v.findVolumesByLabelAppName(util.HarvesterSystemNamespaceName, labelAppNameValueImportController)
+}
+
+func (v *settingValidator) getSystemVolumes() (map[string]struct{}, error) {
+	getVolumeFuncs := []getVolumesFunc{
+		v.getPrometheusVolumes,
+		v.getAlertManagerVolumes,
+		v.getGrafanaVolumes,
+		v.getVMImportControllerVolumes,
+	}
+
+	systemVolumes := make(map[string]struct{})
+	for _, f := range getVolumeFuncs {
+		volumes, err := f()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, volume := range volumes {
+			systemVolumes[volume] = struct{}{}
+		}
+	}
+
+	return systemVolumes, nil
+}
+
+func (v *settingValidator) checkOnlineVolume() error {
+	systemVolumes, err := v.getSystemVolumes()
+	if err != nil {
+		logrus.Errorf("getSystemVolumes err %v", err)
+		return err
+	}
+
+	volumes, err := v.lhVolumeCache.List(util.LonghornSystemNamespaceName, labels.Everything())
+	if err != nil {
+		logrus.Errorf("list longhorn volumes err %v", err)
+		return err
+	}
+
+	for _, volume := range volumes {
+		if _, found := systemVolumes[volume.Name]; found {
+			continue
+		}
+
+		if volume.Status.State != lhv1beta2.VolumeStateDetached {
+			logrus.Errorf("volume %v in state %v", volume.Name, volume.Status.State)
+			return fmt.Errorf("please stop all workloads before configuring the storage-network setting")
+		}
+	}
+
+	return nil
+}
+
 func (v *settingValidator) checkStorageNetworkValueVaild(setting *v1beta1.Setting) error {
 	// check JSON is valid
 	if setting.Value != "" {
@@ -733,6 +837,10 @@ func (v *settingValidator) checkStorageNetworkValueVaild(setting *v1beta1.Settin
 	}
 	if len(vmis) > 0 {
 		return werror.NewInvalidError("Please stop all VMs before configuring the storage-network setting", "value")
+	}
+
+	if err := v.checkOnlineVolume(); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
 	}
 
 	return nil
