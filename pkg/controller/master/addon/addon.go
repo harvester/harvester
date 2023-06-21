@@ -28,6 +28,7 @@ import (
 
 const (
 	managedChartKey = "catalog.cattle.io/managed"
+	deleteJobPrefix = "helm-delete-"
 )
 
 var (
@@ -151,11 +152,12 @@ func (h *Handler) MonitorAddon(key string, aObj *harvesterv1.Addon) (*harvesterv
 }
 
 // OnAddonChange will reconcile the Addon CRDs
-func (h *Handler) OnAddonChange(key string, a *harvesterv1.Addon) (*harvesterv1.Addon, error) {
-	if a == nil || a.DeletionTimestamp != nil {
+func (h *Handler) OnAddonChange(key string, aObj *harvesterv1.Addon) (*harvesterv1.Addon, error) {
+	if aObj == nil || aObj.DeletionTimestamp != nil {
 		return nil, nil
 	}
 
+	a := aObj.DeepCopy()
 	// if addon is enabled reconcile HelmChart
 	ok, err := h.checkHelmChartExists(a)
 	if err != nil {
@@ -166,16 +168,21 @@ func (h *Handler) OnAddonChange(key string, a *harvesterv1.Addon) (*harvesterv1.
 		return h.deployHelmChart(a)
 	}
 
-	if !a.Spec.Enabled && ok {
+	if !a.Spec.Enabled {
 		// update status to DisablingAddon
 		// this is used by validating webhook to ensure no changes can be done to addon
 		// while until uninstall is complete
-		if a.Status.Status != harvesterv1.DisablingAddon {
-			aCopy := a.DeepCopy()
-			aCopy.Status.Status = harvesterv1.DisablingAddon
-			return h.addon.UpdateStatus(aCopy)
+		if ok {
+			if a.Status.Status != harvesterv1.DisablingAddon {
+				a.Status.Status = harvesterv1.DisablingAddon
+				return h.addon.UpdateStatus(a)
+			}
+			return h.removeHelmChart(a)
+		} else {
+			a.Status.Status = ""
+			return h.addon.UpdateStatus(a)
 		}
-		return h.removeHelmChart(a)
+
 	}
 	return nil, nil
 }
@@ -230,21 +237,9 @@ func (h *Handler) deployHelmChart(aObj *harvesterv1.Addon) (*harvesterv1.Addon, 
 
 // checkAndDeleteChart will remove the helmChart only if the HelmChart is owned by the Addon
 func (h *Handler) checkAndDeleteChart(a *harvesterv1.Addon) error {
-	hc, err := h.helm.Cache().Get(a.Namespace, a.Name)
+	hc, addonOwned, err := h.checkChartAndOwnership(a)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			// chart doesn't exist. Nothing to do
-			return nil
-		}
-		return fmt.Errorf("error looking up chart in checkAndDeleteChart: %v", err)
-	}
-
-	var addonOwned bool
-	for _, v := range hc.GetOwnerReferences() {
-		if v.Kind == a.Kind && v.APIVersion == a.APIVersion && v.UID == a.UID && v.Name == a.Name {
-			addonOwned = true
-			break
-		}
+		return err
 	}
 
 	if addonOwned {
@@ -294,6 +289,36 @@ func (h *Handler) removeHelmChart(aObj *harvesterv1.Addon) (*harvesterv1.Addon, 
 	err := h.checkAndDeleteChart(a)
 	if err != nil {
 		return a, fmt.Errorf("error removing helm chart for addon %s: %v", a.Name, err)
+	}
+
+	// need to query and watch status of HelmChart to track status of deletion job
+	hc, exists, err := h.checkChartAndOwnership(a)
+	if err != nil {
+		return a, fmt.Errorf("error checking status of helmChart after delete: %v", err)
+	}
+
+	if exists && hc.Status.JobName != "" {
+		if !strings.Contains(hc.Status.JobName, deleteJobPrefix) {
+			return a, fmt.Errorf("waiting for delete job to be populated")
+		}
+
+		job, err := h.job.Get(a.Namespace, hc.Status.JobName, metav1.GetOptions{})
+		if err != nil {
+			return a, fmt.Errorf("error fetching job %s: %v", job.Name, err)
+		}
+
+		if !isJobComplete(job) {
+			return a, fmt.Errorf("waiting for job %s to complete", job.Name)
+		}
+
+		// check Failed before since in jobs with more than 1 container then
+		// even a single failure should count as a failure
+		if job.Status.Failed > 0 {
+			a.Status.Status = harvesterv1.AddonDisablingFailed
+		} else if job.Status.Succeeded > 0 {
+			a.Status.Status = ""
+		}
+		h.addon.UpdateStatus(a)
 	}
 
 	a.Status.Status = ""
@@ -368,4 +393,26 @@ func (h *Handler) PatchApps(key string, app *catalogv1.App) (*catalogv1.App, err
 	}
 
 	return app, nil
+}
+
+// checkChartAndOwnership checks if HelmChart object exists and is owned by Addon
+func (h *Handler) checkChartAndOwnership(a *harvesterv1.Addon) (*helmv1.HelmChart, bool, error) {
+	hc, err := h.helm.Cache().Get(a.Namespace, a.Name)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// chart doesn't exist. Nothing to do
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("error looking up chart in checkAndDeleteChart: %v", err)
+	}
+
+	var addonOwned bool
+	for _, v := range hc.GetOwnerReferences() {
+		if v.Kind == a.Kind && v.APIVersion == a.APIVersion && v.UID == a.UID && v.Name == a.Name {
+			addonOwned = true
+			break
+		}
+	}
+
+	return hc, addonOwned, nil
 }

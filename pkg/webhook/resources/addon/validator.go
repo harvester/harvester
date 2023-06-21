@@ -79,5 +79,9 @@ func validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) erro
 		return werror.NewBadRequest("addon is currently disabling and cannot be enabled")
 	}
 
+	if oldAddon.Status.Status == v1beta1.AddonEnabled && !newAddon.Spec.Enabled {
+		return werror.NewBadRequest("addon is currently being deployed and cannot be disabled")
+	}
+
 	return nil
 }

@@ -166,10 +166,44 @@ func Test_validateUpdatedAddon(t *testing.T) {
 			},
 			expectedError: false,
 		},
+		{
+			name: "disable enabling addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "disable-enabling-addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonEnabled,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "disable-enabling-addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonEnabled,
+				},
+			},
+			expectedError: true,
+		},
 	}
 
 	for _, tc := range testCases {
-		err := validateUpdatedAddon(tc.oldAddon, tc.newAddon)
+		err := validateUpdatedAddon(tc.newAddon, tc.oldAddon)
 		if tc.expectedError {
 			assert.NotNil(t, err, tc.name)
 		} else {

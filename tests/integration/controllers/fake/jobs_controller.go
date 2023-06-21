@@ -30,6 +30,7 @@ func RegisterFakeControllers(ctx context.Context, management *config.Management,
 	}
 
 	hc.OnChange(ctx, "fake-helmchart-controller", h.OnHelmChartChange)
+	hc.OnRemove(ctx, "fake-helmchart-controller-remove", h.OnHelmChartDelete)
 	return nil
 }
 
@@ -38,18 +39,51 @@ func (h *handler) OnHelmChartChange(key string, hc *helmv1.HelmChart) (*helmv1.H
 		return hc, nil
 	}
 
-	if hc.Status.JobName != "" {
-		return hc, nil
+	jobName, err := h.createJob(hc, true)
+	if err != nil {
+		return hc, err
 	}
 
-	_, err := h.job.Get(hc.Namespace, fmt.Sprintf("helm-install-%s", hc.Name), metav1.GetOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
+	hc.Status.JobName = jobName
+	return h.helm.Update(hc)
+}
+
+func (h *handler) OnHelmChartDelete(key string, hc *helmv1.HelmChart) (*helmv1.HelmChart, error) {
+	if hc.DeletionTimestamp == nil {
+		return nil, nil
+	}
+
+	jobName, err := h.createJob(hc, false)
+	if err != nil {
 		return hc, err
+	}
+
+	hc.Status.JobName = jobName
+	return h.helm.Update(hc)
+}
+
+// createJob will submit fake jobs on creation/deletion events for helm charts
+// this allows us to mock job failures to ensure addon gets to correct failed state
+func (h *handler) createJob(hc *helmv1.HelmChart, install bool) (string, error) {
+	if hc.Status.JobName != "" {
+		return hc.Status.JobName, nil
+	}
+
+	var pattern string
+	if install {
+		pattern = "install"
+	} else {
+		pattern = "delete"
+	}
+
+	jobObj, err := h.job.Get(hc.Namespace, fmt.Sprintf("helm-%s-%s", pattern, hc.Name), metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return "", err
 	}
 
 	// job exists nothing to be done
 	if err == nil {
-		return hc, nil
+		return jobObj.Name, nil
 	}
 
 	args := []string{}
@@ -60,7 +94,7 @@ func (h *handler) OnHelmChartChange(key string, hc *helmv1.HelmChart) (*helmv1.H
 	}
 	j := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("helm-install-%s", hc.Name),
+			Name:      fmt.Sprintf("helm-%s-%s", pattern, hc.Name),
 			Namespace: hc.Namespace,
 		},
 		Spec: batchv1.JobSpec{
@@ -88,22 +122,5 @@ func (h *handler) OnHelmChartChange(key string, hc *helmv1.HelmChart) (*helmv1.H
 	}
 
 	jObj, err := h.job.Create(j)
-	if err != nil {
-		return hc, fmt.Errorf("error creating fake job: %v", err)
-	}
-
-	hc.Status.JobName = jObj.Name
-	return h.helm.Update(hc)
-}
-
-func (h *handler) OnHelmChartDelete(key string, hc *helmv1.HelmChart) (*helmv1.HelmChart, error) {
-	if hc.DeletionTimestamp == nil {
-		return nil, nil
-	}
-
-	if err := h.job.Delete(hc.Namespace, fmt.Sprintf("helm-install-%s", hc.Name), &metav1.DeleteOptions{}); err != nil {
-		return hc, err
-	}
-
-	return nil, h.helm.Delete(hc.Namespace, hc.Name, &metav1.DeleteOptions{})
+	return jObj.Name, err
 }
