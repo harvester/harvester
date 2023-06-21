@@ -95,6 +95,8 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 			clients.RancherManagementFactory.Management().V3().Feature().Cache(),
+			clients.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
+			clients.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
 		),
 		templateversion.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate().Cache(),

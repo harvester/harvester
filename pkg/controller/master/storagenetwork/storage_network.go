@@ -55,18 +55,6 @@ const (
 	MsgUpdateLonghornSetting = "Update Longhorn setting"
 
 	longhornStorageNetworkName = "storage-network"
-
-	// Rancher monitoring
-	CattleMonitoringSystemNamespace = "cattle-monitoring-system"
-	RancherMonitoringPrometheus     = "rancher-monitoring-prometheus"
-	RancherMonitoringAlertmanager   = "rancher-monitoring-alertmanager"
-	FleetLocalNamespace             = "fleet-local"
-	RancherMonitoring               = "rancher-monitoring"
-	RancherMonitoringGrafana        = "rancher-monitoring-grafana"
-
-	// VM import controller
-	HarvesterSystemNamespace    = "harvester-system"
-	HarvesterVMImportController = "harvester-vm-import-controller"
 )
 
 type Config struct {
@@ -424,7 +412,7 @@ func (h *Handler) checkLonghornVolumeDetached() error {
 
 func (h *Handler) checkPrometheusStatusAndStart() error {
 	// check prometheus cattle-monitoring-system/rancher-monitoring-prometheus replica
-	prometheus, err := h.prometheusCache.Get(CattleMonitoringSystemNamespace, RancherMonitoringPrometheus)
+	prometheus, err := h.prometheusCache.Get(util.CattleMonitoringSystemNamespace, util.RancherMonitoringPrometheus)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("prometheus not found. skip")
@@ -456,7 +444,7 @@ func (h *Handler) checkPrometheusStatusAndStart() error {
 
 func (h *Handler) checkAlertmanagerStatusAndStart() error {
 	// check alertmanager cattle-monitoring-system/rancher-monitoring-alertmanager replica
-	alertmanager, err := h.alertmanagerCache.Get(CattleMonitoringSystemNamespace, RancherMonitoringAlertmanager)
+	alertmanager, err := h.alertmanagerCache.Get(util.CattleMonitoringSystemNamespace, util.RancherMonitoringAlertmanager)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("Alertmanager not found. skip")
@@ -488,7 +476,7 @@ func (h *Handler) checkAlertmanagerStatusAndStart() error {
 
 func (h *Handler) checkGrafanaStatusAndStart() error {
 	// check deployment cattle-monitoring-system/rancher-monitoring-grafana replica
-	grafana, err := h.deploymentCache.Get(CattleMonitoringSystemNamespace, RancherMonitoringGrafana)
+	grafana, err := h.deploymentCache.Get(util.CattleMonitoringSystemNamespace, util.RancherMonitoringGrafana)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("grafana not found. skip")
@@ -520,7 +508,7 @@ func (h *Handler) checkGrafanaStatusAndStart() error {
 
 func (h *Handler) checkRancherMonitoringStatusAndStart() error {
 	// check managedchart fleet-local/rancher-monitoring paused
-	monitoring, err := h.managedChartCache.Get(FleetLocalNamespace, RancherMonitoring)
+	monitoring, err := h.managedChartCache.Get(util.FleetLocalNamespaceName, util.RancherMonitoring)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("rancher monitoring not found. skip")
@@ -548,7 +536,7 @@ func (h *Handler) checkRancherMonitoringStatusAndStart() error {
 
 func (h *Handler) checkVMImportControllerStatusAndStart() error {
 	// check deployment harvester-system/harvester-harvester-vm-import-controller replica
-	vmImportControllerDeploy, err := h.deploymentCache.Get(HarvesterSystemNamespace, HarvesterVMImportController)
+	vmImportControllerDeploy, err := h.deploymentCache.Get(util.HarvesterSystemNamespaceName, util.HarvesterVMImportController)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("VM import controller not found. skip")
@@ -601,7 +589,7 @@ func (h *Handler) checkPodStatusAndStart() error {
 
 func (h *Handler) checkRancherMonitoringStatusAndStop() error {
 	// check managedchart fleet-local/rancher-monitoring paused
-	monitoring, err := h.managedChartCache.Get(FleetLocalNamespace, RancherMonitoring)
+	monitoring, err := h.managedChartCache.Get(util.FleetLocalNamespaceName, util.RancherMonitoring)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("rancher monitoring not found. skip")
@@ -629,7 +617,7 @@ func (h *Handler) checkRancherMonitoringStatusAndStop() error {
 
 func (h *Handler) checkPrometheusStatusAndStop() error {
 	// check prometheus cattle-monitoring-system/rancher-monitoring-prometheus replica
-	prometheus, err := h.prometheusCache.Get(CattleMonitoringSystemNamespace, RancherMonitoringPrometheus)
+	prometheus, err := h.prometheusCache.Get(util.CattleMonitoringSystemNamespace, util.RancherMonitoringPrometheus)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("prometheus not found. skip")
@@ -656,7 +644,7 @@ func (h *Handler) checkPrometheusStatusAndStop() error {
 
 func (h *Handler) checkAltermanagerStatusAndStop() error {
 	// check alertmanager cattle-monitoring-system/rancher-monitoring-alertmanager replica
-	alertmanager, err := h.alertmanagerCache.Get(CattleMonitoringSystemNamespace, RancherMonitoringAlertmanager)
+	alertmanager, err := h.alertmanagerCache.Get(util.CattleMonitoringSystemNamespace, util.RancherMonitoringAlertmanager)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("Alertmanager not found. skip")
@@ -684,7 +672,7 @@ func (h *Handler) checkAltermanagerStatusAndStop() error {
 
 func (h *Handler) checkGrafanaStatusAndStop() error {
 	// check deployment cattle-monitoring-system/rancher-monitoring-grafana replica
-	grafana, err := h.deploymentCache.Get(CattleMonitoringSystemNamespace, RancherMonitoringGrafana)
+	grafana, err := h.deploymentCache.Get(util.CattleMonitoringSystemNamespace, util.RancherMonitoringGrafana)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("grafana no found. skip")
@@ -712,7 +700,7 @@ func (h *Handler) checkGrafanaStatusAndStop() error {
 
 func (h *Handler) checkVMImportControllerStatusAndStop() error {
 	// check deployment harvester-system/harvester-harvester-vm-import-controller replica
-	vmimportcontroller, err := h.deploymentCache.Get(HarvesterSystemNamespace, HarvesterVMImportController)
+	vmimportcontroller, err := h.deploymentCache.Get(util.HarvesterSystemNamespaceName, util.HarvesterVMImportController)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("VM import controller no found. skip")
