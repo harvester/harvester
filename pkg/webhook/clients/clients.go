@@ -6,7 +6,7 @@ import (
 	ctlfleetv1 "github.com/rancher/rancher/pkg/generated/controllers/fleet.cattle.io"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	"github.com/rancher/wrangler/pkg/clients"
-	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core"
+	ctrlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core"
 	storagev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage"
 	"github.com/rancher/wrangler/pkg/schemes"
 	v1 "k8s.io/api/admissionregistration/v1"
@@ -34,7 +34,7 @@ type Clients struct {
 	LonghornFactory          *ctllonghornv1.Factory
 	ClusterFactory           *ctlclusterv1.Factory
 	RancherManagementFactory *rancherv3.Factory
-	CoreFactory              *corev1.Factory
+	CoreFactory              *ctrlcorev1.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
@@ -125,7 +125,7 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
-	coreFactory, err := corev1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	coreFactory, err := ctrlcorev1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
 	if err != nil {
 		return nil, err
 	}
