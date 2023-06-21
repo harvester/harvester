@@ -229,8 +229,6 @@ upgrade_rancher() {
   cd $UPGRADE_TMP_DIR/rancher
 
   ./helm get values rancher -n cattle-system -o yaml >values.yaml
-  echo "Patching rancher features"
-  yq e -i '.features= "multi-cluster-management=true,multi-cluster-management-agent=false"' values.yaml
   echo "Rancher values:"
   cat values.yaml
 
