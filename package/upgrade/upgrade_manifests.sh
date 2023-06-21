@@ -229,10 +229,10 @@ upgrade_rancher() {
   cd $UPGRADE_TMP_DIR/rancher
 
   ./helm get values rancher -n cattle-system -o yaml >values.yaml
-  echo "Rancher values:"
-  cat values.yaml
   echo "Patching rancher features"
   yq e -i '.features= "multi-cluster-management=true,multi-cluster-management-agent=false"' values.yaml
+  echo "Rancher values:"
+  cat values.yaml
 
   RANCHER_CURRENT_VERSION=$(yq -e e '.rancherImageTag' values.yaml)
   if [ -z "$RANCHER_CURRENT_VERSION" ]; then
@@ -258,7 +258,7 @@ upgrade_rancher() {
   kubectl delete settings.management.cattle.io chart-default-branch
 
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
-  ./helm upgrade rancher ./*.tgz --namespace cattle-system -f values.yaml --timeout 10m --wait
+  ./helm upgrade rancher ./*.tgz --namespace cattle-system -f values.yaml --wait
 
   # Wait until new version ready
   until [ "$(get_running_rancher_version)" = "$REPO_RANCHER_VERSION" ]; do
