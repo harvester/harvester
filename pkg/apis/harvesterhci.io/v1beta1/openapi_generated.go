@@ -2103,9 +2103,24 @@ func schema_pkg_apis_harvesterhciio_v1beta1_AddonStatus(ref common.ReferenceCall
 							Format: "",
 						},
 					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition"),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition"},
 	}
 }
 
