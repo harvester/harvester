@@ -4,26 +4,24 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	//	corev1 "k8s.io/api/core/v1"
-	//	"k8s.io/utils/pointer"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	//	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func Test_volumeMountPatch(t *testing.T) {
+func Test_addonAnnotationsPatch(t *testing.T) {
 
 	var testCases = []struct {
-		name   string
-		addon  *harvesterv1.Addon
-		input  types.PatchOps
-		output types.PatchOps
+		name      string
+		addon     *harvesterv1.Addon
+		operation string
+		input     types.PatchOps
+		output    types.PatchOps
 	}{
 		{
-			name: "patch addon operation create",
+			name: "add new annotation to record 'create' operation",
 			addon: &harvesterv1.Addon{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "addon1",
@@ -36,13 +34,104 @@ func Test_volumeMountPatch(t *testing.T) {
 					ValuesContent: "sample",
 				},
 			},
-			intput: types.PatchOps,
-			output: `[{"op": "add", "path": "/spec/annotations/harvesterhci.io/addon-last-operation", "value": "create"}]`,
+			operation: "create", // create a new addon
+			input:     types.PatchOps{},
+			output: types.PatchOps{
+				`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1addon-last-operation", "value": "create"}`,
+			},
+		},
+		{
+			name: "add new annotation to record 'update' operation",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			operation: "update", // update addon, e.g. valueContents
+			input:     types.PatchOps{},
+			output: types.PatchOps{
+				`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1addon-last-operation", "value": "update"}`,
+			},
+		},
+		{
+			name: "replace annotation to record 'update' operation",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+					Annotations: map[string]string{
+						"harvesterhci.io/addon-last-operation": "create",
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			operation: "update",
+			input:     types.PatchOps{},
+			output: types.PatchOps{
+				`{"op": "replace", "path": "/metadata/annotations/harvesterhci.io~1addon-last-operation", "value": "update"}`,
+			},
+		},
+		{
+			name: "replace annotation to record 'disable' operation",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+					Annotations: map[string]string{
+						"harvesterhci.io/addon-last-operation": "enable",
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			operation: "disable", // disable an addon
+			input:     types.PatchOps{},
+			output: types.PatchOps{
+				`{"op": "replace", "path": "/metadata/annotations/harvesterhci.io~1addon-last-operation", "value": "disable"}`,
+			},
+		},
+		{
+			name: "replace annotation to record 'enable' operation",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+					Annotations: map[string]string{
+						"harvesterhci.io/addon-last-operation": "disable",
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			operation: "enable", // enable an addon
+			input:     types.PatchOps{},
+			output: types.PatchOps{
+				`{"op": "replace", "path": "/metadata/annotations/harvesterhci.io~1addon-last-operation", "value": "enable"}`,
+			},
 		},
 	}
 	for _, testCase := range testCases {
-		result, err := patchLastOperation(testCase.addon, patchOps, "create")
-
+		result, err := patchLastOperation(testCase.addon, testCase.input, testCase.operation)
 		assert.Empty(t, err)
 		assert.Equal(t, testCase.output[0], result[0])
 	}
