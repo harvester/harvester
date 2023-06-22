@@ -1,18 +1,38 @@
 package v1beta1
 
 import (
+	"github.com/rancher/wrangler/pkg/condition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type AddonState string
 
 const (
-	AddonEnabled  AddonState = "AddonEnabled"
-	AddonDeployed AddonState = "AddonDeploySuccessful"
-	AddonFailed   AddonState = "AddonDeployFailed"
-	//	AddonDisabled AddonState = "AddonDisabled"
-	AddonDisabling    AddonState = "AddonDisabling"
-	AddonDisableFaild AddonState = "AddonDisableFailed"
+	AddonEnabled       AddonState = "AddonEnabled"
+	AddonDeployed      AddonState = "AddonDeploySuccessful"
+	AddonFailed        AddonState = "AddonDeployFailed"
+	AddonDisabling     AddonState = "AddonDisabling"
+	AddonDisableFailed AddonState = "AddonDisableFailed"
+
+	AddonUpdating    AddonState = "AddonUpdating"
+	AddonUpdateFaild AddonState = "AddonUpdateFailed"
+
+	AddonInitState AddonState = "" // init status, when an addon is not enabled, or disabled successfully
+)
+
+type AddonOperation string
+
+const (
+	AddonUpdateOperation  AddonOperation = "update"
+	AddonEnableOperation  AddonOperation = "enable"
+	AddonDisableOperation AddonOperation = "disable"
+	AddonNullOperation    AddonOperation = "null"
+)
+
+var (
+	AddonUpdateCondition  condition.Cond = "Update"
+	AddonEnableCondition  condition.Cond = "Enable"
+	AddonDisableCondition condition.Cond = "Disable"
 )
 
 // +genclient
@@ -39,4 +59,6 @@ type AddonSpec struct {
 
 type AddonStatus struct {
 	Status AddonState `json:"status,omitempty"`
+	// +optional
+	Conditions []Condition `json:"conditions,omitempty"`
 }
