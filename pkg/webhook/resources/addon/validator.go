@@ -83,6 +83,18 @@ func validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) erro
 		return werror.NewBadRequest("chart field cannot be changed.")
 	}
 
+	if oldAddon.Status.Status == v1beta1.AddonEnabled {
+		return werror.NewBadRequest("addon is being deployed now, please wait and retry")
+	}
+
+	if oldAddon.Status.Status == v1beta1.AddonUpdating {
+		return werror.NewBadRequest("addon is being updated now, please wait and retry")
+	}
+
+	if oldAddon.Status.Status == v1beta1.AddonDisabling {
+		return werror.NewBadRequest("addon is being disabled now, please wait and retry")
+	}
+
 	if newAddon.Name == vClusterAddonName && newAddon.Namespace == vClusterAddonNamespace && newAddon.Spec.Enabled {
 		return validateVClusterAddon(newAddon)
 	}

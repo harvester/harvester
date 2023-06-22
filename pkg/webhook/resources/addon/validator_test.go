@@ -73,7 +73,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "user cannot change chart field",
+			name: "user can't change chart field",
 			oldAddon: &harvesterv1.Addon{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "addon1",
@@ -99,6 +99,142 @@ func Test_validateUpdatedAddon(t *testing.T) {
 				},
 			},
 			expectedError: true,
+		},
+		{
+			name: "user can't change disabling addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonDisabling,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1-changed",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonDisabling,
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user can disable deployed addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonDeployed,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonDeployed,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "user can't disable enabling addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "disable-enabling-addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonEnabled,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "disable-enabling-addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonEnabled,
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user can disable deployfailed addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "disable-deployfailed-addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonFailed,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "disable-deployfailed-addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonFailed,
+				},
+			},
+			expectedError: false,
 		},
 		{
 			name: "virtual cluster addon with valid dns",
