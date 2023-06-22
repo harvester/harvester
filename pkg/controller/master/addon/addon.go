@@ -178,11 +178,9 @@ func (h *Handler) OnAddonChange(key string, aObj *harvesterv1.Addon) (*harvester
 				return h.addon.UpdateStatus(a)
 			}
 			return h.removeHelmChart(a)
-		} else {
-			a.Status.Status = ""
-			return h.addon.UpdateStatus(a)
 		}
-
+		a.Status.Status = ""
+		return h.addon.UpdateStatus(a)
 	}
 	return nil, nil
 }
