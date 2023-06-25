@@ -1904,7 +1904,7 @@ k8s.io/kubernetes/pkg/util/taints
 # k8s.io/mount-utils v0.27.1 => k8s.io/mount-utils v0.24.10
 ## explicit; go 1.19
 k8s.io/mount-utils
-# k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
+# k8s.io/utils v0.0.0-20230505201702-9f6742963106
 ## explicit; go 1.18
 k8s.io/utils/buffer
 k8s.io/utils/clock
@@ -1919,6 +1919,7 @@ k8s.io/utils/lru
 k8s.io/utils/net
 k8s.io/utils/path
 k8s.io/utils/pointer
+k8s.io/utils/set
 k8s.io/utils/strings/slices
 k8s.io/utils/trace
 # kubevirt.io/api v0.54.0 => github.com/kubevirt/api v0.54.0
