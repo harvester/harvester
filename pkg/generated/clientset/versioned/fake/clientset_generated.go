@@ -38,8 +38,15 @@ import (
 	fakemonitoringv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/monitoring.coreos.com/v1/fake"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1"
 	fakenetworkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1/fake"
+<<<<<<< HEAD
 	snapshotv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1"
 	fakesnapshotv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1/fake"
+=======
+	snapshotv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1"
+	fakesnapshotv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1/fake"
+	storagev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1"
+	fakestoragev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1/fake"
+>>>>>>> 5cfe1b80 (go generate)
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
 	fakeupgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -147,6 +154,11 @@ func (c *Clientset) NetworkingV1() networkingv1.NetworkingV1Interface {
 // SnapshotV1beta1 retrieves the SnapshotV1beta1Client
 func (c *Clientset) SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface {
 	return &fakesnapshotv1beta1.FakeSnapshotV1beta1{Fake: &c.Fake}
+}
+
+// StorageV1 retrieves the StorageV1Client
+func (c *Clientset) StorageV1() storagev1.StorageV1Interface {
+	return &fakestoragev1.FakeStorageV1{Fake: &c.Fake}
 }
 
 // UpgradeV1 retrieves the UpgradeV1Client

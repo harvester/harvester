@@ -31,7 +31,12 @@ import (
 	managementv3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	monitoringv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/monitoring.coreos.com/v1"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1"
+<<<<<<< HEAD
 	snapshotv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1beta1"
+=======
+	snapshotv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1"
+	storagev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1"
+>>>>>>> 5cfe1b80 (go generate)
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -49,7 +54,12 @@ type Interface interface {
 	ManagementV3() managementv3.ManagementV3Interface
 	MonitoringV1() monitoringv1.MonitoringV1Interface
 	NetworkingV1() networkingv1.NetworkingV1Interface
+<<<<<<< HEAD
 	SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface
+=======
+	SnapshotV1() snapshotv1.SnapshotV1Interface
+	StorageV1() storagev1.StorageV1Interface
+>>>>>>> 5cfe1b80 (go generate)
 	UpgradeV1() upgradev1.UpgradeV1Interface
 }
 
@@ -66,7 +76,12 @@ type Clientset struct {
 	managementV3        *managementv3.ManagementV3Client
 	monitoringV1        *monitoringv1.MonitoringV1Client
 	networkingV1        *networkingv1.NetworkingV1Client
+<<<<<<< HEAD
 	snapshotV1beta1     *snapshotv1beta1.SnapshotV1beta1Client
+=======
+	snapshotV1          *snapshotv1.SnapshotV1Client
+	storageV1           *storagev1.StorageV1Client
+>>>>>>> 5cfe1b80 (go generate)
 	upgradeV1           *upgradev1.UpgradeV1Client
 }
 
@@ -118,6 +133,11 @@ func (c *Clientset) NetworkingV1() networkingv1.NetworkingV1Interface {
 // SnapshotV1beta1 retrieves the SnapshotV1beta1Client
 func (c *Clientset) SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface {
 	return c.snapshotV1beta1
+}
+
+// StorageV1 retrieves the StorageV1Client
+func (c *Clientset) StorageV1() storagev1.StorageV1Interface {
+	return c.storageV1
 }
 
 // UpgradeV1 retrieves the UpgradeV1Client
@@ -209,6 +229,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.storageV1, err = storagev1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.upgradeV1, err = upgradev1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -243,7 +267,12 @@ func New(c rest.Interface) *Clientset {
 	cs.managementV3 = managementv3.New(c)
 	cs.monitoringV1 = monitoringv1.New(c)
 	cs.networkingV1 = networkingv1.New(c)
+<<<<<<< HEAD
 	cs.snapshotV1beta1 = snapshotv1beta1.New(c)
+=======
+	cs.snapshotV1 = snapshotv1.New(c)
+	cs.storageV1 = storagev1.New(c)
+>>>>>>> 5cfe1b80 (go generate)
 	cs.upgradeV1 = upgradev1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)

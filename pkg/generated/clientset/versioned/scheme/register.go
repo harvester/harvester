@@ -28,6 +28,7 @@ import (
 	managementv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -50,7 +51,12 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	managementv3.AddToScheme,
 	monitoringv1.AddToScheme,
 	networkingv1.AddToScheme,
+<<<<<<< HEAD
 	snapshotv1beta1.AddToScheme,
+=======
+	snapshotv1.AddToScheme,
+	storagev1.AddToScheme,
+>>>>>>> 5cfe1b80 (go generate)
 	upgradev1.AddToScheme,
 }
 
