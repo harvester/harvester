@@ -8,7 +8,7 @@ import (
 
 	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
-	storagev1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	storagesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -19,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
 
@@ -84,9 +85,16 @@ func main() {
 			},
 			storagev1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
-					storagev1.VolumeSnapshotClass{},
-					storagev1.VolumeSnapshot{},
-					storagev1.VolumeSnapshotContent{},
+					storagev1.VolumeAttachment{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			storagesnapshotv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					storagesnapshotv1.VolumeSnapshotClass{},
+					storagesnapshotv1.VolumeSnapshot{},
+					storagesnapshotv1.VolumeSnapshotContent{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
