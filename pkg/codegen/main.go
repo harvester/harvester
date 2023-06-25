@@ -8,9 +8,15 @@ import (
 
 	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+<<<<<<< HEAD
 	storagev1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	monitoring "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring"
+=======
+	storagesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring"
+>>>>>>> 94579fcc (fix vm rebuild post host failure)
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
@@ -19,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
 
@@ -84,9 +91,22 @@ func main() {
 			},
 			storagev1beta1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
+<<<<<<< HEAD
 					storagev1beta1.VolumeSnapshotClass{},
 					storagev1beta1.VolumeSnapshot{},
 					storagev1beta1.VolumeSnapshotContent{},
+=======
+					storagev1.VolumeAttachment{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			storagesnapshotv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					storagesnapshotv1.VolumeSnapshotClass{},
+					storagesnapshotv1.VolumeSnapshot{},
+					storagesnapshotv1.VolumeSnapshotContent{},
+>>>>>>> 94579fcc (fix vm rebuild post host failure)
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

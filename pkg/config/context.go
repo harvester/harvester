@@ -35,6 +35,7 @@ import (
 	monitoringv1 "github.com/harvester/harvester/pkg/generated/controllers/monitoring.coreos.com"
 	"github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io"
 	snapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
+	ctlharvstoragev1 "github.com/harvester/harvester/pkg/generated/controllers/storage.k8s.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io"
 )
 
@@ -60,6 +61,7 @@ type Scaled struct {
 	VirtFactory              *kubevirt.Factory
 	HarvesterFactory         *ctlharvesterv1.Factory
 	HarvesterCoreFactory     *ctlharvcorev1.Factory
+	HarvesterStorageFactory  *ctlharvstoragev1.Factory
 	CoreFactory              *corev1.Factory
 	AppsFactory              *appsv1.Factory
 	BatchFactory             *batchv1.Factory
@@ -83,6 +85,11 @@ type Management struct {
 
 	VirtFactory              *kubevirt.Factory
 	HarvesterFactory         *ctlharvesterv1.Factory
+<<<<<<< HEAD
+=======
+	HarvesterCoreFactory     *ctlharvcorev1.Factory
+	HarvesterStorageFactory  *ctlharvstoragev1.Factory
+>>>>>>> 94579fcc (fix vm rebuild post host failure)
 	LoggingFactory           *loggingv1.Factory
 	CoreFactory              *corev1.Factory
 	CniFactory               *cniv1.Factory
@@ -132,7 +139,14 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 		return nil, nil, err
 	}
 	scaled.HarvesterCoreFactory = harvesterCoreFactory
-	scaled.starters = append(scaled.starters, harvesterFactory)
+	scaled.starters = append(scaled.starters, harvesterCoreFactory)
+
+	harvesterStorageFactory, err := ctlharvstoragev1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.HarvesterStorageFactory = harvesterStorageFactory
+	scaled.starters = append(scaled.starters, harvesterStorageFactory)
 
 	core, err := corev1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
@@ -237,6 +251,23 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.HarvesterFactory = harv
 	management.starters = append(management.starters, harv)
 
+<<<<<<< HEAD
+=======
+	harvCore, err := ctlharvcorev1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.HarvesterCoreFactory = harvCore
+	management.starters = append(management.starters, harvCore)
+
+	harvStorage, err := ctlharvstoragev1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.HarvesterStorageFactory = harvStorage
+	management.starters = append(management.starters, harvStorage)
+
+>>>>>>> 94579fcc (fix vm rebuild post host failure)
 	core, err := corev1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return nil, err
