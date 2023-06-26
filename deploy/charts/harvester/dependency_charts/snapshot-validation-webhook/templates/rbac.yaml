@@ -1,0 +1,24 @@
+{{- if .Values.rbac.create }}
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "snapshot-validation-webhook.fullname" . }}
+rules:
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotclasses"]
+    verbs: ["get", "list", "watch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "snapshot-validation-webhook.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "snapshot-validation-webhook.serviceAccountName" . }}
+    namespace: {{ include "snapshot-validation-webhook.namespace" . }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "snapshot-validation-webhook.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

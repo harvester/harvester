@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "snapshot-validation-webhook.fullname" . }}
+  namespace: {{ include "snapshot-validation-webhook.namespace" . }}
+  labels: {{ include "snapshot-validation-webhook.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {{ include "snapshot-validation-webhook.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels: {{ include "snapshot-validation-webhook.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "snapshot-validation-webhook.serviceAccountName" . }}
+      containers:
+        - name: {{ include "snapshot-validation-webhook.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- range $flag, $val := .Values.args }}
+            - --{{ $flag | kebabcase }}={{ $val }}
+            {{- end }}
+          ports:
+            - name: https
+              containerPort: {{ .Values.service.port | default 443 }}
+          volumeMounts:
+            - name: certs
+              mountPath: /etc/snapshot-validation-webhook/certs
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /readyz
+              port: https
+              scheme: HTTPS
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: https
+              scheme: HTTPS
+          {{- if .Values.resources }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: certs
+          secret:
+            secretName: {{ .Values.webhook.tls.secretName }}
