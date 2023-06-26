@@ -504,3 +504,9 @@ harvester-node-manager:
     repository: rancher/harvester-node-manager
     tag: v0.1.5
 
+snapshot-validation-webhook:
+  enabled: true
+  image:
+    repository: registry.k8s.io/sig-storage/snapshot-validation-webhook
+    tag: v5.0.1
+    pullPolicy: IfNotPresent
