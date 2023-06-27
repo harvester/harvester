@@ -273,8 +273,12 @@ func (m *vmMutator) patchAffinity(vm *kubevirtv1.VirtualMachine, patchOps types.
 	}
 
 	// The .spec.affinity could not be like `{nodeAffinity:requireDuringSchedulingIgnoreDuringExecution:[]}` if there is not any rules.
-	if len(requiredNodeSelector.NodeSelectorTerms) == 0 && len(preferredNodeSelector) == 0 {
-		affinity.NodeAffinity = nil
+	if len(requiredNodeSelector.NodeSelectorTerms) == 0 {
+		if len(preferredNodeSelector) == 0 {
+			affinity.NodeAffinity = nil
+		} else {
+			affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = nil
+		}
 	}
 
 	bytes, err := json.Marshal(affinity)
