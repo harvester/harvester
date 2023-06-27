@@ -361,6 +361,33 @@ func TestPatchAffinity(t *testing.T) {
 			},
 		},
 	}
+	vm7 := &kubevirtv1.VirtualMachine{
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Affinity: &v1.Affinity{
+						NodeAffinity: &v1.NodeAffinity{
+							PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{
+								{
+									Weight: 1,
+									Preference: v1.NodeSelectorTerm{
+										MatchExpressions: []v1.NodeSelectorRequirement{
+											{
+												Key:      "topology.kubernetes.io/zone",
+												Operator: v1.NodeSelectorOpIn,
+												Values:   []string{"zone1"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 	net1 := &cniv1.NetworkAttachmentDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "net1",
@@ -494,6 +521,28 @@ func TestPatchAffinity(t *testing.T) {
 					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
 						{
 							TopologyKey: "topology.kubernetes.io/zone",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "no empty required affinity",
+			vm:   vm7,
+			affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{
+						{
+							Weight: 1,
+							Preference: v1.NodeSelectorTerm{
+								MatchExpressions: []v1.NodeSelectorRequirement{
+									{
+										Key:      "topology.kubernetes.io/zone",
+										Operator: v1.NodeSelectorOpIn,
+										Values:   []string{"zone1"},
+									},
+								},
+							},
 						},
 					},
 				},
