@@ -8,12 +8,16 @@ import (
 type AddonState string
 
 const (
-	AddonEnabled       AddonState = "AddonEnabled"
-	AddonDeployed      AddonState = "AddonDeploySuccessful"
-	AddonFailed        AddonState = "AddonDeployFailed"
+	AddonEnabled  AddonState = "AddonEnabled"
+	AddonDeployed AddonState = "AddonDeploySuccessful"
+	AddonFailed   AddonState = "AddonDeployFailed"
+
+	AddonEnabling AddonState = "AddonEnabling" // will replace AddonEnabled
+
 	AddonDisabling     AddonState = "AddonDisabling"
 	AddonDisableFailed AddonState = "AddonDisableFailed"
 
+	// after successfully updating, addon will be AddonInitState when !Spec.Enaabled; AddonDeployed when Spec.Enaabled
 	AddonUpdating    AddonState = "AddonUpdating"
 	AddonUpdateFaild AddonState = "AddonUpdateFailed"
 
