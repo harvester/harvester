@@ -38,6 +38,7 @@ const (
 	rkeInternalIPAnnotation        = "rke2.io/internal-ip"
 	managedChartNamespace          = "fleet-local"
 	defaultMinFreeDiskSpace uint64 = 30 * 1024 * 1024 * 1024 // 30GB
+	freeSystemPartitionMsg         = "df -h '/usr/local/'"
 )
 
 func NewValidator(
@@ -282,7 +283,8 @@ func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace ui
 	if *summary.Node.Fs.AvailableBytes < minFreeDiskSpace {
 		min := units.BytesSize(float64(minFreeDiskSpace))
 		avail := units.BytesSize(float64(*summary.Node.Fs.AvailableBytes))
-		return werror.NewBadRequest(fmt.Sprintf("Node %q has insufficient free space (%s). An upgrade requires at least %s of free space.", node.Name, avail, min))
+		return werror.NewBadRequest(fmt.Sprintf("Node %q has insufficient free system partition space %s (%s). The upgrade requires at least %s of free system partition space on each node.",
+			node.Name, avail, freeSystemPartitionMsg, min))
 	}
 	return nil
 }
