@@ -21,6 +21,26 @@ func Test_addonAnnotationsPatch(t *testing.T) {
 		output    types.PatchOps
 	}{
 		{
+			name: "add new annotation to record 'enable' operation when creating a new addon",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "addon1",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			operation: "enable", // create a new addon, which is enabled
+			input:     types.PatchOps{},
+			output: types.PatchOps{
+				`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1addon-last-operation", "value": "enable"}`,
+			},
+		},
+		{
 			name: "add new annotation to record 'create' operation",
 			addon: &harvesterv1.Addon{
 				ObjectMeta: metav1.ObjectMeta{
@@ -34,10 +54,10 @@ func Test_addonAnnotationsPatch(t *testing.T) {
 					ValuesContent: "sample",
 				},
 			},
-			operation: "create", // create a new addon
+			operation: "disable", // create a new addon, which is disabled
 			input:     types.PatchOps{},
 			output: types.PatchOps{
-				`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1addon-last-operation", "value": "create"}`,
+				`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1addon-last-operation", "value": "disable"}`,
 			},
 		},
 		{
