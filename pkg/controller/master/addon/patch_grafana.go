@@ -37,7 +37,7 @@ func (h *Handler) MonitorAddonRancherMonitoring(key string, aObj *harvesterv1.Ad
 	}
 
 	// disabled successfully, the pv has already from Bound to Released/Available
-	if !aObj.Spec.Enabled && aObj.Status.Status == "" {
+	if !aObj.Spec.Enabled && aObj.Status.Status == harvesterv1.AddonInitState {
 		logrus.Debugf("start to patch grafana pv ClaimRef")
 		return h.patchGrafanaPVClaimRef(aObj)
 	}
@@ -83,7 +83,7 @@ func (h *Handler) patchGrafanaPVReclaimPolicy(namespace, name string) (bool, str
 		return false, pvc.Spec.VolumeName, fmt.Errorf("grafana PV %s is failed to patch ReclaimPolicy: %v", pvc.Spec.VolumeName, err)
 	}
 
-	logrus.Debugf("grafana PV %s is patched with new ReclaimPolicy %s", pvc.Spec.VolumeName, corev1.PersistentVolumeReclaimRetain)
+	logrus.Infof("grafana PV %s is patched with new ReclaimPolicy %s", pvc.Spec.VolumeName, corev1.PersistentVolumeReclaimRetain)
 	return true, pvc.Spec.VolumeName, nil
 }
 
@@ -125,7 +125,7 @@ func (h *Handler) patchGrafanaPVClaimRef(aObj *harvesterv1.Addon) (*harvesterv1.
 
 	// nothing to do
 	if pvname == "" {
-		logrus.Debugf("there is no pvname found on addon %s annotations, skip patch ClaimRef", aObj.Name)
+		logrus.Infof("there is no pvname found on addon %s annotations, skip patch ClaimRef", aObj.Name)
 		return aObj, nil
 	}
 
@@ -133,7 +133,7 @@ func (h *Handler) patchGrafanaPVClaimRef(aObj *harvesterv1.Addon) (*harvesterv1.
 	pv, err := h.pv.Cache().Get(pvname)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logrus.Debugf("grafana PV %s is not found, skip patch ClaimRef", pvname)
+			logrus.Infof("grafana PV %s is not found, skip patch ClaimRef", pvname)
 			return aObj, nil
 		}
 
@@ -158,7 +158,7 @@ func (h *Handler) patchGrafanaPVClaimRef(aObj *harvesterv1.Addon) (*harvesterv1.
 
 	// only patch when this status is Released
 	if pv.Status.Phase != corev1.VolumeReleased {
-		logrus.Debugf("grafana PV %s status is %s, CAN NOT patch ClaimRef, skip patch ClaimRef", pvname, pv.Status.Phase)
+		logrus.Infof("grafana PV %s status is %s, CAN NOT patch ClaimRef, skip patch ClaimRef", pvname, pv.Status.Phase)
 		return aObj, nil
 	}
 
@@ -170,6 +170,6 @@ func (h *Handler) patchGrafanaPVClaimRef(aObj *harvesterv1.Addon) (*harvesterv1.
 		return aObj, fmt.Errorf("grafana PV %s is failed to patch: %v", pvname, err)
 	}
 
-	logrus.Debugf("grafana PV %s is patched with null ClaimRef", pvname)
+	logrus.Infof("grafana PV %s is patched with null ClaimRef", pvname)
 	return aObj, nil
 }

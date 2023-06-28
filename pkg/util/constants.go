@@ -39,7 +39,7 @@ const (
 
 	AnnotationAddonLastOperation          = prefix + "/addon-last-operation"
 	AnnotationAddonLastOperationTimestamp = prefix + "/addon-last-operation-timestamp"
-	AnnotationAddonHistories              = prefix + "/addon-histories"
+	AnnotationAddonOperationTimeout       = prefix + "/addon-operation-timeout"
 
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
