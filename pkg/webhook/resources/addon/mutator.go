@@ -11,6 +11,8 @@ import (
 
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -53,26 +55,32 @@ func (m *addonMutator) Create(request *types.Request, newObj runtime.Object) (ty
 
 	var patchOps types.PatchOps
 
-	return patchLastOperation(newAddon, patchOps, "create")
+	addonOperation := harvesterv1.AddonDisableOperation
+
+	if newAddon.Spec.Enabled {
+		addonOperation = harvesterv1.AddonEnableOperation
+	}
+
+	return patchLastOperation(newAddon, patchOps, string(addonOperation))
 }
 
 func (m *addonMutator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
 	newAddon := newObj.(*harvesterv1.Addon)
 	oldAddon := oldObj.(*harvesterv1.Addon)
 
-	addonOperation := "update"
+	addonOperation := harvesterv1.AddonUpdateOperation
 
 	if newAddon.Spec.Enabled != oldAddon.Spec.Enabled {
 		if newAddon.Spec.Enabled {
-			addonOperation = "enable"
+			addonOperation = harvesterv1.AddonEnableOperation
 		} else {
-			addonOperation = "disable"
+			addonOperation = harvesterv1.AddonDisableOperation
 		}
 	}
 
 	var patchOps types.PatchOps
 
-	return patchLastOperation(newAddon, patchOps, addonOperation)
+	return patchLastOperation(newAddon, patchOps, string(addonOperation))
 }
 
 func patchLastOperation(addon *harvesterv1.Addon, patchOps types.PatchOps, addonOperation string) (types.PatchOps, error) {
@@ -81,13 +89,8 @@ func patchLastOperation(addon *harvesterv1.Addon, patchOps types.PatchOps, addon
 	if addon.Annotations == nil {
 		addon.Annotations = make(map[string]string, 2)
 	} else {
-		if lastOp, ok := addon.Annotations[util.AnnotationAddonLastOperation]; ok {
-			// new operation is same as last operation, e.g. update content
-			if lastOp == addonOperation {
-				jsonOp1 = ""
-			} else {
-				jsonOp1 = "replace"
-			}
+		if _, ok := addon.Annotations[util.AnnotationAddonLastOperation]; ok {
+			jsonOp1 = "replace"
 		}
 
 		// timestamp is there
@@ -96,17 +99,15 @@ func patchLastOperation(addon *harvesterv1.Addon, patchOps types.PatchOps, addon
 		}
 	}
 
-	if jsonOp1 != "" {
-		// patch last operation, the key should be like harvesterhci.io~1addon-last-operation instead of harvesterhci.io/addon-last-operation
-		key := strings.Replace(util.AnnotationAddonLastOperation, "/", "~1", 1)
-		patchOps = append(patchOps, fmt.Sprintf(`{"op": "%s", "path": "/metadata/annotations/%s", "value": "%s"}`, jsonOp1, key, addonOperation))
-	}
+	// patch last operation, the key should be like harvesterhci.io~1addon-last-operation instead of harvesterhci.io/addon-last-operation
+	key := strings.Replace(util.AnnotationAddonLastOperation, "/", "~1", 1)
+	patchOps = append(patchOps, fmt.Sprintf(`{"op": "%s", "path": "/metadata/annotations/%s", "value": "%s"}`, jsonOp1, key, addonOperation))
 
-	// patch last operation timestamp, always update
-	key := strings.Replace(util.AnnotationAddonLastOperationTimestamp, "/", "~1", 1)
-	patchOps = append(patchOps, fmt.Sprintf(`{"op": "%s", "path": "/metadata/annotations/%s", "value": "%s"}`, jsonOp2, key, time.Now().UTC().Format(time.RFC3339)))
+	// patch last operation timestamp
+	key = strings.Replace(util.AnnotationAddonLastOperationTimestamp, "/", "~1", 1)
+	patchOps = append(patchOps, fmt.Sprintf(`{"op": "%s", "path": "/metadata/annotations/%s", "value": "%s"}`, jsonOp2, key, metav1.Now().UTC().Format(time.RFC3339)))
 
-	logrus.Infof("addon mutation result: %v", patchOps)
+	logrus.Debugf("addon mutation result: %v", patchOps)
 
 	return patchOps, nil
 }
