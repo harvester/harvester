@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	// corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -101,10 +100,70 @@ func Test_validateUpdatedAddon(t *testing.T) {
 			},
 			expectedError: true,
 		},
+		{
+			name: "virtual cluster addon with valid dns",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      vClusterAddonName,
+					Namespace: vClusterAddonNamespace,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "vcluster",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      vClusterAddonName,
+					Namespace: vClusterAddonNamespace,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "vcluster",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "hostname: rancher.172.19.108.3.sslip.io\nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "virtual cluster addon with ingress-expose address",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      vClusterAddonName,
+					Namespace: vClusterAddonNamespace,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "vcluster",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      vClusterAddonName,
+					Namespace: vClusterAddonNamespace,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "vcluster",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "hostname: 172.19.108.3\nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
+				},
+			},
+			expectedError: true,
+		},
 	}
 
 	for _, tc := range testCases {
-		err := validateUpdatedAddon(tc.oldAddon, tc.newAddon)
+		err := validateUpdatedAddon(tc.newAddon, tc.oldAddon)
 		if tc.expectedError {
 			assert.NotNil(t, err, tc.name)
 		} else {

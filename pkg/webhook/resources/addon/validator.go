@@ -3,15 +3,23 @@ package addon
 import (
 	"fmt"
 
+	yaml "gopkg.in/yaml.v2"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	validationutil "k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
+)
+
+const (
+	vClusterAddonName      = "rancher-vcluster"
+	vClusterAddonNamespace = "harvester-system"
 )
 
 func NewValidator(addons ctlharvesterv1.AddonCache) types.Validator {
@@ -73,6 +81,33 @@ func validateNewAddon(newAddon *v1beta1.Addon, addonList []*v1beta1.Addon) error
 func validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
 	if newAddon.Spec.Chart != oldAddon.Spec.Chart {
 		return werror.NewBadRequest("chart field cannot be changed.")
+	}
+
+	if newAddon.Name == vClusterAddonName && newAddon.Namespace == vClusterAddonNamespace && newAddon.Spec.Enabled {
+		return validateVClusterAddon(newAddon)
+	}
+	return nil
+}
+
+func validateVClusterAddon(newAddon *v1beta1.Addon) error {
+	type contentValues struct {
+		Hostname string `yaml:"hostname"`
+	}
+
+	addonContent := &contentValues{}
+
+	// valuesContent contains a yaml string
+	if err := yaml.Unmarshal([]byte(newAddon.Spec.ValuesContent), addonContent); err != nil {
+		return werror.NewInternalError(fmt.Sprintf("unable to parse contentValues: %v for %s addon", err, vClusterAddonName))
+	}
+
+	// ip addresses are valid fqdns
+	// this check will return error if hostname is fqdn
+	// but an ip address
+	if fqdnErrs := validationutil.IsFullyQualifiedDomainName(field.NewPath(""), addonContent.Hostname); len(fqdnErrs) == 0 {
+		if ipErrs := validationutil.IsValidIP(addonContent.Hostname); len(ipErrs) == 0 {
+			return werror.NewBadRequest(fmt.Sprintf("%s is not a valid hostname", addonContent.Hostname))
+		}
 	}
 
 	return nil
