@@ -111,5 +111,5 @@ func validateVClusterAddon(newAddon *v1beta1.Addon) error {
 		return nil
 	}
 
-	return werror.NewBadRequest(fmt.Sprintf("invalid hostname %s provided for %s addon", addonContent.Hostname, vClusterAddonName))
+	return werror.NewBadRequest(fmt.Sprintf("invalid fqdn %s provided for %s addon", addonContent.Hostname, vClusterAddonName))
 }
