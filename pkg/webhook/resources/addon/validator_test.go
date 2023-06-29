@@ -160,6 +160,36 @@ func Test_validateUpdatedAddon(t *testing.T) {
 			},
 			expectedError: true,
 		},
+		{
+			name: "virtual cluster addon with invalid fqdn",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      vClusterAddonName,
+					Namespace: vClusterAddonNamespace,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "vcluster",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      vClusterAddonName,
+					Namespace: vClusterAddonNamespace,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "vcluster",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "hostname: FakeAddress.com\nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
+				},
+			},
+			expectedError: true,
+		},
 	}
 
 	for _, tc := range testCases {

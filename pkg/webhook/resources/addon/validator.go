@@ -108,7 +108,8 @@ func validateVClusterAddon(newAddon *v1beta1.Addon) error {
 		if ipErrs := validationutil.IsValidIP(addonContent.Hostname); len(ipErrs) == 0 {
 			return werror.NewBadRequest(fmt.Sprintf("%s is not a valid hostname", addonContent.Hostname))
 		}
+		return nil
 	}
 
-	return nil
+	return werror.NewBadRequest(fmt.Sprintf("invalid hostname %s provided for %s addon", addonContent.Hostname, vClusterAddonName))
 }
