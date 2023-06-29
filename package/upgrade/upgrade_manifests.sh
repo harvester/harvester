@@ -1121,6 +1121,75 @@ pause_all_charts() {
   done
 }
 
+skip_restart_rancher_system_agent() {
+  # to prevent rke2-server/agent from restarting during the rancher upgrade.
+  # by adding an env var to temporarily make rancher-system-agent on each node skip restarting rke2-server/agent.
+  # issue link: https://github.com/rancher/rancher/issues/41965
+
+  # only versions before v1.2.0 that upgrading to v1.2.0 need this workaround
+  if [[ ! "${UPGRADE_PREVIOUS_VERSION%%-rc*}" < "v1.2.0" ]]; then
+    echo "Only versions before v1.2.0 need this patch."
+    return
+  fi
+
+  plan_manifest="$(mktemp --suffix=.yaml)"
+  plan_name="$HARVESTER_UPGRADE_NAME"-skip-restart-rancher-system-agent
+  plan_version="$(openssl rand -hex 4)"
+
+  cat > "$plan_manifest" <<EOF
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: $plan_name
+  namespace: cattle-system
+spec:
+  concurrency: 10
+  nodeSelector:
+    matchLabels:
+      harvesterhci.io/managed: "true"
+  serviceAccountName: system-upgrade-controller
+  tolerations:
+  - operator: "Exists"
+  upgrade:
+    image: registry.suse.com/bci/bci-base:15.4
+    command:
+    - chroot
+    - /host
+    args:
+    - sh
+    - -c
+    - set -x && mkdir -p /run/systemd/system/rancher-system-agent.service.d && echo -e '[Service]\nEnvironmentFile=-/run/systemd/system/rancher-system-agent.service.d/10-harvester-upgrade.env' | tee /run/systemd/system/rancher-system-agent.service.d/override.conf && echo 'INSTALL_RKE2_SKIP_ENABLE=true' | tee /run/systemd/system/rancher-system-agent.service.d/10-harvester-upgrade.env && systemctl daemon-reload && systemctl restart rancher-system-agent.service
+  version: $plan_version
+EOF
+
+  echo "Creating plan $plan_name to make rancher-system-agent temporarily skip restarting RKE2 server..."
+  kubectl create -f "$plan_manifest"
+
+  # Wait for all nodes complete
+  while [ true ]; do
+    plan_label="plan.upgrade.cattle.io/$plan_name"
+    plan_latest_version=$(kubectl get plans.upgrade.cattle.io "$plan_name" -n cattle-system -ojsonpath="{.status.latestVersion}")
+
+    if [ "$plan_latest_version" = "$plan_version" ]; then
+      plan_latest_hash=$(kubectl get plans.upgrade.cattle.io "$plan_name" -n cattle-system -ojsonpath="{.status.latestHash}")
+      total_nodes_count=$(kubectl get nodes -o json | jq '.items | length')
+      complete_nodes_count=$(kubectl get nodes --selector="plan.upgrade.cattle.io/$plan_name=$plan_latest_hash" -o json | jq '.items | length')
+
+      if [ "$total_nodes_count" = "$complete_nodes_count" ]; then
+        echo "Plan $plan_name completes."
+        break
+      fi
+    fi
+
+    echo "Waiting for plan $plan_name to complete..."
+    sleep 10
+  done
+
+  echo "Deleting plan $plan_name..."
+  kubectl delete plans.upgrade.cattle.io "$plan_name" -n cattle-system
+  rm -f "$plan_manifest"
+}
+
 # NOTE: review in each release, add corresponding process
 upgrade_addon_rancher_monitoring()
 {
@@ -1176,6 +1245,7 @@ detect_upgrade
 check_version
 pre_upgrade_manifest
 pause_all_charts
+skip_restart_rancher_system_agent
 upgrade_rancher
 update_local_rke_state_secret
 upgrade_harvester_cluster_repo
