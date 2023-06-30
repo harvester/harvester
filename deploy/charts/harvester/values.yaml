@@ -510,3 +510,5 @@ snapshot-validation-webhook:
     repository: registry.k8s.io/sig-storage/snapshot-validation-webhook
     tag: v5.0.1
     pullPolicy: IfNotPresent
+
+enableLonghornNetworkPolicy: true
