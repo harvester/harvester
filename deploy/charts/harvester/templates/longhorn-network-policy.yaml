@@ -1,0 +1,168 @@
+{{ if .Values.enableLonghornNetworkPolicy -}}
+# Source: longhorn/templates/network-policies/backing-image-data-source-network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backing-image-data-source
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      longhorn.io/component: backing-image-data-source
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: longhorn-manager
+        - podSelector:
+            matchLabels:
+              longhorn.io/component: instance-manager
+        - podSelector:
+            matchLabels:
+              longhorn.io/component: backing-image-manager
+        - podSelector:
+            matchLabels:
+              longhorn.io/component: backing-image-data-source
+---
+# Source: longhorn/templates/network-policies/backing-image-manager-network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backing-image-manager
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      longhorn.io/component: backing-image-manager
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: longhorn-manager
+        - podSelector:
+            matchLabels:
+              longhorn.io/component: instance-manager
+        - podSelector:
+            matchLabels:
+              longhorn.io/component: backing-image-manager
+        - podSelector:
+            matchLabels:
+              longhorn.io/component: backing-image-data-source
+---
+# Source: longhorn/templates/network-policies/instance-manager-networking.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: instance-manager
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      longhorn.io/component: instance-manager
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: longhorn-manager
+        - podSelector:
+            matchLabels:
+              longhorn.io/component: instance-manager
+        - podSelector:
+            matchLabels:
+              longhorn.io/component: backing-image-manager
+        - podSelector:
+            matchLabels:
+              longhorn.io/component: backing-image-data-source
+---
+# Source: longhorn/templates/network-policies/manager-network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: longhorn-manager
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      app: longhorn-manager
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: longhorn-manager
+        - podSelector:
+            matchLabels:
+              app: longhorn-ui
+        - podSelector:
+            matchLabels:
+              app: longhorn-csi-plugin
+        - podSelector:
+            matchLabels:
+              longhorn.io/managed-by: longhorn-manager
+            matchExpressions:
+              - { key: recurring-job.longhorn.io, operator: Exists }
+        - podSelector:
+            matchExpressions:
+              - { key: longhorn.io/job-task, operator: Exists }
+        - podSelector:
+            matchLabels:
+              app: longhorn-driver-deployer
+---
+# Source: longhorn/templates/network-policies/recovery-backend-network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: longhorn-recovery-backend
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      app: longhorn-manager
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 9503
+---
+# Source: longhorn/templates/network-policies/webhook-network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: longhorn-conversion-webhook
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      app: longhorn-manager
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 9501
+---
+# Source: longhorn/templates/network-policies/webhook-network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: longhorn-admission-webhook
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      app: longhorn-manager
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 9502
+{{- end -}}
