@@ -247,6 +247,19 @@ var _ = Describe("addon and helm chart deletion", func() {
 			}, "30s", "5s").ShouldNot(HaveOccurred())
 		})
 
+		By("check addon status is successful", func() {
+			Eventually(func() error {
+				a, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if a.Status.Status != harvesterv1.AddonDeployed {
+					return fmt.Errorf("addon %s is not deployed successfully, status %v", a.Name, a.Status.Status)
+				}
+				return nil
+			}, "60s", "5s").ShouldNot(HaveOccurred())
+		})
+
 		By("delete addon object", func() {
 			Eventually(func() error {
 				return addonController.Delete(a.Namespace, a.Name, &metav1.DeleteOptions{})
@@ -321,6 +334,19 @@ var _ = Describe("verify helm chart redeploy", func() {
 
 				return nil
 			}, "30s", "5s").ShouldNot(HaveOccurred())
+		})
+
+		By("check addon status is successful", func() {
+			Eventually(func() error {
+				a, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if a.Status.Status != harvesterv1.AddonDeployed {
+					return fmt.Errorf("addon %s is not deployed successfully, status %v", a.Name, a.Status.Status)
+				}
+				return nil
+			}, "60s", "5s").ShouldNot(HaveOccurred())
 		})
 
 		By("delete helm chart object", func() {
@@ -417,6 +443,19 @@ var _ = Describe("perform addon upgrade", func() {
 			}, "30s", "5s").ShouldNot(HaveOccurred())
 		})
 
+		By("check addon status is successful", func() {
+			Eventually(func() error {
+				a, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if a.Status.Status != harvesterv1.AddonDeployed {
+					return fmt.Errorf("addon %s is not deployed successfully, status %v", a.Name, a.Status.Status)
+				}
+				return nil
+			}, "60s", "5s").ShouldNot(HaveOccurred())
+		})
+
 		By("update addon", func() {
 			Eventually(func() error {
 				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
@@ -456,7 +495,7 @@ var _ = Describe("perform addon upgrade", func() {
 				}
 
 				return nil
-			}, "30s", "5s").ShouldNot(HaveOccurred())
+			}, "60s", "5s").ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -549,7 +588,7 @@ var _ = Describe("verify helm chart is create and addon gets to failed state", f
 					return err
 				}
 				if aObj.Status.Status != harvesterv1.AddonFailed {
-					return fmt.Errorf("waiting for addon to be deploy successfully. current status is %s", aObj.Status.Status)
+					return fmt.Errorf("waiting for addon to be deploy failed. current status is %s", aObj.Status.Status)
 				}
 				return nil
 			}, "120s", "5s").ShouldNot(HaveOccurred())
@@ -575,7 +614,8 @@ var _ = Describe("enable and disable successful addon", func() {
 				Name:      "demo-disable-success",
 				Namespace: "default",
 				Annotations: map[string]string{
-					"harvesterhci.io/addon-defaults": "ZGVmYXVsdFZhbHVlcwo=",
+					"harvesterhci.io/addon-defaults":          "ZGVmYXVsdFZhbHVlcwo=",
+					"harvesterhci.io/addon-operation-timeout": "1",
 				},
 			},
 			Spec: harvesterv1.AddonSpec{
@@ -594,7 +634,7 @@ var _ = Describe("enable and disable successful addon", func() {
 		}).ShouldNot(HaveOccurred())
 	})
 
-	It("check disable addon", func() {
+	It("check and disable addon", func() {
 
 		By("helm chart exists and has same spec as addon", func() {
 			Eventually(func() error {
@@ -619,19 +659,37 @@ var _ = Describe("enable and disable successful addon", func() {
 			}, "30s", "5s").ShouldNot(HaveOccurred())
 		})
 
+		// only when successful, next operation is allowed
+		By("check addon status is successful", func() {
+			Eventually(func() error {
+				a, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if a.Status.Status != harvesterv1.AddonDeployed {
+					return fmt.Errorf("addon %s is not deployed successfully, status %v", a.Name, a.Status.Status)
+				}
+				return nil
+			}, "60s", "5s").ShouldNot(HaveOccurred())
+		})
+
 		By("updating addon to disable", func() {
 			Eventually(func() error {
 				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
 				if err != nil {
 					return fmt.Errorf("error fetching addon: %v", err)
 				}
-				aObj.Spec.Enabled = false
-				_, err = addonController.Update(aObj)
+				a := aObj.DeepCopy()
+				// simulate user operation
+				a.Annotations["harvesterhci.io/addon-last-operation"] = "disable"
+				a.Annotations["harvesterhci.io/addon-last-operation-timestamp"] = time.Now().UTC().Format(time.RFC3339)
+				a.Spec.Enabled = false
+				_, err = addonController.Update(a)
 				return err
 			}, "30s", "5s").ShouldNot(HaveOccurred())
 		})
 
-		By("helm chart is missing", func() {
+		By("helm chart is removed", func() {
 			Eventually(func() error {
 				_, err := helmController.Get(a.Namespace, a.Name, metav1.GetOptions{})
 				if err != nil {
@@ -642,7 +700,7 @@ var _ = Describe("enable and disable successful addon", func() {
 				}
 
 				return fmt.Errorf("waiting for helm chart to be removed")
-			}, "30s", "5s").ShouldNot(HaveOccurred())
+			}, "60s", "5s").ShouldNot(HaveOccurred())
 		})
 
 	})
@@ -665,13 +723,14 @@ var _ = Describe("enable and disable failed addon", func() {
 				Name:      "demo-disable-fail",
 				Namespace: "default",
 				Annotations: map[string]string{
-					"harvesterhci.io/addon-defaults": "ZGVmYXVsdFZhbHVlcwo=",
+					"harvesterhci.io/addon-defaults":          "ZGVmYXVsdFZhbHVlcwo=",
+					"harvesterhci.io/addon-operation-timeout": "1",
 				},
 			},
 			Spec: harvesterv1.AddonSpec{
 				Chart:   "vm-import-controller",
 				Repo:    "http://harvester-cluster-repo.cattle-system.svc",
-				Version: "v0.1.0",
+				Version: "v0.0.1", // non-existing version, make sure addon will fail
 				Enabled: true,
 			},
 		}
@@ -709,19 +768,36 @@ var _ = Describe("enable and disable failed addon", func() {
 			}, "30s", "5s").ShouldNot(HaveOccurred())
 		})
 
+		By("check addon status is failed", func() {
+			Eventually(func() error {
+				a, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if a.Status.Status != harvesterv1.AddonFailed {
+					return fmt.Errorf("addon %s is NOT deployed failed as expected, status %v", a.Name, a.Status.Status)
+				}
+				return nil
+			}, "120s", "5s").ShouldNot(HaveOccurred())
+		})
+
 		By("updating addon to disable", func() {
 			Eventually(func() error {
 				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
 				if err != nil {
 					return fmt.Errorf("error fetching addon: %v", err)
 				}
-				aObj.Spec.Enabled = false
-				_, err = addonController.Update(aObj)
+				a := aObj.DeepCopy()
+				// simulate user operation
+				a.Annotations["harvesterhci.io/addon-last-operation"] = "disable"
+				a.Annotations["harvesterhci.io/addon-last-operation-timestamp"] = time.Now().UTC().Format(time.RFC3339)
+				a.Spec.Enabled = false
+				_, err = addonController.Update(a)
 				return err
 			}, "30s", "5s").ShouldNot(HaveOccurred())
 		})
 
-		By("helm chart is missing", func() {
+		By("helm chart is removed", func() {
 			Eventually(func() error {
 				_, err := helmController.Get(a.Namespace, a.Name, metav1.GetOptions{})
 				if err != nil {
@@ -732,7 +808,7 @@ var _ = Describe("enable and disable failed addon", func() {
 				}
 
 				return fmt.Errorf("waiting for helm chart to be removed")
-			}, "30s", "5s").ShouldNot(HaveOccurred())
+			}, "60s", "5s").ShouldNot(HaveOccurred())
 		})
 
 	})

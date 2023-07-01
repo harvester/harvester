@@ -30,4 +30,3 @@ linters-settings:
       - G505 # Blocklisted import crypto/md5: weak cryptographic primitive
     config:
       G306: "0644" # Poor file permissions used when writing to a new file
-
