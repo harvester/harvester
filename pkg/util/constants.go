@@ -37,9 +37,12 @@ const (
 	// Add to rancher-monitoring addon to record grafana pv name
 	AnnotationGrafanaPVName = prefix + "/grafana-pv-name"
 
+	// Add to addon objects to record user operation and timestamp, the mutator will do this work
 	AnnotationAddonLastOperation          = prefix + "/addon-last-operation"
 	AnnotationAddonLastOperationTimestamp = prefix + "/addon-last-operation-timestamp"
-	AnnotationAddonOperationTimeout       = prefix + "/addon-operation-timeout"
+
+	// Add to addon objects to adjust the operation timeout
+	AnnotationAddonOperationTimeout = prefix + "/addon-operation-timeout"
 
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
