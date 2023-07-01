@@ -3,7 +3,7 @@ package addon
 import (
 	"encoding/base64"
 	"fmt"
-
+	"strconv"
 	"time"
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
@@ -16,8 +16,47 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	harvesterutil "github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util"
 )
+
+const (
+	// addon enqueue self interval, defaults to 5s
+	enqueueInterval = 5
+	// addon operation timeout, defaults to 15 min as cluster fisrt setup takes long time, range: [1 (min) ~ 60 (min)]
+	addonTimeout    = 15
+	addonTimeoutMin = 1
+	addonTimeoutMax = 60
+)
+
+type addonOperationRecord struct {
+	Operation                harvesterv1.AddonOperation `json:"operation,omitempty"`
+	OperationTimestamp       metav1.Time                `json:"operationTimestamp,omitempty"`
+	OperationTimestampString string                     `json:"operationTimestampstr,omitempty"`
+}
+
+func newAddonOperationRecord(operation string, tm string) (*addonOperationRecord, error) {
+	aor := addonOperationRecord{}
+
+	if operation == string(harvesterv1.AddonEnableOperation) {
+		aor.Operation = harvesterv1.AddonEnableOperation
+	} else if operation == string(harvesterv1.AddonDisableOperation) {
+		aor.Operation = harvesterv1.AddonDisableOperation
+	} else if operation == string(harvesterv1.AddonUpdateOperation) {
+		aor.Operation = harvesterv1.AddonUpdateOperation
+	} else {
+		return nil, fmt.Errorf("invalid operation %s new addonOperationRecord", operation)
+	}
+
+	t, err := time.Parse(time.RFC3339, tm)
+	if err != nil {
+		return nil, fmt.Errorf("invalid time %s to new addonOperationRecord", tm)
+	}
+
+	aor.OperationTimestamp.Time = t
+	aor.OperationTimestampString = tm
+
+	return &aor, nil
+}
 
 func (h *Handler) updateAddonConditions(aObj *harvesterv1.Addon, cond condition.Cond, status corev1.ConditionStatus, reason, message string, updateLastTransitionTime bool) {
 	// wrangler's cond function is not very fit for here, any read/write needs to loop; play condition directly
@@ -128,17 +167,17 @@ func (h *Handler) updateAddonConditionLastTransitionTime(aObj *harvesterv1.Addon
 	return h.addon.UpdateStatus(a)
 }
 
-func (h *Handler) getUserOperationFromAnnotations(aObj *harvesterv1.Addon) *harvesterutil.AddonOperationRecord {
+func (h *Handler) getUserOperationFromAnnotations(aObj *harvesterv1.Addon) *addonOperationRecord {
 	if aObj.Annotations == nil {
 		return nil
 	}
 
-	op, _ := aObj.Annotations[harvesterutil.AnnotationAddonLastOperation]
-	tm, _ := aObj.Annotations[harvesterutil.AnnotationAddonLastOperationTimestamp]
+	op, _ := aObj.Annotations[util.AnnotationAddonLastOperation]
+	tm, _ := aObj.Annotations[util.AnnotationAddonLastOperationTimestamp]
 	if op == "" || tm == "" {
 		return nil
 	}
-	aor, err := harvesterutil.NewAddonOperationRecord(op, tm)
+	aor, err := newAddonOperationRecord(op, tm)
 	if err != nil {
 		// if not valid, skip it
 		logrus.Infof("addon %s has no valid user operation %v, check", aObj.Name, err)
@@ -149,7 +188,7 @@ func (h *Handler) getUserOperationFromAnnotations(aObj *harvesterv1.Addon) *harv
 }
 
 // user operation is newer than the last condition timestamp
-func (h *Handler) isNewOperation(aObj *harvesterv1.Addon, aor *harvesterutil.AddonOperationRecord, cond condition.Cond) bool {
+func (h *Handler) isNewOperation(aObj *harvesterv1.Addon, aor *addonOperationRecord, cond condition.Cond) bool {
 	tm, err := h.getAddonConditionLastTransitionTime(aObj, cond)
 	if err != nil {
 		// info for debug
@@ -163,7 +202,7 @@ func (h *Handler) isNewOperation(aObj *harvesterv1.Addon, aor *harvesterutil.Add
 }
 
 // user update operation is newer than the LastTransitionTime of condition
-func (h *Handler) isNewUpdateOperation(aObj *harvesterv1.Addon, aor *harvesterutil.AddonOperationRecord) bool {
+func (h *Handler) isNewUpdateOperation(aObj *harvesterv1.Addon, aor *addonOperationRecord) bool {
 	if aor.Operation != harvesterv1.AddonUpdateOperation {
 		return false
 	}
@@ -171,7 +210,7 @@ func (h *Handler) isNewUpdateOperation(aObj *harvesterv1.Addon, aor *harvesterut
 }
 
 // user enable operation is newer than the LastTransitionTime of condition
-func (h *Handler) isNewEnableOperation(aObj *harvesterv1.Addon, aor *harvesterutil.AddonOperationRecord) bool {
+func (h *Handler) isNewEnableOperation(aObj *harvesterv1.Addon, aor *addonOperationRecord) bool {
 	if aor.Operation != harvesterv1.AddonEnableOperation {
 		return false
 	}
@@ -179,7 +218,7 @@ func (h *Handler) isNewEnableOperation(aObj *harvesterv1.Addon, aor *harvesterut
 }
 
 // user disable operation is newer than the LastTransitionTime of condition
-func (h *Handler) isNewDisableOperation(aObj *harvesterv1.Addon, aor *harvesterutil.AddonOperationRecord) bool {
+func (h *Handler) isNewDisableOperation(aObj *harvesterv1.Addon, aor *addonOperationRecord) bool {
 	if aor.Operation != harvesterv1.AddonDisableOperation {
 		return false
 	}
@@ -258,7 +297,7 @@ func defaultValues(a *harvesterv1.Addon) (string, error) {
 		return a.Spec.ValuesContent, nil
 	}
 
-	valsEncoded, ok := a.Annotations[harvesterutil.AddonValuesAnnotation]
+	valsEncoded, ok := a.Annotations[util.AddonValuesAnnotation]
 	if ok {
 		valByte, err := base64.StdEncoding.DecodeString(valsEncoded)
 		if err != nil {
@@ -285,15 +324,30 @@ func isJobComplete(j *batchv1.Job) bool {
 	return false
 }
 
-// check if timeout
-func (h *Handler) isAddonOperationTimeout(aObj *harvesterv1.Addon, cond condition.Cond) (timeout bool, needUpdate bool) {
+// check if timeout; user can adjust it via annotations AnnotationAddonOperationTimeout
+// return bool: if timeout; bool: if need to update the LastTransitionTime
+func (h *Handler) isAddonOperationTimeout(aObj *harvesterv1.Addon, cond condition.Cond) (bool, bool) {
 	start, _ := h.getAddonConditionLastTransitionTime(aObj, cond)
 	// no timestamp, or parse error, need re-update
 	if start == nil {
 		return false, true
 	}
-	// TODO: fetch timeout from annotations
-	end := start.Time.Add(addonTimeout * time.Minute)
+
+	timeout := time.Duration(addonTimeout)
+	if aObj.Annotations != nil {
+		if timeoutAnno, ok := aObj.Annotations[util.AnnotationAddonOperationTimeout]; ok {
+			i, err := strconv.ParseInt(timeoutAnno, 10, 32)
+			if err != nil {
+				logrus.Debugf("addon %s has invalid AnnotationAddonOperationTimeout, fallback to default value %v", aObj.Name, timeout)
+			} else if i >= addonTimeoutMin && i <= addonTimeoutMax {
+				timeout = time.Duration(i)
+			} else {
+				logrus.Debugf("addon %s AnnotationAddonOperationTimeout is not in range [%v ~ %v], fallback to default value %v", aObj.Name, addonTimeoutMin, addonTimeoutMax, timeout)
+			}
+		}
+	}
+
+	end := start.Time.Add(time.Minute * timeout)
 	// metav1 Time has no After(), use times
 	return time.Now().After(end), false
 }
