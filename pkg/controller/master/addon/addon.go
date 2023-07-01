@@ -3,10 +3,13 @@ package addon
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
+	"github.com/rancher/norman/types/slice"
+	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 
 	ctlappsv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
@@ -14,20 +17,22 @@ import (
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	harvesterutil "github.com/harvester/harvester/pkg/util"
 )
 
 const (
-	enqueueInterval = 5 // enqueue interval, 5s
-	// TODO: review timeout
-	addonTimeout    = 3 // addon operation timeout, 5 min, range: [1 min ~ 60 min]
-	addonTimeoutMin = 1
-	addonTimeoutMax = 60
+	managedChartKey = "catalog.cattle.io/managed"
+)
+
+var (
+	// aditionalApps contains list of apps which need to be annotated to managed
+	// but are not related to a harvester addon
+	additionalApps = []string{"cattle-system/rancher", "cattle-system/rancher-webhook"}
 )
 
 type Handler struct {
@@ -57,6 +62,7 @@ func Register(ctx context.Context, management *config.Management, opts config.Op
 
 	addonController.OnChange(ctx, "monitor-addon-per-status", h.MonitorAddonPerStatus)
 	addonController.OnChange(ctx, "monitor-addon-rancher-monitoring", h.MonitorAddonRancherMonitoring)
+	appController.OnChange(ctx, "monitor-apps-catalog", h.PatchApps)
 	relatedresource.Watch(ctx, "watch-helmcharts", h.ReconcileHelmChartOwners, addonController, helmController)
 	return nil
 }
@@ -471,7 +477,7 @@ func (h *Handler) preProcessAddonUpdating(aObj *harvesterv1.Addon) (*harvesterv1
 
 // no `running` status, no user operation, or out-dated user operation
 // but OnChange happens, try to deduce one
-func (h *Handler) deduceAddonOperation(aObj *harvesterv1.Addon, aor *harvesterutil.AddonOperationRecord) (*harvesterv1.Addon, error) {
+func (h *Handler) deduceAddonOperation(aObj *harvesterv1.Addon, aor *addonOperationRecord) (*harvesterv1.Addon, error) {
 	logrus.Debugf("addon %s user operaton is empty %v or outdated, deduce next operation, current status is %v", aObj.Name, aor == nil, aObj.Status.Status)
 	// check if updated needed
 	if aObj.Spec.Enabled {
@@ -495,7 +501,7 @@ func (h *Handler) deduceAddonOperation(aObj *harvesterv1.Addon, aor *harvesterut
 		// should only be re-enabled/disabled by user operation, otherwise, it will loop
 		return aObj, nil
 
-	case harvesterv1.AddonInitState:
+	case harvesterv1.AddonDeployed, harvesterv1.AddonInitState:
 		// check, if helm-chart exists, disable again
 		return h.disableAddonWhenNeeded(aObj)
 	}
@@ -554,4 +560,41 @@ func (h *Handler) disableAddonWhenNeeded(aObj *harvesterv1.Addon) (*harvesterv1.
 	// trigger delete
 	logrus.Infof("addon %v is disabled, but helmchart is still existing, trigger disable", aObj.Name)
 	return h.updateAddonDisableStatus(aObj, harvesterv1.AddonDisabling, corev1.ConditionUnknown, "", "")
+}
+
+// PatchApps will watch apps.catalog.cattle.io and patch Charts.yaml with additional annotation 'catalog.cattle.io/managed'
+// this is needed to ensure that addons cannot be upgrade directly from the apps with rancher mcm enabled on harvester
+func (h *Handler) PatchApps(key string, app *catalogv1.App) (*catalogv1.App, error) {
+	if app == nil || app.DeletionTimestamp != nil {
+		return nil, nil
+	}
+
+	// check if harvester addon exists //
+	var patchNeeded bool
+	if slice.ContainsString(additionalApps, key) {
+		patchNeeded = true
+	} else {
+		_, err := h.addon.Cache().Get(app.Namespace, app.Name)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				// ignoring app since it doesnt match an addon
+				return app, nil
+			}
+			return app, fmt.Errorf("error fetching app %s: %v", app.Name, err)
+		}
+		patchNeeded = true
+	}
+
+	if patchNeeded {
+		appCopy := app.DeepCopy()
+		if appCopy.Spec.Chart.Metadata.Annotations == nil {
+			appCopy.Spec.Chart.Metadata.Annotations = make(map[string]string)
+		}
+		appCopy.Spec.Chart.Metadata.Annotations[managedChartKey] = "true"
+		if !reflect.DeepEqual(appCopy, app) {
+			return h.app.Update(appCopy)
+		}
+	}
+
+	return app, nil
 }
