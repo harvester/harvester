@@ -10,7 +10,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/lasso/pkg/controller"
-	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/generic"
 	batchv1 "k8s.io/api/batch/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -44,7 +43,7 @@ var (
 	scaled           *config.Scaled
 	testEnv          *envtest.Environment
 	scheme           = runtime.NewScheme()
-	crdList          = []string{"./manifest/helm-crd.yaml", "./manifest/app-crd.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml"}
+	crdList          = []string{"./manifest/helm-crd.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml"}
 )
 
 const (
@@ -81,9 +80,6 @@ var _ = BeforeSuite(func() {
 	MustNotError(err)
 
 	err = batchv1.AddToScheme(scheme)
-	MustNotError(err)
-
-	err = catalogv1.AddToScheme(scheme)
 	MustNotError(err)
 
 	factory, err := controller.NewSharedControllerFactoryFromConfig(cfg, scheme)
