@@ -72,7 +72,7 @@ func (h *Handler) updateAddonConditions(aObj *harvesterv1.Addon, cond condition.
 			// update the time to remark the starting of this operation
 			if updateLastTransitionTime {
 				aObj.Status.Conditions[i].LastTransitionTime = aObj.Status.Conditions[i].LastUpdateTime
-				logrus.Infof("addon %s condition %v is set with new LastTransitionTime %s", aObj.Name, cond, aObj.Status.Conditions[i].LastTransitionTime)
+				logrus.Debugf("addon %s condition %v is set with new LastTransitionTime %s", aObj.Name, cond, aObj.Status.Conditions[i].LastTransitionTime)
 			}
 			return
 		}
@@ -85,7 +85,7 @@ func (h *Handler) updateAddonConditions(aObj *harvesterv1.Addon, cond condition.
 	newCond := harvesterv1.Condition{Type: cond, Status: status, Reason: reason, Message: message, LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339)}
 	if updateLastTransitionTime {
 		newCond.LastTransitionTime = newCond.LastUpdateTime
-		logrus.Infof("addon %s condition %v is set with new LastTransitionTime %s", aObj.Name, cond, newCond.LastTransitionTime)
+		logrus.Debugf("addon %s condition %v is set with new LastTransitionTime %s", aObj.Name, cond, newCond.LastTransitionTime)
 	}
 	aObj.Status.Conditions = append(aObj.Status.Conditions, newCond)
 }
@@ -115,6 +115,14 @@ func (h *Handler) updateAddonEnableStatus(aObj *harvesterv1.Addon, addonStatus h
 	a := aObj.DeepCopy()
 	a.Status.Status = addonStatus
 	h.updateAddonConditions(a, harvesterv1.AddonEnableCondition, status, reason, message, addonStatus == harvesterv1.AddonEnabled)
+	// clear failed condition
+	if addonStatus == harvesterv1.AddonEnabled {
+		h.updateAddonConditions(a, harvesterv1.AddonFailedCondition, status, reason, message, true)
+	}
+	// log error message
+	if message != "" {
+		h.updateAddonConditions(a, harvesterv1.AddonFailedCondition, status, reason, message, false)
+	}
 	logrus.Debugf("addon %s enable operation will be set to new status %s", a.Name, addonStatus)
 	return h.addon.UpdateStatus(a)
 }
@@ -123,6 +131,14 @@ func (h *Handler) updateAddonDisableStatus(aObj *harvesterv1.Addon, addonStatus 
 	a := aObj.DeepCopy()
 	a.Status.Status = addonStatus
 	h.updateAddonConditions(a, harvesterv1.AddonDisableCondition, status, reason, message, addonStatus == harvesterv1.AddonDisabling)
+	// clear failed condition
+	if addonStatus == harvesterv1.AddonDisabling {
+		h.updateAddonConditions(a, harvesterv1.AddonFailedCondition, status, reason, message, true)
+	}
+	// log error message
+	if message != "" {
+		h.updateAddonConditions(a, harvesterv1.AddonFailedCondition, status, reason, message, false)
+	}
 	logrus.Debugf("addon %s disable operation will be set to new status %s", a.Name, addonStatus)
 	return h.addon.UpdateStatus(a)
 }
@@ -131,6 +147,14 @@ func (h *Handler) updateAddonUpdateStatus(aObj *harvesterv1.Addon, addonStatus h
 	a := aObj.DeepCopy()
 	a.Status.Status = addonStatus
 	h.updateAddonConditions(a, harvesterv1.AddonUpdateCondition, status, reason, message, addonStatus == harvesterv1.AddonUpdating)
+	// clear failed condition
+	if addonStatus == harvesterv1.AddonUpdating {
+		h.updateAddonConditions(a, harvesterv1.AddonFailedCondition, status, reason, message, true)
+	}
+	// log error message
+	if message != "" {
+		h.updateAddonConditions(a, harvesterv1.AddonFailedCondition, status, reason, message, false)
+	}
 	logrus.Debugf("addon %s update operation will be set to new status %s", a.Name, addonStatus)
 	return h.addon.UpdateStatus(a)
 }
@@ -141,6 +165,10 @@ func (h *Handler) updateAddonUpdateStatusDirectlyToFinal(aObj *harvesterv1.Addon
 	a.Status.Status = addonStatus
 	// in such case, set the LastTransitionTime as well
 	h.updateAddonConditions(a, harvesterv1.AddonUpdateCondition, status, reason, message, true)
+	// log error message, normally, here it has no error message
+	if message != "" {
+		h.updateAddonConditions(a, harvesterv1.AddonFailedCondition, status, reason, message, true)
+	}
 	logrus.Debugf("addon %s update operation will be set to final status directly %s", a.Name, a.Status.Status)
 	return h.addon.UpdateStatus(a)
 }
@@ -180,7 +208,7 @@ func (h *Handler) getUserOperationFromAnnotations(aObj *harvesterv1.Addon) *addo
 	aor, err := newAddonOperationRecord(op, tm)
 	if err != nil {
 		// if not valid, skip it
-		logrus.Infof("addon %s has no valid user operation %v, check", aObj.Name, err)
+		logrus.Debugf("addon %s has no valid user operation %v, check", aObj.Name, err)
 		return nil
 	}
 	logrus.Debugf("addon %s has valid user operation %v", aObj.Name, *aor)
@@ -192,7 +220,7 @@ func (h *Handler) isNewOperation(aObj *harvesterv1.Addon, aor *addonOperationRec
 	tm, err := h.getAddonConditionLastTransitionTime(aObj, cond)
 	if err != nil {
 		// info for debug
-		logrus.Infof("failed to convert addon %s LastTransitionTime per condtion %v, %v, check", aObj.Name, cond, err)
+		logrus.Debugf("failed to convert addon %s LastTransitionTime per condtion %v, %v, check", aObj.Name, cond, err)
 	}
 	if tm == nil {
 		return true

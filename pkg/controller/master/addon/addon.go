@@ -107,26 +107,26 @@ func (h *Handler) processAddonOnChange(aObj *harvesterv1.Addon) (*harvesterv1.Ad
 		logrus.Debugf("addon %s OnChange status: %v, user operation: %v", aObj.Name, aObj.Status.Status, *aor)
 	}
 
-	// user operation is empty, e.g. newly upgraded no, newly created add in bootstrap stage, or fetch failed from annotations
+	// user operation is empty, e.g. newly upgraded addon, newly created addon in bootstrap stage, or failed to fetch from annotations
 	if aor == nil {
 		return h.deduceAddonOperation(aObj, aor)
 	}
 
 	// e.g., previously disabled/enable failed, user enable again
 	if h.isNewEnableOperation(aObj, aor) {
-		logrus.Infof("OnChange: user enable addon, move from %v to new enable status %v", aObj.Status.Status, harvesterv1.AddonEnabled)
+		logrus.Debugf("OnChange: user enable addon, move from %v to new enable status %v", aObj.Status.Status, harvesterv1.AddonEnabled)
 		return h.updateAddonEnableStatus(aObj, harvesterv1.AddonEnabled, corev1.ConditionUnknown, "", "")
 	}
 
 	// e.g., previously enabled/disable failed, user disable again
 	if h.isNewDisableOperation(aObj, aor) {
-		logrus.Infof("OnChange: user disable addon, move from %v to new disable status %v", aObj.Status.Status, harvesterv1.AddonDisabling)
+		logrus.Debugf("OnChange: user disable addon, move from %v to new disable status %v", aObj.Status.Status, harvesterv1.AddonDisabling)
 		return h.updateAddonDisableStatus(aObj, harvesterv1.AddonDisabling, corev1.ConditionUnknown, "", "")
 	}
 
 	// user update the addon, e.g., change the valuesContent
 	if h.isNewUpdateOperation(aObj, aor) {
-		logrus.Infof("OnChange: user update addon, current status %v, prepare to preProcessAddonUpdating", aObj.Status.Status)
+		logrus.Debugf("OnChange: user update addon, current status %v, prepare to preProcessAddonUpdating", aObj.Status.Status)
 		return h.preProcessAddonUpdating(aObj)
 	}
 
@@ -166,7 +166,7 @@ func (h *Handler) processAddonEnabling(aObj *harvesterv1.Addon) (*harvesterv1.Ad
 
 	if hc == nil || !owned {
 		// chart is not existing, or not owned by this addon, deploy a new one
-		logrus.Infof("create new helmchart %s/%s to deploy addon", aObj.Namespace, aObj.Name)
+		logrus.Debugf("create new helmchart %s/%s to deploy addon", aObj.Namespace, aObj.Name)
 		err := h.deployHelmChart(aObj)
 		if err != nil {
 			return aObj, err
@@ -177,7 +177,7 @@ func (h *Handler) processAddonEnabling(aObj *harvesterv1.Addon) (*harvesterv1.Ad
 
 	// should not happen in general
 	if hc.DeletionTimestamp != nil {
-		logrus.Infof("helmchart %s/%s is being deleting, wait", hc.Namespace, hc.Name)
+		logrus.Debugf("helmchart %s/%s is being deleting, wait", hc.Namespace, hc.Name)
 		return h.enqueueAfter(aObj)
 	}
 
@@ -188,7 +188,7 @@ func (h *Handler) processAddonEnabling(aObj *harvesterv1.Addon) (*harvesterv1.Ad
 	if err == nil && tm != nil {
 		if hc.CreationTimestamp.Before(tm) {
 			// TODO: how to fetch previous status? assume success now
-			logrus.Infof("the helmchart %s exists before enable operation, move to %v directly", hc.Name, harvesterv1.AddonDeployed)
+			logrus.Debugf("the helmchart %s exists before enable operation, move to %v directly", hc.Name, harvesterv1.AddonDeployed)
 			return h.updateAddonEnableStatus(aObj, harvesterv1.AddonDeployed, corev1.ConditionTrue, "", "")
 		}
 	}
@@ -205,7 +205,7 @@ func (h *Handler) waitAddonEnablingFinish(aObj *harvesterv1.Addon, hc *helmv1.He
 
 	// helm is not managing the job well, try debug something
 	if strings.HasPrefix(hc.Status.JobName, "helm-delete-") {
-		logrus.Infof("the fetched job %s is from last time helm delete, helm may be wrong", hc.Status.JobName)
+		logrus.Debugf("the fetched job %s is from last time helm delete, helm may be wrong", hc.Status.JobName)
 	}
 
 	job, err := h.job.Get(aObj.Namespace, hc.Status.JobName, metav1.GetOptions{})
@@ -219,7 +219,7 @@ func (h *Handler) waitAddonEnablingFinish(aObj *harvesterv1.Addon, hc *helmv1.He
 		return h.enqueueAfter(aObj)
 	}
 
-	logrus.Infof("enable addon job %s has finished with job.Status.Failed %v", job.Name, job.Status.Failed)
+	logrus.Debugf("enable addon job %s has finished with job.Status.Failed %v", job.Name, job.Status.Failed)
 	// check Failed before since in jobs with more than 1 container then
 	// even a single failure should count as a failure
 	if job.Status.Failed > 0 {
@@ -262,12 +262,12 @@ func (h *Handler) processAddonDisabling(aObj *harvesterv1.Addon) (*harvesterv1.A
 
 	if hc == nil || !owned {
 		// only finish when helmchart is gone
-		logrus.Infof("addon %s: helmchart is gone %v, or owned %v, addon is in %s state, move to init state", aObj.Name, hc == nil, owned, aObj.Status.Status)
+		logrus.Debugf("addon %s: helmchart is gone %v, or owned %v, addon is in %s state, move to init state", aObj.Name, hc == nil, owned, aObj.Status.Status)
 		return h.updateAddonDisableStatus(aObj, harvesterv1.AddonInitState, corev1.ConditionTrue, "", "")
 	}
 
 	if hc.DeletionTimestamp == nil {
-		logrus.Infof("delete the helmchart %s/%s", hc.Namespace, hc.Name)
+		logrus.Debugf("delete the helmchart %s/%s", hc.Namespace, hc.Name)
 		if err := h.helm.Delete(hc.Namespace, hc.Name, &metav1.DeleteOptions{}); err != nil {
 			return aObj, fmt.Errorf("failed to delete helmchart %s/%s, %v", hc.Namespace, hc.Name, err)
 		}
@@ -304,7 +304,7 @@ func (h *Handler) waitAddonDisablingFinish(aObj *harvesterv1.Addon, hc *helmv1.H
 	}
 
 	if job.Status.Failed > 0 {
-		logrus.Infof("disable addon job %s/%s has finished, with job.Status.Failed %v", job.Namespace, job.Name, job.Status.Failed)
+		logrus.Debugf("disable addon job %s/%s has finished, with job.Status.Failed %v", job.Namespace, job.Name, job.Status.Failed)
 	}
 
 	// job is finished, does not mean `helmchart` is deleted, need to wait until the `helmchart` is deleted
@@ -368,13 +368,13 @@ func (h *Handler) processAddonUpdating(aObj *harvesterv1.Addon) (*harvesterv1.Ad
 
 	// wait for old job to be removed
 	if wait {
-		logrus.Infof("addon %s updating wait for old job to be deleted", aObj.Name)
+		logrus.Debugf("addon %s updating wait for old job to be deleted", aObj.Name)
 		return h.enqueueAfter(aObj)
 	}
 
 	if hc == nil || !owned {
 		// chart is not existing, or not owned by this addon, deploy a new one
-		logrus.Infof("create new helmchart %s/%s to update addon", aObj.Namespace, aObj.Name)
+		logrus.Debugf("create new helmchart %s/%s to update addon", aObj.Namespace, aObj.Name)
 		err := h.deployHelmChart(aObj)
 		if err != nil {
 			return aObj, err
@@ -384,7 +384,7 @@ func (h *Handler) processAddonUpdating(aObj *harvesterv1.Addon) (*harvesterv1.Ad
 
 	// should not happen in general
 	if hc.DeletionTimestamp != nil {
-		logrus.Infof("helmchart %s/%s is being deleting, wait", hc.Namespace, hc.Name)
+		logrus.Debugf("helmchart %s/%s is being deleting, wait", hc.Namespace, hc.Name)
 		return h.enqueueAfter(aObj)
 	}
 
@@ -401,7 +401,7 @@ func (h *Handler) processAddonUpdating(aObj *harvesterv1.Addon) (*harvesterv1.Ad
 		hcCopy.Spec.Repo = aObj.Spec.Repo
 		hcCopy.Spec.Version = aObj.Spec.Version
 		hcCopy.Spec.ValuesContent = vals
-		logrus.Infof("addon %s has been changed, updating the helmchart %s", aObj.Name, hc.Name)
+		logrus.Debugf("addon %s has been changed, updating the helmchart %s", aObj.Name, hc.Name)
 		_, err = h.helm.Update(hcCopy)
 		if err != nil {
 			return aObj, fmt.Errorf("error updating helmchart %s when updating: %v", hc.Name, err)
@@ -440,7 +440,7 @@ func (h *Handler) waitAddonUpdatingFinish(aObj *harvesterv1.Addon, hc *helmv1.He
 		return h.enqueueAfter(aObj)
 	}
 
-	logrus.Infof("update addon job %s has finished with job.Status.Failed %v", job.Name, job.Status.Failed)
+	logrus.Debugf("update addon job %s has finished with job.Status.Failed %v", job.Name, job.Status.Failed)
 
 	// check Failed before since in jobs with more than 1 container then
 	// even a single failure should count as a failure
@@ -467,10 +467,10 @@ func (h *Handler) preProcessAddonUpdating(aObj *harvesterv1.Addon) (*harvesterv1
 	}
 	// no need to trully update, do not change current status
 	if !need {
-		logrus.Infof("addon %s is not needed to update, keep current status %v", aObj.Name, aObj.Status.Status)
+		logrus.Debugf("addon %s is not needed to update, keep current status %v", aObj.Name, aObj.Status.Status)
 		return h.updateAddonUpdateStatusDirectlyToFinal(aObj, aObj.Status.Status, corev1.ConditionTrue, "", "")
 	}
-	logrus.Infof("addon %s is needed to update, move from %v to new update status %v", aObj.Name, aObj.Status.Status, harvesterv1.AddonUpdating)
+	logrus.Debugf("addon %s is needed to update, move from %v to new update status %v", aObj.Name, aObj.Status.Status, harvesterv1.AddonUpdating)
 
 	// now move the the true updating
 	return h.updateAddonUpdateStatus(aObj, harvesterv1.AddonUpdating, corev1.ConditionUnknown, "", "")
@@ -559,7 +559,7 @@ func (h *Handler) disableAddonWhenNeeded(aObj *harvesterv1.Addon) (*harvesterv1.
 	}
 
 	// trigger delete
-	logrus.Infof("addon %v is disabled, but helmchart is still existing, trigger disable", aObj.Name)
+	logrus.Debugf("addon %v is disabled, but helmchart is still existing, trigger disable", aObj.Name)
 	return h.updateAddonDisableStatus(aObj, harvesterv1.AddonDisabling, corev1.ConditionUnknown, "", "")
 }
 

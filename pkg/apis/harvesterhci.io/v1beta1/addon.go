@@ -37,6 +37,7 @@ var (
 	AddonUpdateCondition  condition.Cond = "Update"
 	AddonEnableCondition  condition.Cond = "Enable"
 	AddonDisableCondition condition.Cond = "Disable"
+	AddonFailedCondition  condition.Cond = "Failed"
 )
 
 // +genclient
