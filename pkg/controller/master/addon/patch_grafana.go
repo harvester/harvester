@@ -83,7 +83,7 @@ func (h *Handler) patchGrafanaPVReclaimPolicy(namespace, name string) (bool, str
 		return false, pvc.Spec.VolumeName, fmt.Errorf("grafana PV %s is failed to patch ReclaimPolicy: %v", pvc.Spec.VolumeName, err)
 	}
 
-	logrus.Infof("grafana PV %s is patched with new ReclaimPolicy %s", pvc.Spec.VolumeName, corev1.PersistentVolumeReclaimRetain)
+	logrus.Debugf("grafana PV %s is patched with new ReclaimPolicy %s", pvc.Spec.VolumeName, corev1.PersistentVolumeReclaimRetain)
 	return true, pvc.Spec.VolumeName, nil
 }
 
@@ -125,7 +125,7 @@ func (h *Handler) patchGrafanaPVClaimRef(aObj *harvesterv1.Addon) (*harvesterv1.
 
 	// nothing to do
 	if pvname == "" {
-		logrus.Infof("there is no pvname found on addon %s annotations, skip patch ClaimRef", aObj.Name)
+		logrus.Debugf("there is no pvname found on addon %s annotations, skip patch ClaimRef", aObj.Name)
 		return aObj, nil
 	}
 
@@ -133,7 +133,7 @@ func (h *Handler) patchGrafanaPVClaimRef(aObj *harvesterv1.Addon) (*harvesterv1.
 	pv, err := h.pv.Cache().Get(pvname)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logrus.Infof("grafana PV %s is not found, skip patch ClaimRef", pvname)
+			logrus.Debugf("grafana PV %s is not found, skip patch ClaimRef", pvname)
 			return aObj, nil
 		}
 
@@ -158,7 +158,7 @@ func (h *Handler) patchGrafanaPVClaimRef(aObj *harvesterv1.Addon) (*harvesterv1.
 
 	// only patch when this status is Released
 	if pv.Status.Phase != corev1.VolumeReleased {
-		logrus.Infof("grafana PV %s status is %s, CAN NOT patch ClaimRef, skip patch ClaimRef", pvname, pv.Status.Phase)
+		logrus.Debugf("grafana PV %s status is %s, CAN NOT patch ClaimRef, skip patch ClaimRef", pvname, pv.Status.Phase)
 		return aObj, nil
 	}
 
@@ -170,6 +170,6 @@ func (h *Handler) patchGrafanaPVClaimRef(aObj *harvesterv1.Addon) (*harvesterv1.
 		return aObj, fmt.Errorf("grafana PV %s is failed to patch: %v", pvname, err)
 	}
 
-	logrus.Infof("grafana PV %s is patched with null ClaimRef", pvname)
+	logrus.Debugf("grafana PV %s is patched with null ClaimRef", pvname)
 	return aObj, nil
 }
