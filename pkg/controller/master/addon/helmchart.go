@@ -87,7 +87,7 @@ func (h *Handler) tryRemoveAddonHelmChartOldJob(aObj *harvesterv1.Addon, cond co
 
 		// wait job to be deleted
 		if job.DeletionTimestamp != nil {
-			logrus.Infof("previous job %s/%s is being deleted, wait", job.Namespace, job.Name)
+			logrus.Debugf("previous job %s/%s is being deleted, wait", job.Namespace, job.Name)
 			wait = true
 			continue
 		}
@@ -95,11 +95,11 @@ func (h *Handler) tryRemoveAddonHelmChartOldJob(aObj *harvesterv1.Addon, cond co
 		tm, err := h.getAddonConditionLastTransitionTime(aObj, cond)
 		if err != nil {
 			// leave info for debug
-			logrus.Infof("failed to convert time per condtion %v, %v, check", cond, err)
+			logrus.Debugf("failed to convert time per condtion %v, %v, check", cond, err)
 		}
 
 		if tm != nil && job.CreationTimestamp.Before(tm) {
-			logrus.Infof("previous job %s/%s is to be deleted, wait", job.Namespace, job.Name)
+			logrus.Debugf("previous job %s/%s is to be deleted, wait", job.Namespace, job.Name)
 			if err := h.job.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{}); err != nil {
 				return aObj, false, hc, owned, fmt.Errorf("error deleting helmchart related job %s/%s %v", job.Namespace, job.Name, err)
 			}
