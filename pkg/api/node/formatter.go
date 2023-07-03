@@ -35,18 +35,18 @@ import (
 )
 
 const (
-	drainKey                        = "kubevirt.io/drain"
-	enableMaintenanceModeAction     = "enableMaintenanceMode"
-	disableMaintenanceModeAction    = "disableMaintenanceMode"
-	cordonAction                    = "cordon"
-	uncordonAction                  = "uncordon"
-	listUnhealthyVM                 = "listUnhealthyVM"
-	maintenancePossible             = "maintenancePossible"
-	powerAction                     = "powerAction"
-	powerActionPossible             = "powerActionPossible"
-	seederAddonName                 = "harvester-seeder"
-	defaultAddonNamespace           = "harvester-system"
-	defaultPowerActionAnnotationKey = "metal.harvesterhci.io/actionRequested"
+	drainKey                     = "kubevirt.io/drain"
+	enableMaintenanceModeAction  = "enableMaintenanceMode"
+	disableMaintenanceModeAction = "disableMaintenanceMode"
+	cordonAction                 = "cordon"
+	uncordonAction               = "uncordon"
+	listUnhealthyVM              = "listUnhealthyVM"
+	maintenancePossible          = "maintenancePossible"
+	powerAction                  = "powerAction"
+	powerActionPossible          = "powerActionPossible"
+	seederAddonName              = "harvester-seeder"
+	defaultAddonNamespace        = "harvester-system"
+	nodeReady                    = "inventoryNodeReady"
 )
 
 var (
@@ -281,7 +281,7 @@ func (h ActionHandler) powerActionPossible(rw http.ResponseWriter, node string) 
 		return nil
 	}
 
-	_, err = h.fetchInventoryObject(node)
+	inventoryObject, err := h.fetchInventoryObject(node)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Errorf("inventory %s not found", node)
@@ -290,7 +290,29 @@ func (h ActionHandler) powerActionPossible(rw http.ResponseWriter, node string) 
 		}
 		return err
 	}
-	rw.WriteHeader(http.StatusOK)
+
+	val, ok, err := unstructured.NestedString(inventoryObject.Object, "status", "status")
+	if err != nil {
+		logrus.Errorf("error fetching status from inventory object %s :%v", node, err)
+		rw.WriteHeader(http.StatusConflict)
+		return err
+	}
+
+	if !ok {
+		errMsg := fmt.Sprintf("no field .status.status present in inventory object: %s", node)
+		logrus.Errorf(errMsg)
+		rw.WriteHeader(http.StatusConflict)
+		return fmt.Errorf(errMsg)
+	}
+
+	if val != nodeReady {
+		errMsg := fmt.Sprintf("expected to find inventory %s status %s, but current status is: %s", node, nodeReady, val)
+		logrus.Errorf(errMsg)
+		rw.WriteHeader(http.StatusConflict)
+		return fmt.Errorf(errMsg)
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 	return nil
 }
 
