@@ -291,6 +291,9 @@ var (
 				"name":      testNode.Name,
 				"namespace": defaultAddonNamespace,
 			},
+			"status": map[string]interface{}{
+				"status": nodeReady,
+			},
 		},
 	}
 
@@ -436,7 +439,7 @@ func Test_powerActionPossible(t *testing.T) {
 	fakeHTTP := httptest.NewRecorder()
 	err = h.powerActionPossible(fakeHTTP, testNode.Name)
 	assert.NoError(err, "expected no error while querying powerActionPossible")
-	assert.Equal(fakeHTTP.Result().StatusCode, http.StatusOK, "expected to find node")
+	assert.Equal(fakeHTTP.Result().StatusCode, http.StatusNoContent, "expected to find node")
 }
 
 func Test_powerAction(t *testing.T) {
