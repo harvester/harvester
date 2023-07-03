@@ -203,6 +203,43 @@ func Test_validateUpdatedAddon(t *testing.T) {
 			expectedError: true,
 		},
 		{
+			name: "user can change addon annotations when addon is being enabled",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "change-enabling-addon1-annotation",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonEnabled,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "change-enabling-addon1-annotation",
+					Annotations: map[string]string{
+						"harvesterhci.io/addon-operation-timeout": "2",
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+				Status: harvesterv1.AddonStatus{
+					Status: harvesterv1.AddonEnabled,
+				},
+			},
+			expectedError: false,
+		},
+		{
 			name: "user can disable deployfailed addon",
 			oldAddon: &harvesterv1.Addon{
 				ObjectMeta: metav1.ObjectMeta{
