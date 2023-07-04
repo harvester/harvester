@@ -12,7 +12,6 @@ import (
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
 	provisioningctrl "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
-	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
@@ -88,9 +87,8 @@ type upgradeHandler struct {
 	serviceClient ctlcorev1.ServiceClient
 	pvcClient     ctlcorev1.PersistentVolumeClaimClient
 
-	clusterClient    provisioningctrl.ClusterClient
-	clusterCache     provisioningctrl.ClusterCache
-	deploymentClient ctlappsv1.DeploymentClient
+	clusterClient provisioningctrl.ClusterClient
+	clusterCache  provisioningctrl.ClusterCache
 
 	lhSettingClient ctllhv1.SettingClient
 	lhSettingCache  ctllhv1.SettingCache
@@ -333,24 +331,6 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 	repo := NewUpgradeRepo(h.ctx, upgrade, h)
 	if err := repo.deleteVM(); err != nil {
 		return err
-	}
-
-	// For single node case, we scale fleet agent deployment replicas to 0 before upgrading RKE2.
-	// Restore the replica back when upgrade is done.
-	if upgrade.Status.SingleNode != "" {
-		fleetAgentDP, err := h.deploymentClient.Get("cattle-fleet-local-system", "fleet-agent", metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		logrus.Debugf("Replicas of fleet agent deployment: %d", *fleetAgentDP.Spec.Replicas)
-		if fleetAgentDP.Spec.Replicas != nil && *fleetAgentDP.Spec.Replicas == 0 {
-			logrus.Infof("Scale replicas of fleet agent deployment to 1")
-			toUpdate := fleetAgentDP.DeepCopy()
-			*toUpdate.Spec.Replicas = 1
-			if _, err := h.deploymentClient.Update(toUpdate); err != nil {
-				return err
-			}
-		}
 	}
 
 	// remove rkeConfig in fleet-local/local cluster
