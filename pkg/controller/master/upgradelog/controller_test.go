@@ -1,11 +1,10 @@
 package upgradelog
 
 import (
-	"net/http"
 	"testing"
 
 	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
-	"github.com/jarcoal/httpmock"
+	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/stretchr/testify/assert"
@@ -38,36 +37,63 @@ const (
 	testStatefulSetName   = "test-upgrade-upgradelog-fluentd"
 	testArchiveName       = "test-archive"
 	testImageVersion      = "dev"
-	testURL               = "http://harvester-cluster-repo.cattle-system/charts/rancher-logging/values.yaml"
 )
 
-var testImages = map[string]interface{}{
-	"config_reloader": map[string]interface{}{
-		"repository": "test/configmap-reload",
-		"tag":        "dev",
+var testImages = map[string]Image{
+	"config_reloader": {
+		Repository: "rancher/config-reload",
+		Tag:        "default",
 	},
-	"fluentbit": map[string]interface{}{
-		"repository": "test/fluent-bit",
-		"tag":        "dev",
+	"fluentbit": {
+		Repository: "rancher/fluentbit",
+		Tag:        "dev",
 	},
-	"fluentd": map[string]interface{}{
-		"repository": "test/fluentd",
-		"tag":        "dev",
+	"fluentd": {
+		Repository: "test/fluentd",
+		Tag:        "dev",
 	},
 }
 
-var testYAMLContent = `
-images:
-  config_reloader:
-    repository: test/configmap-reload
-    tag: dev
-  fluentbit:
-    repository: test/fluent-bit
-    tag: dev
-  fluentd:
-    repository: test/fluentd
-    tag: dev
-`
+func newTestApp() *catalogv1.App {
+	return &catalogv1.App{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      util.RancherLoggingName,
+			Namespace: util.CattleLoggingSystemNamespaceName,
+		},
+		Spec: catalogv1.ReleaseSpec{
+			Chart: &catalogv1.Chart{
+				Values: mgmtv3.MapStringInterface{
+					"images": map[string]interface{}{
+						"config_reloader": map[string]interface{}{
+							"repository": "rancher/config-reload",
+							"tag":        "default",
+						},
+						"fluentbit": map[string]interface{}{
+							"repository": "rancher/fluentbit",
+							"tag":        "default",
+						},
+						"fluentd": map[string]interface{}{
+							"repository": "rancher/fluentd",
+							"tag":        "dev",
+						},
+					},
+				},
+			},
+			Values: mgmtv3.MapStringInterface{
+				"images": map[string]interface{}{
+					"fluentbit": map[string]interface{}{
+						"repository": "rancher/fluentbit",
+						"tag":        "dev",
+					},
+					"fluentd": map[string]interface{}{
+						"repository": "test/fluentd",
+						"tag":        "dev",
+					},
+				},
+			},
+		},
+	}
+}
 
 func newTestClusterFlowBuilder() *clusterFlowBuilder {
 	return newClusterFlowBuilder(testClusterFlowName).
@@ -574,6 +600,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 	type input struct {
 		key           string
 		addon         *harvesterv1.Addon
+		app           *catalogv1.App
 		clusterFlow   *loggingv1.ClusterFlow
 		clusterOutput *loggingv1.ClusterOutput
 		logging       *loggingv1.Logging
@@ -656,6 +683,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			name: "The logging-operator is deployed, should therefore create Logging resource",
 			given: input{
 				key: testUpgradeLogName,
+				app: newTestApp(),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").
 					OperatorDeployedCondition(corev1.ConditionTrue, "", "").Build(),
@@ -858,6 +886,10 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			var err = clientset.Tracker().Add(tc.given.addon)
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
 		}
+		if tc.given.app != nil {
+			var err = clientset.Tracker().Add(tc.given.app)
+			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+		}
 		if tc.given.clusterFlow != nil {
 			var err = clientset.Tracker().Add(tc.given.clusterFlow)
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
@@ -887,8 +919,8 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 
 		var handler = &handler{
 			namespace:           util.HarvesterSystemNamespaceName,
-			httpClient:          &http.Client{},
 			addonCache:          fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons),
+			appCache:            fakeclients.AppCache(clientset.CatalogV1().Apps),
 			clusterFlowClient:   fakeclients.ClusterFlowClient(clientset.LoggingV1beta1().ClusterFlows),
 			clusterOutputClient: fakeclients.ClusterOutputClient(clientset.LoggingV1beta1().ClusterOutputs),
 			deploymentClient:    fakeclients.DeploymentClient(k8sclientset.AppsV1().Deployments),
@@ -901,11 +933,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			upgradeCache:        fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeLogClient:    fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
 		}
-
-		httpmock.Activate()
-		defer httpmock.DeactivateAndReset()
-
-		httpmock.RegisterResponder("GET", testURL, httpmock.NewStringResponder(200, testYAMLContent))
 
 		var actual output
 		actual.upgradeLog, actual.err = handler.OnUpgradeLogChange(tc.given.key, tc.given.upgradeLog)
