@@ -2,20 +2,20 @@ package upgradelog
 
 import (
 	"context"
-	"fmt"
-	"io/ioutil"
-	"net/http"
 	"reflect"
 
 	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
+	"github.com/mitchellh/mapstructure"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	ctlcatalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chartutil"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -43,15 +43,13 @@ const (
 	upgradeLogStateAnnotation = "harvesterhci.io/upgradeLogState"
 	upgradeLogStateCollecting = "Collecting"
 	upgradeLogStateStopped    = "Stopped"
-
-	rancherLoggingChartValuesPath = "charts/rancher-logging/values.yaml"
 )
 
 type handler struct {
 	ctx                 context.Context
 	namespace           string
-	httpClient          *http.Client
 	addonCache          ctlharvesterv1.AddonCache
+	appCache            ctlcatalogv1.AppCache
 	clusterFlowClient   ctlloggingv1.ClusterFlowClient
 	clusterOutputClient ctlloggingv1.ClusterOutputClient
 	daemonSetClient     ctlappsv1.DaemonSetClient
@@ -70,6 +68,15 @@ type handler struct {
 	upgradeCache        ctlharvesterv1.UpgradeCache
 	upgradeLogClient    ctlharvesterv1.UpgradeLogClient
 	upgradeLogCache     ctlharvesterv1.UpgradeLogCache
+}
+
+type Values struct {
+	Images map[string]Image `mapstructure:"images"`
+}
+
+type Image struct {
+	Repository string `mapstructure:"repository"`
+	Tag        string `mapstructure:"tag"`
 }
 
 func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLog) (*harvesterv1.UpgradeLog, error) {
@@ -94,7 +101,6 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		harvesterv1.LoggingOperatorDeployed.CreateUnknownIfNotExists(toUpdate)
 
 		// Detect rancher-logging Addon
-
 		addon, err := h.addonCache.Get(util.CattleLoggingSystemNamespaceName, util.RancherLoggingName)
 		if err != nil {
 			if !apierrors.IsNotFound(err) {
@@ -145,12 +151,12 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 			return nil, err
 		}
 		// The creation of the Logging resource will indirectly bring up fluent-bit DaemonSet and fluentd StatefulSet
-		url := fmt.Sprintf("http://%s.%s/%s", util.HarvesterClusterRepoSvcName, util.CattleSystemNamespaceName, rancherLoggingChartValuesPath)
-		images, err := h.getImagesFromChart(url)
+		candidateImages, err := h.getConsolidatedLoggingImageList(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
 		if err != nil {
 			return upgradeLog, err
 		}
-		if _, err := h.loggingClient.Create(prepareLogging(upgradeLog, images)); err != nil && !apierrors.IsAlreadyExists(err) {
+
+		if _, err := h.loggingClient.Create(prepareLogging(upgradeLog, candidateImages)); err != nil && !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
 
@@ -612,33 +618,43 @@ func (h *handler) OnUpgradeChange(_ string, upgrade *harvesterv1.Upgrade) (*harv
 	return upgrade, nil
 }
 
-func (h *handler) getImagesFromChart(url string) (map[string]interface{}, error) {
-	resp, err := h.httpClient.Get(url)
+func (h *handler) getConsolidatedLoggingImageList(appName string) (map[string]Image, error) {
+	// The logging App could be created by the UpgradeLog mechanism or the default rancher-logging Addon/ManagedChart
+	fallbackToDefaultApp := false
+	loggingApp, err := h.appCache.Get(util.CattleLoggingSystemNamespaceName, appName)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		fallbackToDefaultApp = true
+	}
+	if fallbackToDefaultApp {
+		loggingApp, err = h.appCache.Get(util.CattleLoggingSystemNamespaceName, util.RancherLoggingName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	v, err := chartutil.CoalesceValues(
+		&chart.Chart{
+			// In latest version of chartutil, it read chart.metadata.name, so we put a value here.
+			// ref: https://github.com/helm/helm/blob/b8d3535991dd5089d58bc88c46a5ffe2721ae830/pkg/chartutil/coalesce.go#L160
+			Metadata: &chart.Metadata{Name: "merge-templates-and-values"},
+			Values:   loggingApp.Spec.Chart.Values,
+		},
+		loggingApp.Spec.Values,
+	)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get from the URL: %s", url)
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
+	var result Values
+	vMap := v.AsMap()
+	if err := mapstructure.Decode(vMap, &result); err != nil {
 		return nil, err
 	}
 
-	var data map[string]interface{}
-	err = yaml.Unmarshal(body, &data)
-	if err != nil {
-		return nil, err
-	}
-
-	images, ok := data["images"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("no images node in response")
-	}
-
-	return images, nil
+	return result.Images, nil
 }
 
 func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {

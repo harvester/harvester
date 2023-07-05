@@ -2,8 +2,6 @@ package upgradelog
 
 import (
 	"context"
-	"net/http"
-	"time"
 
 	"github.com/harvester/harvester/pkg/config"
 )
@@ -24,6 +22,7 @@ const (
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	upgradeLogController := management.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog()
 	addonController := management.HarvesterFactory.Harvesterhci().V1beta1().Addon()
+	appController := management.CatalogFactory.Catalog().V1().App()
 	clusterFlowController := management.LoggingFactory.Logging().V1beta1().ClusterFlow()
 	clusterOutputController := management.LoggingFactory.Logging().V1beta1().ClusterOutput()
 	daemonSetController := management.AppsFactory.Apps().V1().DaemonSet()
@@ -37,12 +36,10 @@ func Register(ctx context.Context, management *config.Management, options config
 	upgradeController := management.HarvesterFactory.Harvesterhci().V1beta1().Upgrade()
 
 	handler := &handler{
-		ctx:       ctx,
-		namespace: options.Namespace,
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		ctx:                 ctx,
+		namespace:           options.Namespace,
 		addonCache:          addonController.Cache(),
+		appCache:            appController.Cache(),
 		clusterFlowClient:   clusterFlowController,
 		clusterOutputClient: clusterOutputController,
 		daemonSetClient:     daemonSetController,
