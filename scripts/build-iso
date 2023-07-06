@@ -13,7 +13,12 @@ git clone --branch ${HARVESTER_INSTALLER_VERSION} --single-branch --depth 1 http
 
 cd ../harvester-installer/scripts
 
-./ci
+if [[ -z "$DIRTY" && -n "$GIT_TAG" ]]; then
+    echo "Building ISO image with BUILD_QCOW enabled"
+    BUILD_QCOW=true ./ci
+else
+    ./ci
+fi
 
 cd ..
 HARVESTER_DIR=../harvester
