@@ -60,6 +60,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
+      - "refs/heads/release-*"
       - "refs/heads/v*"
     event:
     - push
@@ -107,6 +108,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
+      - "refs/heads/release-*"
       - "refs/heads/v*"
     event:
     - push
@@ -155,6 +157,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
+      - "refs/heads/release-*"
       - "refs/heads/v*"
     event:
     - push
@@ -217,6 +220,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
+      - "refs/heads/release-*"
       - "refs/heads/v*"
     event:
     - push
@@ -256,6 +260,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
+      - "refs/heads/release-*"
       - "refs/heads/v*"
     event:
     - push
@@ -295,6 +300,7 @@ steps:
     ref:
       include:
       - "refs/heads/master"
+      - "refs/heads/release-*"
       - "refs/heads/v*"
     event:
     - push
@@ -417,6 +423,7 @@ trigger:
     - push
   ref:
     - "refs/heads/master"
+    - "refs/heads/release-*"
     - "refs/heads/v*"
     - "refs/tags/*"
 
