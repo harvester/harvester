@@ -185,4 +185,24 @@ spec:
         podSelector:
           matchLabels:
             app.kubernetes.io/instance: rancher-monitoring-prometheus
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: harvester
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      app: longhorn-manager
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: harvester-system
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: harvester
 {{- end -}}
