@@ -3,7 +3,7 @@
 TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 VALUES_FILE=$TOP_DIR/deploy/charts/harvester/values.yaml
 
-: ${INSTALLER_BRANCH:="master"}
+: ${INSTALLER_BRANCH:="v1.2"}
 
 if [ -z ${WORK_DIR+x} ]; then
   WORK_DIR=$(mktemp -d)
