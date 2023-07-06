@@ -502,7 +502,7 @@ harvester-node-manager:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/harvester-node-manager
-    tag: v0.1.5
+    tag: v0.1.6
 
 snapshot-validation-webhook:
   enabled: true
