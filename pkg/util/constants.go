@@ -30,6 +30,8 @@ const (
 	AnnotationInsufficientResourceQuota = prefix + "/insufficient-resource-quota"
 
 	AnnotationDefaultUserdataSecret = prefix + "/default-userdata-secret"
+	// Add to rancher-monitoring addon to record grafana pv name
+	AnnotationGrafanaPVName = prefix + "/grafana-pv-name"
 
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
@@ -59,9 +61,12 @@ const (
 	HTTPSProxyEnv = "HTTPS_PROXY"
 	NoProxyEnv    = "NO_PROXY"
 
-	LonghornOptionBackingImageName = "backingImage"
-	LonghornOptionMigratable       = "migratable"
-	AddonValuesAnnotation          = "harvesterhci.io/addon-defaults"
+	LonghornOptionBackingImageName      = "backingImage"
+	LonghornOptionMigratable            = "migratable"
+	AddonValuesAnnotation               = "harvesterhci.io/addon-defaults"
+	GrafanaPVCName                      = "rancher-monitoring-grafana"
+	RancherMonitoringName               = "rancher-monitoring"
+	CattleMonitoringSystemNamespaceName = "cattle-monitoring-system"
 
 	LabelUpgradeReadMessage          = prefix + "/read-message"
 	LabelUpgradeState                = prefix + "/upgradeState"
