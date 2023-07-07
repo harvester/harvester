@@ -15,6 +15,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/tests/integration/controllers/fake"
 )
 
 var _ = Describe("verify helm chart is create and addon gets to desired state", func() {
@@ -587,10 +588,10 @@ var _ = Describe("verify helm chart is create and addon gets to failed state", f
 				if err != nil {
 					return err
 				}
-				if aObj.Status.Status != harvesterv1.AddonFailed {
-					return fmt.Errorf("waiting for addon to be deploy failed. current status is %s", aObj.Status.Status)
+				if aObj.Status.Status == harvesterv1.AddonEnabling && harvesterv1.AddonOperationFailed.IsTrue(aObj) {
+					return nil
 				}
-				return nil
+				return fmt.Errorf("waiting for addon to be deploy failed. current status is %s", aObj.Status.Status)
 			}, "120s", "5s").ShouldNot(HaveOccurred())
 		})
 
@@ -680,9 +681,6 @@ var _ = Describe("enable and disable successful addon", func() {
 					return fmt.Errorf("error fetching addon: %v", err)
 				}
 				a := aObj.DeepCopy()
-				// simulate user operation
-				a.Annotations["harvesterhci.io/addon-last-operation"] = "disable"
-				a.Annotations["harvesterhci.io/addon-last-operation-timestamp"] = time.Now().UTC().Format(time.RFC3339)
 				a.Spec.Enabled = false
 				_, err = addonController.Update(a)
 				return err
@@ -770,14 +768,14 @@ var _ = Describe("enable and disable failed addon", func() {
 
 		By("check addon status is failed", func() {
 			Eventually(func() error {
-				a, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
-				if a.Status.Status != harvesterv1.AddonFailed {
-					return fmt.Errorf("addon %s is NOT deployed failed as expected, status %v", a.Name, a.Status.Status)
+				if aObj.Status.Status == harvesterv1.AddonEnabling && harvesterv1.AddonOperationFailed.IsTrue(aObj) {
+					return nil
 				}
-				return nil
+				return fmt.Errorf("waiting for addon to be deploy failed. current status is %s", aObj.Status.Status)
 			}, "120s", "5s").ShouldNot(HaveOccurred())
 		})
 
@@ -795,6 +793,19 @@ var _ = Describe("enable and disable failed addon", func() {
 				_, err = addonController.Update(a)
 				return err
 			}, "30s", "5s").ShouldNot(HaveOccurred())
+		})
+
+		By("check addon disable status is failed", func() {
+			Eventually(func() error {
+				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if aObj.Status.Status == harvesterv1.AddonDisabled {
+					return nil
+				}
+				return fmt.Errorf("waiting for addon to be disabled. current status is %s", aObj.Status.Status)
+			}, "120s", "5s").ShouldNot(HaveOccurred())
 		})
 
 		By("helm chart is removed", func() {
@@ -818,4 +829,155 @@ var _ = Describe("enable and disable failed addon", func() {
 			return addonController.Delete(a.Namespace, a.Name, &metav1.DeleteOptions{})
 		}).ShouldNot(HaveOccurred())
 	})
+})
+
+var _ = Describe("test addon upgrade fail", func() {
+	var addonController ctlharvesterv1.AddonController
+	var helmController ctlhelmv1.HelmChartController
+
+	a := &harvesterv1.Addon{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "demo-addon-upgrade-2",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"harvesterhci.io/addon-defaults": "ZGVmYXVsdFZhbHVlcwo=",
+			},
+		},
+		Spec: harvesterv1.AddonSpec{
+			Chart:   "vm-import-controller",
+			Repo:    "http://harvester-cluster-repo.cattle-system.svc",
+			Version: "v0.1.0",
+			Enabled: true,
+		},
+	}
+
+	BeforeEach(func() {
+		Eventually(func() error {
+			addonController = scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().Addon()
+			helmController = scaled.Management.HelmFactory.Helm().V1().HelmChart()
+			_, err := addonController.Create(a)
+			return err
+		}).ShouldNot(HaveOccurred())
+	})
+
+	It("reconcile helm chart upgrade", func() {
+		By("check helm chart object is created", func() {
+			Eventually(func() error {
+				h, err := helmController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+
+				aObj, err := helmController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if h.Spec.Chart != aObj.Spec.Chart {
+					return fmt.Errorf("expected chart name to be same")
+				}
+
+				if h.Spec.Version != aObj.Spec.Version {
+					return fmt.Errorf("expected chart version to be same")
+				}
+
+				if h.Spec.Repo != aObj.Spec.Repo {
+					return fmt.Errorf("expected chart repo to be same")
+				}
+
+				return nil
+			}, "30s", "5s").ShouldNot(HaveOccurred())
+		})
+
+		By("check addon status is successful", func() {
+			Eventually(func() error {
+				a, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if a.Status.Status != harvesterv1.AddonDeployed {
+					return fmt.Errorf("addon %s is not deployed successfully, status %v", a.Name, a.Status.Status)
+				}
+				return nil
+			}, "90s", "5s").ShouldNot(HaveOccurred())
+		})
+
+		By("patching helm chart to fail before upgrade", func() {
+			Eventually(func() error {
+				hObj, err := helmController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+
+				if hObj.Annotations == nil {
+					hObj.Annotations = make(map[string]string)
+				}
+
+				hObj.Annotations[fake.OverrideToFail] = "true"
+				_, err = helmController.Update(hObj)
+				return err
+			}, "30s", "5s").ShouldNot(HaveOccurred())
+		})
+
+		By("update addon", func() {
+			Eventually(func() error {
+				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				aObj.Spec.Version = "0.2.0"
+				aObj.Spec.Chart = "vm-import-controller-2"
+				aObj.Spec.Repo = "http://harvester-cluster-repo.cattle-system.svc.cluster.local"
+				_, err = addonController.Update(aObj)
+				return err
+			}, "30s", "5s").ShouldNot(HaveOccurred())
+		})
+
+		By("check helm chart got updated", func() {
+			Eventually(func() error {
+				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+
+				h, err := helmController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+
+				if h.Spec.Chart != aObj.Spec.Chart {
+					return fmt.Errorf("expected chart name to be same")
+				}
+
+				if h.Spec.Version != aObj.Spec.Version {
+					return fmt.Errorf("expected chart version to be same")
+				}
+
+				if h.Spec.Repo != aObj.Spec.Repo {
+					return fmt.Errorf("expected chart repo to be same")
+				}
+
+				return nil
+			}, "60s", "5s").ShouldNot(HaveOccurred())
+		})
+
+		By("check addon upgrade failed", func() {
+			Eventually(func() error {
+				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if aObj.Status.Status == harvesterv1.AddonUpdating && harvesterv1.AddonOperationFailed.IsTrue(aObj) {
+					return nil
+				}
+				return fmt.Errorf("addon %s is not in correct state %v", aObj.Name, aObj.Status.Status)
+			}, "60s", "5s").ShouldNot(HaveOccurred())
+		})
+	})
+
+	AfterEach(func() {
+		Eventually(func() error {
+			return addonController.Delete(a.Namespace, a.Name, &metav1.DeleteOptions{})
+		}).ShouldNot(HaveOccurred())
+	})
+
 })
