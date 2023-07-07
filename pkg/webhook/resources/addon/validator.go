@@ -83,33 +83,14 @@ func validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) erro
 		return werror.NewBadRequest("chart field cannot be changed.")
 	}
 
-	// do not allow change Spec when an operation is onging, but allow change annotation, e.g. adjust the timeout
-	if oldAddon.Status.Status == v1beta1.AddonEnabled && isAddonSpecChanged(newAddon, oldAddon) {
-		return werror.NewBadRequest("addon is being deployed now, please wait and retry")
-	}
-
-	if oldAddon.Status.Status == v1beta1.AddonUpdating && isAddonSpecChanged(newAddon, oldAddon) {
-		return werror.NewBadRequest("addon is being updated now, please wait and retry")
-	}
-
-	if oldAddon.Status.Status == v1beta1.AddonDisabling && isAddonSpecChanged(newAddon, oldAddon) {
-		return werror.NewBadRequest("addon is being disabled now, please wait and retry")
+	if v1beta1.AddonOperationInProgress.IsTrue(oldAddon) {
+		return werror.NewBadRequest(fmt.Sprintf("cannot perform operation, as an existing operation is in progress on addon %s", oldAddon.Name))
 	}
 
 	if newAddon.Name == vClusterAddonName && newAddon.Namespace == vClusterAddonNamespace && newAddon.Spec.Enabled {
 		return validateVClusterAddon(newAddon)
 	}
 	return nil
-}
-
-func isAddonSpecChanged(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) bool {
-	if newAddon.Spec != oldAddon.Spec {
-		return true
-	}
-
-	// check any other potential fields
-
-	return false
 }
 
 func validateVClusterAddon(newAddon *v1beta1.Addon) error {

@@ -8,36 +8,24 @@ import (
 type AddonState string
 
 const (
-	AddonEnabled  AddonState = "AddonEnabled"
-	AddonDeployed AddonState = "AddonDeploySuccessful"
-	AddonFailed   AddonState = "AddonDeployFailed"
+	AddonEnabling  AddonState = "AddonEnabling"
+	AddonDeployed  AddonState = "AddonDeploySuccessful"
+	AddonDisabled  AddonState = "AddonDisabled"
+	AddonDisabling AddonState = "AddonDisabling"
 
-	AddonEnabling AddonState = "AddonEnabling" // will replace AddonEnabled
-
-	AddonDisabling     AddonState = "AddonDisabling"
-	AddonDisableFailed AddonState = "AddonDisableFailed"
-
-	// after successfully updating, addon will be AddonInitState when !Spec.Enaabled; AddonDeployed when Spec.Enaabled
-	AddonUpdating    AddonState = "AddonUpdating"
-	AddonUpdateFaild AddonState = "AddonUpdateFailed"
+	// after successfully updating, addon will be AddonInitState when !Spec.Enabled; AddonDeployed when Spec.Enabled
+	AddonUpdating AddonState = "AddonUpdating"
 
 	AddonInitState AddonState = "" // init status, when an addon is not enabled, or disabled successfully
 )
 
 type AddonOperation string
 
-const (
-	AddonUpdateOperation  AddonOperation = "update"
-	AddonEnableOperation  AddonOperation = "enable"
-	AddonDisableOperation AddonOperation = "disable"
-	AddonNullOperation    AddonOperation = "null"
-)
-
 var (
-	AddonUpdateCondition  condition.Cond = "Update"
-	AddonEnableCondition  condition.Cond = "Enable"
-	AddonDisableCondition condition.Cond = "Disable"
-	AddonFailedCondition  condition.Cond = "Failed"
+	AddonOperationInProgress condition.Cond = "InProgress"
+	AddonOperationCompleted  condition.Cond = "Completed"
+	AddonOperationFailed     condition.Cond = "Failed"
+	DefaultJobBackOffLimit                  = int32(5)
 )
 
 // +genclient

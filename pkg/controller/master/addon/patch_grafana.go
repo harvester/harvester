@@ -37,7 +37,7 @@ func (h *Handler) MonitorAddonRancherMonitoring(key string, aObj *harvesterv1.Ad
 	}
 
 	// disabled successfully, the pv has already from Bound to Released/Available
-	if !aObj.Spec.Enabled && aObj.Status.Status == harvesterv1.AddonInitState {
+	if !aObj.Spec.Enabled && aObj.Status.Status == harvesterv1.AddonDisabled {
 		logrus.Debugf("start to patch grafana pv ClaimRef")
 		return h.patchGrafanaPVClaimRef(aObj)
 	}
