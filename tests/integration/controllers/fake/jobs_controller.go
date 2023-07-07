@@ -2,8 +2,10 @@ package fake
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
@@ -14,6 +16,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/harvester/harvester/pkg/config"
+)
+
+const (
+	OverrideToFail  = "fakejobcontroller/fail"
+	LastAppliedHash = "fakejobcontroller/last-applied-hash"
 )
 
 type handler struct {
@@ -30,6 +37,7 @@ func RegisterFakeControllers(ctx context.Context, management *config.Management,
 	}
 
 	hc.OnChange(ctx, "fake-helmchart-controller", h.OnHelmChartChange)
+	hc.OnRemove(ctx, "fake-helmchart-controller-deletion", h.OnHelmChartDelete)
 	return nil
 }
 
@@ -38,30 +46,93 @@ func (h *handler) OnHelmChartChange(key string, hc *helmv1.HelmChart) (*helmv1.H
 		return hc, nil
 	}
 
-	if hc.Status.JobName != "" {
+	hcCopy := hc.DeepCopy()
+	hcCopy, updated, err := h.checkAndGenerateHash(hcCopy)
+
+	if err != nil {
+		return hcCopy, err
+	}
+
+	if hcCopy.Status.JobName != "" && !updated {
 		return hc, nil
 	}
 
-	_, err := h.job.Get(hc.Namespace, fmt.Sprintf("helm-install-%s", hc.Name), metav1.GetOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
+	var override bool
+	if hcCopy.Annotations != nil {
+		val, ok := hcCopy.Annotations[OverrideToFail]
+		if ok && val == "true" {
+			override = true
+		}
+	}
+
+	jobName := fmt.Sprintf("helm-install-%s", hc.Name)
+	if err := h.createJobIfNotFound(hcCopy.Namespace, jobName, override); err != nil {
+		return hcCopy, err
+	}
+
+	hcCopy.Status.JobName = jobName
+	return h.helm.Update(hcCopy)
+}
+
+func (h *handler) OnHelmChartDelete(key string, hc *helmv1.HelmChart) (*helmv1.HelmChart, error) {
+	if hc == nil || hc.DeletionTimestamp == nil {
+		return nil, nil
+	}
+
+	var override bool
+	if hc.Annotations != nil {
+		val, ok := hc.Annotations[OverrideToFail]
+		if ok && val == "true" {
+			override = true
+		}
+	}
+	if err := h.job.Delete(hc.Namespace, fmt.Sprintf("helm-install-%s", hc.Name), &metav1.DeleteOptions{}); err != nil {
 		return hc, err
 	}
 
-	// job exists nothing to be done
-	if err == nil {
-		return hc, nil
+	jobName := fmt.Sprintf("helm-delete-%s", hc.Name)
+	if err := h.createJobIfNotFound(hc.Namespace, jobName, override); err != nil {
+		return hc, err
+	}
+
+	if hc.Status.JobName == jobName {
+		_, err := h.helm.Update(hc)
+		if err != nil {
+			return hc, err
+		}
+	}
+
+	// wait for job to complete
+	for h.waitForJobCompletion(hc.Namespace, jobName) == nil {
+		time.Sleep(5 * time.Second)
+	}
+
+	return hc, nil
+}
+
+func (h *handler) createJobIfNotFound(namespace string, name string, override bool) error {
+	foundJob, err := h.job.Cache().Get(namespace, name)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	if foundJob != nil {
+		err = h.job.Delete(namespace, name, &metav1.DeleteOptions{})
+		if err != nil {
+			return err
+		}
 	}
 
 	args := []string{}
-	if strings.Contains(hc.Name, "fail") {
+	if strings.Contains(name, "fail") || override {
 		args = append(args, "exit 1")
 	} else {
 		args = append(args, "exit 0")
 	}
 	j := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("helm-install-%s", hc.Name),
-			Namespace: hc.Namespace,
+			Name:      fmt.Sprintf(name),
+			Namespace: namespace,
 		},
 		Spec: batchv1.JobSpec{
 			BackoffLimit: &[]int32{1}[0],
@@ -87,23 +158,38 @@ func (h *handler) OnHelmChartChange(key string, hc *helmv1.HelmChart) (*helmv1.H
 		},
 	}
 
-	jObj, err := h.job.Create(j)
-	if err != nil {
-		return hc, fmt.Errorf("error creating fake job: %v", err)
-	}
-
-	hc.Status.JobName = jObj.Name
-	return h.helm.Update(hc)
+	_, err = h.job.Create(j)
+	return err
 }
 
-func (h *handler) OnHelmChartDelete(key string, hc *helmv1.HelmChart) (*helmv1.HelmChart, error) {
-	if hc.DeletionTimestamp == nil {
-		return nil, nil
+func (h *handler) waitForJobCompletion(namespace string, name string) error {
+	j, err := h.job.Cache().Get(namespace, name)
+	if err != nil {
+		return err
 	}
 
-	if err := h.job.Delete(hc.Namespace, fmt.Sprintf("helm-install-%s", hc.Name), &metav1.DeleteOptions{}); err != nil {
-		return hc, err
+	if j.Status.CompletionTime == nil {
+		return fmt.Errorf("waiting for job to complete")
 	}
 
-	return nil, h.helm.Delete(hc.Namespace, hc.Name, &metav1.DeleteOptions{})
+	return nil
+}
+
+func (h *handler) checkAndGenerateHash(hc *helmv1.HelmChart) (*helmv1.HelmChart, bool, error) {
+	hcByte, err := json.Marshal(hc.Spec)
+	if err != nil {
+		return hc, false, err
+	}
+
+	if hc.Annotations == nil {
+		hc.Annotations = make(map[string]string)
+	}
+
+	lastAppliedHashVal := hc.Annotations[LastAppliedHash]
+	if string(hcByte) != lastAppliedHashVal {
+		hc.Annotations[LastAppliedHash] = string(hcByte)
+		return hc, true, nil
+	}
+
+	return hc, false, nil
 }
