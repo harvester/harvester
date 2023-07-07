@@ -7,12 +7,21 @@ import (
 	"time"
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rancher/lasso/pkg/cache"
+	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	managementv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	ctlcatalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io"
+	ctlrancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
+	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core"
 	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/pkg/start"
+	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -28,6 +37,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/master/addon"
 	"github.com/harvester/harvester/pkg/controller/master/mcmsettings"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	"github.com/harvester/harvester/pkg/server"
 	"github.com/harvester/harvester/tests/framework/cluster"
 	. "github.com/harvester/harvester/tests/framework/dsl"
@@ -73,6 +83,10 @@ var _ = BeforeSuite(func() {
 	cfg, err = KubeClientConfig.ClientConfig()
 	MustNotError(err)
 
+	kubeConfig, err := KubeClientConfig.ClientConfig()
+	MustNotError(err)
+
+	By("install crds")
 	var crds []apiextensionsv1.CustomResourceDefinition
 
 	for _, v := range crdList {
@@ -104,35 +118,27 @@ var _ = BeforeSuite(func() {
 	err = catalogv1.AddToScheme(scheme)
 	MustNotError(err)
 
-	factory, err := controller.NewSharedControllerFactoryFromConfig(cfg, scheme)
+	clientFactory, err := client.NewSharedClientFactory(kubeConfig, nil)
 	MustNotError(err)
+
+	cacheFactory := cache.NewSharedCachedFactory(clientFactory, nil)
+	scf := controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{})
 
 	factoryOpts := &generic.FactoryOptions{
-		SharedControllerFactory: factory,
+		SharedControllerFactory: scf,
 	}
 
-	testCtx, scaled, err = config.SetupScaled(testCtx, cfg, factoryOpts, options.Namespace)
+	testCtx, scaled, err = config.SetupScaled(testCtx, cfg, factoryOpts, "")
 	MustNotError(err)
 
-	err = addon.Register(testCtx, scaled.Management, config.Options{})
+	err = startControllers(testCtx, kubeConfig, factoryOpts)
 	MustNotError(err)
 
-	err = mcmsettings.Register(testCtx, scaled.Management, config.Options{})
-	MustNotError(err)
-	// fake job controller to patch statuses
-	err = fake.RegisterFakeControllers(testCtx, scaled.Management, config.Options{})
-	MustNotError(err)
-
-	go func() {
-		err = scaled.Management.Start(5)
-		MustNotError(err)
-	}()
-
-	time.Sleep(30 * time.Second)
 })
 
 var _ = AfterSuite(func() {
 
+	testCtx.Done()
 	By("tearing down test cluster")
 	err := cluster.Stop(GinkgoWriter)
 	MustNotError(err)
@@ -169,5 +175,76 @@ func applyObj(obj []apiextensionsv1.CustomResourceDefinition) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlharvesterv1.FactoryOptions) error {
+
+	// to speed up testing, override default backofflimit for jobs
+	harvesterv1.DefaultJobBackOffLimit = 1
+
+	harvesterFactory, err := ctlharvesterv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+
+	if err != nil {
+		return err
+	}
+
+	core, err := ctlcorev1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return err
+	}
+
+	batch, err := ctlbatchv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return err
+	}
+
+	helm, err := ctlhelmv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return err
+	}
+
+	catalog, err := ctlcatalogv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return err
+	}
+
+	rancher, err := ctlrancherv3.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return err
+	}
+
+	m := &config.Management{
+		HarvesterFactory:         harvesterFactory,
+		CoreFactory:              core,
+		BatchFactory:             batch,
+		HelmFactory:              helm,
+		CatalogFactory:           catalog,
+		RancherManagementFactory: rancher,
+	}
+
+	_ = batch.ControllerFactory().SharedCacheFactory().WaitForCacheSync(ctx)
+
+	if err = addon.Register(testCtx, m, config.Options{}); err != nil {
+		return err
+	}
+
+	if err = mcmsettings.Register(testCtx, m, config.Options{}); err != nil {
+		return err
+	}
+
+	if err = fake.RegisterFakeControllers(testCtx, m, config.Options{}); err != nil {
+		return err
+	}
+
+	logrus.Infof("sync status of batch informer: %v", batch.Batch().V1().Job().Informer().HasSynced())
+	if err = start.All(ctx, 10, harvesterFactory, core, batch, helm, catalog, rancher); err != nil {
+		return err
+	}
+
+	for !batch.Batch().V1().Job().Informer().HasSynced() {
+		time.Sleep(5 * time.Second)
+	}
+
 	return nil
 }
