@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -144,7 +145,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 					Repo:          "repo1",
 					Chart:         "chart1",
 					Version:       "version1",
-					Enabled:       false,
+					Enabled:       true,
 					ValuesContent: "sample",
 				},
 				Status: harvesterv1.AddonStatus{
@@ -159,7 +160,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 					Repo:          "repo1",
 					Chart:         "chart1",
 					Version:       "version1",
-					Enabled:       true,
+					Enabled:       false,
 					ValuesContent: "sample",
 				},
 				Status: harvesterv1.AddonStatus{
@@ -182,7 +183,13 @@ func Test_validateUpdatedAddon(t *testing.T) {
 					ValuesContent: "sample",
 				},
 				Status: harvesterv1.AddonStatus{
-					Status: harvesterv1.AddonEnabled,
+					Status: harvesterv1.AddonEnabling,
+					Conditions: []harvesterv1.Condition{
+						{
+							Type:   harvesterv1.AddonOperationInProgress,
+							Status: corev1.ConditionTrue,
+						},
+					},
 				},
 			},
 			newAddon: &harvesterv1.Addon{
@@ -197,7 +204,13 @@ func Test_validateUpdatedAddon(t *testing.T) {
 					ValuesContent: "sample",
 				},
 				Status: harvesterv1.AddonStatus{
-					Status: harvesterv1.AddonEnabled,
+					Status: harvesterv1.AddonEnabling,
+					Conditions: []harvesterv1.Condition{
+						{
+							Type:   harvesterv1.AddonOperationInProgress,
+							Status: corev1.ConditionTrue,
+						},
+					},
 				},
 			},
 			expectedError: true,
@@ -216,7 +229,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 					ValuesContent: "sample",
 				},
 				Status: harvesterv1.AddonStatus{
-					Status: harvesterv1.AddonEnabled,
+					Status: harvesterv1.AddonDeployed,
 				},
 			},
 			newAddon: &harvesterv1.Addon{
@@ -234,7 +247,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 					ValuesContent: "sample",
 				},
 				Status: harvesterv1.AddonStatus{
-					Status: harvesterv1.AddonEnabled,
+					Status: harvesterv1.AddonDeployed,
 				},
 			},
 			expectedError: false,
@@ -253,7 +266,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 					ValuesContent: "sample",
 				},
 				Status: harvesterv1.AddonStatus{
-					Status: harvesterv1.AddonFailed,
+					Status: harvesterv1.AddonEnabling,
 				},
 			},
 			newAddon: &harvesterv1.Addon{
@@ -268,7 +281,13 @@ func Test_validateUpdatedAddon(t *testing.T) {
 					ValuesContent: "sample",
 				},
 				Status: harvesterv1.AddonStatus{
-					Status: harvesterv1.AddonFailed,
+					Status: harvesterv1.AddonEnabling,
+					Conditions: []harvesterv1.Condition{
+						{
+							Type:   harvesterv1.AddonOperationFailed,
+							Status: corev1.ConditionTrue,
+						},
+					},
 				},
 			},
 			expectedError: false,
