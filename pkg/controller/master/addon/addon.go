@@ -12,7 +12,8 @@ import (
 	"github.com/rancher/norman/types/slice"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	ctlappsv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
+	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
@@ -39,8 +40,10 @@ var (
 type Handler struct {
 	helm  ctlhelmv1.HelmChartController
 	addon ctlharvesterv1.AddonController
-	job   ctlcorev1.JobController
+	job   ctlbatchv1.JobController
 	app   ctlappsv1.AppController
+	pv    ctlcorev1.PersistentVolumeController
+	pvc   ctlcorev1.PersistentVolumeClaimController
 }
 
 func Register(ctx context.Context, management *config.Management, opts config.Options) error {
@@ -48,16 +51,22 @@ func Register(ctx context.Context, management *config.Management, opts config.Op
 	helmController := management.HelmFactory.Helm().V1().HelmChart()
 	jobController := management.BatchFactory.Batch().V1().Job()
 	appController := management.CatalogFactory.Catalog().V1().App()
+	pvController := management.CoreFactory.Core().V1().PersistentVolume()
+	pvcController := management.CoreFactory.Core().V1().PersistentVolumeClaim()
+
 	h := &Handler{
 		helm:  helmController,
 		addon: addonController,
 		job:   jobController,
 		app:   appController,
+		pv:    pvController,
+		pvc:   pvcController,
 	}
 
 	addonController.OnChange(ctx, "deploy-addon", h.OnAddonChange)
 	addonController.OnChange(ctx, "monitor-addon", h.MonitorAddon)
 	addonController.OnChange(ctx, "monitor-changes", h.MonitorChanges)
+	addonController.OnChange(ctx, "monitor-addon-rancher-monitoring", h.MonitorAddonRancherMonitoring)
 	appController.OnChange(ctx, "monitor-apps-catalog", h.PatchApps)
 	relatedresource.Watch(ctx, "watch-helmcharts", h.ReconcileHelmChartOwners, addonController, helmController)
 	return nil
