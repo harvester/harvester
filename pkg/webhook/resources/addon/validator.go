@@ -19,7 +19,7 @@ import (
 
 const (
 	vClusterAddonName      = "rancher-vcluster"
-	vClusterAddonNamespace = "harvester-system"
+	vClusterAddonNamespace = "rancher-vcluster"
 )
 
 func NewValidator(addons ctlharvesterv1.AddonCache) types.Validator {
