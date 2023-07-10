@@ -62,8 +62,8 @@ func (lock *FileLock) canAcquire() bool {
 	canAcquire := true
 	locks := getLocksForVolume(lock.volume, lock.driver)
 	file := getLockFilePath(lock.volume, lock.Name)
-	log.WithField("lock", lock).Debugf("Trying to acquire lock %v", file)
-	log.Debugf("backupstore volume %v contains locks %v", lock.volume, locks)
+	log.WithField("lock", lock).Infof("Trying to acquire lock %v", file)
+	log.Infof("backupstore volume %v contains locks %v", lock.volume, locks)
 
 	for _, serverLock := range locks {
 		serverLockHasDifferentType := serverLock.Type != lock.Type
@@ -111,7 +111,7 @@ func (lock *FileLock) Lock() error {
 	}
 
 	file := getLockFilePath(lock.volume, lock.Name)
-	log.Debugf("Acquired lock %v type %v on backupstore", file, lock.Type)
+	log.Infof("Acquired lock %v type %v on backupstore", file, lock.Type)
 	lock.Acquired = true
 	atomic.AddInt32(&lock.count, 1)
 	if err := saveLock(lock); err != nil {
@@ -133,7 +133,7 @@ func (lock *FileLock) Lock() error {
 				if lock.Acquired {
 					if err := saveLock(lock); err != nil {
 						// nothing we can do here, that's why the lock acquisition time is 2x lock refresh interval
-						log.Debugf("Failed to refresh acquired lock %v type %v", file, lock.Type)
+						log.WithError(err).Warnf("Failed to refresh acquired lock %v type %v", file, lock.Type)
 					}
 				}
 				lock.mutex.Unlock()
@@ -164,11 +164,11 @@ func (lock *FileLock) Unlock() error {
 func loadLock(volumeName string, name string, driver BackupStoreDriver) (*FileLock, error) {
 	lock := &FileLock{}
 	file := getLockFilePath(volumeName, name)
-	if err := LoadConfigInBackupStore(file, driver, lock); err != nil {
+	if err := LoadConfigInBackupStore(driver, file, lock); err != nil {
 		return nil, err
 	}
 	lock.serverTime = driver.FileTime(file)
-	log.Debugf("Loaded lock %v type %v on backupstore", file, lock.Type)
+	log.Infof("Loaded lock %v type %v on backupstore", file, lock.Type)
 	return lock, nil
 }
 
@@ -177,17 +177,17 @@ func removeLock(lock *FileLock) error {
 	if err := lock.driver.Remove(file); err != nil {
 		return err
 	}
-	log.Debugf("Removed lock %v type %v on backupstore", file, lock.Type)
+	log.Infof("Removed lock %v type %v on backupstore", file, lock.Type)
 	return nil
 }
 
 func saveLock(lock *FileLock) error {
 	file := getLockFilePath(lock.volume, lock.Name)
-	if err := SaveConfigInBackupStore(file, lock.driver, lock); err != nil {
+	if err := SaveConfigInBackupStore(lock.driver, file, lock); err != nil {
 		return err
 	}
 	lock.serverTime = lock.driver.FileTime(file)
-	log.Debugf("Stored lock %v type %v on backupstore", file, lock.Type)
+	log.Infof("Stored lock %v type %v on backupstore", file, lock.Type)
 	return nil
 }
 

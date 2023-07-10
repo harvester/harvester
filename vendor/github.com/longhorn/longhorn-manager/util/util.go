@@ -64,6 +64,8 @@ const (
 	MinimalVolumeSize = 10 * 1024 * 1024
 
 	RandomIDLenth = 8
+
+	DeterministicUUIDNamespace = "08958d54-65cd-4d87-8627-9831a1eab170" // Arbitrarily generated.
 )
 
 var (
@@ -168,6 +170,15 @@ func WaitForDevice(dev string, timeout int) error {
 
 func RandomID() string {
 	return UUID()[:RandomIDLenth]
+}
+
+// DeterministicUUID returns a string representation of a version 5 UUID based on the provided string. The output is
+// always the same for a given input. For example, the volume controller calls this function with the concatenated UIDs
+// of two Longhorn volumes:
+// DeterministicUUID("5d8209ef-87ee-422e-9fd7-5b400f985f315d8209ef-87ee-422e-9fd7-5b400f985f31") -> "25bc2af7-30ea-50cf-afc7-900275ba5866"
+func DeterministicUUID(data string) string {
+	space := uuid.MustParse(DeterministicUUIDNamespace) // Will not fail with const DeterministicUUIDNamespace.
+	return uuid.NewSHA1(space, []byte(data)).String()
 }
 
 func ValidateRandomID(id string) bool {

@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/pkg/errors"
@@ -203,7 +202,7 @@ func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Nod
 
 	for nodeName, node := range nodeInfo {
 		// Filter Nodes. If the Nodes don't match the tags, don't bother marking them as candidates.
-		if !rcs.checkTagsAreFulfilled(node.Spec.Tags, volume.Spec.NodeSelector) {
+		if !types.IsSelectorsInTags(node.Spec.Tags, volume.Spec.NodeSelector) {
 			continue
 		}
 		if _, ok := usedNodes[nodeName]; !ok {
@@ -336,7 +335,7 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 		}
 
 		// Check if the Disk's Tags are valid.
-		if !rcs.checkTagsAreFulfilled(diskSpec.Tags, volume.Spec.DiskSelector) {
+		if !types.IsSelectorsInTags(diskSpec.Tags, volume.Spec.DiskSelector) {
 			multiError.Append(util.NewMultiError(longhorn.ErrorReplicaScheduleTagsNotFulfilled))
 			continue
 		}
@@ -350,21 +349,6 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 	}
 
 	return preferredDisks, multiError
-}
-
-func (rcs *ReplicaScheduler) checkTagsAreFulfilled(itemTags, volumeTags []string) bool {
-	if !sort.StringsAreSorted(itemTags) {
-		logrus.Warnf("BUG: Tags are not sorted, sort now")
-		sort.Strings(itemTags)
-	}
-
-	for _, tag := range volumeTags {
-		if index := sort.SearchStrings(itemTags, tag); index >= len(itemTags) || itemTags[index] != tag {
-			return false
-		}
-	}
-
-	return true
 }
 
 func (rcs *ReplicaScheduler) getNodeInfo() (map[string]*longhorn.Node, error) {
@@ -597,7 +581,7 @@ func (rcs *ReplicaScheduler) isFailedReplicaReusable(r *longhorn.Replica, v *lon
 			if !diskSpec.AllowScheduling || diskSpec.EvictionRequested {
 				return false
 			}
-			if !rcs.checkTagsAreFulfilled(diskSpec.Tags, v.Spec.DiskSelector) {
+			if !types.IsSelectorsInTags(diskSpec.Tags, v.Spec.DiskSelector) {
 				return false
 			}
 		}
