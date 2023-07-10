@@ -365,18 +365,13 @@ func (s *DataStore) ValidateSetting(name, value string) (err error) {
 }
 
 func (s *DataStore) AreAllVolumesDetached() (bool, error) {
-	image, err := s.GetSettingValueExisted(types.SettingNameDefaultInstanceManagerImage)
-	if err != nil {
-		return false, err
-	}
-
 	nodes, err := s.ListNodes()
 	if err != nil {
 		return false, err
 	}
 
 	for node := range nodes {
-		engineIMs, err := s.ListInstanceManagersBySelector(node, image, longhorn.InstanceManagerTypeEngine)
+		engineIMs, err := s.ListInstanceManagersBySelector(node, "", longhorn.InstanceManagerTypeEngine)
 		if err != nil {
 			if ErrorIsNotFound(err) {
 				return true, nil

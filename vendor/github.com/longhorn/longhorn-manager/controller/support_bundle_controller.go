@@ -320,6 +320,13 @@ func (c *SupportBundleController) reconcile(name string) (err error) {
 
 	switch supportBundle.Status.State {
 	case longhorn.SupportBundleStateNone:
+		if err = c.replaceReadySupportBundlesWith(supportBundle); err != nil {
+			return c.updateSupportBundleRecord(record,
+				supportBundleRecordError, longhorn.SupportBundleStateError,
+				constant.EventReasonFailedStarting, err.Error(),
+			)
+		}
+
 		var supportBundleManagerImage string
 		supportBundleManagerImage, err = c.ds.GetSettingValueExisted(types.SettingNameSupportBundleManagerImage)
 		if err != nil {
@@ -424,10 +431,7 @@ func (c *SupportBundleController) reconcile(name string) (err error) {
 			if otherSupportBundle.Name == supportBundle.Name {
 				continue
 			}
-			if otherSupportBundle.Status.State == longhorn.SupportBundleStatePurging {
-				continue
-			}
-			if otherSupportBundle.Status.State == longhorn.SupportBundleStateDeleting {
+			if types.IsSupportBundleControllerDeleting(supportBundle) {
 				continue
 			}
 			if otherSupportBundle.Status.State != longhorn.SupportBundleStateError {
@@ -445,8 +449,37 @@ func (c *SupportBundleController) reconcile(name string) (err error) {
 		if err != nil && !apierrors.IsNotFound(err) {
 			log.WithError(err).Warn("Failed to purge SupportBundle")
 		}
+	case longhorn.SupportBundleStateReplaced:
+		err = c.ds.DeleteSupportBundle(supportBundle.Name)
+		if err != nil && !apierrors.IsNotFound(err) {
+			log.WithError(err).Warn("Failed to replace SupportBundle")
+		}
 	}
 
+	return nil
+}
+
+func (c *SupportBundleController) replaceReadySupportBundlesWith(supportBundle *longhorn.SupportBundle) error {
+	supportBundles, err := c.ds.ListSupportBundles()
+	if err != nil {
+		return err
+	}
+
+	for _, otherSupportBundle := range supportBundles {
+		if otherSupportBundle.Name == supportBundle.Name {
+			continue
+		}
+
+		if otherSupportBundle.Status.State != longhorn.SupportBundleStateReady {
+			continue
+		}
+
+		otherSupportBundle.Status.State = longhorn.SupportBundleStateReplaced
+		_, err = c.ds.UpdateSupportBundleStatus(otherSupportBundle)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return errors.Wrapf(err, "failed to update SupportBundle %v to state %v", otherSupportBundle.Name, longhorn.SupportBundleStateReplaced)
+		}
+	}
 	return nil
 }
 
