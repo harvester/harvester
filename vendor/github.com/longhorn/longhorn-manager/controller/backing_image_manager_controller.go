@@ -654,12 +654,6 @@ func (c *BackingImageManagerController) prepareBackingImageFiles(currentBIM *lon
 		return err
 	}
 	for biName := range currentBIM.Spec.BackingImages {
-		currentInfo, exists := currentBIM.Status.BackingImageFileMap[biName]
-		requireFile := !exists || currentInfo.State == longhorn.BackingImageStateFailed
-		if !requireFile {
-			continue
-		}
-
 		log := bimLog.WithFields(logrus.Fields{"backingImage": biName})
 
 		bi, err := c.ds.GetBackingImage(biName)
@@ -669,9 +663,19 @@ func (c *BackingImageManagerController) prepareBackingImageFiles(currentBIM *lon
 			}
 			continue
 		}
+
 		bids, err := c.ds.GetBackingImageDataSource(biName)
 		if err != nil {
 			log.WithError(err).Error("Failed to get backing image data source before preparing files, will skip handling this backing image")
+			continue
+		}
+
+		currentInfo, exists := currentBIM.Status.BackingImageFileMap[biName]
+		requireFile := !exists || currentInfo.State == longhorn.BackingImageStateFailed
+		// Ensure the bids can be deleted instead of being stuck in the `BackingImageStateFailed` state.
+		// ref: https://github.com/longhorn/longhorn/issues/6086#issuecomment-1590662594
+		requireFile = requireFile || bids.Status.CurrentState == longhorn.BackingImageStateFailed
+		if !requireFile {
 			continue
 		}
 
@@ -835,6 +839,7 @@ func (c *BackingImageManagerController) generateBackingImageManagerPodManifest(b
 		return nil, err
 	}
 
+	privileged := true
 	podSpec := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            bim.Name,
@@ -885,6 +890,9 @@ func (c *BackingImageManagerController) generateBackingImageManagerPodManifest(b
 								},
 							},
 						},
+					},
+					SecurityContext: &v1.SecurityContext{
+						Privileged: &privileged,
 					},
 				},
 			},

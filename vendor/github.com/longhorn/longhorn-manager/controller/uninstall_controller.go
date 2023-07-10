@@ -443,8 +443,20 @@ func (c *UninstallController) deleteCRDs() (bool, error) {
 	if backups, err := c.ds.ListBackups(); err != nil {
 		return true, err
 	} else if len(backups) > 0 {
-		c.logger.Infof("Found %d backups remaining", len(backups))
+		c.logger.Infof("Found %d backups remaining, deleting if they don't have backup volume", len(backups))
+		for _, backup := range backups {
+			if err := c.deleteLeftBackups(backup); err != nil {
+				return true, err
+			}
+		}
 		return true, nil
+	}
+
+	// Waits the SystemBackup CRs be clean up by backup_target_controller
+	if systemBackups, err := c.ds.ListSystemBackups(); err != nil {
+		return true, err
+	} else if len(systemBackups) > 0 {
+		return true, fmt.Errorf("found %d SystemBackups remaining", len(systemBackups))
 	}
 
 	// Delete the BackupTarget CRs
@@ -626,6 +638,29 @@ func (c *UninstallController) deleteReplicas(replicas map[string]*longhorn.Repli
 		}
 	}
 	return
+}
+
+// deleteLeftBackups deletes the backup having no backup volume
+func (c *UninstallController) deleteLeftBackups(backup *longhorn.Backup) (err error) {
+	backupVolumeName, ok := backup.Labels[types.LonghornLabelBackupVolume]
+	if !ok {
+		// directly delete it if there is even no backup volume label
+		if err = c.ds.DeleteBackup(backup.Name); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return errors.Wrapf(err, "failed to delete backup %v", backup.Name)
+			}
+		}
+	}
+	_, err = c.ds.GetBackupVolume(backupVolumeName)
+	if err != nil && apierrors.IsNotFound(err) {
+		if err = c.ds.DeleteBackup(backup.Name); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return errors.Wrapf(err, "failed to delete backup %v", backup.Name)
+			}
+		}
+		return nil
+	}
+	return err
 }
 
 func (c *UninstallController) deleteBackupTargets(backupTargets map[string]*longhorn.BackupTarget) (err error) {

@@ -349,7 +349,10 @@ func (ec *EngineController) syncEngine(key string) (err error) {
 		// we allow across monitoring temporarily due to migration case
 		if !ec.isMonitoring(engine) {
 			ec.startMonitoring(engine)
-		} else if engine.Status.ReplicaModeMap != nil {
+		} else if engine.Status.ReplicaModeMap != nil && engine.Spec.DesireState != longhorn.InstanceStateStopped {
+			// If engine.Spec.DesireState == longhorn.InstanceStateStopped, we have likely already issued a command to
+			// shut down the engine. It is potentially dangerous to attempt to communicate with it now, as a new engine
+			// may start using its address.
 			if err := ec.ReconcileEngineState(engine); err != nil {
 				return err
 			}
@@ -529,7 +532,7 @@ func (ec *EngineController) DeleteInstance(obj interface{}) (err error) {
 
 	defer func() {
 		if err != nil {
-			logrus.WithError(err).Warnf("Failed to delete engine %v for volume %v", e.Name, v.Name)
+			logrus.WithError(err).Warnf("Failed to delete engine %v", e.Name)
 		}
 		if isRWXVolume && im.Status.CurrentState != longhorn.InstanceManagerStateRunning {
 			// Try the best to delete engine instance.
@@ -544,7 +547,7 @@ func (ec *EngineController) DeleteInstance(obj interface{}) (err error) {
 			// After shifting to node A, the first reattachment fail due to the IO error resulting from the
 			// orphaned engine instance and block device. Then, the detachment will trigger the teardown of the
 			// problematic engine process and block device. The next reattachment then will succeed.
-			logrus.Warnf("Ignored the failure of deleting engine %v for volume %v", e.Name, v.Name)
+			logrus.Warnf("Ignored the failure of deleting engine %v", e.Name)
 			err = nil
 		}
 	}()
@@ -1150,6 +1153,16 @@ func (m *EngineMonitor) acquireRestoringCounter(acquire bool) error {
 }
 
 func (ec *EngineController) syncSnapshotCRs(engine *longhorn.Engine) error {
+	log := ec.logger.WithField("engine", engine.Name)
+
+	vol, err := ec.ds.GetVolumeRO(engine.Spec.VolumeName)
+	if err != nil {
+		return err
+	}
+	if vol.Spec.MigrationNodeID != "" {
+		return nil
+	}
+
 	snapshotCRs, err := ec.ds.ListVolumeSnapshotsRO(engine.Spec.VolumeName)
 	if err != nil {
 		return err
@@ -1162,7 +1175,7 @@ func (ec *EngineController) syncSnapshotCRs(engine *longhorn.Engine) error {
 		requestCreateNewSnapshot := snapCR.Spec.CreateSnapshot
 		alreadyCreatedBefore := snapCR.Status.CreationTime != ""
 		if _, ok := engine.Status.Snapshots[snapName]; !ok && (!requestCreateNewSnapshot || alreadyCreatedBefore) && snapCR.DeletionTimestamp == nil {
-			ec.logger.Infof("Deleting snapshot CR for the snapshot %v", snapName)
+			log.Infof("Deleting snapshot CR for the snapshot %v", snapName)
 			if err := ec.ds.DeleteSnapshot(snapName); err != nil && !apierrors.IsNotFound(err) {
 				utilruntime.HandleError(fmt.Errorf("syncSnapshotCRs: failed to delete snapshot CR %v: %v", snapCR.Name, err))
 			}
@@ -1191,7 +1204,7 @@ func (ec *EngineController) syncSnapshotCRs(engine *longhorn.Engine) error {
 					CreateSnapshot: false,
 				},
 			}
-			ec.logger.Infof("Creating snapshot CR for the snapshot %v", snapName)
+			log.Infof("Creating snapshot CR for the snapshot %v", snapName)
 			if _, err := ec.ds.CreateSnapshot(snapCR); err != nil && !apierrors.IsAlreadyExists(err) {
 				utilruntime.HandleError(fmt.Errorf("syncSnapshotCRs: failed to create snapshot CR %v: %v", snapCR.Name, err))
 			}
@@ -1740,19 +1753,16 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replicaName, add
 			for !purgeDone && time.Now().Before(endTime) {
 				<-ticker.C
 
+				// It may have been a long time since we started purging. Should we proceed?
 				e, err := ec.ds.GetEngineRO(e.Name)
 				if err != nil {
-					if apierrors.IsNotFound(err) {
-						log.Warn("Cannot continue waiting for the purge before rebuilding since engine is not found")
-						return
-					}
 					log.WithError(err).Error("Failed to get engine and wait for the purge before rebuilding")
-					continue
-				}
-				if e.Status.CurrentState != longhorn.InstanceStateRunning {
-					log.Warnf("Cannot continue waiting for the purge before rebuilding since engine is state %v", e.Status.CurrentState)
 					return
 				}
+				if !shouldProceedToWaitAndRebuild(e, replicaName, addr, log) {
+					return
+				}
+
 				// Wait for purge complete
 				purgeDone = true
 				for _, purgeStatus := range e.Status.PurgeStatus {
@@ -1770,28 +1780,6 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replicaName, add
 				return
 			}
 			log.Debug("Finished snapshot purge, will start rebuilding then")
-		}
-
-		// It has been at least 10 seconds (2 * EnginePollInterval) since we were asked to rebuild.
-		// Should we still communicate with addr?
-		// TODO: Remove this check in versions that include a completed longhorn/longhorn#5845.
-		updatedEngine, err := ec.ds.GetEngineRO(e.Name)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				log.Warn("Cannot proceed to rebuild since engine is not found")
-				return
-			}
-			log.WithError(err).Error("Failed to get latest engine spec before rebuilding")
-			return
-		}
-		updatedAddr, ok := updatedEngine.Spec.ReplicaAddressMap[replicaName]
-		if !ok {
-			log.Warnf("Refusing to rebuild since replica %v is no longer in the replicaAddressMap", replicaName)
-			return
-		}
-		if addr != updatedAddr {
-			log.Warnf("Refusing to rebuild since the address for replica %v has been updated from %v to %v", replicaName, addr, updatedAddr)
-			return
 		}
 
 		replica, err := ec.ds.GetReplica(replicaName)
@@ -2102,4 +2090,36 @@ func removeInvalidEngineOpStatus(e *longhorn.Engine) {
 			delete(e.Status.CloneStatus, tcpAddr)
 		}
 	}
+}
+
+// shouldProceedToRebuild checks a variety of conditions that may cause us not to proceed with waiting for snapshot
+// purge and/or rebuilding a replica. We pass the logger to it so it can decide what level to log at depending on the
+// issue. We do not return any errors because shouldProceedToRebuild is called by startRebuilding in a goroutine.
+func shouldProceedToWaitAndRebuild(e *longhorn.Engine, replicaName, originalReplicaAddr string, log *logrus.Entry) bool {
+	// The engine is no longer running.
+	if e.Status.CurrentState != longhorn.InstanceStateRunning {
+		log.Errorf("Failed to proceed to rebuild since engine is state %v", e.Status.CurrentState)
+		return false
+	}
+
+	// The volume controller no longer expects the engine to be running.
+	if e.Spec.DesireState != longhorn.InstanceStateRunning {
+		log.Warnf("Failed to proceed to rebuild since engine state should be %v",
+			e.Spec.DesireState)
+		return false
+	}
+
+	// The volume controller no longer expects the engine to communicate with a replica at this address.
+	updatedAddr, ok := e.Spec.ReplicaAddressMap[replicaName]
+	if !ok {
+		log.Warnf("Failed to proceed to rebuild since replica %v is no longer in the replicaAddressMap", replicaName)
+		return false
+	}
+	if originalReplicaAddr != updatedAddr {
+		log.Warnf("Failed to proceed to rebuild since the address for replica %v has been updated from %v to %v",
+			replicaName, originalReplicaAddr, updatedAddr)
+		return false
+	}
+
+	return true
 }

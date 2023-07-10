@@ -246,6 +246,12 @@ github.com/felixge/httpsnoop
 # github.com/fsnotify/fsnotify v1.6.0
 ## explicit; go 1.16
 github.com/fsnotify/fsnotify
+# github.com/gammazero/deque v0.1.0
+## explicit; go 1.15
+github.com/gammazero/deque
+# github.com/gammazero/workerpool v1.1.2
+## explicit; go 1.15
+github.com/gammazero/workerpool
 # github.com/ghodss/yaml v1.0.0
 ## explicit
 github.com/ghodss/yaml
@@ -425,9 +431,6 @@ github.com/harvester/node-manager/pkg/apis/node.harvesterhci.io
 github.com/harvester/node-manager/pkg/apis/node.harvesterhci.io/v1beta1
 github.com/harvester/node-manager/pkg/generated/controllers/node.harvesterhci.io
 github.com/harvester/node-manager/pkg/generated/controllers/node.harvesterhci.io/v1beta1
-# github.com/honestbee/jobq v1.0.2
-## explicit
-github.com/honestbee/jobq
 # github.com/huandu/xstrings v1.3.3
 ## explicit; go 1.12
 github.com/huandu/xstrings
@@ -506,7 +509,7 @@ github.com/longhorn/backing-image-manager/pkg/meta
 github.com/longhorn/backing-image-manager/pkg/rpc
 github.com/longhorn/backing-image-manager/pkg/types
 github.com/longhorn/backing-image-manager/pkg/util
-# github.com/longhorn/backupstore v0.0.0-20230505043341-f871cdfdf2fc
+# github.com/longhorn/backupstore v0.0.0-20230627040634-5b4f2d040e9d
 ## explicit; go 1.17
 github.com/longhorn/backupstore
 github.com/longhorn/backupstore/fsops
@@ -535,7 +538,7 @@ github.com/longhorn/longhorn-instance-manager/pkg/imrpc
 github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.4.2
+# github.com/longhorn/longhorn-manager v1.4.3
 ## explicit; go 1.17
 github.com/longhorn/longhorn-manager/constant
 github.com/longhorn/longhorn-manager/controller
@@ -703,6 +706,13 @@ github.com/peterbourgon/diskv
 # github.com/philhofer/fwd v1.0.0
 ## explicit
 github.com/philhofer/fwd
+# github.com/pierrec/lz4/v4 v4.1.17
+## explicit; go 1.14
+github.com/pierrec/lz4/v4
+github.com/pierrec/lz4/v4/internal/lz4block
+github.com/pierrec/lz4/v4/internal/lz4errors
+github.com/pierrec/lz4/v4/internal/lz4stream
+github.com/pierrec/lz4/v4/internal/xxh32
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
@@ -954,6 +964,12 @@ github.com/shopspring/decimal
 # github.com/sirupsen/logrus v1.9.2
 ## explicit; go 1.13
 github.com/sirupsen/logrus
+# github.com/slok/goresilience v0.2.0
+## explicit
+github.com/slok/goresilience
+github.com/slok/goresilience/errors
+github.com/slok/goresilience/metrics
+github.com/slok/goresilience/timeout
 # github.com/spf13/cast v1.5.1
 ## explicit; go 1.18
 github.com/spf13/cast
