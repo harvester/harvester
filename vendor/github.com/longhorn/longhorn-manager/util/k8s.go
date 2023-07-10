@@ -3,6 +3,8 @@ package util
 import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
@@ -57,4 +59,16 @@ func FinalizerExists(name string, obj runtime.Object) bool {
 		}
 	}
 	return false
+}
+
+func GetNodeSelectorTermMatchExpressionNodeName(nodeName string) corev1.NodeSelectorTerm {
+	return corev1.NodeSelectorTerm{
+		MatchExpressions: []corev1.NodeSelectorRequirement{
+			{
+				Key:      corev1.LabelHostname,
+				Operator: corev1.NodeSelectorOpIn,
+				Values:   []string{nodeName},
+			},
+		},
+	}
 }

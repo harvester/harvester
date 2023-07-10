@@ -19,6 +19,7 @@ const (
 	SupportBundleStateGenerating = SupportBundleState("Generating")
 	SupportBundleStateNone       = SupportBundleState("")
 	SupportBundleStateReady      = SupportBundleState("ReadyForDownload")
+	SupportBundleStateReplaced   = SupportBundleState("Replaced")
 	SupportBundleStateStarted    = SupportBundleState("Started")
 	SupportBundleStateUnknown    = SupportBundleState("Unknown")
 )
