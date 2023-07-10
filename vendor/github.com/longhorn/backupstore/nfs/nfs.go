@@ -87,7 +87,6 @@ func initFunc(destURL string) (backupstore.BackupStoreDriver, error) {
 func (b *BackupStoreDriver) mount() error {
 	mounter := mount.New("")
 
-	// EnsureMountPoint check if the mount point is already mounted and clean up the corrupted mount point.
 	mounted, err := util.EnsureMountPoint(KIND, b.mountDir, mounter, log)
 	if err != nil {
 		return err
@@ -99,7 +98,7 @@ func (b *BackupStoreDriver) mount() error {
 	retErr := errors.New("cannot mount using NFSv4")
 
 	for _, version := range MinorVersions {
-		log.Debugf("Attempting mount for nfs path %v with nfsvers %v", b.serverPath, version)
+		log.Infof("Attempting mount for nfs path %v with nfsvers %v", b.serverPath, version)
 
 		mountOptions := []string{
 			fmt.Sprintf("nfsvers=%v", version),

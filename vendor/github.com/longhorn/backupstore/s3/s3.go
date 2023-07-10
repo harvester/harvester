@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/sirupsen/logrus"
+
 	"github.com/longhorn/backupstore"
 	"github.com/longhorn/backupstore/http"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -56,7 +57,7 @@ func initFunc(destURL string) (backupstore.BackupStoreDriver, error) {
 	}
 	b.path = u.Path
 	if b.service.Bucket == "" || b.path == "" {
-		return nil, fmt.Errorf("Invalid URL. Must be either s3://bucket@region/path/, or s3://bucket/path")
+		return nil, fmt.Errorf("invalid URL. Must be either s3://bucket@region/path/, or s3://bucket/path")
 	}
 
 	// add custom ca to http client that is used by s3 service
@@ -104,13 +105,24 @@ func (s *BackupStoreDriver) GetURL() string {
 }
 
 func (s *BackupStoreDriver) updatePath(path string) string {
-	return filepath.Join(s.path, path)
+	joinedPath := filepath.Join(s.path, path)
+
+	// The filepath.Join removes the trailing slash when joining paths, so we
+	// need to check and add back the trailing slash if it exists in the input
+	// path.
+	if !strings.HasSuffix(path, "/") {
+		return joinedPath
+	}
+	return joinedPath + "/"
 }
 
 func (s *BackupStoreDriver) List(listPath string) ([]string, error) {
 	var result []string
 
-	path := s.updatePath(listPath) + "/"
+	path := s.updatePath(listPath)
+	if !strings.HasSuffix(path, "/") {
+		path += "/"
+	}
 	contents, prefixes, err := s.service.ListObjects(path, "/")
 	if err != nil {
 		log.WithError(err).Error("Failed to list s3")

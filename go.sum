@@ -477,6 +477,10 @@ github.com/fsnotify/fsnotify v1.6.0/go.mod h1:sl3t1tCWJFWoRz9R8WJCbQihKKwmorjAbS
 github.com/fullstorydev/grpcurl v1.6.0/go.mod h1:ZQ+ayqbKMJNhzLmbpCiurTVlaK2M/3nqZCxaQ2Ze/sM=
 github.com/fvbommel/sortorder v1.0.1/go.mod h1:uk88iVf1ovNn1iLfgUVU2F9o5eO30ui720w+kxuqRs0=
 github.com/fzipp/gocyclo v0.3.1/go.mod h1:DJHO6AUmbdqj2ET4Z9iArSuwWgYDRryYt2wASxc7x3E=
+github.com/gammazero/deque v0.1.0 h1:f9LnNmq66VDeuAlSAapemq/U7hJ2jpIWa4c09q8Dlik=
+github.com/gammazero/deque v0.1.0/go.mod h1:KQw7vFau1hHuM8xmI9RbgKFbAsQFWmBpqQ2KenFLk6M=
+github.com/gammazero/workerpool v1.1.2 h1:vuioDQbgrz4HoaCi2q1HLlOXdpbap5AET7xu5/qj87g=
+github.com/gammazero/workerpool v1.1.2/go.mod h1:UelbXcO0zCIGFcufcirHhq2/xtLXJdQ29qZNlXG9OjQ=
 github.com/getkin/kin-openapi v0.76.0/go.mod h1:660oXbgy5JFMKreazJaQTw7o+X00qeSyhcnluiMv+Xg=
 github.com/getsentry/raven-go v0.2.0/go.mod h1:KungGk8q33+aIAZUIVWZDr2OfAEBsO49PX4NzFV5kcQ=
 github.com/ghodss/yaml v0.0.0-20150909031657-73d445a93680/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
@@ -899,7 +903,6 @@ github.com/hashicorp/serf v0.8.5/go.mod h1:UpNcs7fFbpKIyZaUuSW6EPiH+eZC7OuyFD+wc
 github.com/hashicorp/serf v0.9.5/go.mod h1:UWDWwZeL5cuWDJdl0C6wrvrUwEqtQ4ZKBKKENpqIUyk=
 github.com/heketi/heketi v10.3.0+incompatible/go.mod h1:bB9ly3RchcQqsQ9CpyaQwvva7RS5ytVoSoholZQON6o=
 github.com/heketi/tests v0.0.0-20151005000721-f3775cbcefd6/go.mod h1:xGMAM8JLi7UkZt1i4FQeQy0R2T8GLUwQhOP5M1gBhy4=
-github.com/honestbee/jobq v1.0.2 h1:KvZFQz/n1ESQGFA7oeOqYz/ffgdxqviqck7LWHalJNI=
 github.com/honestbee/jobq v1.0.2/go.mod h1:1HBHIZSF91aV3kLwiHJwoaBvw+ghYyopmYgNhS87iZQ=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/huandu/xstrings v1.0.0/go.mod h1:4qWG/gcEcfX4z/mBDHJ++3ReCw9ibxbsNJbcucJdbSo=
@@ -1051,8 +1054,8 @@ github.com/logrusorgru/aurora v0.0.0-20181002194514-a7b3b318ed4e/go.mod h1:7rIyQ
 github.com/longhorn/backing-image-manager v0.0.0-20220609065820-a08f7f47442f h1:nvvJ/RZrUIgl2FrEcxRYtKh2V9mJjoHll/dK6bMBp7Q=
 github.com/longhorn/backing-image-manager v0.0.0-20220609065820-a08f7f47442f/go.mod h1:J6PTXyXw5Dvzx+0Aeixl+7TPBWPWQzdIQHh+GeSCjsg=
 github.com/longhorn/backupstore v0.0.0-20210817080617-8ea3843e6b0d/go.mod h1:FUjQNWqcEXSFIrQpfWLxFFHXywk14mM5w9TNRuBrKzY=
-github.com/longhorn/backupstore v0.0.0-20230505043341-f871cdfdf2fc h1:r9bE2StOg8YUhozVOJI4jVsb+esy3fMj/DtgEJMukII=
-github.com/longhorn/backupstore v0.0.0-20230505043341-f871cdfdf2fc/go.mod h1:hDSgV03MAMe9ni+eMmux82bzjpIqoxqjVO7ZVJRVZPQ=
+github.com/longhorn/backupstore v0.0.0-20230627040634-5b4f2d040e9d h1:sJBr2HsVp61Lpb4zj4dDGLr4RuTQtJwogw/mPe1DBkI=
+github.com/longhorn/backupstore v0.0.0-20230627040634-5b4f2d040e9d/go.mod h1:wiEYTbvxEAIUxAAY1DmvMeuFuGqwWmJTzfVhZiBKlNo=
 github.com/longhorn/go-iscsi-helper v0.0.0-20210330030558-49a327fb024e/go.mod h1:9z/y9glKmWEdV50tjlUPxFwi1goQfIrrsoZbnMyIZbY=
 github.com/longhorn/go-iscsi-helper v0.0.0-20230425064248-72f136f48524 h1:bqcufS0wAuXF0VGesCaGpim8wz0dNlTuKvgim0b9QFc=
 github.com/longhorn/go-iscsi-helper v0.0.0-20230425064248-72f136f48524/go.mod h1:gjjEN5+gUyO1ooUaF7bVM0K+ZQ8vA9DiujVvoKWdT0k=
@@ -1061,8 +1064,8 @@ github.com/longhorn/longhorn-engine v1.4.2-0.20230505032747-3343bb5fba06 h1:y4qH
 github.com/longhorn/longhorn-engine v1.4.2-0.20230505032747-3343bb5fba06/go.mod h1:Tco41oJDVaBEQJykO0ONP/Qb9pvVbC+eN3a5tS168t8=
 github.com/longhorn/longhorn-instance-manager v1.4.2-0.20230505034424-c9378d6b7c65 h1:rSYY/kki5GEogGBxms4jGZjS8tA7GjjoiniFIeQHtAo=
 github.com/longhorn/longhorn-instance-manager v1.4.2-0.20230505034424-c9378d6b7c65/go.mod h1:ePW0Th8Mmlm1Gar6buGU3VnQW9WAvWvwP0InkZBfE38=
-github.com/longhorn/longhorn-manager v1.4.2 h1:Iper5b5QnXP/2JD/MOSnQTj/GgsvLSwftc78JmtHRNY=
-github.com/longhorn/longhorn-manager v1.4.2/go.mod h1:jVTSe02g9u/biYVZGrSJZrelxxOx08x9FvnR5S0Pdfk=
+github.com/longhorn/longhorn-manager v1.4.3 h1:7N5ikW6Hl/ZKLgHDHLZBq6cltGLLG7HgXOnoyUfpUhM=
+github.com/longhorn/longhorn-manager v1.4.3/go.mod h1:jVTSe02g9u/biYVZGrSJZrelxxOx08x9FvnR5S0Pdfk=
 github.com/longhorn/nsfilelock v0.0.0-20200723175406-fa7c83ad0003/go.mod h1:0CLeXlf59Lg6C0kjLSDf47ft73Dh37CwymYRKWwAn04=
 github.com/longhorn/sparse-tools v0.0.0-20210729195155-a0fb4226a960/go.mod h1:BWM7yTPb1DulG18EE/Jy20LVIySzIYoZpiOYFtAGwZo=
 github.com/longhorn/sparse-tools v0.0.0-20211229004436-663d2f697e2a/go.mod h1:BWM7yTPb1DulG18EE/Jy20LVIySzIYoZpiOYFtAGwZo=
@@ -1347,6 +1350,8 @@ github.com/philhofer/fwd v1.0.0/go.mod h1:gk3iGcWd9+svBvR0sR+KPcfE+RNWozjowpeBVG
 github.com/pierrec/lz4 v1.0.2-0.20190131084431-473cd7ce01a1/go.mod h1:3/3N9NVKO0jef7pBehbT1qWhCMrIgbYNnFAZCqQ5LRc=
 github.com/pierrec/lz4 v2.0.5+incompatible/go.mod h1:pdkljMzZIN41W+lC3N2tnIh5sFi+IEE17M5jbnwPHcY=
 github.com/pierrec/lz4 v2.6.0+incompatible/go.mod h1:pdkljMzZIN41W+lC3N2tnIh5sFi+IEE17M5jbnwPHcY=
+github.com/pierrec/lz4/v4 v4.1.17 h1:kV4Ip+/hUBC+8T6+2EgburRtkE9ef4nbY3f4dFhGjMc=
+github.com/pierrec/lz4/v4 v4.1.17/go.mod h1:gZWDp/Ze/IJXGXf23ltt2EXimqmTUXEy0GFuRQyBid4=
 github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
@@ -1560,6 +1565,8 @@ github.com/sirupsen/logrus v1.9.0/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVs
 github.com/sirupsen/logrus v1.9.2 h1:oxx1eChJGI6Uks2ZC4W1zpLlVgqB8ner4EuQwV4Ik1Y=
 github.com/sirupsen/logrus v1.9.2/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=
 github.com/sivchari/tenv v1.4.7/go.mod h1:5nF+bITvkebQVanjU6IuMbvIot/7ReNsUV7I5NbprB0=
+github.com/slok/goresilience v0.2.0 h1:dagdIiWlhTm7BK/r/LRKz+zvw0SCNk+nHf7obdsbzxQ=
+github.com/slok/goresilience v0.2.0/go.mod h1:L6IqqHlxWGTrTyq8WwF8kUY8kOIESZAMWr1xkV0zdZA=
 github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d/go.mod h1:OnSkiWE9lh6wB0YB77sQom3nweQdgAjqCqsofrRNTgc=
 github.com/smartystreets/assertions v1.0.1/go.mod h1:kHHU4qYBaI3q23Pp3VPrmWhuIUrLW/7eUrw0BU5VaoM=
 github.com/smartystreets/assertions v1.1.0 h1:MkTeG1DMwsrdH7QtLXy5W+fUxWq+vmb6cLmyJ7aRtF0=
