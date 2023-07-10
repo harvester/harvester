@@ -198,7 +198,6 @@ import_image_archives_from_repo() {
       image_list_url="$UPGRADE_REPO_BUNDLE_ROOT/$list"
       archive_url="$UPGRADE_REPO_BUNDLE_ROOT/$archive"
       image_list_file="${tmp_image_archives}/$(basename $list)"
-      archive_file="${tmp_image_archives}/${archive_name}.tar"
 
       # Check if images already exist
       curl -sfL $image_list_url | sort > $image_list_file
@@ -208,9 +207,7 @@ import_image_archives_from_repo() {
         continue
       fi
 
-      curl -sfL $archive_url | zstd -d -f --no-progress -o $archive_file
-      $CTR -n k8s.io image import $archive_file
-      rm -f $archive_file
+      curl -fL $archive_url | zstdcat | $CTR -n k8s.io images import --no-unpack -
     done
   rm -rf $tmp_image_archives
 }
