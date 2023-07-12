@@ -20,4 +20,5 @@ HARVESTER_DIR=../harvester
 
 mkdir -p ${HARVESTER_DIR}/dist/artifacts
 cp dist/artifacts/* ${HARVESTER_DIR}/dist/artifacts
+cp -r dist/harvester-cluster-repo  ${HARVESTER_DIR}/dist
 
