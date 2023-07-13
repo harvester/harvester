@@ -343,6 +343,7 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 	clusterToUpdate.Spec.RKEConfig = &provisioningv1.RKEConfig{
 		RKEClusterSpecCommon: rkev1.RKEClusterSpecCommon{
 			ProvisionGeneration: provisionGeneration,
+			Registries:          clusterToUpdate.Spec.RKEConfig.Registries,
 		},
 	}
 	logrus.Infof("Reset RKEConfig and set provisionGeneration to %d", provisionGeneration)
