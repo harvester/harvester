@@ -3,7 +3,9 @@ package setting
 import (
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	ctlnodev1 "github.com/harvester/node-manager/pkg/generated/controllers/node.harvesterhci.io/v1beta1"
@@ -76,8 +78,14 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 		!slice.ContainsString(bootstrapSettings, setting.Name) {
 		return nil, nil
 	}
+
+	toMeasure := io.MultiReader(
+		strings.NewReader(setting.Value),
+		strings.NewReader(setting.Annotations[util.AnnotationUpgradePatched]),
+	)
+
 	hash := sha256.New224()
-	hash.Write([]byte(setting.Value))
+	io.Copy(hash, toMeasure)
 	currentHash := fmt.Sprintf("%x", hash.Sum(nil))
 	if currentHash == setting.Annotations[util.AnnotationHash] {
 		return nil, nil
