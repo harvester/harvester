@@ -28,6 +28,11 @@ rules:
   verbs:
   - list
   - watch
+- apiGroups: [""]
+  resources:
+  - nodes
+  verbs:
+  - get
 - apiGroups: ["k8s.cni.cncf.io"]
   resources:
   - network-attachment-definitions
