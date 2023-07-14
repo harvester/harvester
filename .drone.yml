@@ -15,7 +15,6 @@ steps:
     instance:
       - drone-publish.rancher.io
     ref:
-      - refs/head/master
       - refs/tags/*
     event:
       - tag
@@ -82,7 +81,6 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-    - refs/head/master
     - refs/tags/*
     event:
     - tag
@@ -129,7 +127,6 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-    - refs/head/master
     - refs/tags/*
     event:
     - tag
@@ -177,7 +174,6 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-    - refs/head/master
     - refs/tags/*
     event:
     - tag
@@ -235,7 +231,6 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-    - refs/head/master
     - refs/tags/*
     event:
     - tag
@@ -274,7 +269,6 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-    - refs/head/master
     - refs/tags/*
     event:
     - tag
@@ -313,7 +307,6 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-    - refs/head/master
     - refs/tags/*
     event:
     - tag
@@ -343,7 +336,6 @@ steps:
     instance:
       - drone-publish.rancher.io
     ref:
-      - refs/head/master
       - refs/tags/*
     event:
       - tag
@@ -425,8 +417,8 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-      - refs/head/master
-      - refs/head/v*
+      - refs/heads/master
+      - refs/heads/v*
     event:
     - push
 
@@ -445,8 +437,8 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-      - refs/head/master
-      - refs/head/v*
+      - refs/heads/master
+      - refs/heads/v*
     event:
     - push
 
