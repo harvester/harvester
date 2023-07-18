@@ -55,7 +55,7 @@ spec:
       controlNamespace: cattle-logging-system
       workloadOverrides:
         containers:
-        - image: banzaicloud/eventrouter:v0.1.0
+        - image: rancher/harvester-eventrouter:v0.1.1
           name: event-tailer
           resources:
             limits:
