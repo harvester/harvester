@@ -42,7 +42,7 @@ func NewDownloadHandler(scaled *config.Scaled, namespace string) *DownloadHandle
 		supportBundleCache: scaled.HarvesterFactory.Harvesterhci().V1beta1().SupportBundle().Cache(),
 		podCache:           scaled.CoreFactory.Core().V1().Pod().Cache(),
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 24 * time.Hour,
 		},
 	}
 }
