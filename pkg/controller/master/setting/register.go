@@ -77,7 +77,6 @@ func Register(ctx context.Context, management *config.Management, options config
 		"ssl-certificates":          controller.syncSSLCertificate,
 		"ssl-parameters":            controller.syncSSLParameters,
 		"containerd-registry":       controller.syncContainerdRegistry,
-		"rancher-manager-support":   controller.syncRancherManagerSupport,
 		"ntp-servers":               controller.syncNTPServer,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
