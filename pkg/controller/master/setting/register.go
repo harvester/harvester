@@ -24,7 +24,6 @@ func Register(ctx context.Context, management *config.Management, options config
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 	helmChartConfigs := management.HelmFactory.Helm().V1().HelmChartConfig()
-	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 	nodeConfigs := management.NodeConfigFactory.Node().V1beta1().NodeConfig()
 	node := management.CoreFactory.Core().V1().Node()
 	controller := &Handler{
@@ -49,8 +48,6 @@ func Register(ctx context.Context, management *config.Management, options config
 		managedChartCache:    managedCharts.Cache(),
 		helmChartConfigs:     helmChartConfigs,
 		helmChartConfigCache: helmChartConfigs.Cache(),
-		rancherSettings:      rancherSettings,
-		rancherSettingCache:  rancherSettings.Cache(),
 		nodeConfigs:          nodeConfigs,
 		nodeConfigsCache:     nodeConfigs.Cache(),
 		nodeClient:           node,
@@ -84,6 +81,5 @@ func Register(ctx context.Context, management *config.Management, options config
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
 	apps.OnChange(ctx, controllerName, controller.appOnChanged)
-	rancherSettings.OnChange(ctx, controllerName, controller.rancherSettingOnChange)
 	return nil
 }
