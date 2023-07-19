@@ -22,7 +22,7 @@ dependencies:
   version: 0.4.2
 - name: harvester-load-balancer
   repository: https://charts.harvesterhci.io
-  version: 0.2.0-rc3
+  version: 0.2.0
 - name: whereabouts
   repository: file://dependency_charts/whereabouts
   version: 0.1.1
@@ -32,5 +32,5 @@ dependencies:
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.1.0
-digest: sha256:754ef336055dfbf94ac0474e6a296cdcaf3c8d95b68ab6b21c48c07cc4822436
-generated: "2023-07-16T20:45:54.082543881+08:00"
+digest: sha256:5a4b09324f0f964770629bc29857ad0f9cd3257979ec6185b18fc40c2dbb05d4
+generated: "2023-07-19T16:50:16.606663819+08:00"
