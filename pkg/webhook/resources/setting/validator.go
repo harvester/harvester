@@ -64,6 +64,7 @@ var supportedSSLProtocols = []string{"SSLv2", "SSLv3", "TLSv1", "TLSv1.1", "TLSv
 
 // Borrow from github.com/cilium/cilium
 var FQDNMatchNameRegexString = `^([-a-zA-Z0-9_]+[.]?)+$`
+
 var FQDNMatchPatternRegexString = `^([-a-zA-Z0-9_*]+[.]?)+$`
 
 type validateSettingFunc func(setting *v1beta1.Setting) error
@@ -126,7 +127,6 @@ func NewValidator(
 	validateSettingFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateVolumeSnapshotClass
 	validateSettingUpdateFuncs[settings.BackupTargetSettingName] = validator.validateUpdateBackupTarget
 	validateSettingUpdateFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateUpdateVolumeSnapshotClass
-	validateSettingUpdateFuncs[settings.RancherManagerSupportSettingName] = validator.validateUpdateRancherManagerSupport
 
 	validateSettingFuncs[settings.StorageNetworkName] = validator.validateStorageNetwork
 	validateSettingUpdateFuncs[settings.StorageNetworkName] = validator.validateUpdateStorageNetwork
@@ -861,34 +861,6 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkc
 	if !network.IP.Equal(ip) {
 		return fmt.Errorf("Range should be subnet CIDR %v", network)
 	}
-	return nil
-}
-
-func (v *settingValidator) validateUpdateRancherManagerSupport(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	if newSetting.Value == "" {
-		return nil
-	}
-
-	enableManager, err := strconv.ParseBool(strings.ToLower(newSetting.Value))
-	if err != nil {
-		return werror.NewInvalidError("value should be either true or false", "value")
-	}
-
-	if !enableManager {
-		return nil
-	}
-
-	// check if the multi-cluster-management feature is enabled
-	feature, err := v.featureCache.Get(mcmFeature)
-	if err != nil {
-		return werror.NewInternalError(err.Error())
-	}
-
-	if (feature.Spec.Value == nil && !feature.Status.Default) ||
-		(feature.Spec.Value != nil && !*feature.Spec.Value) {
-		return werror.NewInvalidError("cannot enable Rancher Manager support. The multi-cluster-management feature is not enabled", "value")
-	}
-
 	return nil
 }
 
