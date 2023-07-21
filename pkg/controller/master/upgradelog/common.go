@@ -21,7 +21,10 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
-const defaultDeploymentReplicas int32 = 1
+const (
+	defaultDeploymentReplicas   int32 = 1
+	defaultLogArchiveVolumeSize       = "1Gi"
+)
 
 func upgradeLogReference(upgradeLog *harvesterv1.UpgradeLog) metav1.OwnerReference {
 	return metav1.OwnerReference{
@@ -54,7 +57,7 @@ func preparePvc(upgradeLog *harvesterv1.UpgradeLog) *corev1.PersistentVolumeClai
 			},
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
-					"storage": resource.MustParse("1Gi"),
+					"storage": resource.MustParse(defaultLogArchiveVolumeSize),
 				},
 			},
 			StorageClassName: &upgradeLogStorageClassName,
@@ -190,6 +193,16 @@ func prepareClusterFlow(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.ClusterFl
 						Nested:    true,
 					},
 				},
+				{
+					RecordTransformer: &filter.RecordTransformer{
+						Records: []filter.Record{
+							map[string]string{
+								"timestamp": "${time}",
+							},
+						},
+						RemoveKeys: "stream,logtag,$.kubernetes",
+					},
+				},
 			},
 			Match: []loggingv1.ClusterMatch{
 				{
@@ -249,7 +262,11 @@ func prepareClusterOutput(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.Cluster
 		Spec: loggingv1.ClusterOutputSpec{
 			OutputSpec: loggingv1.OutputSpec{
 				FileOutput: &output.FileOutputConfig{
-					Path:   "/archive/logs/${tag}",
+					Path:     "/archive/logs/${tag}",
+					Compress: "gzip",
+					Format: &output.Format{
+						Type: "single_value",
+					},
 					Append: true,
 					Buffer: &output.Buffer{
 						FlushAtShutdown: true,
