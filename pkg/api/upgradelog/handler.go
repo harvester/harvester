@@ -30,28 +30,16 @@ const (
 	defaultJobBackoffLimit int32 = 5
 	logPackagingScript           = `
 #!/usr/bin/env sh
-set -ex
+set -e
+
+echo "clean up stale archives, if any"
+
+rm -vf /archive/*.zip
 
 echo "start to package upgrade logs"
 
-tmpdir=$(mktemp -d)
-mkdir $tmpdir/logs
-
-cd /archive/logs
-
-for f in *.log
-do
-	awk '{$1=$2=""; print $0}' $f | jq -r .message > $tmpdir/logs/$f || ret=$?
-	if [ -n "$ret" ]; then
-		echo "Failed to process the file $f with ret=$ret"
-		echo "Copy the original file to the destination"
-		cp $f $tmpdir/logs/$f
-		unset ret
-	fi
-done
-
-cd $tmpdir
-zip -r /archive/$ARCHIVE_NAME ./logs/
+cd /archive
+zip -r $ARCHIVE_NAME ./logs/
 echo "done"
 `
 )
