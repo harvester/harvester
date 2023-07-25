@@ -424,6 +424,7 @@ steps:
     - drone-publish.rancher.io
     ref:
       - refs/heads/master
+      - refs/heads/release-*
       - refs/heads/v*
     event:
     - push
@@ -444,6 +445,7 @@ steps:
     - drone-publish.rancher.io
     ref:
       - refs/heads/master
+      - refs/heads/release-*
       - refs/heads/v*
     event:
     - push
