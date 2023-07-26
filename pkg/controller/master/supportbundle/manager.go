@@ -155,6 +155,7 @@ func (m *Manager) getCollectNamespaces() string {
 		"harvester-system",
 		"local",
 		"longhorn-system",
+		"cattle-logging-system",
 	}
 
 	extraNamespaces := settings.SupportBundleNamespaces.Get()
