@@ -233,6 +233,13 @@ func (h *Handler) processAddonUpgrades(a *harvesterv1.Addon) (*harvesterv1.Addon
 	}
 
 	if needed {
+		// set InProgress condition as this is needed to ensure that the in progress time stamp is setup before
+		// triggering the helm chart upgrade
+		if aObj.Status.Status != harvesterv1.AddonUpdating && !harvesterv1.AddonOperationInProgress.IsTrue(aObj) {
+			markInProgressCondition(aObj)
+			return h.addon.UpdateStatus(aObj)
+		}
+
 		hc, _, err := h.getAddonHelmChart(aObj)
 		if err != nil {
 			return aObj, err
@@ -246,9 +253,8 @@ func (h *Handler) processAddonUpgrades(a *harvesterv1.Addon) (*harvesterv1.Addon
 			return aObj, err
 		}
 
-		if aObj.Status.Status != harvesterv1.AddonUpdating || !harvesterv1.AddonOperationInProgress.IsTrue(aObj) {
+		if aObj.Status.Status != harvesterv1.AddonUpdating && harvesterv1.AddonOperationInProgress.IsTrue(aObj) {
 			aObj.Status.Status = harvesterv1.AddonUpdating
-			markInProgressCondition(aObj)
 			return h.addon.UpdateStatus(aObj)
 		}
 	}
