@@ -27,7 +27,11 @@ kubevirt-operator:
     operator:
       image:
         repository: registry.suse.com/suse/sles/15.4/virt-operator
+<<<<<<< HEAD
         tag: &kubevirtVersion 0.54.0-150400.3.10.4
+=======
+        tag: &kubevirtVersion 0.54.0-150400.3.19.1
+>>>>>>> f03a9e06 (chart: bump kubevirt and vmdp image tag)
     ## The following images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
