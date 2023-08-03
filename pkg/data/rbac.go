@@ -6,6 +6,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var (
+	whiteListedSettings = []string{"server-version", "default-storage-class", "harvester-csi-ccm-versions", "default-vm-termination-grace-period-seconds"}
+)
+
 func addAuthenticatedRoles(apply apply.Apply) error {
 	return apply.
 		WithDynamicLookup().
@@ -35,9 +39,10 @@ func addAuthenticatedRoles(apply apply.Apply) error {
 				},
 				Rules: []rbacv1.PolicyRule{
 					{
-						Verbs:     []string{"get", "list", "watch"},
-						APIGroups: []string{"harvesterhci.io"},
-						Resources: []string{"settings"},
+						Verbs:         []string{"get", "watch"},
+						APIGroups:     []string{"harvesterhci.io"},
+						Resources:     []string{"settings"},
+						ResourceNames: whiteListedSettings,
 					},
 					{
 						Verbs:     []string{"get", "list", "watch"},
