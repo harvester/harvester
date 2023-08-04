@@ -4,10 +4,8 @@ import (
 	"github.com/rancher/wrangler/pkg/apply"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
 
-var (
-	whiteListedSettings = []string{"server-version", "default-storage-class", "harvester-csi-ccm-versions", "default-vm-termination-grace-period-seconds"}
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 func addAuthenticatedRoles(apply apply.Apply) error {
@@ -42,7 +40,7 @@ func addAuthenticatedRoles(apply apply.Apply) error {
 						Verbs:         []string{"get", "watch"},
 						APIGroups:     []string{"harvesterhci.io"},
 						Resources:     []string{"settings"},
-						ResourceNames: whiteListedSettings,
+						ResourceNames: settings.WhiteListedSettings,
 					},
 					{
 						Verbs:     []string{"get", "list", "watch"},
