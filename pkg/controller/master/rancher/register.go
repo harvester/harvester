@@ -2,6 +2,7 @@ package rancher
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/harvester/harvester/pkg/config"
@@ -53,6 +55,7 @@ type Handler struct {
 	SecretCache              ctlcorev1.SecretCache
 	nodeController           ctlcorev1.NodeController
 	podCache                 ctlcorev1.PodCache
+	podClient                ctlcorev1.PodClient
 	Namespace                string
 }
 
@@ -87,6 +90,7 @@ func Register(ctx context.Context, management *config.Management, options config
 			SecretCache:              secrets.Cache(),
 			nodeController:           nodes,
 			podCache:                 pods.Cache(),
+			podClient:                pods,
 			Namespace:                options.Namespace,
 		}
 		nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
@@ -110,75 +114,90 @@ func (h *Handler) registerExposeService() error {
 		return err
 	}
 	if apierrors.IsNotFound(err) {
-		vip, err := h.getVipConfig()
-		if err != nil {
-			return err
-		}
-
-		svc := &corev1.Service{
-			ObjectMeta: v1.ObjectMeta{
-				Name:      ingressExposeServiceName,
-				Namespace: util.KubeSystemNamespace,
-				Annotations: map[string]string{
-					keyKubevipIgnoreServiceSecurity: trueStr,
-				},
-			},
-			Spec: corev1.ServiceSpec{
-				Type: corev1.ServiceTypeNodePort,
-				Selector: map[string]string{
-					appLabelName: util.Rke2IngressNginxAppName,
-				},
-				Ports: []corev1.ServicePort{
-					{
-						Name:       "https-internal",
-						Port:       443,
-						Protocol:   corev1.ProtocolTCP,
-						TargetPort: intstr.FromInt(443),
-					},
-					{
-						Name:       "http",
-						Port:       80,
-						Protocol:   corev1.ProtocolTCP,
-						TargetPort: intstr.FromInt(80),
-					},
-				},
-			},
-		}
-
-		// set vip loadBalancer type and ip
-		enabled, err := strconv.ParseBool(vip.Enabled)
-		if err != nil {
-			return err
-		}
-		if enabled && vip.ServiceType == corev1.ServiceTypeLoadBalancer {
-			svc.Spec.Type = vip.ServiceType
-			// After kube-vip v0.5.2, it uses annotation kube-vip.io/loadbalancerIPs to set the loadBalancerIP
-			if strings.ToLower(vip.Mode) == vipDHCPMode {
-				svc.Annotations[keyKubevipRequestIP] = vip.IP
-				svc.Annotations[keyKubevipHwaddr] = vip.HwAddress
-				svc.Annotations[keyKubevipLoadBalancerIPs] = vipDHCPLoadBalancerIP
-			} else {
-				svc.Annotations[keyKubevipLoadBalancerIPs] = vip.IP
-			}
-		}
-
-		if _, err := h.Services.Create(svc); err != nil {
-			return err
-		}
+		return h.createIngressExposeService()
 	}
 	// Update annotations of the ingress-expose service created before Harvester v1.2.0
 	if svc.Annotations == nil || svc.Annotations[keyKubevipIgnoreServiceSecurity] != trueStr {
-		svcCopy := svc.DeepCopy()
-		if svc.Annotations == nil {
-			svcCopy.Annotations = make(map[string]string)
+		return h.updateIngressExposeService(svc)
+	}
+
+	return nil
+}
+
+func (h *Handler) createIngressExposeService() error {
+	vip, err := h.getVipConfig()
+	if err != nil {
+		return err
+	}
+
+	svc := &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      ingressExposeServiceName,
+			Namespace: util.KubeSystemNamespace,
+			Annotations: map[string]string{
+				keyKubevipIgnoreServiceSecurity: trueStr,
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type: corev1.ServiceTypeNodePort,
+			Selector: map[string]string{
+				appLabelName: util.Rke2IngressNginxAppName,
+			},
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "https-internal",
+					Port:       443,
+					Protocol:   corev1.ProtocolTCP,
+					TargetPort: intstr.FromInt(443),
+				},
+				{
+					Name:       "http",
+					Port:       80,
+					Protocol:   corev1.ProtocolTCP,
+					TargetPort: intstr.FromInt(80),
+				},
+			},
+		},
+	}
+
+	// set vip loadBalancer type and ip
+	enabled, err := strconv.ParseBool(vip.Enabled)
+	if err != nil {
+		return err
+	}
+	if enabled && vip.ServiceType == corev1.ServiceTypeLoadBalancer {
+		svc.Spec.Type = vip.ServiceType
+		// After kube-vip v0.5.2, it uses annotation kube-vip.io/loadbalancerIPs to set the loadBalancerIP
+		if strings.ToLower(vip.Mode) == vipDHCPMode {
+			svc.Annotations[keyKubevipRequestIP] = vip.IP
+			svc.Annotations[keyKubevipHwaddr] = vip.HwAddress
+			svc.Annotations[keyKubevipLoadBalancerIPs] = vipDHCPLoadBalancerIP
+		} else {
+			svc.Annotations[keyKubevipLoadBalancerIPs] = vip.IP
 		}
-		svcCopy.Annotations[keyKubevipIgnoreServiceSecurity] = trueStr
-		if _, ok := svcCopy.Annotations[keyKubevipLoadBalancerIPs]; !ok {
-			svcCopy.Annotations[keyKubevipLoadBalancerIPs] = svc.Spec.LoadBalancerIP
-		}
-		if _, err := h.Services.Update(svcCopy); err != nil {
-			return err
-		}
+	}
+
+	if _, err := h.Services.Create(svc); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *Handler) updateIngressExposeService(svc *corev1.Service) error {
+	svcCopy := svc.DeepCopy()
+	if svc.Annotations == nil {
+		svcCopy.Annotations = make(map[string]string)
+	}
+	svcCopy.Annotations[keyKubevipIgnoreServiceSecurity] = trueStr
+	if _, ok := svcCopy.Annotations[keyKubevipLoadBalancerIPs]; !ok {
+		svcCopy.Annotations[keyKubevipLoadBalancerIPs] = svc.Spec.LoadBalancerIP
+	}
+	if _, err := h.Services.Update(svcCopy); err != nil {
+		return err
+	}
+	if err := h.restartKubevipPods(); err != nil {
+		return fmt.Errorf("failed to restart kube-vip pods: %w", err)
 	}
 
 	return nil
@@ -203,4 +222,21 @@ func (h *Handler) getVipConfig() (*VIPConfig, error) {
 		return nil, err
 	}
 	return vipConfig, nil
+}
+
+func (h *Handler) restartKubevipPods() error {
+	pods, err := h.podCache.List(util.HarvesterSystemNamespaceName, labels.Set(map[string]string{
+		"app.kubernetes.io/name": "kube-vip",
+	}).AsSelector())
+	if err != nil {
+		return err
+	}
+
+	for i := range pods {
+		if err := h.podClient.Delete(util.HarvesterSystemNamespaceName, pods[i].Name, &v1.DeleteOptions{}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
