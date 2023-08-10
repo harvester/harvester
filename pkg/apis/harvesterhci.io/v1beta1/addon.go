@@ -22,8 +22,8 @@ const (
 type AddonOperation string
 
 var (
-	AddonOperationInProgress condition.Cond = "InProgress"
-	AddonOperationCompleted  condition.Cond = "Completed"
+	AddonOperationInProgress condition.Cond = "OperationInProgress"
+	AddonOperationCompleted  condition.Cond = "OperationCompleted"
 	AddonOperationFailed     condition.Cond = "OperationFailed"
 	DefaultJobBackOffLimit                  = int32(5)
 )
