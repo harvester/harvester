@@ -24,7 +24,7 @@ const (
 // get the current addon related helmchart
 // bool: if addonOwned or not
 func (h *Handler) getAddonHelmChart(aObj *harvesterv1.Addon) (*helmv1.HelmChart, bool, error) {
-	hc, err := h.helm.Cache().Get(aObj.Namespace, aObj.Name)
+	hc, err := h.helm.Get(aObj.Namespace, aObj.Name, metav1.GetOptions{})
 	if err != nil {
 		// chart is gone
 		if apierrors.IsNotFound(err) {
