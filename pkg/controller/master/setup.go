@@ -5,6 +5,7 @@ import (
 
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/wrangler/pkg/leader"
+	"github.com/sirupsen/logrus"
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/master/addon"
@@ -65,6 +66,7 @@ func register(ctx context.Context, management *config.Management, options config
 func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
 
+	startupComplete := make(chan bool, 1)
 	go leader.RunOrDie(ctx, "", "harvester-controllers", controllers.K8s, func(ctx context.Context) {
 		if err := register(ctx, scaled.Management, options); err != nil {
 			panic(err)
@@ -72,8 +74,11 @@ func Setup(ctx context.Context, server *server.Server, controllers *server.Contr
 		if err := scaled.Management.Start(options.Threadiness); err != nil {
 			panic(err)
 		}
-		<-ctx.Done()
+		startupComplete <- true
 	})
 
+	logrus.Debug("waiting for controller boot to complete")
+	<-startupComplete
+	logrus.Debug("controller boot complete")
 	return nil
 }

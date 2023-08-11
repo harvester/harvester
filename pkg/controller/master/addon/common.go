@@ -28,6 +28,7 @@ func (h *Handler) getAddonHelmChart(aObj *harvesterv1.Addon) (*helmv1.HelmChart,
 	if err != nil {
 		// chart is gone
 		if apierrors.IsNotFound(err) {
+			logrus.Debugf("helmChart not found to addon %v", aObj.Name)
 			return nil, false, nil
 		}
 		return nil, false, fmt.Errorf("error querying helmchart %v", err)
