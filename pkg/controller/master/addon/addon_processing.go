@@ -201,11 +201,13 @@ func (h *Handler) processEnablingAddon(a *harvesterv1.Addon) (*harvesterv1.Addon
 		return aObj, nil
 	}
 
+	logrus.Debugf("processing addon: %v", a)
 	if hc == nil {
 		// unable to find helmChart. Likely manually GC'd. Reset to initial state
 		// this will allow addon to be processed again and redeployed
 		markCompletedCondition(aObj)
 		aObj.Status.Status = harvesterv1.AddonDisabled
+		logrus.Debugf("hc not found so disabling and enabling: %v", a)
 		return h.addon.UpdateStatus(aObj)
 	}
 
