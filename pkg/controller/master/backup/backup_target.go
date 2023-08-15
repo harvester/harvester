@@ -208,6 +208,11 @@ func getBackupSecretData(target *settings.BackupTarget) (map[string]string, erro
 	data[util.HTTPSProxyEnv] = httpProxyConfig.HTTPSProxy
 	data[util.NoProxyEnv] = util.AddBuiltInNoProxy(httpProxyConfig.NoProxy)
 
+	// trim spaces for all values in order to pass the Longhorn webhook, refer to https://github.com/longhorn/longhorn-manager/pull/970
+	for k, v := range data {
+		data[k] = strings.TrimSpace(v)
+	}
+
 	return data, nil
 }
 
