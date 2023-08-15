@@ -13,9 +13,9 @@ const (
 	commonTimeoutInterval = 10
 	commonPollingInterval = 1
 
-	vmTimeoutInterval  = 300
+	vmTimeoutInterval  = 500
 	vmPollingInterval  = 2
-	pvcTimeoutInterval = 300
+	pvcTimeoutInterval = 500
 	pvcPollingInterval = 2
 )
 

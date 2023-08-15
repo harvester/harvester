@@ -63,6 +63,7 @@ func initBaseTemplate(vmTemplates ctlharvesterv1.VirtualMachineTemplateClient, n
 			return errors.Wrap(err, "Failed to convert virtualMachineTemplate from yaml to object")
 		}
 
+		// There is no related webhook for this object, re-create object won't panic normally
 		if _, err := vmTemplates.Create(&vmTemplate); err != nil && !apierrors.IsAlreadyExists(err) {
 			return errors.Wrapf(err, "Failed to create virtualMachineTemplate %s/%s", vmTemplate.Namespace, vmTemplate.Name)
 		}
@@ -82,10 +83,15 @@ func initBaseTemplateVersion(vmTemplateVersions ctlharvesterv1.VirtualMachineTem
 			return errors.Wrap(err, "Failed to convert virtualMachineTemplateVersion from yaml to object")
 		}
 
-		if _, err := vmTemplateVersions.Create(&vmTemplateVersion); err != nil && !apierrors.IsAlreadyExists(err) {
-			return errors.Wrapf(err, "Failed to create virtualMachineTemplateVersion %s/%s", vmTemplateVersion.Namespace, vmTemplateVersion.Name)
+		// VirtualMachineTemplateVersion will have webhook, create object directly may cause POD panic due to webhook is not ready
+		// In bootstrap, the webhook may not be registered yet, directly wait for webhook here is not a good option
+		// The better way is to create those objects from the chart
+		if _, err1 := vmTemplateVersions.Get(vmTemplateVersion.Namespace, vmTemplateVersion.Name, metav1.GetOptions{}); err1 != nil {
+			// no matter any error (like IsNotFound, IsTimeout, IsServerTimeout ...), try to create (again)
+			if _, err := vmTemplateVersions.Create(&vmTemplateVersion); err != nil && !apierrors.IsAlreadyExists(err) {
+				return errors.Wrapf(err, "Failed to create virtualMachineTemplateVersion %s/%s", vmTemplateVersion.Namespace, vmTemplateVersion.Name)
+			}
 		}
-
 	}
 	return nil
 }

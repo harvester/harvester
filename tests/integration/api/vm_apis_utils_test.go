@@ -22,7 +22,8 @@ const (
 	testVMUpdatedCPUCore = 2
 	testVMUpdatedMemory  = "200Mi"
 
-	testVMDiskSize = "10Mi"
+	// Longhorn limits the volume size to be >= 100M
+	testVMDiskSize = "120Mi"
 
 	testVMInterfaceName  = "default"
 	testVMInterfaceModel = "virtio"
