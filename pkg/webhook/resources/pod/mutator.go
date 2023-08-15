@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -27,6 +28,9 @@ var matchingLabels = []labels.Set{
 	{
 		"app": "rancher",
 	},
+	{
+		"kubevirt.io": "virt-launcher",
+	},
 }
 
 func NewMutator(settingCache v1beta1.SettingCache) types.Mutator {
@@ -34,6 +38,13 @@ func NewMutator(settingCache v1beta1.SettingCache) types.Mutator {
 		setttingCache: settingCache,
 	}
 }
+
+const (
+	kubeVirtLabelKey   = "kubevirt.io"
+	kubeVirtLabelValue = "virt-launcher"
+	CAP_NET_ADMIN      = "NET_ADMIN"
+	CAP_NET_RAW        = "NET_RAW"
+)
 
 // podMutator injects Harvester settings like http proxy envs and trusted CA certs to system pods that may access
 // external services. It includes harvester apiserver and longhorn backing-image-data-source pods.
@@ -71,6 +82,7 @@ func (m *podMutator) Create(request *types.Request, newObj runtime.Object) (type
 		}
 	}
 	if !match {
+		logrus.Infof("skipping pod %s due to missing label match", pod.GetName())
 		return nil, nil
 	}
 
@@ -85,6 +97,11 @@ func (m *podMutator) Create(request *types.Request, newObj runtime.Object) (type
 		return nil, err
 	}
 	patchOps = append(patchOps, additionalCAPatches...)
+	netAdminPatches, err := m.netAdminPatches(pod)
+	if err != nil {
+		return nil, err
+	}
+	patchOps = append(patchOps, netAdminPatches...)
 
 	return patchOps, nil
 }
@@ -234,4 +251,28 @@ func volumeMountPatch(target []corev1.VolumeMount, path string, volumeMount core
 		return "", err
 	}
 	return fmt.Sprintf(`{"op": "add", "path": "%s", "value": %s}`, path, valueStr), nil
+}
+
+// hack to add CAP_NET_ADMIN permission to virt-launcher pods.
+// eventually needs to be fine tuned so container run in the same network space
+// which allows sidecar to run the iptable rule application
+func (m *podMutator) netAdminPatches(pod *corev1.Pod) (types.PatchOps, error) {
+	val, ok := pod.Labels[kubeVirtLabelKey]
+	if !ok || val != kubeVirtLabelValue {
+		logrus.Infof("pod %s missing kubevirt key/value label", pod.GetName())
+		return nil, nil
+	}
+
+	logrus.Infof("attempting to patch pod spec: %s", pod.GetName())
+	capAddPath := "/spec/containers/0/securityContext/capabilities/add/-"
+	var generatedPatch []string
+	for _, v := range []string{CAP_NET_ADMIN, CAP_NET_RAW} {
+		patch := fmt.Sprintf(`{"op":"add", "path":"%s", "value": "%s"}`, capAddPath, v)
+		generatedPatch = append(generatedPatch, patch)
+	}
+	capRemovePath := "/spec/containers/0/securityContext/capabilities/drop/0"
+	patch := fmt.Sprintf(`{"op":"remove", "path":"%s"}`, capRemovePath)
+	generatedPatch = append(generatedPatch, patch)
+	logrus.Infof("generated patch for pod %s: %s", pod.GetName(), generatedPatch)
+	return generatedPatch, nil
 }
