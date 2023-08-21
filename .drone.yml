@@ -393,6 +393,7 @@ steps:
     files:
     - "dist/artifacts/harvester*initrd-amd64"
     - "dist/artifacts/harvester*vmlinuz-amd64"
+    - "dist/artifacts/harvester*images-list.txt"
     api_key:
       from_secret: github_token
   when:
