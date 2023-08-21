@@ -244,3 +244,20 @@ func NewAddon(namespace, name string, obj Addon) *Addon {
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// SecurityGroupList is a list of SecurityGroup resources
+type SecurityGroupList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []SecurityGroup `json:"items"`
+}
+
+func NewSecurityGroup(namespace, name string, obj SecurityGroup) *SecurityGroup {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("SecurityGroup").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}

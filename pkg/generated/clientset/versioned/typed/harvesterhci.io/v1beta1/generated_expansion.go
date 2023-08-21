@@ -24,6 +24,8 @@ type KeyPairExpansion interface{}
 
 type PreferenceExpansion interface{}
 
+type SecurityGroupExpansion interface{}
+
 type SettingExpansion interface{}
 
 type SupportBundleExpansion interface{}

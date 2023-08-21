@@ -31,6 +31,7 @@ var (
 	AddonResourceName                         = "addons"
 	KeyPairResourceName                       = "keypairs"
 	PreferenceResourceName                    = "preferences"
+	SecurityGroupResourceName                 = "securitygroups"
 	SettingResourceName                       = "settings"
 	SupportBundleResourceName                 = "supportbundles"
 	UpgradeResourceName                       = "upgrades"
@@ -70,6 +71,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&KeyPairList{},
 		&Preference{},
 		&PreferenceList{},
+		&SecurityGroup{},
+		&SecurityGroupList{},
 		&Setting{},
 		&SettingList{},
 		&SupportBundle{},
