@@ -203,13 +203,26 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 
 	s.ASL = accesscontrol.NewAccessStore(s.Context, true, s.controllers.RBAC)
 
-	if err := data.Init(s.Context, scaled.Management, options); err != nil {
+	// Basic data has no webhook registered, and some data may also be used by webhook
+	// Create them before wait for webhook is reasonable
+	if err := data.InitBasicData(s.Context, scaled.Management, options); err != nil {
 		return err
 	}
 
 	// Once the controller starts its works, the controller might manipulate resources.
 	// Make sure admission webhook server is ready before that.
+	// Note: this `wait` is not enough, it checks static data, does not mean service/POD is ready
 	if err := admission.Wait(s.Context, s.ClientSet); err != nil {
+		return err
+	}
+
+	// Wait for harvester-webhook POD to be ready
+	if err := admission.WaitHarvesterWebhookPod(s.Context, s.ClientSet); err != nil {
+		return err
+	}
+
+	// Some kind of additional data relies on webhook, init them now
+	if err := data.InitAdditionalData(s.Context, scaled.Management, options); err != nil {
 		return err
 	}
 

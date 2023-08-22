@@ -7,9 +7,12 @@ import (
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	pod "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook"
 )
 
@@ -42,4 +45,41 @@ func Wait(ctx context.Context, clientSet *kubernetes.Clientset) error {
 		logrus.Infof("Admission webhooks are ready")
 		return true, nil
 	})
+}
+
+// wait until at least one harvester-webhook POD is ready, otherwise, Harvester POD will panic when creating data which has webhook
+func WaitHarvesterWebhookPod(ctx context.Context, clientSet *kubernetes.Clientset) error {
+	// log error instead of return error, try continuously until success or timeout
+	err := wait.PollImmediate(PollingInterval, PollingTimeout, func() (bool, error) {
+		logrus.Infof("Waiting for harvester-webhook POD ...")
+		// get harvester-webhook related pods
+		podList, err := clientSet.CoreV1().Pods(util.HarvesterSystemNamespaceName).List(ctx, metav1.ListOptions{
+			LabelSelector: labels.Set{
+				"app.kubernetes.io/name":      "harvester",
+				"app.kubernetes.io/component": "webhook-server",
+			}.String(),
+		})
+		if err != nil {
+			logrus.Infof("List harvester-webhook POD failed with %v", err)
+			return false, nil
+		}
+		if podList == nil {
+			return false, nil
+		}
+		for i := range podList.Items {
+			if pod.IsPodReady(&podList.Items[i]) {
+				logrus.Infof("Harvester-webhook POD %s is ready", podList.Items[i].Name)
+				return true, nil
+			}
+		}
+
+		return false, nil
+	})
+
+	if err != nil {
+		logrus.Infof("Faild to wait for harvester-webhook POD, error %v", err)
+		return err
+	}
+
+	return nil
 }
