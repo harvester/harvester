@@ -74,6 +74,10 @@ func (f *FirewallHandler) reconcileRules(vm *kubevirtv1.VirtualMachine) (*kubevi
 // watchSecurityGroup will watch changes to security group, and requeue vm object
 // to ensure iptables rules are updated to reflect current definitions
 func (f *FirewallHandler) watchSecurityGroup(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
+	// empty securityGroup, nothing to watch yet, return early
+	if attachedSecurityGroup == "" {
+		return nil, nil
+	}
 	if sg, ok := obj.(*harvesterv1beta1.SecurityGroup); ok {
 		if sg.Name == attachedSecurityGroup {
 			return []relatedresource.Key{{

@@ -998,6 +998,13 @@ github.com/tinylib/msgp/msgp
 # github.com/urfave/cli v1.22.9
 ## explicit; go 1.11
 github.com/urfave/cli
+# github.com/vishvananda/netlink v1.2.1-beta.2
+## explicit; go 1.12
+github.com/vishvananda/netlink
+github.com/vishvananda/netlink/nl
+# github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
+## explicit; go 1.12
+github.com/vishvananda/netns
 # github.com/willf/bitset v1.1.11
 ## explicit; go 1.14
 github.com/willf/bitset
@@ -1919,6 +1926,7 @@ k8s.io/kubernetes/pkg/controller
 k8s.io/kubernetes/pkg/features
 k8s.io/kubernetes/pkg/fieldpath
 k8s.io/kubernetes/pkg/util/hash
+k8s.io/kubernetes/pkg/util/iptables
 k8s.io/kubernetes/pkg/util/parsers
 k8s.io/kubernetes/pkg/util/taints
 # k8s.io/mount-utils v0.27.1 => k8s.io/mount-utils v0.24.10

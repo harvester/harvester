@@ -99,6 +99,7 @@ require (
 	github.com/stretchr/testify v1.8.3
 	github.com/tidwall/gjson v1.9.3
 	github.com/urfave/cli v1.22.9
+	github.com/vishvananda/netlink v1.2.1-beta.2
 	go.uber.org/multierr v1.9.0
 	golang.org/x/crypto v0.9.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
@@ -116,6 +117,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1
 	k8s.io/kubectl v0.24.2
 	k8s.io/kubelet v0.24.10
+	k8s.io/kubernetes v1.24.2
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106
 	kubevirt.io/api v0.54.0
 	kubevirt.io/containerized-data-importer-api v1.47.0
@@ -273,6 +275,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tinylib/msgp v1.1.1-0.20190612170807-0573788bc2a8 // indirect
+	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
 	github.com/willf/bitset v1.1.11 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190809123943-df4f5c81cb3b // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
@@ -311,7 +314,6 @@ require (
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kube-aggregator v0.25.4 // indirect
-	k8s.io/kubernetes v1.24.2 // indirect
 	k8s.io/mount-utils v0.27.1 // indirect
 	kubevirt.io/client-go v0.40.0-rc.2 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
