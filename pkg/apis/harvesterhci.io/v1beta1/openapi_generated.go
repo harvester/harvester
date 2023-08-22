@@ -2324,9 +2324,9 @@ func schema_pkg_apis_harvesterhciio_v1beta1_IngressRules(ref common.ReferenceCal
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
+										Default: 0,
+										Type:    []string{"integer"},
+										Format:  "int64",
 									},
 								},
 							},

@@ -54,7 +54,7 @@ func generateRules(sg *harvesterv1beta1.SecurityGroup, links []string) [][]strin
 	for _, rule := range sg.Spec {
 		for _, link := range links {
 			// if no port is specified allow all traffic from source address //
-			iptableRule := []string{"ALLOW", "-p", rule.IpProtocol, "-s", rule.SourceAddress, "-i", link}
+			iptableRule := []string{"ALLOW", "-p", rule.IpProtocol, "-s", rule.SourceAddress, "-i", link, "-j", "ACCEPT"}
 			if len(rule.SourcePortRange) != 0 {
 				iptableRule = append(iptableRule, "-m", "multiport", "--dport", generatePortString(rule.SourcePortRange))
 			}

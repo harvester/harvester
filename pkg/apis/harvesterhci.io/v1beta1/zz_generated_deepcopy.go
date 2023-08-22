@@ -223,7 +223,7 @@ func (in *IngressRules) DeepCopyInto(out *IngressRules) {
 	*out = *in
 	if in.SourcePortRange != nil {
 		in, out := &in.SourcePortRange, &out.SourcePortRange
-		*out = make([]string, len(*in))
+		*out = make([]uint32, len(*in))
 		copy(*out, *in)
 	}
 	return

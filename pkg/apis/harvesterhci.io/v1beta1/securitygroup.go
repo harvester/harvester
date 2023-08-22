@@ -14,7 +14,7 @@ type SecurityGroup struct {
 type IngressRules struct {
 	SourceAddress   string   `json:"sourceAddress"`
 	SourcePortRange []uint32 `json:"ports,omitempty"`
-	// +kubebuilder:validation:Enum=tcp,udp,icmp,icmpv6
+	// +kubebuilder:validation:Enum={"tcp","udp","icmp","icmpv6"}
 	IpProtocol string `json:"ipProtocol"`
 }
 
