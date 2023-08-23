@@ -1,2 +1,0 @@
-FROM harvester:virt-launcher-admin
-COPY . /go/src/github.com/harvester/harvester/

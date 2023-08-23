@@ -67,7 +67,7 @@ func (f *FirewallHandler) reconcileRules(vm *kubevirtv1.VirtualMachine) (*kubevi
 		return vm, fmt.Errorf("error looking up security group %s/%s: %v", vm.Namespace, attachedSecurityGroup, err)
 	}
 
-	err = iptables.ApplyRules(sgObj)
+	err = iptables.ApplyRules(sgObj, vm)
 	return vm, err
 }
 

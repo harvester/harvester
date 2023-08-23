@@ -8,6 +8,7 @@ import (
 	"github.com/vishvananda/netlink"
 	iputils "k8s.io/kubernetes/pkg/util/iptables"
 	"k8s.io/utils/exec"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 const (
@@ -17,7 +18,7 @@ const (
 // each launcher pod has the k8s-net* interface which corresponds to the bridge interface
 // being injected by multus. we attempt to apply forwarding rules to these interfaces
 // to ensure only whitelisted traffic is allowed to table
-func ApplyRules(sg *harvesterv1beta1.SecurityGroup) error {
+func ApplyRules(sg *harvesterv1beta1.SecurityGroup, vm *kubevirtv1.VirtualMachine) error {
 	exec := exec.New()
 	iptIface := iputils.New(exec, iputils.ProtocolIPv4)
 	ok, err := iptIface.EnsureChain(iputils.TableFilter, iputils.ChainForward)
@@ -39,7 +40,8 @@ func ApplyRules(sg *harvesterv1beta1.SecurityGroup) error {
 		return fmt.Errorf("internal error: expected to find atleast one k6t-net interface for a bridge interface")
 	}
 
-	rules := generateRules(sg, links)
+	macSourceAddresses := querySourceAddress(vm)
+	rules := generateRules(sg, links, macSourceAddresses)
 	for _, v := range rules {
 		_, err := iptIface.EnsureRule(iputils.Append, iputils.TableFilter, iputils.ChainForward, v...)
 		if err != nil {
@@ -49,7 +51,8 @@ func ApplyRules(sg *harvesterv1beta1.SecurityGroup) error {
 	return nil
 }
 
-func generateRules(sg *harvesterv1beta1.SecurityGroup, links []string) [][]string {
+// generateRules will generate the correct iptables chain to ensure only whitelisted traffic is allowed to VM
+func generateRules(sg *harvesterv1beta1.SecurityGroup, links []string, macSourceAddresses []string) [][]string {
 	var rules [][]string
 	for _, rule := range sg.Spec {
 		for _, link := range links {
@@ -61,12 +64,19 @@ func generateRules(sg *harvesterv1beta1.SecurityGroup, links []string) [][]strin
 			rules = append(rules, iptableRule)
 		}
 	}
+	// allow all traffic matching macAddresses in VM from source. results in
+	// iptables -A FORWARD -m mac --mac-source 46:8c:01:13:38:13 -j ACCEPT -m state --state NEW,ESTABLISHED,RELATED
+	for _, v := range macSourceAddresses {
+		iptableRule := []string{"-m", "mac", "--mac-source", v, "-j", "ACCEPT", "-m", "state", "--state", "NEW", "ESTABLISHED", "RELATED"}
+		rules = append(rules, iptableRule)
+	}
 
 	// final rule in the FORWARD chain is to drop any traffic not matching the rules
 	// as a result a security group with an empty []IngressRules list will
-	// drop all incoming traffic
+	// drop all incoming traffic. results in rule
+	// iptables -A FORWARD  -i k6t-net1 -p icmp -j DROP -m state --state NEW
 	for _, link := range links {
-		rules = append(rules, []string{"DROP", "-i", link})
+		rules = append(rules, []string{"-j", "DROP", "-i", link, "-m", "state", "--state", "NEW"})
 	}
 	return rules
 }
@@ -100,4 +110,14 @@ func generatePortString(ports []uint32) string {
 	}
 
 	return stringPort
+}
+
+func querySourceAddress(vm *kubevirtv1.VirtualMachine) []string {
+	var macAddresses []string
+	for _, v := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		if v.Bridge != nil {
+			macAddresses = append(macAddresses, v.MacAddress)
+		}
+	}
+	return macAddresses
 }
