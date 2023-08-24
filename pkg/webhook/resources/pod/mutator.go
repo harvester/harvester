@@ -12,7 +12,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 
+	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -33,17 +35,23 @@ var matchingLabels = []labels.Set{
 	},
 }
 
-func NewMutator(settingCache v1beta1.SettingCache) types.Mutator {
+func NewMutator(settingCache v1beta1.SettingCache, vmCache ctlkubevirtv1.VirtualMachineCache) types.Mutator {
 	return &podMutator{
 		setttingCache: settingCache,
+		vmCache:       vmCache,
 	}
 }
 
 const (
-	kubeVirtLabelKey   = "kubevirt.io"
-	kubeVirtLabelValue = "virt-launcher"
-	CAP_NET_ADMIN      = "NET_ADMIN"
-	CAP_NET_RAW        = "NET_RAW"
+	kubeVirtLabelKey     = "kubevirt.io"
+	kubeVirtLabelValue   = "virt-launcher"
+	CAP_NET_ADMIN        = "NET_ADMIN"
+	CAP_NET_RAW          = "NET_RAW"
+	CAP_NET_BIND_SERVICE = "NET_BIND_SERVICE"
+	CAP_SYS_PTRACE       = "SYS_PTRACE"
+	CAP_SYS_NICE         = "SYS_NICE"
+	vmLabelPrefix        = "harvesterhci.io/vmName"
+	sidecarImage         = "gmehta3/harvester-vm-network-policy:dev"
 )
 
 // podMutator injects Harvester settings like http proxy envs and trusted CA certs to system pods that may access
@@ -51,6 +59,7 @@ const (
 type podMutator struct {
 	types.DefaultMutator
 	setttingCache v1beta1.SettingCache
+	vmCache       ctlkubevirtv1.VirtualMachineCache
 }
 
 func newResource(ops []admissionregv1.OperationType) types.Resource {
@@ -259,8 +268,25 @@ func volumeMountPatch(target []corev1.VolumeMount, path string, volumeMount core
 func (m *podMutator) netAdminPatches(pod *corev1.Pod) (types.PatchOps, error) {
 	val, ok := pod.Labels[kubeVirtLabelKey]
 	if !ok || val != kubeVirtLabelValue {
-		logrus.Infof("pod %s missing kubevirt key/value label", pod.GetName())
+		logrus.Debugf("pod %s missing kubevirt key/value label", pod.GetName())
 		return nil, nil
+	}
+
+	vmName, ok := pod.Labels[vmLabelPrefix]
+	if !ok || vmName == "" {
+		logrus.Debugf("pod %s missing vmName label. ignoring", pod.Name)
+		return nil, nil
+	}
+
+	vmObj, err := m.vmCache.Get(pod.Namespace, vmName)
+	if err != nil {
+		return nil, err
+	}
+
+	attachedSecurityGroup, ok := vmObj.Annotations[harvesterv1beta1.SecurityGroupPrefix]
+	if !ok || attachedSecurityGroup == "" {
+		logrus.Debugf("vm %s has no securiy group attached. ignoring", vmObj.Name)
+		return nil, err
 	}
 
 	logrus.Infof("attempting to patch pod spec: %s", pod.GetName())
@@ -273,6 +299,51 @@ func (m *podMutator) netAdminPatches(pod *corev1.Pod) (types.PatchOps, error) {
 	capRemovePath := "/spec/containers/0/securityContext/capabilities/drop/0"
 	patch := fmt.Sprintf(`{"op":"remove", "path":"%s"}`, capRemovePath)
 	generatedPatch = append(generatedPatch, patch)
-	logrus.Infof("generated patch for pod %s: %s", pod.GetName(), generatedPatch)
+	patch, err = generateNetworkPolicySidecar(vmObj.Name, vmObj.Namespace, sidecarImage, pod)
+	if err != nil {
+		return nil, err
+	}
+	generatedPatch = append(generatedPatch, patch)
+	logrus.Debugf("generated patch for pod %s: %s", pod.GetName(), generatedPatch)
 	return generatedPatch, nil
+}
+
+func generateNetworkPolicySidecar(name, namespace, image string, pod *corev1.Pod) (string, error) {
+	container := corev1.Container{
+		Name:  "vmnetworkpolicy",
+		Image: image,
+		Env: []corev1.EnvVar{
+			{
+				Name:  "HARVESTER_VM_NAME",
+				Value: name,
+			},
+			{
+				Name:  "HARVESTER_VM_NAMESPACE",
+				Value: namespace,
+			},
+		},
+		ImagePullPolicy: pod.Spec.Containers[0].ImagePullPolicy,
+		SecurityContext: &corev1.SecurityContext{
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{
+					CAP_NET_ADMIN,
+					CAP_NET_BIND_SERVICE,
+					CAP_SYS_NICE,
+					CAP_SYS_PTRACE,
+					CAP_NET_RAW,
+				},
+			},
+		},
+	}
+
+	patch, err := json.Marshal(map[string]any{
+		"op":    "add",
+		"path":  "/spec/containers/-",
+		"value": container,
+	})
+	if err != nil {
+		logrus.Errorf("error marshalling container spec: %v", err)
+		return "", err
+	}
+	return string(patch), nil
 }
