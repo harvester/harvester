@@ -14,7 +14,6 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	kubevirt "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
 	"github.com/harvester/harvester/pkg/server"
@@ -34,9 +33,9 @@ func init() {
 	utilruntime.Must(schemes.AddToScheme(Scheme))
 }
 
-func NewFirewallHandler(opts *config.CommonOptions) error {
+func NewVMNetworkPolicyHandler(kubeConfig string) error {
 	ctx := signals.SetupSignalContext()
-	client, err := server.GetConfig(opts.KubeConfig)
+	client, err := server.GetConfig(kubeConfig)
 	if err != nil {
 		return err
 	}
@@ -78,7 +77,7 @@ func NewFirewallHandler(opts *config.CommonOptions) error {
 	}
 
 	//register handlers
-	h := &FirewallHandler{
+	h := &VMNetworkPolicyHandler{
 		ctx:          ctx,
 		vmName:       vmName,
 		vmNamespace:  vmNamespace,

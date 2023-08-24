@@ -11,7 +11,9 @@ API rule violation: list_type_missing,github.com/harvester/harvester-network-con
 API rule violation: list_type_missing,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,VlStatus,LocalAreas
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,AddonStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ErrorResponse,Errors
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,IngressRules,SourcePortRange
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,KeyPairStatus,Conditions
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,SecurityGroup,Spec
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,SettingStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,SupportBundleStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,UpgradeLogStatus,Conditions
@@ -221,6 +223,8 @@ API rule violation: names_match,github.com/harvester/harvester-network-controlle
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NodeNetworkStatus,NetworkInterfaces
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,Uplink,LinkAttrs
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,Uplink,NICs
+API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,IngressRules,SourcePortRange
+API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,SecurityGroup,Spec
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,SourceSpec
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageStatus,AppliedURL
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,VolumeRestores

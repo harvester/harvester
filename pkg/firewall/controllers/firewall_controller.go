@@ -21,7 +21,7 @@ var (
 	attachedSecurityGroup = ""
 )
 
-type FirewallHandler struct {
+type VMNetworkPolicyHandler struct {
 	ctx          context.Context
 	vmName       string
 	vmNamespace  string
@@ -29,14 +29,14 @@ type FirewallHandler struct {
 	sgController ctlharvesterv1.SecurityGroupController
 }
 
-func (f *FirewallHandler) Register() error {
+func (f *VMNetworkPolicyHandler) Register() error {
 	f.vmController.OnChange(f.ctx, "manager-firewall-rules", f.manageRules)
 	relatedresource.Watch(f.ctx, "watch-security-group", f.watchSecurityGroup, f.vmController, f.sgController)
 	return nil
 }
 
 // manageRules runs pre-flight checks to ensure we are reconcilling the correct VM
-func (f *FirewallHandler) manageRules(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+func (f *VMNetworkPolicyHandler) manageRules(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -57,7 +57,7 @@ func (f *FirewallHandler) manageRules(_ string, vm *kubevirtv1.VirtualMachine) (
 }
 
 // reconcileRules ensures securityGroup definition matches current rule definition
-func (f *FirewallHandler) reconcileRules(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+func (f *VMNetworkPolicyHandler) reconcileRules(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	sgObj, err := f.sgController.Get(vm.Namespace, attachedSecurityGroup, metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -73,7 +73,7 @@ func (f *FirewallHandler) reconcileRules(vm *kubevirtv1.VirtualMachine) (*kubevi
 
 // watchSecurityGroup will watch changes to security group, and requeue vm object
 // to ensure iptables rules are updated to reflect current definitions
-func (f *FirewallHandler) watchSecurityGroup(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
+func (f *VMNetworkPolicyHandler) watchSecurityGroup(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
 	// empty securityGroup, nothing to watch yet, return early
 	if attachedSecurityGroup == "" {
 		return nil, nil

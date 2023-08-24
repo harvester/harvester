@@ -8,3 +8,4 @@ cd $(dirname $0)
 ./package
 ./package-webhook
 ./package-upgrade
+./package-vm-network-policy

@@ -11,3 +11,4 @@ cd $(dirname $0)
 ./package-upgrade
 ./test-integration
 ./package
+./package-vm-network-policy
