@@ -6,9 +6,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"reflect"
 	"strings"
+	"unicode"
 
+	"github.com/gobuffalo/flect"
 	_ "github.com/openshift/api/operator/v1"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"k8s.io/kube-openapi/pkg/builder"
 	"k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/common/restfuladapter"
@@ -17,11 +22,25 @@ import (
 	_ "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	_ "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
+
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/genswagger/rest"
 )
 
+const (
+	defTimeKey   = "k8s.io.v1.Time"
+	defTimeValue = ""
+)
+
 var outputFile = flag.String("output", "api/openapi-spec/swagger.json", "Output file.")
+
+var vowels = map[rune]bool{
+	'a': true,
+	'e': true,
+	'i': true,
+	'o': true,
+	'u': true,
+}
 
 var kindToTagMappings = map[string]string{
 	"VirtualMachine":                  "Virtual Machines",
@@ -51,6 +70,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+	addSummaryForMethods(swagger)
+	fixedTime(swagger)
 	jsonBytes, err := json.MarshalIndent(swagger, "", "  ")
 	if err != nil {
 		log.Fatal(err.Error())
@@ -101,4 +122,70 @@ func createConfig() *common.Config {
 			return r.OperationName(), []string{tag}, nil
 		},
 	}
+}
+
+func addSummaryForMethods(swagger *spec.Swagger) {
+	t := reflect.TypeOf(new(spec.Operation))
+	for _, path := range swagger.Paths.Paths {
+		v := reflect.ValueOf(&path.PathItemProps).Elem()
+		for j := 0; j < v.NumField(); j++ {
+			f := v.Field(j)
+			if t == f.Type() && !f.IsNil() {
+				id := f.Elem().FieldByName("ID").String()
+				id = strings.Replace(id, "Namespaced", "", -1)
+				f.Elem().FieldByName("Summary").SetString(splitAndTitle(id))
+			}
+		}
+	}
+}
+
+func splitAndTitle(s string) string {
+	var result []string
+	var currentWord string
+
+	hasPlural := strings.HasPrefix(strings.ToLower(s), "list")
+
+	for _, char := range s {
+		if unicode.IsUpper(char) && currentWord != "" {
+			if strings.ToLower(currentWord) == "for" && hasPlural {
+				result[len(result)-1] = flect.Pluralize(result[len(result)-1])
+			}
+			result = append(result, toTitle(currentWord))
+			currentWord = ""
+		}
+		currentWord += string(char)
+	}
+
+	if currentWord != "" {
+		if hasPlural {
+			currentWord = flect.Pluralize(currentWord)
+		}
+		result = append(result, toTitle(currentWord))
+	}
+
+	if !hasPlural {
+		result = indef(result)
+	}
+
+	return strings.Join(result, " ")
+}
+
+func toTitle(s string) string {
+	return cases.Title(language.Und, cases.NoLower).String(s)
+}
+
+func indef(s []string) []string {
+	a := "a"
+	if vowels[rune(strings.ToLower(s[1])[0])] {
+		a = "an"
+	}
+	return append([]string{s[0], a}, s[1:]...)
+}
+
+func fixedTime(swagger *spec.Swagger) {
+	d := swagger.Definitions[defTimeKey]
+	d.SchemaProps.Format = ""
+	d.SchemaProps.Default = defTimeValue
+
+	swagger.Definitions[defTimeKey] = d
 }
