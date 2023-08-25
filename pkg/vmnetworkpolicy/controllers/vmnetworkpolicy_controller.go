@@ -30,7 +30,7 @@ type VMNetworkPolicyHandler struct {
 }
 
 func (f *VMNetworkPolicyHandler) Register() error {
-	f.vmController.OnChange(f.ctx, "manager-firewall-rules", f.manageRules)
+	f.vmController.OnChange(f.ctx, "manager-vmnetworkpolicy-rules", f.manageRules)
 	relatedresource.Watch(f.ctx, "watch-security-group", f.watchSecurityGroup, f.vmController, f.sgController)
 	return nil
 }
