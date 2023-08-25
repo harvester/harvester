@@ -10,7 +10,7 @@ source $SCRIPTS_DIR/version
 cd $TOP_DIR
 
 mkdir -p dist/artifacts
-cp bin/harvester-vm-network-policy dist/artifacts/harvester-firewall${SUFFIX}
+cp bin/harvester-vm-network-policy dist/artifacts/harvester-vm-network-policy${SUFFIX}
 
 cd $PACKAGE_DIR
 
@@ -34,3 +34,6 @@ if [[ -n ${PUSH} ]];then
   docker --config=${DOCKER_CONFIG} push "${IMAGE_PUSH}"
   echo Pushed "${IMAGE_PUSH}"
 fi
+
+## cleanup copied file
+rm harvester-vm-network-policy

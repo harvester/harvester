@@ -11,12 +11,12 @@ import (
 	"github.com/rancher/wrangler/pkg/start"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	kubevirt "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
-	"github.com/harvester/harvester/pkg/server"
 )
 
 var (
@@ -35,12 +35,8 @@ func init() {
 
 func NewVMNetworkPolicyHandler(kubeConfig string) error {
 	ctx := signals.SetupSignalContext()
-	client, err := server.GetConfig(kubeConfig)
-	if err != nil {
-		return err
-	}
 
-	restConfig, err := client.ClientConfig()
+	restConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return err
 	}
@@ -59,7 +55,6 @@ func NewVMNetworkPolicyHandler(kubeConfig string) error {
 	if err != nil {
 		return err
 	}
-
 	// only want to look at objects in the current namespace
 	factoryOpts := &generic.FactoryOptions{
 		SharedControllerFactory: factory,

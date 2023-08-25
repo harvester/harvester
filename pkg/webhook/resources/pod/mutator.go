@@ -304,6 +304,9 @@ func (m *podMutator) netAdminPatches(pod *corev1.Pod) (types.PatchOps, error) {
 		return nil, err
 	}
 	generatedPatch = append(generatedPatch, patch)
+	automountSAPath := "/spec/automountServiceAccountToken"
+	patch = fmt.Sprintf(`{"op":"replace", "path":"%s", "value": %v}`, automountSAPath, true)
+	generatedPatch = append(generatedPatch, patch)
 	logrus.Debugf("generated patch for pod %s: %s", pod.GetName(), generatedPatch)
 	return generatedPatch, nil
 }

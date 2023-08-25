@@ -34,3 +34,6 @@ if [[ -n ${PUSH} ]];then
   docker --config=${DOCKER_CONFIG} push "${IMAGE_PUSH}"
   echo Pushed "${IMAGE_PUSH}"
 fi
+
+## cleanup copied file
+rm harvester-webhook
