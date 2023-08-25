@@ -20,6 +20,7 @@ const (
 // to ensure only whitelisted traffic is allowed to table
 func ApplyRules(sg *harvesterv1beta1.SecurityGroup, vm *kubevirtv1.VirtualMachine) error {
 	exec := exec.New()
+
 	iptIface := iputils.New(exec, iputils.ProtocolIPv4)
 	ok, err := iptIface.EnsureChain(iputils.TableFilter, iputils.ChainForward)
 	if err != nil {
@@ -54,10 +55,12 @@ func ApplyRules(sg *harvesterv1beta1.SecurityGroup, vm *kubevirtv1.VirtualMachin
 // generateRules will generate the correct iptables chain to ensure only whitelisted traffic is allowed to VM
 func generateRules(sg *harvesterv1beta1.SecurityGroup, links []string, macSourceAddresses []string) [][]string {
 	var rules [][]string
+	// generate rules of the form
+	// iptables -A FORWARD  -i k6t-net1 -p icmp -s 172.19.107.9 -j ACCEPT -m state --state NEW,ESTABLISHED,RELATED
 	for _, rule := range sg.Spec {
 		for _, link := range links {
 			// if no port is specified allow all traffic from source address //
-			iptableRule := []string{"ALLOW", "-p", rule.IpProtocol, "-s", rule.SourceAddress, "-i", link, "-j", "ACCEPT"}
+			iptableRule := []string{"-p", rule.IpProtocol, "-s", rule.SourceAddress, "-i", link, "-j", "ACCEPT", "-m", "state", "--state", "NEW,ESTABLISHED,RELATED"}
 			if len(rule.SourcePortRange) != 0 {
 				iptableRule = append(iptableRule, "-m", "multiport", "--dport", generatePortString(rule.SourcePortRange))
 			}
@@ -67,15 +70,17 @@ func generateRules(sg *harvesterv1beta1.SecurityGroup, links []string, macSource
 	// allow all traffic matching macAddresses in VM from source. results in
 	// iptables -A FORWARD -m mac --mac-source 46:8c:01:13:38:13 -j ACCEPT -m state --state NEW,ESTABLISHED,RELATED
 	for _, v := range macSourceAddresses {
-		iptableRule := []string{"-m", "mac", "--mac-source", v, "-j", "ACCEPT", "-m", "state", "--state", "NEW", "ESTABLISHED", "RELATED"}
+		iptableRule := []string{"-m", "mac", "--mac-source", v, "-j", "ACCEPT", "-m", "state", "--state", "NEW,ESTABLISHED,RELATED"}
 		rules = append(rules, iptableRule)
 	}
 
 	// final rule in the FORWARD chain is to drop any traffic not matching the rules
 	// as a result a security group with an empty []IngressRules list will
 	// drop all incoming traffic. results in rule
+	// iptables -A FORWARD  -i k6t-net1 -p udp --dport 67:68 --sport 67:68 -j ACCEPT
 	// iptables -A FORWARD  -i k6t-net1 -p icmp -j DROP -m state --state NEW
 	for _, link := range links {
+		rules = append(rules, []string{"-i", link, "-p", "udp", "--dport", "67:68", "--sport", "67:68", "-j", "ACCEPT"})
 		rules = append(rules, []string{"-j", "DROP", "-i", link, "-m", "state", "--state", "NEW"})
 	}
 	return rules

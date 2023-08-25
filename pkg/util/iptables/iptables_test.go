@@ -46,7 +46,7 @@ func Test_emptySecurityGroup(t *testing.T) {
 	links := []string{"k6t-net1"}
 	macSourceAddresses := []string{"46:8c:01:13:38:13"}
 	newRules := generateRules(sg, links, macSourceAddresses)
-	assert.Len(newRules, 2, "expected to find only one rule")
+	assert.Len(newRules, 3, "expected to find only one rule")
 	assert.Equal(newRules[len(newRules)-1], []string{"-j", "DROP", "-i", links[0], "-m", "state", "--state", "NEW"}, "expected last rule to be drop rule")
 }
 
@@ -67,7 +67,7 @@ func Test_ruleWithNoSourcePort(t *testing.T) {
 	links := []string{"k6t-net1"}
 	macSourceAddresses := []string{"46:8c:01:13:38:13"}
 	newRules := generateRules(sg, links, macSourceAddresses)
-	assert.Len(newRules, 3, "expected to find two rules")
+	assert.Len(newRules, 4, "expected to find two rules")
 	assert.Equal(newRules[len(newRules)-1], []string{"-j", "DROP", "-i", links[0], "-m", "state", "--state", "NEW"}, "expected last rule to be drop rule")
-	assert.Equal(newRules[0], []string{"ALLOW", "-p", "tcp", "-s", "192.168.0.100", "-i", "k6t-net1", "-j", "ACCEPT"})
+	assert.Equal(newRules[0], []string{"-p", "tcp", "-s", "192.168.0.100", "-i", "k6t-net1", "-j", "ACCEPT", "-m", "state", "--state", "NEW,ESTABLISHED,RELATED"})
 }
