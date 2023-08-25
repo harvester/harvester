@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/rancher/lasso/pkg/cache"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/schemes"
@@ -51,7 +52,10 @@ func NewVMNetworkPolicyHandler(kubeConfig string) error {
 		return fmt.Errorf("unable to find env variable HARVESTER_VM_NAMESPACE")
 	}
 
-	factory, err := controller.NewSharedControllerFactoryFromConfig(restConfig, Scheme)
+	factory, err := controller.NewSharedControllerFactoryFromConfigWithOptions(restConfig, Scheme, &controller.SharedControllerFactoryOptions{CacheOptions: &cache.SharedCacheFactoryOptions{
+		DefaultNamespace: vmNamespace,
+	}})
+
 	if err != nil {
 		return err
 	}
