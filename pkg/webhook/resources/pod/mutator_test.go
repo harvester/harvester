@@ -264,7 +264,7 @@ func Test_sideCarPatch(t *testing.T) {
 		},
 	}
 
-	var clientset = fake.NewSimpleClientset()
+	clientset := fake.NewSimpleClientset()
 	fakeSettingsCache := fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings)
 	fakeVMCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
 

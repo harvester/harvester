@@ -4,7 +4,6 @@ import (
 	"context"
 	"reflect"
 
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	ctlrbacv1 "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -27,16 +26,16 @@ var (
 )
 
 type handler struct {
-	ns ctlcorev1.NamespaceController
-	rb ctlrbacv1.RoleBindingController
+	rbCache  ctlrbacv1.RoleBindingCache
+	rbClient ctlrbacv1.RoleBindingClient
 }
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	ns := management.CoreFactory.Core().V1().Namespace()
 	rb := management.RbacFactory.Rbac().V1().RoleBinding()
 	h := &handler{
-		ns: ns,
-		rb: rb,
+		rbCache:  rb.Cache(),
+		rbClient: rb,
 	}
 
 	ns.OnChange(ctx, "reconcile-default-rolebinding", h.reconcileNS)
@@ -54,10 +53,10 @@ func (h *handler) reconcileNS(_ string, ns *corev1.Namespace) (*corev1.Namespace
 	}
 
 	requiredRole := generateRoleBinding(ns.Name)
-	currentRoleBinding, err := h.rb.Cache().Get(ns.Name, roleBindingName)
+	currentRoleBinding, err := h.rbCache.Get(ns.Name, roleBindingName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			_, err := h.rb.Create(requiredRole)
+			_, err := h.rbClient.Create(requiredRole)
 			return ns, err
 		}
 		return ns, err
@@ -66,7 +65,7 @@ func (h *handler) reconcileNS(_ string, ns *corev1.Namespace) (*corev1.Namespace
 	if !reflect.DeepEqual(currentRoleBinding.Subjects, requiredRole.Subjects) || !reflect.DeepEqual(currentRoleBinding.RoleRef, requiredRole.RoleRef) {
 		currentRoleBinding.RoleRef = requiredRole.RoleRef
 		currentRoleBinding.Subjects = requiredRole.Subjects
-		_, err := h.rb.Update(currentRoleBinding)
+		_, err := h.rbClient.Update(currentRoleBinding)
 		return ns, err
 	}
 

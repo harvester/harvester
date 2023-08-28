@@ -52,7 +52,6 @@ const (
 	CAP_SYS_PTRACE       = "SYS_PTRACE"
 	CAP_SYS_NICE         = "SYS_NICE"
 	vmLabelPrefix        = "harvesterhci.io/vmName"
-	sidecarImage         = "gmehta3/harvester-vm-network-policy:dev"
 )
 
 // podMutator injects Harvester settings like http proxy envs and trusted CA certs to system pods that may access
