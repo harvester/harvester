@@ -1,11 +1,11 @@
 package data
 
 import (
+	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/rancher/wrangler/pkg/apply"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/harvester/harvester/pkg/settings"
 )
 
 func addAuthenticatedRoles(apply apply.Apply) error {
@@ -68,6 +68,23 @@ func addAuthenticatedRoles(apply apply.Apply) error {
 					APIGroup: rbacv1.GroupName,
 					Kind:     "ClusterRole",
 					Name:     "harvester-authenticated",
+				},
+			},
+			&rbacv1.ClusterRole{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: harvesterv1beta1.SidecarClusterRoleName,
+				},
+				Rules: []rbacv1.PolicyRule{
+					{
+						Verbs:     []string{"get", "watch", "list"},
+						APIGroups: []string{"kubevirt.io"},
+						Resources: []string{"virtualmachines"},
+					},
+					{
+						Verbs:     []string{"get", "list", "watch"},
+						APIGroups: []string{"harvesterhci.io"},
+						Resources: []string{"securitygroups"},
+					},
 				},
 			},
 		)

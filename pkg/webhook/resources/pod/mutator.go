@@ -15,6 +15,7 @@ import (
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -106,7 +107,7 @@ func (m *podMutator) Create(request *types.Request, newObj runtime.Object) (type
 		return nil, err
 	}
 	patchOps = append(patchOps, additionalCAPatches...)
-	netAdminPatches, err := m.netAdminPatches(pod)
+	netAdminPatches, err := m.sideCarPatches(pod)
 	if err != nil {
 		return nil, err
 	}
@@ -263,9 +264,9 @@ func volumeMountPatch(target []corev1.VolumeMount, path string, volumeMount core
 }
 
 // hack to add CAP_NET_ADMIN permission to virt-launcher pods.
-// eventually needs to be fine tuned so container run in the same network space
+// also injects a sidecar if needed to watch and apply security groups
 // which allows sidecar to run the iptable rule application
-func (m *podMutator) netAdminPatches(pod *corev1.Pod) (types.PatchOps, error) {
+func (m *podMutator) sideCarPatches(pod *corev1.Pod) (types.PatchOps, error) {
 	val, ok := pod.Labels[kubeVirtLabelKey]
 	if !ok || val != kubeVirtLabelValue {
 		logrus.Debugf("pod %s missing kubevirt key/value label", pod.GetName())
@@ -289,6 +290,11 @@ func (m *podMutator) netAdminPatches(pod *corev1.Pod) (types.PatchOps, error) {
 		return nil, err
 	}
 
+	sidecarImageSetting, err := m.setttingCache.Get(settings.VMNetworkPolicySideCarSettingName)
+	if err != nil {
+		return nil, err
+	}
+
 	logrus.Infof("attempting to patch pod spec: %s", pod.GetName())
 	capAddPath := "/spec/containers/0/securityContext/capabilities/add/-"
 	var generatedPatch []string
@@ -299,7 +305,7 @@ func (m *podMutator) netAdminPatches(pod *corev1.Pod) (types.PatchOps, error) {
 	capRemovePath := "/spec/containers/0/securityContext/capabilities/drop/0"
 	patch := fmt.Sprintf(`{"op":"remove", "path":"%s"}`, capRemovePath)
 	generatedPatch = append(generatedPatch, patch)
-	patch, err = generateNetworkPolicySidecar(vmObj.Name, vmObj.Namespace, sidecarImage, pod)
+	patch, err = generateNetworkPolicySidecar(vmObj.Name, vmObj.Namespace, sidecarImageSetting)
 	if err != nil {
 		return nil, err
 	}
@@ -311,10 +317,20 @@ func (m *podMutator) netAdminPatches(pod *corev1.Pod) (types.PatchOps, error) {
 	return generatedPatch, nil
 }
 
-func generateNetworkPolicySidecar(name, namespace, image string, pod *corev1.Pod) (string, error) {
+func generateNetworkPolicySidecar(name, namespace string, imageSetting *harvesterv1beta1.Setting) (string, error) {
+	imageJson := imageSetting.Default
+	if imageSetting.Value != "" {
+		imageJson = imageSetting.Value
+	}
+
+	imageObj := &settings.Image{}
+	if err := json.Unmarshal([]byte(imageJson), imageObj); err != nil {
+		return "", err
+	}
+
 	container := corev1.Container{
 		Name:  "vmnetworkpolicy",
-		Image: image,
+		Image: fmt.Sprintf("%s:%s", imageObj.Repository, imageObj.Tag),
 		Env: []corev1.EnvVar{
 			{
 				Name:  "HARVESTER_VM_NAME",
@@ -325,7 +341,7 @@ func generateNetworkPolicySidecar(name, namespace, image string, pod *corev1.Pod
 				Value: namespace,
 			},
 		},
-		ImagePullPolicy: pod.Spec.Containers[0].ImagePullPolicy,
+		ImagePullPolicy: imageObj.ImagePullPolicy,
 		SecurityContext: &corev1.SecurityContext{
 			Capabilities: &corev1.Capabilities{
 				Add: []corev1.Capability{

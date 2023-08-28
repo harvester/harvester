@@ -20,5 +20,6 @@ type IngressRules struct {
 }
 
 const (
-	SecurityGroupPrefix = "harvesterhci.io/attachedSecurityGroup"
+	SecurityGroupPrefix    = "harvesterhci.io/attachedSecurityGroup"
+	SidecarClusterRoleName = "harvester-sidecar"
 )

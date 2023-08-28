@@ -48,7 +48,7 @@ var (
 	ContainerdRegistry                     = NewSetting(ContainerdRegistrySettingName, "")
 	StorageNetwork                         = NewSetting(StorageNetworkName, "")
 	DefaultVMTerminationGracePeriodSeconds = NewSetting(DefaultVMTerminationGracePeriodSecondsSettingName, "120")
-
+	VMNetworkPolicySideCar                 = NewSetting(VMNetworkPolicySideCarSettingName, `{"repository":"rancher/harvester-vmnetworkpolicy", "imagePullPolicy":"Always", "tag":"dev"}`)
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
 	NTPServers             = NewSetting(NTPServersSettingName, "")
@@ -80,6 +80,7 @@ const (
 	StorageNetworkName                                = "storage-network"
 	DefaultVMTerminationGracePeriodSecondsSettingName = "default-vm-termination-grace-period-seconds"
 	NTPServersSettingName                             = "ntp-servers"
+	VMNetworkPolicySideCarSettingName                 = "vm-network-policy-sidecar"
 )
 
 func init() {

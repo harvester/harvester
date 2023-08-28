@@ -14,9 +14,6 @@ import (
 	"strings"
 
 	"github.com/longhorn/backupstore"
-	// Although we don't use following drivers directly, we need to import them to register drivers.
-	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
-	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
 	_ "github.com/longhorn/backupstore/nfs" //nolint
 	_ "github.com/longhorn/backupstore/s3"  //nolint
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -81,6 +78,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.ContainerdRegistrySettingName:                     validateContainerdRegistry,
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateDefaultVMTerminationGracePeriodSeconds,
 	settings.NTPServersSettingName:                             validateNTPServers,
+	settings.VMNetworkPolicySideCarSettingName:                 validateVMNetworkPolicySidecar,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -97,6 +95,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.ContainerdRegistrySettingName:                     validateUpdateContainerdRegistry,
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateUpdateDefaultVMTerminationGracePeriodSeconds,
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
+	settings.VMNetworkPolicySideCarSettingName:                 validateUpdateVMNetworkPolicySidecar,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -883,4 +882,26 @@ func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) er
 
 func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateDefaultVMTerminationGracePeriodSeconds(newSetting)
+}
+
+func validateVMNetworkPolicySidecar(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	image := &settings.Image{}
+	err := json.Unmarshal([]byte(setting.Value), image)
+	if err != nil {
+		return err
+	}
+
+	if image.Repository == "" || image.Tag == "" || image.ImagePullPolicy == "" {
+		return fmt.Errorf("image field can't be blank")
+	}
+
+	return nil
+}
+
+func validateUpdateVMNetworkPolicySidecar(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateVMNetworkPolicySidecar(newSetting)
 }
