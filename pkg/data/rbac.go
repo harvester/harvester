@@ -1,11 +1,12 @@
 package data
 
 import (
-	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/settings"
 	"github.com/rancher/wrangler/pkg/apply"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 func addAuthenticatedRoles(apply apply.Apply) error {

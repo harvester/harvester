@@ -34,7 +34,7 @@ func init() {
 	utilruntime.Must(schemes.AddToScheme(Scheme))
 }
 
-func NewVMNetworkPolicyHandler(kubeConfig string) error {
+func NewVMNetworkPolicyHandler() error {
 	ctx := signals.SetupSignalContext()
 
 	restConfig, err := rest.InClusterConfig()

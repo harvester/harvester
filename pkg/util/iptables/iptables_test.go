@@ -3,9 +3,10 @@ package iptables
 import (
 	"testing"
 
-	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 func Test_generatePortString(t *testing.T) {
@@ -60,7 +61,7 @@ func Test_ruleWithNoSourcePort(t *testing.T) {
 		Spec: []harvesterv1beta1.IngressRules{
 			{
 				SourceAddress: "192.168.0.100",
-				IpProtocol:    "tcp",
+				IPProtocol:    "tcp",
 			},
 		},
 	}

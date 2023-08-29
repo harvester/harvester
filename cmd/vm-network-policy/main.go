@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/sirupsen/logrus"
 
@@ -11,7 +10,7 @@ import (
 
 func main() {
 	logrus.Info("Starting vmnetworkpolicy controller")
-	err := controllers.NewVMNetworkPolicyHandler(os.Getenv("KUBECONFIG"))
+	err := controllers.NewVMNetworkPolicyHandler()
 	if err != nil {
 		panic(fmt.Errorf("failed to find kubeconfig: %v", err))
 	}

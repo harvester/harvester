@@ -30,7 +30,7 @@ type handler struct {
 	rbClient ctlrbacv1.RoleBindingClient
 }
 
-func Register(ctx context.Context, management *config.Management, options config.Options) error {
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	ns := management.CoreFactory.Core().V1().Namespace()
 	rb := management.RbacFactory.Rbac().V1().RoleBinding()
 	h := &handler{

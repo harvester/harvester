@@ -44,14 +44,14 @@ func NewMutator(settingCache v1beta1.SettingCache, vmCache ctlkubevirtv1.Virtual
 }
 
 const (
-	kubeVirtLabelKey     = "kubevirt.io"
-	kubeVirtLabelValue   = "virt-launcher"
-	CAP_NET_ADMIN        = "NET_ADMIN"
-	CAP_NET_RAW          = "NET_RAW"
-	CAP_NET_BIND_SERVICE = "NET_BIND_SERVICE"
-	CAP_SYS_PTRACE       = "SYS_PTRACE"
-	CAP_SYS_NICE         = "SYS_NICE"
-	vmLabelPrefix        = "harvesterhci.io/vmName"
+	kubeVirtLabelKey   = "kubevirt.io"
+	kubeVirtLabelValue = "virt-launcher"
+	CapNetAdmin        = "NET_ADMIN"
+	CapNetRaw          = "NET_RAW"
+	CapNetBindService  = "NET_BIND_SERVICE"
+	CapSysPtrace       = "SYS_PTRACE"
+	CapSysNice         = "SYS_NICE"
+	vmLabelPrefix      = "harvesterhci.io/vmName"
 )
 
 // podMutator injects Harvester settings like http proxy envs and trusted CA certs to system pods that may access
@@ -262,7 +262,7 @@ func volumeMountPatch(target []corev1.VolumeMount, path string, volumeMount core
 	return fmt.Sprintf(`{"op": "add", "path": "%s", "value": %s}`, path, valueStr), nil
 }
 
-// hack to add CAP_NET_ADMIN permission to virt-launcher pods.
+// hack to add CapNetAdmin permission to virt-launcher pods.
 // also injects a sidecar if needed to watch and apply security groups
 // which allows sidecar to run the iptable rule application
 func (m *podMutator) sideCarPatches(pod *corev1.Pod) (types.PatchOps, error) {
@@ -296,8 +296,8 @@ func (m *podMutator) sideCarPatches(pod *corev1.Pod) (types.PatchOps, error) {
 
 	logrus.Infof("attempting to patch pod spec: %s", pod.GetName())
 	capAddPath := "/spec/containers/0/securityContext/capabilities/add/-"
-	var generatedPatch []string
-	for _, v := range []string{CAP_NET_ADMIN, CAP_NET_RAW} {
+	generatedPatch := make([]string, 0)
+	for _, v := range []string{CapNetAdmin, CapNetRaw} {
 		patch := fmt.Sprintf(`{"op":"add", "path":"%s", "value": "%s"}`, capAddPath, v)
 		generatedPatch = append(generatedPatch, patch)
 	}
@@ -317,13 +317,13 @@ func (m *podMutator) sideCarPatches(pod *corev1.Pod) (types.PatchOps, error) {
 }
 
 func generateNetworkPolicySidecar(name, namespace string, imageSetting *harvesterv1beta1.Setting) (string, error) {
-	imageJson := imageSetting.Default
+	imageJSON := imageSetting.Default
 	if imageSetting.Value != "" {
-		imageJson = imageSetting.Value
+		imageJSON = imageSetting.Value
 	}
 
 	imageObj := &settings.Image{}
-	if err := json.Unmarshal([]byte(imageJson), imageObj); err != nil {
+	if err := json.Unmarshal([]byte(imageJSON), imageObj); err != nil {
 		return "", err
 	}
 
@@ -344,11 +344,11 @@ func generateNetworkPolicySidecar(name, namespace string, imageSetting *harveste
 		SecurityContext: &corev1.SecurityContext{
 			Capabilities: &corev1.Capabilities{
 				Add: []corev1.Capability{
-					CAP_NET_ADMIN,
-					CAP_NET_BIND_SERVICE,
-					CAP_SYS_NICE,
-					CAP_SYS_PTRACE,
-					CAP_NET_RAW,
+					CapNetAdmin,
+					CapNetBindService,
+					CapSysNice,
+					CapSysPtrace,
+					CapNetRaw,
 				},
 			},
 		},

@@ -60,6 +60,6 @@ func (r RoleBindingCache) AddIndexer(indexName string, indexer ctlrbacv1.RoleBin
 	panic("implement me")
 }
 
-func (c RoleBindingCache) GetByIndex(indexName, key string) ([]*rbacv1.RoleBinding, error) {
+func (r RoleBindingCache) GetByIndex(indexName, key string) ([]*rbacv1.RoleBinding, error) {
 	panic("implement me")
 }

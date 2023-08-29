@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/vishvananda/netlink"
 	iputils "k8s.io/kubernetes/pkg/util/iptables"
 	"k8s.io/utils/exec"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+
+	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 const (
@@ -54,13 +55,13 @@ func ApplyRules(sg *harvesterv1beta1.SecurityGroup, vm *kubevirtv1.VirtualMachin
 
 // generateRules will generate the correct iptables chain to ensure only whitelisted traffic is allowed to VM
 func generateRules(sg *harvesterv1beta1.SecurityGroup, links []string, macSourceAddresses []string) [][]string {
-	var rules [][]string
+	rules := make([][]string, 0)
 	// generate rules of the form
 	// iptables -A FORWARD  -i k6t-net1 -p icmp -s 172.19.107.9 -j ACCEPT -m state --state NEW,ESTABLISHED,RELATED
 	for _, rule := range sg.Spec {
 		for _, link := range links {
 			// if no port is specified allow all traffic from source address //
-			iptableRule := []string{"-p", rule.IpProtocol, "-s", rule.SourceAddress, "-i", link, "-j", "ACCEPT", "-m", "state", "--state", "NEW,ESTABLISHED,RELATED"}
+			iptableRule := []string{"-p", rule.IPProtocol, "-s", rule.SourceAddress, "-i", link, "-j", "ACCEPT", "-m", "state", "--state", "NEW,ESTABLISHED,RELATED"}
 			if len(rule.SourcePortRange) != 0 {
 				iptableRule = append(iptableRule, "-m", "multiport", "--dport", generatePortString(rule.SourcePortRange))
 			}

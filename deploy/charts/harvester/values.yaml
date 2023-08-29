@@ -8,7 +8,6 @@
 ## view more detail from: https://helm.sh/docs/topics/charts/#tags-and-condition-resolution.
 ##
 tags:
-
   ## Specify to enable both KubeVirt operator and KubeVirt sub-charts,
   ## defaults to "true".
   ##
@@ -54,15 +53,12 @@ kubevirt-operator:
 ## Specify the parameters to override the sub-chart.
 ##
 kubevirt:
-
   ## Specify the specification of KubeVirt resource.
   ##
   spec:
-
     ## Specify the default configuration of KubeVirt virtual machine.
     ##
     configuration:
-
       ## Specify kubevirt feature gates
       developerConfiguration:
         featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices"]
@@ -70,7 +66,6 @@ kubevirt:
       ## Specify the network configuration of VirtualMachineInstance.
       ##
       network:
-
         ## Specify the default network interface of VirtualMachineInstance(`spec.domain.devices.interfaces[?(.name="default")]`),
         ## defaults to "bridge".
         ##
@@ -91,7 +86,7 @@ kubevirt:
       ## Specify the machine type regex for validating the emulation of VirtualMachineInstance,
       ## defaults to discover automatically, "pseries*" if arch is ppc64le, otherwise "q35, pc-g35*, pc, pc-i440fx*".
       ##
-      emulatedMachines: ["q35","pc-q35*","pc","pc-i440fx*"]
+      emulatedMachines: ["q35", "pc-q35*", "pc", "pc-i440fx*"]
 
     customizeComponents:
       patches:
@@ -155,15 +150,12 @@ strategy:
 ## Specify the parameter of containers.
 ##
 containers:
-
   ## Specify the parameter of harvester-apiserver container.
   ##
   apiserver:
-
     ## Specify the image.
     ##
     image:
-
       ## Specify the pull policy of image.
       ##
       imagePullPolicy: Always
@@ -220,7 +212,6 @@ service:
   ## which is named "harvester".
   ##
   harvester:
-
     ## Specify as cluster service,
     ## so this service can be listed with `kubectl cluster-info`.
     asClusterService: true
@@ -283,11 +274,9 @@ service:
 ## Specify the lifecycle jobs.
 ##
 jobs:
-
   ## Specify the pre-delete job.
   ##
   preDelete:
-
     ## Specify to execute pre-delete job,
     ## defaults to "true".
     ##
@@ -326,15 +315,12 @@ jobs:
     ## Specify the parameter of containers.
     ##
     containers:
-
       ## Specify the parameter of kubectl action container.
       ##
       kubectl:
-
         ## Specify the image.
         ##
         image:
-
           ## Note we use the harvester-upgrade image. It contains kubectl.
           ##
           imagePullPolicy: IfNotPresent
@@ -428,7 +414,6 @@ webhook:
   replicas: 3
   debug: false
   image:
-
     ## Specify the pull policy of image.
     ##
     imagePullPolicy: Always
