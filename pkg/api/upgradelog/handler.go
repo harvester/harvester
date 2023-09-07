@@ -33,13 +33,42 @@ const (
 set -e
 
 echo "clean up stale archives, if any"
-
 rm -vf /archive/*.zip
 
 echo "start to package upgrade logs"
 
+tmpdir=$(mktemp -d)
+mkdir $tmpdir/logs
+
+# We used to collect logs in plain text until v1.2.0, the packaging script
+# should be able to determine what kind of post-processing to execute.
+# Starting from v1.2.0, the upgrade logs will be collected in .gzip format.
+# For the is_plain_log flag, 0 means the sampled file is in plain text format.
+is_plain_log=0
+
 cd /archive
-zip -r $ARCHIVE_NAME ./logs/
+sampled_file=$(find logs -type f -print | head -1)
+if [ "${sampled_file: -4}" != ".log" ]; then
+	is_plain_log=1
+fi
+
+if [ "$is_plain_log" -eq 0 ]; then
+	for f in logs/*.log; do
+		awk '{$1=$2=""; print $0}' $f | jq -r .message > $tmpdir/$f || ret=$?
+		if [ -n "$ret" ]; then
+			echo "Failed to process the file $(basename $f) with ret=$ret"
+			echo "Copy the original file to the destination"
+			cp $f $tmpdir/$f
+			unset ret
+		fi
+	done
+
+	cd $tmpdir
+	zip -r /archive/$ARCHIVE_NAME ./logs/
+else
+	zip -r $ARCHIVE_NAME ./logs/
+fi
+
 echo "done"
 `
 )
