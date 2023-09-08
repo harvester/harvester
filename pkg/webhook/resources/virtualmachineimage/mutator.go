@@ -105,10 +105,10 @@ func (m *virtualMachineImageMutator) getStorageClass(storageClassName string) (*
 func mergeStorageClassParams(image *harvesterv1.VirtualMachineImage, storageClass *storagev1.StorageClass) map[string]string {
 	params := util.GetImageDefaultStorageClassParameters()
 	var mergeParams map[string]string
-	if image.Spec.StorageClassParameters != nil {
-		mergeParams = image.Spec.StorageClassParameters
-	} else if storageClass != nil {
+	if storageClass != nil {
 		mergeParams = storageClass.Parameters
+	} else if image.Spec.StorageClassParameters != nil {
+		mergeParams = image.Spec.StorageClassParameters
 	}
 	var allowPatchParams = []string{
 		longhorntypes.OptionNodeSelector, longhorntypes.OptionDiskSelector,
