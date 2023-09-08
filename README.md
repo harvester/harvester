@@ -82,6 +82,19 @@ During the installation you can either choose to **create a new Harvester cluste
 1. You will be prompted to set the password for the default `admin` user when logging in for the first time.
 ![first-login.png](./docs/assets/first-time-login.png)
 
+## Releases
+
+> **NOTE**:
+> - __\<version\>*__ means the release branch is under active support and will have periodic follow-up patch releases.
+> - __Latest__ release means the version is the latest release of the newest release branch.
+> - __Stable__ release means the version is stable and has been widely adopted by users.
+
+https://github.com/harvester/harvester/releases
+
+| Release   | Version | Type           | Release Note (Changelog)                                         | Upgrade Note                                                |
+|-----------|---------|----------------|------------------------------------------------------------------|-------------------------------------------------------------|
+| **1.2***  | 1.2.0   | Latest         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.2.0) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-1-2-to-v1-2-0) |
+| **1.1***  | 1.1.2   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.1.2) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-1-to-v1-1-2) |
 
 ## Documentation
 
