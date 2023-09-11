@@ -22,7 +22,7 @@ import (
 	"net/http"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	v1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
 	rest "k8s.io/client-go/rest"
 )
 

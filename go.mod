@@ -72,7 +72,7 @@ require (
 	github.com/iancoleman/strcase v0.2.0
 	github.com/k3s-io/helm-controller v0.11.7
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
-	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.3
+	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20230627040634-5b4f2d040e9d
 	github.com/longhorn/longhorn-manager v1.3.3

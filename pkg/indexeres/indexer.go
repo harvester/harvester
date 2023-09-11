@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta1"
 	"github.com/rancher/steve/pkg/server"
 	corev1 "k8s.io/api/core/v1"

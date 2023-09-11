@@ -15,7 +15,7 @@ import (
 	"reflect"
 	"time"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
 	"github.com/longhorn/backupstore"
 
 	// Although we don't use following drivers directly, we need to import them to register drivers.
