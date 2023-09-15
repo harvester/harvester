@@ -787,7 +787,22 @@ func (h *RestoreHandler) startVM(vm *kubevirtv1.VirtualMachine) error {
 
 	logrus.Infof("starting the vm %s, current state running:%v", vm.Name, runStrategy)
 	switch runStrategy {
-	case kubevirtv1.RunStrategyAlways, kubevirtv1.RunStrategyRerunOnFailure:
+	case kubevirtv1.RunStrategyAlways:
+		return nil
+	case kubevirtv1.RunStrategyRerunOnFailure:
+		vmi, err := h.vmiCache.Get(vm.Namespace, vm.Name)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+
+		if vmi.Status.Phase == kubevirtv1.Succeeded {
+			logrus.Infof("restart vmi %s in phase %v", vmi.Name, vmi.Status.Phase)
+			return h.restClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("start").Name(vm.Name).Do(h.context).Error()
+		}
+
 		return nil
 	case kubevirtv1.RunStrategyManual:
 		if vmi, err := h.vmiCache.Get(vm.Namespace, vm.Name); err == nil {
