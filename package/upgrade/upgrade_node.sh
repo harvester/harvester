@@ -566,7 +566,8 @@ EOF
   chroot $HOST_DIR elemental upgrade \
     --logfile "$elemental_upgrade_log" \
     --directory ${tmp_rootfs_mount#"$HOST_DIR"} \
-    --config-dir ${tmp_elemental_config_dir#"$HOST_DIR"} || ret=$?
+    --config-dir ${tmp_elemental_config_dir#"$HOST_DIR"} \
+    --debug || ret=$?
   if [ "$ret" != 0 ]; then
     echo "elemental upgrade failed with return code: $ret"
     cat "$HOST_DIR$elemental_upgrade_log"
