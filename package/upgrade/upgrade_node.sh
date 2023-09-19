@@ -513,7 +513,7 @@ upgrade_os() {
 
   elemental_upgrade_log="${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log"
   local ret=0
-  chroot $HOST_DIR elemental upgrade --logfile "$elemental_upgrade_log" --directory ${tmp_rootfs_mount#"$HOST_DIR"} || ret=$?
+  chroot $HOST_DIR elemental upgrade --logfile "$elemental_upgrade_log" --directory ${tmp_rootfs_mount#"$HOST_DIR"} --debug || ret=$?
   if [ "$ret" != 0 ]; then
     echo "elemental upgrade failed with return code: $ret"
     cat "$HOST_DIR$elemental_upgrade_log"
