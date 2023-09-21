@@ -2,12 +2,14 @@ package virtualmachinerestore
 
 import (
 	"fmt"
+	"reflect"
 
 	ctlv1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	validationutil "k8s.io/apimachinery/pkg/util/validation"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -24,6 +26,7 @@ import (
 )
 
 const (
+	fieldSpec                     = "spec"
 	fieldTargetName               = "spec.target.name"
 	fieldVirtualMachineBackupName = "spec.virtualMachineBackupName"
 	fieldNewVM                    = "spec.newVM"
@@ -72,6 +75,7 @@ func (v *restoreValidator) Resource() types.Resource {
 		ObjectType: &v1beta1.VirtualMachineRestore{},
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
+			admissionregv1.Update,
 		},
 	}
 }
@@ -82,8 +86,8 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	targetVM := newRestore.Spec.Target.Name
 	newVM := newRestore.Spec.NewVM
 
-	if targetVM == "" {
-		return werror.NewInvalidError("Target VM name is empty", fieldTargetName)
+	if errs := validationutil.IsDNS1123Subdomain(targetVM); len(errs) != 0 {
+		return werror.NewInvalidError(fmt.Sprintf("Target VM name is invalid, err: %v", errs), fieldTargetName)
 	}
 
 	vmBackup, err := v.getVMBackup(newRestore)
@@ -118,6 +122,15 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	}
 
 	return v.handleExistVM(newVM, vm)
+}
+
+func (v *restoreValidator) Update(request *types.Request, oldObj, newObj runtime.Object) error {
+	oldRestore := oldObj.(*v1beta1.VirtualMachineRestore)
+	newRestore := newObj.(*v1beta1.VirtualMachineRestore)
+	if !reflect.DeepEqual(oldRestore.Spec, newRestore.Spec) {
+		return werror.NewInvalidError("VirtualMachineRestore spec is immutable", fieldSpec)
+	}
+	return nil
 }
 
 func (v *restoreValidator) handleExistVM(newVM bool, vm *kubevirtv1.VirtualMachine) error {
