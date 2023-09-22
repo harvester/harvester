@@ -61,18 +61,18 @@ func (h *vmImageHandler) OnChanged(_ string, image *harvesterv1.VirtualMachineIm
 	}
 
 	needRetry := false
-	backingImage, err := h.backingImageCache.Get(util.LonghornSystemNamespaceName, util.GetBackingImageName(image))
+	bi, err := util.GetBackingImage(h.backingImageCache, image)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			logrus.Errorf("failed to get backing image %s/%s, err: %v", util.LonghornSystemNamespaceName, util.GetBackingImageName(image), err)
+			logrus.Errorf("%v/%v failed to get backing image, err: %v", image.Namespace, image.Name, err)
 			return image, err
 		}
 		needRetry = true
-	} else if backingImage.DeletionTimestamp != nil {
+	} else if bi.DeletionTimestamp != nil {
 		h.imageController.EnqueueAfter(image.Namespace, image.Name, checkBackingImageInterval)
 		return image, nil
 	} else {
-		for _, status := range backingImage.Status.DiskFileStatusMap {
+		for _, status := range bi.Status.DiskFileStatusMap {
 			if status.State == lhv1beta2.BackingImageStateFailed {
 				needRetry = true
 				break
@@ -166,9 +166,14 @@ func (h *vmImageHandler) createBackingImageAndStorageClass(image *harvesterv1.Vi
 }
 
 func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineImage) error {
+	biName, err := util.GetBackingImageName(h.backingImageCache, image)
+	if err != nil {
+		return err
+	}
+
 	bi := &lhv1beta2.BackingImage{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      util.GetBackingImageName(image),
+			Name:      biName,
 			Namespace: util.LonghornSystemNamespaceName,
 			Annotations: map[string]string{
 				util.AnnotationImageID: ref.Construct(image.Namespace, image.Name),
@@ -194,13 +199,19 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 		bi.Spec.SourceParameters[lhmanager.DataSourceTypeExportFromVolumeParameterExportType] = lhmanager.DataSourceTypeExportFromVolumeParameterExportTypeRAW
 	}
 
-	_, err := h.backingImages.Create(bi)
+	_, err = h.backingImages.Create(bi)
 	return err
 }
 
 func (h *vmImageHandler) createStorageClass(image *harvesterv1.VirtualMachineImage) error {
 	reclaimPolicy := corev1.PersistentVolumeReclaimDelete
 	volumeBindingMode := storagev1.VolumeBindingImmediate
+
+	params, err := util.GetImageStorageClassParameters(h.backingImageCache, image)
+	if err != nil {
+		return err
+	}
+
 	sc := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: util.GetImageStorageClassName(image.Name),
@@ -209,16 +220,21 @@ func (h *vmImageHandler) createStorageClass(image *harvesterv1.VirtualMachineIma
 		ReclaimPolicy:        &reclaimPolicy,
 		AllowVolumeExpansion: pointer.BoolPtr(true),
 		VolumeBindingMode:    &volumeBindingMode,
-		Parameters:           util.GetImageStorageClassParameters(image),
+		Parameters:           params,
 	}
 
-	_, err := h.storageClasses.Create(sc)
+	_, err = h.storageClasses.Create(sc)
 	return err
 }
 
 func (h *vmImageHandler) deleteBackingImage(image *harvesterv1.VirtualMachineImage) error {
+	biName, err := util.GetBackingImageName(h.backingImageCache, image)
+	if err != nil {
+		return err
+	}
+
 	propagation := metav1.DeletePropagationForeground
-	return h.backingImages.Delete(util.LonghornSystemNamespaceName, util.GetBackingImageName(image), &metav1.DeleteOptions{PropagationPolicy: &propagation})
+	return h.backingImages.Delete(util.LonghornSystemNamespaceName, biName, &metav1.DeleteOptions{PropagationPolicy: &propagation})
 }
 
 func (h *vmImageHandler) deleteStorageClass(image *harvesterv1.VirtualMachineImage) error {

@@ -47,6 +47,7 @@ type Handler struct {
 	ImageCache                  v1beta1.VirtualMachineImageCache
 	BackingImageDataSources     ctllhv1.BackingImageDataSourceClient
 	BackingImageDataSourceCache ctllhv1.BackingImageDataSourceCache
+	BackingImageCache           ctllhv1.BackingImageCache
 }
 
 func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -100,17 +101,21 @@ func (h Handler) downloadImage(rw http.ResponseWriter, req *http.Request) error 
 		return fmt.Errorf("failed to get VMImage with name(%s), ns(%s), error: %w", name, namespace, err)
 	}
 
+	biName, err := util.GetBackingImageName(h.BackingImageCache, vmImage)
+	if err != nil {
+		return fmt.Errorf("failed to get backing image name for VMImage %s/%s, error: %w", namespace, name, err)
+	}
+
 	targetFileName := vmImage.Spec.DisplayName
-	bkimgName := fmt.Sprintf("%s-%s", namespace, name)
-	downloadURL := fmt.Sprintf("%s/backingimages/%s/download", util.LonghornDefaultManagerURL, bkimgName)
+	downloadURL := fmt.Sprintf("%s/backingimages/%s/download", util.LonghornDefaultManagerURL, biName)
 	downloadReq, err := http.NewRequestWithContext(req.Context(), http.MethodGet, downloadURL, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create the download request with backing Image(%s): %w", bkimgName, err)
+		return fmt.Errorf("failed to create the download request with backing Image(%s): %w", biName, err)
 	}
 
 	downloadResp, err := h.httpClient.Do(downloadReq)
 	if err != nil {
-		return fmt.Errorf("failed to send the download request with backing Image(%s): %w", bkimgName, err)
+		return fmt.Errorf("failed to send the download request with backing Image(%s): %w", biName, err)
 	}
 	defer downloadResp.Body.Close()
 
@@ -149,12 +154,16 @@ func (h Handler) uploadImage(rw http.ResponseWriter, req *http.Request) error {
 	}()
 
 	//Wait for backing image data source to be ready. Otherwise the upload request will fail.
-	dsName := fmt.Sprintf("%s-%s", namespace, name)
+	dsName, err := util.GetBackingImageDataSourceName(h.BackingImageCache, image)
+	if err != nil {
+		return fmt.Errorf("failed to get backing image name for VMImage %s/%s, error: %w", namespace, name, err)
+	}
+
 	if err := h.waitForBackingImageDataSourceReady(dsName); err != nil {
 		return err
 	}
 
-	uploadURL := fmt.Sprintf("%s/backingimages/%s-%s", util.LonghornDefaultManagerURL, namespace, name)
+	uploadURL := fmt.Sprintf("%s/backingimages/%s", util.LonghornDefaultManagerURL, dsName)
 	uploadReq, err := http.NewRequestWithContext(req.Context(), http.MethodPost, uploadURL, req.Body)
 	if err != nil {
 		return fmt.Errorf("failed to create the upload request: %w", err)
