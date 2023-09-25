@@ -94,6 +94,12 @@ const (
 	FieldCattlePrefix             = "field.cattle.io"
 	CattleAnnotationResourceQuota = FieldCattlePrefix + "/resourceQuota"
 
-	ManagementCattlePrefix              = "management.cattle.io"
-	LabelManagementDefaultResourceQuota = "resourcequota." + ManagementCattlePrefix + "/default-resource-quota"
+	ManagementCattlePrefix                   = "management.cattle.io"
+	LabelManagementDefaultResourceQuota      = "resourcequota." + ManagementCattlePrefix + "/default-resource-quota"
+	DefaultFleetControllerConfigMapName      = "fleet-controller"
+	DefaultFleetControllerConfigMapNamespace = "cattle-fleet-system"
+	RancherInternalCASetting                 = "internal-cacerts"
+	RancherInternalServerURLSetting          = "internal-server-url"
+	APIServerURLKey                          = "apiServerURL"
+	APIServerCAKey                           = "apiServerCA"
 )
