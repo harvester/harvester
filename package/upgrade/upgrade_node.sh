@@ -4,6 +4,29 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 source $SCRIPT_DIR/lib.sh
 UPGRADE_TMP_DIR=$HOST_DIR/usr/local/upgrade_tmp
+STATE_DIR=$HOST_DIR/run/initramfs/cos-state
+
+cleanup_incomplete_state_file() {
+  STATE_FILE=${STATE_DIR}/state.yaml
+
+  INCOMPLETE_STATE_FILE=0
+  if [[ ! -f $STATE_FILE ]]; then
+      INCOMPLETE_STATE_FILE=0
+  else
+    found=$(yq '.state| has("label")' ${STATE_FILE})
+    if [[ $found == "false" ]]; then
+        INCOMPLETE_STATE_FILE=1
+    fi
+  fi
+
+  if [[ $INCOMPLETE_STATE_FILE == 1 ]]; then
+    echo "Start to remove the incomplete state.yaml"
+    mount -o rw,remount ${STATE_DIR}
+    cp ${STATE_FILE} ${STATE_FILE}.bak
+    rm -f ${STATE_FILE}
+    mount -o ro,remount ${STATE_DIR}
+  fi
+}
 
 clean_up_tmp_files()
 {
@@ -556,6 +579,9 @@ upgrade:
   system:
     size: 3072
 EOF
+
+  # we would like to clean up the incomplete state.yaml to avoid the issue of https://github.com/harvester/harvester/issues/4526
+  cleanup_incomplete_state_file
 
   # replace the fixed elemental CLI for fix elemental upgrade issues
   new_elemental_cli=$SCRIPT_DIR/elemental
