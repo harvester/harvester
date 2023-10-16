@@ -1,7 +1,7 @@
 FROM quay.io/costoolkit/releases-green:luet-toolchain-0.21.2 as luet
 FROM quay.io/costoolkit/elemental-cli:v0.2.5 as elemental
 
-FROM golang:1.18.3-buster
+FROM golang:1.20.10-bookworm
 
 ARG DAPPER_HOST_ARCH
 ENV ARCH $DAPPER_HOST_ARCH
