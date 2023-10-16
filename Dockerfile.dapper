@@ -9,7 +9,6 @@ ENV ARCH $DAPPER_HOST_ARCH
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     xz-utils \
     unzip \
-    netcat \
     zstd \
     squashfs-tools \
     xorriso \
