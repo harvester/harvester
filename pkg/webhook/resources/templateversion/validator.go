@@ -5,6 +5,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -15,8 +16,9 @@ import (
 )
 
 const (
-	fieldTemplateID = "spec.templateId"
-	fieldKeyPairIds = "spec.keyPairIds"
+	fieldTemplateID      = "spec.templateId"
+	fieldKeyPairIds      = "spec.keyPairIds"
+	fieldResourcesLimits = "spec.vm.spec.template.spec.domain.resources.limits"
 )
 
 func NewValidator(templateCache ctlharvesterv1.VirtualMachineTemplateCache, templateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache, keypairs ctlharvesterv1.KeyPairCache) types.Validator {
@@ -70,6 +72,20 @@ func (v *templateVersionValidator) Create(request *types.Request, newObj runtime
 				field := fmt.Sprintf("%s[%d]", fieldKeyPairIds, i)
 				return werror.NewInvalidError(message, field)
 			}
+		}
+	}
+
+	template := vmTemplVersion.Spec.VM.Spec.Template
+	if template != nil {
+		limits := template.Spec.Domain.Resources.Limits
+		if len(limits) == 0 {
+			return werror.NewInvalidError("CPU and Memory limits are required fields, but are missing from the input", fieldResourcesLimits)
+		}
+		if _, ok := limits[corev1.ResourceMemory]; !ok {
+			return werror.NewInvalidError("Memory limit is an required field, but is missing from the input", fieldResourcesLimits)
+		}
+		if _, ok := limits[corev1.ResourceCPU]; !ok {
+			return werror.NewInvalidError("CPU limit is an required field, but is missing from the input", fieldResourcesLimits)
 		}
 	}
 
