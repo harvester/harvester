@@ -28,13 +28,18 @@ cleanup_incomplete_state_file() {
   fi
 }
 
+is_mounted()
+{
+  mount | awk -v DIR="$1" '{ if ($3 == DIR) { exit 0 } } ENDFILE { exit 1 }'
+}
+
 clean_up_tmp_files()
 {
-  if [ -n "$tmp_rootfs_mount" ]; then
+  if [ -n "$tmp_rootfs_mount" ] && is_mounted "$tmp_rootfs_mount"; then
     echo "Try to unmount $tmp_rootfs_mount..."
     umount $tmp_rootfs_mount || echo "Umount $tmp_rootfs_mount failed with return code: $?"
   fi
-  if [ -n "$target_elemental_cli" ]; then
+  if [ -n "$target_elemental_cli" ] && is_mounted "$target_elemental_cli"; then
     echo "Try to unmount $target_elemental_cli..."
     umount $target_elemental_cli || echo "Umount $target_elemental_cli failed with return code: $?"
   fi
