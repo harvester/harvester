@@ -20,7 +20,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.issueURL
+    - jsonPath: .spec.issueURL
       name: ISSUE_URL
       type: string
     - jsonPath: .spec.description

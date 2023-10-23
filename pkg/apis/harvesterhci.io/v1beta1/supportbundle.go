@@ -12,7 +12,7 @@ var (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:shortName=sb;sbs,scope=Namespaced
-// +kubebuilder:printcolumn:name="ISSUE_URL",type=string,JSONPath=`.status.issueURL`
+// +kubebuilder:printcolumn:name="ISSUE_URL",type=string,JSONPath=`.spec.issueURL`
 // +kubebuilder:printcolumn:name="DESCRIPTION",type="string",JSONPath=`.spec.description`
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`
 
