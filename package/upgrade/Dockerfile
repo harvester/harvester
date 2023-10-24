@@ -1,5 +1,6 @@
-# source reference: https://build.opensuse.org/package/show/isv:Rancher:Elemental:Stable:Teal53/builder-image
-FROM registry.opensuse.org/isv/rancher/elemental/stable/teal53/15.4/rancher/elemental-builder-image/5.3:0.3.1 AS temp_elemental
+# source reference: https://github.com/rancher/elemental-cli/commits/v0.3.1
+# ***NOTE*** Deprecated, we need to use the new elemental-cli in the next release.
+FROM registry.suse.com/rancher/elemental-builder-image/5.3:0.3.1 AS temp_elemental
 
 FROM registry.suse.com/bci/bci-base:15.4
 
