@@ -72,6 +72,7 @@ type validateSettingFunc func(setting *v1beta1.Setting) error
 var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.HTTPProxySettingName:                              validateHTTPProxy,
 	settings.VMForceResetPolicySettingName:                     validateVMForceResetPolicy,
+	settings.VMForceRestartPolicySettingName:                   validateVMForceRestartPolicy,
 	settings.SupportBundleImageName:                            validateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateSupportBundleTimeout,
 	settings.OvercommitConfigSettingName:                       validateOvercommitConfig,
@@ -254,6 +255,18 @@ func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
 	}
 
 	if _, err := settings.DecodeVMForceResetPolicy(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	return nil
+}
+
+func validateVMForceRestartPolicy(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	if _, err := settings.DecodeVMForceRestartPolicy(setting.Value); err != nil {
 		return werror.NewInvalidError(err.Error(), "value")
 	}
 

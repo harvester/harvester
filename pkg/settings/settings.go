@@ -41,6 +41,7 @@ var (
 	DefaultStorageClass                    = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                              = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet                  = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
+	VMForceRestartPolicySet                = NewSetting(VMForceRestartPolicySettingName, InitVMForceRestartPolicy())
 	OvercommitConfig                       = NewSetting(OvercommitConfigSettingName, `{"cpu":1600,"memory":150,"storage":200}`)
 	VipPools                               = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths                 = NewSetting("auto-disk-provision-paths", "")
@@ -59,6 +60,7 @@ const (
 	AdditionalCASettingName                           = "additional-ca"
 	BackupTargetSettingName                           = "backup-target"
 	VMForceResetPolicySettingName                     = "vm-force-reset-policy"
+	VMForceRestartPolicySettingName                   = "vm-force-restart-policy"
 	SupportBundleTimeoutSettingName                   = "support-bundle-timeout"
 	HTTPProxySettingName                              = "http-proxy"
 	OvercommitConfigSettingName                       = "overcommit-config"
@@ -204,6 +206,10 @@ type VMForceResetPolicy struct {
 	Period int64 `json:"period"`
 }
 
+type VMForceRestartPolicy struct {
+	Enable bool `json:"enable"`
+}
+
 func InitBackupTargetToString() string {
 	target := &BackupTarget{}
 	targetStr, err := json.Marshal(target)
@@ -248,6 +254,26 @@ func InitVMForceResetPolicy() string {
 
 func DecodeVMForceResetPolicy(value string) (*VMForceResetPolicy, error) {
 	policy := &VMForceResetPolicy{}
+	if err := json.Unmarshal([]byte(value), policy); err != nil {
+		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
+	}
+
+	return policy, nil
+}
+
+func InitVMForceRestartPolicy() string {
+	policy := &VMForceRestartPolicy{
+		Enable: false,
+	}
+	policyStr, err := json.Marshal(policy)
+	if err != nil {
+		logrus.Errorf("failed to init %s, error: %s", VMForceRestartPolicySettingName, err.Error())
+	}
+	return string(policyStr)
+}
+
+func DecodeVMForceRestartPolicy(value string) (*VMForceRestartPolicy, error) {
+	policy := &VMForceRestartPolicy{}
 	if err := json.Unmarshal([]byte(value), policy); err != nil {
 		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
 	}

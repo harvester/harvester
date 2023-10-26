@@ -1,12 +1,15 @@
 package virtualmachine
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
+	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/slice"
 	"github.com/sirupsen/logrus"
@@ -14,6 +17,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	kubevirt "kubevirt.io/api/core"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -21,27 +25,32 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	rqutils "github.com/harvester/harvester/pkg/util/resourcequota"
 )
 
 type VMController struct {
-	pvcClient      v1.PersistentVolumeClaimClient
-	pvcCache       v1.PersistentVolumeClaimCache
-	vmClient       ctlkubevirtv1.VirtualMachineClient
-	vmController   ctlkubevirtv1.VirtualMachineController
-	vmiCache       ctlkubevirtv1.VirtualMachineInstanceCache
-	vmiClient      ctlkubevirtv1.VirtualMachineInstanceClient
-	vmBackupClient ctlharvesterv1.VirtualMachineBackupClient
-	vmBackupCache  ctlharvesterv1.VirtualMachineBackupCache
-	snapshotClient ctlsnapshotv1.VolumeSnapshotClient
-	snapshotCache  ctlsnapshotv1.VolumeSnapshotCache
-	recorder       record.EventRecorder
+	pvCache             v1.PersistentVolumeCache
+	pvcClient           v1.PersistentVolumeClaimClient
+	pvcCache            v1.PersistentVolumeClaimCache
+	vmClient            ctlkubevirtv1.VirtualMachineClient
+	vmController        ctlkubevirtv1.VirtualMachineController
+	vmiCache            ctlkubevirtv1.VirtualMachineInstanceCache
+	vmiClient           ctlkubevirtv1.VirtualMachineInstanceClient
+	vmBackupClient      ctlharvesterv1.VirtualMachineBackupClient
+	vmBackupCache       ctlharvesterv1.VirtualMachineBackupCache
+	snapshotClient      ctlsnapshotv1.VolumeSnapshotClient
+	snapshotCache       ctlsnapshotv1.VolumeSnapshotCache
+	longhornVolumeCache ctllhv1.VolumeCache
+	recorder            record.EventRecorder
 
-	vmrCalculator *rqutils.Calculator
+	vmrCalculator             *rqutils.Calculator
+	virtSubresourceRestClient rest.Interface
 }
 
 // createPVCsFromAnnotation creates PVCs defined in the volumeClaimTemplates annotation if they don't exist.
@@ -398,6 +407,58 @@ func (h *VMController) SetHaltIfInsufficientResourceQuota(_ string, vm *kubevirt
 	return vm, h.stopVM(vm, err.Error())
 }
 
+// RestartFromPausedIOError automatically restarts VMs from status flipping between Paused and Running
+// As a workaround for the issue https://github.com/harvester/harvester/issues/4633
+func (h *VMController) RestartFromPausedIOError(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
+		return vm, nil
+	}
+
+	// if the vm is not paused or it's under restarting, skip it.
+	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusPaused || len(vm.Status.StateChangeRequests) != 0 {
+		return vm, nil
+	}
+
+	// check whether VMForceRestartPolicy is enabled
+	vmForceRestartPolicy, err := settings.DecodeVMForceRestartPolicy(settings.VMForceRestartPolicySet.Get())
+	if err != nil {
+		return vm, err
+	}
+
+	if !vmForceRestartPolicy.Enable {
+		return vm, nil
+	}
+
+	vmi, err := h.vmiCache.Get(vm.Namespace, vm.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, volume := range vmi.Spec.Volumes {
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		}
+
+		if ready, err := h.isPVCReady(vm.Namespace, volume.PersistentVolumeClaim.ClaimName); err != nil {
+			return nil, err
+		} else if !ready {
+			logrus.Debugf("PVC %s is not ready in VM %s/%s, wait for 5 seconds to check VM again", volume.Name, vm.Namespace, vm.Name)
+			h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
+			return vm, nil
+		}
+	}
+
+	for _, condition := range vmi.Status.Conditions {
+		if condition.Type == kubevirtv1.VirtualMachineInstancePaused && condition.Status == corev1.ConditionTrue &&
+			condition.Reason == "PausedIOError" {
+			logrus.Infof("Restart VM %s/%s from PausedIOError", vm.Namespace, vm.Name)
+			return vm, h.virtSubresourceRestClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("restart").Name(vm.Name).Do(context.TODO()).Error()
+		}
+	}
+
+	return vm, nil
+}
+
 func (h *VMController) stopVM(vm *kubevirtv1.VirtualMachine, errMsg string) error {
 	return stopVM(h.vmClient, h.recorder, vm, errMsg)
 }
@@ -433,6 +494,36 @@ func (h *VMController) cleanUpInsufficientResourceAnnotation(vm *kubevirtv1.Virt
 	_, err = h.vmClient.Update(vmCpy)
 
 	return err
+}
+
+func (h *VMController) isPVCReady(namespace, name string) (bool, error) {
+	pvc, err := h.pvcCache.Get(namespace, name)
+	if err != nil {
+		return false, err
+	}
+
+	if pvc.Status.Phase != corev1.ClaimBound {
+		return false, nil
+	}
+
+	pv, err := h.pvCache.Get(pvc.Spec.VolumeName)
+	if err != nil {
+		return false, err
+	}
+
+	// ignore non-longhorn CSI
+	if pv.Spec.CSI == nil || pv.Spec.CSI.Driver != longhorntypes.LonghornDriverName {
+		return true, nil
+	}
+
+	volume, err := h.longhornVolumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
+	if err != nil {
+		return false, err
+	}
+	if volume.Status.Robustness == longhornv1.VolumeRobustnessFaulted {
+		return false, nil
+	}
+	return true, nil
 }
 
 func stopVM(vms ctlkubevirtv1.VirtualMachineClient, recorder record.EventRecorder, vm *kubevirtv1.VirtualMachine, errMsg string) error {
