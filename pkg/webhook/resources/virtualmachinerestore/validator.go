@@ -3,6 +3,7 @@ package virtualmachinerestore
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	ctlv1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -21,6 +22,7 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
+	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
@@ -100,7 +102,7 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	}
 
 	if vmBackup.Spec.Type == v1beta1.Backup {
-		err = v.checkBackupTarget(vmBackup)
+		err = v.checkBackup(newRestore, vmBackup)
 	} else {
 		err = v.checkSnapshot(newRestore, vmBackup)
 	}
@@ -195,6 +197,35 @@ func (v *restoreValidator) checkSnapshot(vmRestore *v1beta1.VirtualMachineRestor
 		// We don't allow users to use "delete" policy for replacing a VM when the backup type is snapshot.
 		// This will also remove the VMBackup when VMRestore is finished.
 		return fmt.Errorf("Delete policy with backup type snapshot for replacing VM is not supported")
+	}
+	return nil
+}
+
+func (v *restoreValidator) checkBackup(vmRestore *v1beta1.VirtualMachineRestore, vmBackup *v1beta1.VirtualMachineBackup) error {
+	if err := v.checkBackupTarget(vmBackup); err != nil {
+		return err
+	}
+
+	if vmRestore.Spec.DeletionPolicy == v1beta1.VirtualMachineRestoreRetain {
+		return nil
+	}
+
+	// if deletion policy is delete, check whether there is snapshot using same pvc
+	for _, volumeBackup := range vmBackup.Status.VolumeBackups {
+		pvcNamespaceAndName := fmt.Sprintf("%s/%s", volumeBackup.PersistentVolumeClaim.ObjectMeta.Namespace, volumeBackup.PersistentVolumeClaim.ObjectMeta.Name)
+		vmBackupSnapshots, err := v.vmBackup.GetByIndex(indexeres.VMBackupSnapshotByPVCNamespaceAndName, pvcNamespaceAndName)
+		if err != nil {
+			return err
+		}
+
+		var vmBackupSnapshotNames []string
+		for _, vmBackupSnapshot := range vmBackupSnapshots {
+			vmBackupSnapshotNames = append(vmBackupSnapshotNames, vmBackupSnapshot.Name)
+		}
+
+		if len(vmBackupSnapshotNames) != 0 {
+			return fmt.Errorf("can't use delete policy, %s is used by VMBackup snapshots %s", pvcNamespaceAndName, strings.Join(vmBackupSnapshotNames, ","))
+		}
 	}
 	return nil
 }
