@@ -34,6 +34,8 @@ const (
 
 	EngineFrontendBlockDev = "tgt-blockdev"
 	EngineFrontendISCSI    = "tgt-iscsi"
+
+	VolumeHeadName = "volume-head"
 )
 
 type ReaderWriterAt interface {
@@ -60,6 +62,7 @@ type Backend interface {
 	RemainSnapshots() (int, error)
 	GetRevisionCounter() (int64, error)
 	SetRevisionCounter(counter int64) error
+	GetState() (string, error)
 	GetMonitorChannel() MonitorChannel
 	StopMonitoring()
 	IsRevisionCounterDisabled() (bool, error)

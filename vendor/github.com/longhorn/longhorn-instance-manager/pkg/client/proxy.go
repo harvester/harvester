@@ -150,6 +150,6 @@ func (c *ProxyClient) ServerVersionGet(serviceAddress string) (version *emeta.Ve
 }
 
 func (c *ProxyClient) ClientVersionGet() (version emeta.VersionOutput) {
-	logrus.Debug("Getting client version")
+	logrus.Trace("Getting client version")
 	return emeta.GetVersion()
 }

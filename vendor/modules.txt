@@ -474,7 +474,7 @@ github.com/longhorn/backing-image-manager/pkg/meta
 github.com/longhorn/backing-image-manager/pkg/rpc
 github.com/longhorn/backing-image-manager/pkg/types
 github.com/longhorn/backing-image-manager/pkg/util
-# github.com/longhorn/backupstore v0.0.0-20220913112826-5f5c95274f2a
+# github.com/longhorn/backupstore v0.0.0-20230306022849-8d5e216c3b33
 ## explicit; go 1.13
 github.com/longhorn/backupstore
 github.com/longhorn/backupstore/fsops
@@ -483,18 +483,18 @@ github.com/longhorn/backupstore/logging
 github.com/longhorn/backupstore/nfs
 github.com/longhorn/backupstore/s3
 github.com/longhorn/backupstore/util
-# github.com/longhorn/go-iscsi-helper v0.0.0-20220805034259-7b59e22574bb
+# github.com/longhorn/go-iscsi-helper v0.0.0-20230215045129-588aa7586e4c
 ## explicit; go 1.13
 github.com/longhorn/go-iscsi-helper/types
 github.com/longhorn/go-iscsi-helper/util
-# github.com/longhorn/longhorn-engine v1.3.0-preview1
+# github.com/longhorn/longhorn-engine v1.3.3-0.20230216042703-718990dc8a35
 ## explicit; go 1.13
 github.com/longhorn/longhorn-engine/pkg/meta
 github.com/longhorn/longhorn-engine/pkg/replica/client
 github.com/longhorn/longhorn-engine/pkg/types
 github.com/longhorn/longhorn-engine/pkg/util
 github.com/longhorn/longhorn-engine/proto/ptypes
-# github.com/longhorn/longhorn-instance-manager v0.0.0-20220801100457-421c284a3b85
+# github.com/longhorn/longhorn-instance-manager v0.0.0-20230306150329-6121d6fb451e
 ## explicit; go 1.13
 github.com/longhorn/longhorn-instance-manager/pkg/api
 github.com/longhorn/longhorn-instance-manager/pkg/client
@@ -502,7 +502,7 @@ github.com/longhorn/longhorn-instance-manager/pkg/imrpc
 github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.3.1
+# github.com/longhorn/longhorn-manager v1.3.3
 ## explicit; go 1.17
 github.com/longhorn/longhorn-manager/controller
 github.com/longhorn/longhorn-manager/controller/monitor

@@ -128,6 +128,18 @@ func (e *EngineBinary) ReplicaAdd(engine *longhorn.Engine, url string, isRestore
 	if isRestoreVolume {
 		cmd = append(cmd, "--restore")
 	}
+
+	version, err := e.VersionGet(engine, true)
+	if err != nil {
+		return err
+	}
+
+	if version.ClientVersion.CLIAPIVersion >= 6 {
+		cmd = append(cmd,
+			"--size", strconv.FormatInt(engine.Spec.VolumeSize, 10),
+			"--current-size", strconv.FormatInt(engine.Status.CurrentSize, 10))
+	}
+
 	if _, err := e.ExecuteEngineBinaryWithoutTimeout([]string{}, cmd...); err != nil {
 		return errors.Wrapf(err, "failed to add replica address='%s' to controller '%s'", url, e.name)
 	}

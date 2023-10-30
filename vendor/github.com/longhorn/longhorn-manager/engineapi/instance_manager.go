@@ -16,10 +16,12 @@ import (
 )
 
 const (
-	CurrentInstanceManagerAPIVersion = 1
+	CurrentInstanceManagerAPIVersion = 2
+	MinInstanceManagerAPIVersion     = 1
 	UnknownInstanceManagerAPIVersion = 0
 
-	CurrentInstanceManagerProxyAPIVersion = 1
+	CurrentInstanceManagerProxyAPIVersion = 2
+	MinInstanceManagerProxyAPIVersion     = 1
 	UnknownInstanceManagerProxyAPIVersion = 0
 	// UnsupportInstanceManagerProxyAPIVersion means the instance manager without the proxy client (Longhorn release before v1.3.0)
 	UnsupportInstanceManagerProxyAPIVersion = 0
@@ -58,18 +60,18 @@ func GetDeprecatedInstanceManagerBinary(image string) string {
 }
 
 func CheckInstanceManagerCompatibilty(imMinVersion, imVersion int) error {
-	if CurrentInstanceManagerAPIVersion > imVersion || CurrentInstanceManagerAPIVersion < imMinVersion {
-		return fmt.Errorf("current InstanceManager version %v is not compatible with InstanceManagerAPIVersion %v and InstanceManagerAPIMinVersion %v",
-			CurrentInstanceManagerAPIVersion, imVersion, imMinVersion)
+	if MinInstanceManagerAPIVersion > imVersion || CurrentInstanceManagerAPIVersion < imMinVersion {
+		return fmt.Errorf("current InstanceManager version %v-%v is not compatible with InstanceManagerAPIVersion %v and InstanceManagerAPIMinVersion %v",
+			CurrentInstanceManagerAPIVersion, MinInstanceManagerAPIVersion, imVersion, imMinVersion)
 	}
 	return nil
 }
 
 func CheckInstanceManagerProxyCompatibility(im *longhorn.InstanceManager) error {
-	if CurrentInstanceManagerProxyAPIVersion > im.Status.ProxyAPIVersion ||
+	if MinInstanceManagerProxyAPIVersion > im.Status.ProxyAPIVersion ||
 		CurrentInstanceManagerProxyAPIVersion < im.Status.ProxyAPIMinVersion {
-		return fmt.Errorf("current InstanceManager proxy version %v is not compatible with InstanceManagerProxyAPIVersion %v and InstanceManagerProxyAPIMinVersion %v",
-			CurrentInstanceManagerAPIVersion, im.Status.ProxyAPIVersion, im.Status.ProxyAPIMinVersion)
+		return fmt.Errorf("current InstanceManager proxy version %v-%v is not compatible with InstanceManagerProxyAPIVersion %v and InstanceManagerProxyAPIMinVersion %v",
+			CurrentInstanceManagerProxyAPIVersion, MinInstanceManagerProxyAPIVersion, im.Status.ProxyAPIVersion, im.Status.ProxyAPIMinVersion)
 	}
 	return nil
 }
@@ -159,7 +161,9 @@ func (c *InstanceManagerClient) parseProcess(p *imapi.Process) *longhorn.Instanc
 
 }
 
-func (c *InstanceManagerClient) EngineProcessCreate(engineName, volumeName, engineImage string, volumeFrontend longhorn.VolumeFrontend, replicaAddressMap map[string]string, revCounterDisabled bool, salvageRequested bool) (*longhorn.InstanceProcess, error) {
+func (c *InstanceManagerClient) EngineProcessCreate(engineName, volumeName string, volumeSize, volumeCurrentSize int64,
+	engineImage string, volumeFrontend longhorn.VolumeFrontend, replicaAddressMap map[string]string,
+	revCounterDisabled bool, salvageRequested bool, sizeRequested bool) (*longhorn.InstanceProcess, error) {
 	if err := CheckInstanceManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
@@ -167,7 +171,9 @@ func (c *InstanceManagerClient) EngineProcessCreate(engineName, volumeName, engi
 	if err != nil {
 		return nil, err
 	}
-	args := []string{"controller", volumeName, "--frontend", frontend}
+	args := []string{"controller", volumeName,
+		"--frontend", frontend,
+	}
 
 	if revCounterDisabled {
 		args = append(args, "--disableRevCounter")
@@ -175,6 +181,12 @@ func (c *InstanceManagerClient) EngineProcessCreate(engineName, volumeName, engi
 
 	if salvageRequested {
 		args = append(args, "--salvageRequested")
+	}
+
+	if sizeRequested {
+		args = append(args,
+			"--size", strconv.FormatInt(volumeSize, 10),
+			"--current-size", strconv.FormatInt(volumeCurrentSize, 10))
 	}
 
 	for _, addr := range replicaAddressMap {
@@ -233,6 +245,17 @@ func (c *InstanceManagerClient) ProcessGet(name string) (*longhorn.InstanceProce
 	return c.parseProcess(process), nil
 }
 
+func (c *InstanceManagerClient) ProcessGetBinary(name string) (string, error) {
+	if err := CheckInstanceManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
+		return "", err
+	}
+	process, err := c.grpcClient.ProcessGet(name)
+	if err != nil {
+		return "", err
+	}
+	return process.Binary, nil
+}
+
 // ProcessLog returns a grpc stream that will be closed when the passed context is cancelled or the underlying grpc client is closed
 func (c *InstanceManagerClient) ProcessLog(ctx context.Context, name string) (*imapi.LogStream, error) {
 	if err := CheckInstanceManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
@@ -264,7 +287,7 @@ func (c *InstanceManagerClient) ProcessList() (map[string]longhorn.InstanceProce
 	return result, nil
 }
 
-func (c *InstanceManagerClient) EngineProcessUpgrade(engineName, volumeName, engineImage string, volumeFrontend longhorn.VolumeFrontend, replicaAddressMap map[string]string) (*longhorn.InstanceProcess, error) {
+func (c *InstanceManagerClient) EngineProcessUpgrade(engineName, volumeName string, volumeSize, volumeCurrentSize int64, engineImage string, volumeFrontend longhorn.VolumeFrontend, replicaAddressMap map[string]string, sizeRequested bool) (*longhorn.InstanceProcess, error) {
 	if err := CheckInstanceManagerCompatibilty(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
@@ -276,6 +299,13 @@ func (c *InstanceManagerClient) EngineProcessUpgrade(engineName, volumeName, eng
 	for _, addr := range replicaAddressMap {
 		args = append(args, "--replica", GetBackendReplicaURL(addr))
 	}
+
+	if sizeRequested {
+		args = append(args,
+			"--size", strconv.FormatInt(volumeSize, 10),
+			"--current-size", strconv.FormatInt(volumeCurrentSize, 10))
+	}
+
 	binary := filepath.Join(types.GetEngineBinaryDirectoryForEngineManagerContainer(engineImage), types.EngineBinaryName)
 
 	engineProcess, err := c.grpcClient.ProcessReplace(

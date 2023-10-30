@@ -5,7 +5,7 @@ import (
 )
 
 func (p *Proxy) ReplicaAdd(e *longhorn.Engine, address string, restore bool) (err error) {
-	return p.grpcClient.ReplicaAdd(p.DirectToURL(e), address, restore)
+	return p.grpcClient.ReplicaAdd(p.DirectToURL(e), address, restore, e.Spec.VolumeSize, e.Status.CurrentSize)
 }
 
 func (p *Proxy) ReplicaRemove(e *longhorn.Engine, address string) (err error) {

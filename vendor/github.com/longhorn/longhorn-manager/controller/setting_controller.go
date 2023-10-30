@@ -194,7 +194,7 @@ func (sc *SettingController) handleErr(err error, key interface{}) {
 
 func (sc *SettingController) syncSetting(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync setting for %v", key)
+		err = errors.Wrapf(err, "failed to sync setting for %v", key)
 	}()
 
 	_, name, err := cache.SplitMetaNamespaceKey(key)

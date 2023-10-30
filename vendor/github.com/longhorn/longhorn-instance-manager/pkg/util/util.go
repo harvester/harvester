@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -43,17 +44,17 @@ func ExecuteWithTimeout(timeout time.Duration, binary string, args ...string) (s
 	case <-time.After(timeout):
 		if cmd.Process != nil {
 			if err := cmd.Process.Kill(); err != nil {
-				logrus.Warnf("Problem killing process pid=%v: %s", cmd.Process.Pid, err)
+				logrus.WithError(err).Warnf("Problem killing process pid=%v", cmd.Process.Pid)
 			}
 
 		}
-		return "", fmt.Errorf("Timeout executing: %v %v, output %s, stderr, %s, error %v",
-			binary, args, output.String(), stderr.String(), err)
+		return "", errors.Wrapf(err, "timeout executing: %v %v, output %s, stderr %s",
+			binary, args, output.String(), stderr.String())
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %v",
-			binary, args, output.String(), stderr.String(), err)
+		return "", errors.Wrapf(err, "failed to execute: %v %v, output %s, stderr %s",
+			binary, args, output.String(), stderr.String())
 	}
 	return output.String(), nil
 }
@@ -79,7 +80,7 @@ func RemoveFile(file string) error {
 	}
 
 	if _, err := Execute("rm", file); err != nil {
-		return fmt.Errorf("fail to remove file %v: %v", file, err)
+		return errors.Wrapf(err, "failed to remove file %v", file)
 	}
 
 	return nil

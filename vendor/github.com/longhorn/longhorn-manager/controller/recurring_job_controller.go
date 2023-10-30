@@ -157,7 +157,7 @@ func getLoggerForRecurringJob(logger logrus.FieldLogger, recurringJob *longhorn.
 
 func (control *RecurringJobController) syncRecurringJob(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync recurring job for %v", key)
+		err = errors.Wrapf(err, "failed to sync recurring job for %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {

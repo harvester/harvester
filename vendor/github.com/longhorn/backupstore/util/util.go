@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -39,6 +41,21 @@ func GetChecksum(data []byte) string {
 	checksumBytes := sha512.Sum512(data)
 	checksum := hex.EncodeToString(checksumBytes[:])[:PreservedChecksumLength]
 	return checksum
+}
+
+func GetFileChecksum(filePath string) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func CompressData(data []byte) (io.ReadSeeker, error) {
@@ -154,11 +171,11 @@ func execute(ctx context.Context, binary string, args []string) (string, error) 
 	case <-done:
 		break
 	case <-ctx.Done():
-		return "", fmt.Errorf("Timeout executing: %v %v, output %v, error %v", binary, args, string(output), err)
+		return "", fmt.Errorf("timeout executing: %v %v, output %v, error %v", binary, args, string(output), err)
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("Failed to execute: %v %v, output %v, error %v", binary, args, string(output), err)
+		return "", fmt.Errorf("failed to execute: %v %v, output %v, error %v", binary, args, string(output), err)
 	}
 
 	return string(output), nil

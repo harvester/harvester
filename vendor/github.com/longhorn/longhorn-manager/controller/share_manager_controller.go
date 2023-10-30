@@ -252,7 +252,7 @@ func (c *ShareManagerController) handleErr(err error, key interface{}) {
 
 func (c *ShareManagerController) syncShareManager(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync %v", key)
+		err = errors.Wrapf(err, "failed to sync %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -387,16 +387,23 @@ func (c *ShareManagerController) isShareManagerRequiredForVolume(volume *longhor
 	}
 
 	// no active workload, there is no need to keep the share manager around
-	hasActiveWorkload := volume.Status.KubernetesStatus.LastPodRefAt == "" && volume.Status.KubernetesStatus.LastPVCRefAt == "" &&
-		len(volume.Status.KubernetesStatus.WorkloadsStatus) > 0
-	if !hasActiveWorkload {
+	if !hasActiveWorkload(volume) {
 		return false
 	}
 
 	return true
 }
 
-func (c ShareManagerController) detachShareManagerVolume(sm *longhorn.ShareManager) error {
+func hasActiveWorkload(vol *longhorn.Volume) bool {
+	if vol == nil {
+		return false
+	}
+	return vol.Status.KubernetesStatus.LastPodRefAt == "" &&
+		vol.Status.KubernetesStatus.LastPVCRefAt == "" &&
+		len(vol.Status.KubernetesStatus.WorkloadsStatus) > 0
+}
+
+func (c *ShareManagerController) detachShareManagerVolume(sm *longhorn.ShareManager) error {
 	log := getLoggerForShareManager(c.logger, sm)
 	volume, err := c.ds.GetVolume(sm.Name)
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -792,7 +799,6 @@ func (c *ShareManagerController) createPodManifest(sm *longhorn.ShareManager, an
 			Tolerations:        util.GetDistinctTolerations(tolerations),
 			NodeSelector:       nodeSelector,
 			PriorityClassName:  priorityClass,
-			NodeName:           sm.Status.OwnerID,
 			Containers: []v1.Container{
 				{
 					Name:            types.LonghornLabelShareManager,

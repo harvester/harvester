@@ -150,7 +150,7 @@ func (kc *KubernetesPVController) handleErr(err error, key interface{}) {
 
 func (kc *KubernetesPVController) syncKubernetesStatus(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "kubernetes-controller: fail to sync %v", key)
+		err = errors.Wrapf(err, "kubernetes-controller: failed to sync %v", key)
 	}()
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {

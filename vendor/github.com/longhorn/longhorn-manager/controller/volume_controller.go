@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -243,7 +244,7 @@ func getLoggerForVolume(logger logrus.FieldLogger, v *longhorn.Volume) *logrus.E
 
 func (vc *VolumeController) syncVolume(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync %v", key)
+		err = errors.Wrapf(err, "failed to sync %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -510,7 +511,7 @@ func (vc *VolumeController) EvictReplicas(v *longhorn.Volume,
 // e.Status.purgeStatus, and e.Status.SnapshotCloneStatus then update v and rs accordingly.
 func (vc *VolumeController) ReconcileEngineReplicaState(v *longhorn.Volume, es map[string]*longhorn.Engine, rs map[string]*longhorn.Replica) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to reconcile engine/replica state for %v", v.Name)
+		err = errors.Wrapf(err, "failed to reconcile engine/replica state for %v", v.Name)
 		if v.Status.Robustness != longhorn.VolumeRobustnessDegraded {
 			v.Status.LastDegradedAt = ""
 		}
@@ -536,9 +537,12 @@ func (vc *VolumeController) ReconcileEngineReplicaState(v *longhorn.Volume, es m
 	if e.Status.CurrentState != longhorn.InstanceStateRunning {
 		// If a replica failed at attaching stage before engine become running,
 		// there is no record in e.Status.ReplicaModeMap
+		engineInstanceCreationCondition := types.GetCondition(e.Status.Conditions, longhorn.InstanceConditionTypeInstanceCreation)
+		isNoAvailableBackend := strings.Contains(engineInstanceCreationCondition.Message, fmt.Sprintf("exit status %v", int(syscall.ENODATA)))
 		for _, r := range rs {
-			if r.Spec.FailedAt == "" && r.Status.CurrentState == longhorn.InstanceStateError {
-				log.Warnf("Replica %v that not in the engine mode map is marked as failed, current state %v, engine name %v, active %v", r.Name, r.Status.CurrentState, r.Spec.EngineName, r.Spec.Active)
+			if isNoAvailableBackend || (r.Spec.FailedAt == "" && r.Status.CurrentState == longhorn.InstanceStateError) {
+				log.Warnf("Replica %v that not in the engine mode map is marked as failed, current state %v, engine name %v, active %v",
+					r.Name, r.Status.CurrentState, r.Spec.EngineName, r.Spec.Active)
 				e.Spec.LogRequested = true
 				r.Spec.LogRequested = true
 				r.Spec.FailedAt = vc.nowHandler()
@@ -616,7 +620,8 @@ func (vc *VolumeController) ReconcileEngineReplicaState(v *longhorn.Volume, es m
 	// there is no record in e.Status.ReplicaModeMap
 	for _, r := range rs {
 		if r.Spec.FailedAt == "" && r.Status.CurrentState == longhorn.InstanceStateError {
-			log.Warnf("Replica %v that not in the engine mode map is marked as failed, current state %v, engine name %v, active %v", r.Name, r.Status.CurrentState, r.Spec.EngineName, r.Spec.Active)
+			log.Warnf("Replica %v that not in the engine mode map is marked as failed, current state %v, engine name %v, active %v",
+				r.Name, r.Status.CurrentState, r.Spec.EngineName, r.Spec.Active)
 			e.Spec.LogRequested = true
 			r.Spec.LogRequested = true
 			r.Spec.FailedAt = vc.nowHandler()
@@ -689,12 +694,20 @@ func (vc *VolumeController) ReconcileEngineReplicaState(v *longhorn.Volume, es m
 	}
 
 	for _, status := range e.Status.CloneStatus {
-		if status != nil && status.State == engineapi.ProcessStateComplete && v.Status.CloneStatus.State != longhorn.VolumeCloneStateCompleted {
+		if status == nil {
+			continue
+		}
+
+		if status.State == engineapi.ProcessStateComplete && v.Status.CloneStatus.State != longhorn.VolumeCloneStateCompleted {
 			v.Status.CloneStatus.State = longhorn.VolumeCloneStateCompleted
-			vc.eventRecorder.Eventf(v, v1.EventTypeNormal, EventReasonVolumeCloneCompleted, "finished cloning snapshot %v from source volume %v", v.Status.CloneStatus.Snapshot, v.Status.CloneStatus.SourceVolume)
-		} else if status != nil && status.State == engineapi.ProcessStateError && v.Status.CloneStatus.State != longhorn.VolumeCloneStateFailed {
+			vc.eventRecorder.Eventf(v, v1.EventTypeNormal, EventReasonVolumeCloneCompleted,
+				"finished cloning snapshot %v from source volume %v",
+				v.Status.CloneStatus.Snapshot, v.Status.CloneStatus.SourceVolume)
+		} else if status.State == engineapi.ProcessStateError && v.Status.CloneStatus.State != longhorn.VolumeCloneStateFailed {
 			v.Status.CloneStatus.State = longhorn.VolumeCloneStateFailed
-			vc.eventRecorder.Eventf(v, v1.EventTypeWarning, EventReasonVolumeCloneFailed, "failed to clone snapshot %v from source volume %v: %v", v.Status.CloneStatus.Snapshot, v.Status.CloneStatus.SourceVolume, status.Error)
+			vc.eventRecorder.Eventf(v, v1.EventTypeWarning, EventReasonVolumeCloneFailed,
+				"failed to clone snapshot %v from source volume %v: %v",
+				v.Status.CloneStatus.Snapshot, v.Status.CloneStatus.SourceVolume, status.Error)
 		}
 	}
 
@@ -763,7 +776,8 @@ func (vc *VolumeController) cleanupReplicas(v *longhorn.Volume, es map[string]*l
 	// 	since the getHealthyReplicaCount function doesn't differentiate between replicas of different engines
 	// 	then during cleanupExtraHealthyReplicas the condition `healthyCount > v.Spec.NumberOfReplicas` will be true
 	//  which can lead to incorrect deletion of replicas.
-	if vc.isVolumeMigrating(v) || vc.isVolumeUpgrading(v) {
+	//  Allow to delete replicas in `cleanupCorruptedOrStaleReplicas` marked as failed before IM-r started during engine image update.
+	if vc.isVolumeMigrating(v) {
 		return nil
 	}
 
@@ -774,6 +788,11 @@ func (vc *VolumeController) cleanupReplicas(v *longhorn.Volume, es map[string]*l
 
 	if err := vc.cleanupCorruptedOrStaleReplicas(v, rs); err != nil {
 		return err
+	}
+
+	// give a chance to delete new replicas failed when upgrading volume and waiting for IM-r starting
+	if vc.isVolumeUpgrading(v) {
+		return nil
 	}
 
 	if err := vc.cleanupFailedToScheduledReplicas(v, rs); err != nil {
@@ -822,9 +841,11 @@ func (vc *VolumeController) cleanupCorruptedOrStaleReplicas(v *longhorn.Volume, 
 			staled = true
 		}
 
-		// 1. failed for multiple times or failed at rebuilding (`Spec.RebuildRetryCount` of a newly created rebuilding replica is `FailedReplicaMaxRetryCount`) before ever became healthy/ mode RW,
+		// 1. failed for multiple times or failed at rebuilding (`Spec.RebuildRetryCount` of a newly created rebuilding replica
+		//    is `FailedReplicaMaxRetryCount`) before ever became healthy/ mode RW,
 		// 2. failed too long ago, became stale and unnecessary to keep around, unless we don't have any healthy replicas
-		if (r.Spec.RebuildRetryCount >= scheduler.FailedReplicaMaxRetryCount) || (healthyCount != 0 && staled) {
+		// 3. failed for race condition at upgrading when waiting IM-r to start and it would never became healty
+		if (r.Spec.RebuildRetryCount >= scheduler.FailedReplicaMaxRetryCount) || (healthyCount != 0 && staled) || (r.Spec.EngineImage != v.Status.CurrentImage) {
 			log.WithField("replica", r.Name).Info("Cleaning up corrupted, staled replica")
 			if err := vc.deleteReplica(r, rs); err != nil {
 				return errors.Wrapf(err, "cannot cleanup staled replica %v", r.Name)
@@ -867,11 +888,17 @@ func (vc *VolumeController) cleanupExtraHealthyReplicas(v *longhorn.Volume, e *l
 		return err
 	}
 
-	if cleaned, err = vc.cleanupAutoBalancedReplicas(v, e, rs); err != nil || cleaned {
+	if cleaned, err = vc.cleanupDataLocalityReplicas(v, e, rs); err != nil || cleaned {
 		return err
 	}
 
-	if cleaned, err = vc.cleanupDataLocalityReplicas(v, e, rs); err != nil || cleaned {
+	// Auto-balanced replicas get cleaned based on the sorted order. Hence,
+	// cleaning up for data locality replica needs to go first. Or else, a
+	// new replica could have a name alphabetically smaller than all the
+	// existing replicas. And this causes a rebuilding loop if this new
+	// replica is for data locality.
+	// Ref: https://github.com/longhorn/longhorn/issues/4761
+	if cleaned, err = vc.cleanupAutoBalancedReplicas(v, e, rs); err != nil || cleaned {
 		return err
 	}
 
@@ -1013,7 +1040,7 @@ func (vc *VolumeController) getAutoBalancedReplicasSetting(v *longhorn.Volume) (
 // ReconcileVolumeState handles the attaching and detaching of volume
 func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[string]*longhorn.Engine, rs map[string]*longhorn.Replica) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to reconcile volume state for %v", v.Name)
+		err = errors.Wrapf(err, "failed to reconcile volume state for %v", v.Name)
 	}()
 
 	log := getLoggerForVolume(vc.logger, v)
@@ -1180,22 +1207,22 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 				scheduled = true
 			}
 		}
+	}
 
-		if !scheduled {
-			if len(aggregatedReplicaScheduledError) == 0 {
-				aggregatedReplicaScheduledError.Append(util.NewMultiError(longhorn.ErrorReplicaScheduleSchedulingFailed))
-			}
-			failureMessage = aggregatedReplicaScheduledError.Join()
-			scheduledCondition := types.GetCondition(v.Status.Conditions, longhorn.VolumeConditionTypeScheduled)
-			if scheduledCondition.Status == longhorn.ConditionStatusFalse {
-				v.Status.Conditions = types.SetCondition(v.Status.Conditions,
-					longhorn.VolumeConditionTypeScheduled, longhorn.ConditionStatusFalse,
-					scheduledCondition.Reason, failureMessage)
-			}
+	if !scheduled {
+		if len(aggregatedReplicaScheduledError) == 0 {
+			aggregatedReplicaScheduledError.Append(util.NewMultiError(longhorn.ErrorReplicaScheduleSchedulingFailed))
+		}
+		failureMessage = aggregatedReplicaScheduledError.Join()
+		scheduledCondition := types.GetCondition(v.Status.Conditions, longhorn.VolumeConditionTypeScheduled)
+		if scheduledCondition.Status == longhorn.ConditionStatusFalse {
+			v.Status.Conditions = types.SetCondition(v.Status.Conditions,
+				longhorn.VolumeConditionTypeScheduled, longhorn.ConditionStatusFalse,
+				scheduledCondition.Reason, failureMessage)
 		}
 	}
 
-	if err := vc.updatePVAnnotation(v, types.PVAnnotationLonghornVolumeSchedulingError, failureMessage); err != nil {
+	if err := vc.ds.UpdatePVAnnotation(v, types.PVAnnotationLonghornVolumeSchedulingError, failureMessage); err != nil {
 		log.Warnf("Cannot update PV annotation for volume %v", v.Name)
 	}
 
@@ -1376,8 +1403,9 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 			v.Status.Robustness = longhorn.VolumeRobustnessUnknown
 		} else {
 			if v.Status.RestoreRequired || v.Status.IsStandby {
-				v.Status.Conditions = types.SetCondition(v.Status.Conditions,
-					longhorn.VolumeConditionTypeRestore, longhorn.ConditionStatusFalse, longhorn.VolumeConditionReasonRestoreFailure, "All replica restore failed and the volume became Faulted")
+				v.Status.Conditions = types.SetCondition(v.Status.Conditions, longhorn.VolumeConditionTypeRestore,
+					longhorn.ConditionStatusFalse, longhorn.VolumeConditionReasonRestoreFailure,
+					"All replica restore failed and the volume became Faulted")
 			}
 		}
 
@@ -1395,6 +1423,11 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 				if r.Spec.HealthyAt == "" && r.Spec.FailedAt == "" {
 					r.Spec.FailedAt = vc.nowHandler()
 					r.Spec.DesireState = longhorn.InstanceStateStopped
+					// unscheduled replicas marked failed here when volume detached
+					// check if NodeId or DiskID is empty to avoid deleting reusableFailedReplica when replenished.
+					if r.Spec.NodeID == "" || r.Spec.DiskID == "" {
+						r.Spec.RebuildRetryCount = scheduler.FailedReplicaMaxRetryCount
+					}
 					rs[r.Name] = r
 				}
 			}
@@ -1487,14 +1520,27 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 			if err != nil {
 				return err
 			}
-			if !canIMLaunchReplica {
-				if r.Spec.FailedAt == "" {
-					r.Spec.FailedAt = vc.nowHandler()
+			if canIMLaunchReplica {
+				if r.Spec.FailedAt == "" && r.Spec.EngineImage == v.Status.CurrentImage {
+					if r.Status.CurrentState == longhorn.InstanceStateStopped {
+						r.Spec.DesireState = longhorn.InstanceStateRunning
+					}
 				}
-				r.Spec.DesireState = longhorn.InstanceStateStopped
-			} else if r.Spec.FailedAt == "" && r.Spec.EngineImage == v.Status.CurrentImage {
-				if r.Status.CurrentState == longhorn.InstanceStateStopped {
-					r.Spec.DesireState = longhorn.InstanceStateRunning
+			} else {
+				// wait for IM is starting when volume is upgrading
+				if vc.isVolumeUpgrading(v) {
+					continue
+				}
+
+				// Whenever the engine isn't attached, if the node goes down, the replica can be marked as failed.
+				// In the attached mode, we can determine whether the replica can fail by relying on the data plane's
+				// connectivity status.
+				if v.Status.State != longhorn.VolumeStateAttached {
+					log.WithField("replica", r.Name).Warnf("Replica %v is marked as failed since the volume %v is not attached because the instance manager is unable to launch the replica", r.Name, v.Name)
+					if r.Spec.FailedAt == "" {
+						r.Spec.FailedAt = vc.nowHandler()
+					}
+					r.Spec.DesireState = longhorn.InstanceStateStopped
 				}
 			}
 			rs[r.Name] = r
@@ -1723,7 +1769,6 @@ func (vc *VolumeController) replenishReplicas(v *longhorn.Volume, e *longhorn.En
 	if (!newVolume && replenishCount > 0) || hardNodeAffinity != "" {
 		replenishCount = 1
 	}
-
 	for i := 0; i < replenishCount; i++ {
 		reusableFailedReplica, err := vc.scheduler.CheckAndReuseFailedReplica(rs, v, hardNodeAffinity)
 		if err != nil {
@@ -1873,7 +1918,7 @@ func (vc *VolumeController) getReplicaCountForAutoBalanceBestEffort(v *longhorn.
 func (vc *VolumeController) getReplicaCountForAutoBalanceZone(v *longhorn.Volume, e *longhorn.Engine, rs map[string]*longhorn.Replica) (int, map[string][]string, error) {
 	log := getLoggerForVolume(vc.logger, v).WithField("replicaAutoBalanceType", "zone")
 
-	readyNodes, err := vc.ds.ListReadyAndSchedulableNodes()
+	readyNodes, err := vc.listReadySchedulableAndScheduledNodes(rs, log)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -1977,10 +2022,52 @@ func (vc *VolumeController) getReplicaCountForAutoBalanceZone(v *longhorn.Volume
 	return adjustCount, zoneExtraRs, err
 }
 
+func (vc *VolumeController) listReadySchedulableAndScheduledNodes(rs map[string]*longhorn.Replica, log logrus.FieldLogger) (map[string]*longhorn.Node, error) {
+	readyNodes, err := vc.ds.ListReadyAndSchedulableNodes()
+	if err != nil {
+		return nil, err
+	}
+
+	// Including unschedulable node because the replica is already scheduled and running
+	// Ref: https://github.com/longhorn/longhorn/issues/4502
+	for _, r := range rs {
+		if r.Status.CurrentState != longhorn.InstanceStateRunning {
+			continue
+		}
+
+		_, exist := readyNodes[r.Spec.NodeID]
+		if exist {
+			continue
+		}
+
+		node, err := vc.ds.GetNodeRO(r.Spec.NodeID)
+		if err != nil && !datastore.ErrorIsNotFound(err) {
+			return nil, err
+		}
+
+		if node == nil {
+			continue
+		}
+
+		nodeReadyCondition := types.GetCondition(node.Status.Conditions, longhorn.NodeConditionTypeReady)
+		if nodeReadyCondition.Status != longhorn.ConditionStatusTrue {
+			continue
+		}
+
+		readyNodes[r.Spec.NodeID] = node
+		log.WithFields(logrus.Fields{
+			"replica": r.Name,
+			"node":    node.Name,
+		}).Debugf("Including unschedulable node because the replica is scheduled and running")
+	}
+
+	return readyNodes, nil
+}
+
 func (vc *VolumeController) getReplicaCountForAutoBalanceNode(v *longhorn.Volume, e *longhorn.Engine, rs map[string]*longhorn.Replica) (int, map[string][]string, error) {
 	log := getLoggerForVolume(vc.logger, v).WithField("replicaAutoBalanceType", "node")
 
-	readyNodes, err := vc.ds.ListReadyAndSchedulableNodes()
+	readyNodes, err := vc.listReadySchedulableAndScheduledNodes(rs, log)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -2068,7 +2155,7 @@ func (vc *VolumeController) getReplenishReplicasCount(v *longhorn.Volume, rs map
 			continue
 		}
 		// Skip the replica has been requested eviction.
-		if r.Spec.FailedAt == "" && (!r.Status.EvictionRequested) {
+		if r.Spec.FailedAt == "" && (!r.Status.EvictionRequested) && r.Spec.Active {
 			usableCount++
 		}
 	}
@@ -2239,7 +2326,7 @@ func (vc *VolumeController) getNodeCandidatesForAutoBalanceZone(v *longhorn.Volu
 func (vc *VolumeController) hasEngineStatusSynced(e *longhorn.Engine, rs map[string]*longhorn.Replica) bool {
 	connectedReplicaCount := 0
 	for _, r := range rs {
-		if r.Spec.FailedAt == "" && r.Spec.NodeID != "" {
+		if r.Spec.FailedAt == "" && r.Spec.NodeID != "" && r.Spec.Active {
 			connectedReplicaCount++
 		}
 	}
@@ -2427,7 +2514,7 @@ func (vc *VolumeController) upgradeEngineForVolume(v *longhorn.Volume, es map[st
 	}
 
 	if err := vc.switchActiveReplicas(rs, func(r *longhorn.Replica, engineImage string) bool {
-		return r.Spec.EngineImage == engineImage
+		return r.Spec.EngineImage == engineImage && r.DeletionTimestamp.IsZero()
 	}, v.Spec.EngineImage); err != nil {
 		return err
 	}
@@ -2637,8 +2724,14 @@ func (vc *VolumeController) reconcileVolumeSize(v *longhorn.Volume, e *longhorn.
 		vc.eventRecorder.Eventf(v, v1.EventTypeNormal, EventReasonCanceledExpansion,
 			"Canceled expanding the volume %v, will automatically detach it", v.Name)
 	} else {
-		if err := vc.scheduler.CheckReplicasSizeExpansion(v, e.Spec.VolumeSize, v.Spec.Size); err != nil {
+		if diskScheduleMultiError, err := vc.scheduler.CheckReplicasSizeExpansion(v, e.Spec.VolumeSize, v.Spec.Size); err != nil {
 			log.Debugf("cannot start volume expansion: %v", err)
+			if diskScheduleMultiError != nil {
+				failureMessage := diskScheduleMultiError.Join()
+				if err := vc.ds.UpdatePVAnnotation(v, types.PVAnnotationLonghornVolumeSchedulingError, failureMessage); err != nil {
+					log.Warnf("Cannot update PV annotation for volume %v", v.Name)
+				}
+			}
 			return nil
 		}
 		log.Infof("Start volume expand from size %v to size %v", e.Spec.VolumeSize, v.Spec.Size)
@@ -2766,7 +2859,23 @@ func (vc *VolumeController) checkForAutoDetachment(v *longhorn.Volume, e *longho
 			break
 		}
 	}
-	if !(e.Spec.RequestedBackupRestore != "" && e.Spec.RequestedBackupRestore == e.Status.LastRestoredBackup &&
+
+	// After the volume is detached, the engine stops and does not perform recovery,
+	// so it should ensure that the backup volume is synced and updated at least once
+	// so that the engine restores with the latest backup before the volume is detached
+	if backupVolumeName, isExist := v.Labels[types.LonghornLabelBackupVolume]; isExist && backupVolumeName != "" {
+		backupVolume, err := vc.ds.GetBackupVolumeRO(backupVolumeName)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get backup volume: %v", v.Name)
+		}
+		if backupVolume.Status.LastSyncedAt.Before(&backupVolume.Spec.SyncRequestedAt) {
+			return nil
+		}
+	}
+
+	// make sure engine finish restoring with the latest backup and no longer a DR volume
+	if !(e.Spec.RequestedBackupRestore != "" &&
+		e.Spec.RequestedBackupRestore == e.Status.LastRestoredBackup &&
 		!v.Spec.Standby) {
 		return nil
 	}
@@ -2954,7 +3063,7 @@ func (vc *VolumeController) ResolveRefAndEnqueue(namespace string, ref *metav1.O
 
 func (vc *VolumeController) updateRecurringJobs(v *longhorn.Volume) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to update recurring jobs for %v", v.Name)
+		err = errors.Wrapf(err, "failed to update recurring jobs for %v", v.Name)
 	}()
 
 	existingVolume := v.DeepCopy()
@@ -2987,7 +3096,7 @@ func (vc *VolumeController) getEngineImage(image string) (*longhorn.EngineImage,
 
 func (vc *VolumeController) getCurrentEngineAndCleanupOthers(v *longhorn.Volume, es map[string]*longhorn.Engine) (current *longhorn.Engine, err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to clean up the extra engines for %v", v.Name)
+		err = errors.Wrapf(err, "failed to clean up the extra engines for %v", v.Name)
 	}()
 	current, extras, err := datastore.GetCurrentEngineAndExtras(v, es)
 	if err != nil {
@@ -3060,7 +3169,7 @@ func (vc *VolumeController) switchActiveReplicas(rs map[string]*longhorn.Replica
 
 func (vc *VolumeController) processMigration(v *longhorn.Volume, es map[string]*longhorn.Engine, rs map[string]*longhorn.Replica) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to process migration for %v", v.Name)
+		err = errors.Wrapf(err, "failed to process migration for %v", v.Name)
 	}()
 
 	if !v.Spec.Migratable || v.Spec.AccessMode != longhorn.AccessModeReadWriteMany {
@@ -3770,29 +3879,4 @@ func (vc *VolumeController) checkVolumeNotInMigration(volume *longhorn.Volume) e
 		return fmt.Errorf("cannot operate during migration")
 	}
 	return nil
-}
-
-func (vc *VolumeController) updatePVAnnotation(volume *longhorn.Volume, annotationKey, annotationVal string) error {
-	pv, err := vc.ds.GetPersistentVolume(volume.Status.KubernetesStatus.PVName)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return err
-	}
-
-	if pv.Annotations == nil {
-		pv.Annotations = map[string]string{}
-	}
-
-	val, ok := pv.Annotations[annotationKey]
-	if ok && val == annotationVal {
-		return nil
-	}
-
-	pv.Annotations[annotationKey] = annotationVal
-
-	_, err = vc.ds.UpdatePersistentVolume(pv)
-
-	return err
 }

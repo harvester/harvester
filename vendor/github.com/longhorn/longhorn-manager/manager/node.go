@@ -28,7 +28,7 @@ func (m *VolumeManager) GetDiskTags() ([]string, error) {
 
 	nodeList, err := m.ListNodesSorted()
 	if err != nil {
-		return nil, errors.Wrapf(err, "fail to list nodes")
+		return nil, errors.Wrapf(err, "failed to list nodes")
 	}
 	for _, node := range nodeList {
 		for _, disk := range node.Spec.Disks {
@@ -49,7 +49,7 @@ func (m *VolumeManager) GetNodeTags() ([]string, error) {
 
 	nodeList, err := m.ListNodesSorted()
 	if err != nil {
-		return nil, errors.Wrapf(err, "fail to list nodes")
+		return nil, errors.Wrapf(err, "failed to list nodes")
 	}
 	for _, node := range nodeList {
 		for _, tag := range node.Spec.Tags {

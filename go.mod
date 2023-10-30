@@ -62,6 +62,7 @@ require (
 	github.com/banzaicloud/logging-operator/pkg/sdk v0.8.16
 	github.com/banzaicloud/operator-tools v0.28.10
 	github.com/containernetworking/cni v1.1.2
+	github.com/docker/go-units v0.4.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.8.0
 	github.com/gorilla/mux v1.8.0
@@ -72,8 +73,8 @@ require (
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.3
 	github.com/kubernetes/dashboard v1.10.1
-	github.com/longhorn/backupstore v0.0.0-20220913112826-5f5c95274f2a
-	github.com/longhorn/longhorn-manager v1.3.1
+	github.com/longhorn/backupstore v0.0.0-20230306022849-8d5e216c3b33
+	github.com/longhorn/longhorn-manager v1.3.3
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.5.0
@@ -110,8 +111,8 @@ require (
 	k8s.io/gengo v0.0.0-20211129171323-c02415ce4185
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1
 	k8s.io/kubectl v0.24.2
-	k8s.io/utils v0.0.0-20221108210102-8e77b1f39fe2
 	k8s.io/kubelet v0.24.10
+	k8s.io/utils v0.0.0-20221108210102-8e77b1f39fe2
 	kubevirt.io/api v0.54.0
 	kubevirt.io/containerized-data-importer-api v1.47.0
 	kubevirt.io/kubevirt v0.54.0
@@ -153,7 +154,6 @@ require (
 	github.com/docker/docker-credential-helpers v0.6.4 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
-	github.com/docker/go-units v0.4.0 // indirect
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
@@ -206,9 +206,9 @@ require (
 	github.com/lib/pq v1.10.6 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/longhorn/backing-image-manager v0.0.0-20220609065820-a08f7f47442f // indirect
-	github.com/longhorn/go-iscsi-helper v0.0.0-20220805034259-7b59e22574bb // indirect
-	github.com/longhorn/longhorn-engine v1.3.0-preview1 // indirect
-	github.com/longhorn/longhorn-instance-manager v0.0.0-20220801100457-421c284a3b85 // indirect
+	github.com/longhorn/go-iscsi-helper v0.0.0-20230215045129-588aa7586e4c // indirect
+	github.com/longhorn/longhorn-engine v1.3.3-0.20230216042703-718990dc8a35 // indirect
+	github.com/longhorn/longhorn-instance-manager v0.0.0-20230306150329-6121d6fb451e // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect

@@ -60,6 +60,8 @@ message ControllerReplica {
 
 message VolumeStartRequest {
     repeated string replicaAddresses = 1;
+    int64 size = 2;
+    int64 currentSize = 3;
 }
 
 message VolumeSnapshotRequest {

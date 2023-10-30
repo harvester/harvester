@@ -261,7 +261,7 @@ func getLoggerForNode(logger logrus.FieldLogger, n *longhorn.Node) *logrus.Entry
 
 func (nc *NodeController) syncNode(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync node for %v", key)
+		err = errors.Wrapf(err, "failed to sync node for %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -860,7 +860,7 @@ func (nc *NodeController) syncInstanceManagers(node *longhorn.Node) error {
 			}
 		}
 		if !defaultInstanceManagerCreated {
-			imName, err := types.GetInstanceManagerName(imType)
+			imName, err := types.GetInstanceManagerName(imType, node.Name, defaultInstanceManagerImage)
 			if err != nil {
 				return err
 			}

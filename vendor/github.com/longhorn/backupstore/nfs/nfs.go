@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	log           = logrus.WithFields(logrus.Fields{"pkg": "nfs"})
-	MinorVersions = []string{"4.2", "4.1", "4.0"}
+	log            = logrus.WithFields(logrus.Fields{"pkg": "nfs"})
+	MinorVersions  = []string{"4.2", "4.1", "4.0"}
+	defaultTimeout = 5 * time.Second
 )
 
 type BackupStoreDriver struct {
@@ -59,24 +60,24 @@ func initFunc(destURL string) (backupstore.BackupStoreDriver, error) {
 		return nil, fmt.Errorf("NFS path must follow: nfs://server:/path/ format")
 	}
 	if u.Path == "" {
-		return nil, fmt.Errorf("Cannot find nfs path")
+		return nil, fmt.Errorf("cannot find nfs path")
 	}
 
 	b.serverPath = u.Host + u.Path
 	b.mountDir = filepath.Join(MountDir, strings.TrimRight(strings.Replace(u.Host, ".", "_", -1), ":"), u.Path)
-	if _, err = util.ExecuteWithCustomTimeout("mkdir", []string{"-m", "700", "-p", b.mountDir}, 3*time.Second); err != nil {
-		return nil, fmt.Errorf("Cannot create mount directory %v for NFS server: %v", b.mountDir, err)
+	if _, err = util.ExecuteWithCustomTimeout("mkdir", []string{"-m", "700", "-p", b.mountDir}, defaultTimeout); err != nil {
+		return nil, errors.Wrapf(err, "cannot create mount directory %v for NFS server", b.mountDir)
 	}
 
 	if err := b.mount(); err != nil {
-		return nil, fmt.Errorf("Cannot mount nfs %v: %v", b.serverPath, err)
+		return nil, errors.Wrapf(err, "cannot mount nfs %v", b.serverPath)
 	}
 	if _, err := b.List(""); err != nil {
 		return nil, fmt.Errorf("NFS path %v doesn't exist or is not a directory", b.serverPath)
 	}
 
 	b.destURL = KIND + "://" + b.serverPath
-	log.Debugf("Loaded driver for %v", b.destURL)
+	log.Infof("Loaded driver for %v", b.destURL)
 	return b, nil
 }
 
@@ -88,8 +89,8 @@ func (b *BackupStoreDriver) mount() (err error) {
 	retErr := errors.New("Cannot mount using NFSv4")
 
 	for _, version := range MinorVersions {
-		log.Debugf("attempting mount for nfs path %v with nfsvers %v", b.serverPath, version)
-		_, err = util.Execute("mount", []string{"-t", "nfs4", "-o", fmt.Sprintf("nfsvers=%v", version), "-o", "actimeo=1", b.serverPath, b.mountDir})
+		log.Debugf("Attempting mount for nfs path %v with nfsvers %v", b.serverPath, version)
+		_, err = util.ExecuteWithCustomTimeout("mount", []string{"-t", "nfs4", "-o", fmt.Sprintf("nfsvers=%v", version), "-o", "actimeo=1", b.serverPath, b.mountDir}, defaultTimeout)
 		if err == nil {
 			return nil
 		}

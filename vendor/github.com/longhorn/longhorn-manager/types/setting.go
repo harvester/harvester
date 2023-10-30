@@ -66,6 +66,7 @@ const (
 	SettingNameReplicaZoneSoftAntiAffinity                  = SettingName("replica-zone-soft-anti-affinity")
 	SettingNameNodeDownPodDeletionPolicy                    = SettingName("node-down-pod-deletion-policy")
 	SettingNameAllowNodeDrainWithLastHealthyReplica         = SettingName("allow-node-drain-with-last-healthy-replica")
+	SettingNameNodeDrainPolicy                              = SettingName("node-drain-policy")
 	SettingNameMkfsExt4Parameters                           = SettingName("mkfs-ext4-parameters")
 	SettingNamePriorityClass                                = SettingName("priority-class")
 	SettingNameDisableRevisionCounter                       = SettingName("disable-revision-counter")
@@ -83,6 +84,7 @@ const (
 	SettingNameKubernetesClusterAutoscalerEnabled           = SettingName("kubernetes-cluster-autoscaler-enabled")
 	SettingNameOrphanAutoDeletion                           = SettingName("orphan-auto-deletion")
 	SettingNameStorageNetwork                               = SettingName("storage-network")
+	SettingNameFailedBackupTTL                              = SettingName("failed-backup-ttl")
 )
 
 var (
@@ -119,6 +121,7 @@ var (
 		SettingNameReplicaZoneSoftAntiAffinity,
 		SettingNameNodeDownPodDeletionPolicy,
 		SettingNameAllowNodeDrainWithLastHealthyReplica,
+		SettingNameNodeDrainPolicy,
 		SettingNameMkfsExt4Parameters,
 		SettingNamePriorityClass,
 		SettingNameDisableRevisionCounter,
@@ -136,6 +139,7 @@ var (
 		SettingNameKubernetesClusterAutoscalerEnabled,
 		SettingNameOrphanAutoDeletion,
 		SettingNameStorageNetwork,
+		SettingNameFailedBackupTTL,
 	}
 )
 
@@ -196,6 +200,7 @@ var (
 		SettingNameReplicaZoneSoftAntiAffinity:                  SettingDefinitionReplicaZoneSoftAntiAffinity,
 		SettingNameNodeDownPodDeletionPolicy:                    SettingDefinitionNodeDownPodDeletionPolicy,
 		SettingNameAllowNodeDrainWithLastHealthyReplica:         SettingDefinitionAllowNodeDrainWithLastHealthyReplica,
+		SettingNameNodeDrainPolicy:                              SettingDefinitionNodeDrainPolicy,
 		SettingNameMkfsExt4Parameters:                           SettingDefinitionMkfsExt4Parameters,
 		SettingNamePriorityClass:                                SettingDefinitionPriorityClass,
 		SettingNameDisableRevisionCounter:                       SettingDefinitionDisableRevisionCounter,
@@ -213,6 +218,7 @@ var (
 		SettingNameKubernetesClusterAutoscalerEnabled:           SettingDefinitionKubernetesClusterAutoscalerEnabled,
 		SettingNameOrphanAutoDeletion:                           SettingDefinitionOrphanAutoDeletion,
 		SettingNameStorageNetwork:                               SettingDefinitionStorageNetwork,
+		SettingNameFailedBackupTTL:                              SettingDefinitionFailedBackupTTL,
 	}
 
 	SettingDefinitionBackupTarget = SettingDefinition{
@@ -253,6 +259,19 @@ var (
 		Required:    true,
 		ReadOnly:    false,
 		Default:     "300",
+	}
+
+	SettingDefinitionFailedBackupTTL = SettingDefinition{
+		DisplayName: "Failed Backup Time to Live",
+		Description: "In minutes. This setting determines how long Longhorn will keep the backup resource that was failed. Set to 0 to disable the auto-deletion.\n" +
+			"Failed backups will be checked and cleaned up during backupstore polling which is controlled by **Backupstore Poll Interval** setting.\n" +
+			"Hence this value determines the minimal wait interval of the cleanup. And the actual cleanup interval is multiple of **Backupstore Poll Interval**.\n" +
+			"Disabling **Backupstore Poll Interval** also means to disable failed backup auto-deletion.\n\n",
+		Category: SettingCategoryBackup,
+		Type:     SettingTypeInt,
+		Required: true,
+		ReadOnly: false,
+		Default:  "1440",
 	}
 
 	SettingDefinitionCreateDefaultDiskLabeledNodes = SettingDefinition{
@@ -574,7 +593,7 @@ var (
 	}
 
 	SettingDefinitionAllowNodeDrainWithLastHealthyReplica = SettingDefinition{
-		DisplayName: "Allow Node Drain with the Last Healthy Replica",
+		DisplayName: "Allow Node Drain with the Last Healthy Replica (Deprecated)",
 		Description: "By default, Longhorn will block `kubectl drain` action on a node if the node contains the last healthy replica of a volume.\n\n" +
 			"If this setting is enabled, Longhorn will **not** block `kubectl drain` action on a node even if the node contains the last healthy replica of a volume.",
 		Category: SettingCategoryGeneral,
@@ -582,6 +601,24 @@ var (
 		Required: true,
 		ReadOnly: false,
 		Default:  "false",
+	}
+
+	SettingDefinitionNodeDrainPolicy = SettingDefinition{
+		DisplayName: "Node Drain Policy",
+		Description: "Define the policy to use when a node with the last healthy replica of a volume is drained. \n" +
+			"- **block-if-contains-last-replica** Longhorn will block the drain when the node contains the last healthy replica of a volume.\n" +
+			"- **allow-if-replica-is-stopped** Longhorn will allow the drain when the node contains the last healthy replica of a volume but the replica is stopped. WARNING: possible data loss if the node is removed after draining. Select this option if you want to drain the node and do in-place upgrade/maintenance.\n" +
+			"- **always-allow** Longhorn will allow the drain even though the node contains the last healthy replica of a volume. WARNING: possible data loss if the node is removed after draining. Also possible data corruption if the last replica was running during the draining.\n",
+		Category: SettingCategoryGeneral,
+		Type:     SettingTypeString,
+		Required: true,
+		ReadOnly: false,
+		Default:  string(NodeDrainPolicyBlockIfContainsLastReplica),
+		Choices: []string{
+			string(NodeDrainPolicyBlockIfContainsLastReplica),
+			string(NodeDrainPolicyAllowIfReplicaIsStopped),
+			string(NodeDrainPolicyAlwaysAllow),
+		},
 	}
 
 	SettingDefinitionMkfsExt4Parameters = SettingDefinition{
@@ -723,7 +760,7 @@ var (
 		DisplayName: "Guaranteed Engine Manager CPU",
 		Description: "This integer value indicates how many percentage of the total allocatable CPU on each node will be reserved for each engine manager Pod. For example, 10 means 10% of the total CPU on a node will be allocated to each engine manager pod on this node. This will help maintain engine stability during high node workload. \n\n" +
 			"In order to prevent unexpected volume engine crash as well as guarantee a relative acceptable IO performance, you can use the following formula to calculate a value for this setting: \n\n" +
-			"Guaranteed Engine Manager CPU = The estimated max Longhorn volume engine count on a node * 0.1 / The total allocatable CPUs on the node * 100. \n\n" +
+			"`Guaranteed Engine Manager CPU = The estimated max Longhorn volume engine count on a node * 0.1 / The total allocatable CPUs on the node * 100` \n\n" +
 			"The result of above calculation doesn't mean that's the maximum CPU resources the Longhorn workloads require. To fully exploit the Longhorn volume I/O performance, you can allocate/guarantee more CPU resources via this setting. \n\n" +
 			"If it's hard to estimate the usage now, you can leave it with the default value, which is 12%. Then you can tune it when there is no running workload using Longhorn volumes. \n\n" +
 			"WARNING: \n\n" +
@@ -743,7 +780,7 @@ var (
 		DisplayName: "Guaranteed Replica Manager CPU",
 		Description: "This integer value indicates how many percentage of the total allocatable CPU on each node will be reserved for each replica manager Pod. 10 means 10% of the total CPU on a node will be allocated to each replica manager pod on this node. This will help maintain replica stability during high node workload. \n\n" +
 			"In order to prevent unexpected volume replica crash as well as guarantee a relative acceptable IO performance, you can use the following formula to calculate a value for this setting: \n\n" +
-			"Guaranteed Replica Manager CPU = The estimated max Longhorn volume replica count on a node * 0.1 / The total allocatable CPUs on the node * 100. \n\n" +
+			"`Guaranteed Replica Manager CPU = The estimated max Longhorn volume replica count on a node * 0.1 / The total allocatable CPUs on the node * 100` \n\n" +
 			"The result of above calculation doesn't mean that's the maximum CPU resources the Longhorn workloads require. To fully exploit the Longhorn volume I/O performance, you can allocate/guarantee more CPU resources via this setting. \n\n" +
 			"If it's hard to estimate the usage now, you can leave it with the default value, which is 12%. Then you can tune it when there is no running workload using Longhorn volumes. \n\n" +
 			"WARNING: \n\n" +
@@ -808,6 +845,14 @@ const (
 	NodeDownPodDeletionPolicyDeleteStatefulSetPod                  = NodeDownPodDeletionPolicy("delete-statefulset-pod")
 	NodeDownPodDeletionPolicyDeleteDeploymentPod                   = NodeDownPodDeletionPolicy("delete-deployment-pod")
 	NodeDownPodDeletionPolicyDeleteBothStatefulsetAndDeploymentPod = NodeDownPodDeletionPolicy("delete-both-statefulset-and-deployment-pod")
+)
+
+type NodeWithLastHealthyReplicaDrainPolicy string
+
+const (
+	NodeDrainPolicyBlockIfContainsLastReplica = NodeWithLastHealthyReplicaDrainPolicy("block-if-contains-last-replica")
+	NodeDrainPolicyAllowIfReplicaIsStopped    = NodeWithLastHealthyReplicaDrainPolicy("allow-if-replica-is-stopped")
+	NodeDrainPolicyAlwaysAllow                = NodeWithLastHealthyReplicaDrainPolicy("always-allow")
 )
 
 type SystemManagedPodsImagePullPolicy string
@@ -929,6 +974,14 @@ func ValidateSetting(name, value string) (err error) {
 		if interval < 0 {
 			return fmt.Errorf("the value %v shouldn't be less than 0", value)
 		}
+	case SettingNameFailedBackupTTL:
+		interval, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("value is not int: %v", err)
+		}
+		if interval < 0 {
+			return fmt.Errorf("the value %v shouldn't be less than 0", value)
+		}
 	case SettingNameTaintToleration:
 		if _, err = UnmarshalTolerations(value); err != nil {
 			return fmt.Errorf("the value of %v is invalid: %v", sName, err)
@@ -946,6 +999,8 @@ func ValidateSetting(name, value string) (err error) {
 	case SettingNameNodeDownPodDeletionPolicy:
 		fallthrough
 	case SettingNameDefaultDataLocality:
+		fallthrough
+	case SettingNameNodeDrainPolicy:
 		fallthrough
 	case SettingNameSystemManagedPodsImagePullPolicy:
 		definition, _ := GetSettingDefinition(sName)
@@ -1063,7 +1118,7 @@ func ValidateAndUnmarshalToleration(s string) (*v1.Toleration, error) {
 
 	if strings.Contains(parts[0], "=") {
 		pair := strings.Split(parts[0], "=")
-		if len(parts) != 2 {
+		if len(pair) != 2 {
 			return nil, fmt.Errorf("invalid toleration setting %v: invalid key/value pair", parts[0])
 		}
 		toleration.Key = strings.Trim(pair[0], " ")

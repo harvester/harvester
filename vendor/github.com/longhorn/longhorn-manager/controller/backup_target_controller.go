@@ -162,7 +162,7 @@ func (btc *BackupTargetController) processNextWorkItem() bool {
 
 func (btc *BackupTargetController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync %v", btc.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync %v", btc.name, key)
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
