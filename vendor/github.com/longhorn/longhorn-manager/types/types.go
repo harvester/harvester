@@ -102,6 +102,7 @@ const (
 	LonghornLabelOrphan                   = "orphan"
 	LonghornLabelOrphanType               = "orphan-type"
 	LonghornLabelCRDAPIVersion            = "crd-api-version"
+	LonghornLabelVolumeAccessMode         = "volume-access-mode"
 
 	LonghornLabelValueEnabled = "enabled"
 
@@ -170,7 +171,8 @@ const (
 	// DefaultStaleReplicaTimeout in minutes. 48h by default
 	DefaultStaleReplicaTimeout = "2880"
 
-	ImageChecksumNameLength = 8
+	ImageChecksumNameLength             = 8
+	InstanceManagerSuffixChecksumLength = 32
 )
 
 type NotFoundError struct {
@@ -466,12 +468,13 @@ func ValidateEngineImageChecksumName(name string) bool {
 	return matched
 }
 
-func GetInstanceManagerName(imType longhorn.InstanceManagerType) (string, error) {
+func GetInstanceManagerName(imType longhorn.InstanceManagerType, nodeName, image string) (string, error) {
+	hashedSuffix := util.GetStringChecksum(nodeName + image)[:InstanceManagerSuffixChecksumLength]
 	switch imType {
 	case longhorn.InstanceManagerTypeEngine:
-		return engineManagerPrefix + util.RandomID(), nil
+		return engineManagerPrefix + hashedSuffix, nil
 	case longhorn.InstanceManagerTypeReplica:
-		return replicaManagerPrefix + util.RandomID(), nil
+		return replicaManagerPrefix + hashedSuffix, nil
 	}
 	return "", fmt.Errorf("cannot generate name for unknown instance manager type %v", imType)
 }

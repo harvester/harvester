@@ -177,7 +177,7 @@ func (oc *OrphanController) handleErr(err error, key interface{}) {
 
 func (oc *OrphanController) syncOrphan(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync orphan %v", oc.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync orphan %v", oc.name, key)
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)

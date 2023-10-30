@@ -264,7 +264,7 @@ func (sc *SnapshotController) handlerErr(err error, key interface{}) {
 
 func (sc *SnapshotController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync snapshot %v", sc.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync snapshot %v", sc.name, key)
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)

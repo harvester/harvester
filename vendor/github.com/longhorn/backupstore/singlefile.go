@@ -1,10 +1,10 @@
 package backupstore
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/longhorn/backupstore/util"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	. "github.com/longhorn/backupstore/logging"
@@ -117,7 +117,7 @@ func DeleteSingleFileBackup(backupURL string) error {
 
 	_, err = loadVolume(volumeName, driver)
 	if err != nil {
-		return fmt.Errorf("Cannot find volume %v in backupstore due to: %v", volumeName, err)
+		return errors.Wrapf(err, "cannot find volume %v in backupstore", volumeName)
 	}
 
 	backup, err := loadBackup(backupName, volumeName, driver)
@@ -129,9 +129,5 @@ func DeleteSingleFileBackup(backupURL string) error {
 		return err
 	}
 
-	if err := removeBackup(backup, driver); err != nil {
-		return err
-	}
-
-	return nil
+	return removeBackup(backup, driver)
 }

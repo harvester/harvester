@@ -51,11 +51,11 @@ type BackupInfo struct {
 
 func addListVolume(volumeName string, driver BackupStoreDriver, volumeOnly bool) (*VolumeInfo, error) {
 	if volumeName == "" {
-		return nil, fmt.Errorf("Invalid empty volume Name")
+		return nil, fmt.Errorf("invalid empty volume Name")
 	}
 
 	if !util.ValidateName(volumeName) {
-		return nil, fmt.Errorf("Invalid volume name %v", volumeName)
+		return nil, fmt.Errorf("invalid volume name %v", volumeName)
 	}
 
 	volumeInfo := &VolumeInfo{Messages: make(map[MessageType]string)}

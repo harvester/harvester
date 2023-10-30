@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/longhorn/backupstore/util"
+	"github.com/pkg/errors"
 )
 
 type Volume struct {
@@ -56,21 +57,20 @@ func addVolume(volume *Volume, driver BackupStoreDriver) error {
 	}
 
 	if !util.ValidateName(volume.Name) {
-		return fmt.Errorf("Invalid volume name %v", volume.Name)
+		return fmt.Errorf("invalid volume name %v", volume.Name)
 	}
 
 	if err := saveVolume(volume, driver); err != nil {
-		log.Error("Fail add volume ", volume.Name)
+		log.WithError(err).Errorf("Failed to add volume %v", volume.Name)
 		return err
 	}
-	log.Debug("Added backupstore volume ", volume.Name)
-
+	log.Infof("Added backupstore volume %v", volume.Name)
 	return nil
 }
 
 func removeVolume(volumeName string, driver BackupStoreDriver) error {
 	if !util.ValidateName(volumeName) {
-		return fmt.Errorf("Invalid volume name %v", volumeName)
+		return fmt.Errorf("invalid volume name %v", volumeName)
 	}
 
 	volumeDir := getVolumePath(volumeName)
@@ -78,20 +78,20 @@ func removeVolume(volumeName string, driver BackupStoreDriver) error {
 	volumeBackupsDirectory := getBackupPath(volumeName)
 	volumeLocksDirectory := getLockPath(volumeName)
 	if err := driver.Remove(volumeBackupsDirectory); err != nil {
-		return fmt.Errorf("failed to remove all the backups for volume %v: %v", volumeName, err)
+		return errors.Wrapf(err, "failed to remove all the backups for volume %v", volumeName)
 	}
 	if err := driver.Remove(volumeBlocksDirectory); err != nil {
-		return fmt.Errorf("failed to remove all the blocks for volume %v: %v", volumeName, err)
+		return errors.Wrapf(err, "failed to remove all the blocks for volume %v", volumeName)
 	}
 	if err := driver.Remove(volumeLocksDirectory); err != nil {
-		return fmt.Errorf("failed to remove all the locks for volume %v: %v", volumeName, err)
+		return errors.Wrapf(err, "failed to remove all the locks for volume %v", volumeName)
 	}
 	if err := driver.Remove(volumeDir); err != nil {
-		return fmt.Errorf("failed to remove backup volume %v directory in backupstore: %v", volumeName, err)
+		return errors.Wrapf(err, "failed to remove backup volume %v directory in backupstore", volumeName)
 	}
 
-	log.Debug("Removed volume directory in backupstore: ", volumeDir)
-	log.Debug("Removed backupstore volume ", volumeName)
+	log.Infof("Removed volume directory in backupstore %v", volumeDir)
+	log.Infof("Removed backupstore volume %v", volumeName)
 
 	return nil
 }
@@ -114,10 +114,10 @@ func DecodeBackupURL(backupURL string) (string, string, string, error) {
 	volumeName := v.Get("volume")
 	backupName := v.Get("backup")
 	if !util.ValidateName(volumeName) {
-		return "", "", "", fmt.Errorf("Invalid volume name parsed, got %v", volumeName)
+		return "", "", "", fmt.Errorf("invalid volume name parsed, got %v", volumeName)
 	}
 	if backupName != "" && !util.ValidateName(backupName) {
-		return "", "", "", fmt.Errorf("Invalid backup name parsed, got %v", backupName)
+		return "", "", "", fmt.Errorf("invalid backup name parsed, got %v", backupName)
 	}
 	u.RawQuery = ""
 	destURL := u.String()

@@ -180,7 +180,7 @@ func getLoggerForEngineImage(logger logrus.FieldLogger, ei *longhorn.EngineImage
 
 func (ic *EngineImageController) syncEngineImage(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync engine image for %v", key)
+		err = errors.Wrapf(err, "failed to sync engine image for %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -280,11 +280,11 @@ func (ic *EngineImageController) syncEngineImage(key string) (err error) {
 
 		dsSpec, err := ic.createEngineImageDaemonSetSpec(engineImage, tolerations, priorityClass, registrySecret, imagePullPolicy, nodeSelector)
 		if err != nil {
-			return errors.Wrapf(err, "fail to create daemonset spec for engine image %v", engineImage.Name)
+			return errors.Wrapf(err, "failed to create daemonset spec for engine image %v", engineImage.Name)
 		}
 
 		if err = ic.ds.CreateEngineImageDaemonSet(dsSpec); err != nil {
-			return errors.Wrapf(err, "fail to create daemonset for engine image %v", engineImage.Name)
+			return errors.Wrapf(err, "failed to create daemonset for engine image %v", engineImage.Name)
 		}
 		log.Infof("Created daemon set %v for engine image %v (%v)", dsSpec.Name, engineImage.Name, engineImage.Spec.Image)
 		engineImage.Status.Conditions = types.SetCondition(engineImage.Status.Conditions,
@@ -464,12 +464,13 @@ func limitAutomaticEngineUpgradePerNode(candidates, inProgress map[string][]*lon
 // and map of volumes that are upgrading engine image
 // A volume is qualified for engine image upgrading if it meets one of the following case:
 // Case 1:
-//   1. Volume is in detached state
-//   2. newEngineImageResource is deployed on the all volume's replicas' nodes
+//  1. Volume is in detached state
+//  2. newEngineImageResource is deployed on the all volume's replicas' nodes
+//
 // Case 2:
-//   1. Volume is not in engine upgrading process
-//   2. newEngineImageResource is deployed on attaching node and the all volume's replicas' nodes
-//   3. Volume is in attached state and it is able to do live upgrade
+//  1. Volume is not in engine upgrading process
+//  2. newEngineImageResource is deployed on attaching node and the all volume's replicas' nodes
+//  3. Volume is in attached state and it is able to do live upgrade
 func (ic *EngineImageController) getVolumesForEngineImageUpgrading(volumes map[string]*longhorn.Volume, newEngineImageResource *longhorn.EngineImage) (candidates, inProgress map[string][]*longhorn.Volume) {
 	candidates = make(map[string][]*longhorn.Volume)
 	inProgress = make(map[string][]*longhorn.Volume)
@@ -497,11 +498,11 @@ func (ic *EngineImageController) canDoOfflineEngineImageUpgrade(v *longhorn.Volu
 
 // canDoLiveEngineImageUpgrade check if it is possible to do live engine upgrade for a volume
 // A volume can do live engine upgrade when:
-//   1. Volume is attached AND
-//   2. Volume's robustness is healthy AND
-//   3. Volume is not a DR volume AND
-//   4. Volume is not expanding AND
-//   5. The current volume's engine image is compatible with the new engine image
+//  1. Volume is attached AND
+//  2. Volume's robustness is healthy AND
+//  3. Volume is not a DR volume AND
+//  4. Volume is not expanding AND
+//  5. The current volume's engine image is compatible with the new engine image
 func (ic *EngineImageController) canDoLiveEngineImageUpgrade(v *longhorn.Volume, newEngineImageResource *longhorn.EngineImage) bool {
 	if v.Status.State != longhorn.VolumeStateAttached {
 		return false
@@ -825,9 +826,24 @@ func (ic *EngineImageController) createEngineImageDaemonSetSpec(ei *longhorn.Eng
 										},
 									},
 								},
-								InitialDelaySeconds: 5,
+								InitialDelaySeconds: datastore.PodProbeInitialDelay,
 								TimeoutSeconds:      datastore.PodProbeTimeoutSeconds,
 								PeriodSeconds:       datastore.PodProbePeriodSeconds,
+								FailureThreshold:    datastore.PodLivenessProbeFailureThreshold,
+							},
+							LivenessProbe: &v1.Probe{
+								ProbeHandler: v1.ProbeHandler{
+									Exec: &v1.ExecAction{
+										Command: []string{
+											"sh", "-c",
+											"/data/longhorn version --client-only",
+										},
+									},
+								},
+								InitialDelaySeconds: datastore.PodProbeInitialDelay,
+								TimeoutSeconds:      datastore.PodProbeTimeoutSeconds,
+								PeriodSeconds:       datastore.PodProbePeriodSeconds,
+								FailureThreshold:    datastore.PodLivenessProbeFailureThreshold,
 							},
 							SecurityContext: &v1.SecurityContext{
 								Privileged: &privileged,

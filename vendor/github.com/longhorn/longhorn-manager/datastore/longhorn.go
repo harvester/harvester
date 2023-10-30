@@ -3,6 +3,7 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -29,7 +30,7 @@ const (
 	// NameMaximumLength restricted the length due to Kubernetes name limitation
 	NameMaximumLength = 40
 
-	MaxRecurringJobRetain = 50
+	MaxRecurringJobRetain = 100
 )
 
 var (
@@ -99,13 +100,34 @@ func (s *DataStore) filterCustomizedDefaultSettings(customizedDefaultSettings ma
 	availableCustomizedDefaultSettings := make(map[string]string)
 
 	for name, value := range customizedDefaultSettings {
-		if err := s.ValidateSetting(string(name), value); err == nil {
-			availableCustomizedDefaultSettings[name] = value
-		} else {
-			logrus.WithError(err).Errorf("invalid customized default setting %v with value %v, will continue applying other customized settings", name, value)
+		if !s.isSettingValueChanged(types.SettingName(name), value) {
+			continue
 		}
+
+		if err := s.ValidateSetting(string(name), value); err != nil {
+			logrus.WithError(err).Warnf("Invalid customized default setting %v with value %v, will continue applying other customized settings", name, value)
+			continue
+		}
+
+		availableCustomizedDefaultSettings[name] = value
 	}
 	return availableCustomizedDefaultSettings
+}
+
+// isSettingValueChanged check if the customized default setting and value was changed
+func (s *DataStore) isSettingValueChanged(name types.SettingName, value string) bool {
+	setting, err := s.GetSettingExact(name)
+	if err != nil {
+		if !ErrorIsNotFound(err) {
+			logrus.WithError(err).Errorf("failed to get customized default setting %v value", name)
+			return false
+		}
+		return true
+	}
+	if setting.Value == value {
+		return false
+	}
+	return true
 }
 
 func (s *DataStore) syncSettingsWithDefaultImages(defaultImages map[types.SettingName]string) error {
@@ -225,7 +247,7 @@ func (s *DataStore) UpdateSetting(setting *longhorn.Setting) (*longhorn.Setting,
 // ValidateSetting checks the given setting value types and condition
 func (s *DataStore) ValidateSetting(name, value string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to set the setting %v with invalid value %v", name, value)
+		err = errors.Wrapf(err, "failed to set the setting %v with invalid value %v", name, value)
 	}()
 	sName := types.SettingName(name)
 
@@ -500,34 +522,6 @@ func CheckVolume(v *longhorn.Volume) error {
 	return nil
 }
 
-func tagVolumeLabel(volumeName string, obj runtime.Object) error {
-	metadata, err := meta.Accessor(obj)
-	if err != nil {
-		return err
-	}
-
-	labels := metadata.GetLabels()
-	if labels == nil {
-		labels = map[string]string{}
-	}
-
-	for k, v := range types.GetVolumeLabels(volumeName) {
-		labels[k] = v
-	}
-	metadata.SetLabels(labels)
-	return nil
-}
-
-func fixupMetadata(volumeName string, obj runtime.Object) error {
-	if err := tagVolumeLabel(volumeName, obj); err != nil {
-		return err
-	}
-	if err := util.AddFinalizer(longhornFinalizerKey, obj); err != nil {
-		return err
-	}
-	return nil
-}
-
 func getVolumeSelector(volumeName string) (labels.Selector, error) {
 	return metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels: types.GetVolumeLabels(volumeName),
@@ -571,9 +565,6 @@ func GetOwnerReferencesForRecurringJob(recurringJob *longhorn.RecurringJob) []me
 
 // CreateVolume creates a Longhorn Volume resource and verifies creation
 func (s *DataStore) CreateVolume(v *longhorn.Volume) (*longhorn.Volume, error) {
-	if err := fixupMetadata(v.Name, v); err != nil {
-		return nil, err
-	}
 	if err := FixupRecurringJob(v); err != nil {
 		return nil, err
 	}
@@ -602,9 +593,6 @@ func (s *DataStore) CreateVolume(v *longhorn.Volume) (*longhorn.Volume, error) {
 
 // UpdateVolume updates Longhorn Volume and verifies update
 func (s *DataStore) UpdateVolume(v *longhorn.Volume) (*longhorn.Volume, error) {
-	if err := fixupMetadata(v.Name, v); err != nil {
-		return nil, err
-	}
 	if err := FixupRecurringJob(v); err != nil {
 		return nil, err
 	}
@@ -804,6 +792,32 @@ func (s *DataStore) ListVolumesByLabelSelector(selector labels.Selector) (map[st
 	return itemMap, nil
 }
 
+// ListVolumesByBackupVolumeRO returns an object contains all Volumes with the specified backup-volume label
+func (s *DataStore) ListVolumesByBackupVolumeRO(backupVolumeName string) (map[string]*longhorn.Volume, error) {
+	itemMap := make(map[string]*longhorn.Volume)
+
+	labels := map[string]string{
+		types.LonghornLabelBackupVolume: backupVolumeName,
+	}
+
+	selectors, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
+		MatchLabels: labels,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	list, err := s.ListVolumesBySelectorRO(selectors)
+	if err != nil {
+		return nil, err
+	}
+	for _, itemRO := range list {
+		itemMap[itemRO.Name] = itemRO
+	}
+
+	return itemMap, nil
+}
+
 func checkEngine(engine *longhorn.Engine) error {
 	if engine.Name == "" || engine.Spec.VolumeName == "" {
 		return fmt.Errorf("BUG: missing required field %+v", engine)
@@ -893,9 +907,6 @@ func (s *DataStore) CreateEngine(e *longhorn.Engine) (*longhorn.Engine, error) {
 	if err := checkEngine(e); err != nil {
 		return nil, err
 	}
-	if err := fixupMetadata(e.Spec.VolumeName, e); err != nil {
-		return nil, err
-	}
 	if err := tagNodeLabel(e.Spec.NodeID, e); err != nil {
 		return nil, err
 	}
@@ -925,9 +936,6 @@ func (s *DataStore) CreateEngine(e *longhorn.Engine) (*longhorn.Engine, error) {
 // UpdateEngine updates Longhorn Engine and verifies update
 func (s *DataStore) UpdateEngine(e *longhorn.Engine) (*longhorn.Engine, error) {
 	if err := checkEngine(e); err != nil {
-		return nil, err
-	}
-	if err := fixupMetadata(e.Spec.VolumeName, e); err != nil {
 		return nil, err
 	}
 	if err := tagNodeLabel(e.Spec.NodeID, e); err != nil {
@@ -1048,9 +1056,6 @@ func (s *DataStore) CreateReplica(r *longhorn.Replica) (*longhorn.Replica, error
 	if err := checkReplica(r); err != nil {
 		return nil, err
 	}
-	if err := fixupMetadata(r.Spec.VolumeName, r); err != nil {
-		return nil, err
-	}
 	if err := tagNodeLabel(r.Spec.NodeID, r); err != nil {
 		return nil, err
 	}
@@ -1086,9 +1091,6 @@ func (s *DataStore) CreateReplica(r *longhorn.Replica) (*longhorn.Replica, error
 // UpdateReplica updates Replica and verifies update
 func (s *DataStore) UpdateReplica(r *longhorn.Replica) (*longhorn.Replica, error) {
 	if err := checkReplica(r); err != nil {
-		return nil, err
-	}
-	if err := fixupMetadata(r.Spec.VolumeName, r); err != nil {
 		return nil, err
 	}
 	if err := tagNodeLabel(r.Spec.NodeID, r); err != nil {
@@ -2222,6 +2224,43 @@ func (s *DataStore) GetRandomReadyNode() (*longhorn.Node, error) {
 	return nil, fmt.Errorf("unable to get a ready node")
 }
 
+// GetRandomReadyNodeDisk a list of all Node the in the given namespace and
+// returns the first Node && the first Disk of the Node marked with condition ready and allow scheduling
+func (s *DataStore) GetRandomReadyNodeDisk() (*longhorn.Node, string, error) {
+	logrus.Debugf("Preparing to find a random ready node disk")
+	nodesRO, err := s.ListNodesRO()
+	if err != nil {
+		return nil, "", errors.Wrapf(err, "failed to get random ready node disk")
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(nodesRO), func(i, j int) { nodesRO[i], nodesRO[j] = nodesRO[j], nodesRO[i] })
+	for _, node := range nodesRO {
+		if !node.Spec.AllowScheduling {
+			continue
+		}
+		if types.GetCondition(node.Status.Conditions, longhorn.NodeConditionTypeSchedulable).Status != longhorn.ConditionStatusTrue {
+			continue
+		}
+		for diskName, diskStatus := range node.Status.DiskStatus {
+			diskSpec, exists := node.Spec.Disks[diskName]
+			if !exists {
+				continue
+			}
+			if !diskSpec.AllowScheduling {
+				continue
+			}
+			if types.GetCondition(diskStatus.Conditions, longhorn.DiskConditionTypeSchedulable).Status != longhorn.ConditionStatusTrue {
+				continue
+			}
+
+			return node.DeepCopy(), diskName, nil
+		}
+	}
+
+	return nil, "", fmt.Errorf("unable to get a ready node disk")
+}
+
 // RemoveFinalizerForNode will result in deletion if DeletionTimestamp was set
 func (s *DataStore) RemoveFinalizerForNode(obj *longhorn.Node) error {
 	if !util.FinalizerExists(longhornFinalizerKey, obj) {
@@ -2939,6 +2978,20 @@ func (s *DataStore) IsEngineImageCLIAPIVersionOne(imageName string) (bool, error
 	return false, nil
 }
 
+// IsEngineImageCLIAPIVersionEqualToOrLargerThan get engine image CLIAPIVersion for the given name.
+// Returns true if CLIAPIVersion is equal to or larger than minVersion
+func (s *DataStore) IsEngineImageCLIAPIVersionEqualToOrLargerThan(imageName string, minVersion int) (bool, error) {
+	version, err := s.GetEngineImageCLIAPIVersion(imageName)
+	if err != nil {
+		return false, err
+	}
+
+	if version >= minVersion {
+		return true, nil
+	}
+	return false, nil
+}
+
 // GetEngineImageCLIAPIVersion get engine image for the given name and returns the
 // CLIAPIVersion
 func (s *DataStore) GetEngineImageCLIAPIVersion(imageName string) (int, error) {
@@ -3598,11 +3651,11 @@ func (s *DataStore) DeleteRecurringJob(name string) error {
 }
 
 func ValidateRecurringJob(job longhorn.RecurringJobSpec) error {
-	if job.Cron == "" || job.Task == "" || job.Name == "" || job.Retain == 0 {
+	if job.Cron == "" || job.Task == "" || job.Name == "" {
 		return fmt.Errorf("invalid job %+v", job)
 	}
-	if job.Task != longhorn.RecurringJobTypeBackup && job.Task != longhorn.RecurringJobTypeSnapshot {
-		return fmt.Errorf("recurring job type %v is not valid", job.Task)
+	if !isValidRecurringJobTask(job.Task) {
+		return fmt.Errorf("recurring job task %v is not valid", job.Task)
 	}
 	if job.Concurrency == 0 {
 		job.Concurrency = types.DefaultRecurringJobConcurrency
@@ -3624,6 +3677,15 @@ func ValidateRecurringJob(job longhorn.RecurringJobSpec) error {
 		}
 	}
 	return nil
+}
+
+func isValidRecurringJobTask(task longhorn.RecurringJobType) bool {
+	return task == longhorn.RecurringJobTypeBackup ||
+		task == longhorn.RecurringJobTypeBackupForceCreate ||
+		task == longhorn.RecurringJobTypeSnapshot ||
+		task == longhorn.RecurringJobTypeSnapshotForceCreate ||
+		task == longhorn.RecurringJobTypeSnapshotCleanup ||
+		task == longhorn.RecurringJobTypeSnapshotDelete
 }
 
 func ValidateRecurringJobs(jobs []longhorn.RecurringJobSpec) error {

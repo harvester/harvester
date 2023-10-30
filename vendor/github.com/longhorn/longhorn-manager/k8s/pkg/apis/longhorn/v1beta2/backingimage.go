@@ -14,6 +14,7 @@ const (
 	BackingImageStateReady            = BackingImageState("ready")
 	BackingImageStateInProgress       = BackingImageState("in-progress")
 	BackingImageStateFailed           = BackingImageState("failed")
+	BackingImageStateFailedAndCleanUp = BackingImageState("failed-and-cleanup")
 	BackingImageStateUnknown          = BackingImageState("unknown")
 )
 

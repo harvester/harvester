@@ -186,7 +186,7 @@ func (bc *BackupController) handleErr(err error, key interface{}) {
 
 func (bc *BackupController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync backup %v", bc.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync backup %v", bc.name, key)
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -205,6 +205,30 @@ func getLoggerForBackup(logger logrus.FieldLogger, backup *longhorn.Backup) *log
 			"backup": backup.Name,
 		},
 	)
+}
+
+func (bc *BackupController) isBackupNotBeingUsedForVolumeRestore(backupName, backupVolumeName string) (bool, error) {
+	volumes, err := bc.ds.ListVolumesByBackupVolumeRO(backupVolumeName)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to list volumes for backup volume %v for checking restore status", backupVolumeName)
+	}
+	for _, v := range volumes {
+		if !v.Status.RestoreRequired {
+			continue
+		}
+		engines, err := bc.ds.ListVolumeEngines(v.Name)
+		if err != nil {
+			return false, errors.Wrapf(err, "failed to list engines for volume %v for checking restore status", v.Name)
+		}
+		for _, e := range engines {
+			for _, status := range e.Status.RestoreStatus {
+				if status.IsRestoring {
+					return false, errors.Wrapf(err, "backup %v cannot be deleted due to the ongoing volume %v restoration", backupName, v.Name)
+				}
+			}
+		}
+	}
+	return true, nil
 }
 
 func (bc *BackupController) reconcile(backupName string) (err error) {
@@ -278,6 +302,11 @@ func (bc *BackupController) reconcile(backupName string) (err error) {
 				return nil // Ignore error to prevent enqueue
 			}
 
+			if unused, err := bc.isBackupNotBeingUsedForVolumeRestore(backup.Name, backupVolumeName); !unused {
+				log.WithError(err).Warnf("Unable to delete remote backup")
+				return nil
+			}
+
 			backupURL := backupstore.EncodeBackupURL(backup.Name, backupVolumeName, backupTargetClient.URL)
 			if err := backupTargetClient.BackupDelete(backupURL, backupTargetClient.Credential); err != nil {
 				log.WithError(err).Error("Error deleting remote backup")
@@ -298,6 +327,10 @@ func (bc *BackupController) reconcile(backupName string) (err error) {
 
 		// Disable monitor regardless of backup state
 		bc.disableBackupMonitor(backup.Name)
+
+		if backup.Status.State == longhorn.BackupStateError || backup.Status.State == longhorn.BackupStateUnknown {
+			bc.eventRecorder.Eventf(backup, corev1.EventTypeWarning, string(backup.Status.State), "Failed backup %s has been deleted: %s", backup.Name, backup.Status.Error)
+		}
 
 		return bc.ds.RemoveFinalizerForBackup(backup)
 	}

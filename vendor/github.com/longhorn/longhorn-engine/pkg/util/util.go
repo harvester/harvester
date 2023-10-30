@@ -30,12 +30,14 @@ var (
 	MaximumVolumeNameSize = 64
 	validVolumeName       = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]+$`)
 
-	cmdTimeout = time.Minute // one minute by default
-
 	HostProc = "/host/proc"
 )
 
 const (
+	VolumeSectorSize       = 4096
+	ReplicaSectorSize      = 512
+	BackingImageSectorSize = 512
+
 	BlockSizeLinux = 512
 )
 
@@ -206,7 +208,7 @@ func Now() string {
 func GetFileActualSize(file string) int64 {
 	var st syscall.Stat_t
 	if err := syscall.Stat(file, &st); err != nil {
-		logrus.Errorf("Fail to get size of file %v: %v", file, err)
+		logrus.Errorf("Failed to get size of file %v: %v", file, err)
 		return -1
 	}
 	return st.Blocks * BlockSizeLinux
@@ -216,7 +218,7 @@ func GetHeadFileModifyTimeAndSize(file string) (int64, int64, error) {
 	var st syscall.Stat_t
 
 	if err := syscall.Stat(file, &st); err != nil {
-		logrus.Errorf("Fail to head file %v stat, err %v", file, err)
+		logrus.Errorf("Failed to head file %v stat, err %v", file, err)
 		return 0, 0, err
 	}
 

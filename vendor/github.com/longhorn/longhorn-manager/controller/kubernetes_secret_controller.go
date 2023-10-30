@@ -140,7 +140,7 @@ func (ks *KubernetesSecretController) handleErr(err error, key interface{}) {
 
 func (ks *KubernetesSecretController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: fail to sync %v", ks.name, key)
+		err = errors.Wrapf(err, "%v: failed to sync %v", ks.name, key)
 	}()
 
 	namespace, secretName, err := cache.SplitMetaNamespaceKey(key)

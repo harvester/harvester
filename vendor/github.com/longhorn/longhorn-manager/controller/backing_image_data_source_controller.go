@@ -275,6 +275,25 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSource(key string
 		if err := c.cleanup(bids); err != nil {
 			return err
 		}
+
+		// if it is not transferred, we need to wait until it is failed-and-cleanup
+		if !bids.Spec.FileTransferred {
+			if bids.Status.CurrentState == longhorn.BackingImageStateFailedAndCleanUp {
+				return c.ds.RemoveFinalizerForBackingImageDataSource(bids)
+			}
+
+			// if bids is not transferred
+			// mark the status to failed so manager can clean up the tmp file and mark it as failed-and-cleanup
+			bids.Status.Message = "backing image is deleted, requesting manager to clean up the tmp file of backing image data source"
+			bids.Status.CurrentState = longhorn.BackingImageStateFailed
+			if _, err = c.ds.UpdateBackingImageDataSourceStatus(bids); err != nil {
+				return err
+			}
+
+			return nil
+		}
+
+		// if it is transferred, we don't need to clean up
 		return c.ds.RemoveFinalizerForBackingImageDataSource(bids)
 	}
 
@@ -437,7 +456,8 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 	} else {
 		bids.Status.StorageIP = ""
 		bids.Status.IP = ""
-		if bids.Status.CurrentState != longhorn.BackingImageStateFailed {
+		if bids.Status.CurrentState != longhorn.BackingImageStateFailed &&
+			bids.Status.CurrentState != longhorn.BackingImageStateFailedAndCleanUp {
 			if podFailed {
 				podLog := ""
 				podLogBytes, err := c.ds.GetPodContainerLog(podName, BackingImageDataSourcePodContainerName)
@@ -471,7 +491,8 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 		}
 	}
 
-	if bids.Status.CurrentState == longhorn.BackingImageStateFailed {
+	if bids.Status.CurrentState == longhorn.BackingImageStateFailed ||
+		bids.Status.CurrentState == longhorn.BackingImageStateFailedAndCleanUp {
 		if err := c.cleanup(bids); err != nil {
 			return err
 		}
@@ -618,6 +639,7 @@ func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodMani
 						InitialDelaySeconds: datastore.PodProbeInitialDelay,
 						PeriodSeconds:       datastore.PodProbePeriodSeconds,
 						TimeoutSeconds:      datastore.PodProbeTimeoutSeconds,
+						FailureThreshold:    datastore.PodLivenessProbeFailureThreshold,
 					},
 					VolumeMounts: []v1.VolumeMount{
 						{
@@ -926,10 +948,10 @@ func (c *BackingImageDataSourceController) stopMonitoring(bidsName string) {
 		log.Warn("No monitor goroutine for stopping")
 		return
 	}
-	log.Infof("Stopping monitoring")
+	log.Info("Stopping monitoring")
 	close(stopCh)
 	delete(c.monitorMap, bidsName)
-	log.Infof("Stopped monitoring")
+	log.Info("Stopped monitoring")
 
 }
 
@@ -977,7 +999,7 @@ func (m *BackingImageDataSourceMonitor) sync() {
 		if syncErr != nil {
 			m.retryCount++
 			if m.retryCount == engineapi.MaxMonitorRetryCount {
-				close(m.stopCh)
+				m.stopCh <- struct{}{}
 				m.log.Warnf("Stop monitoring since monitor %v sync reaches the max retry count %v", m.Name, engineapi.MaxMonitorRetryCount)
 				return
 			}
@@ -990,7 +1012,7 @@ func (m *BackingImageDataSourceMonitor) sync() {
 	bids, err := m.ds.GetBackingImageDataSource(m.Name)
 	if err != nil {
 		if datastore.ErrorIsNotFound(err) {
-			close(m.stopCh)
+			m.stopCh <- struct{}{}
 			m.log.Warnf("Stop monitoring since backing image data source %v is not found", m.Name)
 			return
 		}
@@ -999,7 +1021,7 @@ func (m *BackingImageDataSourceMonitor) sync() {
 		return
 	}
 	if bids.Status.OwnerID != m.controllerID {
-		close(m.stopCh)
+		m.stopCh <- struct{}{}
 		m.log.Warnf("Stop monitoring since backing image data source %v owner %v is not the same as monitor current controller %v", m.Name, bids.Status.OwnerID, m.controllerID)
 		return
 	}

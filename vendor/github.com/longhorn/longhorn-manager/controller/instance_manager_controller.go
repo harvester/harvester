@@ -265,7 +265,7 @@ func getLoggerForInstanceManager(logger logrus.FieldLogger, im *longhorn.Instanc
 
 func (imc *InstanceManagerController) syncInstanceManager(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync instance manager for %v", key)
+		err = errors.Wrapf(err, "failed to sync instance manager for %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -526,7 +526,7 @@ func (imc *InstanceManagerController) syncInstanceManagerPDB(im *longhorn.Instan
 		return nil
 	}
 
-	unschedulable, err := imc.ds.IsKubeNodeUnschedulable(imc.controllerID)
+	unschedulable, err := imc.ds.IsKubeNodeUnschedulable(im.Spec.NodeID)
 	if err != nil {
 		return err
 	}
@@ -673,7 +673,7 @@ func (imc *InstanceManagerController) canDeleteInstanceManagerPDB(im *longhorn.I
 	// Must wait for all volumes detached from the current node first.
 	// This also means that we must wait until the PDB of engine instance manager
 	// on the current node is deleted
-	allVolumeDetached, err := imc.areAllVolumesDetachedFromCurrentNode()
+	allVolumeDetached, err := imc.areAllVolumesDetachedFromNode(im.Spec.NodeID)
 	if err != nil {
 		return false, err
 	}
@@ -681,6 +681,7 @@ func (imc *InstanceManagerController) canDeleteInstanceManagerPDB(im *longhorn.I
 		return false, nil
 	}
 
+	// TODO: this setting is deprecated and will be replaced by nodeDrainingPolicy in the future
 	allowDrainingNodeWithLastReplica, err := imc.ds.GetSettingAsBool(types.SettingNameAllowNodeDrainWithLastHealthyReplica)
 	if err != nil {
 		return false, err
@@ -689,7 +690,15 @@ func (imc *InstanceManagerController) canDeleteInstanceManagerPDB(im *longhorn.I
 		return true, nil
 	}
 
-	replicasOnCurrentNode, err := imc.ds.ListReplicasByNodeRO(imc.controllerID)
+	nodeDrainingPolicy, err := imc.ds.GetSettingValueExisted(types.SettingNameNodeDrainPolicy)
+	if err != nil {
+		return false, err
+	}
+	if nodeDrainingPolicy == string(types.NodeDrainPolicyAlwaysAllow) {
+		return true, nil
+	}
+
+	replicasOnCurrentNode, err := imc.ds.ListReplicasByNodeRO(im.Spec.NodeID)
 	if err != nil {
 		if datastore.ErrorIsNotFound(err) {
 			return true, nil
@@ -697,10 +706,21 @@ func (imc *InstanceManagerController) canDeleteInstanceManagerPDB(im *longhorn.I
 		return false, err
 	}
 
-	// For each replica process in the current node,
+	targetReplicas := []*longhorn.Replica{}
+	if nodeDrainingPolicy == string(types.NodeDrainPolicyAllowIfReplicaIsStopped) {
+		for _, replica := range replicasOnCurrentNode {
+			if replica.Spec.DesireState != longhorn.InstanceStateStopped || replica.Status.CurrentState != longhorn.InstanceStateStopped {
+				targetReplicas = append(targetReplicas, replica)
+			}
+		}
+	} else {
+		targetReplicas = replicasOnCurrentNode
+	}
+
+	// For each replica in the target replica list,
 	// find out whether there is a PDB protected healthy replica of the same
 	// volume on another schedulable node.
-	for _, replica := range replicasOnCurrentNode {
+	for _, replica := range targetReplicas {
 		vol, err := imc.ds.GetVolume(replica.Spec.VolumeName)
 		if err != nil {
 			return false, err
@@ -714,7 +734,7 @@ func (imc *InstanceManagerController) canDeleteInstanceManagerPDB(im *longhorn.I
 		hasPDBOnAnotherNode := false
 		isUnusedReplicaOnCurrentNode := false
 		for _, r := range replicas {
-			hasOtherHealthyReplicas := r.Spec.HealthyAt != "" && r.Spec.FailedAt == "" && r.Spec.NodeID != imc.controllerID
+			hasOtherHealthyReplicas := r.Spec.HealthyAt != "" && r.Spec.FailedAt == "" && r.Spec.NodeID != im.Spec.NodeID
 			if hasOtherHealthyReplicas {
 				unschedulable, err := imc.ds.IsKubeNodeUnschedulable(r.Spec.NodeID)
 				if err != nil {
@@ -747,7 +767,7 @@ func (imc *InstanceManagerController) canDeleteInstanceManagerPDB(im *longhorn.I
 			// Hence Longhorn doesn't need to block the PDB removal for the replica.
 			// This case typically happens on a newly created volume that hasn't been attached to any node.
 			// https://github.com/longhorn/longhorn/issues/2673
-			isUnusedReplicaOnCurrentNode = r.Spec.HealthyAt == "" && r.Spec.FailedAt == "" && r.Spec.NodeID == imc.controllerID
+			isUnusedReplicaOnCurrentNode = r.Spec.HealthyAt == "" && r.Spec.FailedAt == "" && r.Spec.NodeID == im.Spec.NodeID
 			if isUnusedReplicaOnCurrentNode {
 				break
 			}
@@ -779,16 +799,16 @@ func (imc *InstanceManagerController) getRunningReplicaInstancManager(r *longhor
 	return im, nil
 }
 
-func (imc *InstanceManagerController) areAllVolumesDetachedFromCurrentNode() (bool, error) {
-	detached, err := imc.areAllInstanceRemovedFromCurrentNodeByType(longhorn.InstanceManagerTypeEngine)
+func (imc *InstanceManagerController) areAllVolumesDetachedFromNode(nodeName string) (bool, error) {
+	detached, err := imc.areAllInstanceRemovedFromNodeByType(nodeName, longhorn.InstanceManagerTypeEngine)
 	if err != nil {
 		return false, err
 	}
 	return detached, nil
 }
 
-func (imc *InstanceManagerController) areAllInstanceRemovedFromCurrentNodeByType(imType longhorn.InstanceManagerType) (bool, error) {
-	ims, err := imc.ds.ListInstanceManagersByNode(imc.controllerID, imType)
+func (imc *InstanceManagerController) areAllInstanceRemovedFromNodeByType(nodeName string, imType longhorn.InstanceManagerType) (bool, error) {
+	ims, err := imc.ds.ListInstanceManagersByNode(nodeName, imType)
 	if err != nil {
 		if datastore.ErrorIsNotFound(err) {
 			return true, nil
@@ -826,7 +846,7 @@ func (imc *InstanceManagerController) generateInstanceManagerPDBManifest(im *lon
 		},
 		Spec: policyv1beta1.PodDisruptionBudgetSpec{
 			Selector: &metav1.LabelSelector{
-				MatchLabels: types.GetInstanceManagerLabels(imc.controllerID, im.Spec.Image, im.Spec.Type),
+				MatchLabels: types.GetInstanceManagerLabels(im.Spec.NodeID, im.Spec.Image, im.Spec.Type),
 			},
 			MinAvailable: &intstr.IntOrString{IntVal: 1},
 		},
@@ -1367,7 +1387,7 @@ func (m *InstanceManagerMonitor) pollAndUpdateInstanceMap() (needStop bool) {
 			m.logger.Info("stop monitoring because the instance manager no longer exists")
 			return true
 		}
-		utilruntime.HandleError(errors.Wrapf(err, "fail to get instance manager %v for monitoring", m.Name))
+		utilruntime.HandleError(errors.Wrapf(err, "failed to get instance manager %v for monitoring", m.Name))
 		return false
 	}
 

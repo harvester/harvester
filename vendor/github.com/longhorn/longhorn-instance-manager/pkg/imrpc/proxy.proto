@@ -188,6 +188,8 @@ message EngineReplicaAddRequest {
 
 	string replica_address = 2;
 	bool restore = 3;
+	int64 size = 4;
+	int64 currentSize = 5;
 }
 
 message EngineReplicaListProxyResponse {

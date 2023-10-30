@@ -13,7 +13,7 @@ import (
 const (
 	// CurrentCLIVersion indicates the default API version manager used to talk with the
 	// engine, including `longhorn-engine` and `longhorn-instance-manager`
-	CurrentCLIVersion = 5
+	CurrentCLIVersion = 6
 	// MinCLIVersion indicates the Min API version manager used to talk with the
 	// engine.
 	MinCLIVersion = 3

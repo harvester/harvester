@@ -257,7 +257,7 @@ func (rc *ReplicaController) UpdateReplicaEvictionStatus(replica *longhorn.Repli
 
 func (rc *ReplicaController) syncReplica(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "fail to sync replica for %v", key)
+		err = errors.Wrapf(err, "failed to sync replica for %v", key)
 	}()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {

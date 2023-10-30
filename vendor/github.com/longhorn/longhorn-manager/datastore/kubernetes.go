@@ -156,7 +156,7 @@ func (s *DataStore) CreateEngineImageDaemonSet(ds *appsv1.DaemonSet) error {
 	return nil
 }
 
-// GetEngineImageDaemonSet get DaemonSet for the given name and namspace, and
+// GetEngineImageDaemonSet get DaemonSet for the given name and namespace, and
 // returns a new DaemonSet object
 func (s *DataStore) GetEngineImageDaemonSet(name string) (*appsv1.DaemonSet, error) {
 	resultRO, err := s.dsLister.DaemonSets(s.namespace).Get(name)
@@ -252,7 +252,7 @@ func (s *DataStore) ListPodsRO(namespace string) ([]*corev1.Pod, error) {
 	return s.pLister.Pods(namespace).List(labels.Everything())
 }
 
-// GetPod returns a mutable Pod object for the given name and namspace
+// GetPod returns a mutable Pod object for the given name and namespace
 func (s *DataStore) GetPod(name string) (*corev1.Pod, error) {
 	resultRO, err := s.pLister.Pods(s.namespace).Get(name)
 	if err != nil {
@@ -741,4 +741,29 @@ func (s *DataStore) GetStorageIPFromPod(pod *corev1.Pod) string {
 
 	logrus.Warnf("Failed to get storage IP from %v pod, use IP %v", pod.Name, pod.Status.PodIP)
 	return pod.Status.PodIP
+}
+
+func (s *DataStore) UpdatePVAnnotation(volume *longhorn.Volume, annotationKey, annotationVal string) error {
+	pv, err := s.GetPersistentVolume(volume.Status.KubernetesStatus.PVName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	if pv.Annotations == nil {
+		pv.Annotations = map[string]string{}
+	}
+
+	val, ok := pv.Annotations[annotationKey]
+	if ok && val == annotationVal {
+		return nil
+	}
+
+	pv.Annotations[annotationKey] = annotationVal
+
+	_, err = s.UpdatePersistentVolume(pv)
+
+	return err
 }

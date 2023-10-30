@@ -68,7 +68,7 @@ func GetIPToHost() (string, error) {
 	if ip != "" {
 		return ip, nil
 	}
-	return "", fmt.Errorf("Cannot find IP connect to the host")
+	return "", fmt.Errorf("cannot find IP connect to the host")
 }
 
 type NamespaceExecutor struct {
@@ -86,13 +86,13 @@ func NewNamespaceExecutor(ns string) (*NamespaceExecutor, error) {
 	mntNS := filepath.Join(ns, "mnt")
 	netNS := filepath.Join(ns, "net")
 	if _, err := Execute(NSBinary, []string{"-V"}); err != nil {
-		return nil, fmt.Errorf("Cannot find nsenter for namespace switching")
+		return nil, fmt.Errorf("cannot find nsenter for namespace switching")
 	}
 	if _, err := Execute(NSBinary, []string{"--mount=" + mntNS, "mount"}); err != nil {
-		return nil, fmt.Errorf("Invalid mount namespace %v, error %v", mntNS, err)
+		return nil, fmt.Errorf("invalid mount namespace %v, error %v", mntNS, err)
 	}
 	if _, err := Execute(NSBinary, []string{"--net=" + netNS, "ip", "addr"}); err != nil {
-		return nil, fmt.Errorf("Invalid net namespace %v, error %v", netNS, err)
+		return nil, fmt.Errorf("invalid net namespace %v, error %v", netNS, err)
 	}
 	return ne, nil
 }
@@ -154,12 +154,12 @@ func ExecuteWithTimeout(timeout time.Duration, binary string, args []string) (st
 			}
 
 		}
-		return "", fmt.Errorf("Timeout executing: %v %v, output %s, stderr, %s, error %w",
+		return "", fmt.Errorf("timeout executing: %v %v, output %s, stderr, %s, error %w",
 			binary, args, output.String(), stderr.String(), err)
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %w",
+		return "", fmt.Errorf("failed to execute: %v %v, output %s, stderr, %s, error %w",
 			binary, args, output.String(), stderr.String(), err)
 	}
 	return output.String(), nil
@@ -176,7 +176,7 @@ func ExecuteWithoutTimeout(binary string, args []string) (string, error) {
 	cmd.Stderr = &stderr
 
 	if err = cmd.Run(); err != nil {
-		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %w",
+		return "", fmt.Errorf("failed to execute: %v %v, output %s, stderr, %s, error %w",
 			binary, args, output.String(), stderr.String(), err)
 	}
 	return output.String(), nil
@@ -228,12 +228,12 @@ func ExecuteWithStdin(binary string, args []string, stdinString string) (string,
 			}
 
 		}
-		return "", fmt.Errorf("Timeout executing: %v %v, output %s, stderr, %s, error %w",
+		return "", fmt.Errorf("timeout executing: %v %v, output %s, stderr, %s, error %w",
 			binary, args, output.String(), stderr.String(), err)
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("Failed to execute: %v %v, output %s, stderr, %s, error %w",
+		return "", fmt.Errorf("failed to execute: %v %v, output %s, stderr, %s, error %w",
 			binary, args, output.String(), stderr.String(), err)
 	}
 	return output.String(), nil
@@ -246,7 +246,7 @@ func RemoveFile(file string) error {
 	}
 
 	if err := remove(file); err != nil {
-		return fmt.Errorf("fail to remove file %v: %w", file, err)
+		return fmt.Errorf("failed to remove file %v: %w", file, err)
 	}
 
 	return nil
@@ -255,7 +255,7 @@ func RemoveFile(file string) error {
 func RemoveDevice(dev string) error {
 	if _, err := os.Stat(dev); err == nil {
 		if err := remove(dev); err != nil {
-			return fmt.Errorf("Failed to removing device %s, %w", dev, err)
+			return fmt.Errorf("failed to removing device %s, %w", dev, err)
 		}
 	}
 	return nil
@@ -293,7 +293,7 @@ func GetKnownDevices(ne *NamespaceExecutor) (map[string]*KernelDevice, error) {
 				Name: f[0],
 			}
 			if _, err := fmt.Sscanf(f[1], "%d:%d", &dev.Major, &dev.Minor); err != nil {
-				return nil, fmt.Errorf("Invalid major:minor %s for device %s", dev.Name, f[1])
+				return nil, fmt.Errorf("invalid major:minor %s for device %s", dev.Name, f[1])
 			}
 			knownDevices[dev.Name] = dev
 		}
@@ -304,10 +304,10 @@ func GetKnownDevices(ne *NamespaceExecutor) (map[string]*KernelDevice, error) {
 
 func DuplicateDevice(dev *KernelDevice, dest string) error {
 	if err := mknod(dest, dev.Major, dev.Minor); err != nil {
-		return fmt.Errorf("Cannot create device node %s for device %s", dest, dev.Name)
+		return fmt.Errorf("cannot create device node %s for device %s", dest, dev.Name)
 	}
 	if err := os.Chmod(dest, 0660); err != nil {
-		return fmt.Errorf("Couldn't change permission of the device %s: %w", dest, err)
+		return fmt.Errorf("couldn't change permission of the device %s: %w", dest, err)
 	}
 	return nil
 }

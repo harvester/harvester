@@ -239,6 +239,10 @@ func (v *Volume) ConvertTo(dst conversion.Hub) error {
 			return err
 		}
 
+		if v.Spec.DataLocality == "" {
+			vV1beta2.Spec.DataLocality = v1beta2.DataLocality(DataLocalityDisabled)
+		}
+
 		// Copy status.conditions from map to slice
 		dstConditions, err := copyConditionsFromMapToSlice(v.Status.Conditions)
 		if err != nil {
