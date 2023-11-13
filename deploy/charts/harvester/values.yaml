@@ -27,7 +27,7 @@ kubevirt-operator:
     operator:
       image:
         repository: registry.suse.com/suse/sles/15.4/virt-operator
-        tag: &kubevirtVersion 0.54.0-150400.3.19.1
+        tag: &kubevirtVersion 0.54.0-150400.3.23.1
     ## The following images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
