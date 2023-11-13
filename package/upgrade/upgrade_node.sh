@@ -524,14 +524,21 @@ upgrade_os() {
   # stuck on the grub file search for about 30 minutes, this can be
   # mitigated by adding the `grubenv` file.
   #
-  # PATCH: add /oem/grubenv if it does not exist on upgrade_path
-  GRUBENV_FILE="/oem/grubenv"
-  chroot $HOST_DIR /bin/bash -c "if ! [ -f ${GRUBENV_FILE} ]; then grub2-editenv ${GRUBENV_FILE} create; fi"
+  # PATCH 1: add /oem/grubenv if it does not exist on upgrade_path
+  # PATCH 2: add /oem/grubcustom if it does not exist on upgrade_path
+  patch_grub_files "/oem/grubenv"
+  patch_grub_files "/oem/grubcustom" 
 
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
   reboot_if_job_succeed
+}
+
+patch_grub_files()
+{
+  local TARGET_FILE=$1
+  chroot $HOST_DIR /bin/bash -c "if ! [ -f ${TARGET_FILE} ]; then grub2-editenv ${TARGET_FILE} create; fi"
 }
 
 start_repo_vm() {
