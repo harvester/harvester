@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	lhcontroller "github.com/longhorn/longhorn-manager/controller"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhmanager "github.com/longhorn/longhorn-manager/manager"
 	"github.com/longhorn/longhorn-manager/types"
@@ -190,7 +189,7 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 			return fmt.Errorf("failed to get pvc %s/%s, error: %s", image.Spec.PVCName, image.Namespace, err.Error())
 		}
 
-		bi.Spec.SourceParameters[lhcontroller.DataSourceTypeExportFromVolumeParameterVolumeName] = pvc.Spec.VolumeName
+		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeExportFromVolumeParameterVolumeName] = pvc.Spec.VolumeName
 		bi.Spec.SourceParameters[lhmanager.DataSourceTypeExportFromVolumeParameterExportType] = lhmanager.DataSourceTypeExportFromVolumeParameterExportTypeRAW
 	}
 
