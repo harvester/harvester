@@ -67,7 +67,7 @@ func (m *VolumeManager) CreateEngineImage(image string) (*longhorn.EngineImage, 
 	if err != nil {
 		return nil, err
 	}
-	logrus.Debugf("Created engine image %v (%v)", ei.Name, ei.Spec.Image)
+	logrus.Infof("Created engine image %v (%v)", ei.Name, ei.Spec.Image)
 	return ei, nil
 }
 
@@ -92,7 +92,7 @@ func (m *VolumeManager) DeleteEngineImageByName(name string) error {
 	if err := m.ds.DeleteEngineImage(name); err != nil {
 		return err
 	}
-	logrus.Debugf("Deleted engine image %v (%v)", ei.Name, ei.Spec.Image)
+	logrus.Infof("Deleted engine image %v (%v)", ei.Name, ei.Spec.Image)
 	return nil
 }
 

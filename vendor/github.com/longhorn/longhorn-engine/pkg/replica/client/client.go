@@ -513,7 +513,8 @@ func (c *ReplicaClient) SyncFiles(fromAddress string, list []types.SyncFileInfo,
 	return nil
 }
 
-func (c *ReplicaClient) CreateBackup(backupName, snapshot, dest, volume, backingImageName, backingImageChecksum string, labels []string, credential map[string]string) (*ptypes.BackupCreateResponse, error) {
+func (c *ReplicaClient) CreateBackup(backupName, snapshot, dest, volume, backingImageName, backingImageChecksum,
+	compressionMethod string, concurrentLimit int, storageClassName string, labels []string, credential map[string]string) (*ptypes.BackupCreateResponse, error) {
 	syncAgentServiceClient, err := c.getSyncServiceClient()
 	if err != nil {
 		return nil, err
@@ -527,6 +528,9 @@ func (c *ReplicaClient) CreateBackup(backupName, snapshot, dest, volume, backing
 		VolumeName:           volume,
 		BackingImageName:     backingImageName,
 		BackingImageChecksum: backingImageChecksum,
+		CompressionMethod:    compressionMethod,
+		ConcurrentLimit:      int32(concurrentLimit),
+		StorageClassName:     storageClassName,
 		Labels:               labels,
 		Credential:           credential,
 		BackupName:           backupName,
@@ -574,7 +578,7 @@ func (c *ReplicaClient) RmBackup(backup string) error {
 	return nil
 }
 
-func (c *ReplicaClient) RestoreBackup(backup, snapshotDiskName string, credential map[string]string) error {
+func (c *ReplicaClient) RestoreBackup(backup, snapshotDiskName string, credential map[string]string, concurrentLimit int) error {
 	syncAgentServiceClient, err := c.getSyncServiceClient()
 	if err != nil {
 		return err
@@ -586,6 +590,7 @@ func (c *ReplicaClient) RestoreBackup(backup, snapshotDiskName string, credentia
 		Backup:           backup,
 		SnapshotDiskName: snapshotDiskName,
 		Credential:       credential,
+		ConcurrentLimit:  int32(concurrentLimit),
 	}); err != nil {
 		return errors.Wrapf(err, "failed to restore backup data %v to snapshot file %v", backup, snapshotDiskName)
 	}

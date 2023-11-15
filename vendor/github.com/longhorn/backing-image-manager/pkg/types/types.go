@@ -22,7 +22,8 @@ const (
 	GRPCServiceTimeout = 1 * time.Minute
 	HTTPTimeout        = 4 * time.Second
 	MonitorInterval    = 3 * time.Second
-	FileSyncTimeout    = 120
+
+	FileSyncHTTPClientTimeout = 5 // TODO: use 5 seconds as default, need to refactor it
 
 	SendingLimit = 3
 
@@ -38,6 +39,7 @@ const (
 	StateStarting         = State("starting")
 	StateInProgress       = State("in-progress")
 	StateFailed           = State("failed")
+	StateFailedAndCleanUp = State("failed-and-cleanup")
 	StateUnknown          = State("unknown")
 	StateReady            = State("ready")
 	StateReadyForTransfer = State("ready-for-transfer")

@@ -1,21 +1,30 @@
 package client
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
 
-	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
+	"github.com/pkg/errors"
 
 	etypes "github.com/longhorn/longhorn-engine/pkg/types"
 	eptypes "github.com/longhorn/longhorn-engine/proto/ptypes"
+
+	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
-func (c *ProxyClient) ReplicaAdd(serviceAddress, replicaAddress string, restore bool, size, currentSize int64, fileSyncHTTPClientTimeout int, fastSync bool) (err error) {
+func (c *ProxyClient) ReplicaAdd(backendStoreDriver, engineName, serviceAddress, replicaName, replicaAddress string, restore bool, size, currentSize int64, fileSyncHTTPClientTimeout int, fastSync bool) (err error) {
 	input := map[string]string{
 		"serviceAddress": serviceAddress,
+		"engineName":     engineName,
+		"replicaName":    replicaName,
 		"replicaAddress": replicaAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return errors.Wrap(err, "failed to add replica for volume")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return fmt.Errorf("failed to add replica for volume: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -28,8 +37,11 @@ func (c *ProxyClient) ReplicaAdd(serviceAddress, replicaAddress string, restore 
 
 	req := &rpc.EngineReplicaAddRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
+		ReplicaName:               replicaName,
 		ReplicaAddress:            replicaAddress,
 		Restore:                   restore,
 		Size:                      size,
@@ -45,12 +57,18 @@ func (c *ProxyClient) ReplicaAdd(serviceAddress, replicaAddress string, restore 
 	return nil
 }
 
-func (c *ProxyClient) ReplicaList(serviceAddress string) (rInfoList []*etypes.ControllerReplicaInfo, err error) {
+func (c *ProxyClient) ReplicaList(backendStoreDriver, engineName, serviceAddress string) (rInfoList []*etypes.ControllerReplicaInfo, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return nil, errors.Wrap(err, "failed to list replicas for volume")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return nil, fmt.Errorf("failed to list replicas for volume: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -58,7 +76,9 @@ func (c *ProxyClient) ReplicaList(serviceAddress string) (rInfoList []*etypes.Co
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address: serviceAddress,
+		Address:            serviceAddress,
+		EngineName:         engineName,
+		BackendStoreDriver: rpc.BackendStoreDriver(driver),
 	}
 	resp, err := c.service.ReplicaList(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -75,12 +95,18 @@ func (c *ProxyClient) ReplicaList(serviceAddress string) (rInfoList []*etypes.Co
 	return rInfoList, nil
 }
 
-func (c *ProxyClient) ReplicaRebuildingStatus(serviceAddress string) (status map[string]*ReplicaRebuildStatus, err error) {
+func (c *ProxyClient) ReplicaRebuildingStatus(backendStoreDriver, engineName, serviceAddress string) (status map[string]*ReplicaRebuildStatus, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return nil, errors.Wrap(err, "failed to get replicas rebuilding status")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return nil, fmt.Errorf("failed to get replicas rebuilding status: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -88,7 +114,9 @@ func (c *ProxyClient) ReplicaRebuildingStatus(serviceAddress string) (status map
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address: serviceAddress,
+		Address:            serviceAddress,
+		EngineName:         engineName,
+		BackendStoreDriver: rpc.BackendStoreDriver(driver),
 	}
 	recv, err := c.service.ReplicaRebuildingStatus(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -108,7 +136,7 @@ func (c *ProxyClient) ReplicaRebuildingStatus(serviceAddress string) (status map
 	return status, nil
 }
 
-func (c *ProxyClient) ReplicaVerifyRebuild(serviceAddress, replicaAddress string) (err error) {
+func (c *ProxyClient) ReplicaVerifyRebuild(backendStoreDriver, serviceAddress, replicaAddress string) (err error) {
 	input := map[string]string{
 		"serviceAddress": serviceAddress,
 		"replicaAddress": replicaAddress,
@@ -117,13 +145,19 @@ func (c *ProxyClient) ReplicaVerifyRebuild(serviceAddress, replicaAddress string
 		return errors.Wrap(err, "failed to verify replica rebuild")
 	}
 
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return fmt.Errorf("failed to verify replica rebuild: invalid backend store driver %v", backendStoreDriver)
+	}
+
 	defer func() {
 		err = errors.Wrapf(err, "%v failed to verify replica %v rebuild", c.getProxyErrorPrefix(serviceAddress), replicaAddress)
 	}()
 
 	req := &rpc.EngineReplicaVerifyRebuildRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		ReplicaAddress: replicaAddress,
 	}
@@ -135,13 +169,19 @@ func (c *ProxyClient) ReplicaVerifyRebuild(serviceAddress, replicaAddress string
 	return nil
 }
 
-func (c *ProxyClient) ReplicaRemove(serviceAddress, replicaAddress string) (err error) {
+func (c *ProxyClient) ReplicaRemove(backendStoreDriver, serviceAddress, engineName, replicaAddress, replicaName string) (err error) {
 	input := map[string]string{
 		"serviceAddress": serviceAddress,
+		"engineName":     engineName,
 		"replicaAddress": replicaAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return errors.Wrap(err, "failed to remove replica for volume")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return fmt.Errorf("failed to remove replica for volume: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -150,9 +190,12 @@ func (c *ProxyClient) ReplicaRemove(serviceAddress, replicaAddress string) (err 
 
 	req := &rpc.EngineReplicaRemoveRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		ReplicaAddress: replicaAddress,
+		ReplicaName:    replicaName,
 	}
 	_, err = c.service.ReplicaRemove(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -162,7 +205,7 @@ func (c *ProxyClient) ReplicaRemove(serviceAddress, replicaAddress string) (err 
 	return nil
 }
 
-func (c *ProxyClient) ReplicaModeUpdate(serviceAddress, replicaAddress string, mode string) (err error) {
+func (c *ProxyClient) ReplicaModeUpdate(backendStoreDriver, serviceAddress, replicaAddress string, mode string) (err error) {
 	input := map[string]string{
 		"serviceAddress": serviceAddress,
 		"replicaAddress": replicaAddress,
@@ -171,13 +214,19 @@ func (c *ProxyClient) ReplicaModeUpdate(serviceAddress, replicaAddress string, m
 		return errors.Wrap(err, "failed to remove replica for volume")
 	}
 
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return fmt.Errorf("failed to remove replica for volume: invalid backend store driver %v", backendStoreDriver)
+	}
+
 	defer func() {
 		err = errors.Wrapf(err, "%v failed to update replica %v mode for volume", c.getProxyErrorPrefix(serviceAddress), replicaAddress)
 	}()
 
 	req := &rpc.EngineReplicaModeUpdateRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		ReplicaAddress: replicaAddress,
 		Mode:           eptypes.ReplicaModeToGRPCReplicaMode(etypes.Mode(mode)),

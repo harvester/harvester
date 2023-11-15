@@ -1,7 +1,6 @@
 package util
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -262,36 +261,6 @@ func CheckBackupType(backupTarget string) (string, error) {
 	}
 
 	return u.Scheme, nil
-}
-
-func GetBackupCredential(backupURL string) (map[string]string, error) {
-	credential := map[string]string{}
-	backupType, err := CheckBackupType(backupURL)
-	if err != nil {
-		return nil, err
-	}
-	if backupType == "s3" {
-		accessKey := os.Getenv(types.AWSAccessKey)
-		secretKey := os.Getenv(types.AWSSecretKey)
-		if accessKey == "" && secretKey != "" {
-			return nil, errors.New("could not backup to s3 without setting credential access key")
-		}
-		if accessKey != "" && secretKey == "" {
-			return nil, errors.New("could not backup to s3 without setting credential secret access key")
-		}
-		if accessKey != "" && secretKey != "" {
-			credential[types.AWSAccessKey] = accessKey
-			credential[types.AWSSecretKey] = secretKey
-		}
-
-		credential[types.AWSEndPoint] = os.Getenv(types.AWSEndPoint)
-		credential[types.AWSCert] = os.Getenv(types.AWSCert)
-		credential[types.HTTPSProxy] = os.Getenv(types.HTTPSProxy)
-		credential[types.HTTPProxy] = os.Getenv(types.HTTPProxy)
-		credential[types.NOProxy] = os.Getenv(types.NOProxy)
-		credential[types.VirtualHostedStyle] = os.Getenv(types.VirtualHostedStyle)
-	}
-	return credential, nil
 }
 
 func ResolveBackingFilepath(fileOrDirpath string) (string, error) {

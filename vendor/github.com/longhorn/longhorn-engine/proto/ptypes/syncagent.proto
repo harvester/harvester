@@ -90,6 +90,9 @@ message BackupCreateRequest {
   string backing_image_name = 6;
   string backing_image_checksum = 7;
   string backup_name = 8;
+  string compression_method = 9;
+  int32 concurrent_limit = 10;
+  string storage_class_name = 11;
 }
 
 message BackupCreateResponse {
@@ -117,6 +120,7 @@ message BackupRestoreRequest {
   string backup = 1;
   string snapshot_disk_name = 2;
   map<string, string> credential = 3;
+  int32 concurrent_limit = 4;
 }
 
 message BackupRestoreIncrementallyRequest {
@@ -125,6 +129,7 @@ message BackupRestoreIncrementallyRequest {
   string last_restored_backup_name = 3;
   string snapshot_disk_name = 4;
   map<string, string> credential = 5;
+  int32 concurrent_limit = 6;
 }
 
 message RestoreStatusResponse {

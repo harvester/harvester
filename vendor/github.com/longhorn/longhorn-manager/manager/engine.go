@@ -2,7 +2,6 @@ package manager
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -12,9 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/longhorn/longhorn-manager/engineapi"
-	"github.com/longhorn/longhorn-manager/util"
-
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/longhorn/longhorn-manager/util"
 )
 
 const (
@@ -83,10 +81,8 @@ func (m *VolumeManager) CreateSnapshot(snapshotName string, labels map[string]st
 		return nil, fmt.Errorf("volume name required")
 	}
 
-	for k, v := range labels {
-		if strings.Contains(k, "=") || strings.Contains(v, "=") {
-			return nil, fmt.Errorf("labels cannot contain '='")
-		}
+	if err := util.VerifySnapshotLabels(labels); err != nil {
+		return nil, err
 	}
 
 	if err := m.checkVolumeNotInMigration(volumeName); err != nil {
@@ -123,7 +119,7 @@ func (m *VolumeManager) CreateSnapshot(snapshotName string, labels map[string]st
 		return nil, fmt.Errorf("cannot found just created snapshot '%s', for volume '%s'", snapshotName, volumeName)
 	}
 
-	logrus.Debugf("Created snapshot %v with labels %+v for volume %v", snapshotName, labels, volumeName)
+	logrus.Infof("Created snapshot %v with labels %+v for volume %v", snapshotName, labels, volumeName)
 	return snap, nil
 }
 
@@ -156,7 +152,7 @@ func (m *VolumeManager) DeleteSnapshot(snapshotName, volumeName string) error {
 		return err
 	}
 
-	logrus.Debugf("Deleted snapshot %v for volume %v", snapshotName, volumeName)
+	logrus.Infof("Deleted snapshot %v for volume %v", snapshotName, volumeName)
 	return nil
 }
 
@@ -202,7 +198,7 @@ func (m *VolumeManager) RevertSnapshot(snapshotName, volumeName string) error {
 		return err
 	}
 
-	logrus.Debugf("Revert to snapshot %v for volume %v", snapshotName, volumeName)
+	logrus.Infof("Reverted to snapshot %v for volume %v", snapshotName, volumeName)
 	return nil
 }
 
@@ -235,7 +231,7 @@ func (m *VolumeManager) PurgeSnapshot(volumeName string) error {
 		return err
 	}
 
-	logrus.Debugf("Started snapshot purge for volume %v", volumeName)
+	logrus.Infof("Started snapshot purge for volume %v", volumeName)
 	return nil
 }
 

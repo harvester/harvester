@@ -83,7 +83,7 @@ func (e *EngineBinary) SnapshotPurge(*longhorn.Engine) error {
 	if _, err := e.ExecuteEngineBinaryWithoutTimeout([]string{}, "snapshot", "purge", "--skip-if-in-progress"); err != nil {
 		return errors.Wrapf(err, "error starting snapshot purge")
 	}
-	logrus.Debugf("Volume %v snapshot purge started", e.Name())
+	logrus.Infof("Volume %v snapshot purge started", e.Name())
 	return nil
 }
 
@@ -110,7 +110,7 @@ func (e *EngineBinary) SnapshotClone(engine *longhorn.Engine, snapshotName, from
 	if _, err := e.ExecuteEngineBinaryWithoutTimeout([]string{}, args...); err != nil {
 		return errors.Wrapf(err, "error starting snapshot clone")
 	}
-	logrus.Debugf("Cloned snapshot %v from volume %v to volume %v", snapshotName, fromControllerAddress, e.cURL)
+	logrus.Infof("Cloned snapshot %v from volume %v to volume %v", snapshotName, fromControllerAddress, e.cURL)
 	return nil
 }
 
@@ -144,7 +144,7 @@ func (e *EngineBinary) SnapshotHash(engine *longhorn.Engine, snapshotName string
 		return errors.Wrapf(err, "error starting hashing snapshot")
 	}
 
-	logrus.Debugf("Volume %v snapshot hashing started", e.Name())
+	logrus.Infof("Volume %v snapshot hashing started", e.Name())
 	return nil
 }
 

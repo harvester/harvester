@@ -30,6 +30,8 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v2"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -42,7 +44,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/version"
 	clientset "k8s.io/client-go/kubernetes"
 
-	iscsi_util "github.com/longhorn/go-iscsi-helper/util"
+	iscsiutil "github.com/longhorn/go-iscsi-helper/util"
 )
 
 const (
@@ -85,11 +87,11 @@ type MetadataConfig struct {
 }
 
 type DiskStat struct {
-	Fsid             string
+	DiskID           string
 	Path             string
 	Type             string
-	FreeBlock        int64
-	TotalBlock       int64
+	FreeBlocks       int64
+	TotalBlocks      int64
 	BlockSize        int64
 	StorageMaximum   int64
 	StorageAvailable int64
@@ -112,6 +114,19 @@ func ConvertSize(size interface{}) (int64, error) {
 		return quantity.Value(), nil
 	}
 	return 0, errors.Errorf("could not parse size '%v'", size)
+}
+
+func ConvertToCamel(input, separator string) string {
+	words := strings.Split(input, separator)
+	caser := cases.Title(language.English)
+	for i := 0; i < len(words); i++ {
+		words[i] = caser.String(words[i])
+	}
+	return strings.Join(words, "")
+}
+
+func ConvertFirstCharToLower(input string) string {
+	return strings.ToLower(input[:1]) + input[1:]
 }
 
 func RoundUpSize(size int64) int64 {
@@ -225,7 +240,14 @@ func ParseTime(t string) (time.Time, error) {
 
 }
 
-func Execute(envs []string, binary string, args ...string) (string, error) {
+type ExecuteFunc func([]string, string, ...string) (string, error)
+
+// Execute is a variable holding the function responsible for executing commands.
+// By using a variable for the execution function, it allows for easier unit testing
+// by substituting a mock implementation.
+var Execute ExecuteFunc = execute
+
+func execute(envs []string, binary string, args ...string) (string, error) {
 	return ExecuteWithTimeout(cmdTimeout, envs, binary, args...)
 }
 
@@ -444,11 +466,20 @@ func CheckBackupType(backupTarget string) (string, error) {
 	return u.Scheme, nil
 }
 
+type FsStat struct {
+	Fsid       string
+	Path       string
+	Type       string
+	FreeBlock  int64
+	TotalBlock int64
+	BlockSize  int64
+}
+
 func GetDiskStat(directory string) (stat *DiskStat, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "cannot get disk stat of directory %v", directory)
 	}()
-	initiatorNSPath := iscsi_util.GetHostNamespacePath(HostProcPath)
+	initiatorNSPath := iscsiutil.GetHostNamespacePath(HostProcPath)
 	mountPath := fmt.Sprintf("--mount=%s/mnt", initiatorNSPath)
 	output, err := Execute([]string{}, "nsenter", mountPath, "stat", "-fc", "{\"path\":\"%n\",\"fsid\":\"%i\",\"type\":\"%T\",\"freeBlock\":%f,\"totalBlock\":%b,\"blockSize\":%S}", directory)
 	if err != nil {
@@ -456,16 +487,22 @@ func GetDiskStat(directory string) (stat *DiskStat, err error) {
 	}
 	output = strings.Replace(output, "\n", "", -1)
 
-	diskStat := &DiskStat{}
-	err = json.Unmarshal([]byte(output), diskStat)
+	fsStat := &FsStat{}
+	err = json.Unmarshal([]byte(output), fsStat)
 	if err != nil {
 		return nil, err
 	}
 
-	diskStat.StorageMaximum = diskStat.TotalBlock * diskStat.BlockSize
-	diskStat.StorageAvailable = diskStat.FreeBlock * diskStat.BlockSize
-
-	return diskStat, nil
+	return &DiskStat{
+		DiskID:           fsStat.Fsid,
+		Path:             fsStat.Path,
+		Type:             fsStat.Type,
+		FreeBlocks:       fsStat.FreeBlock,
+		TotalBlocks:      fsStat.TotalBlock,
+		BlockSize:        fsStat.BlockSize,
+		StorageMaximum:   fsStat.TotalBlock * fsStat.BlockSize,
+		StorageAvailable: fsStat.FreeBlock * fsStat.BlockSize,
+	}, nil
 }
 
 func RetryOnConflictCause(fn func() (interface{}, error)) (interface{}, error) {
@@ -510,8 +547,8 @@ func RemoveHostDirectoryContent(directory string) (err error) {
 	if strings.Count(dir, "/") < 2 {
 		return fmt.Errorf("prohibit removing the top level of directory %v", dir)
 	}
-	initiatorNSPath := iscsi_util.GetHostNamespacePath(HostProcPath)
-	nsExec, err := iscsi_util.NewNamespaceExecutor(initiatorNSPath)
+	initiatorNSPath := iscsiutil.GetHostNamespacePath(HostProcPath)
+	nsExec, err := iscsiutil.NewNamespaceExecutor(initiatorNSPath)
 	if err != nil {
 		return err
 	}
@@ -543,8 +580,8 @@ func CopyHostDirectoryContent(src, dest string) (err error) {
 		return fmt.Errorf("prohibit copying the content for the top level of directory %v or %v", srcDir, destDir)
 	}
 
-	initiatorNSPath := iscsi_util.GetHostNamespacePath(HostProcPath)
-	nsExec, err := iscsi_util.NewNamespaceExecutor(initiatorNSPath)
+	initiatorNSPath := iscsiutil.GetHostNamespacePath(HostProcPath)
+	nsExec, err := iscsiutil.NewNamespaceExecutor(initiatorNSPath)
 	if err != nil {
 		return err
 	}
@@ -634,8 +671,8 @@ func ValidateTags(inputTags []string) ([]string, error) {
 }
 
 func CreateDiskPathReplicaSubdirectory(path string) error {
-	nsPath := iscsi_util.GetHostNamespacePath(HostProcPath)
-	nsExec, err := iscsi_util.NewNamespaceExecutor(nsPath)
+	nsPath := iscsiutil.GetHostNamespacePath(HostProcPath)
+	nsExec, err := iscsiutil.NewNamespaceExecutor(nsPath)
 	if err != nil {
 		return err
 	}
@@ -647,7 +684,7 @@ func CreateDiskPathReplicaSubdirectory(path string) error {
 }
 
 func DeleteDiskPathReplicaSubdirectoryAndDiskCfgFile(
-	nsExec *iscsi_util.NamespaceExecutor, path string) error {
+	nsExec *iscsiutil.NamespaceExecutor, path string) error {
 
 	var err error
 	dirPath := filepath.Join(path, ReplicaDirectory)
@@ -704,6 +741,16 @@ func SetAnnotation(obj runtime.Object, annotationKey, annotationValue string) er
 	return nil
 }
 
+func GetNamespace(key string) string {
+	namespace := os.Getenv(key)
+	if namespace == "" {
+		logrus.Warnf("Failed to detect pod namespace, environment variable %v is missing, "+
+			"using default namespace", key)
+		namespace = v1.NamespaceDefault
+	}
+	return namespace
+}
+
 func GetDistinctTolerations(tolerationList []v1.Toleration) []v1.Toleration {
 	res := []v1.Toleration{}
 	tolerationMap := TolerationListToMap(tolerationList)
@@ -739,66 +786,6 @@ func IsKubernetesVersionAtLeast(kubeClient clientset.Interface, vers string) (bo
 
 type DiskConfig struct {
 	DiskUUID string `json:"diskUUID"`
-}
-
-func GetDiskConfig(path string) (*DiskConfig, error) {
-	nsPath := iscsi_util.GetHostNamespacePath(HostProcPath)
-	nsExec, err := iscsi_util.NewNamespaceExecutor(nsPath)
-	if err != nil {
-		return nil, err
-	}
-	filePath := filepath.Join(path, DiskConfigFile)
-	output, err := nsExec.Execute("cat", []string{filePath})
-	if err != nil {
-		return nil, fmt.Errorf("cannot find config file %v on host: %v", filePath, err)
-	}
-
-	cfg := &DiskConfig{}
-	if err := json.Unmarshal([]byte(output), cfg); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal %v content %v on host: %v", filePath, output, err)
-	}
-	return cfg, nil
-}
-
-func GenerateDiskConfig(path string) (*DiskConfig, error) {
-	cfg := &DiskConfig{
-		DiskUUID: UUID(),
-	}
-	encoded, err := json.Marshal(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("BUG: Cannot marshal %+v: %v", cfg, err)
-	}
-
-	nsPath := iscsi_util.GetHostNamespacePath(HostProcPath)
-	nsExec, err := iscsi_util.NewNamespaceExecutor(nsPath)
-	if err != nil {
-		return nil, err
-	}
-	filePath := filepath.Join(path, DiskConfigFile)
-	if _, err := nsExec.Execute("ls", []string{filePath}); err == nil {
-		return nil, fmt.Errorf("disk cfg on %v exists, cannot override", filePath)
-	}
-
-	defer func() {
-		if err != nil {
-			if derr := DeleteDiskPathReplicaSubdirectoryAndDiskCfgFile(nsExec, path); derr != nil {
-				err = errors.Wrapf(err, "cleaning up disk config path %v failed with error: %v", path, derr)
-			}
-
-		}
-	}()
-
-	if _, err := nsExec.ExecuteWithStdin("dd", []string{"of=" + filePath}, string(encoded)); err != nil {
-		return nil, fmt.Errorf("cannot write to disk cfg on %v: %v", filePath, err)
-	}
-	if err := CreateDiskPathReplicaSubdirectory(path); err != nil {
-		return nil, err
-	}
-	if _, err := nsExec.Execute("sync", []string{filePath}); err != nil {
-		return nil, fmt.Errorf("cannot sync disk cfg on %v: %v", filePath, err)
-	}
-
-	return cfg, nil
 }
 
 func MinInt(a, b int) int {
@@ -840,7 +827,7 @@ func GetPossibleReplicaDirectoryNames(diskPath string) (replicaDirectoryNames ma
 
 	directory := filepath.Join(diskPath, "replicas")
 
-	initiatorNSPath := iscsi_util.GetHostNamespacePath(HostProcPath)
+	initiatorNSPath := iscsiutil.GetHostNamespacePath(HostProcPath)
 	mountPath := fmt.Sprintf("--mount=%s/mnt", initiatorNSPath)
 	command := fmt.Sprintf("find %s -type d -maxdepth 1 -mindepth 1 -regextype posix-extended -regex \".*-[a-zA-Z0-9]{8}$\" -exec basename {} \\;", directory)
 	output, err := Execute([]string{}, "nsenter", mountPath, "sh", "-c", command)
@@ -858,14 +845,14 @@ func GetPossibleReplicaDirectoryNames(diskPath string) (replicaDirectoryNames ma
 	return replicaDirectoryNames, nil
 }
 
-func DeleteReplicaDirectoryName(diskPath, replicaDirectoryName string) (err error) {
+func DeleteReplicaDirectory(diskPath, replicaDirectoryName string) (err error) {
 	defer func() {
 		err = errors.Wrapf(err, "cannot delete replica directory %v in disk %v", replicaDirectoryName, diskPath)
 	}()
 
 	path := filepath.Join(diskPath, "replicas", replicaDirectoryName)
 
-	initiatorNSPath := iscsi_util.GetHostNamespacePath(HostProcPath)
+	initiatorNSPath := iscsiutil.GetHostNamespacePath(HostProcPath)
 	mountPath := fmt.Sprintf("--mount=%s/mnt", initiatorNSPath)
 	_, err = Execute([]string{}, "nsenter", mountPath, "rm", "-rf", path)
 	if err != nil {
@@ -888,8 +875,8 @@ type VolumeMeta struct {
 }
 
 func GetVolumeMeta(path string) (*VolumeMeta, error) {
-	nsPath := iscsi_util.GetHostNamespacePath(HostProcPath)
-	nsExec, err := iscsi_util.NewNamespaceExecutor(nsPath)
+	nsPath := iscsiutil.GetHostNamespacePath(HostProcPath)
+	nsExec, err := iscsiutil.NewNamespaceExecutor(nsPath)
 	if err != nil {
 		return nil, err
 	}
@@ -917,21 +904,21 @@ func GetPodIP(pod *v1.Pod) (string, error) {
 	return pod.Status.PodIP, nil
 }
 
-func TrimFilesystem(volumeName string, isEncryptedDevice bool) error {
-	nsPath := iscsi_util.GetHostNamespacePath(HostProcPath)
-	nsExec, err := iscsi_util.NewNamespaceExecutor(nsPath)
+func TrimFilesystem(volumeName string, encryptedDevice bool) error {
+	nsPath := iscsiutil.GetHostNamespacePath(HostProcPath)
+	nsExec, err := iscsiutil.NewNamespaceExecutor(nsPath)
 	if err != nil {
 		return err
 	}
 
 	deviceDir := RegularDeviceDirectory
-	if isEncryptedDevice {
+	if encryptedDevice {
 		deviceDir = EncryptedDeviceDirectory
 	}
 
 	mountOutput, err := nsExec.Execute("bash", []string{"-c", fmt.Sprintf("cat /proc/mounts | grep %s%s | awk '{print $2}'", deviceDir, volumeName)})
 	if err != nil {
-		return fmt.Errorf("cannot find volume %v mount info on host: %v", volumeName, err)
+		return errors.Wrapf(err, "cannot find volume %v mount info on host", volumeName)
 	}
 
 	mountList := strings.Split(strings.TrimSpace(mountOutput), "\n")
@@ -944,15 +931,15 @@ func TrimFilesystem(volumeName string, isEncryptedDevice bool) error {
 			break
 		}
 
-		logrus.WithError(err).Warnf("failed to get volume %v mountpoint %v info", volumeName, m)
+		logrus.WithError(err).Warnf("Failed to get volume %v mount point %v info", volumeName, m)
 	}
 	if mountpoint == "" {
-		return fmt.Errorf("cannot find a valid mountpoint for volume %v", volumeName)
+		return fmt.Errorf("cannot find a valid mount point for volume %v", volumeName)
 	}
 
 	_, err = nsExec.Execute("fstrim", []string{mountpoint})
 	if err != nil {
-		return fmt.Errorf("cannot find volume %v mount info on host: %v", volumeName, err)
+		return errors.Wrapf(err, "cannot find volume %v mount info on host", volumeName)
 	}
 
 	return nil
@@ -1005,4 +992,30 @@ func EncodeToYAMLFile(obj interface{}, path string) (err error) {
 	}
 
 	return nil
+}
+
+func VerifySnapshotLabels(labels map[string]string) error {
+	for k, v := range labels {
+		if strings.Contains(k, "=") || strings.Contains(v, "=") {
+			return fmt.Errorf("labels cannot contain '='")
+		}
+	}
+	return nil
+}
+
+func RemoveNewlines(input string) string {
+	return strings.Replace(input, "\n", "", -1)
+}
+
+type ResourceGetFunc func(kubeClient *clientset.Clientset, name, namespace string) (runtime.Object, error)
+
+func WaitForResourceDeletion(kubeClient *clientset.Clientset, name, namespace, resource string, maxRetryForDeletion int, getFunc ResourceGetFunc) error {
+	for i := 0; i < maxRetryForDeletion; i++ {
+		_, err := getFunc(kubeClient, name, namespace)
+		if err != nil && apierrors.IsNotFound(err) {
+			return nil
+		}
+		time.Sleep(time.Duration(1) * time.Second)
+	}
+	return fmt.Errorf("foreground deletion of %s %s timed out", resource, name)
 }

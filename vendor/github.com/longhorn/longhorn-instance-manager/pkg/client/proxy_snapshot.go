@@ -1,6 +1,8 @@
 package client
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 
 	etypes "github.com/longhorn/longhorn-engine/pkg/types"
@@ -10,12 +12,18 @@ import (
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
-func (c *ProxyClient) VolumeSnapshot(serviceAddress, volumeSnapshotName string, labels map[string]string) (snapshotName string, err error) {
+func (c *ProxyClient) VolumeSnapshot(backendStoreDriver, engineName, serviceAddress, volumeSnapshotName string, labels map[string]string) (snapshotName string, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return "", errors.Wrap(err, "failed to snapshot volume")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return "", fmt.Errorf("failed to snapshot volume: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -38,7 +46,9 @@ func (c *ProxyClient) VolumeSnapshot(serviceAddress, volumeSnapshotName string, 
 
 	req := &rpc.EngineVolumeSnapshotRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		SnapshotVolume: &eptypes.VolumeSnapshotRequest{
 			Name:   volumeSnapshotName,
@@ -53,12 +63,18 @@ func (c *ProxyClient) VolumeSnapshot(serviceAddress, volumeSnapshotName string, 
 	return recv.Snapshot.Name, nil
 }
 
-func (c *ProxyClient) SnapshotList(serviceAddress string) (snapshotDiskInfo map[string]*etypes.DiskInfo, err error) {
+func (c *ProxyClient) SnapshotList(backendStoreDriver, engineName, serviceAddress string) (snapshotDiskInfo map[string]*etypes.DiskInfo, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return nil, errors.Wrap(err, "failed to list snapshots")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return nil, fmt.Errorf("failed to list snapshots: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -66,7 +82,9 @@ func (c *ProxyClient) SnapshotList(serviceAddress string) (snapshotDiskInfo map[
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address: serviceAddress,
+		Address:            serviceAddress,
+		EngineName:         engineName,
+		BackendStoreDriver: rpc.BackendStoreDriver(driver),
 	}
 	resp, err := c.service.SnapshotList(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -95,26 +113,34 @@ func (c *ProxyClient) SnapshotList(serviceAddress string) (snapshotDiskInfo map[
 	return snapshotDiskInfo, nil
 }
 
-func (c *ProxyClient) SnapshotClone(serviceAddress, name, fromController string, fileSyncHTTPClientTimeout int) (err error) {
+func (c *ProxyClient) SnapshotClone(backendStoreDriver, engineName, serviceAddress, snapshotName, fromController string, fileSyncHTTPClientTimeout int) (err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
-		"name":           name,
+		"snapshotName":   snapshotName,
 		"fromController": fromController,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return errors.Wrap(err, "failed to clone snapshot")
 	}
 
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return fmt.Errorf("failed to clone snapshot: invalid backend store driver %v", backendStoreDriver)
+	}
+
 	defer func() {
-		err = errors.Wrapf(err, "%v failed to clone snapshot %v from %v", c.getProxyErrorPrefix(serviceAddress), name, fromController)
+		err = errors.Wrapf(err, "%v failed to clone snapshot %v from %v", c.getProxyErrorPrefix(serviceAddress), snapshotName, fromController)
 	}()
 
 	req := &rpc.EngineSnapshotCloneRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		FromController:            fromController,
-		SnapshotName:              name,
+		SnapshotName:              snapshotName,
 		ExportBackingImageIfExist: false,
 		FileSyncHttpClientTimeout: int32(fileSyncHTTPClientTimeout),
 	}
@@ -126,12 +152,18 @@ func (c *ProxyClient) SnapshotClone(serviceAddress, name, fromController string,
 	return nil
 }
 
-func (c *ProxyClient) SnapshotCloneStatus(serviceAddress string) (status map[string]*SnapshotCloneStatus, err error) {
+func (c *ProxyClient) SnapshotCloneStatus(backendStoreDriver, engineName, serviceAddress string) (status map[string]*SnapshotCloneStatus, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return nil, errors.Wrap(err, "failed to get snapshot clone status")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return nil, fmt.Errorf("failed to get snapshot clone status: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -139,7 +171,9 @@ func (c *ProxyClient) SnapshotCloneStatus(serviceAddress string) (status map[str
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address: serviceAddress,
+		Address:            serviceAddress,
+		EngineName:         engineName,
+		BackendStoreDriver: rpc.BackendStoreDriver(driver),
 	}
 	recv, err := c.service.SnapshotCloneStatus(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -160,13 +194,19 @@ func (c *ProxyClient) SnapshotCloneStatus(serviceAddress string) (status map[str
 	return status, nil
 }
 
-func (c *ProxyClient) SnapshotRevert(serviceAddress string, name string) (err error) {
+func (c *ProxyClient) SnapshotRevert(backendStoreDriver, engineName, serviceAddress string, name string) (err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 		"name":           name,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return errors.Wrap(err, "failed to revert volume to snapshot")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return fmt.Errorf("failed to revert volume to snapshot: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -180,7 +220,9 @@ func (c *ProxyClient) SnapshotRevert(serviceAddress string, name string) (err er
 
 	req := &rpc.EngineSnapshotRevertRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		Name: name,
 	}
@@ -192,12 +234,18 @@ func (c *ProxyClient) SnapshotRevert(serviceAddress string, name string) (err er
 	return nil
 }
 
-func (c *ProxyClient) SnapshotPurge(serviceAddress string, skipIfInProgress bool) (err error) {
+func (c *ProxyClient) SnapshotPurge(backendStoreDriver, engineName, serviceAddress string, skipIfInProgress bool) (err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return errors.Wrap(err, "failed to purge snapshots")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return fmt.Errorf("failed to purge snapshots: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -206,7 +254,9 @@ func (c *ProxyClient) SnapshotPurge(serviceAddress string, skipIfInProgress bool
 
 	req := &rpc.EngineSnapshotPurgeRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		SkipIfInProgress: skipIfInProgress,
 	}
@@ -218,12 +268,18 @@ func (c *ProxyClient) SnapshotPurge(serviceAddress string, skipIfInProgress bool
 	return nil
 }
 
-func (c *ProxyClient) SnapshotPurgeStatus(serviceAddress string) (status map[string]*SnapshotPurgeStatus, err error) {
+func (c *ProxyClient) SnapshotPurgeStatus(backendStoreDriver, engineName, serviceAddress string) (status map[string]*SnapshotPurgeStatus, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return nil, errors.Wrap(err, "failed to get snapshot purge status")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return nil, fmt.Errorf("failed to get snapshot purge status: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -231,7 +287,9 @@ func (c *ProxyClient) SnapshotPurgeStatus(serviceAddress string) (status map[str
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address: serviceAddress,
+		Address:            serviceAddress,
+		EngineName:         engineName,
+		BackendStoreDriver: rpc.BackendStoreDriver(driver),
 	}
 
 	recv, err := c.service.SnapshotPurgeStatus(getContextWithGRPCTimeout(c.ctx), req)
@@ -251,12 +309,18 @@ func (c *ProxyClient) SnapshotPurgeStatus(serviceAddress string) (status map[str
 	return status, nil
 }
 
-func (c *ProxyClient) SnapshotRemove(serviceAddress string, names []string) (err error) {
+func (c *ProxyClient) SnapshotRemove(backendStoreDriver, engineName, serviceAddress string, names []string) (err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return errors.Wrapf(err, "failed to remove snapshot %v", names)
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return fmt.Errorf("failed to remove snapshot: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -265,7 +329,9 @@ func (c *ProxyClient) SnapshotRemove(serviceAddress string, names []string) (err
 
 	req := &rpc.EngineSnapshotRemoveRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		Names: names,
 	}
@@ -277,12 +343,18 @@ func (c *ProxyClient) SnapshotRemove(serviceAddress string, names []string) (err
 	return nil
 }
 
-func (c *ProxyClient) SnapshotHash(serviceAddress string, snapshotName string, rehash bool) (err error) {
+func (c *ProxyClient) SnapshotHash(backendStoreDriver, engineName, serviceAddress string, snapshotName string, rehash bool) (err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return errors.Wrap(err, "failed to hash snapshot")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return fmt.Errorf("failed to hash snapshot: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -291,7 +363,9 @@ func (c *ProxyClient) SnapshotHash(serviceAddress string, snapshotName string, r
 
 	req := &rpc.EngineSnapshotHashRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		SnapshotName: snapshotName,
 		Rehash:       rehash,
@@ -304,12 +378,18 @@ func (c *ProxyClient) SnapshotHash(serviceAddress string, snapshotName string, r
 	return nil
 }
 
-func (c *ProxyClient) SnapshotHashStatus(serviceAddress, snapshotName string) (status map[string]*SnapshotHashStatus, err error) {
+func (c *ProxyClient) SnapshotHashStatus(backendStoreDriver, engineName, serviceAddress, snapshotName string) (status map[string]*SnapshotHashStatus, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return nil, errors.Wrap(err, "failed to get snapshot hash status")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return nil, fmt.Errorf("failed to get snapshot hash status: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -318,7 +398,9 @@ func (c *ProxyClient) SnapshotHashStatus(serviceAddress, snapshotName string) (s
 
 	req := &rpc.EngineSnapshotHashStatusRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		SnapshotName: snapshotName,
 	}

@@ -21,6 +21,11 @@ import (
 const (
 	LonghornKindNode                = "Node"
 	LonghornKindVolume              = "Volume"
+	LonghornKindVolumeAttachment    = "VolumeAttachment"
+	LonghornKindEngine              = "Engine"
+	LonghornKindReplica             = "Replica"
+	LonghornKindBackup              = "Backup"
+	LonghornKindSnapshot            = "Snapshot"
 	LonghornKindEngineImage         = "EngineImage"
 	LonghornKindInstanceManager     = "InstanceManager"
 	LonghornKindShareManager        = "ShareManager"
@@ -30,6 +35,7 @@ const (
 	LonghornKindSetting             = "Setting"
 	LonghornKindSupportBundle       = "SupportBundle"
 	LonghornKindSystemRestore       = "SystemRestore"
+	LonghornKindOrphan              = "Orphan"
 
 	LonghornKindBackingImageDataSource = "BackingImageDataSource"
 
@@ -78,16 +84,16 @@ const (
 )
 
 const (
-	DefaultAPIPort           = 9500
-	DefaultWebhookServerPort = 9443
+	DefaultAPIPort                   = 9500
+	DefaultConversionWebhookPort     = 9501
+	DefaultAdmissionWebhookPort      = 9502
+	DefaultRecoveryBackendServerPort = 9503
 
 	WebhookTypeConversion = "conversion"
 	WebhookTypeAdmission  = "admission"
 
 	ValidatingWebhookName = "longhorn-webhook-validator"
 	MutatingWebhookName   = "longhorn-webhook-mutator"
-
-	DefaultRecoveryBackendServerPort = 9600
 
 	EngineBinaryDirectoryInContainer = "/engine-binaries/"
 	EngineBinaryDirectoryOnHost      = "/var/lib/longhorn/engine-binaries/"
@@ -152,6 +158,7 @@ const (
 	LonghornLabelBackupVolume               = "backup-volume"
 	LonghornLabelRecurringJob               = "job"
 	LonghornLabelRecurringJobGroup          = "job-group"
+	LonghornLabelRecurringJobSource         = "source"
 	LonghornLabelOrphan                     = "orphan"
 	LonghornLabelOrphanType                 = "orphan-type"
 	LonghornLabelRecoveryBackend            = "recovery-backend"
@@ -208,7 +215,9 @@ const (
 	EnvPodIP          = "POD_IP"
 	EnvServiceAccount = "SERVICE_ACCOUNT"
 
-	BackupStoreTypeS3 = "s3"
+	BackupStoreTypeS3     = "s3"
+	BackupStoreTypeCIFS   = "cifs"
+	BackupStoreTypeAZBlob = "azblob"
 
 	AWSIAMRoleAnnotation = "iam.amazonaws.com/role"
 	AWSIAMRoleArn        = "AWS_IAM_ROLE_ARN"
@@ -216,6 +225,14 @@ const (
 	AWSSecretKey         = "AWS_SECRET_ACCESS_KEY"
 	AWSEndPoint          = "AWS_ENDPOINTS"
 	AWSCert              = "AWS_CERT"
+
+	CIFSUsername = "CIFS_USERNAME"
+	CIFSPassword = "CIFS_PASSWORD"
+
+	AZBlobAccountName = "AZBLOB_ACCOUNT_NAME"
+	AZBlobAccountKey  = "AZBLOB_ACCOUNT_KEY"
+	AZBlobEndpoint    = "AZBLOB_ENDPOINT"
+	AZBlobCert        = "AZBLOB_CERT"
 
 	HTTPSProxy = "HTTPS_PROXY"
 	HTTPProxy  = "HTTP_PROXY"
@@ -239,7 +256,8 @@ const (
 )
 
 // SettingsRelatedToVolume should match the items in datastore.GetLabelsForVolumesFollowsGlobalSettings
-// TODO: May need to add the data locality check
+//
+//	TODO: May need to add the data locality check
 var SettingsRelatedToVolume = map[string]string{
 	string(SettingNameReplicaAutoBalance):                  LonghornLabelValueIgnored,
 	string(SettingNameSnapshotDataIntegrity):               LonghornLabelValueIgnored,
@@ -376,12 +394,6 @@ func GetEIDaemonSetLabelSelector(engineImageName string) map[string]string {
 	return labels
 }
 
-func GetEngineImageComponentLabel() map[string]string {
-	return map[string]string{
-		GetLonghornLabelComponentKey(): LonghornLabelEngineImage,
-	}
-}
-
 func GetInstanceManagerLabels(node, instanceManagerImage string, managerType longhorn.InstanceManagerType) map[string]string {
 	labels := GetBaseLabelsForSystemManagedComponent()
 	labels[GetLonghornLabelComponentKey()] = LonghornLabelInstanceManager
@@ -487,15 +499,44 @@ func GetVolumeLabels(volumeName string) map[string]string {
 	}
 }
 
+func GetRecurringJobLabelKeyByType(name string, isGroup bool) string {
+	if isGroup {
+		return GetRecurringJobLabelKey(LonghornLabelRecurringJobGroup, name)
+	}
+	return GetRecurringJobLabelKey(LonghornLabelRecurringJob, name)
+}
+
 func GetRecurringJobLabelKey(labelType, recurringJobName string) string {
 	prefix := fmt.Sprintf(LonghornLabelRecurringJobKeyPrefixFmt, labelType)
 	return fmt.Sprintf("%s/%s", prefix, recurringJobName)
+}
+
+// GetRecurringJobSourceLabelKey returns "recurring-job.longhorn.io/source"
+func GetRecurringJobSourceLabelKey() string {
+	prefix := fmt.Sprintf(LonghornLabelRecurringJobKeyPrefixFmt, LonghornLabelRecurringJob)
+	return fmt.Sprintf("%s/%s", prefix, LonghornLabelRecurringJobSource)
 }
 
 func GetRecurringJobLabelValueMap(labelType, recurringJobName string) map[string]string {
 	return map[string]string{
 		GetRecurringJobLabelKey(labelType, recurringJobName): LonghornLabelValueEnabled,
 	}
+}
+
+// IsRecurringJobLabel checks if the given key is a recurring job label.
+func IsRecurringJobLabel(key string) bool {
+	if IsRecurringJobSourceLabel(key) {
+		return false
+	}
+
+	jobPrefix := fmt.Sprintf(LonghornLabelRecurringJobKeyPrefixFmt, LonghornLabelRecurringJob)
+	groupPrefix := fmt.Sprintf(LonghornLabelRecurringJobKeyPrefixFmt, LonghornLabelRecurringJobGroup)
+	return strings.HasPrefix(key, jobPrefix) || strings.HasPrefix(key, groupPrefix)
+}
+
+// IsRecurringJobSourceLabel checks if the given key is the recurring job source label.
+func IsRecurringJobSourceLabel(key string) bool {
+	return key == GetRecurringJobSourceLabelKey()
 }
 
 func GetOrphanLabelsForOrphanedDirectory(nodeID, diskUUID string) map[string]string {
@@ -602,12 +643,16 @@ func GetInstanceManagerName(imType longhorn.InstanceManagerType, nodeName, image
 		return engineManagerPrefix + hashedSuffix, nil
 	case longhorn.InstanceManagerTypeReplica:
 		return replicaManagerPrefix + hashedSuffix, nil
+	case longhorn.InstanceManagerTypeAllInOne:
+		return instanceManagerPrefix + hashedSuffix, nil
 	}
 	return "", fmt.Errorf("cannot generate name for unknown instance manager type %v", imType)
 }
 
 func GetInstanceManagerPrefix(imType longhorn.InstanceManagerType) string {
 	switch imType {
+	case longhorn.InstanceManagerTypeAllInOne:
+		return instanceManagerPrefix
 	case longhorn.InstanceManagerTypeEngine:
 		return engineManagerPrefix
 	case longhorn.InstanceManagerTypeReplica:
@@ -635,6 +680,10 @@ func ErrorIsNotFound(err error) bool {
 	return strings.Contains(err.Error(), "cannot find")
 }
 
+func ErrorIsStopped(err error) bool {
+	return strings.Contains(err.Error(), "is stopped")
+}
+
 func ErrorIsNotSupport(err error) bool {
 	return strings.Contains(err.Error(), "not support")
 }
@@ -646,6 +695,13 @@ func ErrorAlreadyExists(err error) bool {
 func ValidateReplicaCount(count int) error {
 	if count < 1 || count > 20 {
 		return fmt.Errorf("replica count value must between 1 to 20")
+	}
+	return nil
+}
+
+func ValidateLogLevel(level string) error {
+	if _, err := logrus.ParseLevel(level); err != nil {
+		return fmt.Errorf("log level is invalid")
 	}
 	return nil
 }
@@ -695,6 +751,15 @@ func ValidateStorageNetwork(value string) (err error) {
 	return nil
 }
 
+func ValidateOfflineReplicaRebuilding(mode string) error {
+	if mode != string(longhorn.OfflineReplicaRebuildingIgnored) &&
+		mode != string(longhorn.OfflineReplicaRebuildingEnabled) &&
+		mode != string(longhorn.OfflineReplicaRebuildingDisabled) {
+		return fmt.Errorf("invalid offline replica rebuilding mode: %v", mode)
+	}
+	return nil
+}
+
 func ValidateSnapshotDataIntegrity(mode string) error {
 	if mode != string(longhorn.SnapshotDataIntegrityDisabled) &&
 		mode != string(longhorn.SnapshotDataIntegrityEnabled) &&
@@ -704,9 +769,36 @@ func ValidateSnapshotDataIntegrity(mode string) error {
 	return nil
 }
 
+func ValidateBackupCompressionMethod(method string) error {
+	if method != string(longhorn.BackupCompressionMethodNone) &&
+		method != string(longhorn.BackupCompressionMethodLz4) &&
+		method != string(longhorn.BackupCompressionMethodGzip) {
+		return fmt.Errorf("invalid backup compression method: %v", method)
+	}
+	return nil
+}
+
 func ValidateUnmapMarkSnapChainRemoved(unmapValue longhorn.UnmapMarkSnapChainRemoved) error {
 	if unmapValue != longhorn.UnmapMarkSnapChainRemovedIgnored && unmapValue != longhorn.UnmapMarkSnapChainRemovedEnabled && unmapValue != longhorn.UnmapMarkSnapChainRemovedDisabled {
 		return fmt.Errorf("invalid UnmapMarkSnapChainRemoved setting: %v", unmapValue)
+	}
+	return nil
+}
+
+func ValidateReplicaSoftAntiAffinity(value longhorn.ReplicaSoftAntiAffinity) error {
+	if value != longhorn.ReplicaSoftAntiAffinityDefault &&
+		value != longhorn.ReplicaSoftAntiAffinityEnabled &&
+		value != longhorn.ReplicaSoftAntiAffinityDisabled {
+		return fmt.Errorf("invalid ReplicaSoftAntiAffinity setting: %v", value)
+	}
+	return nil
+}
+
+func ValidateReplicaZoneSoftAntiAffinity(value longhorn.ReplicaZoneSoftAntiAffinity) error {
+	if value != longhorn.ReplicaZoneSoftAntiAffinityDefault &&
+		value != longhorn.ReplicaZoneSoftAntiAffinityEnabled &&
+		value != longhorn.ReplicaZoneSoftAntiAffinityDisabled {
+		return fmt.Errorf("invalid ReplicaZoneSoftAntiAffinity setting: %v", value)
 	}
 	return nil
 }
@@ -734,7 +826,7 @@ func LabelsToString(labels map[string]string) string {
 
 func CreateDisksFromAnnotation(annotation string) (map[string]longhorn.DiskSpec, error) {
 	validDisks := map[string]longhorn.DiskSpec{}
-	existFsid := map[string]string{}
+	existDiskID := map[string]string{}
 
 	disks, err := UnmarshalToDisks(annotation)
 	if err != nil {
@@ -756,18 +848,18 @@ func CreateDisksFromAnnotation(annotation string) (map[string]longhorn.DiskSpec,
 
 		// Set to default disk name
 		if disk.Name == "" {
-			disk.Name = DefaultDiskPrefix + diskStat.Fsid
+			disk.Name = DefaultDiskPrefix + diskStat.DiskID
 		}
 
-		if _, exist := existFsid[diskStat.Fsid]; exist {
+		if _, exist := existDiskID[diskStat.DiskID]; exist {
 			return nil, fmt.Errorf(
 				"the disk %v is the same"+
-					"file system with %v, fsid %v",
-				disk.Path, existFsid[diskStat.Fsid],
-				diskStat.Fsid)
+					"file system with %v, diskID %v",
+				disk.Path, existDiskID[diskStat.DiskID],
+				diskStat.DiskID)
 		}
 
-		existFsid[diskStat.Fsid] = disk.Path
+		existDiskID[diskStat.DiskID] = disk.Path
 
 		if disk.StorageReserved < 0 || disk.StorageReserved > diskStat.StorageMaximum {
 			return nil, fmt.Errorf("the storageReserved setting of disk %v is not valid, should be positive and no more than storageMaximum and storageAvailable", disk.Path)
@@ -807,7 +899,8 @@ type DiskSpecWithName struct {
 
 // UnmarshalToDisks input format should be:
 // `[{"path":"/mnt/disk1","allowScheduling":false},
-//   {"path":"/mnt/disk2","allowScheduling":false,"storageReserved":1024,"tags":["ssd","fast"]}]`
+//
+//	{"path":"/mnt/disk2","allowScheduling":false,"storageReserved":1024,"tags":["ssd","fast"]}]`
 func UnmarshalToDisks(s string) (ret []DiskSpecWithName, err error) {
 	if err := json.Unmarshal([]byte(s), &ret); err != nil {
 		return nil, err
@@ -825,7 +918,7 @@ func UnmarshalToNodeTags(s string) ([]string, error) {
 	return res, nil
 }
 
-func CreateDefaultDisk(dataPath string) (map[string]longhorn.DiskSpec, error) {
+func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[string]longhorn.DiskSpec, error) {
 	if err := util.CreateDiskPathReplicaSubdirectory(dataPath); err != nil {
 		return nil, err
 	}
@@ -834,27 +927,26 @@ func CreateDefaultDisk(dataPath string) (map[string]longhorn.DiskSpec, error) {
 		return nil, err
 	}
 	return map[string]longhorn.DiskSpec{
-		DefaultDiskPrefix + diskStat.Fsid: {
+		DefaultDiskPrefix + diskStat.DiskID: {
+			Type:              longhorn.DiskTypeFilesystem,
 			Path:              diskStat.Path,
 			AllowScheduling:   true,
 			EvictionRequested: false,
-			StorageReserved:   diskStat.StorageMaximum * 30 / 100,
+			StorageReserved:   diskStat.StorageMaximum * storageReservedPercentage / 100,
 			Tags:              []string{},
 		},
 	}, nil
 }
 
-func ValidateCPUReservationValues(engineManagerCPUStr, replicaManagerCPUStr string) error {
-	engineManagerCPU, err := strconv.Atoi(engineManagerCPUStr)
+func ValidateCPUReservationValues(instanceManagerCPUStr string) error {
+	instanceManagerCPU, err := strconv.Atoi(instanceManagerCPUStr)
 	if err != nil {
-		return fmt.Errorf("guaranteed/requested engine manager CPU value %v is not int: %v", engineManagerCPUStr, err)
+		return errors.Wrapf(err, "invalid guaranteed/requested instance manager CPU value (%v)", instanceManagerCPUStr)
 	}
-	replicaManagerCPU, err := strconv.Atoi(replicaManagerCPUStr)
-	if err != nil {
-		return fmt.Errorf("guaranteed/requested replica manager CPU value %v is not int: %v", replicaManagerCPUStr, err)
-	}
-	if engineManagerCPU+replicaManagerCPU < 0 || engineManagerCPU+replicaManagerCPU > 40 {
-		return fmt.Errorf("the requested engine manager CPU and replica manager CPU are %v%% and %v%% of a node total CPU, respectively. The sum should not be smaller than 0%% or greater than 40%%", engineManagerCPU, replicaManagerCPU)
+	isUnderLimit := instanceManagerCPU < 0
+	isOverLimit := instanceManagerCPU > 40
+	if isUnderLimit || isOverLimit {
+		return fmt.Errorf("invalid requested instance manager CPUs. Valid instance manager CPU range between 0%% - 40%%")
 	}
 	return nil
 }
@@ -871,6 +963,34 @@ func CreateCniAnnotationFromSetting(storageNetwork *longhorn.Setting) string {
 
 	storageNetworkSplit := strings.Split(storageNetwork.Value, "/")
 	return fmt.Sprintf("[{\"namespace\": \"%s\", \"name\": \"%s\", \"interface\": \"%s\"}]", storageNetworkSplit[0], storageNetworkSplit[1], StorageNetworkInterface)
+}
+
+func BackupStoreRequireCredential(backupType string) bool {
+	return backupType == BackupStoreTypeS3 || backupType == BackupStoreTypeCIFS || backupType == BackupStoreTypeAZBlob
+}
+
+func ConsolidateInstances(instancesMaps ...map[string]longhorn.InstanceProcess) map[string]longhorn.InstanceProcess {
+	consolidated := make(map[string]longhorn.InstanceProcess)
+	for _, instances := range instancesMaps {
+		for name, instance := range instances {
+			consolidated[name] = instance
+		}
+	}
+	return consolidated
+}
+
+func ConsolidateInstanceManagers(instanceManagerMaps ...map[string]*longhorn.InstanceManager) map[string]*longhorn.InstanceManager {
+	consolidated := make(map[string]*longhorn.InstanceManager)
+	for _, instanceManagers := range instanceManagerMaps {
+		for name, instanceManager := range instanceManagers {
+			consolidated[name] = instanceManager
+		}
+	}
+	return consolidated
+}
+
+func GetLHVolumeAttachmentNameFromVolumeName(volName string) string {
+	return volName
 }
 
 // IsSelectorsInTags checks if all the selectors are present in the tags slice.
@@ -890,4 +1010,30 @@ func IsSelectorsInTags(tags, selectors []string) bool {
 	}
 
 	return true
+}
+
+func GetKubernetesProviderNameFromURL(providerURL string) string {
+	if providerURL == "" {
+		return ValueEmpty
+	}
+
+	scheme := util.GetSchemeFromURL(providerURL)
+	if scheme == "" {
+		scheme = ValueUnknown
+	}
+	return scheme
+}
+
+func GetBackupTargetSchemeFromURL(backupTargetURL string) string {
+	if backupTargetURL == "" {
+		return ValueEmpty
+	}
+
+	scheme := util.GetSchemeFromURL(backupTargetURL)
+	switch scheme {
+	case "azblob", "cifs", "nfs", "s3":
+		return scheme
+	default:
+		return ValueUnknown
+	}
 }
