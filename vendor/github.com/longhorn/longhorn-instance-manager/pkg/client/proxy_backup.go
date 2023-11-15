@@ -2,21 +2,27 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/pkg/errors"
 
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
-func (c *ProxyClient) SnapshotBackup(serviceAddress,
-	backupName, snapshotName, backupTarget,
-	backingImageName, backingImageChecksum string,
+func (c *ProxyClient) SnapshotBackup(backendStoreDriver, engineName, serviceAddress, backupName, snapshotName, backupTarget,
+	backingImageName, backingImageChecksum, compressionMethod string, concurrentLimit int, storageClassName string,
 	labels map[string]string, envs []string) (backupID, replicaAddress string, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return "", "", errors.Wrap(err, "failed to backup snapshot")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return "", "", fmt.Errorf("failed to backup snapshot: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -25,7 +31,9 @@ func (c *ProxyClient) SnapshotBackup(serviceAddress,
 
 	req := &rpc.EngineSnapshotBackupRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		Envs:                 envs,
 		BackupName:           backupName,
@@ -33,6 +41,9 @@ func (c *ProxyClient) SnapshotBackup(serviceAddress,
 		BackupTarget:         backupTarget,
 		BackingImageName:     backingImageName,
 		BackingImageChecksum: backingImageChecksum,
+		CompressionMethod:    compressionMethod,
+		ConcurrentLimit:      int32(concurrentLimit),
+		StorageClassName:     storageClassName,
 		Labels:               labels,
 	}
 	recv, err := c.service.SnapshotBackup(getContextWithGRPCTimeout(c.ctx), req)
@@ -43,13 +54,19 @@ func (c *ProxyClient) SnapshotBackup(serviceAddress,
 	return recv.BackupId, recv.Replica, nil
 }
 
-func (c *ProxyClient) SnapshotBackupStatus(serviceAddress, backupName, replicaAddress string) (status *SnapshotBackupStatus, err error) {
+func (c *ProxyClient) SnapshotBackupStatus(backendStoreDriver, engineName, serviceAddress, backupName, replicaAddress string) (status *SnapshotBackupStatus, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 		"backupName":     backupName,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return nil, errors.Wrap(err, "failed to get backup status")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return nil, fmt.Errorf("failed to get backup status: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -58,7 +75,9 @@ func (c *ProxyClient) SnapshotBackupStatus(serviceAddress, backupName, replicaAd
 
 	req := &rpc.EngineSnapshotBackupStatusRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
 		BackupName:     backupName,
 		ReplicaAddress: replicaAddress,
@@ -79,8 +98,9 @@ func (c *ProxyClient) SnapshotBackupStatus(serviceAddress, backupName, replicaAd
 	return status, nil
 }
 
-func (c *ProxyClient) BackupRestore(serviceAddress, url, target, volumeName string, envs []string) (err error) {
+func (c *ProxyClient) BackupRestore(backendStoreDriver, engineName, serviceAddress, url, target, volumeName string, envs []string, concurrentLimit int) (err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 		"url":            url,
 		"target":         target,
@@ -88,6 +108,11 @@ func (c *ProxyClient) BackupRestore(serviceAddress, url, target, volumeName stri
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return errors.Wrap(err, "failed to restore backup to volume")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return fmt.Errorf("failed to restore backup to volume: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -100,12 +125,15 @@ func (c *ProxyClient) BackupRestore(serviceAddress, url, target, volumeName stri
 
 	req := &rpc.EngineBackupRestoreRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address: serviceAddress,
+			Address:            serviceAddress,
+			EngineName:         engineName,
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
 		},
-		Envs:       envs,
-		Url:        url,
-		Target:     target,
-		VolumeName: volumeName,
+		Envs:            envs,
+		Url:             url,
+		Target:          target,
+		VolumeName:      volumeName,
+		ConcurrentLimit: int32(concurrentLimit),
 	}
 	recv, err := c.service.BackupRestore(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -126,12 +154,18 @@ func (c *ProxyClient) BackupRestore(serviceAddress, url, target, volumeName stri
 	return nil
 }
 
-func (c *ProxyClient) BackupRestoreStatus(serviceAddress string) (status map[string]*BackupRestoreStatus, err error) {
+func (c *ProxyClient) BackupRestoreStatus(backendStoreDriver, engineName, serviceAddress string) (status map[string]*BackupRestoreStatus, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return nil, errors.Wrap(err, "failed to get backup restore status")
+	}
+
+	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	if !ok {
+		return nil, fmt.Errorf("failed to get backup restore status: invalid backend store driver %v", backendStoreDriver)
 	}
 
 	defer func() {
@@ -139,7 +173,9 @@ func (c *ProxyClient) BackupRestoreStatus(serviceAddress string) (status map[str
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address: serviceAddress,
+		Address:            serviceAddress,
+		EngineName:         engineName,
+		BackendStoreDriver: rpc.BackendStoreDriver(driver),
 	}
 	recv, err := c.service.BackupRestoreStatus(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {

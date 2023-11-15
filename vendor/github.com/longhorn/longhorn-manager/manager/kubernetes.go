@@ -16,7 +16,7 @@ import (
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
-func (m *VolumeManager) PVCreate(name, pvName, fsType, secretNamespace, secretName string) (v *longhorn.Volume, err error) {
+func (m *VolumeManager) PVCreate(name, pvName, fsType, secretNamespace, secretName, storageClassName string) (v *longhorn.Volume, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "unable to create PV for volume %v", name)
 	}()
@@ -34,9 +34,20 @@ func (m *VolumeManager) PVCreate(name, pvName, fsType, secretNamespace, secretNa
 		pvName = v.Name
 	}
 
-	storageClassName, err := m.ds.GetSettingValueExisted(types.SettingNameDefaultLonghornStaticStorageClass)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get longhorn static storage class name for PV %v creation: %v", pvName, err)
+	if storageClassName == "" {
+		if backupVolumeName := v.Labels[types.LonghornLabelBackupVolume]; backupVolumeName != "" {
+			backupVolume, _ := m.ds.GetBackupVolumeRO(backupVolumeName)
+			if backupVolume != nil {
+				storageClassName = backupVolume.Status.StorageClassName
+			}
+		}
+	}
+
+	if storageClassName == "" {
+		storageClassName, err = m.ds.GetSettingValueExisted(types.SettingNameDefaultLonghornStaticStorageClass)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get longhorn default static storage class name for PV %v creation: %v", pvName, err)
+		}
 	}
 
 	if fsType == "" {
@@ -66,7 +77,7 @@ func (m *VolumeManager) PVCreate(name, pvName, fsType, secretNamespace, secretNa
 		return nil, err
 	}
 
-	logrus.Debugf("Created PV for volume %v: %+v", v.Name, v.Spec)
+	logrus.Infof("Created PV for volume %v: %+v", v.Name, v.Spec)
 	return v, nil
 }
 
@@ -125,7 +136,7 @@ func (m *VolumeManager) PVCCreate(name, namespace, pvcName string) (v *longhorn.
 		return nil, err
 	}
 
-	logrus.Debugf("Created PVC for volume %v: %+v", v.Name, v.Spec)
+	logrus.Infof("Created PVC for volume %v: %+v", v.Name, v.Spec)
 	return v, nil
 }
 

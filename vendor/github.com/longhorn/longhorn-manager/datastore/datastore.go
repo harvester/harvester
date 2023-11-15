@@ -1,6 +1,8 @@
 package datastore
 
 import (
+	"time"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
@@ -23,10 +25,13 @@ var (
 	SkipListerCheck = false
 
 	// SystemBackupTimeout is the timeout for system backup
-	SystemBackupTimeout = 60 * 60 // 1 hours
+	SystemBackupTimeout = time.Hour
 
 	// SystemRestoreTimeout is the timeout for system restore
-	SystemRestoreTimeout = 24 * 60 * 60 // 24 hours
+	SystemRestoreTimeout = 24 * time.Hour
+
+	// VolumeBackupTimeout is the timeout for volume backups
+	VolumeBackupTimeout = 24 * time.Hour
 )
 
 // DataStore object
@@ -76,6 +81,8 @@ type DataStore struct {
 	SystemBackupInformer           cache.SharedInformer
 	srLister                       lhlisters.SystemRestoreLister
 	SystemRestoreInformer          cache.SharedInformer
+	lhVALister                     lhlisters.VolumeAttachmentLister
+	LHVolumeAttachmentInformer     cache.SharedInformer
 
 	kubeClient                    clientset.Interface
 	pLister                       corelisters.PodLister
@@ -163,6 +170,8 @@ func NewDataStore(
 	cacheSyncs = append(cacheSyncs, systemBackupInformer.Informer().HasSynced)
 	systemRestoreInformer := lhInformerFactory.Longhorn().V1beta2().SystemRestores()
 	cacheSyncs = append(cacheSyncs, systemRestoreInformer.Informer().HasSynced)
+	lhVAInformer := lhInformerFactory.Longhorn().V1beta2().VolumeAttachments()
+	cacheSyncs = append(cacheSyncs, lhVAInformer.Informer().HasSynced)
 
 	podInformer := kubeInformerFactory.Core().V1().Pods()
 	cacheSyncs = append(cacheSyncs, podInformer.Informer().HasSynced)
@@ -241,6 +250,8 @@ func NewDataStore(
 		SystemBackupInformer:           systemBackupInformer.Informer(),
 		srLister:                       systemRestoreInformer.Lister(),
 		SystemRestoreInformer:          systemRestoreInformer.Informer(),
+		lhVALister:                     lhVAInformer.Lister(),
+		LHVolumeAttachmentInformer:     lhVAInformer.Informer(),
 
 		kubeClient:                    kubeClient,
 		pLister:                       podInformer.Lister(),

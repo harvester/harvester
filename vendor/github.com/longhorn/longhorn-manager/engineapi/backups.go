@@ -52,9 +52,9 @@ func NewBackupTargetClientFromBackupTarget(backupTarget *longhorn.BackupTarget, 
 	}
 
 	var credential map[string]string
-	if backupType == types.BackupStoreTypeS3 {
+	if types.BackupStoreRequireCredential(backupType) {
 		if backupTarget.Spec.CredentialSecret == "" {
-			return nil, errors.Errorf("cannot access %s without credential secret", types.BackupStoreTypeS3)
+			return nil, errors.Errorf("cannot access %s without credential secret", backupType)
 		}
 
 		credential, err = ds.GetCredentialFromSecret(backupTarget.Spec.CredentialSecret)
@@ -78,31 +78,45 @@ func getBackupCredentialEnv(backupTarget string, credential map[string]string) (
 		return envs, err
 	}
 
-	if backupType != types.BackupStoreTypeS3 || credential == nil {
+	if !types.BackupStoreRequireCredential(backupType) || credential == nil {
 		return envs, nil
 	}
 
-	var missingKeys []string
-	if credential[types.AWSAccessKey] == "" {
-		missingKeys = append(missingKeys, types.AWSAccessKey)
+	switch backupType {
+	case types.BackupStoreTypeS3:
+		var missingKeys []string
+		if credential[types.AWSAccessKey] == "" {
+			missingKeys = append(missingKeys, types.AWSAccessKey)
+		}
+		if credential[types.AWSSecretKey] == "" {
+			missingKeys = append(missingKeys, types.AWSSecretKey)
+		}
+		// If AWS IAM Role not present, then the AWS credentials must be exists
+		if credential[types.AWSIAMRoleArn] == "" && len(missingKeys) > 0 {
+			return nil, fmt.Errorf("could not backup to %s, missing %v in the secret", backupType, missingKeys)
+		}
+		if len(missingKeys) == 0 {
+			envs = append(envs, fmt.Sprintf("%s=%s", types.AWSAccessKey, credential[types.AWSAccessKey]))
+			envs = append(envs, fmt.Sprintf("%s=%s", types.AWSSecretKey, credential[types.AWSSecretKey]))
+		}
+		envs = append(envs, fmt.Sprintf("%s=%s", types.AWSEndPoint, credential[types.AWSEndPoint]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.AWSCert, credential[types.AWSCert]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.HTTPSProxy, credential[types.HTTPSProxy]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.HTTPProxy, credential[types.HTTPProxy]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.NOProxy, credential[types.NOProxy]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.VirtualHostedStyle, credential[types.VirtualHostedStyle]))
+	case types.BackupStoreTypeCIFS:
+		envs = append(envs, fmt.Sprintf("%s=%s", types.CIFSUsername, credential[types.CIFSUsername]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.CIFSPassword, credential[types.CIFSPassword]))
+	case types.BackupStoreTypeAZBlob:
+		envs = append(envs, fmt.Sprintf("%s=%s", types.AZBlobAccountName, credential[types.AZBlobAccountName]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.AZBlobAccountKey, credential[types.AZBlobAccountKey]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.AZBlobEndpoint, credential[types.AZBlobEndpoint]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.AZBlobCert, credential[types.AZBlobCert]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.HTTPSProxy, credential[types.HTTPSProxy]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.HTTPProxy, credential[types.HTTPProxy]))
+		envs = append(envs, fmt.Sprintf("%s=%s", types.NOProxy, credential[types.NOProxy]))
 	}
-	if credential[types.AWSSecretKey] == "" {
-		missingKeys = append(missingKeys, types.AWSSecretKey)
-	}
-	// If AWS IAM Role not present, then the AWS credentials must be exists
-	if credential[types.AWSIAMRoleArn] == "" && len(missingKeys) > 0 {
-		return nil, fmt.Errorf("could not backup to %s, missing %v in the secret", backupType, missingKeys)
-	}
-	if len(missingKeys) == 0 {
-		envs = append(envs, fmt.Sprintf("%s=%s", types.AWSAccessKey, credential[types.AWSAccessKey]))
-		envs = append(envs, fmt.Sprintf("%s=%s", types.AWSSecretKey, credential[types.AWSSecretKey]))
-	}
-	envs = append(envs, fmt.Sprintf("%s=%s", types.AWSEndPoint, credential[types.AWSEndPoint]))
-	envs = append(envs, fmt.Sprintf("%s=%s", types.AWSCert, credential[types.AWSCert]))
-	envs = append(envs, fmt.Sprintf("%s=%s", types.HTTPSProxy, credential[types.HTTPSProxy]))
-	envs = append(envs, fmt.Sprintf("%s=%s", types.HTTPProxy, credential[types.HTTPProxy]))
-	envs = append(envs, fmt.Sprintf("%s=%s", types.NOProxy, credential[types.NOProxy]))
-	envs = append(envs, fmt.Sprintf("%s=%s", types.VirtualHostedStyle, credential[types.VirtualHostedStyle]))
 	return envs, nil
 }
 
@@ -295,9 +309,8 @@ func (btc *BackupTargetClient) BackupCleanUpAllMounts() (err error) {
 
 // SnapshotBackup calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
-func (e *EngineBinary) SnapshotBackup(engine *longhorn.Engine,
-	snapName, backupName, backupTarget,
-	backingImageName, backingImageChecksum string,
+func (e *EngineBinary) SnapshotBackup(engine *longhorn.Engine, snapName, backupName, backupTarget,
+	backingImageName, backingImageChecksum, compressionMethod string, concurrentLimit int, storageClassName string,
 	labels, credential map[string]string) (string, string, error) {
 	if snapName == etypes.VolumeHeadName {
 		return "", "", fmt.Errorf("invalid operation: cannot backup %v", etypes.VolumeHeadName)
@@ -346,7 +359,7 @@ func (e *EngineBinary) SnapshotBackup(engine *longhorn.Engine,
 		return "", "", err
 	}
 
-	logrus.Debugf("Backup %v created for volume %v snapshot %v", backupCreateInfo.BackupID, e.Name(), snapName)
+	logrus.Infof("Backup %v created for volume %v snapshot %v", backupCreateInfo.BackupID, e.Name(), snapName)
 	return backupCreateInfo.BackupID, backupCreateInfo.ReplicaAddress, nil
 }
 
@@ -387,7 +400,8 @@ func ConvertEngineBackupState(state string) longhorn.BackupState {
 
 // BackupRestore calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
-func (e *EngineBinary) BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolumeName, lastRestored string, credential map[string]string) error {
+func (e *EngineBinary) BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolumeName,
+	lastRestored string, credential map[string]string, concurrentLimit int) error {
 	backup := backupstore.EncodeBackupURL(backupName, backupVolumeName, backupTarget)
 
 	// get environment variables if backup for s3
@@ -412,7 +426,7 @@ func (e *EngineBinary) BackupRestore(engine *longhorn.Engine, backupTarget, back
 		return taskErr
 	}
 
-	logrus.Debugf("Backup %v restored for volume %v", backup, e.Name())
+	logrus.Infof("Backup %v restored for volume %v", backup, e.Name())
 	return nil
 }
 

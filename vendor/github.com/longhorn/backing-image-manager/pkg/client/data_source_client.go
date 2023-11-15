@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -33,7 +32,7 @@ func (client *DataSourceClient) Get() (*api.DataSourceInfo, error) {
 	}
 	defer resp.Body.Close()
 
-	bodyContent, err := ioutil.ReadAll(resp.Body)
+	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("%s, failed to read the response body: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), err)
 	}
@@ -71,7 +70,7 @@ func (client *DataSourceClient) Transfer() error {
 	}
 	defer resp.Body.Close()
 
-	bodyContent, err := ioutil.ReadAll(resp.Body)
+	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("%s, failed to read the response body: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), err)
 	}
@@ -127,7 +126,7 @@ func (client *DataSourceClient) Upload(filePath string) error {
 	}
 	defer resp.Body.Close()
 
-	bodyContent, err := ioutil.ReadAll(resp.Body)
+	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("%s, failed to read the response body: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), err)
 	}

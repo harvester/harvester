@@ -43,12 +43,6 @@ type ReplicaSpec struct {
 	UnmapMarkDiskChainRemovedEnabled bool `json:"unmapMarkDiskChainRemovedEnabled"`
 	// +optional
 	RebuildRetryCount int `json:"rebuildRetryCount"`
-	// Deprecated
-	// +optional
-	DataPath string `json:"dataPath"`
-	// Deprecated. Rename to BackingImage
-	// +optional
-	BaseImage string `json:"baseImage"`
 }
 
 // ReplicaStatus defines the observed state of the Longhorn replica

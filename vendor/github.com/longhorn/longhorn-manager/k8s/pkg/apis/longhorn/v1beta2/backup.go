@@ -13,6 +13,14 @@ const (
 	BackupStateUnknown    = BackupState("Unknown")
 )
 
+type BackupCompressionMethod string
+
+const (
+	BackupCompressionMethodNone = BackupCompressionMethod("none")
+	BackupCompressionMethodLz4  = BackupCompressionMethod("lz4")
+	BackupCompressionMethodGzip = BackupCompressionMethod("gzip")
+)
+
 // BackupSpec defines the desired state of the Longhorn backup
 type BackupSpec struct {
 	// The time to request run sync the remote backup.
@@ -84,6 +92,9 @@ type BackupStatus struct {
 	// +optional
 	// +nullable
 	LastSyncedAt metav1.Time `json:"lastSyncedAt"`
+	// Compression method
+	// +optional
+	CompressionMethod BackupCompressionMethod `json:"compressionMethod"`
 }
 
 // +genclient

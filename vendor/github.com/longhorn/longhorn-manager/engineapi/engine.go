@@ -120,7 +120,7 @@ func (e *EngineBinary) ReplicaList(*longhorn.Engine) (map[string]*Replica, error
 
 // ReplicaAdd calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
-func (e *EngineBinary) ReplicaAdd(engine *longhorn.Engine, url string, isRestoreVolume, fastSync bool, replicaFileSyncHTTPClientTimeout int64) error {
+func (e *EngineBinary) ReplicaAdd(engine *longhorn.Engine, replicaName, url string, isRestoreVolume, fastSync bool, replicaFileSyncHTTPClientTimeout int64) error {
 	if err := ValidateReplicaURL(url); err != nil {
 		return err
 	}
@@ -232,7 +232,7 @@ func (e *EngineBinary) ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longh
 // VolumeFrontendStart calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
 func (e *EngineBinary) VolumeFrontendStart(engine *longhorn.Engine) error {
-	frontendName, err := GetEngineProcessFrontend(engine.Spec.Frontend)
+	frontendName, err := GetEngineInstanceFrontend(engine.Spec.BackendStoreDriver, engine.Spec.Frontend)
 	if err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (e *EngineBinary) VolumeFrontendStart(engine *longhorn.Engine) error {
 	}
 
 	if _, err := e.ExecuteEngineBinary("frontend", "start", frontendName); err != nil {
-		return errors.Wrapf(err, "error starting frontend %v", frontendName)
+		return errors.Wrapf(err, "failed to start frontend %v", frontendName)
 	}
 
 	return nil

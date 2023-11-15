@@ -1,4 +1,5 @@
-// +build !amd64,!386 appengine
+//go:build (!amd64 && !386 && !arm && !arm64 && !ppc64le && !mipsle && !mips64le && !mips64p32le && !wasm) || appengine
+// +build !amd64,!386,!arm,!arm64,!ppc64le,!mipsle,!mips64le,!mips64p32le,!wasm appengine
 
 package roaring
 
@@ -69,6 +70,27 @@ func uint64SliceAsByteSlice(slice []uint64) []byte {
 
 	for i, v := range slice {
 		binary.LittleEndian.PutUint64(by[i*8:], v)
+	}
+
+	return by
+}
+
+func uint16SliceAsByteSlice(slice []uint16) []byte {
+	by := make([]byte, len(slice)*2)
+
+	for i, v := range slice {
+		binary.LittleEndian.PutUint16(by[i*2:], v)
+	}
+
+	return by
+}
+
+func interval16SliceAsByteSlice(slice []interval16) []byte {
+	by := make([]byte, len(slice)*4)
+
+	for i, v := range slice {
+		binary.LittleEndian.PutUint16(by[i*2:], v.start)
+		binary.LittleEndian.PutUint16(by[i*2+2:], v.length)
 	}
 
 	return by

@@ -49,7 +49,7 @@ func labelMapToLabelSelector(labels map[string]string) (labels.Selector, error) 
 	})
 }
 
-func (s *DataStore) getManagerLabel() map[string]string {
+func (s *DataStore) GetManagerLabel() map[string]string {
 	return map[string]string{
 		// TODO standardize key
 		// longhornSystemKey: longhornSystemManager,
@@ -59,7 +59,7 @@ func (s *DataStore) getManagerLabel() map[string]string {
 
 func (s *DataStore) getManagerSelector() (labels.Selector, error) {
 	return metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
-		MatchLabels: s.getManagerLabel(),
+		MatchLabels: s.GetManagerLabel(),
 	})
 }
 
@@ -92,7 +92,7 @@ func (s *DataStore) GetManagerNodeIPMap() (map[string]string, error) {
 		return nil, err
 	}
 	if len(podList) == 0 {
-		return nil, fmt.Errorf("cannot find manager pods by label %v", s.getManagerLabel())
+		return nil, fmt.Errorf("cannot find manager pods by label %v", s.GetManagerLabel())
 	}
 	nodeIPMap := make(map[string]string)
 	for _, pod := range podList {

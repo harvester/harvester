@@ -1,0 +1,93 @@
+syntax="proto3";
+
+package imrpc;
+
+import "google/protobuf/empty.proto";
+import "github.com/longhorn/longhorn-instance-manager/pkg/imrpc/common.proto";
+import "github.com/longhorn/longhorn-instance-manager/pkg/imrpc/imrpc.proto";
+
+service InstanceService {
+	rpc InstanceCreate(InstanceCreateRequest) returns (InstanceResponse) {}
+	rpc InstanceDelete(InstanceDeleteRequest) returns (InstanceResponse) {}
+	rpc InstanceGet(InstanceGetRequest) returns (InstanceResponse) {}
+	rpc InstanceList(google.protobuf.Empty) returns (InstanceListResponse) {}
+	rpc InstanceLog(InstanceLogRequest) returns (stream LogResponse) {}
+	rpc InstanceWatch(google.protobuf.Empty) returns (stream google.protobuf.Empty) {}
+	rpc InstanceReplace(InstanceReplaceRequest) returns (InstanceResponse) {}
+
+	rpc VersionGet(google.protobuf.Empty) returns (VersionResponse);
+}
+
+message ProcessInstanceSpec {
+	string binary = 1;
+	repeated string args = 2;
+}
+
+message SpdkInstanceSpec {
+    map<string, string> replica_address_map = 1;
+	string disk_name = 2;
+	string disk_uuid = 3;
+	uint64 size = 4;
+	bool expose_required = 5;
+	string frontend = 6;
+}
+
+message InstanceSpec {
+	BackendStoreDriver backend_store_driver = 1;
+	string name = 2;
+	string type = 3;
+	string volume_name = 4;
+
+	int32 port_count = 5;
+	repeated string port_args = 6;
+
+	ProcessInstanceSpec process_instance_spec = 7;
+	SpdkInstanceSpec spdk_instance_spec = 8;
+}
+
+message InstanceStatus {
+	string state = 1;
+	string error_msg = 2;
+	int32 port_start = 3;
+	int32 port_end = 4;
+}
+
+message InstanceCreateRequest {
+	InstanceSpec spec = 1;
+}
+
+message InstanceDeleteRequest {
+	BackendStoreDriver backend_store_driver = 1;
+	string name = 2;
+	string type = 3;
+
+	string disk_uuid = 4;
+	bool cleanup_required = 5;
+}
+
+message InstanceGetRequest {
+	BackendStoreDriver backend_store_driver = 1;
+	string name = 2;
+	string type = 3;
+}
+
+message InstanceResponse {
+	InstanceSpec spec = 1;
+	InstanceStatus status = 2;
+	bool deleted = 3;
+}
+
+message InstanceListResponse{
+	map<string, InstanceResponse> instances = 1;
+}
+
+message InstanceLogRequest {
+	BackendStoreDriver backend_store_driver = 1;
+	string name = 2;
+	string type = 3;
+}
+
+message InstanceReplaceRequest {
+	InstanceSpec spec = 1;
+	string terminate_signal = 2;
+}

@@ -2,6 +2,13 @@ package v1beta2
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+const (
+	BackingImageParameterName                 = "backingImage"
+	BackingImageParameterDataSourceType       = "backingImageDataSourceType"
+	BackingImageParameterChecksum             = "backingImageChecksum"
+	BackingImageParameterDataSourceParameters = "backingImageDataSourceParameters"
+)
+
 // BackingImageDownloadState is replaced by BackingImageState.
 type BackingImageDownloadState string
 
@@ -39,9 +46,6 @@ type BackingImageSpec struct {
 	SourceType BackingImageDataSourceType `json:"sourceType"`
 	// +optional
 	SourceParameters map[string]string `json:"sourceParameters"`
-	// Deprecated: This kind of info will be included in the related BackingImageDataSource.
-	// +optional
-	ImageURL string `json:"imageURL"`
 }
 
 // BackingImageStatus defines the observed state of the Longhorn backing image status
@@ -60,14 +64,6 @@ type BackingImageStatus struct {
 	// +optional
 	// +nullable
 	DiskLastRefAtMap map[string]string `json:"diskLastRefAtMap"`
-	// Deprecated: Replaced by field `State` in `DiskFileStatusMap`.
-	// +optional
-	// +nullable
-	DiskDownloadStateMap map[string]BackingImageDownloadState `json:"diskDownloadStateMap"`
-	// Deprecated: Replaced by field `Progress` in `DiskFileStatusMap`.
-	// +optional
-	// +nullable
-	DiskDownloadProgressMap map[string]int `json:"diskDownloadProgressMap"`
 }
 
 // +genclient
