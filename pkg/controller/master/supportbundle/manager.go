@@ -91,6 +91,14 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy
 									Value: sb.Name,
 								},
 								{
+									Name:  "SUPPORT_BUNDLE_DESCRIPTION",
+									Value: sb.Spec.Description,
+								},
+								{
+									Name:  "SUPPORT_BUNDLE_ISSUE_URL",
+									Value: sb.Spec.IssueURL,
+								},
+								{
 									Name:  "SUPPORT_BUNDLE_DEBUG",
 									Value: "true",
 								},
