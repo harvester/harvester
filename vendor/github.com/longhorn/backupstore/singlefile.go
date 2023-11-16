@@ -3,11 +3,11 @@ package backupstore
 import (
 	"path/filepath"
 
-	"github.com/longhorn/backupstore/util"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	. "github.com/longhorn/backupstore/logging"
+	"github.com/longhorn/backupstore/util"
 )
 
 const (
@@ -29,11 +29,11 @@ func CreateSingleFileBackup(volume *Volume, snapshot *Snapshot, filePath, destUR
 		return "", err
 	}
 
-	if err := addVolume(volume, driver); err != nil {
+	if err := addVolume(driver, volume); err != nil {
 		return "", err
 	}
 
-	volume, err = loadVolume(volume.Name, driver)
+	volume, err = loadVolume(driver, volume.Name)
 	if err != nil {
 		return "", err
 	}
@@ -44,13 +44,14 @@ func CreateSingleFileBackup(volume *Volume, snapshot *Snapshot, filePath, destUR
 		LogFieldObject:   LogObjectSnapshot,
 		LogFieldSnapshot: snapshot.Name,
 		LogFieldFilepath: filePath,
-	}).Debug("Creating backup")
+	}).Info("Creating backup")
 
 	backup := &Backup{
 		Name:              util.GenerateName("backup"),
 		VolumeName:        volume.Name,
 		SnapshotName:      snapshot.Name,
 		SnapshotCreatedAt: snapshot.CreatedTime,
+		CompressionMethod: volume.CompressionMethod,
 	}
 	backup.SingleFile.FilePath = getSingleFileBackupFilePath(backup)
 
@@ -59,7 +60,7 @@ func CreateSingleFileBackup(volume *Volume, snapshot *Snapshot, filePath, destUR
 	}
 
 	backup.CreatedTime = util.Now()
-	if err := saveBackup(backup, driver); err != nil {
+	if err := saveBackup(driver, backup); err != nil {
 		return "", err
 	}
 
@@ -68,7 +69,7 @@ func CreateSingleFileBackup(volume *Volume, snapshot *Snapshot, filePath, destUR
 		LogFieldEvent:    LogEventBackup,
 		LogFieldObject:   LogObjectSnapshot,
 		LogFieldSnapshot: snapshot.Name,
-	}).Debug("Created backup")
+	}).Info("Created backup")
 
 	return EncodeBackupURL(backup.Name, volume.Name, destURL), nil
 }
@@ -84,14 +85,14 @@ func RestoreSingleFileBackup(backupURL, path string) (string, error) {
 		return "", err
 	}
 
-	if _, err := loadVolume(srcVolumeName, driver); err != nil {
+	if _, err := loadVolume(driver, srcVolumeName); err != nil {
 		return "", generateError(logrus.Fields{
 			LogFieldVolume:    srcVolumeName,
 			LogEventBackupURL: backupURL,
 		}, "Volume doesn't exist in backupstore: %v", err)
 	}
 
-	backup, err := loadBackup(srcBackupName, srcVolumeName, driver)
+	backup, err := loadBackup(driver, srcBackupName, srcVolumeName)
 	if err != nil {
 		return "", err
 	}
@@ -115,12 +116,12 @@ func DeleteSingleFileBackup(backupURL string) error {
 		return err
 	}
 
-	_, err = loadVolume(volumeName, driver)
+	_, err = loadVolume(driver, volumeName)
 	if err != nil {
 		return errors.Wrapf(err, "cannot find volume %v in backupstore", volumeName)
 	}
 
-	backup, err := loadBackup(backupName, volumeName, driver)
+	backup, err := loadBackup(driver, backupName, volumeName)
 	if err != nil {
 		return err
 	}
