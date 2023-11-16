@@ -19,7 +19,7 @@ func InspectVolume(volumeURL string) (*VolumeInfo, error) {
 		return nil, err
 	}
 
-	volume, err := loadVolume(volumeName, driver)
+	volume, err := loadVolume(driver, volumeName)
 	if err != nil {
 		return nil, err
 	}
@@ -38,12 +38,12 @@ func InspectBackup(backupURL string) (*BackupInfo, error) {
 		return nil, err
 	}
 
-	volume, err := loadVolume(volumeName, driver)
+	volume, err := loadVolume(driver, volumeName)
 	if err != nil {
 		return nil, err
 	}
 
-	backup, err := loadBackup(backupName, volumeName, driver)
+	backup, err := loadBackup(driver, backupName, volumeName)
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			LogFieldReason: LogReasonFallback,
@@ -74,19 +74,21 @@ func fillVolumeInfo(volume *Volume) *VolumeInfo {
 		Backups:              make(map[string]*BackupInfo),
 		BackingImageName:     volume.BackingImageName,
 		BackingImageChecksum: volume.BackingImageChecksum,
+		StorageClassname:     volume.StorageClassName,
 	}
 }
 
 func fillBackupInfo(backup *Backup, destURL string) *BackupInfo {
 	return &BackupInfo{
-		Name:            backup.Name,
-		URL:             EncodeBackupURL(backup.Name, backup.VolumeName, destURL),
-		SnapshotName:    backup.SnapshotName,
-		SnapshotCreated: backup.SnapshotCreatedAt,
-		Created:         backup.CreatedTime,
-		Size:            backup.Size,
-		Labels:          backup.Labels,
-		IsIncremental:   backup.IsIncremental,
+		Name:              backup.Name,
+		URL:               EncodeBackupURL(backup.Name, backup.VolumeName, destURL),
+		SnapshotName:      backup.SnapshotName,
+		SnapshotCreated:   backup.SnapshotCreatedAt,
+		Created:           backup.CreatedTime,
+		Size:              backup.Size,
+		Labels:            backup.Labels,
+		IsIncremental:     backup.IsIncremental,
+		CompressionMethod: backup.CompressionMethod,
 	}
 }
 

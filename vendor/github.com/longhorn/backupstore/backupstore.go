@@ -3,6 +3,7 @@ package backupstore
 import (
 	"fmt"
 	"net/url"
+	"sync"
 
 	"github.com/longhorn/backupstore/util"
 	"github.com/pkg/errors"
@@ -18,6 +19,8 @@ type Volume struct {
 	BlockCount           int64  `json:",string"`
 	BackingImageName     string `json:",string"`
 	BackingImageChecksum string `json:",string"`
+	CompressionMethod    string `json:",string"`
+	StorageClassName     string `json:",string"`
 }
 
 type Snapshot struct {
@@ -25,7 +28,13 @@ type Snapshot struct {
 	CreatedTime string
 }
 
+type ProcessingBlocks struct {
+	sync.Mutex
+	blocks map[string][]*BlockMapping
+}
+
 type Backup struct {
+	sync.Mutex
 	Name              string
 	VolumeName        string
 	SnapshotName      string
@@ -34,6 +43,9 @@ type Backup struct {
 	Size              int64 `json:",string"`
 	Labels            map[string]string
 	IsIncremental     bool
+	CompressionMethod string
+
+	ProcessingBlocks *ProcessingBlocks
 
 	Blocks     []BlockMapping `json:",omitempty"`
 	SingleFile BackupFile     `json:",omitempty"`
@@ -51,8 +63,8 @@ func GetBackupstoreBase() string {
 	return backupstoreBase
 }
 
-func addVolume(volume *Volume, driver BackupStoreDriver) error {
-	if volumeExists(volume.Name, driver) {
+func addVolume(driver BackupStoreDriver, volume *Volume) error {
+	if volumeExists(driver, volume.Name) {
 		return nil
 	}
 
@@ -60,10 +72,11 @@ func addVolume(volume *Volume, driver BackupStoreDriver) error {
 		return fmt.Errorf("invalid volume name %v", volume.Name)
 	}
 
-	if err := saveVolume(volume, driver); err != nil {
+	if err := saveVolume(driver, volume); err != nil {
 		log.WithError(err).Errorf("Failed to add volume %v", volume.Name)
 		return err
 	}
+
 	log.Infof("Added backupstore volume %v", volume.Name)
 	return nil
 }
@@ -133,5 +146,5 @@ func LoadVolume(backupURL string) (*Volume, error) {
 	if err != nil {
 		return nil, err
 	}
-	return loadVolume(volumeName, driver)
+	return loadVolume(driver, volumeName)
 }
