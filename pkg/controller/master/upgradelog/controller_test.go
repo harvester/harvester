@@ -293,10 +293,10 @@ func TestHandler_OnJobChange(t *testing.T) {
 			given: input{
 				key:        testJobName,
 				job:        newTestJobBuilder().WithLabel(util.LabelUpgradeLog, testUpgradeLogName).WithAnnotation(util.AnnotationArchiveName, testArchiveName).Build(),
-				upgradeLog: newTestUpgradeLogBuilder().Archive(testArchiveName, 0, "", false).Build(),
+				upgradeLog: newTestUpgradeLogBuilder().Archive(testArchiveName, 0, "").Build(),
 			},
 			expected: output{
-				upgradeLog: newTestUpgradeLogBuilder().Archive(testArchiveName, 0, "", false).Build(),
+				upgradeLog: newTestUpgradeLogBuilder().Archive(testArchiveName, 0, "").Build(),
 			},
 		},
 		{
@@ -304,10 +304,10 @@ func TestHandler_OnJobChange(t *testing.T) {
 			given: input{
 				key:        testJobName,
 				job:        newTestJobBuilder().WithLabel(util.LabelUpgradeLog, testUpgradeLogName).WithAnnotation(util.AnnotationArchiveName, testArchiveName).Done().Build(),
-				upgradeLog: newTestUpgradeLogBuilder().Archive(testArchiveName, 0, "", false).Build(),
+				upgradeLog: newTestUpgradeLogBuilder().Archive(testArchiveName, 0, "").Build(),
 			},
 			expected: output{
-				upgradeLog: newTestUpgradeLogBuilder().Archive(testArchiveName, 0, "", true).Build(),
+				upgradeLog: newTestUpgradeLogBuilder().Archive(testArchiveName, 0, "").ArchiveReady(testArchiveName, true, "").Build(),
 			},
 		},
 	}

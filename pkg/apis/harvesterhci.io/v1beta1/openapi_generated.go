@@ -1424,7 +1424,14 @@ func schema_pkg_apis_harvesterhciio_v1beta1_Archive(ref common.ReferenceCallback
 					},
 					"ready": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"boolean"},
+							Default: false,
+							Type:    []string{"boolean"},
+							Format:  "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
 							Format: "",
 						},
 					},
