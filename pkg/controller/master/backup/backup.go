@@ -18,7 +18,6 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/longhorn/backupstore"
-
 	// Although we don't use following drivers directly, we need to import them to register drivers.
 	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
 	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
@@ -374,6 +373,11 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 			return nil, fmt.Errorf("PV %s is not from CSI driver, cannot take a %s", pv.Name, backup.Spec.Type)
 		}
 
+		lhvolume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pv.Name)
+		if err != nil {
+			return nil, err
+		}
+
 		volumeBackupName := fmt.Sprintf("%s-volume-%s", backup.Name, pvcName)
 
 		vb := harvesterv1.VolumeBackup{
@@ -390,6 +394,7 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 				Spec: pvc.Spec,
 			},
 			ReadyToUse: pointer.BoolPtr(false),
+			VolumeSize: lhvolume.Spec.Size,
 		}
 
 		volumeBackups = append(volumeBackups, vb)

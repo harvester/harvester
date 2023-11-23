@@ -143,6 +143,8 @@ spec:
                     format: date-time
                     type: string
                 type: object
+              progress:
+                type: integer
               readyToUse:
                 type: boolean
               secretBackups:
@@ -4575,6 +4577,8 @@ spec:
                   description: VolumeBackup contains the volume data need to restore
                     a PVC
                   properties:
+                    backupProgress:
+                      type: integer
                     creationTime:
                       format: date-time
                       type: string
@@ -4823,6 +4827,9 @@ spec:
                       type: boolean
                     volumeName:
                       type: string
+                    volumeSize:
+                      format: int64
+                      type: integer
                   required:
                   - csiDriverName
                   - persistentVolumeClaim

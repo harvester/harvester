@@ -3709,6 +3709,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref commo
 							},
 						},
 					},
+					"progress": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 					"readyToUse": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"boolean"},
@@ -4595,6 +4601,18 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackup(ref common.ReferenceCal
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
+						},
+					},
+					"volumeSize": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
+					"backupProgress": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
 						},
 					},
 					"readyToUse": {

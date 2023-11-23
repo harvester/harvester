@@ -92,6 +92,9 @@ type VirtualMachineBackupStatus struct {
 	SecretBackups []SecretBackup `json:"secretBackups,omitempty"`
 
 	// +optional
+	Progress int `json:"progress,omitempty"`
+
+	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty"`
 
 	// +optional
@@ -137,6 +140,12 @@ type VolumeBackup struct {
 
 	// +optional
 	LonghornBackupName *string `json:"longhornBackupName,omitempty"`
+
+	// +optional
+	VolumeSize int64 `json:"volumeSize,omitempty"`
+
+	// +optional
+	BackupProgress int `json:"backupProgress,omitempty"`
 
 	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty"`
