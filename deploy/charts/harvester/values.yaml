@@ -512,3 +512,5 @@ snapshot-validation-webhook:
     pullPolicy: IfNotPresent
 
 enableLonghornNetworkPolicy: true
+
+enableGoCoverDir: false
