@@ -2,7 +2,7 @@
 # ***NOTE*** Deprecated, we need to use the new elemental-cli in the next release.
 FROM registry.suse.com/rancher/elemental-builder-image/5.3:0.3.1 AS temp_elemental
 
-FROM registry.suse.com/bci/bci-base:15.4
+FROM registry.suse.com/bci/bci-base:15.5
 
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
