@@ -72,6 +72,10 @@ spec:
             - name: RANCHER_SERVER_URL
               value: {{  .Values.rancherURL }}
 {{- end }}
+{{- if .Values.enableGoCoverDir }}
+            - name: GOCOVERDIR
+              value: /go-cover-dir
+{{- end }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
@@ -104,6 +108,16 @@ spec:
 {{- if .Values.containers.apiserver.resources }}
           resources:
 {{ toYaml .Values.containers.apiserver.resources | indent 12 }}
+{{- end }}
+{{- if .Values.enableGoCoverDir }}
+          volumeMounts:
+          - name: go-cover-dir
+            mountPath: /go-cover-dir
+      volumes:
+      - name: go-cover-dir
+        hostPath:
+          path: /usr/local/go-cover-dir/
+          type: DirectoryOrCreate
 {{- end }}
 {{- if .Values.securityContext }}
       securityContext:
@@ -158,6 +172,10 @@ spec:
           value: {{ .Values.webhook.debug | quote }}
         - name: HARVESTER_CONTROLLER_USER_NAME
           value: {{ .Values.webhook.controllerUser | default (print "system:serviceaccount:" .Release.Namespace ":harvester")  | quote }}
+{{- if .Values.enableGoCoverDir }}
+        - name: GOCOVERDIR
+          value: /go-cover-dir
+{{- end }}
         image: {{ .Values.webhook.image.repository }}:{{ .Values.webhook.image.tag }}
         name: harvester-webhook
         args: []
@@ -168,3 +186,13 @@ spec:
         ports:
         - name: https
           containerPort: {{ .Values.webhook.httpsPort }}
+{{- if .Values.enableGoCoverDir }}
+        volumeMounts:
+        - name: go-cover-dir
+          mountPath: /go-cover-dir
+      volumes:
+      - name: go-cover-dir
+        hostPath:
+          path: /usr/local/go-cover-dir/
+          type: DirectoryOrCreate
+{{- end }}
