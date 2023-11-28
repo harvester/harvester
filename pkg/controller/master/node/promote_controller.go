@@ -28,6 +28,10 @@ const (
 	KubeNodeRoleLabelPrefix      = "node-role.kubernetes.io/"
 	KubeMasterNodeLabelKey       = KubeNodeRoleLabelPrefix + "master"
 	KubeControlPlaneNodeLabelKey = KubeNodeRoleLabelPrefix + "control-plane"
+	KubeEtcdNodeLabelKey         = KubeNodeRoleLabelPrefix + "etcd"
+
+	HarvesterNodeRoleLabelPrefix = "node-role.harvesterhci.io/"
+	HarvesterEtcdNodeLabelKey    = HarvesterNodeRoleLabelPrefix + "etcd"
 
 	HarvesterLabelAnnotationPrefix      = "harvesterhci.io/"
 	HarvesterManagedNodeLabelKey        = HarvesterLabelAnnotationPrefix + "managed"
@@ -262,13 +266,13 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 			managementNumber++
 		}
 
-		// return if there are already enough management nodes
-		if managementNumber == defaultSpecManagementNumber {
-			return nil
-		}
-
-		// return if the management node count is equal to the total amount of nodes (there are no more nodes left to promote)
-		if managementNumber == nodeNumber {
+		// return if there are already enough management nodes or total amount of nodes
+		if managementNumber == func() int {
+			if nodeNumber < defaultSpecManagementNumber {
+				return nodeNumber
+			}
+			return defaultSpecManagementNumber
+		}() {
 			return nil
 		}
 
@@ -348,7 +352,8 @@ func isHarvesterNode(node *corev1.Node) bool {
 	return ok
 }
 
-// isManagementRole determine whether it's an management node based on the node's label
+// isManagementRole determine whether it's an management node based on the node's label.
+// Management Role included: master, control-plane, etcd
 func isManagementRole(node *corev1.Node) bool {
 	if value, ok := node.Labels[KubeMasterNodeLabelKey]; ok {
 		return value == "true"
@@ -356,6 +361,11 @@ func isManagementRole(node *corev1.Node) bool {
 
 	// Related to https://github.com/kubernetes/kubernetes/pull/95382
 	if value, ok := node.Labels[KubeControlPlaneNodeLabelKey]; ok {
+		return value == "true"
+	}
+
+	// Now we have the witness node, we need to count it as a management node
+	if value, ok := node.Labels[KubeEtcdNodeLabelKey]; ok {
 		return value == "true"
 	}
 
@@ -388,6 +398,11 @@ func (h *PromoteHandler) deleteJob(job *batchv1.Job, deletionPropagation metav1.
 
 func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
 	nodeName := node.Name
+	nodeRoleEtcd := node.Labels[HarvesterEtcdNodeLabelKey]
+	promoteParameter := ""
+	if nodeRoleEtcd == "true" {
+		promoteParameter = "rke.cattle.io/etcd-role=true"
+	}
 	hostPathDirectory := corev1.HostPathDirectory
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -453,9 +468,12 @@ func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
 					},
 					Tolerations: []corev1.Toleration{
 						{
-							Key:      corev1.TaintNodeUnschedulable,
 							Operator: corev1.TolerationOpExists,
 							Effect:   corev1.TaintEffectNoSchedule,
+						},
+						{
+							Operator: corev1.TolerationOpExists,
+							Effect:   corev1.TaintEffectNoExecute,
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -488,7 +506,7 @@ func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
 			Name:      "promote",
 			Image:     promoteImage,
 			Command:   []string{"sh"},
-			Args:      []string{"-e", promoteScript},
+			Args:      []string{"-e", promoteScript, promoteParameter},
 			Resources: corev1.ResourceRequirements{},
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "host-root", MountPath: promoteRootMountPath},
@@ -496,7 +514,7 @@ func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
 			},
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			SecurityContext: &corev1.SecurityContext{
-				Privileged: pointer.BoolPtr(true),
+				Privileged: pointer.Bool(true),
 			},
 			Env: []corev1.EnvVar{
 				{

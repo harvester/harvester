@@ -20,6 +20,21 @@ metadata:
 data:
   promote.sh: |-
     {{`KUBECTL="/host/$(readlink /host/var/lib/rancher/rke2/bin)/kubectl"
+    ROLE_LABELS="rke.cattle.io/control-plane-role=true rke.cattle.io/etcd-role=true"
+    ETCD_ONLY=false
+    if [[ -n "$1" ]]; then
+      ETCD_ONLY=true
+      ROLE_LABELS=$1
+    fi
+
+    case $ROLE_LABELS in
+      "rke.cattle.io/control-plane-role=true rke.cattle.io/etcd-role=true" | "rke.cattle.io/etcd-role=true")
+    ;;
+      *)
+      echo "ROLE $ROLE_LABELS is not supported."
+      exit 1
+    ;;
+    esac
 
     get_machine_from_node() {
       $KUBECTL get node $HARVESTER_PROMOTE_NODE_NAME -o jsonpath='{.metadata.annotations.cluster\.x-k8s\.io/machine}'
@@ -79,17 +94,29 @@ data:
     EOF
 
     # For how to promote nodes, see: https://github.com/rancher/rancher/issues/36480#issuecomment-1039253499
-    ROLE_LABELS="rke.cattle.io/control-plane-role=true rke.cattle.io/etcd-role=true"
     $KUBECTL label --overwrite -n fleet-local machines.cluster.x-k8s.io $CUSTOM_MACHINE $ROLE_LABELS
     $KUBECTL label --overwrite -n fleet-local secret $PLAN_SECRET $ROLE_LABELS
     $KUBECTL label --overwrite -n fleet-local rkebootstraps.rke.cattle.io $CUSTOM_MACHINE $ROLE_LABELS
 
     while true
     do
-      CONTROL_PLANE=$($KUBECTL get node $HOSTNAME -o go-template=$'{{index .metadata.labels "node-role.kubernetes.io/control-plane"}}\n' || true)
+      if [[ $ETCD_ONLY == true ]]; then
+        ETCD_STATE=$($KUBECTL get node $HOSTNAME -o go-template=$'{{index .metadata.labels "node-role.kubernetes.io/etcd"}}\n' || true)
 
-      if [ "$CONTROL_PLANE" = "true" ]; then
-        break
+        if [ "$ETCD_STATE" = "true" ]; then
+          $KUBECTL taint nodes $HOSTNAME node-role.kubernetes.io/etcd=true:NoExecute
+          $KUBECTL patch managedchart harvester -n fleet-local --type=json -p='[{"op":"replace", "path":"/spec/values/replicas", "value": 2}]'
+          $KUBECTL patch managedchart harvester -n fleet-local --type=json -p='[{"op":"replace", "path":"/spec/values/webhook/replicas", "value": 2}]'
+          $KUBECTL annotate --overwrite deployment rancher -n cattle-system management.cattle.io/scale-available="2"
+          break
+        fi
+
+      else
+        CONTROL_PLANE=$($KUBECTL get node $HOSTNAME -o go-template=$'{{index .metadata.labels "node-role.kubernetes.io/control-plane"}}\n' || true)
+
+        if [ "$CONTROL_PLANE" = "true" ]; then
+          break
+        fi
       fi
       echo Waiting for promotion...
       sleep 2
