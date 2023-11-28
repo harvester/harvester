@@ -106,8 +106,8 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Se
 			return h.setConfiguredCondition(setting, "", err)
 		}
 
-		// delete the may existing previous secret of S3
-		if err = h.deleteBackupTargetSecret(target); err != nil {
+		// reset previous secret of S3
+		if err = h.resetBackupTargetSecret(); err != nil {
 			return h.setConfiguredCondition(setting, "", err)
 		}
 
@@ -118,8 +118,8 @@ func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Se
 				return h.setConfiguredCondition(setting, "", err)
 			}
 
-			// delete the may existing previous secret of S3
-			if err = h.deleteBackupTargetSecret(target); err != nil {
+			// reset previous secret of S3
+			if err = h.resetBackupTargetSecret(); err != nil {
 				return h.setConfiguredCondition(setting, "", err)
 			}
 
@@ -250,13 +250,29 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 	return h.updateLonghornBackupTargetSecretSetting(target)
 }
 
-func (h *TargetHandler) deleteBackupTargetSecret(target *settings.BackupTarget) error {
-	if err := h.secrets.Delete(util.LonghornSystemNamespaceName, util.BackupTargetSecretName, nil); err != nil && !apierrors.IsNotFound(err) {
+func (h *TargetHandler) resetBackupTargetSecret() error {
+	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
+	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
+	if secret != nil && len(secret.Data) != 0 {
+		secretCpy := secret.DeepCopy()
+		secretCpy.Data = map[string][]byte{}
+		if _, err = h.secrets.Update(secretCpy); err != nil {
+			return err
+		}
+	}
 
-	if err := h.longhornSettings.Delete(util.LonghornSystemNamespaceName, longhornBackupTargetSecretSettingName, nil); err != nil && !apierrors.IsNotFound(err) {
+	setting, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, longhornBackupTargetSecretSettingName)
+	if err != nil && !apierrors.IsNotFound(err) {
 		return err
+	}
+	if setting != nil && setting.Value != "" {
+		settingCpy := setting.DeepCopy()
+		settingCpy.Value = ""
+		if _, err := h.longhornSettings.Update(settingCpy); err != nil {
+			return err
+		}
 	}
 
 	return nil
