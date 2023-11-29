@@ -25,7 +25,10 @@ import (
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +58,7 @@ type AlertmanagerController interface {
 type AlertmanagerClient interface {
 	Create(*v1.Alertmanager) (*v1.Alertmanager, error)
 	Update(*v1.Alertmanager) (*v1.Alertmanager, error)
-
+	UpdateStatus(*v1.Alertmanager) (*v1.Alertmanager, error)
 	Delete(namespace, name string, options *metav1.DeleteOptions) error
 	Get(namespace, name string, options metav1.GetOptions) (*v1.Alertmanager, error)
 	List(namespace string, opts metav1.ListOptions) (*v1.AlertmanagerList, error)
@@ -184,6 +187,11 @@ func (c *alertmanagerController) Update(obj *v1.Alertmanager) (*v1.Alertmanager,
 	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
+func (c *alertmanagerController) UpdateStatus(obj *v1.Alertmanager) (*v1.Alertmanager, error) {
+	result := &v1.Alertmanager{}
+	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
+}
+
 func (c *alertmanagerController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
@@ -253,4 +261,116 @@ func (c *alertmanagerCache) GetByIndex(indexName, key string) (result []*v1.Aler
 		result = append(result, obj.(*v1.Alertmanager))
 	}
 	return result, nil
+}
+
+type AlertmanagerStatusHandler func(obj *v1.Alertmanager, status v1.AlertmanagerStatus) (v1.AlertmanagerStatus, error)
+
+type AlertmanagerGeneratingHandler func(obj *v1.Alertmanager, status v1.AlertmanagerStatus) ([]runtime.Object, v1.AlertmanagerStatus, error)
+
+func RegisterAlertmanagerStatusHandler(ctx context.Context, controller AlertmanagerController, condition condition.Cond, name string, handler AlertmanagerStatusHandler) {
+	statusHandler := &alertmanagerStatusHandler{
+		client:    controller,
+		condition: condition,
+		handler:   handler,
+	}
+	controller.AddGenericHandler(ctx, name, FromAlertmanagerHandlerToHandler(statusHandler.sync))
+}
+
+func RegisterAlertmanagerGeneratingHandler(ctx context.Context, controller AlertmanagerController, apply apply.Apply,
+	condition condition.Cond, name string, handler AlertmanagerGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &alertmanagerGeneratingHandler{
+		AlertmanagerGeneratingHandler: handler,
+		apply:                         apply,
+		name:                          name,
+		gvk:                           controller.GroupVersionKind(),
+	}
+	if opts != nil {
+		statusHandler.opts = *opts
+	}
+	controller.OnChange(ctx, name, statusHandler.Remove)
+	RegisterAlertmanagerStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+}
+
+type alertmanagerStatusHandler struct {
+	client    AlertmanagerClient
+	condition condition.Cond
+	handler   AlertmanagerStatusHandler
+}
+
+func (a *alertmanagerStatusHandler) sync(key string, obj *v1.Alertmanager) (*v1.Alertmanager, error) {
+	if obj == nil {
+		return obj, nil
+	}
+
+	origStatus := obj.Status.DeepCopy()
+	obj = obj.DeepCopy()
+	newStatus, err := a.handler(obj, obj.Status)
+	if err != nil {
+		// Revert to old status on error
+		newStatus = *origStatus.DeepCopy()
+	}
+
+	if a.condition != "" {
+		if errors.IsConflict(err) {
+			a.condition.SetError(&newStatus, "", nil)
+		} else {
+			a.condition.SetError(&newStatus, "", err)
+		}
+	}
+	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		if a.condition != "" {
+			// Since status has changed, update the lastUpdatedTime
+			a.condition.LastUpdated(&newStatus, time.Now().UTC().Format(time.RFC3339))
+		}
+
+		var newErr error
+		obj.Status = newStatus
+		newObj, newErr := a.client.UpdateStatus(obj)
+		if err == nil {
+			err = newErr
+		}
+		if newErr == nil {
+			obj = newObj
+		}
+	}
+	return obj, err
+}
+
+type alertmanagerGeneratingHandler struct {
+	AlertmanagerGeneratingHandler
+	apply apply.Apply
+	opts  generic.GeneratingHandlerOptions
+	gvk   schema.GroupVersionKind
+	name  string
+}
+
+func (a *alertmanagerGeneratingHandler) Remove(key string, obj *v1.Alertmanager) (*v1.Alertmanager, error) {
+	if obj != nil {
+		return obj, nil
+	}
+
+	obj = &v1.Alertmanager{}
+	obj.Namespace, obj.Name = kv.RSplit(key, "/")
+	obj.SetGroupVersionKind(a.gvk)
+
+	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects()
+}
+
+func (a *alertmanagerGeneratingHandler) Handle(obj *v1.Alertmanager, status v1.AlertmanagerStatus) (v1.AlertmanagerStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
+	objs, newStatus, err := a.AlertmanagerGeneratingHandler(obj, status)
+	if err != nil {
+		return newStatus, err
+	}
+
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects(objs...)
 }
