@@ -64,7 +64,7 @@ type MachineSetSpec struct {
 
 	// Template is the object that describes the machine that will be created if
 	// insufficient replicas are detected.
-	// Object references to custom resources resources are treated as templates.
+	// Object references to custom resources are treated as templates.
 	// +optional
 	Template MachineTemplateSpec `json:"template,omitempty"`
 }
@@ -177,7 +177,7 @@ func (m *MachineSet) Validate() field.ErrorList {
 
 	// validate spec.selector and spec.template.labels
 	fldPath := field.NewPath("spec")
-	errors = append(errors, metav1validation.ValidateLabelSelector(&m.Spec.Selector, fldPath.Child("selector"))...)
+	errors = append(errors, metav1validation.ValidateLabelSelector(&m.Spec.Selector, metav1validation.LabelSelectorValidationOptions{}, fldPath.Child("selector"))...)
 	if len(m.Spec.Selector.MatchLabels)+len(m.Spec.Selector.MatchExpressions) == 0 {
 		errors = append(errors, field.Invalid(fldPath.Child("selector"), m.Spec.Selector, "empty selector is not valid for MachineSet."))
 	}
@@ -195,6 +195,7 @@ func (m *MachineSet) Validate() field.ErrorList {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion
 // +kubebuilder:resource:path=machinesets,shortName=ms,scope=Namespaced,categories=cluster-api
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
@@ -205,6 +206,8 @@ func (m *MachineSet) Validate() field.ErrorList {
 // +kubebuilder:printcolumn:name="Ready",type="integer",JSONPath=".status.readyReplicas",description="Total number of ready machines targeted by this machineset."
 
 // MachineSet is the Schema for the machinesets API.
+//
+// Deprecated: This type will be removed in one of the next releases.
 type MachineSet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -216,6 +219,8 @@ type MachineSet struct {
 // +kubebuilder:object:root=true
 
 // MachineSetList contains a list of MachineSet.
+//
+// Deprecated: This type will be removed in one of the next releases.
 type MachineSetList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

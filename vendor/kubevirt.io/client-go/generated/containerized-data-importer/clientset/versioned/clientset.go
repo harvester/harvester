@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The KubeVirt Authors.
+Copyright 2023 The KubeVirt Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import (
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
-
 	cdiv1beta1 "kubevirt.io/client-go/generated/containerized-data-importer/clientset/versioned/typed/core/v1beta1"
 	uploadv1beta1 "kubevirt.io/client-go/generated/containerized-data-importer/clientset/versioned/typed/upload/v1beta1"
 )

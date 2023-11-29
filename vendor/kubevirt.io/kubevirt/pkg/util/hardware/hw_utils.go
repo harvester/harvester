@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	v1 "kubevirt.io/api/core/v1"
+
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/api"
 )
 
@@ -78,8 +79,8 @@ func safeAppend(cpusList []int, cpu int, limit int) ([]int, error) {
 	return append(cpusList, cpu), nil
 }
 
-//GetNumberOfVCPUs returns number of vCPUs
-//It counts sockets*cores*threads
+// GetNumberOfVCPUs returns number of vCPUs
+// It counts sockets*cores*threads
 func GetNumberOfVCPUs(cpuSpec *v1.CPU) int64 {
 	vCPUs := cpuSpec.Cores
 	if cpuSpec.Sockets != 0 {
