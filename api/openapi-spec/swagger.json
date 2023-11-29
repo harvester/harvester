@@ -7881,7 +7881,7 @@
           "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
         },
         "dataSourceRef": {
-          "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
+          "$ref": "#/definitions/k8s.io.v1.TypedObjectReference"
         },
         "resources": {
           "default": {},
@@ -8091,6 +8091,18 @@
         }
       }
     },
+    "k8s.io.v1.ResourceClaim": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "k8s.io.v1.ResourceFieldSelector": {
       "type": "object",
       "required": [
@@ -8114,6 +8126,17 @@
     "k8s.io.v1.ResourceRequirements": {
       "type": "object",
       "properties": {
+        "claims": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/k8s.io.v1.ResourceClaim"
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
         "limits": {
           "type": "object",
           "additionalProperties": {
@@ -8256,6 +8279,54 @@
         }
       }
     },
+    "k8s.io.v1.TopologySpreadConstraint": {
+      "type": "object",
+      "required": [
+        "maxSkew",
+        "topologyKey",
+        "whenUnsatisfiable"
+      ],
+      "properties": {
+        "labelSelector": {
+          "$ref": "#/definitions/k8s.io.v1.LabelSelector"
+        },
+        "matchLabelKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "maxSkew": {
+          "type": "integer",
+          "format": "int32",
+          "default": 0
+        },
+        "minDomains": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "nodeAffinityPolicy": {
+          "type": "string"
+        },
+        "nodeTaintsPolicy": {
+          "type": "string"
+        },
+        "topologyKey": {
+          "type": "string",
+          "default": ""
+        },
+        "whenUnsatisfiable": {
+          "type": "string",
+          "default": "",
+          "enum": [
+            "DoNotSchedule",
+            "ScheduleAnyway"
+          ]
+        }
+      }
+    },
     "k8s.io.v1.TypedLocalObjectReference": {
       "type": "object",
       "required": [
@@ -8276,6 +8347,29 @@
         }
       },
       "x-kubernetes-map-type": "atomic"
+    },
+    "k8s.io.v1.TypedObjectReference": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name"
+      ],
+      "properties": {
+        "apiGroup": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "default": ""
+        },
+        "name": {
+          "type": "string",
+          "default": ""
+        },
+        "namespace": {
+          "type": "string"
+        }
+      }
     },
     "k8s.io.v1.WeightedPodAffinityTerm": {
       "type": "object",
@@ -8313,6 +8407,23 @@
       ],
       "properties": {
         "secretName": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "kubevirt.io.api.core.v1.AddInterfaceOptions": {
+      "type": "object",
+      "required": [
+        "networkAttachmentDefinitionName",
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "default": ""
+        },
+        "networkAttachmentDefinitionName": {
           "type": "string",
           "default": ""
         }
@@ -8410,6 +8521,10 @@
         "isolateEmulatorThread": {
           "type": "boolean"
         },
+        "maxSockets": {
+          "type": "integer",
+          "format": "int64"
+        },
         "model": {
           "type": "string"
         },
@@ -8441,6 +8556,23 @@
         },
         "policy": {
           "type": "string"
+        }
+      }
+    },
+    "kubevirt.io.api.core.v1.CPUTopology": {
+      "type": "object",
+      "properties": {
+        "cores": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "sockets": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "threads": {
+          "type": "integer",
+          "format": "int64"
         }
       }
     },
@@ -8692,6 +8824,9 @@
         "autoattachGraphicsDevice": {
           "type": "boolean"
         },
+        "autoattachInputDevice": {
+          "type": "boolean"
+        },
         "autoattachMemBalloon": {
           "type": "boolean"
         },
@@ -8699,6 +8834,9 @@
           "type": "boolean"
         },
         "autoattachSerialConsole": {
+          "type": "boolean"
+        },
+        "autoattachVSOCK": {
           "type": "boolean"
         },
         "blockMultiQueue": {
@@ -9098,21 +9236,6 @@
         }
       }
     },
-    "kubevirt.io.api.core.v1.FlavorMatcher": {
-      "type": "object",
-      "required": [
-        "name"
-      ],
-      "properties": {
-        "kind": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string",
-          "default": ""
-        }
-      }
-    },
     "kubevirt.io.api.core.v1.GPU": {
       "type": "object",
       "required": [
@@ -9260,12 +9383,33 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.InstancetypeMatcher": {
+      "type": "object",
+      "properties": {
+        "inferFromVolume": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revisionName": {
+          "type": "string"
+        }
+      }
+    },
     "kubevirt.io.api.core.v1.Interface": {
       "type": "object",
       "required": [
         "name"
       ],
       "properties": {
+        "acpiIndex": {
+          "type": "integer",
+          "format": "int32"
+        },
         "bootOrder": {
           "type": "integer",
           "format": "int32"
@@ -9292,6 +9436,9 @@
           "type": "string",
           "default": ""
         },
+        "passt": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.InterfacePasst"
+        },
         "pciAddress": {
           "type": "string"
         },
@@ -9308,6 +9455,9 @@
         "sriov": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.InterfaceSRIOV"
         },
+        "state": {
+          "type": "string"
+        },
         "tag": {
           "type": "string"
         }
@@ -9320,6 +9470,9 @@
       "type": "object"
     },
     "kubevirt.io.api.core.v1.InterfaceMasquerade": {
+      "type": "object"
+    },
+    "kubevirt.io.api.core.v1.InterfacePasst": {
       "type": "object"
     },
     "kubevirt.io.api.core.v1.InterfaceSRIOV": {
@@ -9384,6 +9537,23 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.LiveUpdateCPU": {
+      "type": "object",
+      "properties": {
+        "maxSockets": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "kubevirt.io.api.core.v1.LiveUpdateFeatures": {
+      "type": "object",
+      "properties": {
+        "cpu": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.LiveUpdateCPU"
+        }
+      }
+    },
     "kubevirt.io.api.core.v1.LunTarget": {
       "type": "object",
       "properties": {
@@ -9391,6 +9561,9 @@
           "type": "string"
         },
         "readonly": {
+          "type": "boolean"
+        },
+        "reservation": {
           "type": "boolean"
         }
       }
@@ -9450,6 +9623,9 @@
           "format": "int64"
         },
         "disableTLS": {
+          "type": "boolean"
+        },
+        "matchSELinuxLevelOnMigration": {
           "type": "boolean"
         },
         "network": {
@@ -9616,16 +9792,18 @@
     },
     "kubevirt.io.api.core.v1.PreferenceMatcher": {
       "type": "object",
-      "required": [
-        "name"
-      ],
       "properties": {
+        "inferFromVolume": {
+          "type": "string"
+        },
         "kind": {
           "type": "string"
         },
         "name": {
-          "type": "string",
-          "default": ""
+          "type": "string"
+        },
+        "revisionName": {
+          "type": "string"
         }
       }
     },
@@ -9707,6 +9885,18 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.RemoveInterfaceOptions": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "kubevirt.io.api.core.v1.RemoveVolumeOptions": {
       "type": "object",
       "required": [
@@ -9753,7 +9943,20 @@
       "type": "object"
     },
     "kubevirt.io.api.core.v1.SEV": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "policy": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.SEVPolicy"
+        }
+      }
+    },
+    "kubevirt.io.api.core.v1.SEVPolicy": {
+      "type": "object",
+      "properties": {
+        "encryptedState": {
+          "type": "boolean"
+        }
+      }
     },
     "kubevirt.io.api.core.v1.SSHPublicKeyAccessCredential": {
       "type": "object",
@@ -9851,7 +10054,12 @@
       }
     },
     "kubevirt.io.api.core.v1.TPMDevice": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "persistent": {
+          "type": "boolean"
+        }
+      }
     },
     "kubevirt.io.api.core.v1.Timer": {
       "type": "object",
@@ -10194,6 +10402,18 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationPhaseTransitionTimestamp": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "phaseTransitionTimestamp": {
+          "default": {},
+          "$ref": "#/definitions/k8s.io.v1.Time"
+        }
+      }
+    },
     "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationSpec": {
       "type": "object",
       "properties": {
@@ -10267,6 +10487,9 @@
         "targetNodeDomainDetected": {
           "type": "boolean"
         },
+        "targetNodeDomainReadyTimestamp": {
+          "$ref": "#/definitions/k8s.io.v1.Time"
+        },
         "targetNodeTopology": {
           "type": "string"
         },
@@ -10285,8 +10508,19 @@
             "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationCondition"
           }
         },
+        "migrationState": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationState"
+        },
         "phase": {
           "type": "string"
+        },
+        "phaseTransitionTimestamps": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationPhaseTransitionTimestamp"
+          },
+          "x-kubernetes-list-type": "atomic"
         }
       }
     },
@@ -10314,6 +10548,10 @@
         },
         "name": {
           "type": "string"
+        },
+        "queueCount": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -10345,6 +10583,9 @@
         },
         "affinity": {
           "$ref": "#/definitions/k8s.io.v1.Affinity"
+        },
+        "architecture": {
+          "type": "string"
         },
         "dnsConfig": {
           "$ref": "#/definitions/k8s.io.v1.PodDNSConfig"
@@ -10411,6 +10652,20 @@
             "$ref": "#/definitions/k8s.io.v1.Toleration"
           }
         },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/k8s.io.v1.TopologySpreadConstraint"
+          },
+          "x-kubernetes-list-map-keys": [
+            "topologyKey",
+            "whenUnsatisfiable"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-patch-merge-key": "topologyKey",
+          "x-kubernetes-patch-strategy": "merge"
+        },
         "volumes": {
           "type": "array",
           "items": {
@@ -10423,6 +10678,10 @@
     "kubevirt.io.api.core.v1.VirtualMachineInstanceStatus": {
       "type": "object",
       "properties": {
+        "VSOCKCID": {
+          "type": "integer",
+          "format": "int64"
+        },
         "activePods": {
           "type": "object",
           "additionalProperties": {
@@ -10436,6 +10695,9 @@
             "default": {},
             "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineInstanceCondition"
           }
+        },
+        "currentCPUTopology": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.CPUTopology"
         },
         "evacuationNodeName": {
           "type": "string"
@@ -10456,6 +10718,9 @@
         },
         "launcherContainerImageVersion": {
           "type": "string"
+        },
+        "machine": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.Machine"
         },
         "migrationMethod": {
           "type": "string"
@@ -10491,6 +10756,9 @@
           "format": "int64",
           "default": 0
         },
+        "selinuxContext": {
+          "type": "string"
+        },
         "topologyHints": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.TopologyHints"
         },
@@ -10517,6 +10785,17 @@
         "spec": {
           "default": {},
           "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineInstanceSpec"
+        }
+      }
+    },
+    "kubevirt.io.api.core.v1.VirtualMachineInterfaceRequest": {
+      "type": "object",
+      "properties": {
+        "addInterfaceOptions": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.AddInterfaceOptions"
+        },
+        "removeInterfaceOptions": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.RemoveInterfaceOptions"
         }
       }
     },
@@ -10571,6 +10850,9 @@
           "type": "string",
           "default": ""
         },
+        "remove": {
+          "type": "boolean"
+        },
         "startTimestamp": {
           "$ref": "#/definitions/k8s.io.v1.Time"
         }
@@ -10589,8 +10871,11 @@
             "$ref": "#/definitions/kubevirt.io.api.core.v1.DataVolumeTemplateSpec"
           }
         },
-        "flavor": {
-          "$ref": "#/definitions/kubevirt.io.api.core.v1.FlavorMatcher"
+        "instancetype": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.InstancetypeMatcher"
+        },
+        "liveUpdateFeatures": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.LiveUpdateFeatures"
         },
         "preference": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.PreferenceMatcher"
@@ -10656,8 +10941,24 @@
         "created": {
           "type": "boolean"
         },
+        "desiredGeneration": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "interfaceRequests": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineInterfaceRequest"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
         "memoryDumpRequest": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineMemoryDumpRequest"
+        },
+        "observedGeneration": {
+          "type": "integer",
+          "format": "int64"
         },
         "printableStatus": {
           "type": "string"
@@ -10866,6 +11167,9 @@
         "blank": {
           "$ref": "#/definitions/kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeBlankImage"
         },
+        "gcs": {
+          "$ref": "#/definitions/kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceGCS"
+        },
         "http": {
           "$ref": "#/definitions/kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceHTTP"
         },
@@ -10881,11 +11185,29 @@
         "s3": {
           "$ref": "#/definitions/kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceS3"
         },
+        "snapshot": {
+          "$ref": "#/definitions/kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceSnapshot"
+        },
         "upload": {
           "$ref": "#/definitions/kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceUpload"
         },
         "vddk": {
           "$ref": "#/definitions/kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceVDDK"
+        }
+      }
+    },
+    "kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceGCS": {
+      "type": "object",
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "secretRef": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -11019,6 +11341,23 @@
         }
       }
     },
+    "kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceSnapshot": {
+      "type": "object",
+      "required": [
+        "namespace",
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "default": ""
+        },
+        "namespace": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceUpload": {
       "type": "object"
     },
@@ -11093,6 +11432,9 @@
         },
         "dataSource": {
           "$ref": "#/definitions/k8s.io.v1.TypedLocalObjectReference"
+        },
+        "dataSourceRef": {
+          "$ref": "#/definitions/k8s.io.v1.TypedObjectReference"
         },
         "resources": {
           "default": {},
