@@ -124,7 +124,7 @@ func WithStackDepthIf(err error, depth int) error {
 		return nil
 	}
 
-	var st interface{ StackTrace() errors.StackTrace } // nolint: unused
+	var st interface{ StackTrace() errors.StackTrace }
 	if !As(err, &st) {
 		return &withStack{
 			error: err,

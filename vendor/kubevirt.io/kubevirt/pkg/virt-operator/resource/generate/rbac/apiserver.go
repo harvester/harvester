@@ -24,7 +24,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"kubevirt.io/api/flavor"
+	"kubevirt.io/api/instancetype"
+
+	"kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/components"
 
 	virtv1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/api/migrations"
@@ -35,8 +37,6 @@ const (
 	VersionNamev1 = "rbac.authorization.k8s.io/v1"
 	GroupName     = "kubevirt.io"
 )
-
-const ApiServiceAccountName = "kubevirt-apiserver"
 
 func GetAllApiServer(namespace string) []runtime.Object {
 	return []runtime.Object{
@@ -57,7 +57,7 @@ func newApiServerServiceAccount(namespace string) *corev1.ServiceAccount {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      ApiServiceAccountName,
+			Name:      components.ApiServiceAccountName,
 			Labels: map[string]string{
 				virtv1.AppLabel: "",
 			},
@@ -72,7 +72,7 @@ func newApiServerClusterRole() *rbacv1.ClusterRole {
 			Kind:       "ClusterRole",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: ApiServiceAccountName,
+			Name: components.ApiServiceAccountName,
 			Labels: map[string]string{
 				virtv1.AppLabel: "",
 			},
@@ -200,6 +200,7 @@ func newApiServerClusterRole() *rbacv1.ClusterRole {
 				Resources: []string{
 					"virtualmachinesnapshots",
 					"virtualmachinerestores",
+					"virtualmachinesnapshotcontents",
 				},
 				Verbs: []string{
 					"get", "list", "watch",
@@ -211,6 +212,7 @@ func newApiServerClusterRole() *rbacv1.ClusterRole {
 				},
 				Resources: []string{
 					"datasources",
+					"datavolumes",
 				},
 				Verbs: []string{
 					"get", "list", "watch",
@@ -218,16 +220,16 @@ func newApiServerClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					"flavor.kubevirt.io",
+					"instancetype.kubevirt.io",
 				},
 				Resources: []string{
-					flavor.PluralResourceName,
-					flavor.ClusterPluralResourceName,
-					flavor.PluralPreferenceResourceName,
-					flavor.ClusterPluralPreferenceResourceName,
+					instancetype.PluralResourceName,
+					instancetype.ClusterPluralResourceName,
+					instancetype.PluralPreferenceResourceName,
+					instancetype.ClusterPluralPreferenceResourceName,
 				},
 				Verbs: []string{
-					"list", "watch",
+					"get", "list", "watch",
 				},
 			},
 			{
@@ -241,6 +243,19 @@ func newApiServerClusterRole() *rbacv1.ClusterRole {
 					"get", "list", "watch",
 				},
 			},
+			{
+				APIGroups: []string{
+					"apps",
+				},
+				Resources: []string{
+					"controllerrevisions",
+				},
+				Verbs: []string{
+					"create",
+					"list",
+					"get",
+				},
+			},
 		},
 	}
 }
@@ -252,7 +267,7 @@ func newApiServerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding
 			Kind:       "ClusterRoleBinding",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: ApiServiceAccountName,
+			Name: components.ApiServiceAccountName,
 			Labels: map[string]string{
 				virtv1.AppLabel: "",
 			},
@@ -260,13 +275,13 @@ func newApiServerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: VersionName,
 			Kind:     "ClusterRole",
-			Name:     ApiServiceAccountName,
+			Name:     components.ApiServiceAccountName,
 		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Namespace: namespace,
-				Name:      ApiServiceAccountName,
+				Name:      components.ApiServiceAccountName,
 			},
 		},
 	}
@@ -293,7 +308,7 @@ func newApiServerAuthDelegatorClusterRoleBinding(namespace string) *rbacv1.Clust
 			{
 				Kind:      "ServiceAccount",
 				Namespace: namespace,
-				Name:      ApiServiceAccountName,
+				Name:      components.ApiServiceAccountName,
 			},
 		},
 	}
@@ -307,7 +322,7 @@ func newApiServerRole(namespace string) *rbacv1.Role {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      ApiServiceAccountName,
+			Name:      components.ApiServiceAccountName,
 			Labels: map[string]string{
 				virtv1.AppLabel: "",
 			},
@@ -336,7 +351,7 @@ func newApiServerRoleBinding(namespace string) *rbacv1.RoleBinding {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      ApiServiceAccountName,
+			Name:      components.ApiServiceAccountName,
 			Labels: map[string]string{
 				virtv1.AppLabel: "",
 			},
@@ -344,13 +359,13 @@ func newApiServerRoleBinding(namespace string) *rbacv1.RoleBinding {
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: VersionName,
 			Kind:     "Role",
-			Name:     ApiServiceAccountName,
+			Name:     components.ApiServiceAccountName,
 		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Namespace: namespace,
-				Name:      ApiServiceAccountName,
+				Name:      components.ApiServiceAccountName,
 			},
 		},
 	}

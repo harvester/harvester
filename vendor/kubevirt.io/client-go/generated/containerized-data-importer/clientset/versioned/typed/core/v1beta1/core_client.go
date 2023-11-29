@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The KubeVirt Authors.
+Copyright 2023 The KubeVirt Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ package v1beta1
 
 import (
 	rest "k8s.io/client-go/rest"
-
 	"kubevirt.io/client-go/generated/containerized-data-importer/clientset/versioned/scheme"
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -34,6 +33,9 @@ type CdiV1beta1Interface interface {
 	DataVolumesGetter
 	ObjectTransfersGetter
 	StorageProfilesGetter
+	VolumeCloneSourcesGetter
+	VolumeImportSourcesGetter
+	VolumeUploadSourcesGetter
 }
 
 // CdiV1beta1Client is used to interact with features provided by the cdi.kubevirt.io group.
@@ -67,6 +69,18 @@ func (c *CdiV1beta1Client) ObjectTransfers() ObjectTransferInterface {
 
 func (c *CdiV1beta1Client) StorageProfiles() StorageProfileInterface {
 	return newStorageProfiles(c)
+}
+
+func (c *CdiV1beta1Client) VolumeCloneSources(namespace string) VolumeCloneSourceInterface {
+	return newVolumeCloneSources(c, namespace)
+}
+
+func (c *CdiV1beta1Client) VolumeImportSources(namespace string) VolumeImportSourceInterface {
+	return newVolumeImportSources(c, namespace)
+}
+
+func (c *CdiV1beta1Client) VolumeUploadSources(namespace string) VolumeUploadSourceInterface {
+	return newVolumeUploadSources(c, namespace)
 }
 
 // NewForConfig creates a new CdiV1beta1Client for the given config.

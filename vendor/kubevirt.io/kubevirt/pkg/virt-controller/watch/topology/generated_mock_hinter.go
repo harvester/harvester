@@ -5,7 +5,6 @@ package topology
 
 import (
 	gomock "github.com/golang/mock/gomock"
-
 	v1 "kubevirt.io/api/core/v1"
 )
 
@@ -30,25 +29,26 @@ func (_m *MockHinter) EXPECT() *_MockHinterRecorder {
 	return _m.recorder
 }
 
-func (_m *MockHinter) TopologyHintsForVMI(vmi *v1.VirtualMachineInstance) (*v1.TopologyHints, error) {
+func (_m *MockHinter) TopologyHintsForVMI(vmi *v1.VirtualMachineInstance) (*v1.TopologyHints, TscFrequencyRequirementType, error) {
 	ret := _m.ctrl.Call(_m, "TopologyHintsForVMI", vmi)
 	ret0, _ := ret[0].(*v1.TopologyHints)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(TscFrequencyRequirementType)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 func (_mr *_MockHinterRecorder) TopologyHintsForVMI(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyHintsForVMI", arg0)
 }
 
-func (_m *MockHinter) TopologyHintsRequiredForVMI(vmi *v1.VirtualMachineInstance) bool {
-	ret := _m.ctrl.Call(_m, "TopologyHintsRequiredForVMI", vmi)
+func (_m *MockHinter) IsTscFrequencyRequired(vmi *v1.VirtualMachineInstance) bool {
+	ret := _m.ctrl.Call(_m, "IsTscFrequencyRequired", vmi)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockHinterRecorder) TopologyHintsRequiredForVMI(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyHintsRequiredForVMI", arg0)
+func (_mr *_MockHinterRecorder) IsTscFrequencyRequired(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsTscFrequencyRequired", arg0)
 }
 
 func (_m *MockHinter) TSCFrequenciesInUse() []int64 {
