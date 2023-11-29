@@ -188,7 +188,8 @@ func (c *Calculator) calculateVMActualOverhead(vm *kubevirtv1.VirtualMachine) *r
 		},
 	}
 
-	return kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH)
+	memoryOverhead := kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH, nil)
+	return &memoryOverhead
 }
 
 func (c *Calculator) getRunningVMIMResources(rq *corev1.ResourceQuota) (cpu, mem resource.Quantity, err error) {
@@ -260,7 +261,7 @@ func CalculateScaleResourceQuotaWithVMI(
 	currentMemoryLimit, memOK := rq.Spec.Hard[corev1.ResourceLimitsMemory]
 	if !vmiLimits.Memory().IsZero() && memOK {
 		mem := vmiLimits[corev1.ResourceMemory]
-		mem.Add(*kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH))
+		mem.Add(kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH, nil))
 
 		currentMemoryLimit.Add(mem)
 		rl[corev1.ResourceLimitsMemory] = mem
