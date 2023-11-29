@@ -13,7 +13,7 @@ sources:
   - https://github.com/harvester/harvester
 dependencies:
   - name: kubevirt-operator
-    version: 0.1.0
+    version: 0.2.0
     repository: file://dependency_charts/kubevirt-operator
     condition: kubevirt-operator.enabled
     tags:
