@@ -4,7 +4,7 @@
 [![Codecov](https://img.shields.io/codecov/c/github/emperror/errors?style=flat-square)](https://codecov.io/gh/emperror/errors)
 [![Go Report Card](https://goreportcard.com/badge/emperror.dev/errors?style=flat-square)](https://goreportcard.com/report/emperror.dev/errors)
 ![Go Version](https://img.shields.io/badge/go%20version-%3E=1.12-61CFDD.svg?style=flat-square)
-[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/mod/emperror.dev/errors)
+[![PkgGoDev](https://pkg.go.dev/badge/mod/emperror.dev/errors)](https://pkg.go.dev/mod/emperror.dev/errors)
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B8125%2Femperror.dev%2Ferrors.svg?type=shield)](https://app.fossa.com/projects/custom%2B8125%2Femperror.dev%2Ferrors?ref=badge_shield)
 
 
@@ -121,11 +121,18 @@ func main() {
 
 ## Development
 
-When all coding and testing is done, please run the test suite:
+Contributions are welcome! :)
 
-``` bash
-$ make check
-```
+1. Clone the repository
+1. Make changes on a new branch
+1. Run the test suite:
+    ```bash
+    ./pleasew build
+    ./pleasew test
+    ./pleasew gotest
+    ./pleasew lint
+    ```
+1. Commit, push and open a PR
 
 
 ## License
