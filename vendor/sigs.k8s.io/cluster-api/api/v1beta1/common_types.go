@@ -22,34 +22,49 @@ import (
 )
 
 const (
-	// ClusterLabelName is the label set on machines linked to a cluster and
+	// ClusterNameLabel is the label set on machines linked to a cluster and
 	// external objects(bootstrap and infrastructure providers).
-	ClusterLabelName = "cluster.x-k8s.io/cluster-name"
+	ClusterNameLabel = "cluster.x-k8s.io/cluster-name"
 
 	// ClusterTopologyOwnedLabel is the label set on all the object which are managed as part of a ClusterTopology.
 	ClusterTopologyOwnedLabel = "topology.cluster.x-k8s.io/owned"
 
-	// ClusterTopologyManagedFieldsAnnotation is the annotation used to store the list of paths managed
-	// by the topology controller; changes to those paths will be considered authoritative.
-	// NOTE: Managed field depends on the last reconciliation of a managed object; this list can
-	// change during the lifecycle of an object, depending on how the corresponding template + patch/variable
-	// changes over time.
-	// NOTE: The topology controller is only concerned about managed paths in the spec; given that
-	// we are dropping spec. from the result to reduce verbosity of the generated annotation.
-	// NOTE: Managed paths are relevant only for unstructured objects where it is not possible
-	// to easily discover which fields have been set by templates + patches/variables at a given reconcile;
-	// instead, it is not necessary to store managed paths for typed objets (e.g. Cluster, MachineDeployments)
-	// given that the topology controller explicitly sets a well-known, immutable list of fields at every reconcile.
-	ClusterTopologyManagedFieldsAnnotation = "topology.cluster.x-k8s.io/managed-field-paths"
-
-	// ClusterTopologyMachineDeploymentLabelName is the label set on the generated  MachineDeployment objects
+	// ClusterTopologyMachineDeploymentNameLabel is the label set on the generated  MachineDeployment objects
 	// to track the name of the MachineDeployment topology it represents.
-	ClusterTopologyMachineDeploymentLabelName = "topology.cluster.x-k8s.io/deployment-name"
+	ClusterTopologyMachineDeploymentNameLabel = "topology.cluster.x-k8s.io/deployment-name"
 
-	// ProviderLabelName is the label set on components in the provider manifest.
+	// ClusterTopologyHoldUpgradeSequenceAnnotation can be used to hold the entire MachineDeployment upgrade sequence.
+	// If the annotation is set on a MachineDeployment topology in Cluster.spec.topology.workers, the Kubernetes upgrade
+	// for this MachineDeployment topology and all subsequent ones is deferred.
+	// Examples:
+	// - If you want to pause upgrade after CP upgrade, this annotation should be applied to the first MachineDeployment
+	//   in the list of MachineDeployments in Cluster.spec.topology. The upgrade will not be completed until the annotation
+	//   is removed and all MachineDeployments are upgraded.
+	// - If you want to pause upgrade after the 50th MachineDeployment, this annotation should be applied to the 51st
+	//   MachineDeployment in the list.
+	ClusterTopologyHoldUpgradeSequenceAnnotation = "topology.cluster.x-k8s.io/hold-upgrade-sequence"
+
+	// ClusterTopologyDeferUpgradeAnnotation can be used to defer the Kubernetes upgrade of a single MachineDeployment topology.
+	// If the annotation is set on a MachineDeployment topology in Cluster.spec.topology.workers, the Kubernetes upgrade
+	// for this MachineDeployment topology is deferred. It doesn't affect other MachineDeployment topologies.
+	// Example:
+	// - If you want to defer the upgrades of the 3rd and 5th MachineDeployments of the list, set the annotation on them.
+	//   The upgrade process will upgrade MachineDeployment in position 1,2, (skip 3), 4, (skip 5), 6 etc. The upgrade
+	//   will not be completed until the annotation is removed and all MachineDeployments are upgraded.
+	ClusterTopologyDeferUpgradeAnnotation = "topology.cluster.x-k8s.io/defer-upgrade"
+
+	// ClusterTopologyUpgradeConcurrencyAnnotation can be set as top-level annotation on the Cluster object of
+	// a classy Cluster to define the maximum concurrency while upgrading MachineDeployments.
+	ClusterTopologyUpgradeConcurrencyAnnotation = "topology.cluster.x-k8s.io/upgrade-concurrency"
+
+	// ClusterTopologyUnsafeUpdateClassNameAnnotation can be used to disable the webhook check on
+	// update that disallows a pre-existing Cluster to be populated with Topology information and Class.
+	ClusterTopologyUnsafeUpdateClassNameAnnotation = "unsafe.topology.cluster.x-k8s.io/disable-update-class-name-check"
+
+	// ProviderNameLabel is the label set on components in the provider manifest.
 	// This label allows to easily identify all the components belonging to a provider; the clusterctl
 	// tool uses this label for implementing provider's lifecycle operations.
-	ProviderLabelName = "cluster.x-k8s.io/provider"
+	ProviderNameLabel = "cluster.x-k8s.io/provider"
 
 	// ClusterNameAnnotation is the annotation set on nodes identifying the name of the cluster the node belongs to.
 	ClusterNameAnnotation = "cluster.x-k8s.io/cluster-name"
@@ -63,6 +78,9 @@ const (
 	// OwnerKindAnnotation is the annotation set on nodes identifying the owner kind.
 	OwnerKindAnnotation = "cluster.x-k8s.io/owner-kind"
 
+	// LabelsFromMachineAnnotation is the annotation set on nodes to track the labels originated from machines.
+	LabelsFromMachineAnnotation = "cluster.x-k8s.io/labels-from-machine"
+
 	// OwnerNameAnnotation is the annotation set on nodes identifying the owner name.
 	OwnerNameAnnotation = "cluster.x-k8s.io/owner-name"
 
@@ -73,10 +91,10 @@ const (
 	// on the reconciled object.
 	PausedAnnotation = "cluster.x-k8s.io/paused"
 
-	// DisableMachineCreate is an annotation that can be used to signal a MachineSet to stop creating new machines.
+	// DisableMachineCreateAnnotation is an annotation that can be used to signal a MachineSet to stop creating new machines.
 	// It is utilized in the OnDelete MachineDeploymentStrategy to allow the MachineDeployment controller to scale down
 	// older MachineSets when Machines are deleted and add the new replicas to the latest MachineSet.
-	DisableMachineCreate = "cluster.x-k8s.io/disable-machine-create"
+	DisableMachineCreateAnnotation = "cluster.x-k8s.io/disable-machine-create"
 
 	// WatchLabel is a label othat can be applied to any Cluster API object.
 	//
@@ -100,6 +118,8 @@ const (
 	MachineSkipRemediationAnnotation = "cluster.x-k8s.io/skip-remediation"
 
 	// ClusterSecretType defines the type of secret created by core components.
+	// Note: This is used by core CAPI, CAPBK, and KCP to determine whether a secret is created by the controllers
+	// themselves or supplied by the user (e.g. bring your own certificates).
 	ClusterSecretType corev1.SecretType = "cluster.x-k8s.io/secret" //nolint:gosec
 
 	// InterruptibleLabel is the label used to mark the nodes that run on interruptible instances.
@@ -112,7 +132,36 @@ const (
 	// An external controller must fulfill the contract of the InfraCluster resource.
 	// External infrastructure providers should ensure that the annotation, once set, cannot be removed.
 	ManagedByAnnotation = "cluster.x-k8s.io/managed-by"
+
+	// TopologyDryRunAnnotation is an annotation that gets set on objects by the topology controller
+	// only during a server side dry run apply operation. It is used for validating
+	// update webhooks for objects which get updated by template rotation (e.g. InfrastructureMachineTemplate).
+	// When the annotation is set and the admission request is a dry run, the webhook should
+	// deny validation due to immutability. By that the request will succeed (without
+	// any changes to the actual object because it is a dry run) and the topology controller
+	// will receive the resulting object.
+	TopologyDryRunAnnotation = "topology.cluster.x-k8s.io/dry-run"
+
+	// ReplicasManagedByAnnotation is an annotation that indicates external (non-Cluster API) management of infra scaling.
+	// The practical effect of this is that the capi "replica" count should be passively derived from the number of observed infra machines,
+	// instead of being a source of truth for eventual consistency.
+	// This annotation can be used to inform MachinePool status during in-progress scaling scenarios.
+	ReplicasManagedByAnnotation = "cluster.x-k8s.io/replicas-managed-by"
+
+	// VariableDefinitionFromInline indicates a patch or variable was defined in the `.spec` of a ClusterClass
+	// rather than from an external patch extension.
+	VariableDefinitionFromInline = "inline"
 )
+
+// NodeUninitializedTaint can be added to Nodes at creation by the bootstrap provider, e.g. the
+// KubeadmBootstrap provider will add the taint.
+// This taint is used to prevent workloads to be scheduled on Nodes before the node is initialized by Cluster API.
+// As of today the Node initialization consists of syncing labels from Machines to Nodes. Once the labels
+// have been initially synced the taint is removed from the Node.
+var NodeUninitializedTaint = corev1.Taint{
+	Key:    "node.cluster.x-k8s.io/uninitialized",
+	Effect: corev1.TaintEffectNoSchedule,
+}
 
 const (
 	// TemplateSuffix is the object kind suffix used by template types.
@@ -138,7 +187,7 @@ const (
 
 // MachineAddress contains information for the node's address.
 type MachineAddress struct {
-	// Machine address type, one of Hostname, ExternalIP or InternalIP.
+	// Machine address type, one of Hostname, ExternalIP, InternalIP, ExternalDNS or InternalDNS.
 	Type MachineAddressType `json:"type"`
 
 	// The machine address.

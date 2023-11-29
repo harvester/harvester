@@ -20,12 +20,14 @@
 package ephemeraldisk
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
 	v1 "kubevirt.io/api/core/v1"
+
 	diskutils "kubevirt.io/kubevirt/pkg/ephemeral-disk-utils"
 	"kubevirt.io/kubevirt/pkg/util"
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/api"
@@ -101,7 +103,7 @@ func (c *ephemeralDiskCreator) CreateBackedImageForVolume(volume v1.Volume, back
 
 	if _, err := os.Stat(imagePath); err == nil {
 		return nil
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
@@ -118,7 +120,7 @@ func (c *ephemeralDiskCreator) CreateBackedImageForVolume(volume v1.Volume, back
 	}
 
 	// We need to ensure that the permissions are setup correctly.
-	err = diskutils.DefaultOwnershipManager.SetFileOwnership(imagePath)
+	err = diskutils.DefaultOwnershipManager.UnsafeSetFileOwnership(imagePath)
 	return err
 }
 

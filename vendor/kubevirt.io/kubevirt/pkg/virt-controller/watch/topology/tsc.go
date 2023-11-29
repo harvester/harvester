@@ -5,11 +5,26 @@ import (
 	"strconv"
 	"strings"
 
+	"kubevirt.io/kubevirt/pkg/util"
+
 	v1 "k8s.io/api/core/v1"
 
 	k6tv1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/client-go/log"
 )
+
+type TscFrequencyRequirementType int
+
+const (
+	RequiredForBoot TscFrequencyRequirementType = iota
+	RequiredForMigration
+	NotRequired
+)
+
+type TscFrequencyRequirement struct {
+	Type   TscFrequencyRequirementType
+	Reason string
+}
 
 func LowestTSCFrequency(nodes []*v1.Node) int64 {
 	var lowest int64
@@ -70,14 +85,24 @@ func TSCFrequenciesOnNode(node *v1.Node) (frequencies []int64) {
 	return
 }
 
-func CalculateTSCLabelDiff(frequenciesInUse []int64, frequenciesOnNode []int64, nodeFrequency int64, scalable bool) (toAdd []int64, toRemove []int64) {
-	if scalable {
-		frequenciesInUse = append(frequenciesInUse, nodeFrequency)
-	} else {
-		frequenciesInUse = []int64{nodeFrequency}
+func distance(freq1, freq2 int64) int64 {
+	if freq1 > freq2 {
+		return freq1 - freq2
 	}
+	return freq2 - freq1
+}
+
+func CalculateTSCLabelDiff(frequenciesInUse []int64, frequenciesOnNode []int64, nodeFrequency int64, scalable bool) (toAdd []int64, toRemove []int64) {
+	frequenciesInUse = append(frequenciesInUse, nodeFrequency)
+	tolerance := ToleranceForFrequency(nodeFrequency)
 	requiredMap := map[int64]struct{}{}
 	for _, freq := range frequenciesInUse {
+		if !scalable && distance(freq, nodeFrequency) > tolerance {
+			// A non-scalable node can only accept frequencies that are within Qemu's tolerance:
+			// nodeFrequency*(1-0.000250) < acceptableFrequency < nodeFrequency*(1+0.000250).
+			// Skip the frequencies that are outside that range
+			continue
+		}
 		requiredMap[freq] = struct{}{}
 	}
 
@@ -87,8 +112,10 @@ func CalculateTSCLabelDiff(frequenciesInUse []int64, frequenciesOnNode []int64, 
 		}
 	}
 
-	for _, freq := range frequenciesInUse {
-		if freq <= nodeFrequency {
+	for freq := range requiredMap {
+		// For the non-scalable case, the map was already sanitized above.
+		// For the scalable case, a node can accept frequencies that are either lower than its own or within the tolerance range
+		if !scalable || freq <= nodeFrequency || distance(freq, nodeFrequency) <= tolerance {
 			toAdd = append(toAdd, freq)
 		}
 	}
@@ -107,7 +134,37 @@ func ToTSCSchedulableLabel(frequency int64) string {
 	return fmt.Sprintf("%s-%d", TSCFrequencySchedulingLabel, frequency)
 }
 
-func VMIHasInvTSCFeature(vmi *k6tv1.VirtualMachineInstance) bool {
+func AreTSCFrequencyTopologyHintsDefined(vmi *k6tv1.VirtualMachineInstance) bool {
+	if vmi == nil {
+		return false
+	}
+
+	topologyHints := vmi.Status.TopologyHints
+	return topologyHints != nil && topologyHints.TSCFrequency != nil && *topologyHints.TSCFrequency > 0
+}
+
+func IsManualTSCFrequencyRequired(vmi *k6tv1.VirtualMachineInstance) bool {
+	return vmi != nil &&
+		GetTscFrequencyRequirement(vmi).Type != NotRequired &&
+		AreTSCFrequencyTopologyHintsDefined(vmi)
+}
+
+func GetTscFrequencyRequirement(vmi *k6tv1.VirtualMachineInstance) TscFrequencyRequirement {
+	newRequirement := func(reqType TscFrequencyRequirementType, reason string) TscFrequencyRequirement {
+		return TscFrequencyRequirement{Type: reqType, Reason: reason}
+	}
+
+	if vmiHasInvTSCFeature(vmi) {
+		return newRequirement(RequiredForBoot, "VMI with invtsc CPU feature must have tsc frequency defined in order to boot")
+	}
+	if util.IsVmiUsingHyperVReenlightenment(vmi) {
+		return newRequirement(RequiredForMigration, "HyperV Reenlightenment VMIs cannot migrate when TSC Frequency is not exposed on the cluster: guest timers might be inconsistent")
+	}
+
+	return newRequirement(NotRequired, "")
+}
+
+func vmiHasInvTSCFeature(vmi *k6tv1.VirtualMachineInstance) bool {
 	if cpu := vmi.Spec.Domain.CPU; cpu != nil {
 		for _, f := range cpu.Features {
 			if f.Name != "invtsc" {
