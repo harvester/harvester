@@ -59,8 +59,8 @@ func callers(depth int) *stack {
 	var pcs [maxDepth]uintptr
 
 	n := runtime.Callers(2+depth, pcs[:])
-
-	var st stack = pcs[0:n]
+	st := make(stack, n)
+	copy(st, pcs[:n])
 
 	return &st
 }

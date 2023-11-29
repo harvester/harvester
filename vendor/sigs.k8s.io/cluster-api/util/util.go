@@ -23,11 +23,11 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/gobuffalo/flect"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -47,6 +47,7 @@ import (
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
+	"sigs.k8s.io/cluster-api/util/contract"
 )
 
 const (
@@ -59,7 +60,7 @@ var (
 
 	// ErrNoCluster is returned when the cluster
 	// label could not be found on the object passed in.
-	ErrNoCluster = fmt.Errorf("no %q label present", clusterv1.ClusterLabelName)
+	ErrNoCluster = fmt.Errorf("no %q label present", clusterv1.ClusterNameLabel)
 
 	// ErrUnstructuredFieldNotFound determines that a field
 	// in an unstructured object could not be found.
@@ -130,7 +131,7 @@ func GetMachineIfExists(ctx context.Context, c client.Client, namespace, name st
 
 // IsControlPlaneMachine checks machine is a control plane node.
 func IsControlPlaneMachine(machine *clusterv1.Machine) bool {
-	_, ok := machine.ObjectMeta.Labels[clusterv1.MachineControlPlaneLabelName]
+	_, ok := machine.ObjectMeta.Labels[clusterv1.MachineControlPlaneLabel]
 	return ok
 }
 
@@ -147,15 +148,15 @@ func IsNodeReady(node *corev1.Node) bool {
 
 // GetClusterFromMetadata returns the Cluster object (if present) using the object metadata.
 func GetClusterFromMetadata(ctx context.Context, c client.Client, obj metav1.ObjectMeta) (*clusterv1.Cluster, error) {
-	if obj.Labels[clusterv1.ClusterLabelName] == "" {
+	if obj.Labels[clusterv1.ClusterNameLabel] == "" {
 		return nil, errors.WithStack(ErrNoCluster)
 	}
-	return GetClusterByName(ctx, c, obj.Namespace, obj.Labels[clusterv1.ClusterLabelName])
+	return GetClusterByName(ctx, c, obj.Namespace, obj.Labels[clusterv1.ClusterNameLabel])
 }
 
 // GetOwnerCluster returns the Cluster object owning the current resource.
 func GetOwnerCluster(ctx context.Context, c client.Client, obj metav1.ObjectMeta) (*clusterv1.Cluster, error) {
-	for _, ref := range obj.OwnerReferences {
+	for _, ref := range obj.GetOwnerReferences() {
 		if ref.Kind != "Cluster" {
 			continue
 		}
@@ -195,66 +196,51 @@ func ObjectKey(object metav1.Object) client.ObjectKey {
 
 // ClusterToInfrastructureMapFunc returns a handler.ToRequestsFunc that watches for
 // Cluster events and returns reconciliation requests for an infrastructure provider object.
-func ClusterToInfrastructureMapFunc(gvk schema.GroupVersionKind) handler.MapFunc {
+func ClusterToInfrastructureMapFunc(ctx context.Context, gvk schema.GroupVersionKind, c client.Client, providerCluster client.Object) handler.MapFunc {
+	log := ctrl.LoggerFrom(ctx)
 	return func(o client.Object) []reconcile.Request {
-		c, ok := o.(*clusterv1.Cluster)
+		cluster, ok := o.(*clusterv1.Cluster)
 		if !ok {
 			return nil
 		}
 
 		// Return early if the InfrastructureRef is nil.
-		if c.Spec.InfrastructureRef == nil {
+		if cluster.Spec.InfrastructureRef == nil {
 			return nil
 		}
 		gk := gvk.GroupKind()
 		// Return early if the GroupKind doesn't match what we expect.
-		infraGK := c.Spec.InfrastructureRef.GroupVersionKind().GroupKind()
+		infraGK := cluster.Spec.InfrastructureRef.GroupVersionKind().GroupKind()
 		if gk != infraGK {
+			return nil
+		}
+		providerCluster := providerCluster.DeepCopyObject().(client.Object)
+		key := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Spec.InfrastructureRef.Name}
+
+		if err := c.Get(ctx, key, providerCluster); err != nil {
+			log.V(4).Error(err, fmt.Sprintf("Failed to get %T", providerCluster))
+			return nil
+		}
+
+		if annotations.IsExternallyManaged(providerCluster) {
+			log.V(4).Info(fmt.Sprintf("%T is externally managed, skipping mapping", providerCluster))
 			return nil
 		}
 
 		return []reconcile.Request{
 			{
 				NamespacedName: client.ObjectKey{
-					Namespace: c.Namespace,
-					Name:      c.Spec.InfrastructureRef.Name,
+					Namespace: cluster.Namespace,
+					Name:      cluster.Spec.InfrastructureRef.Name,
 				},
 			},
 		}
 	}
 }
 
-// ClusterToInfrastructureMapFuncWithExternallyManagedCheck is like ClusterToInfrastructureMapFunc but will exclude externally managed infrastructures from the mapping.
-// We will update  ClusterToInfrastructureMapFunc to include this check in an upcoming release but defer that for now as adjusting the signature is a breaking change.
-func ClusterToInfrastructureMapFuncWithExternallyManagedCheck(ctx context.Context, gvk schema.GroupVersionKind, c client.Client, providerCluster client.Object) handler.MapFunc {
-	baseMapper := ClusterToInfrastructureMapFunc(gvk)
-	log := ctrl.LoggerFrom(ctx)
-	return func(o client.Object) []reconcile.Request {
-		var result []reconcile.Request
-		for _, request := range baseMapper(o) {
-			providerCluster := providerCluster.DeepCopyObject().(client.Object)
-			key := types.NamespacedName{Namespace: request.Namespace, Name: request.Name}
-
-			if err := c.Get(ctx, key, providerCluster); err != nil {
-				log.V(4).Error(err, fmt.Sprintf("Failed to get %T", providerCluster))
-				continue
-			}
-
-			if annotations.IsExternallyManaged(providerCluster) {
-				log.V(4).Info(fmt.Sprintf("%T is externally managed, skipping mapping", providerCluster))
-				continue
-			}
-
-			result = append(result, request)
-		}
-
-		return result
-	}
-}
-
 // GetOwnerMachine returns the Machine object owning the current resource.
 func GetOwnerMachine(ctx context.Context, c client.Client, obj metav1.ObjectMeta) (*clusterv1.Machine, error) {
-	for _, ref := range obj.OwnerReferences {
+	for _, ref := range obj.GetOwnerReferences() {
 		gv, err := schema.ParseGroupVersion(ref.APIVersion)
 		if err != nil {
 			return nil, err
@@ -303,12 +289,13 @@ func MachineToInfrastructureMapFunc(gvk schema.GroupVersionKind) handler.MapFunc
 	}
 }
 
-// HasOwnerRef returns true if the OwnerReference is already in the slice.
+// HasOwnerRef returns true if the OwnerReference is already in the slice. It matches based on Group, Kind and Name.
 func HasOwnerRef(ownerReferences []metav1.OwnerReference, ref metav1.OwnerReference) bool {
 	return indexOwnerRef(ownerReferences, ref) > -1
 }
 
 // EnsureOwnerRef makes sure the slice contains the OwnerReference.
+// Note: EnsureOwnerRef will update the version of the OwnerReference fi it exists with a different version. It will also update the UID.
 func EnsureOwnerRef(ownerReferences []metav1.OwnerReference, ref metav1.OwnerReference) []metav1.OwnerReference {
 	idx := indexOwnerRef(ownerReferences, ref)
 	if idx == -1 {
@@ -338,6 +325,7 @@ func ReplaceOwnerRef(ownerReferences []metav1.OwnerReference, source metav1.Obje
 }
 
 // RemoveOwnerRef returns the slice of owner references after removing the supplied owner ref.
+// Note: RemoveOwnerRef ignores apiVersion and UID. It will remove the passed ownerReference where it matches Name, Group and Kind.
 func RemoveOwnerRef(ownerReferences []metav1.OwnerReference, inputRef metav1.OwnerReference) []metav1.OwnerReference {
 	if index := indexOwnerRef(ownerReferences, inputRef); index != -1 {
 		return append(ownerReferences[:index], ownerReferences[index+1:]...)
@@ -356,6 +344,7 @@ func indexOwnerRef(ownerReferences []metav1.OwnerReference, ref metav1.OwnerRefe
 }
 
 // IsOwnedByObject returns true if any of the owner references point to the given target.
+// It matches the object based on the Group, Kind and Name.
 func IsOwnedByObject(obj metav1.Object, target client.Object) bool {
 	for _, ref := range obj.GetOwnerReferences() {
 		ref := ref
@@ -366,7 +355,7 @@ func IsOwnedByObject(obj metav1.Object, target client.Object) bool {
 	return false
 }
 
-// IsControlledBy differs from metav1.IsControlledBy in that it checks the group (but not version), kind, and name vs uid.
+// IsControlledBy differs from metav1.IsControlledBy. This function matches on Group, Kind and Name. The metav1.IsControlledBy function matches on UID only.
 func IsControlledBy(obj metav1.Object, owner client.Object) bool {
 	controllerRef := metav1.GetControllerOfNoCopy(obj)
 	if controllerRef == nil {
@@ -375,7 +364,7 @@ func IsControlledBy(obj metav1.Object, owner client.Object) bool {
 	return refersTo(controllerRef, owner)
 }
 
-// Returns true if a and b point to the same object.
+// Returns true if a and b point to the same object based on Group, Kind and Name.
 func referSameObject(a, b metav1.OwnerReference) bool {
 	aGV, err := schema.ParseGroupVersion(a.APIVersion)
 	if err != nil {
@@ -390,7 +379,7 @@ func referSameObject(a, b metav1.OwnerReference) bool {
 	return aGV.Group == bGV.Group && a.Kind == b.Kind && a.Name == b.Name
 }
 
-// Returns true if ref refers to obj.
+// Returns true if ref refers to obj based on Group, Kind and Name.
 func refersTo(ref *metav1.OwnerReference, obj client.Object) bool {
 	refGv, err := schema.ParseGroupVersion(ref.APIVersion)
 	if err != nil {
@@ -404,6 +393,10 @@ func refersTo(ref *metav1.OwnerReference, obj client.Object) bool {
 // UnstructuredUnmarshalField is a wrapper around json and unstructured objects to decode and copy a specific field
 // value into an object.
 func UnstructuredUnmarshalField(obj *unstructured.Unstructured, v interface{}, fields ...string) error {
+	if obj == nil || obj.Object == nil {
+		return errors.Errorf("failed to unmarshal unstructured object: object is nil")
+	}
+
 	value, found, err := unstructured.NestedFieldNoCopy(obj.Object, fields...)
 	if err != nil {
 		return errors.Wrapf(err, "failed to retrieve field %q from %q", strings.Join(fields, "."), obj.GroupVersionKind())
@@ -452,38 +445,12 @@ func HasOwner(refList []metav1.OwnerReference, apiVersion string, kinds []string
 // This function is greatly more efficient than GetCRDWithContract and should be preferred in most cases.
 func GetGVKMetadata(ctx context.Context, c client.Client, gvk schema.GroupVersionKind) (*metav1.PartialObjectMetadata, error) {
 	meta := &metav1.PartialObjectMetadata{}
-	meta.SetName(fmt.Sprintf("%s.%s", flect.Pluralize(strings.ToLower(gvk.Kind)), gvk.Group))
+	meta.SetName(contract.CalculateCRDName(gvk.Group, gvk.Kind))
 	meta.SetGroupVersionKind(apiextensionsv1.SchemeGroupVersion.WithKind("CustomResourceDefinition"))
 	if err := c.Get(ctx, client.ObjectKeyFromObject(meta), meta); err != nil {
 		return meta, errors.Wrap(err, "failed to retrieve metadata from GVK resource")
 	}
 	return meta, nil
-}
-
-// GetCRDWithContract retrieves a list of CustomResourceDefinitions from using controller-runtime Client,
-// filtering with the `contract` label passed in.
-// Returns the first CRD in the list that matches the GroupVersionKind, otherwise returns an error.
-func GetCRDWithContract(ctx context.Context, c client.Reader, gvk schema.GroupVersionKind, contract string) (*apiextensionsv1.CustomResourceDefinition, error) {
-	crdList := &apiextensionsv1.CustomResourceDefinitionList{}
-	for {
-		if err := c.List(ctx, crdList, client.Continue(crdList.Continue), client.HasLabels{contract}); err != nil {
-			return nil, errors.Wrapf(err, "failed to list CustomResourceDefinitions for %v", gvk)
-		}
-
-		for i := range crdList.Items {
-			crd := crdList.Items[i]
-			if crd.Spec.Group == gvk.Group &&
-				crd.Spec.Names.Kind == gvk.Kind {
-				return &crd, nil
-			}
-		}
-
-		if crdList.Continue == "" {
-			break
-		}
-	}
-
-	return nil, errors.Errorf("failed to find a CustomResourceDefinition for %v with contract %q", gvk, contract)
 }
 
 // KubeAwareAPIVersions is a sortable slice of kube-like version strings.
@@ -500,21 +467,9 @@ func (k KubeAwareAPIVersions) Less(i, j int) bool {
 	return k8sversion.CompareKubeAwareVersionStrings(k[i], k[j]) < 0
 }
 
-// MachinesByCreationTimestamp sorts a list of Machine by creation timestamp, using their names as a tie breaker.
-type MachinesByCreationTimestamp []*clusterv1.Machine
-
-func (o MachinesByCreationTimestamp) Len() int      { return len(o) }
-func (o MachinesByCreationTimestamp) Swap(i, j int) { o[i], o[j] = o[j], o[i] }
-func (o MachinesByCreationTimestamp) Less(i, j int) bool {
-	if o[i].CreationTimestamp.Equal(&o[j].CreationTimestamp) {
-		return o[i].Name < o[j].Name
-	}
-	return o[i].CreationTimestamp.Before(&o[j].CreationTimestamp)
-}
-
 // ClusterToObjectsMapper returns a mapper function that gets a cluster and lists all objects for the object passed in
 // and returns a list of requests.
-// NB: The objects are required to have `clusterv1.ClusterLabelName` applied.
+// NB: The objects are required to have `clusterv1.ClusterNameLabel` applied.
 func ClusterToObjectsMapper(c client.Client, ro client.ObjectList, scheme *runtime.Scheme) (handler.MapFunc, error) {
 	gvk, err := apiutil.GVKForObject(ro, scheme)
 	if err != nil {
@@ -534,7 +489,7 @@ func ClusterToObjectsMapper(c client.Client, ro client.ObjectList, scheme *runti
 
 		listOpts := []client.ListOption{
 			client.MatchingLabels{
-				clusterv1.ClusterLabelName: cluster.Name,
+				clusterv1.ClusterNameLabel: cluster.Name,
 			},
 		}
 
@@ -613,4 +568,30 @@ func LowestNonZeroResult(i, j ctrl.Result) ctrl.Result {
 	default:
 		return j
 	}
+}
+
+// LowestNonZeroInt32 returns the lowest non-zero value of the two provided values.
+func LowestNonZeroInt32(i, j int32) int32 {
+	if i == 0 {
+		return j
+	}
+	if j == 0 {
+		return i
+	}
+	if i < j {
+		return i
+	}
+	return j
+}
+
+// IsNil returns an error if the passed interface is equal to nil or if it has an interface value of nil.
+func IsNil(i interface{}) bool {
+	if i == nil {
+		return true
+	}
+	switch reflect.TypeOf(i).Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Chan, reflect.Slice, reflect.Interface, reflect.UnsafePointer, reflect.Func:
+		return reflect.ValueOf(i).IsValid() && reflect.ValueOf(i).IsNil()
+	}
+	return false
 }

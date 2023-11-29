@@ -26,13 +26,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	virtv1 "kubevirt.io/api/core/v1"
+
+	"kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/components"
 )
 
 const (
 	GroupNameSecurity = "security.openshift.io"
+	GroupNameRoute    = "route.openshift.io"
 	serviceAccountFmt = "%s:%s:%s"
 )
-const OperatorServiceAccountName = "kubevirt-operator"
 
 // Used for manifest generation only, not by the operator itself
 func GetAllOperator(namespace string) []interface{} {
@@ -53,7 +55,7 @@ func newOperatorServiceAccount(namespace string) *corev1.ServiceAccount {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      OperatorServiceAccountName,
+			Name:      components.OperatorServiceAccountName,
 			Labels: map[string]string{
 				virtv1.AppLabel: "",
 			},
@@ -73,7 +75,7 @@ func NewOperatorClusterRole() *rbacv1.ClusterRole {
 			Kind:       "ClusterRole",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: OperatorServiceAccountName,
+			Name: components.OperatorServiceAccountName,
 			Labels: map[string]string{
 				virtv1.AppLabel: "",
 			},
@@ -115,6 +117,17 @@ func NewOperatorClusterRole() *rbacv1.ClusterRole {
 					"update",
 					"delete",
 					"patch",
+				},
+			},
+			{
+				APIGroups: []string{
+					"coordination.k8s.io",
+				},
+				Resources: []string{
+					"leases",
+				},
+				Verbs: []string{
+					"get", "list", "watch", "delete", "update", "create", "patch",
 				},
 			},
 			{
@@ -297,27 +310,6 @@ func NewOperatorClusterRole() *rbacv1.ClusterRole {
 					"get", "list", "watch", "create", "delete", "update", "patch",
 				},
 			},
-			// Until v0.43 a `get` verb was granted to these resources, but there is no get endpoint.
-			// The get permission needs to be kept on the operator level so that updates work.
-			{
-				APIGroups: []string{
-					"subresources.kubevirt.io",
-				},
-				Resources: []string{
-					"virtualmachineinstances/pause",
-					"virtualmachineinstances/unpause",
-					"virtualmachineinstances/addvolume",
-					"virtualmachineinstances/removevolume",
-					"virtualmachineinstances/freeze",
-					"virtualmachineinstances/unfreeze",
-					"virtualmachineinstances/softreboot",
-					"virtualmachineinstances/portforward",
-				},
-				Verbs: []string{
-					"update",
-					"get",
-				},
-			},
 			{
 				APIGroups: []string{
 					"",
@@ -330,6 +322,21 @@ func NewOperatorClusterRole() *rbacv1.ClusterRole {
 					"list",
 					"watch",
 					"patch",
+				},
+			},
+			// FIXME - Keep the flavor (now renamed instancetype) permissions around until v0.56 to allow the operator to update from v0.54.
+			{
+				APIGroups: []string{
+					"flavor.kubevirt.io",
+				},
+				Resources: []string{
+					"virtualmachineflavors",
+					"virtualmachineclusterflavors",
+					"virtualmachinepreferences",
+					"virtualmachineclusterpreferences",
+				},
+				Verbs: []string{
+					"get", "delete", "create", "update", "patch", "list", "watch", "deletecollection",
 				},
 			},
 		},
@@ -348,6 +355,7 @@ func getKubeVirtComponentsRules() []rbacv1.PolicyRule {
 	all := GetAllApiServer("")
 	all = append(all, GetAllController("")...)
 	all = append(all, GetAllHandler("")...)
+	all = append(all, GetAllExportProxy("")...)
 	all = append(all, GetAllCluster()...)
 
 	for _, resource := range all {
@@ -400,7 +408,7 @@ func newOperatorClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding 
 			Kind:       "ClusterRoleBinding",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: OperatorServiceAccountName,
+			Name: components.OperatorServiceAccountName,
 			Labels: map[string]string{
 				virtv1.AppLabel: "",
 			},
@@ -408,13 +416,13 @@ func newOperatorClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding 
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: VersionName,
 			Kind:     "ClusterRole",
-			Name:     OperatorServiceAccountName,
+			Name:     components.OperatorServiceAccountName,
 		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Namespace: namespace,
-				Name:      OperatorServiceAccountName,
+				Name:      components.OperatorServiceAccountName,
 			},
 		},
 	}
@@ -436,13 +444,13 @@ func newOperatorRoleBinding(namespace string) *rbacv1.RoleBinding {
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: VersionName,
 			Kind:     "Role",
-			Name:     OperatorServiceAccountName,
+			Name:     components.OperatorServiceAccountName,
 		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Namespace: namespace,
-				Name:      OperatorServiceAccountName,
+				Name:      components.OperatorServiceAccountName,
 			},
 		},
 	}
@@ -456,7 +464,7 @@ func NewOperatorRole(namespace string) *rbacv1.Role {
 			Kind:       "Role",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      OperatorServiceAccountName,
+			Name:      components.OperatorServiceAccountName,
 			Namespace: namespace,
 			Labels: map[string]string{
 				virtv1.AppLabel: "",
@@ -469,6 +477,16 @@ func NewOperatorRole(namespace string) *rbacv1.Role {
 				},
 				Resources: []string{
 					"secrets",
+				},
+				ResourceNames: []string{
+					components.KubeVirtCASecretName,
+					components.KubeVirtExportCASecretName,
+					components.VirtHandlerCertSecretName,
+					components.VirtHandlerServerCertSecretName,
+					components.VirtOperatorCertSecretName,
+					components.VirtApiCertSecretName,
+					components.VirtControllerCertSecretName,
+					components.VirtExportProxyCertSecretName,
 				},
 				Verbs: []string{
 					"create",
@@ -495,6 +513,33 @@ func NewOperatorRole(namespace string) *rbacv1.Role {
 					"delete",
 				},
 			},
+			{
+				APIGroups: []string{
+					GroupNameRoute,
+				},
+				Resources: []string{
+					"routes",
+				},
+				Verbs: []string{
+					"create",
+					"get",
+					"list",
+					"watch",
+					"patch",
+					"delete",
+				},
+			},
+			{
+				APIGroups: []string{
+					GroupNameRoute,
+				},
+				Resources: []string{
+					"routes/custom-host",
+				},
+				Verbs: []string{
+					"create",
+				},
+			},
 		},
 	}
 }
@@ -503,10 +548,10 @@ func GetKubevirtComponentsServiceAccounts(namespace string) map[string]bool {
 	usermap := make(map[string]bool)
 
 	prefix := "system:serviceaccount"
-	usermap[fmt.Sprintf(serviceAccountFmt, prefix, namespace, HandlerServiceAccountName)] = true
-	usermap[fmt.Sprintf(serviceAccountFmt, prefix, namespace, ApiServiceAccountName)] = true
-	usermap[fmt.Sprintf(serviceAccountFmt, prefix, namespace, ControllerServiceAccountName)] = true
-	usermap[fmt.Sprintf(serviceAccountFmt, prefix, namespace, OperatorServiceAccountName)] = true
+	usermap[fmt.Sprintf(serviceAccountFmt, prefix, namespace, components.HandlerServiceAccountName)] = true
+	usermap[fmt.Sprintf(serviceAccountFmt, prefix, namespace, components.ApiServiceAccountName)] = true
+	usermap[fmt.Sprintf(serviceAccountFmt, prefix, namespace, components.ControllerServiceAccountName)] = true
+	usermap[fmt.Sprintf(serviceAccountFmt, prefix, namespace, components.OperatorServiceAccountName)] = true
 
 	return usermap
 }

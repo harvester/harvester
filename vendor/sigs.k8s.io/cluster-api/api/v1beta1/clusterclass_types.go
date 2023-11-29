@@ -17,6 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
+	"reflect"
+
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,6 +28,7 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=clusterclasses,shortName=cc,scope=Namespaced,categories=cluster-api
 // +kubebuilder:storageversion
+// +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of ClusterClass"
 
 // ClusterClass is a template which can be used to create managed topologies.
@@ -33,7 +36,8 @@ type ClusterClass struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec ClusterClassSpec `json:"spec,omitempty"`
+	Spec   ClusterClassSpec   `json:"spec,omitempty"`
+	Status ClusterClassStatus `json:"status,omitempty"`
 }
 
 // ClusterClassSpec describes the desired state of the ClusterClass.
@@ -71,7 +75,9 @@ type ClusterClassSpec struct {
 
 // ControlPlaneClass defines the class for the control plane.
 type ControlPlaneClass struct {
-	// Metadata is the metadata applied to the machines of the ControlPlane.
+	// Metadata is the metadata applied to the ControlPlane and the Machines of the ControlPlane
+	// if the ControlPlaneTemplate referenced is machine based. If not, it is applied only to the
+	// ControlPlane.
 	// At runtime this metadata is merged with the corresponding metadata from the topology.
 	//
 	// This field is supported if and only if the control plane provider template
@@ -96,6 +102,26 @@ type ControlPlaneClass struct {
 	// referenced above is Machine based and supports setting replicas.
 	// +optional
 	MachineHealthCheck *MachineHealthCheckClass `json:"machineHealthCheck,omitempty"`
+
+	// NodeDrainTimeout is the total amount of time that the controller will spend on draining a node.
+	// The default value is 0, meaning that the node can be drained without any time limitations.
+	// NOTE: NodeDrainTimeout is different from `kubectl drain --timeout`
+	// NOTE: This value can be overridden while defining a Cluster.Topology.
+	// +optional
+	NodeDrainTimeout *metav1.Duration `json:"nodeDrainTimeout,omitempty"`
+
+	// NodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes
+	// to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.
+	// NOTE: This value can be overridden while defining a Cluster.Topology.
+	// +optional
+	NodeVolumeDetachTimeout *metav1.Duration `json:"nodeVolumeDetachTimeout,omitempty"`
+
+	// NodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine
+	// hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely.
+	// Defaults to 10 seconds.
+	// NOTE: This value can be overridden while defining a Cluster.Topology.
+	// +optional
+	NodeDeletionTimeout *metav1.Duration `json:"nodeDeletionTimeout,omitempty"`
 }
 
 // WorkersClass is a collection of deployment classes.
@@ -121,12 +147,50 @@ type MachineDeploymentClass struct {
 	// MachineHealthCheck defines a MachineHealthCheck for this MachineDeploymentClass.
 	// +optional
 	MachineHealthCheck *MachineHealthCheckClass `json:"machineHealthCheck,omitempty"`
+
+	// FailureDomain is the failure domain the machines will be created in.
+	// Must match a key in the FailureDomains map stored on the cluster object.
+	// NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.
+	// +optional
+	FailureDomain *string `json:"failureDomain,omitempty"`
+
+	// NodeDrainTimeout is the total amount of time that the controller will spend on draining a node.
+	// The default value is 0, meaning that the node can be drained without any time limitations.
+	// NOTE: NodeDrainTimeout is different from `kubectl drain --timeout`
+	// NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.
+	// +optional
+	NodeDrainTimeout *metav1.Duration `json:"nodeDrainTimeout,omitempty"`
+
+	// NodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes
+	// to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.
+	// NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.
+	// +optional
+	NodeVolumeDetachTimeout *metav1.Duration `json:"nodeVolumeDetachTimeout,omitempty"`
+
+	// NodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine
+	// hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely.
+	// Defaults to 10 seconds.
+	// NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.
+	// +optional
+	NodeDeletionTimeout *metav1.Duration `json:"nodeDeletionTimeout,omitempty"`
+
+	// Minimum number of seconds for which a newly created machine should
+	// be ready.
+	// Defaults to 0 (machine will be considered available as soon as it
+	// is ready)
+	// NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.
+	MinReadySeconds *int32 `json:"minReadySeconds,omitempty"`
+
+	// The deployment strategy to use to replace existing machines with
+	// new ones.
+	// NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.
+	Strategy *MachineDeploymentStrategy `json:"strategy,omitempty"`
 }
 
 // MachineDeploymentClassTemplate defines how a MachineDeployment generated from a MachineDeploymentClass
 // should look like.
 type MachineDeploymentClassTemplate struct {
-	// Metadata is the metadata applied to the machines of the MachineDeployment.
+	// Metadata is the metadata applied to the MachineDeployment and the machines of the MachineDeployment.
 	// At runtime this metadata is merged with the corresponding metadata from the topology.
 	// +optional
 	Metadata ObjectMeta `json:"metadata,omitempty"`
@@ -158,6 +222,7 @@ type MachineHealthCheckClass struct {
 	// (a) there are at least 3 unhealthy machines (and)
 	// (b) there are at most 5 unhealthy machines
 	// +optional
+	// +kubebuilder:validation:Pattern=^\[[0-9]+-[0-9]+\]$
 	UnhealthyRange *string `json:"unhealthyRange,omitempty"`
 
 	// Machines older than this duration without a node will be considered to have
@@ -174,6 +239,11 @@ type MachineHealthCheckClass struct {
 	// a controller that lives outside of Cluster API.
 	// +optional
 	RemediationTemplate *corev1.ObjectReference `json:"remediationTemplate,omitempty"`
+}
+
+// IsZero returns true if none of the values of MachineHealthCheckClass are defined.
+func (m MachineHealthCheckClass) IsZero() bool {
+	return reflect.ValueOf(m).IsZero()
 }
 
 // ClusterClassVariable defines a variable which can
@@ -216,12 +286,23 @@ type JSONSchemaProps struct {
 
 	// Properties specifies fields of an object.
 	// NOTE: Can only be set if type is object.
+	// NOTE: Properties is mutually exclusive with AdditionalProperties.
 	// NOTE: This field uses PreserveUnknownFields and Schemaless,
 	// because recursive validation is not possible.
 	// +optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
 	Properties map[string]JSONSchemaProps `json:"properties,omitempty"`
+
+	// AdditionalProperties specifies the schema of values in a map (keys are always strings).
+	// NOTE: Can only be set if type is object.
+	// NOTE: AdditionalProperties is mutually exclusive with Properties.
+	// NOTE: This field uses PreserveUnknownFields and Schemaless,
+	// because recursive validation is not possible.
+	// +optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	AdditionalProperties *JSONSchemaProps `json:"additionalProperties,omitempty"`
 
 	// Required specifies which fields of an object are required.
 	// NOTE: Can only be set if type is object.
@@ -298,6 +379,12 @@ type JSONSchemaProps struct {
 	// +optional
 	ExclusiveMinimum bool `json:"exclusiveMinimum,omitempty"`
 
+	// XPreserveUnknownFields allows setting fields in a variable object
+	// which are not defined in the variable schema. This affects fields recursively,
+	// except if nested properties or additionalProperties are specified in the schema.
+	// +optional
+	XPreserveUnknownFields bool `json:"x-kubernetes-preserve-unknown-fields,omitempty"`
+
 	// Enum is the list of valid values of the variable.
 	// NOTE: Can be set for all types.
 	// +optional
@@ -325,9 +412,16 @@ type ClusterClassPatch struct {
 	// +optional
 	EnabledIf *string `json:"enabledIf,omitempty"`
 
-	// Definitions define the patches inline.
+	// Definitions define inline patches.
 	// Note: Patches will be applied in the order of the array.
-	Definitions []PatchDefinition `json:"definitions"`
+	// Note: Exactly one of Definitions or External must be set.
+	// +optional
+	Definitions []PatchDefinition `json:"definitions,omitempty"`
+
+	// External defines an external patch.
+	// Note: Exactly one of Definitions or External must be set.
+	// +optional
+	External *ExternalPatchDefinition `json:"external,omitempty"`
 }
 
 // PatchDefinition defines a patch which is applied to customize the referenced templates.
@@ -430,12 +524,93 @@ type JSONPatchValue struct {
 	Template *string `json:"template,omitempty"`
 }
 
+// ExternalPatchDefinition defines an external patch.
+// Note: At least one of GenerateExtension or ValidateExtension must be set.
+type ExternalPatchDefinition struct {
+	// GenerateExtension references an extension which is called to generate patches.
+	// +optional
+	GenerateExtension *string `json:"generateExtension,omitempty"`
+
+	// ValidateExtension references an extension which is called to validate the topology.
+	// +optional
+	ValidateExtension *string `json:"validateExtension,omitempty"`
+
+	// DiscoverVariablesExtension references an extension which is called to discover variables.
+	// +optional
+	DiscoverVariablesExtension *string `json:"discoverVariablesExtension,omitempty"`
+
+	// Settings defines key value pairs to be passed to the extensions.
+	// Values defined here take precedence over the values defined in the
+	// corresponding ExtensionConfig.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
+}
+
 // LocalObjectTemplate defines a template for a topology Class.
 type LocalObjectTemplate struct {
 	// Ref is a required reference to a custom resource
 	// offered by a provider.
 	Ref *corev1.ObjectReference `json:"ref"`
 }
+
+// ANCHOR: ClusterClassStatus
+
+// ClusterClassStatus defines the observed state of the ClusterClass.
+type ClusterClassStatus struct {
+	// Variables is a list of ClusterClassStatusVariable that are defined for the ClusterClass.
+	// +optional
+	Variables []ClusterClassStatusVariable `json:"variables,omitempty"`
+
+	// Conditions defines current observed state of the ClusterClass.
+	// +optional
+	Conditions Conditions `json:"conditions,omitempty"`
+
+	// ObservedGeneration is the latest generation observed by the controller.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+}
+
+// ClusterClassStatusVariable defines a variable which appears in the status of a ClusterClass.
+type ClusterClassStatusVariable struct {
+	// Name is the name of the variable.
+	Name string `json:"name"`
+
+	// DefinitionsConflict specifies whether or not there are conflicting definitions for a single variable name.
+	// +optional
+	DefinitionsConflict bool `json:"definitionsConflict"`
+
+	// Definitions is a list of definitions for a variable.
+	Definitions []ClusterClassStatusVariableDefinition `json:"definitions"`
+}
+
+// ClusterClassStatusVariableDefinition defines a variable which appears in the status of a ClusterClass.
+type ClusterClassStatusVariableDefinition struct {
+	// From specifies the origin of the variable definition.
+	// This will be `inline` for variables defined in the ClusterClass or the name of a patch defined in the ClusterClass
+	// for variables discovered from a DiscoverVariables runtime extensions.
+	From string `json:"from"`
+
+	// Required specifies if the variable is required.
+	// Note: this applies to the variable as a whole and thus the
+	// top-level object defined in the schema. If nested fields are
+	// required, this will be specified inside the schema.
+	Required bool `json:"required"`
+
+	// Schema defines the schema of the variable.
+	Schema VariableSchema `json:"schema"`
+}
+
+// GetConditions returns the set of conditions for this object.
+func (c *ClusterClass) GetConditions() Conditions {
+	return c.Status.Conditions
+}
+
+// SetConditions sets the conditions on this object.
+func (c *ClusterClass) SetConditions(conditions Conditions) {
+	c.Status.Conditions = conditions
+}
+
+// ANCHOR_END: ClusterClassStatus
 
 // +kubebuilder:object:root=true
 

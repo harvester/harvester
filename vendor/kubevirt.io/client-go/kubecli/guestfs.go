@@ -35,6 +35,7 @@ type GuestfsInfo struct {
 	Tag         string `json:"tag"`
 	Digest      string `json:"digest"`
 	ImagePrefix string `json:"imagePrefix"`
+	GsImage     string `json:"gsImage"`
 }
 
 func (k *kubevirt) GuestfsVersion() *GuestfsVersion {
@@ -53,7 +54,7 @@ func (v *GuestfsVersion) Get() (*GuestfsInfo, error) {
 	var group metav1.APIGroup
 	// First, find out which version to query
 	uri := ApiGroupName
-	result := v.restClient.Get().RequestURI(uri).Do(context.Background())
+	result := v.restClient.Get().AbsPath(uri).Do(context.Background())
 	if data, err := result.Raw(); err != nil {
 		connErr, isConnectionErr := err.(*url.Error)
 
@@ -70,7 +71,7 @@ func (v *GuestfsVersion) Get() (*GuestfsInfo, error) {
 	uri = fmt.Sprintf("/apis/%s/guestfs", group.PreferredVersion.GroupVersion)
 	var info GuestfsInfo
 
-	result = v.restClient.Get().RequestURI(uri).Do(context.Background())
+	result = v.restClient.Get().AbsPath(uri).Do(context.Background())
 	if data, err := result.Raw(); err != nil {
 		connErr, isConnectionErr := err.(*url.Error)
 

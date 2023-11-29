@@ -73,6 +73,7 @@ func (w *withDetails) Format(s fmt.State, verb rune) {
 	case 'v':
 		if s.Flag('+') {
 			_, _ = fmt.Fprintf(s, "%+v", w.error)
+
 			return
 		}
 
