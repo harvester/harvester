@@ -125,6 +125,7 @@ type MachineHealthCheckStatus struct {
 // ANCHOR_END: MachineHealthCheckStatus
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion
 // +kubebuilder:resource:path=machinehealthchecks,shortName=mhc;mhcs,scope=Namespaced,categories=cluster-api
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".spec.clusterName",description="Cluster"
@@ -134,6 +135,8 @@ type MachineHealthCheckStatus struct {
 // +kubebuilder:printcolumn:name="CurrentHealthy",type="integer",JSONPath=".status.currentHealthy",description="Current observed healthy machines"
 
 // MachineHealthCheck is the Schema for the machinehealthchecks API.
+//
+// Deprecated: This type will be removed in one of the next releases.
 type MachineHealthCheck struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -158,6 +161,8 @@ func (m *MachineHealthCheck) SetConditions(conditions Conditions) {
 // +kubebuilder:object:root=true
 
 // MachineHealthCheckList contains a list of MachineHealthCheck.
+//
+// Deprecated: This type will be removed in one of the next releases.
 type MachineHealthCheckList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
