@@ -21,8 +21,8 @@ package v1beta1
 import (
 	"net/http"
 
-	v1beta1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	rest "k8s.io/client-go/rest"
 )
 

@@ -3,10 +3,10 @@ package upgradelog
 import (
 	"fmt"
 
-	loggingv1 "github.com/banzaicloud/logging-operator/pkg/sdk/logging/api/v1beta1"
-	"github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/filter"
-	"github.com/banzaicloud/logging-operator/pkg/sdk/logging/model/output"
-	"github.com/banzaicloud/operator-tools/pkg/volume"
+	"github.com/cisco-open/operator-tools/pkg/volume"
+	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
+	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/filter"
+	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/output"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/rancher/wrangler/pkg/name"
