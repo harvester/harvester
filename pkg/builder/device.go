@@ -10,7 +10,7 @@ const (
 	InputBusVirtio  = "virtio"
 )
 
-func (v *VMBuilder) Input(inputName, inputType, inputBus string) *VMBuilder {
+func (v *VMBuilder) Input(inputName string, inputType kubevirtv1.InputType, inputBus kubevirtv1.InputBus) *VMBuilder {
 	inputs := v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Inputs
 	input := kubevirtv1.Input{
 		Name: inputName,
