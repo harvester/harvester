@@ -95,7 +95,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			want: &corev1.ResourceQuota{
 				ObjectMeta: v1.ObjectMeta{
 					Annotations: map[string]string{
-						util.AnnotationMigratingPrefix + "vm1": `{"limits.cpu":"1","limits.memory":"1236Mi"}`,
+						util.AnnotationMigratingPrefix + "vm1": `{"limits.cpu":"1","limits.memory":"1266Mi"}`,
 					},
 					Namespace: resourceQuotaNamespace,
 					Name:      resourceQuotaName,
@@ -104,7 +104,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 				Spec: corev1.ResourceQuotaSpec{
 					Hard: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceLimitsCPU:    *resource.NewQuantity(2, resource.DecimalSI),
-						corev1.ResourceLimitsMemory: *resource.NewQuantity(2593476608, resource.BinarySI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(2624933888, resource.BinarySI),
 					},
 				},
 			},
