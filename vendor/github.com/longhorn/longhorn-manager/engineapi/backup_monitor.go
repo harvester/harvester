@@ -294,7 +294,7 @@ func (m *BackupMonitor) syncBackupStatusFromEngineReplica() (currentBackupStatus
 	m.backupStatus.DeepCopyInto(&currentBackupStatus)
 	m.backupStatusLock.RUnlock()
 
-	engineBackupStatus, err = m.engineClientProxy.SnapshotBackupStatus(m.engine, m.backupName, m.replicaAddress)
+	engineBackupStatus, err = m.engineClientProxy.SnapshotBackupStatus(m.engine, m.backupName, m.replicaAddress, "")
 	if err != nil {
 		return currentBackupStatus, err
 	}

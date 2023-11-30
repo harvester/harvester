@@ -6,7 +6,7 @@ const (
 	InstanceManagerAPIMinVersion = 1
 
 	// InstanceManagerProxyAPIVersion is used for compatibility check for longhorn-manager
-	InstanceManagerProxyAPIVersion    = 4
+	InstanceManagerProxyAPIVersion    = 5
 	InstanceManagerProxyAPIMinVersion = 1
 
 	// InstanceManagerDiskServiceAPIVersion used to communicate with the user e.g. longhorn-manager

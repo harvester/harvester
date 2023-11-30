@@ -12,9 +12,10 @@ import (
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
-func (c *ProxyClient) VolumeGet(backendStoreDriver, engineName, serviceAddress string) (info *etypes.VolumeInfo, err error) {
+func (c *ProxyClient) VolumeGet(backendStoreDriver, engineName, volumeName, serviceAddress string) (info *etypes.VolumeInfo, err error) {
 	input := map[string]string{
 		"engineName":     engineName,
+		"volumeName":     volumeName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
@@ -34,6 +35,7 @@ func (c *ProxyClient) VolumeGet(backendStoreDriver, engineName, serviceAddress s
 		Address:            serviceAddress,
 		EngineName:         engineName,
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		VolumeName:         volumeName,
 	}
 	resp, err := c.service.VolumeGet(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -55,9 +57,11 @@ func (c *ProxyClient) VolumeGet(backendStoreDriver, engineName, serviceAddress s
 	return info, nil
 }
 
-func (c *ProxyClient) VolumeExpand(backendStoreDriver, engineName, serviceAddress string, size int64) (err error) {
+func (c *ProxyClient) VolumeExpand(backendStoreDriver, engineName, volumeName, serviceAddress string,
+	size int64) (err error) {
 	input := map[string]string{
 		"engineName":     engineName,
+		"volumeName":     volumeName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
@@ -78,6 +82,7 @@ func (c *ProxyClient) VolumeExpand(backendStoreDriver, engineName, serviceAddres
 			Address:            serviceAddress,
 			EngineName:         engineName,
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			VolumeName:         volumeName,
 		},
 		Expand: &eptypes.VolumeExpandRequest{
 			Size: size,
@@ -91,10 +96,11 @@ func (c *ProxyClient) VolumeExpand(backendStoreDriver, engineName, serviceAddres
 	return nil
 }
 
-func (c *ProxyClient) VolumeFrontendStart(backendStoreDriver, engineName, serviceAddress, frontendName string) (err error) {
+func (c *ProxyClient) VolumeFrontendStart(backendStoreDriver, engineName, volumeName, serviceAddress, frontendName string) (err error) {
 	input := map[string]string{
-		"serviceAddress": serviceAddress,
 		"engineName":     engineName,
+		"volumeName":     volumeName,
+		"serviceAddress": serviceAddress,
 		"frontendName":   frontendName,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
@@ -115,6 +121,7 @@ func (c *ProxyClient) VolumeFrontendStart(backendStoreDriver, engineName, servic
 			Address:            serviceAddress,
 			EngineName:         engineName,
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			VolumeName:         volumeName,
 		},
 		FrontendStart: &eptypes.VolumeFrontendStartRequest{
 			Frontend: frontendName,
@@ -128,9 +135,11 @@ func (c *ProxyClient) VolumeFrontendStart(backendStoreDriver, engineName, servic
 	return nil
 }
 
-func (c *ProxyClient) VolumeFrontendShutdown(backendStoreDriver, engineName, serviceAddress string) (err error) {
+func (c *ProxyClient) VolumeFrontendShutdown(backendStoreDriver, engineName, volumeName,
+	serviceAddress string) (err error) {
 	input := map[string]string{
 		"engineName":     engineName,
+		"volumeName":     volumeName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
@@ -150,6 +159,7 @@ func (c *ProxyClient) VolumeFrontendShutdown(backendStoreDriver, engineName, ser
 		Address:            serviceAddress,
 		EngineName:         engineName,
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		VolumeName:         volumeName,
 	}
 	_, err = c.service.VolumeFrontendShutdown(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -159,9 +169,11 @@ func (c *ProxyClient) VolumeFrontendShutdown(backendStoreDriver, engineName, ser
 	return nil
 }
 
-func (c *ProxyClient) VolumeUnmapMarkSnapChainRemovedSet(backendStoreDriver, engineName, serviceAddress string, enabled bool) (err error) {
+func (c *ProxyClient) VolumeUnmapMarkSnapChainRemovedSet(backendStoreDriver, engineName, volumeName,
+	serviceAddress string, enabled bool) (err error) {
 	input := map[string]string{
 		"engineName":     engineName,
+		"volumeName":     volumeName,
 		"serviceAddress": serviceAddress,
 		"enabled":        strconv.FormatBool(enabled),
 	}
@@ -183,6 +195,7 @@ func (c *ProxyClient) VolumeUnmapMarkSnapChainRemovedSet(backendStoreDriver, eng
 			Address:            serviceAddress,
 			EngineName:         engineName,
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			VolumeName:         volumeName,
 		},
 		UnmapMarkSnap: &eptypes.VolumeUnmapMarkSnapChainRemovedSetRequest{Enabled: enabled},
 	}

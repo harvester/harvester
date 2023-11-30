@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	CurrentInstanceManagerAPIVersion = 4
+	CurrentInstanceManagerAPIVersion = 5
 	MinInstanceManagerAPIVersion     = 1
 	UnknownInstanceManagerAPIVersion = 0
 
@@ -336,6 +336,10 @@ func getBinaryAndArgsForEngineProcessCreation(e *longhorn.Engine,
 		}
 	}
 
+	if engineCLIAPIVersion >= 9 {
+		args = append([]string{"--engine-instance-name", e.Name}, args...)
+	}
+
 	for _, addr := range e.Status.CurrentReplicaAddressMap {
 		args = append(args, "--replica", GetBackendReplicaURL(addr))
 	}
@@ -358,7 +362,10 @@ func getBinaryAndArgsForReplicaProcessCreation(r *longhorn.Replica,
 		args = append(args, "--disableRevCounter")
 	}
 	if engineCLIAPIVersion >= 7 {
-		args = append(args, "--volume-name", r.Spec.VolumeName)
+		if engineCLIAPIVersion < 9 {
+			// Replaced by the global --volume-name flag when engineCLIAPIVersion == 9.
+			args = append(args, "--volume-name", r.Spec.VolumeName)
+		}
 
 		if dataLocality == longhorn.DataLocalityStrictLocal {
 			args = append(args, "--data-server-protocol", "unix")
@@ -367,6 +374,11 @@ func getBinaryAndArgsForReplicaProcessCreation(r *longhorn.Replica,
 		if r.Spec.UnmapMarkDiskChainRemovedEnabled {
 			args = append(args, "--unmap-mark-disk-chain-removed")
 		}
+	}
+
+	if engineCLIAPIVersion >= 9 {
+		args = append(args, "--replica-instance-name", r.Name)
+		args = append([]string{"--volume-name", r.Spec.VolumeName}, args...)
 	}
 
 	// 3 ports are already used by replica server, data server and syncagent server
@@ -685,6 +697,10 @@ func (c *InstanceManagerClient) engineInstanceUpgrade(req *EngineInstanceUpgrade
 		if req.Engine.Spec.UnmapMarkSnapChainRemovedEnabled {
 			args = append(args, "--unmap-mark-snap-chain-removed")
 		}
+	}
+
+	if req.EngineCLIAPIVersion >= 9 {
+		args = append([]string{"--engine-instance-name", req.Engine.Name}, args...)
 	}
 
 	binary := filepath.Join(types.GetEngineBinaryDirectoryForEngineManagerContainer(req.Engine.Spec.EngineImage), types.EngineBinaryName)

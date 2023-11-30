@@ -5,7 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	smclient "github.com/longhorn/longhorn-share-manager/pkg/client"
 
@@ -16,11 +16,7 @@ type ShareManagerClient struct {
 	grpcClient *smclient.ShareManagerClient
 }
 
-func NewShareManagerClient(sm *longhorn.ShareManager, pod *v1.Pod) (*ShareManagerClient, error) {
-	if sm.Status.State != longhorn.ShareManagerStateRunning {
-		return nil, fmt.Errorf("invalid Share Manager %v, state: %v", sm.Name, sm.Status.State)
-	}
-
+func NewShareManagerClient(sm *longhorn.ShareManager, pod *corev1.Pod) (*ShareManagerClient, error) {
 	client, err := smclient.NewShareManagerClient(fmt.Sprintf("%s:%d", pod.Status.PodIP, ShareManagerDefaultPort))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create Share Manager client for %v", sm.Name)
@@ -41,4 +37,12 @@ func (c *ShareManagerClient) Close() error {
 
 func (c *ShareManagerClient) FilesystemTrim(encryptedDevice bool) error {
 	return c.grpcClient.FilesystemTrim(encryptedDevice)
+}
+
+func (c *ShareManagerClient) Unmount() error {
+	return c.grpcClient.Unmount()
+}
+
+func (c *ShareManagerClient) Mount() error {
+	return c.grpcClient.Mount()
 }

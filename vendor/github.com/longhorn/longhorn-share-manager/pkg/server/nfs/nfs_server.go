@@ -81,7 +81,7 @@ type Server struct {
 	logger     logrus.FieldLogger
 	configPath string
 	exportPath string
-	exporter   *exporter
+	exporter   *Exporter
 }
 
 func NewServer(logger logrus.FieldLogger, configPath, exportPath, volume string) (*Server, error) {
@@ -95,13 +95,9 @@ func NewServer(logger logrus.FieldLogger, configPath, exportPath, volume string)
 		}
 	}
 
-	exporter, err := newExporter(logger, configPath, exportPath)
+	exporter, err := NewExporter(configPath, exportPath)
 	if err != nil {
-		return nil, errors.Wrap(err, "error creating nfs exporter")
-	}
-
-	if _, err := exporter.CreateExport(volume); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create nfs exporter")
 	}
 
 	return &Server{
@@ -110,6 +106,10 @@ func NewServer(logger logrus.FieldLogger, configPath, exportPath, volume string)
 		exportPath: exportPath,
 		exporter:   exporter,
 	}, nil
+}
+
+func (s *Server) CreateExport(volume string) (uint16, error) {
+	return s.exporter.CreateExport(volume)
 }
 
 func (s *Server) Run(ctx context.Context) error {

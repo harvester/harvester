@@ -196,7 +196,8 @@ func (e *EngineSimulator) SnapshotBackup(engine *longhorn.Engine, backupName, sn
 	return "", "", fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress string) (*longhorn.EngineBackupStatus, error) {
+func (e *EngineSimulator) SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress,
+	replicaName string) (*longhorn.EngineBackupStatus, error) {
 	return nil, fmt.Errorf(ErrNotImplement)
 }
 
@@ -216,7 +217,8 @@ func (e *EngineSimulator) BackupRestore(engine *longhorn.Engine, backupTarget, b
 	return fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotClone(engine *longhorn.Engine, snapshotName, fromControllerAddress string, fileSyncHTTPClientTimeout int64) error {
+func (e *EngineSimulator) SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName,
+	fromEngineName string, fileSyncHTTPClientTimeout int64) error {
 	return fmt.Errorf(ErrNotImplement)
 }
 
@@ -243,7 +245,7 @@ func (e *EngineSimulator) VolumeUnmapMarkSnapChainRemovedSet(*longhorn.Engine) e
 	return fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) ReplicaRebuildVerify(engine *longhorn.Engine, url string) error {
+func (e *EngineSimulator) ReplicaRebuildVerify(engine *longhorn.Engine, replicaName, url string) error {
 	return fmt.Errorf(ErrNotImplement)
 }
 

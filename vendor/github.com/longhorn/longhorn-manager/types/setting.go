@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,11 +14,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/meta"
 	"github.com/longhorn/longhorn-manager/util"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -618,8 +620,8 @@ var (
 	}
 
 	SettingDefinitionAutoDeletePodWhenVolumeDetachedUnexpectedly = SettingDefinition{
-		DisplayName: "Automatically Delete Workload Pod when The ReadWriteOnce (RWO) Volume Is Detached Unexpectedly",
-		Description: "If enabled, Longhorn will automatically delete the workload pod that is managed by a controller (e.g. deployment, statefulset, daemonset, etc...) when Longhorn ReadWriteOnce(RWO) volume is detached unexpectedly (e.g. during Kubernetes upgrade, Docker reboot, or network disconnect). " +
+		DisplayName: "Automatically Delete Workload Pod when The Volume Is Detached Unexpectedly",
+		Description: "If enabled, Longhorn will automatically delete the workload pod that is managed by a controller (e.g. deployment, statefulset, daemonset, etc...) when Longhorn volume is detached unexpectedly (e.g. during Kubernetes upgrade, Docker reboot, or network disconnect). " +
 			"By deleting the pod, its controller restarts the pod and Kubernetes handles volume reattachment and remount. \n\n" +
 			"If disabled, Longhorn will not delete the workload pod that is managed by a controller. You will have to manually restart the pod to reattach and remount the volume. \n\n" +
 			"**Note:** This setting doesn't apply to the workload pods that don't have a controller. Longhorn never deletes them.",
@@ -1134,7 +1136,12 @@ type CNIAnnotation string
 
 const (
 	CNIAnnotationNetworks      = CNIAnnotation("k8s.v1.cni.cncf.io/networks")
-	CNIAnnotationNetworkStatus = CNIAnnotation("k8s.v1.cni.cncf.io/networks-status")
+	CNIAnnotationNetworkStatus = CNIAnnotation("k8s.v1.cni.cncf.io/network-status")
+
+	// CNIAnnotationNetworksStatus is deprecated since Multus v3.6 and completely removed in v4.0.0.
+	// This exists to support older Multus versions.
+	// Ref: https://github.com/longhorn/longhorn/issues/6953
+	CNIAnnotationNetworksStatus = CNIAnnotation("k8s.v1.cni.cncf.io/networks-status")
 )
 
 const (
@@ -1157,10 +1164,20 @@ func ValidateSetting(name, value string) (err error) {
 
 	switch sName {
 	case SettingNameBackupTarget:
-		// check whether have $ or , have been set in BackupTarget
+		u, err := url.Parse(value)
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse %v as url", value)
+		}
+
+		// Check whether have $ or , have been set in BackupTarget path
 		regStr := `[\$\,]`
+		if u.Scheme == "cifs" {
+			// The $ in SMB/CIFS URIs means that the share is hidden.
+			regStr = `[\,]`
+		}
+
 		reg := regexp.MustCompile(regStr)
-		findStr := reg.FindAllString(value, -1)
+		findStr := reg.FindAllString(u.Path, -1)
 		if len(findStr) != 0 {
 			return fmt.Errorf("value %s, contains %v", value, strings.Join(findStr, " or "))
 		}
@@ -1375,7 +1392,7 @@ func isValidChoice(choices []string, value string) bool {
 	return len(choices) == 0
 }
 
-func GetCustomizedDefaultSettings(defaultSettingCM *v1.ConfigMap) (defaultSettings map[string]string, err error) {
+func GetCustomizedDefaultSettings(defaultSettingCM *corev1.ConfigMap) (defaultSettings map[string]string, err error) {
 	defaultSettingYAMLData := []byte(defaultSettingCM.Data[DefaultSettingYAMLFileName])
 
 	defaultSettings, err = getDefaultSettingFromYAML(defaultSettingYAMLData)
@@ -1437,8 +1454,8 @@ func getDefaultSettingFromYAML(defaultSettingYAMLData []byte) (map[string]string
 	return defaultSettings, nil
 }
 
-func UnmarshalTolerations(tolerationSetting string) ([]v1.Toleration, error) {
-	tolerations := []v1.Toleration{}
+func UnmarshalTolerations(tolerationSetting string) ([]corev1.Toleration, error) {
+	tolerations := []corev1.Toleration{}
 
 	tolerationSetting = strings.ReplaceAll(tolerationSetting, " ", "")
 	if tolerationSetting == "" {
@@ -1456,7 +1473,7 @@ func UnmarshalTolerations(tolerationSetting string) ([]v1.Toleration, error) {
 	return tolerations, nil
 }
 
-func parseToleration(taintToleration string) (*v1.Toleration, error) {
+func parseToleration(taintToleration string) (*corev1.Toleration, error) {
 	// The schema should be `key=value:effect` or `key:effect`
 	parts := strings.Split(taintToleration, ":")
 	if len(parts) != 2 {
@@ -1464,23 +1481,23 @@ func parseToleration(taintToleration string) (*v1.Toleration, error) {
 	}
 
 	// parse `key=value` or `key`
-	key, value, operator := "", "", v1.TolerationOperator("")
+	key, value, operator := "", "", corev1.TolerationOperator("")
 	pair := strings.Split(parts[0], "=")
 	switch len(pair) {
 	case 1:
-		key, value, operator = parts[0], "", v1.TolerationOpExists
+		key, value, operator = parts[0], "", corev1.TolerationOpExists
 	case 2:
-		key, value, operator = pair[0], pair[1], v1.TolerationOpEqual
+		key, value, operator = pair[0], pair[1], corev1.TolerationOpEqual
 	}
 
-	effect := v1.TaintEffect(parts[1])
+	effect := corev1.TaintEffect(parts[1])
 	switch effect {
-	case "", v1.TaintEffectNoExecute, v1.TaintEffectNoSchedule, v1.TaintEffectPreferNoSchedule:
+	case "", corev1.TaintEffectNoExecute, corev1.TaintEffectNoSchedule, corev1.TaintEffectPreferNoSchedule:
 	default:
 		return nil, fmt.Errorf("invalid effect: %v", parts[1])
 	}
 
-	return &v1.Toleration{
+	return &corev1.Toleration{
 		Key:      key,
 		Value:    value,
 		Operator: operator,
@@ -1514,6 +1531,7 @@ func UnmarshalNodeSelector(nodeSelectorSetting string) (map[string]string, error
 	return nodeSelector, nil
 }
 
+// GetSettingDefinition gets the setting definition in `settingDefinitions` by the parameter `name`
 func GetSettingDefinition(name SettingName) (SettingDefinition, bool) {
 	settingDefinitionsLock.RLock()
 	defer settingDefinitionsLock.RUnlock()
@@ -1521,6 +1539,7 @@ func GetSettingDefinition(name SettingName) (SettingDefinition, bool) {
 	return setting, ok
 }
 
+// SetSettingDefinition sets the setting definition in `settingDefinitions` by the parameter `name` and `definition`
 func SetSettingDefinition(name SettingName, definition SettingDefinition) {
 	settingDefinitionsLock.Lock()
 	defer settingDefinitionsLock.Unlock()

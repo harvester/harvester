@@ -10,7 +10,10 @@ const (
 )
 
 const (
-	ReplicaConditionTypeRebuildFailed = "RebuildFailed"
+	ReplicaConditionTypeRebuildFailed                = "RebuildFailed"
+	ReplicaConditionTypeWaitForBackingImage          = "WaitForBackingImage"
+	ReplicaConditionReasonWaitForBackingImageFailed  = "GetBackingImageFailed"
+	ReplicaConditionReasonWaitForBackingImageWaiting = "Waiting"
 
 	ReplicaConditionReasonRebuildFailedDisconnection = "Disconnection"
 	ReplicaConditionReasonRebuildFailedGeneral       = "General"

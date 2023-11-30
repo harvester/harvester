@@ -47,6 +47,7 @@ message ProxyEngineRequest{
 	string address = 1;
 	BackendStoreDriver backend_store_driver = 2;
 	string engine_name = 3;
+	string volume_name = 4;
 }
 
 message EngineVersionProxyResponse {
@@ -119,10 +120,12 @@ message EngineSnapshotPurgeStatusProxyResponse {
 message EngineSnapshotCloneRequest {
 	ProxyEngineRequest proxy_engine_request = 1;
 
-	string from_controller = 2;
+	string from_engine_address = 2;
 	string snapshot_name = 3;
 	bool export_backing_image_if_exist = 4;
 	int32 file_sync_http_client_timeout = 5;
+	string from_engine_name = 6;
+	string from_volume_name = 7;
 }
 
 message EngineSnapshotCloneStatusProxyResponse {
@@ -162,6 +165,7 @@ message EngineSnapshotBackupStatusRequest {
 
 	string backup_name = 2;
 	string replica_address = 3;
+	string replica_name = 4;
 }
 
 message EngineSnapshotBackupStatusProxyResponse {
@@ -224,6 +228,7 @@ message EngineReplicaVerifyRebuildRequest {
 	ProxyEngineRequest proxy_engine_request = 1;
 
 	string replica_address = 2;
+	string replica_name = 3;
 }
 
 message EngineReplicaRebuildStatusProxyResponse {

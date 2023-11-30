@@ -76,8 +76,8 @@ require (
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200331171230-d50e42f2b669
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
-	github.com/longhorn/backupstore v0.0.0-20230627040634-5b4f2d040e9d
-	github.com/longhorn/longhorn-manager v1.5.1
+	github.com/longhorn/backupstore v0.0.0-20231025000449-5316e8b5320d
+	github.com/longhorn/longhorn-manager v1.5.3
 	github.com/mattn/go-isatty v0.0.17
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.5.0
@@ -216,17 +216,18 @@ require (
 	github.com/lib/pq v1.10.6 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/longhorn/backing-image-manager v1.4.0-rc1.0.20230521151917-38ff27cc2cbb // indirect
-	github.com/longhorn/go-iscsi-helper v0.0.0-20230529082528-4c3270590712 // indirect
-	github.com/longhorn/go-spdk-helper v0.0.0-20230626041832-c611b61f6b36 // indirect
-	github.com/longhorn/longhorn-engine v1.5.0-rc3.0.20230628003600-018cd51ec7bd // indirect
-	github.com/longhorn/longhorn-instance-manager v1.5.0-rc3.0.20230628024133-a0a70bd7503a // indirect
-	github.com/longhorn/longhorn-share-manager v1.5.0-rc3 // indirect
-	github.com/longhorn/longhorn-spdk-engine v0.0.0-20230627161406-64cb30ad3cf1 // indirect
+	github.com/longhorn/go-iscsi-helper v0.0.0-20231113050545-9df1e6b605c7 // indirect
+	github.com/longhorn/go-spdk-helper v0.0.0-20231002161457-6c31a95f76e8 // indirect
+	github.com/longhorn/longhorn-engine v1.5.2-0.20230906182804-9475221d9535 // indirect
+	github.com/longhorn/longhorn-instance-manager v1.5.2-0.20231006022904-b2c88ac8080d // indirect
+	github.com/longhorn/longhorn-share-manager v1.5.3-rc1.0.20231115141215-5109d5939e17 // indirect
+	github.com/longhorn/longhorn-spdk-engine v0.0.0-20231005170812-e9b634e07e47 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
+	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/locker v1.0.1 // indirect
