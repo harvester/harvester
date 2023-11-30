@@ -1,5 +1,5 @@
-FROM quay.io/costoolkit/releases-green:luet-toolchain-0.21.2 as luet
-FROM quay.io/costoolkit/elemental-cli:v0.2.5 as elemental
+FROM quay.io/costoolkit/releases-teal:grub2-live-0.0.4-2 as grub2-mbr
+FROM quay.io/costoolkit/releases-teal:grub2-efi-image-live-0.0.4-2 as grub2-efi
 
 FROM golang:1.20.10-bookworm
 
@@ -63,9 +63,11 @@ RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.14.0/kind-linux-amd64 
 # install codecov
 RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/latest/linux/codecov && chmod +x /usr/bin/codecov
 
-# luet & elemental
-COPY --from=luet /usr/bin/luet /usr/bin/luet
-COPY --from=elemental /usr/bin/elemental /usr/bin/elemental
+# copy bootloaders
+RUN mkdir /grub2-mbr
+COPY --from=grub2-mbr / /grub2-mbr
+RUN mkdir /grub2-efi
+COPY --from=grub2-efi / /grub2-efi
 
 # -- for make rules
 
