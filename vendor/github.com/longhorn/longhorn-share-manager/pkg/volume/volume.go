@@ -90,7 +90,7 @@ func SetPermissions(mountPath string, mode os.FileMode) error {
 
 func UnmountVolume(mountPath string) error {
 	mounter := mount.New("")
-	return mount.CleanupMountPoint(mountPath, mounter, true)
+	return mounter.Unmount(mountPath)
 }
 
 // makeDir creates a new directory.

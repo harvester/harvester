@@ -11,10 +11,13 @@ import (
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
-func (c *ProxyClient) ReplicaAdd(backendStoreDriver, engineName, serviceAddress, replicaName, replicaAddress string, restore bool, size, currentSize int64, fileSyncHTTPClientTimeout int, fastSync bool) (err error) {
+func (c *ProxyClient) ReplicaAdd(backendStoreDriver, engineName, volumeName, serviceAddress, replicaName,
+	replicaAddress string, restore bool, size, currentSize int64, fileSyncHTTPClientTimeout int,
+	fastSync bool) (err error) {
 	input := map[string]string{
-		"serviceAddress": serviceAddress,
 		"engineName":     engineName,
+		"volumeName":     volumeName,
+		"serviceAddress": serviceAddress,
 		"replicaName":    replicaName,
 		"replicaAddress": replicaAddress,
 	}
@@ -40,6 +43,7 @@ func (c *ProxyClient) ReplicaAdd(backendStoreDriver, engineName, serviceAddress,
 			Address:            serviceAddress,
 			EngineName:         engineName,
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			VolumeName:         volumeName,
 		},
 		ReplicaName:               replicaName,
 		ReplicaAddress:            replicaAddress,
@@ -57,9 +61,11 @@ func (c *ProxyClient) ReplicaAdd(backendStoreDriver, engineName, serviceAddress,
 	return nil
 }
 
-func (c *ProxyClient) ReplicaList(backendStoreDriver, engineName, serviceAddress string) (rInfoList []*etypes.ControllerReplicaInfo, err error) {
+func (c *ProxyClient) ReplicaList(backendStoreDriver, engineName, volumeName,
+	serviceAddress string) (rInfoList []*etypes.ControllerReplicaInfo, err error) {
 	input := map[string]string{
 		"engineName":     engineName,
+		"volumeName":     volumeName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
@@ -79,6 +85,7 @@ func (c *ProxyClient) ReplicaList(backendStoreDriver, engineName, serviceAddress
 		Address:            serviceAddress,
 		EngineName:         engineName,
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		VolumeName:         volumeName,
 	}
 	resp, err := c.service.ReplicaList(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -95,9 +102,11 @@ func (c *ProxyClient) ReplicaList(backendStoreDriver, engineName, serviceAddress
 	return rInfoList, nil
 }
 
-func (c *ProxyClient) ReplicaRebuildingStatus(backendStoreDriver, engineName, serviceAddress string) (status map[string]*ReplicaRebuildStatus, err error) {
+func (c *ProxyClient) ReplicaRebuildingStatus(backendStoreDriver, engineName, volumeName,
+	serviceAddress string) (status map[string]*ReplicaRebuildStatus, err error) {
 	input := map[string]string{
 		"engineName":     engineName,
+		"volumeName":     volumeName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
@@ -117,6 +126,7 @@ func (c *ProxyClient) ReplicaRebuildingStatus(backendStoreDriver, engineName, se
 		Address:            serviceAddress,
 		EngineName:         engineName,
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		VolumeName:         volumeName,
 	}
 	recv, err := c.service.ReplicaRebuildingStatus(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -136,10 +146,14 @@ func (c *ProxyClient) ReplicaRebuildingStatus(backendStoreDriver, engineName, se
 	return status, nil
 }
 
-func (c *ProxyClient) ReplicaVerifyRebuild(backendStoreDriver, serviceAddress, replicaAddress string) (err error) {
+func (c *ProxyClient) ReplicaVerifyRebuild(backendStoreDriver, engineName, volumeName, serviceAddress,
+	replicaAddress, replicaName string) (err error) {
 	input := map[string]string{
+		"engineName":     engineName,
+		"volumeName":     volumeName,
 		"serviceAddress": serviceAddress,
 		"replicaAddress": replicaAddress,
+		"replicaName":    replicaName,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return errors.Wrap(err, "failed to verify replica rebuild")
@@ -157,9 +171,12 @@ func (c *ProxyClient) ReplicaVerifyRebuild(backendStoreDriver, serviceAddress, r
 	req := &rpc.EngineReplicaVerifyRebuildRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
 			Address:            serviceAddress,
+			EngineName:         engineName,
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			VolumeName:         volumeName,
 		},
 		ReplicaAddress: replicaAddress,
+		ReplicaName:    replicaName,
 	}
 	_, err = c.service.ReplicaVerifyRebuild(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {

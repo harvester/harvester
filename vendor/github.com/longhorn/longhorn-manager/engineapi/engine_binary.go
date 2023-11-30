@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/longhorn/longhorn-manager/datastore"
+
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
@@ -43,9 +44,10 @@ func GetEngineBinaryClient(ds *datastore.DataStore, volumeName, nodeID string) (
 
 	engineCollection := &EngineCollection{}
 	return engineCollection.NewEngineClient(&EngineClientRequest{
-		VolumeName:  e.Spec.VolumeName,
-		EngineImage: e.Status.CurrentImage,
-		IP:          e.Status.IP,
-		Port:        e.Status.Port,
+		VolumeName:   e.Spec.VolumeName,
+		EngineImage:  e.Status.CurrentImage,
+		IP:           e.Status.IP,
+		Port:         e.Status.Port,
+		InstanceName: e.Name,
 	})
 }

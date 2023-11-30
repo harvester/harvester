@@ -14,8 +14,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/util"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -126,6 +127,7 @@ const (
 	LastAppliedTolerationAnnotationKeySuffix = "last-applied-tolerations"
 
 	ConfigMapResourceVersionKey = "configmap-resource-version"
+	UpdateSettingFromLonghorn   = "update-setting-from-longhorn"
 
 	KubernetesStatusLabel = "KubernetesStatus"
 	KubernetesReplicaSet  = "ReplicaSet"
@@ -272,6 +274,14 @@ func (e *NotFoundError) Error() string {
 	return fmt.Sprintf("cannot find %v", e.Name)
 }
 
+type ErrorInvalidState struct {
+	Reason string
+}
+
+func (e *ErrorInvalidState) Error() string {
+	return fmt.Sprintf("current state prevents this: %v", e.Reason)
+}
+
 const (
 	engineSuffix    = "-e"
 	replicaSuffix   = "-r"
@@ -291,8 +301,16 @@ const (
 	replicaManagerPrefix  = instanceManagerPrefix + "r-"
 )
 
-func GenerateEngineNameForVolume(vName string) string {
-	return vName + engineSuffix + "-" + util.RandomID()
+func GenerateEngineNameForVolume(vName, currentEngineName string) string {
+	if currentEngineName == "" {
+		return vName + engineSuffix + "-" + "0"
+	}
+	parts := strings.Split(currentEngineName, "-")
+	suffix, err := strconv.Atoi(parts[len(parts)-1])
+	if err != nil {
+		return vName + engineSuffix + "-" + "1"
+	}
+	return vName + engineSuffix + "-" + strconv.Itoa(suffix+1)
 }
 
 func GenerateReplicaNameForVolume(vName string) string {
@@ -379,6 +397,11 @@ func GetLonghornLabelCRDAPIVersionKey() string {
 	return GetLonghornLabelKey(LonghornLabelCRDAPIVersion)
 }
 
+func GetManagerLabels() map[string]string {
+	return map[string]string{
+		"app": LonghornManagerDaemonSetName,
+	}
+}
 func GetEngineImageLabels(engineImageName string) map[string]string {
 	labels := GetBaseLabelsForSystemManagedComponent()
 	labels[GetLonghornLabelComponentKey()] = LonghornLabelEngineImage
@@ -690,6 +713,11 @@ func ErrorIsNotSupport(err error) bool {
 
 func ErrorAlreadyExists(err error) bool {
 	return strings.Contains(err.Error(), "already exists")
+}
+
+func ErrorIsInvalidState(err error) bool {
+	var dummy *ErrorInvalidState
+	return errors.As(err, &dummy)
 }
 
 func ValidateReplicaCount(count int) error {

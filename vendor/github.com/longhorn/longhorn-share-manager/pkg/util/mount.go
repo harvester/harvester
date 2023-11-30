@@ -1,6 +1,8 @@
 package util
 
-import "golang.org/x/sys/unix"
+import (
+	"golang.org/x/sys/unix"
+)
 
 // DeviceNumber represents a combined major:minor device number.
 type DeviceNumber uint64

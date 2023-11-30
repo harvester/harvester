@@ -1,26 +1,27 @@
 package nfs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+
+	"github.com/longhorn/longhorn-share-manager/pkg/util"
 )
 
-type exportMap struct {
+type ExportMap struct {
 	idToVolume map[uint16]string
 	volumeToid map[string]uint16
 }
 
-type exporter struct {
-	logger logrus.FieldLogger
-
-	*exportMap
+type Exporter struct {
+	*ExportMap
 
 	configPath string
 	exportPath string
@@ -31,7 +32,7 @@ type exporter struct {
 
 var exportRegex = regexp.MustCompile("Export_Id = ([0-9]+);#Volume=(.+)")
 
-func newExporter(logger logrus.FieldLogger, configPath, exportPath string) (*exporter, error) {
+func NewExporter(configPath, exportPath string) (*Exporter, error) {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return nil, errors.Wrapf(err, "nfs server config file %v does not exist", configPath)
 	}
@@ -46,10 +47,8 @@ func newExporter(logger logrus.FieldLogger, configPath, exportPath string) (*exp
 		volToID[vol] = id
 	}
 
-	return &exporter{
-		logger: logger,
-
-		exportMap: &exportMap{
+	return &Exporter{
+		ExportMap: &ExportMap{
 			idToVolume: exportIDs,
 			volumeToid: volToID,
 		},
@@ -63,35 +62,35 @@ func newExporter(logger logrus.FieldLogger, configPath, exportPath string) (*exp
 }
 
 // GetExportMap returns a copy of the export map
-func (e *exporter) GetExportMap() exportMap {
+func (e *Exporter) GetExportMap() ExportMap {
 	e.mapMutex.RLock()
 	defer e.mapMutex.RUnlock()
 
 	volToID := map[string]uint16{}
-	for vol, id := range e.exportMap.volumeToid {
+	for vol, id := range e.ExportMap.volumeToid {
 		volToID[vol] = id
 	}
 
 	idToVol := map[uint16]string{}
-	for id, vol := range e.exportMap.idToVolume {
+	for id, vol := range e.ExportMap.idToVolume {
 		idToVol[id] = vol
 	}
 
-	return exportMap{
+	return ExportMap{
 		idToVolume: idToVol,
 		volumeToid: volToID,
 	}
 }
 
 // GetExport returns the export id for a volume, where 0 equals unexported
-func (e *exporter) GetExport(volume string) uint16 {
+func (e *Exporter) GetExport(volume string) uint16 {
 	e.mapMutex.RLock()
 	defer e.mapMutex.RUnlock()
 	return e.volumeToid[volume]
 }
 
 // claimID generates a unique export id for a volume, a volume can only be exported once
-func (e *exporter) claimID(volume string) uint16 {
+func (e *Exporter) claimID(volume string) uint16 {
 	e.mapMutex.Lock()
 	defer e.mapMutex.Unlock()
 
@@ -111,7 +110,7 @@ func (e *exporter) claimID(volume string) uint16 {
 	return id
 }
 
-func (e *exporter) deleteID(id uint16) {
+func (e *Exporter) deleteID(id uint16) {
 	e.mapMutex.Lock()
 	defer e.mapMutex.Unlock()
 
@@ -122,7 +121,7 @@ func (e *exporter) deleteID(id uint16) {
 	delete(e.idToVolume, id)
 }
 
-func (e *exporter) CreateExport(volume string) (uint16, error) {
+func (e *Exporter) CreateExport(volume string) (uint16, error) {
 	if id := e.GetExport(volume); id != 0 {
 		return id, nil
 	}
@@ -137,7 +136,7 @@ func (e *exporter) CreateExport(volume string) (uint16, error) {
 	return exportID, nil
 }
 
-func (e *exporter) DeleteExport(volume string) error {
+func (e *Exporter) DeleteExport(volume string) error {
 	id, ok := e.volumeToid[volume]
 	if !ok {
 		return nil
@@ -151,6 +150,22 @@ func (e *exporter) DeleteExport(volume string) error {
 	}
 
 	e.deleteID(id)
+	return nil
+}
+
+func (e *Exporter) ReloadExport() error {
+	processName := "ganesha.nfsd"
+
+	process, err := util.FindProcessByName(processName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to find process %s", processName)
+	}
+
+	err = process.Signal(syscall.SIGHUP)
+	if err != nil {
+		return fmt.Errorf("failed to send SIGHUP to process %s", processName)
+	}
+
 	return nil
 }
 
@@ -200,7 +215,7 @@ func getIDsFromConfig(configPath string) (map[uint16]string, error) {
 	return ids, nil
 }
 
-func (e *exporter) addToConfig(block string) error {
+func (e *Exporter) addToConfig(block string) error {
 	e.fileMutex.Lock()
 	defer e.fileMutex.Unlock()
 
@@ -219,7 +234,7 @@ func (e *exporter) addToConfig(block string) error {
 	return nil
 }
 
-func (e *exporter) removeFromConfig(block string) error {
+func (e *Exporter) removeFromConfig(block string) error {
 	e.fileMutex.Lock()
 	defer e.fileMutex.Unlock()
 

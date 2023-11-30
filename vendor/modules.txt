@@ -502,7 +502,7 @@ github.com/longhorn/backing-image-manager/pkg/meta
 github.com/longhorn/backing-image-manager/pkg/rpc
 github.com/longhorn/backing-image-manager/pkg/types
 github.com/longhorn/backing-image-manager/pkg/util
-# github.com/longhorn/backupstore v0.0.0-20230627040634-5b4f2d040e9d
+# github.com/longhorn/backupstore v0.0.0-20231025000449-5316e8b5320d
 ## explicit; go 1.17
 github.com/longhorn/backupstore
 github.com/longhorn/backupstore/fsops
@@ -511,22 +511,23 @@ github.com/longhorn/backupstore/logging
 github.com/longhorn/backupstore/nfs
 github.com/longhorn/backupstore/s3
 github.com/longhorn/backupstore/systembackup
+github.com/longhorn/backupstore/types
 github.com/longhorn/backupstore/util
-# github.com/longhorn/go-iscsi-helper v0.0.0-20230529082528-4c3270590712
-## explicit; go 1.13
+# github.com/longhorn/go-iscsi-helper v0.0.0-20231113050545-9df1e6b605c7
+## explicit; go 1.21
 github.com/longhorn/go-iscsi-helper/types
 github.com/longhorn/go-iscsi-helper/util
-# github.com/longhorn/go-spdk-helper v0.0.0-20230626041832-c611b61f6b36
+# github.com/longhorn/go-spdk-helper v0.0.0-20231002161457-6c31a95f76e8
 ## explicit; go 1.17
 github.com/longhorn/go-spdk-helper/pkg/types
-# github.com/longhorn/longhorn-engine v1.5.0-rc3.0.20230628003600-018cd51ec7bd
+# github.com/longhorn/longhorn-engine v1.5.2-0.20230906182804-9475221d9535
 ## explicit; go 1.20
 github.com/longhorn/longhorn-engine/pkg/meta
 github.com/longhorn/longhorn-engine/pkg/replica/client
 github.com/longhorn/longhorn-engine/pkg/types
 github.com/longhorn/longhorn-engine/pkg/util
 github.com/longhorn/longhorn-engine/proto/ptypes
-# github.com/longhorn/longhorn-instance-manager v1.5.0-rc3.0.20230628024133-a0a70bd7503a
+# github.com/longhorn/longhorn-instance-manager v1.5.2-0.20231006022904-b2c88ac8080d
 ## explicit; go 1.20
 github.com/longhorn/longhorn-instance-manager/pkg/api
 github.com/longhorn/longhorn-instance-manager/pkg/client
@@ -534,8 +535,8 @@ github.com/longhorn/longhorn-instance-manager/pkg/imrpc
 github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.5.1
-## explicit; go 1.20
+# github.com/longhorn/longhorn-manager v1.5.3
+## explicit; go 1.21
 github.com/longhorn/longhorn-manager/datastore
 github.com/longhorn/longhorn-manager/engineapi
 github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn
@@ -557,7 +558,7 @@ github.com/longhorn/longhorn-manager/meta
 github.com/longhorn/longhorn-manager/scheduler
 github.com/longhorn/longhorn-manager/types
 github.com/longhorn/longhorn-manager/util
-# github.com/longhorn/longhorn-share-manager v1.5.0-rc3
+# github.com/longhorn/longhorn-share-manager v1.5.3-rc1.0.20231115141215-5109d5939e17
 ## explicit; go 1.20
 github.com/longhorn/longhorn-share-manager/pkg/client
 github.com/longhorn/longhorn-share-manager/pkg/crypto
@@ -567,7 +568,7 @@ github.com/longhorn/longhorn-share-manager/pkg/server/nfs
 github.com/longhorn/longhorn-share-manager/pkg/types
 github.com/longhorn/longhorn-share-manager/pkg/util
 github.com/longhorn/longhorn-share-manager/pkg/volume
-# github.com/longhorn/longhorn-spdk-engine v0.0.0-20230627161406-64cb30ad3cf1
+# github.com/longhorn/longhorn-spdk-engine v0.0.0-20231005170812-e9b634e07e47
 ## explicit; go 1.17
 github.com/longhorn/longhorn-spdk-engine/pkg/types
 github.com/longhorn/longhorn-spdk-engine/proto/spdkrpc
@@ -594,6 +595,9 @@ github.com/mcuadros/go-version
 # github.com/mitchellh/copystructure v1.2.0
 ## explicit; go 1.15
 github.com/mitchellh/copystructure
+# github.com/mitchellh/go-ps v1.0.0
+## explicit; go 1.13
+github.com/mitchellh/go-ps
 # github.com/mitchellh/go-wordwrap v1.0.0
 ## explicit
 github.com/mitchellh/go-wordwrap
