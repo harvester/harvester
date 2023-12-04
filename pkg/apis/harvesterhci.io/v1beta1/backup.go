@@ -228,6 +228,9 @@ type VirtualMachineRestoreStatus struct {
 	Conditions []Condition `json:"conditions,omitempty"`
 
 	TargetUID *types.UID `json:"targetUID,omitempty"`
+
+	// +optional
+	Progress int `json:"progress,omitempty"`
 }
 
 // VolumeRestore contains the volume data need to restore a PVC
@@ -237,4 +240,13 @@ type VolumeRestore struct {
 	PersistentVolumeClaim PersistentVolumeClaimSourceSpec `json:"persistentVolumeClaimSpec,omitempty"`
 
 	VolumeBackupName string `json:"volumeBackupName,omitempty"`
+
+	// +optional
+	LonghornEngineName *string `json:"longhornEngineName,omitempty"`
+
+	// +optional
+	RestoreProgress int `json:"restoreProgress,omitempty"`
+
+	// +optional
+	VolumeSize int64 `json:"volumeSize,omitempty"`
 }

@@ -1573,6 +1573,11 @@ func (in *VolumeBackup) DeepCopy() *VolumeBackup {
 func (in *VolumeRestore) DeepCopyInto(out *VolumeRestore) {
 	*out = *in
 	in.PersistentVolumeClaim.DeepCopyInto(&out.PersistentVolumeClaim)
+	if in.LonghornEngineName != nil {
+		in, out := &in.LonghornEngineName, &out.LonghornEngineName
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 

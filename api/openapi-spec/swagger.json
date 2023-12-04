@@ -6798,6 +6798,10 @@
         "error": {
           "$ref": "#/definitions/harvesterhci.io.v1beta1.Error"
         },
+        "progress": {
+          "type": "integer",
+          "format": "int32"
+        },
         "readyToUse": {
           "type": "boolean"
         },
@@ -7064,6 +7068,10 @@
             "default": ""
           }
         },
+        "progress": {
+          "type": "integer",
+          "format": "int32"
+        },
         "restoreTime": {
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
@@ -7281,6 +7289,10 @@
         "persistentVolumeClaim"
       ],
       "properties": {
+        "backupProgress": {
+          "type": "integer",
+          "format": "int32"
+        },
         "creationTime": {
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
@@ -7307,21 +7319,36 @@
         "volumeName": {
           "type": "string",
           "default": ""
+        },
+        "volumeSize": {
+          "type": "integer",
+          "format": "int64"
         }
       }
     },
     "harvesterhci.io.v1beta1.VolumeRestore": {
       "type": "object",
       "properties": {
+        "longhornEngineName": {
+          "type": "string"
+        },
         "persistentVolumeClaimSpec": {
           "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.PersistentVolumeClaimSourceSpec"
+        },
+        "restoreProgress": {
+          "type": "integer",
+          "format": "int32"
         },
         "volumeBackupName": {
           "type": "string"
         },
         "volumeName": {
           "type": "string"
+        },
+        "volumeSize": {
+          "type": "integer",
+          "format": "int64"
         }
       }
     },
