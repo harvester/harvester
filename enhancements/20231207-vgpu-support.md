@@ -25,7 +25,8 @@ https://github.com/harvester/harvester/issues/2764
 
 ### Non-goals [optional]
 
-Shipping NVIDIA drivers. 
+- Shipping NVIDIA drivers. 
+- License management for guests.
 
 ## Proposal
 
@@ -57,7 +58,7 @@ When deployed, the PCI devices controller addon runs a daemonset on the cluster.
 
 One of the reconcile loops in the cluster scans the nodes for PCI devices at a fixed interval (30 seconds).
 
-As part of this reconcile it will scan for network devices, and check the following:
+As part of this reconcile it will scan for GPU-  devices, and check the following:
 * NVIDIA GPU devices which are capable of supporting SRIOV vGPUs are scanned and represented as `sriovgpudevices.devices.harvesterhci.io` objects
 
 A sample device is as follows:
