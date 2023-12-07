@@ -50,7 +50,7 @@ In addition we will also be shipping a `nvidia-driver-toolkit` addon. Users need
 
 The controller introduces two new CRDs:
 - sriovgpudevices.devices.harvesterhci.io
-- vgpdevices.devices.harvesterhci.io
+- vgpudevices.devices.harvesterhci.io
 
 ### Implementation Overview
 
