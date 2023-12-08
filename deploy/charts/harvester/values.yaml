@@ -472,7 +472,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: v0.0.32
+    tag: v0.0.33
 
 generalJob:
   image:
@@ -493,3 +493,4 @@ harvester-node-manager:
     repository: rancher/harvester-node-manager
     tag: v0.1.8
 
+enableGoCoverDir: false
