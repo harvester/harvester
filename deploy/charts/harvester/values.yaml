@@ -446,7 +446,7 @@ webhook:
 upgrade:
   image:
     repository: rancher/harvester-upgrade
-    tag: v1.3-head
+    tag: master-head
 
 harvester-load-balancer:
   enabled: false
