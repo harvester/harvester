@@ -489,7 +489,7 @@ generalJob:
   image:
     imagePullPolicy: IfNotPresent
     repository: registry.suse.com/bci/bci-base
-    tag: 15.4
+    tag: 15.5
 
 whereabouts:
   enabled: true
