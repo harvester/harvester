@@ -41,7 +41,7 @@ const (
 
 	defaultSpecManagementNumber = 3
 
-	promoteImage         = "busybox:1.32.0"
+	promoteImage         = "registry.suse.com/bci/bci-base:15.5"
 	promoteRootMountPath = "/host"
 
 	promoteScriptsMountPath = "/harvester-helpers"
