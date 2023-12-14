@@ -2,6 +2,7 @@ package virtualmachine
 
 import (
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	vmv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -17,11 +18,7 @@ type VMNetworkController struct {
 // since the most guest OS will use the initial allocated mac address of its DHCP config, and on Kubevirt the VM restart it will re-allocate
 // a new mac address which will lead the original network unreachable.
 func (h *VMNetworkController) SetDefaultNetworkMacAddress(id string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
-	if id == "" || vmi == nil || vmi.DeletionTimestamp != nil {
-		return vmi, nil
-	}
-
-	if vmi.Status.Phase != kubevirtv1.Running {
+	if id == "" || vmi == nil || vmi.DeletionTimestamp == nil {
 		return vmi, nil
 	}
 
@@ -41,7 +38,14 @@ func (h *VMNetworkController) updateVMDefaultNetworkMacAddress(vmi *kubevirtv1.V
 	logrus.Debugf("update default network mac address of the vm: %s\n", vmi.Name)
 	vm, err := h.vmCache.Get(vmi.Namespace, vmi.Name)
 	if err != nil {
-		return err
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	if vm.DeletionTimestamp != nil {
+		return nil
 	}
 
 	vmCopy := vm.DeepCopy()

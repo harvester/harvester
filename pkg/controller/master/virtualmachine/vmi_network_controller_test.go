@@ -45,9 +45,65 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 			},
 		},
 		{
-			name: "ignore deleted resource",
+			name: "ignore non-deleted vmi",
 			given: input{
 				key: "default/test",
+				vm: &kubevirtv1.VirtualMachine{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+						UID:       "fake-vm-uid",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+						UID:       "fake-vmi-uid",
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{},
+				},
+			},
+			expected: output{
+				vm: &kubevirtv1.VirtualMachine{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+						UID:       "fake-vm-uid",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+						UID:       "fake-vmi-uid",
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{},
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "ignore deleted vm",
+			given: input{
+				key: "default/test",
+				vm: &kubevirtv1.VirtualMachine{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:         "default",
+						Name:              "test",
+						UID:               "fake-vm-uid",
+						DeletionTimestamp: &metav1.Time{},
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
+					},
+				},
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace:         "default",
@@ -59,6 +115,17 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 				},
 			},
 			expected: output{
+				vm: &kubevirtv1.VirtualMachine{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:         "default",
+						Name:              "test",
+						UID:               "fake-vm-uid",
+						DeletionTimestamp: &metav1.Time{},
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
+					},
+				},
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace:         "default",
@@ -72,7 +139,7 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 			},
 		},
 		{
-			name: "set mac address",
+			name: "set mac address when vmi is deleted",
 			given: input{
 				key: "default/test",
 				vm: &kubevirtv1.VirtualMachine{
@@ -107,9 +174,10 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 				},
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vmi-uid",
+						Namespace:         "default",
+						Name:              "test",
+						UID:               "fake-vmi-uid",
+						DeletionTimestamp: &metav1.Time{},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
@@ -132,9 +200,10 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 			expected: output{
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vmi-uid",
+						Namespace:         "default",
+						Name:              "test",
+						UID:               "fake-vmi-uid",
+						DeletionTimestamp: &metav1.Time{},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
@@ -214,6 +283,7 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 		actual.vmi, actual.err = ctrl.SetDefaultNetworkMacAddress(tc.given.key, tc.given.vmi)
 		if tc.given.vmi != nil && tc.given.vm != nil {
 			actual.vm, actual.err = ctrl.vmClient.Get(tc.given.vm.Namespace, tc.given.vm.Name, metav1.GetOptions{})
+			assert.NotNil(t, actual.vm, "mock resource should get from fake VM controller")
 			assert.Nil(t, actual.err, "mock resource should get from fake VM controller")
 			for _, vmIface := range actual.vm.Spec.Template.Spec.Domain.Devices.Interfaces {
 				for _, iface := range tc.given.vmi.Status.Interfaces {

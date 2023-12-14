@@ -87,7 +87,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmCache:   vmCache,
 		vmiClient: virtualMachineInstanceClient,
 	}
-	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
+	virtualMachineInstanceClient.OnRemove(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
 
 	return nil
 }
