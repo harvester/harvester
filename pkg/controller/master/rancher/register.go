@@ -8,6 +8,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
+	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -37,10 +38,13 @@ const (
 	keyKubevipIgnoreServiceSecurity = "kube-vip.io/ignore-service-security"
 	keyKubevipLoadBalancerIPs       = "kube-vip.io/loadbalancerIPs"
 
-	VipConfigmapName      = "vip"
-	vipDHCPMode           = "dhcp"
-	vipDHCPLoadBalancerIP = "0.0.0.0"
-	trueStr               = "true"
+	VipConfigmapName                  = "vip"
+	vipDHCPMode                       = "dhcp"
+	vipDHCPLoadBalancerIP             = "0.0.0.0"
+	trueStr                           = "true"
+	controllerCAPIDeployment          = "harvester-capi-controller"
+	capiControllerDeploymentName      = "capi-controller-manager"
+	capiControllerDeploymentNamespace = "cattle-provisioning-capi-system"
 )
 
 type Handler struct {
@@ -56,6 +60,7 @@ type Handler struct {
 	nodeController           ctlcorev1.NodeController
 	podCache                 ctlcorev1.PodCache
 	podClient                ctlcorev1.PodClient
+	Deployments              ctlappsv1.DeploymentClient
 	Namespace                string
 }
 
@@ -78,6 +83,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		configmaps := management.CoreFactory.Core().V1().ConfigMap()
 		nodes := management.CoreFactory.Core().V1().Node()
 		pods := management.CoreFactory.Core().V1().Pod()
+		deployments := management.AppsFactory.Apps().V1().Deployment()
 		h := Handler{
 			RancherSettings:          rancherSettings,
 			RancherSettingController: rancherSettings,
@@ -92,10 +98,12 @@ func Register(ctx context.Context, management *config.Management, options config
 			podCache:                 pods.Cache(),
 			podClient:                pods,
 			Namespace:                options.Namespace,
+			Deployments:              deployments,
 		}
 		nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
 		secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
+		deployments.OnChange(ctx, controllerCAPIDeployment, h.PatchCAPIDeployment)
 		if err := h.registerExposeService(); err != nil {
 			return err
 		}
