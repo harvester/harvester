@@ -38,6 +38,15 @@ fi
 # Drop the v prefix for Chart Version to follow existing pattern.
 CHART_VERSION="$(echo ${CHART_VERSION} | sed -E 's/^v//')"
 
+# The length of metadata.label is no more than 63 characters.
+# We limit the CHART_VERSION less than or equal to 50 characters and it would be safe.
+CHART_VERSION_LEN=${#CHART_VERSION}
+if [[ $CHART_VERSION_LEN > 50 ]]; then
+    echo "Please reduce the length of CHART_VERSION, it should less than or equal to 50 characters."
+    echo "Current CHART_VERSION(${CHART_VERSION_LEN}): ${CHART_VERSION}"
+    exit 1
+fi
+
 if [ -z "$ARCH" ]; then
     ARCH=$(go env GOHOSTARCH)
 fi
