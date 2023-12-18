@@ -1256,6 +1256,80 @@ patch_local_cluster_details() {
   kubectl patch -n fleet-local cluster.provisioning local --subresource=status --type=merge --patch '{"status":{"fleetWorkspaceName": "fleet-local"}}'
 }
 
+upgrade_rbac() {
+
+  # only versions before v1.3.0 that upgrading to v1.3.0 need this patch
+  if [[ ! "${UPGRADE_PREVIOUS_VERSION%%-rc*}" < "v1.3.0" ]]; then
+    echo "Only versions before v1.3.0 need this patch."
+    return
+  fi
+
+  full_names=$(upgrade-helper get-cloud-provider)
+  ret=$?
+  if [ -z "$full_names" ] || [ $ret != 0 ]; then
+    echo "No rolebinding harvesterhci.io:cloudprovider found or command failed, we can skip to patch rbac this moment."
+    return
+  fi
+
+  clusterrole_manifest="/tmp/clusterrole.yaml"
+  clusterrolebinding_manifest_prefix="clusterrolebinding"
+
+  # clean up the tmp files if they exist
+  rm -f "$clusterrole_manifest"
+  rm -f "/tmp/${clusterrolebinding_manifest_prefix}*.yaml"
+
+  cat > "$clusterrole_manifest" <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: apiserver
+    app.kubernetes.io/name: harvester
+    app.kubernetes.io/part-of: harvester
+  name: harvesterhci.io:csi-driver
+rules:
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
+EOF
+
+  echo "Creating clusterrole with ${clusterrole_manifest} ..."
+  kubectl create -f "$clusterrole_manifest"
+ 
+  # to handle multiple guest clusters
+  for item in $full_names
+  do
+    namespace=$(echo "$item" |awk -F '/' '{print $1}')
+    service_account=$(echo "$item" |awk -F '/' '{print $2}')
+    clusterrolebinding_manifest="/tmp/clusterrolebinding-${namespace}-${service_account}.yaml"
+    echo $clusterrolebinding_manifest
+
+    cat > "$clusterrolebinding_manifest" <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: $namespace-$service_account
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: harvesterhci.io:csi-driver
+subjects:
+- kind: ServiceAccount
+  name: $service_account
+  namespace: $namespace
+EOF
+
+    echo "Creating ClusterRoleBinding with ${clusterrolebinding_manifest} ..."
+    kubectl create -f "$clusterrolebinding_manifest"
+  done
+
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1276,5 +1350,6 @@ upgrade_monitoring
 upgrade_logging_event_audit
 apply_extra_manifests
 upgrade_addons
+upgrade_rbac
 # wait fleet bundles upto 90 seconds
 wait_for_fleet_bundles 9
