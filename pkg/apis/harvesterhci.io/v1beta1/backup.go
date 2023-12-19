@@ -145,7 +145,7 @@ type VolumeBackup struct {
 	VolumeSize int64 `json:"volumeSize,omitempty"`
 
 	// +optional
-	BackupProgress int `json:"backupProgress,omitempty"`
+	Progress int `json:"progress,omitempty"`
 
 	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty"`
@@ -245,7 +245,7 @@ type VolumeRestore struct {
 	LonghornEngineName *string `json:"longhornEngineName,omitempty"`
 
 	// +optional
-	RestoreProgress int `json:"restoreProgress,omitempty"`
+	Progress int `json:"progress,omitempty"`
 
 	// +optional
 	VolumeSize int64 `json:"volumeSize,omitempty"`

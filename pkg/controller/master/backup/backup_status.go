@@ -23,7 +23,7 @@ const backupProgressComplete = 100
 
 func (h *Handler) updateBackupProgress(volumeBackup *harvesterv1.VolumeBackup) error {
 	if volumeBackup.ReadyToUse != nil && *volumeBackup.ReadyToUse {
-		volumeBackup.BackupProgress = backupProgressComplete
+		volumeBackup.Progress = backupProgressComplete
 		return nil
 	}
 
@@ -36,7 +36,7 @@ func (h *Handler) updateBackupProgress(volumeBackup *harvesterv1.VolumeBackup) e
 		return err
 	}
 
-	volumeBackup.BackupProgress = lhBackup.Status.Progress
+	volumeBackup.Progress = lhBackup.Status.Progress
 	return nil
 }
 
@@ -64,7 +64,7 @@ func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) e
 			}
 
 			volumeSizeSum += vb.VolumeSize
-			progressWeightSum += int64(vb.BackupProgress) * vb.VolumeSize
+			progressWeightSum += int64(vb.Progress) * vb.VolumeSize
 		}
 
 		if vb.Error != nil {
@@ -229,7 +229,7 @@ func (h *Handler) OnLHBackupChanged(key string, lhBackup *lhv1beta2.Backup) (*lh
 			return nil, nil
 		}
 
-		//engueue to tigger progress update in updateConditions()
+		//enqueue to trigger progress update in updateConditions()
 		h.vmBackupController.Enqueue(vmBackup.Namespace, vmBackup.Name)
 	}
 	return nil, nil

@@ -71,7 +71,7 @@ const (
 	pvNamePrefix = "pvc"
 
 	//not truncate or remove dashes pv name
-	volumeNameUUIDLength = -1
+	volumeNameUUIDNoTruncate = -1
 )
 
 type RestoreHandler struct {
@@ -236,7 +236,7 @@ func makeVolumeName(prefix, pvcUID string, volumeNameUUIDLength int) (string, er
 	// create persistent name based on a volumeNamePrefix and volumeNameUUIDLength
 	// of PVC's UID
 	if len(prefix) == 0 {
-		return "", fmt.Errorf("Volume name prefix cannot be of length 0")
+		return "", fmt.Errorf("volume name prefix cannot be of length 0")
 	}
 	if len(pvcUID) == 0 {
 		return "", fmt.Errorf("corrupted PVC object, it is missing UID")
@@ -251,7 +251,7 @@ func makeVolumeName(prefix, pvcUID string, volumeNameUUIDLength int) (string, er
 }
 
 func getVolumeName(pvc *corev1.PersistentVolumeClaim) (string, error) {
-	volumeName, err := makeVolumeName(pvNamePrefix, fmt.Sprintf("%s", pvc.ObjectMeta.UID), volumeNameUUIDLength)
+	volumeName, err := makeVolumeName(pvNamePrefix, fmt.Sprintf("%s", pvc.ObjectMeta.UID), volumeNameUUIDNoTruncate)
 	if err != nil {
 		return "", err
 	}
@@ -303,36 +303,12 @@ func (h *RestoreHandler) PersistentVolumeClaimOnChange(key string, pvc *corev1.P
 	return nil, nil
 }
 
-func (h *RestoreHandler) resolveLHEngineRef(lhEngine *lhv1beta2.Engine) (*lhv1beta2.Volume, error) {
-	refs := lhEngine.GetOwnerReferences()
-	if len(refs) == 0 {
-		return nil, fmt.Errorf("engine %s missing volume owner", lhEngine.Name)
-	}
-
-	ref := refs[0]
-	if ref.Kind != lhv1beta2.SchemeGroupVersion.WithKind("Volume").Kind {
-		return nil, fmt.Errorf("engine %s with wrong owner kind %v", lhEngine.Name, ref.Kind)
-	}
-
-	volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, ref.Name)
-	if err != nil {
-		return nil, fmt.Errorf("engine %s owner volume %v not exist", lhEngine.Name, ref.Name)
-	}
-
-	if volume.UID != ref.UID {
-		return nil, fmt.Errorf("engine %s owner volume uuid not not consistent expected %v get %v",
-			lhEngine.Name, ref.UID, volume.UID)
-	}
-
-	return volume, nil
-}
-
 func (h *RestoreHandler) LHEngineOnChange(key string, lhEngine *lhv1beta2.Engine) (*lhv1beta2.Engine, error) {
 	if lhEngine == nil || lhEngine.DeletionTimestamp != nil || len(lhEngine.Status.RestoreStatus) == 0 {
 		return nil, nil
 	}
 
-	volume, err := h.resolveLHEngineRef(lhEngine)
+	volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, lhEngine.Spec.VolumeName)
 	if err != nil {
 		return nil, err
 	}
@@ -379,7 +355,7 @@ func (h *RestoreHandler) LHEngineOnChange(key string, lhEngine *lhv1beta2.Engine
 		}
 	}
 
-	//engueue to tigger progress update
+	//enqueue to trigger progress update
 	h.restoreController.Enqueue(pvcNamespace, restoreName)
 	return nil, nil
 }
@@ -992,8 +968,8 @@ func (h *RestoreHandler) updateRestoreProgress(volumeRestore *harvesterv1.Volume
 	var volumeRestoreProgress int
 
 	defer func() {
-		if volumeRestoreProgress > volumeRestore.RestoreProgress {
-			volumeRestore.RestoreProgress = volumeRestoreProgress
+		if volumeRestoreProgress > volumeRestore.Progress {
+			volumeRestore.Progress = volumeRestoreProgress
 		}
 	}()
 
@@ -1010,6 +986,9 @@ func (h *RestoreHandler) updateRestoreProgress(volumeRestore *harvesterv1.Volume
 			continue
 		}
 
+		// replica's restore status could have IsRestoring == false before the restoring starts,
+		// so we increase the numReplica before checking IsRestoring,
+		// this makes replica with IsRestoring == false adding zero to current volume progress
 		numReplica++
 
 		if !rs.IsRestoring {
@@ -1054,7 +1033,7 @@ func (h *RestoreHandler) updateStatus(
 			}
 
 			volumeSizeSum += vr.VolumeSize
-			progressWeightSum += int64(vr.RestoreProgress) * vr.VolumeSize
+			progressWeightSum += int64(vr.Progress) * vr.VolumeSize
 		}
 	}
 

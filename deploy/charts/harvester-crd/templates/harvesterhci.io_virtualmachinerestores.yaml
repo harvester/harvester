@@ -363,7 +363,7 @@ spec:
                               type: string
                           type: object
                       type: object
-                    restoreProgress:
+                    progress:
                       type: integer
                     volumeBackupName:
                       type: string

@@ -4577,8 +4577,6 @@ spec:
                   description: VolumeBackup contains the volume data need to restore
                     a PVC
                   properties:
-                    backupProgress:
-                      type: integer
                     creationTime:
                       format: date-time
                       type: string
@@ -4823,6 +4821,8 @@ spec:
                               type: string
                           type: object
                       type: object
+                    progress:
+                      type: integer
                     readyToUse:
                       type: boolean
                     volumeName:

@@ -7289,10 +7289,6 @@
         "persistentVolumeClaim"
       ],
       "properties": {
-        "backupProgress": {
-          "type": "integer",
-          "format": "int32"
-        },
         "creationTime": {
           "$ref": "#/definitions/k8s.io.v1.Time"
         },
@@ -7312,6 +7308,10 @@
         "persistentVolumeClaim": {
           "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.PersistentVolumeClaimSourceSpec"
+        },
+        "progress": {
+          "type": "integer",
+          "format": "int32"
         },
         "readyToUse": {
           "type": "boolean"
@@ -7336,7 +7336,7 @@
           "default": {},
           "$ref": "#/definitions/harvesterhci.io.v1beta1.PersistentVolumeClaimSourceSpec"
         },
-        "restoreProgress": {
+        "progress": {
           "type": "integer",
           "format": "int32"
         },

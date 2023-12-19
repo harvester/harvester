@@ -4615,7 +4615,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackup(ref common.ReferenceCal
 							Format: "int64",
 						},
 					},
-					"backupProgress": {
+					"progress": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},
 							Format: "int32",
@@ -4672,7 +4672,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeRestore(ref common.ReferenceCa
 							Format: "",
 						},
 					},
-					"restoreProgress": {
+					"progress": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},
 							Format: "int32",
