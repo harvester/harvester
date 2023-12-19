@@ -173,16 +173,16 @@ wait_longhorn_instance_manager_r() {
   kubectl get nodes -o json | jq -r '.items[].metadata.name' | while read -r node; do
     echo "Checking instance-manager-r pod on node $node..."
     while [ true ]; do
-      pod_count=$(kubectl get pod --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=replica -n longhorn-system -o json | jq -r '.items | length')
+      pod_count=$(kubectl get pod --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio -n longhorn-system -o json | jq -r '.items | length')
       if [ "$pod_count" != "1" ]; then
-        echo "instance-manager-r pod count is not 1 on node $node, will retry..."
+        echo "instance-manager (aio) pod count is not 1 on node $node, will retry..."
         sleep 5
         continue
       fi
 
-      container_image=$(kubectl get pod --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=replica -n longhorn-system -o json | jq -r '.items[0].spec.containers[0].image')
+      container_image=$(kubectl get pod --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio -n longhorn-system -o json | jq -r '.items[0].spec.containers[0].image')
       if [ "$container_image" != "$im_image" ]; then
-        echo "instance-manager-r pod image is not $im_image, will retry..."
+        echo "instance-manager (aio) pod image is not $im_image on node $node, will retry..."
         sleep 5
         continue
       fi
