@@ -42,6 +42,7 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	tlsutil "github.com/harvester/harvester/pkg/util/tls"
+	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -108,7 +109,8 @@ func NewValidator(
 	vmBackupCache ctlv1beta1.VirtualMachineBackupCache,
 	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
 	vmRestoreCache ctlv1beta1.VirtualMachineRestoreCache,
-	vmis ctlkubevirtv1.VirtualMachineInstanceCache,
+	vmCache ctlkubevirtv1.VirtualMachineCache,
+	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	featureCache mgmtv3.FeatureCache,
 	lhVolumeCache ctllhv1b2.VolumeCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
@@ -118,7 +120,8 @@ func NewValidator(
 		vmBackupCache:      vmBackupCache,
 		snapshotClassCache: snapshotClassCache,
 		vmRestoreCache:     vmRestoreCache,
-		vmis:               vmis,
+		vmCache:            vmCache,
+		vmiCache:           vmiCache,
 		featureCache:       featureCache,
 		lhVolumeCache:      lhVolumeCache,
 		pvcCache:           pvcCache,
@@ -141,7 +144,8 @@ type settingValidator struct {
 	vmBackupCache      ctlv1beta1.VirtualMachineBackupCache
 	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache
 	vmRestoreCache     ctlv1beta1.VirtualMachineRestoreCache
-	vmis               ctlkubevirtv1.VirtualMachineInstanceCache
+	vmCache            ctlkubevirtv1.VirtualMachineCache
+	vmiCache           ctlkubevirtv1.VirtualMachineInstanceCache
 	featureCache       mgmtv3.FeatureCache
 	lhVolumeCache      ctllhv1b2.VolumeCache
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
@@ -831,12 +835,20 @@ func (v *settingValidator) checkStorageNetworkValueVaild(setting *v1beta1.Settin
 	}
 
 	// check all VM are stopped, there is no VMI
-	vmis, err := v.vmis.List(metav1.NamespaceAll, labels.Everything())
+	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return err
 	}
-	if len(vmis) > 0 {
-		return werror.NewInvalidError("Please stop all VMs before configuring the storage-network setting", "value")
+
+	for _, vm := range vms {
+		isStopped, err := vmUtil.IsVMStopped(vm, v.vmiCache)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), "value")
+		}
+
+		if !isStopped {
+			return werror.NewInvalidError("Please stop all VMs before configuring the storage-network setting", "value")
+		}
 	}
 
 	if err := v.checkOnlineVolume(); err != nil {
