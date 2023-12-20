@@ -3,7 +3,7 @@ package upgrade
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,12 +13,14 @@ import (
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
-	kubeletv1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+	kubeletconfigv1 "k8s.io/kubelet/config/v1beta1"
+	kubeletstatsv1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	clusterv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -33,12 +35,14 @@ import (
 )
 
 const (
-	upgradeStateLabel              = "harvesterhci.io/upgradeState"
-	skipWebhookAnnotation          = "harvesterhci.io/skipWebhook"
-	rkeInternalIPAnnotation        = "rke2.io/internal-ip"
-	managedChartNamespace          = "fleet-local"
-	defaultMinFreeDiskSpace uint64 = 30 * 1024 * 1024 * 1024 // 30GB
-	freeSystemPartitionMsg         = "df -h '/usr/local/'"
+	upgradeStateLabel                         = "harvesterhci.io/upgradeState"
+	skipWebhookAnnotation                     = "harvesterhci.io/skipWebhook"
+	rkeInternalIPAnnotation                   = "rke2.io/internal-ip"
+	managedChartNamespace                     = "fleet-local"
+	defaultMinFreeDiskSpace            uint64 = 30 * 1024 * 1024 * 1024 // 30GB
+	defaultNewImageSize                uint64 = 13 * 1024 * 1024 * 1024 // 13GB, this value aggregates all tarball image sizes. It may change in the future.
+	defaultImageGCHighThresholdPercent        = 85.0                    // default value in kubelet config
+	freeSystemPartitionMsg                    = "df -h '/usr/local/'"
 )
 
 func NewValidator(
@@ -252,34 +256,33 @@ func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace ui
 	}
 
 	kubeletPort := node.Status.DaemonEndpoints.KubeletEndpoint.Port
-	kubeletURL := fmt.Sprintf("https://%s:%d/stats/summary", internalIP, kubeletPort)
-	req, err := http.NewRequest("GET", kubeletURL, nil)
+	kubeletURL := fmt.Sprintf("https://%s:%d", internalIP, kubeletPort)
+	summary, err := v.getKubeletStatsSummary(node.Name, kubeletURL)
 	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("node %s, can't make http.NewRequest to get %s, err: %+v", node.Name, kubeletURL, err))
-	}
-	req.Header.Set("Authorization", "Bearer "+v.bearToken)
-
-	resp, err := v.httpClient.Do(req)
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("node %s, can't make http request to get %s, err: %+v", node.Name, kubeletURL, err))
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return werror.NewInternalError(fmt.Sprintf("node %s, http response from %s is %d", node.Name, kubeletURL, resp.StatusCode))
+		return err
 	}
 
-	var summary kubeletv1.Summary
-	body, err := ioutil.ReadAll(resp.Body)
+	if summary.Node.Fs == nil || summary.Node.Fs.AvailableBytes == nil || summary.Node.Fs.CapacityBytes == nil || summary.Node.Fs.UsedBytes == nil {
+		return werror.NewInternalError(fmt.Sprintf("can't get node %s filesystem stats from %s, err: %+v", node.Name, kubeletURL, err))
+	}
+
+	kubeletConfiguration, err := v.getKubeletConfigz(node.Name, kubeletURL)
 	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("node %s, can't read response from %s, err: %+v", node.Name, kubeletURL, err))
+		return err
 	}
-	if err = json.Unmarshal(body, &summary); err != nil {
-		return werror.NewInternalError(fmt.Sprintf("node %s, can't parse json response %s, err: %+v", node.Name, string(body), err))
+
+	imageGCHighThresholdPercent := defaultImageGCHighThresholdPercent
+	if kubeletConfiguration.ImageGCHighThresholdPercent != nil {
+		imageGCHighThresholdPercent = float64(*kubeletConfiguration.ImageGCHighThresholdPercent)
 	}
-	if summary.Node.Fs.AvailableBytes == nil {
-		return werror.NewInternalError(fmt.Sprintf("can't get node %s available bytes from %s, err: %+v", node.Name, kubeletURL, err))
+	usedPercent := (float64(*summary.Node.Fs.UsedBytes+defaultNewImageSize) / float64(*summary.Node.Fs.CapacityBytes)) * 100.0
+	logrus.Debugf("node %s uses %3f%% storage space, kubelet image garbage collection threshold is %3f%%", node.Name, usedPercent, imageGCHighThresholdPercent)
+
+	if usedPercent > imageGCHighThresholdPercent {
+		return werror.NewBadRequest(fmt.Sprintf("Node %q uses %3f%% storage space. It's higher than kubelet image garbage collection threshold %3f%%.",
+			node.Name, usedPercent, imageGCHighThresholdPercent))
 	}
+
 	if *summary.Node.Fs.AvailableBytes < minFreeDiskSpace {
 		min := units.BytesSize(float64(minFreeDiskSpace))
 		avail := units.BytesSize(float64(*summary.Node.Fs.AvailableBytes))
@@ -322,4 +325,62 @@ func (v *upgradeValidator) Delete(_ *types.Request, oldObj runtime.Object) error
 	}
 
 	return nil
+}
+
+func (v *upgradeValidator) getKubeletConfigz(nodeName, kubeletURL string) (*kubeletconfigv1.KubeletConfiguration, error) {
+	url := fmt.Sprintf("%s/configz", kubeletURL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't make http.NewRequest to get %s, err: %+v", nodeName, url, err))
+	}
+	req.Header.Set("Authorization", "Bearer "+v.bearToken)
+
+	resp, err := v.httpClient.Do(req)
+	if err != nil {
+		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't make http request to get %s, err: %+v", nodeName, url, err))
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, werror.NewInternalError(fmt.Sprintf("node %s, http response from %s is %d", nodeName, url, resp.StatusCode))
+	}
+
+	kubeletConfiguration := &kubeletconfigv1.KubeletConfiguration{}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't read response from %s, err: %+v", nodeName, url, err))
+	}
+	if err = json.Unmarshal(body, kubeletConfiguration); err != nil {
+		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't parse json response %s, err: %+v", nodeName, string(body), err))
+	}
+	return kubeletConfiguration, nil
+}
+
+func (v *upgradeValidator) getKubeletStatsSummary(nodeName, kubeletURL string) (*kubeletstatsv1.Summary, error) {
+	url := fmt.Sprintf("%s/stats/summary", kubeletURL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't make http.NewRequest to get %s, err: %+v", nodeName, url, err))
+	}
+	req.Header.Set("Authorization", "Bearer "+v.bearToken)
+
+	resp, err := v.httpClient.Do(req)
+	if err != nil {
+		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't make http request to get %s, err: %+v", nodeName, url, err))
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, werror.NewInternalError(fmt.Sprintf("node %s, http response from %s is %d", nodeName, url, resp.StatusCode))
+	}
+
+	summary := &kubeletstatsv1.Summary{}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't read response from %s, err: %+v", nodeName, url, err))
+	}
+	if err = json.Unmarshal(body, summary); err != nil {
+		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't parse json response %s, err: %+v", nodeName, string(body), err))
+	}
+	return summary, nil
 }
