@@ -199,7 +199,7 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 	if isResizeVolume {
 		stopped, err := vmUtil.IsVMStopped(newVM, v.vmiCache)
 		if err != nil {
-			return werror.NewInternalError(fmt.Sprintf("failed to get run strategy, err: %s", err.Error()))
+			return werror.NewInternalError(fmt.Sprintf("failed to get vm is stopped or not, err: %s", err.Error()))
 		}
 
 		if !stopped {
