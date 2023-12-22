@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"time"
@@ -804,7 +803,7 @@ func (h *Handler) deleteVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		return err
 	}
 
-	destURL := filepath.Join(metadataFolderPath, getVMBackupMetadataFileName(vmBackup.Namespace, vmBackup.Name))
+	destURL := getVMBackupMetadataFilePath(vmBackup.Namespace, vmBackup.Name)
 	if exist := bsDriver.FileExists(destURL); exist {
 		logrus.Debugf("delete vm backup metadata %s/%s in backup target %s", vmBackup.Namespace, vmBackup.Name, target.Type)
 		return bsDriver.Remove(destURL)
@@ -868,7 +867,7 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 	}
 
 	shouldUpload := true
-	destURL := filepath.Join(metadataFolderPath, getVMBackupMetadataFileName(vmBackup.Namespace, vmBackup.Name))
+	destURL := getVMBackupMetadataFilePath(vmBackup.Namespace, vmBackup.Name)
 	if bsDriver.FileExists(destURL) {
 		if remoteVMBackupMetadata, err := loadBackupMetadataInBackupTarget(destURL, bsDriver); err != nil {
 			return err

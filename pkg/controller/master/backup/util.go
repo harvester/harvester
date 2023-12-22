@@ -3,6 +3,7 @@ package backup
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
@@ -225,6 +226,6 @@ func getSecretRefName(vmName string, secretName string) string {
 	return fmt.Sprintf("vm-%s-%s-ref", vmName, wranglername.Hex(secretName, 8))
 }
 
-func getVMBackupMetadataFileName(vmBackupNamespace, vmBackupName string) string {
-	return fmt.Sprintf("%s-%s.cfg", vmBackupNamespace, vmBackupName)
+func getVMBackupMetadataFilePath(vmBackupNamespace, vmBackupName string) string {
+	return filepath.Join(metadataFolderPath, vmBackupNamespace, fmt.Sprintf("%s.cfg", vmBackupName))
 }
