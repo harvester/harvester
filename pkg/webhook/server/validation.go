@@ -51,7 +51,8 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.Core.PersistentVolumeClaim().Cache(),
 			clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
-			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache()),
 		virtualmachineimage.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.Core.PersistentVolumeClaim().Cache(),

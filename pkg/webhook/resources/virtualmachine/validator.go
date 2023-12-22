@@ -19,6 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
+	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
@@ -31,10 +32,12 @@ func NewValidator(
 	rqCache ctlharvestercorev1.ResourceQuotaCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
 	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
+	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 ) types.Validator {
 	return &vmValidator{
 		pvcCache:      pvcCache,
 		vmBackupCache: vmBackupCache,
+		vmiCache:      vmiCache,
 
 		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache),
 	}
@@ -44,6 +47,7 @@ type vmValidator struct {
 	types.DefaultValidator
 	pvcCache      v1.PersistentVolumeClaimCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
+	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
 
 	rqCalculator *resourcequota.Calculator
 }
@@ -193,14 +197,16 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 	}
 
 	if isResizeVolume {
-		runStrategy, err := newVM.RunStrategy()
+		stopped, err := vmUtil.IsVMStopped(newVM, v.vmiCache)
 		if err != nil {
-			return werror.NewInternalError(fmt.Sprintf("failed to get run strategy, err: %s", err.Error()))
+			return werror.NewInternalError(fmt.Sprintf("failed to get vm is stopped or not, err: %s", err.Error()))
 		}
-		if runStrategy != kubevirtv1.RunStrategyHalted {
+
+		if !stopped {
 			return werror.NewInvalidError("please stop the VM before resizing volumes", fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates))
 		}
 	}
+
 	return nil
 }
 
