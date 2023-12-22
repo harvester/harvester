@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -132,17 +133,38 @@ func (h *MetadataHandler) syncVMBackup(target *settings.BackupTarget) error {
 		return err
 	}
 
+	namespaceFolderSet := map[string]bool{} // ignore value of map, we only use it as a set
+	requiredMovingFilePaths := []string{}
 	for _, fileName := range fileNames {
-		backupMetadata, err := loadBackupMetadataInBackupTarget(filepath.Join(metadataFolderPath, fileName), bsDriver)
+		filePath := filepath.Join(metadataFolderPath, fileName)
+		if bsDriver.FileExists(filePath) {
+			requiredMovingFilePaths = append(requiredMovingFilePaths, filePath)
+			continue
+		}
+		namespaceFolderSet[filePath] = true
+	}
+
+	if err = h.moveFilePaths(requiredMovingFilePaths, bsDriver, namespaceFolderSet); err != nil {
+		return err
+	}
+
+	vmbackupMetadataFilePaths := []string{}
+	for namespaceFolder := range namespaceFolderSet {
+		fileNames, err := bsDriver.List(namespaceFolder)
 		if err != nil {
 			return err
 		}
-		if backupMetadata.Namespace == "" {
-			backupMetadata.Namespace = metav1.NamespaceDefault
+
+		for _, fileName := range fileNames {
+			filePath := filepath.Join(namespaceFolder, fileName)
+			if bsDriver.FileExists(filePath) {
+				vmbackupMetadataFilePaths = append(vmbackupMetadataFilePaths, filePath)
+			}
 		}
-		if err := h.createVMBackupIfNotExist(*backupMetadata, target); err != nil {
-			return err
-		}
+	}
+
+	if err = h.loadBackupMetadataAndCreateVMBackup(target, vmbackupMetadataFilePaths, bsDriver); err != nil {
+		return err
 	}
 	return nil
 }
@@ -193,6 +215,51 @@ func (h *MetadataHandler) createNamespaceIfNotExist(namespace string) error {
 		},
 	})
 	return err
+}
+
+func (h *MetadataHandler) loadBackupMetadataAndCreateVMBackup(target *settings.BackupTarget, filePaths []string, bsDriver backupstore.BackupStoreDriver) error {
+	for _, filePath := range filePaths {
+		backupMetadata, err := loadBackupMetadataInBackupTarget(filePath, bsDriver)
+		if err != nil {
+			return err
+		}
+		if backupMetadata.Namespace == "" {
+			backupMetadata.Namespace = metav1.NamespaceDefault
+		}
+		if err := h.createVMBackupIfNotExist(*backupMetadata, target); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *MetadataHandler) moveFilePaths(filePaths []string, bsDriver backupstore.BackupStoreDriver, namespaceFolderSet map[string]bool) error {
+	for _, filePath := range filePaths {
+		backupMetadata, err := loadBackupMetadataInBackupTarget(filePath, bsDriver)
+		if err != nil {
+			return err
+		}
+		if backupMetadata.Namespace == "" {
+			backupMetadata.Namespace = metav1.NamespaceDefault
+		}
+
+		namespaceFolderSet[backupMetadata.Namespace] = true
+
+		j, err := json.Marshal(backupMetadata)
+		if err != nil {
+			return err
+		}
+
+		newFilePath := getVMBackupMetadataFilePath(backupMetadata.Namespace, backupMetadata.Name)
+		logrus.Infof("move vm backup metadata %s/%s from %s to %s", backupMetadata.Namespace, backupMetadata.Name, filePath, newFilePath)
+		if err = bsDriver.Write(newFilePath, bytes.NewReader(j)); err != nil {
+			return err
+		}
+		if err = bsDriver.Remove(filePath); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func loadBackupMetadataInBackupTarget(filePath string, bsDriver backupstore.BackupStoreDriver) (*VirtualMachineBackupMetadata, error) {
