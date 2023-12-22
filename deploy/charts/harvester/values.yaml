@@ -388,7 +388,7 @@ harvester-node-disk-manager:
     repository: rancher/harvester-node-disk-manager
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.5.2
+    tag: v0.6.0
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter
@@ -453,12 +453,12 @@ harvester-load-balancer:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/harvester-load-balancer
-    tag: v0.2.2
+    tag: v0.2.3
   webhook:
     image:
       imagePullPolicy: IfNotPresent
       repository: rancher/harvester-load-balancer-webhook
-      tag: v0.2.2
+      tag: v0.2.3
 
 kube-vip:
   enabled: false
@@ -483,7 +483,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: v0.0.33
+    tag: v0.0.34
 
 generalJob:
   image:
