@@ -62,7 +62,7 @@ func (h *Handler) OnSupportBundleChanged(key string, sb *harvesterv1.SupportBund
 		}
 		logrus.Debugf("[%s] support bundle image: %+v", sb.Name, image)
 
-		err = h.manager.Create(sb, fmt.Sprintf("%s:%s", image.Repository, image.Tag), image.ImagePullPolicy)
+		err = h.manager.Create(sb, image.ImageName(), image.ImagePullPolicy)
 		if err != nil {
 			return h.setError(sb, fmt.Sprintf("fail to create manager for %s: %s", sb.Name, err))
 		}

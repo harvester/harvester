@@ -1,12 +1,19 @@
 package node
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
 
+	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corefake "k8s.io/client-go/kubernetes/fake"
+
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
 type NodeBuilder struct {
@@ -627,4 +634,48 @@ func Test_selectPromoteNode(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_fetchPromoteImage(t *testing.T) {
+	var (
+		clientset     = fake.NewSimpleClientset()
+		coreclientset = corefake.NewSimpleClientset()
+		namespace     = "default"
+	)
+
+	if _, err := coreclientset.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		assert.Nil(t, err, "failed to create namespace")
+	}
+
+	if _, err := clientset.CatalogV1().Apps(namespace).Create(context.Background(), &catalogv1.App{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: namespace,
+		},
+		Spec: catalogv1.ReleaseSpec{
+			Chart: &catalogv1.Chart{
+				Values: map[string]interface{}{
+					"generalJob": map[string]interface{}{
+						"image": map[string]interface{}{
+							"repository":      "test-repository",
+							"tag":             15.3,
+							"imagePullPolicy": "IfNotPresent",
+						},
+					},
+				},
+			},
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		assert.Nil(t, err, "failed to create app")
+	}
+
+	if err := fetchPromoteImage(fakeclients.AppClient(clientset.CatalogV1().Apps), namespace, "test"); err != nil {
+		assert.Nil(t, err, "failed to fetch promote image")
+	}
+
+	assert.Equal(t, "test-repository:15.3", promoteImage)
 }

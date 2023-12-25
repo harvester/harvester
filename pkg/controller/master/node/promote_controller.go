@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/condition"
 	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/harvester/harvester/pkg/config"
+	utilCatalog "github.com/harvester/harvester/pkg/util/catalog"
 )
 
 const (
@@ -45,15 +47,16 @@ const (
 
 	defaultSpecManagementNumber = 3
 
-	promoteImage         = "registry.suse.com/bci/bci-base:15.5"
 	promoteRootMountPath = "/host"
 
 	promoteScriptsMountPath = "/harvester-helpers"
 	promoteScript           = "/harvester-helpers/promote.sh"
 	helperConfigMapName     = "harvester-helpers"
+	releaseAppHarvesterName = "harvester"
 )
 
 var (
+	promoteImage        string
 	promoteBackoffLimit = int32(2)
 
 	ConditionJobComplete = condition.Cond(batchv1.JobComplete)
@@ -68,18 +71,21 @@ type PromoteHandler struct {
 	jobCache  ctlbatchv1.JobCache
 	recorder  record.EventRecorder
 	namespace string
+	apps      catalogv1.AppController
 }
 
 // PromoteRegister registers the node controller
-func PromoteRegister(ctx context.Context, management *config.Management, options config.Options) error {
+func PromoteRegister(ctx context.Context, management *config.Management, options config.Options) (err error) {
 	nodes := management.CoreFactory.Core().V1().Node()
 	jobs := management.BatchFactory.Batch().V1().Job()
+	apps := management.CatalogFactory.Catalog().V1().App()
 
 	promoteController := &PromoteHandler{
 		nodes:     nodes,
 		nodeCache: nodes.Cache(),
 		jobs:      jobs,
 		jobCache:  jobs.Cache(),
+		apps:      apps,
 		recorder:  management.NewRecorder("harvester-"+promoteControllerName, "", ""),
 		namespace: options.Namespace,
 	}
@@ -88,6 +94,20 @@ func PromoteRegister(ctx context.Context, management *config.Management, options
 	jobs.OnChange(ctx, promoteControllerName, promoteController.OnJobChanged)
 	jobs.OnRemove(ctx, promoteControllerName, promoteController.OnJobRemove)
 
+	return nil
+}
+
+func fetchPromoteImage(appClient catalogv1.AppClient, namespace, name string) error {
+	if promoteImage != "" {
+		return nil
+	}
+
+	image, err := utilCatalog.FetchAppChartImage(appClient, namespace, name, []string{"generalJob", "image"})
+	if err != nil {
+		return err
+	}
+
+	promoteImage = image.ImageName()
 	return nil
 }
 
@@ -388,6 +408,9 @@ func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
 }
 
 func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, error) {
+	if err := fetchPromoteImage(h.apps, h.namespace, releaseAppHarvesterName); err != nil {
+		return nil, err
+	}
 	job := buildPromoteJob(h.namespace, node)
 	return h.jobs.Create(job)
 }
