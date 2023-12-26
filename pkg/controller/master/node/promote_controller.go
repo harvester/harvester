@@ -96,15 +96,6 @@ func PromoteRegister(ctx context.Context, management *config.Management, options
 	return nil
 }
 
-func fetchPromoteImage(appCache catalogv1.AppCache, namespace, name string) (string, error) {
-	image, err := utilCatalog.FetchAppChartImage(appCache, namespace, name, []string{"generalJob", "image"})
-	if err != nil {
-		return "", err
-	}
-
-	return image.ImageName(), nil
-}
-
 // OnNodeChanged automate the upgrade of node roles
 // If the number of managements in the cluster is less than spec number,
 // the harvester oldest node will be automatically promoted to be management.
@@ -402,11 +393,12 @@ func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
 }
 
 func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, error) {
-	promoteImage, err := fetchPromoteImage(h.appCache, h.namespace, releaseAppHarvesterName)
+	image, err := utilCatalog.FetchAppChartImage(h.appCache, h.namespace, releaseAppHarvesterName, []string{"generalJob", "image"})
 	if err != nil {
 		return nil, err
 	}
-	job := buildPromoteJob(h.namespace, node, promoteImage)
+
+	job := buildPromoteJob(h.namespace, node, image.ImageName())
 	return h.jobs.Create(job)
 }
 
