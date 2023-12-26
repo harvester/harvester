@@ -489,7 +489,7 @@ generalJob:
   image:
     imagePullPolicy: IfNotPresent
     repository: registry.suse.com/bci/bci-base
-    # However, in the Golang limitation, we couldn't parse like "tag": 12.20.
+    # In the Golang limitation, we couldn't parse like "tag": 12.20.
     # So, we must use "tag": "12.20" instead.
     # More details in PR-4896 (https://github.com/harvester/harvester/pull/4896)
     tag: 15.5
