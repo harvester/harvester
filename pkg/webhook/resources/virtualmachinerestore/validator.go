@@ -224,7 +224,7 @@ func (v *restoreValidator) checkBackup(vmRestore *v1beta1.VirtualMachineRestore,
 		}
 
 		if len(vmBackupSnapshotNames) != 0 {
-			return fmt.Errorf("can't use delete policy, %s is used by VMBackup snapshots %s", pvcNamespaceAndName, strings.Join(vmBackupSnapshotNames, ","))
+			return fmt.Errorf("can't use delete policy, the volume %q is used by the VM Snapshot(s) %s", pvcNamespaceAndName, strings.Join(vmBackupSnapshotNames, ", "))
 		}
 	}
 	return nil
