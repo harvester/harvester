@@ -56,7 +56,6 @@ const (
 )
 
 var (
-	promoteImage        string
 	promoteBackoffLimit = int32(2)
 
 	ConditionJobComplete = condition.Cond(batchv1.JobComplete)
@@ -71,21 +70,21 @@ type PromoteHandler struct {
 	jobCache  ctlbatchv1.JobCache
 	recorder  record.EventRecorder
 	namespace string
-	apps      catalogv1.AppController
+	appCache  catalogv1.AppCache
 }
 
 // PromoteRegister registers the node controller
 func PromoteRegister(ctx context.Context, management *config.Management, options config.Options) (err error) {
 	nodes := management.CoreFactory.Core().V1().Node()
 	jobs := management.BatchFactory.Batch().V1().Job()
-	apps := management.CatalogFactory.Catalog().V1().App()
+	appCache := management.CatalogFactory.Catalog().V1().App().Cache()
 
 	promoteController := &PromoteHandler{
 		nodes:     nodes,
 		nodeCache: nodes.Cache(),
 		jobs:      jobs,
 		jobCache:  jobs.Cache(),
-		apps:      apps,
+		appCache:  appCache,
 		recorder:  management.NewRecorder("harvester-"+promoteControllerName, "", ""),
 		namespace: options.Namespace,
 	}
@@ -97,18 +96,13 @@ func PromoteRegister(ctx context.Context, management *config.Management, options
 	return nil
 }
 
-func fetchPromoteImage(appClient catalogv1.AppClient, namespace, name string) error {
-	if promoteImage != "" {
-		return nil
-	}
-
-	image, err := utilCatalog.FetchAppChartImage(appClient, namespace, name, []string{"generalJob", "image"})
+func fetchPromoteImage(appCache catalogv1.AppCache, namespace, name string) (string, error) {
+	image, err := utilCatalog.FetchAppChartImage(appCache, namespace, name, []string{"generalJob", "image"})
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	promoteImage = image.ImageName()
-	return nil
+	return image.ImageName(), nil
 }
 
 // OnNodeChanged automate the upgrade of node roles
@@ -408,10 +402,11 @@ func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
 }
 
 func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, error) {
-	if err := fetchPromoteImage(h.apps, h.namespace, releaseAppHarvesterName); err != nil {
+	promoteImage, err := fetchPromoteImage(h.appCache, h.namespace, releaseAppHarvesterName)
+	if err != nil {
 		return nil, err
 	}
-	job := buildPromoteJob(h.namespace, node)
+	job := buildPromoteJob(h.namespace, node, promoteImage)
 	return h.jobs.Create(job)
 }
 
@@ -419,7 +414,7 @@ func (h *PromoteHandler) deleteJob(job *batchv1.Job, deletionPropagation metav1.
 	return h.jobs.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{PropagationPolicy: &deletionPropagation})
 }
 
-func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
+func buildPromoteJob(namespace string, node *corev1.Node, promoteImage string) *batchv1.Job {
 	nodeName := node.Name
 	nodeRoleEtcd := node.Labels[HarvesterEtcdNodeLabelKey]
 	promoteParameter := ""

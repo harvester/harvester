@@ -6,16 +6,15 @@ import (
 	"strings"
 
 	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/harvester/harvester/pkg/settings"
 )
 
 // FetchAppChartImage fetches image information from Spec.Values of Rancher RCD App.
-func FetchAppChartImage(appClient catalogv1.AppClient, namespace, name string, keyNames []string) (settings.Image, error) {
+func FetchAppChartImage(appCache catalogv1.AppCache, namespace, name string, keyNames []string) (settings.Image, error) {
 	var image settings.Image
 
-	harvesterApp, err := appClient.Get(namespace, name, metav1.GetOptions{})
+	harvesterApp, err := appCache.Get(namespace, name)
 	if err != nil {
 		return image, fmt.Errorf("cannot get %s/%s app: %v", namespace, name, err)
 	}

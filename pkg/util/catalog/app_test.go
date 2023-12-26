@@ -111,7 +111,7 @@ func Test_FetchAppImage(t *testing.T) {
 			assert.Nil(t, err, "failed to create app", test.desc)
 		}
 
-		image, err := FetchAppChartImage(fakeclients.AppClient(clientset.CatalogV1().Apps), namespace, test.name, test.keys)
+		image, err := FetchAppChartImage(fakeclients.AppCache(clientset.CatalogV1().Apps), namespace, test.name, test.keys)
 		if err != nil {
 			if test.expectedError {
 				assert.NotNil(t, err, "expected error", test.desc)

@@ -673,9 +673,8 @@ func Test_fetchPromoteImage(t *testing.T) {
 		assert.Nil(t, err, "failed to create app")
 	}
 
-	if err := fetchPromoteImage(fakeclients.AppClient(clientset.CatalogV1().Apps), namespace, "test"); err != nil {
-		assert.Nil(t, err, "failed to fetch promote image")
-	}
+	promoteImage, err := fetchPromoteImage(fakeclients.AppCache(clientset.CatalogV1().Apps), namespace, "test")
 
+	assert.Nil(t, err, "failed to fetch promote image")
 	assert.Equal(t, "test-repository:15.3", promoteImage)
 }
