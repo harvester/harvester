@@ -21,14 +21,16 @@ func FetchAppChartImage(appCache catalogv1.AppCache, namespace, name string, key
 	}
 
 	var (
-		ok    bool
-		bytes []byte
-		value = harvesterApp.Spec.Chart.Values
+		ok            bool
+		bytes         []byte
+		value         = harvesterApp.Spec.Chart.Values
+		previousValue map[string]interface{}
 	)
 
 	for _, key := range keyNames {
+		previousValue = value
 		if value, ok = value[key].(map[string]interface{}); !ok {
-			logrus.Debugf("cannot find key %s in layer(%s) %s/%s app chart value: %v", key, strings.Join(keyNames, ","), namespace, name, value)
+			logrus.Debugf("cannot find key %s in layer(%s) %s/%s app chart value: %v", key, strings.Join(keyNames, ","), namespace, name, previousValue)
 			return image, fmt.Errorf("cannot find %s in layer(%s) %s/%s app", key, strings.Join(keyNames, ","), namespace, name)
 		}
 	}
