@@ -74,7 +74,7 @@ type PromoteHandler struct {
 }
 
 // PromoteRegister registers the node controller
-func PromoteRegister(ctx context.Context, management *config.Management, options config.Options) (err error) {
+func PromoteRegister(ctx context.Context, management *config.Management, options config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
 	jobs := management.BatchFactory.Batch().V1().Job()
 	appCache := management.CatalogFactory.Catalog().V1().App().Cache()
