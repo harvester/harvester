@@ -30,12 +30,12 @@ func Test_FetchAppImage(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc          string
-		name          string
-		values        map[string]interface{}
-		keys          []string
-		expected      string
-		expectedError bool
+		desc              string
+		name              string
+		values            map[string]interface{}
+		keys              []string
+		expectedImageName string
+		expectedError     bool
 	}{
 		{
 			desc: "Normal Case with float type",
@@ -49,9 +49,9 @@ func Test_FetchAppImage(t *testing.T) {
 					},
 				},
 			},
-			keys:          []string{"generalJob", "image"},
-			expected:      "test-repository:12.2",
-			expectedError: false,
+			keys:              []string{"generalJob", "image"},
+			expectedImageName: "test-repository:12.2",
+			expectedError:     false,
 		},
 		{
 			desc: "Normal Case with string type",
@@ -65,17 +65,17 @@ func Test_FetchAppImage(t *testing.T) {
 					},
 				},
 			},
-			keys:          []string{"generalJob", "image"},
-			expected:      "test-repository:v12.20",
-			expectedError: false,
+			keys:              []string{"generalJob", "image"},
+			expectedImageName: "test-repository:v12.20",
+			expectedError:     false,
 		},
 		{
-			desc:          "Not Found Case",
-			name:          "test3",
-			values:        map[string]interface{}{},
-			keys:          []string{"generalJob", "image"},
-			expected:      "",
-			expectedError: true,
+			desc:              "Not Found Case",
+			name:              "test3",
+			values:            map[string]interface{}{},
+			keys:              []string{"generalJob", "image"},
+			expectedImageName: "",
+			expectedError:     true,
 		},
 		{
 			desc: "Weird Case which should not happen in general",
@@ -89,9 +89,41 @@ func Test_FetchAppImage(t *testing.T) {
 					},
 				},
 			},
-			keys:          []string{"generalJob", "image"},
-			expected:      "",
-			expectedError: false,
+			keys:              []string{"generalJob", "image"},
+			expectedImageName: "",
+			expectedError:     false,
+		},
+		{
+			desc: "Weird Case 02 which should not happen in general",
+			name: "test5",
+			values: map[string]interface{}{
+				"generalJob": map[string]interface{}{
+					"image": map[string]interface{}{
+						"repository":      "",
+						"tag":             "v2",
+						"imagePullPolicy": "",
+					},
+				},
+			},
+			keys:              []string{"generalJob", "image"},
+			expectedImageName: "",
+			expectedError:     false,
+		},
+		{
+			desc: "Weird Case 03 which should not happen in general",
+			name: "test6",
+			values: map[string]interface{}{
+				"generalJob": map[string]interface{}{
+					"image": map[string]interface{}{
+						"repository":      "test-repository",
+						"tag":             "",
+						"imagePullPolicy": "",
+					},
+				},
+			},
+			keys:              []string{"generalJob", "image"},
+			expectedImageName: "",
+			expectedError:     false,
 		},
 	}
 
@@ -114,12 +146,12 @@ func Test_FetchAppImage(t *testing.T) {
 		image, err := FetchAppChartImage(fakeclients.AppCache(clientset.CatalogV1().Apps), namespace, test.name, test.keys)
 		if err != nil {
 			if test.expectedError {
-				assert.NotNil(t, err, "expected error", test.desc)
+				assert.NotNil(t, err, "expectedImageName error", test.desc)
 				continue
 			}
 			assert.Nil(t, err, "failed to fetch image", test.desc)
 		}
 
-		assert.Equal(t, test.expected, image.ImageName(), test.desc)
+		assert.Equal(t, test.expectedImageName, image.ImageName(), test.desc)
 	}
 }

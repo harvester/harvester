@@ -16,7 +16,7 @@ type Image struct {
 func (i Image) ImageName() string {
 	tag := i.GetTag()
 
-	if tag == "" && i.Repository == "" {
+	if tag == "" || i.Repository == "" {
 		return ""
 	}
 
