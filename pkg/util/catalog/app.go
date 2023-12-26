@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
+	"github.com/sirupsen/logrus"
 
 	"github.com/harvester/harvester/pkg/settings"
 )
@@ -27,7 +28,8 @@ func FetchAppChartImage(appCache catalogv1.AppCache, namespace, name string, key
 
 	for _, key := range keyNames {
 		if value, ok = value[key].(map[string]interface{}); !ok {
-			return image, fmt.Errorf("cannot find %s in %s/%s app", key, namespace, name)
+			logrus.Debugf("cannot find key %s in layer(%s) %s/%s app chart value: %v", key, strings.Join(keyNames, ","), namespace, name, value)
+			return image, fmt.Errorf("cannot find %s in layer(%s) %s/%s app", key, strings.Join(keyNames, ","), namespace, name)
 		}
 	}
 
