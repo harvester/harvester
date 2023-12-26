@@ -507,7 +507,6 @@ harvester-node-manager:
     repository: rancher/harvester-node-manager
     tag: master-head
 
-
 snapshot-validation-webhook:
   enabled: true
   image:
