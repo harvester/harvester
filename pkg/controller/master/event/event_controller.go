@@ -2,9 +2,9 @@ package event
 
 import (
 	"encoding/json"
+	"fmt"
 
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -24,8 +24,7 @@ func (ctr *Controller) SyncEvent(_ string, event *corev1.Event) (*corev1.Event, 
 
 	if event.InvolvedObject.Kind == "VirtualMachineInstance" {
 		if err := ctr.updateVMEventRecord(event, event.InvolvedObject.Namespace, event.InvolvedObject.Name); err != nil {
-			logrus.Errorf("failed to update event record: %v", err)
-			return event, err
+			return event, fmt.Errorf("failed to update event record: %v", err)
 		}
 	}
 
@@ -45,8 +44,7 @@ func (ctr *Controller) updateVMEventRecord(event *corev1.Event, vmiNamespace, vm
 
 	vm, err := ctr.vmCache.Get(vmiNamespace, vmiName)
 	if err != nil {
-		logrus.Errorf("failed to get vm: %v", err)
-		return nil
+		return fmt.Errorf("updateVMEventRecord: failed to get vm: %v", err)
 	}
 	vmDp := vm.DeepCopy()
 
@@ -54,8 +52,7 @@ func (ctr *Controller) updateVMEventRecord(event *corev1.Event, vmiNamespace, vm
 
 	if eventRecords != "" {
 		if err = json.Unmarshal([]byte(eventRecords), &oldEvents); err != nil {
-			logrus.Errorf("updateVMEventRecord: failed to unmarshal eventRecords: %v", err)
-			return err
+			return fmt.Errorf("updateVMEventRecord: failed to unmarshal eventRecords: %v", err)
 		}
 	}
 
@@ -70,15 +67,13 @@ func (ctr *Controller) updateVMEventRecord(event *corev1.Event, vmiNamespace, vm
 	}
 
 	if newEventRecords, err = json.Marshal(latestEvents); err != nil {
-		logrus.Errorf("updateVMEventRecord: failed to marshal latestEvents: %v", err)
-		return err
+		return fmt.Errorf("updateVMEventRecord: failed to marshal latestEvents: %v", err)
 	}
 
 	vmDp.Annotations[util.AnnotationVMIEventRecords] = string(newEventRecords)
 
 	if _, err := ctr.vmClient.Update(vmDp); err != nil {
-		logrus.Errorf("updateVMEventRecord: failed to update vm: %v", err)
-		return err
+		return fmt.Errorf("updateVMEventRecord: failed to update vm: %v", err)
 	}
 
 	return nil
