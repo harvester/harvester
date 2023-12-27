@@ -11,7 +11,6 @@ import (
 	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
-	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -396,8 +395,7 @@ func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
 func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, error) {
 	image, err := utilCatalog.FetchAppChartImage(h.appCache, h.namespace, releaseAppHarvesterName, []string{"generalJob", "image"})
 	if err != nil {
-		logrus.Errorf("failed to get harvester image (%s): %v", image.ImageName(), err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get harvester image (%s): %v", image.ImageName(), err)
 	}
 
 	job := buildPromoteJob(h.namespace, node, image.ImageName())
