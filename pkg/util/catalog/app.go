@@ -21,26 +21,24 @@ func FetchAppChartImage(appCache catalogv1.AppCache, namespace, name string, key
 	}
 
 	var (
-		ok            bool
-		bytes         []byte
-		value         = harvesterApp.Spec.Chart.Values
-		previousValue map[string]interface{}
+		ok    bool
+		bytes []byte
+		value = harvesterApp.Spec.Chart.Values
 	)
 
 	for _, key := range keyNames {
-		previousValue = value
 		if value, ok = value[key].(map[string]interface{}); !ok {
-			logrus.Debugf("cannot find key %s in layer(%s) %s/%s app chart value: %v", key, strings.Join(keyNames, ","), namespace, name, previousValue)
-			return image, fmt.Errorf("cannot find %s in layer(%s) %s/%s app", key, strings.Join(keyNames, ","), namespace, name)
+			logrus.Debugf("fail to get value of path(%s)", strings.Join(keyNames, "."))
+			return image, fmt.Errorf("cannot find %s in path(%s) %s/%s app", key, strings.Join(keyNames, "."), namespace, name)
 		}
 	}
 
 	if bytes, err = json.Marshal(value); err != nil {
-		return image, fmt.Errorf("cannot marshal image in layer(%s) of %s/%s app: %v", strings.Join(keyNames, ","), namespace, name, err)
+		return image, fmt.Errorf("cannot marshal image in path(%s) of %s/%s app: %v", strings.Join(keyNames, "."), namespace, name, err)
 	}
 
 	if err = json.Unmarshal(bytes, &image); err != nil {
-		return image, fmt.Errorf("cannot unmarshal image in layer(%s) of %s/%s app: %v", strings.Join(keyNames, ","), namespace, name, err)
+		return image, fmt.Errorf("cannot unmarshal image in path(%s) of %s/%s app: %v", strings.Join(keyNames, "."), namespace, name, err)
 	}
 
 	return image, nil
