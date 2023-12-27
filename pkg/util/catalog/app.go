@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 // FetchAppChartImage fetches image information from Spec.Values of Rancher RCD App.
@@ -23,14 +24,12 @@ func FetchAppChartImage(appCache catalogv1.AppCache, namespace, name string, key
 	var (
 		ok    bool
 		bytes []byte
-		value = harvesterApp.Spec.Chart.Values
+		value interface{}
 	)
 
-	for _, key := range keyNames {
-		if value, ok = value[key].(map[string]interface{}); !ok {
-			logrus.Debugf("fail to get value of path(%s)", strings.Join(keyNames, "."))
-			return image, fmt.Errorf("cannot find %s in path(%s) %s/%s app", key, strings.Join(keyNames, "."), namespace, name)
-		}
+	if value, ok = util.GetValue(harvesterApp.Spec.Chart.Values, keyNames...); !ok {
+		logrus.Debugf("fail to get value of path(%s)", strings.Join(keyNames, "."))
+		return image, fmt.Errorf("cannot find path(%s) %s/%s app", strings.Join(keyNames, "."), namespace, name)
 	}
 
 	if bytes, err = json.Marshal(value); err != nil {
