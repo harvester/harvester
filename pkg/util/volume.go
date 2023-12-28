@@ -14,6 +14,7 @@ import (
 const (
 	AnnStorageProvisioner     = "volume.kubernetes.io/storage-provisioner"
 	AnnBetaStorageProvisioner = "volume.beta.kubernetes.io/storage-provisioner"
+	LonghornDataLocality      = "dataLocality"
 )
 
 var (
