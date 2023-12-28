@@ -112,7 +112,9 @@ func mergeStorageClassParams(image *harvesterv1.VirtualMachineImage, storageClas
 	}
 	var allowPatchParams = []string{
 		longhorntypes.OptionNodeSelector, longhorntypes.OptionDiskSelector,
-		longhorntypes.OptionNumberOfReplicas, longhorntypes.OptionStaleReplicaTimeout}
+		longhorntypes.OptionNumberOfReplicas, longhorntypes.OptionStaleReplicaTimeout,
+		util.LonghornDataLocality,
+	}
 	for k, v := range mergeParams {
 		if slice.ContainsString(allowPatchParams, k) {
 			params[k] = v

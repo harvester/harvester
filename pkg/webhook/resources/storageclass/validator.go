@@ -1,6 +1,10 @@
 package storageclass
 
 import (
+	"fmt"
+	"strings"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlstoragev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -38,11 +42,41 @@ func (v *storageClassValidator) Resource() types.Resource {
 }
 
 func (v *storageClassValidator) Create(_ *types.Request, newObj runtime.Object) error {
-	return v.validateSetUniqueDefault(newObj)
+	err := v.validateSetUniqueDefault(newObj)
+	if err != nil {
+		return err
+	}
+
+	return v.validateDataLocality(newObj)
 }
 
 func (v *storageClassValidator) Update(_ *types.Request, _ runtime.Object, newObj runtime.Object) error {
 	return v.validateSetUniqueDefault(newObj)
+}
+
+// Harvester rejects setting dataLocality as strict-local, because it makes volume non migrateable,
+// beside, strict-local volumes only could have one replica, it make Longhorn block node drain
+// https://longhorn.io/docs/1.5.3/references/settings/#node-drain-policy
+func (v *storageClassValidator) validateDataLocality(newObj runtime.Object) error {
+	sc := newObj.(*storagev1.StorageClass)
+	dataLocality, find := sc.Parameters[util.LonghornDataLocality]
+	if !find {
+		return nil
+	}
+
+	lhDataLocality := longhorn.DataLocality(dataLocality)
+
+	if lhDataLocality == longhorn.DataLocalityStrictLocal {
+		return werror.NewInvalidError("storage class with strict-local data locality is not allowed", "")
+	}
+
+	if lhDataLocality != longhorn.DataLocalityDisabled && lhDataLocality != longhorn.DataLocalityBestEffort {
+		message := fmt.Sprintf("storage class with invalid data locality %v, valid values: %v",
+			lhDataLocality, strings.Join([]string{`"disabled"`, `"best-effort"`}, ", "))
+		return werror.NewInvalidError(message, "")
+	}
+
+	return nil
 }
 
 func (v *storageClassValidator) validateSetUniqueDefault(newObj runtime.Object) error {
