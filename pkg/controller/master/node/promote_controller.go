@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/condition"
 	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/harvester/harvester/pkg/config"
+	utilCatalog "github.com/harvester/harvester/pkg/util/catalog"
 )
 
 const (
@@ -41,12 +43,12 @@ const (
 
 	defaultSpecManagementNumber = 3
 
-	promoteImage         = "registry.suse.com/bci/bci-base:15.5"
 	promoteRootMountPath = "/host"
 
 	promoteScriptsMountPath = "/harvester-helpers"
 	promoteScript           = "/harvester-helpers/promote.sh"
 	helperConfigMapName     = "harvester-helpers"
+	releaseAppHarvesterName = "harvester"
 )
 
 var (
@@ -64,18 +66,21 @@ type PromoteHandler struct {
 	jobCache  ctlbatchv1.JobCache
 	recorder  record.EventRecorder
 	namespace string
+	appCache  catalogv1.AppCache
 }
 
 // PromoteRegister registers the node controller
 func PromoteRegister(ctx context.Context, management *config.Management, options config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
 	jobs := management.BatchFactory.Batch().V1().Job()
+	appCache := management.CatalogFactory.Catalog().V1().App().Cache()
 
 	promoteController := &PromoteHandler{
 		nodes:     nodes,
 		nodeCache: nodes.Cache(),
 		jobs:      jobs,
 		jobCache:  jobs.Cache(),
+		appCache:  appCache,
 		recorder:  management.NewRecorder("harvester-"+promoteControllerName, "", ""),
 		namespace: options.Namespace,
 	}
@@ -378,7 +383,12 @@ func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
 }
 
 func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, error) {
-	job := buildPromoteJob(h.namespace, node)
+	image, err := utilCatalog.FetchAppChartImage(h.appCache, h.namespace, releaseAppHarvesterName, []string{"generalJob", "image"})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get harvester image (%s): %v", image.ImageName(), err)
+	}
+
+	job := buildPromoteJob(h.namespace, node, image.ImageName())
 	return h.jobs.Create(job)
 }
 
@@ -386,7 +396,7 @@ func (h *PromoteHandler) deleteJob(job *batchv1.Job, deletionPropagation metav1.
 	return h.jobs.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{PropagationPolicy: &deletionPropagation})
 }
 
-func buildPromoteJob(namespace string, node *corev1.Node) *batchv1.Job {
+func buildPromoteJob(namespace string, node *corev1.Node, promoteImage string) *batchv1.Job {
 	nodeName := node.Name
 	hostPathDirectory := corev1.HostPathDirectory
 	job := &batchv1.Job{
