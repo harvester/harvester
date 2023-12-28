@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -270,12 +269,6 @@ type SSLCertificate struct {
 type SSLParameter struct {
 	Protocols string `json:"protocols"`
 	Ciphers   string `json:"ciphers"`
-}
-
-type Image struct {
-	Repository      string            `json:"repository"`
-	Tag             string            `json:"tag"`
-	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy"`
 }
 
 type CSIDriverInfo struct {
