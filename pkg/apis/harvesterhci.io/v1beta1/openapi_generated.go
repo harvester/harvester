@@ -3709,6 +3709,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref commo
 							},
 						},
 					},
+					"progress": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 					"readyToUse": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"boolean"},
@@ -4192,6 +4198,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineRestoreStatus(ref comm
 							Format: "",
 						},
 					},
+					"progress": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 				},
 			},
 		},
@@ -4597,6 +4609,18 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackup(ref common.ReferenceCal
 							Format: "",
 						},
 					},
+					"volumeSize": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
+					"progress": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 					"readyToUse": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"boolean"},
@@ -4640,6 +4664,24 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeRestore(ref common.ReferenceCa
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
+						},
+					},
+					"longhornEngineName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"progress": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"volumeSize": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
 						},
 					},
 				},

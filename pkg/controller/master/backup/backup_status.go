@@ -19,6 +19,27 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
+const backupProgressComplete = 100
+
+func (h *Handler) updateBackupProgress(volumeBackup *harvesterv1.VolumeBackup) error {
+	if volumeBackup.ReadyToUse != nil && *volumeBackup.ReadyToUse {
+		volumeBackup.Progress = backupProgressComplete
+		return nil
+	}
+
+	if volumeBackup.LonghornBackupName == nil {
+		return nil
+	}
+
+	lhBackup, err := h.lhbackupCache.Get(util.LonghornSystemNamespaceName, *volumeBackup.LonghornBackupName)
+	if err != nil {
+		return err
+	}
+
+	volumeBackup.Progress = lhBackup.Status.Progress
+	return nil
+}
+
 func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) error {
 	var vmBackupCpy = vmBackup.DeepCopy()
 	if IsBackupProgressing(vmBackupCpy) {
@@ -28,15 +49,32 @@ func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) e
 
 	ready := true
 	errorMessage := ""
-	for _, vb := range vmBackup.Status.VolumeBackups {
+	var volumeSizeSum int64
+	var progressWeightSum int64
+
+	for i := range vmBackupCpy.Status.VolumeBackups {
+		vb := &vmBackupCpy.Status.VolumeBackups[i]
 		if vb.ReadyToUse == nil || !*vb.ReadyToUse {
 			ready = false
+		}
+
+		if vmBackupCpy.Spec.Type == harvesterv1.Backup {
+			if err := h.updateBackupProgress(vb); err != nil {
+				return err
+			}
+
+			volumeSizeSum += vb.VolumeSize
+			progressWeightSum += int64(vb.Progress) * vb.VolumeSize
 		}
 
 		if vb.Error != nil {
 			errorMessage = fmt.Sprintf("VolumeSnapshot %s in error state", *vb.Name)
 			break
 		}
+	}
+
+	if volumeSizeSum != 0 {
+		vmBackupCpy.Status.Progress = int(progressWeightSum / volumeSizeSum)
 	}
 
 	if ready && (vmBackupCpy.Status.ReadyToUse == nil || !*vmBackupCpy.Status.ReadyToUse) {
@@ -187,7 +225,12 @@ func (h *Handler) OnLHBackupChanged(key string, lhBackup *lhv1beta2.Backup) (*lh
 			if _, err := h.vmBackups.Update(vmBackupCpy); err != nil {
 				return nil, err
 			}
+
+			return nil, nil
 		}
+
+		//enqueue to trigger progress update in updateConditions()
+		h.vmBackupController.Enqueue(vmBackup.Namespace, vmBackup.Name)
 	}
 	return nil, nil
 }

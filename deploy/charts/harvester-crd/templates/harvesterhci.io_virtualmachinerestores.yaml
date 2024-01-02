@@ -127,6 +127,8 @@ spec:
                 items:
                   type: string
                 type: array
+              progress:
+                type: integer
               restoreTime:
                 format: date-time
                 type: string
@@ -135,6 +137,8 @@ spec:
                   description: VolumeRestore contains the volume data need to restore
                     a PVC
                   properties:
+                    longhornEngineName:
+                      type: string
                     persistentVolumeClaimSpec:
                       properties:
                         metadata:
@@ -359,10 +363,15 @@ spec:
                               type: string
                           type: object
                       type: object
+                    progress:
+                      type: integer
                     volumeBackupName:
                       type: string
                     volumeName:
                       type: string
+                    volumeSize:
+                      format: int64
+                      type: integer
                   type: object
                 type: array
               targetUID:
