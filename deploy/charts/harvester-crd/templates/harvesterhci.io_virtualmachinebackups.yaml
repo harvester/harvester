@@ -143,6 +143,8 @@ spec:
                     format: date-time
                     type: string
                 type: object
+              progress:
+                type: integer
               readyToUse:
                 type: boolean
               secretBackups:
@@ -4819,10 +4821,15 @@ spec:
                               type: string
                           type: object
                       type: object
+                    progress:
+                      type: integer
                     readyToUse:
                       type: boolean
                     volumeName:
                       type: string
+                    volumeSize:
+                      format: int64
+                      type: integer
                   required:
                   - csiDriverName
                   - persistentVolumeClaim
