@@ -11,6 +11,7 @@ import (
 	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
@@ -18,6 +19,8 @@ import (
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 )
+
+const supportBundleExistTimeLimit = 10 * time.Minute
 
 // Handler generates support bundles for the cluster
 type Handler struct {
@@ -70,10 +73,37 @@ func (h *Handler) OnSupportBundleChanged(key string, sb *harvesterv1.SupportBund
 	case types.StateGenerating:
 		logrus.Debugf("[%s] support bundle is being generated", sb.Name)
 		return h.checkManagerStatus(sb)
+	case types.StateError, types.StateReady:
+		return h.checkExistTime(sb)
 	default:
 		logrus.Debugf("[%s] noop for state %s", sb.Name, sb.Status.State)
 		return sb, nil
 	}
+}
+
+// checkExistTime checks if the support bundle has been updated for more than supportBundleExistTimeLimit minutes
+// If yes, that means the support bundle file is not be retrieved, and it should be deleted.
+func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {
+	t, err := time.Parse(time.RFC3339, sb.Status.Conditions[0].LastUpdateTime)
+	if err != nil {
+		logrus.Debugf("[%s] fail to parse %s", sb.Name, sb.Status.Conditions[0].LastUpdateTime)
+		return sb, err
+	}
+
+	existTime := time.Now().Sub(t)
+
+	logrus.Debugf("[%s] support bundle status: %s exist time is %s", sb.Name, sb.Status.State, existTime.String())
+	if existTime < supportBundleExistTimeLimit {
+		h.supportBundleController.EnqueueAfter(sb.Namespace, sb.Name, supportBundleExistTimeLimit)
+		return sb, err
+	}
+
+	if err := h.supportBundles.Delete(sb.Namespace, sb.Name, &metav1.DeleteOptions{}); err != nil {
+		return sb, err
+	}
+
+	logrus.Infof("[%s] support bundle is deleted", sb.Name)
+	return nil, nil
 }
 
 func (h *Handler) updateSupportBundleImageSetting() error {
