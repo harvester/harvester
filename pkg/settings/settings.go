@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -37,6 +38,7 @@ var (
 	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
 	SupportBundleNamespaces                = NewSetting("support-bundle-namespaces", "")
 	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
+	SupportBundleExistTimeLimitSeconds     = NewSetting(SupportBundleExistTimeLimitSecondsSettingName, "1800")
 	DefaultStorageClass                    = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                              = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet                  = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
@@ -78,6 +80,7 @@ const (
 	HarvesterCSICCMSettingName                        = "harvester-csi-ccm-versions"
 	StorageNetworkName                                = "storage-network"
 	DefaultVMTerminationGracePeriodSecondsSettingName = "default-vm-termination-grace-period-seconds"
+	SupportBundleExistTimeLimitSecondsSettingName     = "support-bundle-exist-time-seconds"
 	NTPServersSettingName                             = "ntp-servers"
 )
 
@@ -152,6 +155,10 @@ func (s Setting) GetInt() int {
 		return 0
 	}
 	return i
+}
+
+func (s Setting) GetDuration() time.Duration {
+	return time.Duration(s.GetInt())
 }
 
 func SetProvider(p Provider) error {

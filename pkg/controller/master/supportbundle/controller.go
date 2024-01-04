@@ -20,8 +20,6 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 )
 
-const supportBundleExistTimeLimit = 10 * time.Minute
-
 // Handler generates support bundles for the cluster
 type Handler struct {
 	supportBundles          v1beta1.SupportBundleClient
@@ -91,10 +89,11 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 	}
 
 	existTime := time.Now().Sub(t)
+	limit := settings.SupportBundleExistTimeLimitSeconds.GetDuration() * time.Second
 
 	logrus.Debugf("[%s] support bundle status: %s exist time is %s", sb.Name, sb.Status.State, existTime.String())
-	if existTime < supportBundleExistTimeLimit {
-		h.supportBundleController.EnqueueAfter(sb.Namespace, sb.Name, supportBundleExistTimeLimit)
+	if existTime < limit {
+		h.supportBundleController.EnqueueAfter(sb.Namespace, sb.Name, limit)
 		return sb, err
 	}
 
