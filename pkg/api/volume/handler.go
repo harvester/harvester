@@ -5,14 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
@@ -282,24 +279,6 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 	csiDriverInfo, err := settings.GetCSIDriverInfo(provisioner)
 	if err != nil {
 		return err
-	}
-
-	if provisioner == longhorntypes.LonghornDriverName {
-		volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
-		if err != nil {
-			return fmt.Errorf("failed to get volume %s/%s, error: %s", pvc.Namespace, pvc.Spec.VolumeName, err.Error())
-		}
-		volCpy := volume.DeepCopy()
-		if volume.Status.State == lhv1beta2.VolumeStateDetached || volume.Status.State == lhv1beta2.VolumeStateDetaching {
-			volCpy.Spec.NodeID = volume.Status.OwnerID
-		}
-
-		if !reflect.DeepEqual(volCpy, volume) {
-			logrus.Infof("mount detached volume %s to the node %s", volCpy.Name, volCpy.Spec.NodeID)
-			if _, err = h.volumes.Update(volCpy); err != nil {
-				return err
-			}
-		}
 	}
 
 	volumeSnapshotClassName := csiDriverInfo.VolumeSnapshotClassName
