@@ -214,7 +214,7 @@ steps:
       CODECOV_TOKEN:
         from_secret: codecov_token
     commands:
-      - dapper ci
+      - dapper arm
     volumes:
       - name: docker
         path: /var/run/docker.sock
