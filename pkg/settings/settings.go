@@ -38,7 +38,7 @@ var (
 	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
 	SupportBundleNamespaces                = NewSetting("support-bundle-namespaces", "")
 	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
-	SupportBundleExistTimeLimitSeconds     = NewSetting(SupportBundleExistTimeLimitSecondsSettingName, "1800")
+	SupportBundleExpirationSeconds         = NewSetting(SupportBundleExpirationSecondsSettingName, "1800")
 	DefaultStorageClass                    = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                              = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet                  = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
@@ -80,7 +80,7 @@ const (
 	HarvesterCSICCMSettingName                        = "harvester-csi-ccm-versions"
 	StorageNetworkName                                = "storage-network"
 	DefaultVMTerminationGracePeriodSecondsSettingName = "default-vm-termination-grace-period-seconds"
-	SupportBundleExistTimeLimitSecondsSettingName     = "support-bundle-exist-time-seconds"
+	SupportBundleExpirationSecondsSettingName         = "support-bundle-expiration-seconds"
 	NTPServersSettingName                             = "ntp-servers"
 )
 
