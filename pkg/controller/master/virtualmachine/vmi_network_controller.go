@@ -1,9 +1,16 @@
 package virtualmachine
 
 import (
-	"github.com/sirupsen/logrus"
-	kubevirtv1 "kubevirt.io/api/core/v1"
+	"encoding/json"
+	"fmt"
 
+	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
+	vmwatch "kubevirt.io/kubevirt/pkg/virt-controller/watch"
+
+	ctlappsv1 "github.com/harvester/harvester/pkg/generated/controllers/apps/v1"
 	vmv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
@@ -11,6 +18,8 @@ type VMNetworkController struct {
 	vmCache   vmv1.VirtualMachineCache
 	vmClient  vmv1.VirtualMachineClient
 	vmiClient vmv1.VirtualMachineInstanceClient
+	crCache   ctlappsv1.ControllerRevisionCache
+	crClient  ctlappsv1.ControllerRevisionClient
 }
 
 // SetDefaultNetworkMacAddress set the default mac address of networks using the initial allocated mac address from the VMI status,
@@ -62,9 +71,57 @@ func (h *VMNetworkController) updateVMDefaultNetworkMacAddress(vmi *kubevirtv1.V
 		}
 	}
 
+	if err := h.regenerateControllerRevision(vmi, vm); err != nil {
+		return err
+	}
 	if _, err := h.vmClient.Update(vmCopy); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (h *VMNetworkController) regenerateControllerRevision(vmi *kubevirtv1.VirtualMachineInstance, vm *kubevirtv1.VirtualMachine) error {
+	crObj, err := h.crCache.Get(vmi.Namespace, vmi.Status.VirtualMachineRevisionName)
+	if err != nil {
+		return fmt.Errorf("error fetch controller revision object for vmi %s-%s: %v", vmi.Name, vmi.Namespace, err)
+	}
+
+	revisionSpec := &vmwatch.VirtualMachineRevisionData{}
+	if err = json.Unmarshal(crObj.Data.Raw, revisionSpec); err != nil {
+		return err
+	}
+	if !equality.Semantic.DeepEqual(revisionSpec.Spec.Template, vm.Spec.Template) && vm.Generation != vm.Status.ObservedGeneration {
+		patch, patchGenError := patchVMRevision(vm)
+		if patchGenError != nil {
+			return fmt.Errorf("error during patch generation for vmi %s-%s: %v", vmi.Name, vmi.Name, patchGenError)
+		}
+		if deletionErr := h.crClient.Delete(vmi.Namespace, crObj.Name, &metav1.DeleteOptions{}); deletionErr != nil {
+			return fmt.Errorf("error during deletion of controllerRevision for vmi %s-%s: %v", vmi.Name, vmi.Name, deletionErr)
+		}
+
+		crObj.Data.Raw = patch
+		crObj.ResourceVersion = ""
+		_, err = h.crClient.Create(crObj)
+	}
+
+	return err
+}
+
+// copied from kubevirt.io/kubevirt/pkg/virt-controller/watch as this is a private method
+func patchVMRevision(vm *kubevirtv1.VirtualMachine) ([]byte, error) {
+	vmBytes, err := json.Marshal(vm)
+	if err != nil {
+		return nil, err
+	}
+	var raw map[string]interface{}
+	err = json.Unmarshal(vmBytes, &raw)
+	if err != nil {
+		return nil, err
+	}
+	objCopy := make(map[string]interface{})
+	spec := raw["spec"].(map[string]interface{})
+	objCopy["spec"] = spec
+	patch, err := json.Marshal(objCopy)
+	return patch, err
 }
