@@ -2,18 +2,22 @@ package virtualmachine
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	k8sfakeclient "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	virtualmachinetype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	kv1ctl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
 func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
@@ -21,6 +25,7 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 		key string
 		vmi *kubevirtv1.VirtualMachineInstance
 		vm  *kubevirtv1.VirtualMachine
+		cr  *appsv1.ControllerRevision
 	}
 	type output struct {
 		vmi *kubevirtv1.VirtualMachineInstance
@@ -38,6 +43,7 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 			given: input{
 				key: "",
 				vmi: nil,
+				cr:  nil,
 			},
 			expected: output{
 				vmi: nil,
@@ -57,6 +63,7 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{},
 				},
+				cr: &appsv1.ControllerRevision{},
 			},
 			expected: output{
 				vmi: &kubevirtv1.VirtualMachineInstance{
@@ -77,9 +84,10 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 				key: "default/test",
 				vm: &kubevirtv1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Generation: 1,
 					},
 					Spec: kubevirtv1.VirtualMachineSpec{
 						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
@@ -104,6 +112,9 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 							},
 						},
 					},
+					Status: kubevirtv1.VirtualMachineStatus{
+						ObservedGeneration: 1,
+					},
 				},
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
@@ -125,7 +136,14 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 								Name: "nic-1",
 							},
 						},
-						Phase: kubevirtv1.Running,
+						Phase:                      kubevirtv1.Running,
+						VirtualMachineRevisionName: "test-random-id",
+					},
+				},
+				cr: &appsv1.ControllerRevision{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-random-id",
+						Namespace: "default",
 					},
 				},
 			},
@@ -150,7 +168,8 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 								Name: "nic-1",
 							},
 						},
-						Phase: kubevirtv1.Running,
+						Phase:                      kubevirtv1.Running,
+						VirtualMachineRevisionName: "test-random-id",
 					},
 				},
 				vm: &kubevirtv1.VirtualMachine{
@@ -195,6 +214,7 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset()
+		var k8sfake = k8sfakeclient.NewSimpleClientset()
 		if tc.given.vmi != nil {
 			var err = clientset.Tracker().Add(tc.given.vmi)
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
@@ -204,17 +224,28 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
 		}
 
+		if tc.given.cr != nil && tc.given.vm != nil {
+			specString, err := json.Marshal(tc.given.vm.Spec)
+			assert.Nil(t, err, "expect no error trying to marshal vmspec")
+			tc.given.cr.Data.Raw = specString
+			err = k8sfake.Tracker().Add(tc.given.cr)
+			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+		}
+
 		var ctrl = &VMNetworkController{
 			vmClient:  fakeVMClient(clientset.KubevirtV1().VirtualMachines),
 			vmCache:   fakeVMCache(clientset.KubevirtV1().VirtualMachines),
 			vmiClient: fakeVMIClient(clientset.KubevirtV1().VirtualMachineInstances),
+			crCache:   fakeclients.ControllerRevisionCache(k8sfake.AppsV1().ControllerRevisions),
+			crClient:  fakeclients.ControllerRevisionClient(k8sfake.AppsV1().ControllerRevisions),
 		}
 
 		var actual output
 		actual.vmi, actual.err = ctrl.SetDefaultNetworkMacAddress(tc.given.key, tc.given.vmi)
+		assert.Nil(t, actual.err, "error during reconcile of SetDefaultNetworkMacAddress %v %s", actual.err, tc.name)
 		if tc.given.vmi != nil && tc.given.vm != nil {
 			actual.vm, actual.err = ctrl.vmClient.Get(tc.given.vm.Namespace, tc.given.vm.Name, metav1.GetOptions{})
-			assert.Nil(t, actual.err, "mock resource should get from fake VM controller")
+			assert.Nil(t, actual.err, "mock resource should get from fake VM controller, error: %v", actual.err)
 			for _, vmIface := range actual.vm.Spec.Template.Spec.Domain.Devices.Interfaces {
 				for _, iface := range tc.given.vmi.Status.Interfaces {
 					if iface.Name == vmIface.Name {
