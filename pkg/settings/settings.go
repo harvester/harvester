@@ -144,16 +144,23 @@ func (s Setting) Get() string {
 }
 
 func (s Setting) GetInt() int {
-	v := s.Get()
-	i, err := strconv.Atoi(v)
-	if err == nil {
-		return i
+	var (
+		i   int
+		err error
+		v   = s.Get()
+	)
+
+	if v != "" {
+		if i, err = strconv.Atoi(v); err == nil {
+			return i
+		}
+		logrus.Errorf("failed to parse setting %s=%s as int: %v", s.Name, v, err)
 	}
-	logrus.Errorf("failed to parse setting %s=%s as int: %v", s.Name, v, err)
-	i, err = strconv.Atoi(s.Default)
-	if err != nil {
+
+	if i, err = strconv.Atoi(s.Default); err != nil {
 		return 0
 	}
+
 	return i
 }
 

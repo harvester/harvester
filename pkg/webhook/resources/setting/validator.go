@@ -75,6 +75,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.VMForceResetPolicySettingName:                     validateVMForceResetPolicy,
 	settings.SupportBundleImageName:                            validateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateSupportBundleTimeout,
+	settings.SupportBundleExpirationSecondsSettingName:         validateSupportBundleExpirationSeconds,
 	settings.OvercommitConfigSettingName:                       validateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:                         validateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:                        validateSSLCertificates,
@@ -91,6 +92,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.VMForceResetPolicySettingName:                     validateUpdateVMForceResetPolicy,
 	settings.SupportBundleImageName:                            validateUpdateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateUpdateSupportBundleTimeout,
+	settings.SupportBundleExpirationSecondsSettingName:         validateUpdateSupportBundleSeconds,
 	settings.OvercommitConfigSettingName:                       validateUpdateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:                         validateUpdateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:                        validateUpdateSSLCertificates,
@@ -539,6 +541,25 @@ func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
 
 func validateUpdateSupportBundleTimeout(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleTimeout(newSetting)
+}
+
+func validateSupportBundleExpirationSeconds(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	i, err := strconv.Atoi(setting.Value)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+	if i < 10 {
+		return werror.NewInvalidError("expiration seconds should be greater than 10 seconds", "value")
+	}
+	return nil
+}
+
+func validateUpdateSupportBundleSeconds(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateSupportBundleExpirationSeconds(newSetting)
 }
 
 func validateSSLCertificates(setting *v1beta1.Setting) error {

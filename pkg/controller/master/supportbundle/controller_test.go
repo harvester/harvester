@@ -53,7 +53,7 @@ func Test_checkExistTime(t *testing.T) {
 					},
 				}
 				harvesterv1.SupportBundleInitialized.True(sb)
-				sb.Status.Conditions[0].LastUpdateTime = time.Now().Add(-35 * time.Minute).Format(time.RFC3339)
+				harvesterv1.SupportBundleInitialized.LastUpdated(sb, time.Now().Add(-35*time.Minute).Format(time.RFC3339))
 				return sb
 			},
 			expected: func(sb *harvesterv1.SupportBundle, err error, name string) {
@@ -75,7 +75,7 @@ func Test_checkExistTime(t *testing.T) {
 				}
 				harvesterv1.SupportBundleInitialized.False(sb)
 				harvesterv1.SupportBundleInitialized.Message(sb, "custom error")
-				sb.Status.Conditions[0].LastUpdateTime = time.Now().Add(-35 * time.Minute).Format(time.RFC3339)
+				harvesterv1.SupportBundleInitialized.LastUpdated(sb, time.Now().Add(-35*time.Minute).Format(time.RFC3339))
 				return sb
 			},
 			expected: func(sb *harvesterv1.SupportBundle, err error, name string) {

@@ -11,6 +11,7 @@ import (
 	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -82,7 +83,7 @@ func (h *Handler) OnSupportBundleChanged(key string, sb *harvesterv1.SupportBund
 // checkExistTime checks if the support bundle has been updated for more than supportBundleExistTimeLimit minutes
 // If yes, that means the support bundle file is not be retrieved, and it should be deleted.
 func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {
-	t, err := time.Parse(time.RFC3339, sb.Status.Conditions[0].LastUpdateTime)
+	t, err := time.Parse(time.RFC3339, harvesterv1.SupportBundleInitialized.GetLastUpdated(sb))
 	if err != nil {
 		logrus.Debugf("[%s] fail to parse %s", sb.Name, sb.Status.Conditions[0].LastUpdateTime)
 		return sb, err
@@ -97,7 +98,7 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 		return sb, err
 	}
 
-	if err := h.supportBundles.Delete(sb.Namespace, sb.Name, &metav1.DeleteOptions{}); err != nil {
+	if err := h.supportBundles.Delete(sb.Namespace, sb.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 		return sb, err
 	}
 
