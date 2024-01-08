@@ -121,7 +121,7 @@ func Test_validateSupportBundleTimeout(t *testing.T) {
 	}
 }
 
-func Test_validateSupportBundleExpirationSeconds(t *testing.T) {
+func Test_validateSupportBundleExpiration(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        *v1beta1.Setting
@@ -130,7 +130,7 @@ func Test_validateSupportBundleExpirationSeconds(t *testing.T) {
 		{
 			name: "invalid int",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleExpirationSecondsSettingName},
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleExpirationSettingName},
 				Value:      "not int",
 			},
 			expectedErr: true,
@@ -138,7 +138,7 @@ func Test_validateSupportBundleExpirationSeconds(t *testing.T) {
 		{
 			name: "negative int",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleExpirationSecondsSettingName},
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleExpirationSettingName},
 				Value:      "-1",
 			},
 			expectedErr: true,
@@ -146,24 +146,16 @@ func Test_validateSupportBundleExpirationSeconds(t *testing.T) {
 		{
 			name: "empty input",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleExpirationSecondsSettingName},
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleExpirationSettingName},
 				Value:      "",
 			},
 			expectedErr: false,
 		},
 		{
-			name: "int less than 10 seconds",
+			name: "positive int",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleExpirationSecondsSettingName},
-				Value:      "1",
-			},
-			expectedErr: true,
-		},
-		{
-			name: "positive int bigger than 10 seconds",
-			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleExpirationSecondsSettingName},
-				Value:      "20",
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleExpirationSettingName},
+				Value:      "10",
 			},
 			expectedErr: false,
 		},
@@ -171,7 +163,7 @@ func Test_validateSupportBundleExpirationSeconds(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateSupportBundleExpirationSeconds(tt.args)
+			err := validateSupportBundleExpiration(tt.args)
 			assert.Equal(t, tt.expectedErr, err != nil)
 		})
 	}

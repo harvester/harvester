@@ -90,7 +90,7 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 	}
 
 	existTime := time.Now().Sub(t)
-	expiredTime := settings.SupportBundleExpirationSeconds.GetDuration() * time.Second
+	expiredTime := settings.SupportBundleExpiration.GetDuration() * time.Minute
 
 	logrus.Debugf("[%s] support bundle status: %s exist time is %s", sb.Name, sb.Status.State, existTime.String())
 	if existTime < expiredTime {

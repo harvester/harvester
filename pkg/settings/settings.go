@@ -37,8 +37,8 @@ var (
 	SSLParameters                          = NewSetting(SSLParametersName, "{}")
 	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
 	SupportBundleNamespaces                = NewSetting("support-bundle-namespaces", "")
-	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
-	SupportBundleExpirationSeconds         = NewSetting(SupportBundleExpirationSecondsSettingName, "1800")
+	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")    // Unit is minute. 0 means disable timeout.
+	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, "30") // Unit is minute.
 	DefaultStorageClass                    = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                              = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet                  = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
@@ -80,7 +80,7 @@ const (
 	HarvesterCSICCMSettingName                        = "harvester-csi-ccm-versions"
 	StorageNetworkName                                = "storage-network"
 	DefaultVMTerminationGracePeriodSecondsSettingName = "default-vm-termination-grace-period-seconds"
-	SupportBundleExpirationSecondsSettingName         = "support-bundle-expiration-seconds"
+	SupportBundleExpirationSettingName                = "support-bundle-expiration"
 	NTPServersSettingName                             = "ntp-servers"
 )
 
