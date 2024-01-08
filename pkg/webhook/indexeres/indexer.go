@@ -2,6 +2,9 @@ package indexeres
 
 import (
 	"fmt"
+	"strconv"
+
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/indexeres"
@@ -13,6 +16,7 @@ const (
 	VMRestoreByTargetNamespaceAndName     = "harvesterhci.io/vmrestore-by-target-namespace-and-name"
 	VMRestoreByVMBackupNamespaceAndName   = "harvesterhci.io/vmrestore-by-vmbackup-namespace-and-name"
 	VMBackupSnapshotByPVCNamespaceAndName = "harvesterhci.io/vmbackup-snapshot-by-pvc-namespace-and-name"
+	VolumeByReplicaCountIndex             = "harvesterhci.io/volume-by-replica-count"
 )
 
 func RegisterIndexers(clients *clients.Clients) {
@@ -26,6 +30,9 @@ func RegisterIndexers(clients *clients.Clients) {
 
 	podCache := clients.CoreFactory.Core().V1().Pod().Cache()
 	podCache.AddIndexer(indexeres.PodByVMNameIndex, indexeres.PodByVMName)
+
+	volumeCache := clients.LonghornFactory.Longhorn().V1beta2().Volume().Cache()
+	volumeCache.AddIndexer(VolumeByReplicaCountIndex, VolumeByReplicaCount)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
@@ -60,4 +67,9 @@ func vmRestoreByVMBackupNamespaceAndName(obj *harvesterv1.VirtualMachineRestore)
 		return []string{}, nil
 	}
 	return []string{fmt.Sprintf("%s-%s", obj.Spec.VirtualMachineBackupNamespace, obj.Spec.VirtualMachineBackupName)}, nil
+}
+
+func VolumeByReplicaCount(obj *lhv1beta2.Volume) ([]string, error) {
+	replicaCount := strconv.Itoa(obj.Spec.NumberOfReplicas)
+	return []string{replicaCount}, nil
 }

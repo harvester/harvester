@@ -30,6 +30,7 @@ import (
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
+	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	versionWebhook "github.com/harvester/harvester/pkg/webhook/resources/version"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -163,7 +164,11 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
 		return err
 	}
 
-	return v.checkMachines()
+	if err := v.checkMachines(); err != nil {
+		return err
+	}
+
+	return v.checkSingleReplicaVolumes()
 }
 
 func (v *upgradeValidator) hasDegradedVolume() (bool, error) {
@@ -302,6 +307,43 @@ func (v *upgradeValidator) checkMachines() error {
 		if machine.Status.GetTypedPhase() != clusterv1alpha4.MachinePhaseRunning {
 			return werror.NewInternalError(fmt.Sprintf("machine %s/%s is not running", machine.Namespace, machine.Name))
 		}
+	}
+
+	return nil
+}
+
+func (v *upgradeValidator) checkSingleReplicaVolumes() error {
+	// Upgrade should be rejected if any single-replica volume exists
+	nodes, err := v.nodes.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	// Skip for single-node cluster
+	if len(nodes) == 1 {
+		return nil
+	}
+
+	// Find all single-replica volumes
+	singleReplicaVolumes, err := v.lhVolumes.GetByIndex(indexeres.VolumeByReplicaCountIndex, "1")
+	if err != nil {
+		return err
+	}
+
+	volumeNames := make([]string, 0, len(singleReplicaVolumes))
+	for _, volume := range singleReplicaVolumes {
+		switch volume.Status.State {
+		case lhv1beta2.VolumeStateCreating, lhv1beta2.VolumeStateAttached, lhv1beta2.VolumeStateAttaching:
+			pvcNamespace := volume.Status.KubernetesStatus.Namespace
+			pvcName := volume.Status.KubernetesStatus.PVCName
+			volumeNames = append(volumeNames, pvcNamespace+"/"+pvcName)
+		}
+	}
+
+	if len(volumeNames) > 0 {
+		return werror.NewInvalidError(
+			fmt.Sprintf("The backing volumes of the following PVCs have single replica configured, please consider shutdown the corresponding workload before upgrade: %s", strings.Join(volumeNames, ", ")), "",
+		)
 	}
 
 	return nil
