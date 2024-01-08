@@ -22,7 +22,7 @@ fi
 
 cp ../bin/harvester-webhook .
 
-docker build -f ${DOCKERFILE} -t ${IMAGE} .
+docker build -f ${DOCKERFILE} --build-arg ARCH=${ARCH} -t ${IMAGE} .
 echo Built ${IMAGE}
 
 IMAGE_PUSH=${REPO}/harvester-webhook:${IMAGE_PUSH_TAG}

@@ -15,7 +15,7 @@ if [ -e ${DOCKERFILE}.${ARCH} ]; then
     DOCKERFILE=${DOCKERFILE}.${ARCH}
 fi
 
-docker build -f ${DOCKERFILE} -t ${IMAGE} .
+docker build -f ${DOCKERFILE} --build-arg ARCH=${ARCH} -t ${IMAGE} .
 echo Built ${IMAGE}
 
 IMAGE_PUSH=${REPO}/harvester-upgrade:${IMAGE_PUSH_TAG}
