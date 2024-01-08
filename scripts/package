@@ -23,7 +23,7 @@ fi
 rm -rf ./harvester
 cp ../bin/harvester .
 
-docker build --build-arg VERSION=${VERSION} -f ${DOCKERFILE} -t ${IMAGE} .
+docker build --build-arg VERSION=${VERSION} --build-arg ARCH=${ARCH} -f ${DOCKERFILE} -t ${IMAGE} .
 echo Built ${IMAGE}
 
 IMAGE_PUSH=${REPO}/harvester:${IMAGE_PUSH_TAG}
