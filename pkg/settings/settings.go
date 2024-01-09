@@ -7,9 +7,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/sirupsen/logrus"
+
+	"github.com/harvester/harvester/pkg/util"
 )
 
 var (
@@ -37,8 +38,8 @@ var (
 	SSLParameters                          = NewSetting(SSLParametersName, "{}")
 	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
 	SupportBundleNamespaces                = NewSetting("support-bundle-namespaces", "")
-	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")    // Unit is minute. 0 means disable timeout.
-	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, "30") // Unit is minute.
+	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")                                      // Unit is minute. 0 means disable timeout.
+	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, util.SupportBundleExpirationDefaultStr) // Unit is minute.
 	DefaultStorageClass                    = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                              = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet                  = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
@@ -162,10 +163,6 @@ func (s Setting) GetInt() int {
 	}
 
 	return i
-}
-
-func (s Setting) GetDuration() time.Duration {
-	return time.Duration(s.GetInt())
 }
 
 func SetProvider(p Provider) error {
