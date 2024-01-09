@@ -34,11 +34,11 @@ func (c ResourceQuotaCache) List(namespace string, selector labels.Selector) ([]
 	return result, err
 }
 
-func (c ResourceQuotaCache) AddIndexer(indexName string, indexer ctlharvcorev1.ResourceQuotaIndexer) {
+func (c ResourceQuotaCache) AddIndexer(_ string, _ ctlharvcorev1.ResourceQuotaIndexer) {
 	panic("implement me")
 }
 
-func (c ResourceQuotaCache) GetByIndex(indexName, key string) ([]*v1.ResourceQuota, error) {
+func (c ResourceQuotaCache) GetByIndex(_, _ string) ([]*v1.ResourceQuota, error) {
 	panic("implement me")
 }
 
@@ -49,18 +49,18 @@ func (c ResourceQuotaClient) Update(quota *v1.ResourceQuota) (*v1.ResourceQuota,
 }
 
 func (c ResourceQuotaClient) Get(namespace string, name string, options metav1.GetOptions) (*v1.ResourceQuota, error) {
-	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	return c(namespace).Get(context.TODO(), name, options)
 }
 
 func (c ResourceQuotaClient) Create(quota *v1.ResourceQuota) (*v1.ResourceQuota, error) {
 	return c(quota.Namespace).Create(context.TODO(), quota, metav1.CreateOptions{})
 }
 
-func (c ResourceQuotaClient) Delete(namespace string, name string, options *metav1.DeleteOptions) error {
+func (c ResourceQuotaClient) Delete(_ string, _ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
 
-func (c ResourceQuotaClient) List(namespace string, opts metav1.ListOptions) (*v1.ResourceQuotaList, error) {
+func (c ResourceQuotaClient) List(_ string, _ metav1.ListOptions) (*v1.ResourceQuotaList, error) {
 	panic("implement me")
 }
 
@@ -68,10 +68,10 @@ func (c ResourceQuotaClient) UpdateStatus(*v1.ResourceQuota) (*v1.ResourceQuota,
 	panic("implement me")
 }
 
-func (c ResourceQuotaClient) Watch(namespace string, pts metav1.ListOptions) (watch.Interface, error) {
+func (c ResourceQuotaClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
 
-func (c ResourceQuotaClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.ResourceQuota, err error) {
+func (c ResourceQuotaClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *v1.ResourceQuota, err error) {
 	panic("implement me")
 }

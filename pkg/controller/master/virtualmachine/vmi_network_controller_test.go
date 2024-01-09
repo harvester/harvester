@@ -238,7 +238,7 @@ func (c fakeVMClient) Update(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.Virtual
 	return c(vm.Namespace).Update(context.TODO(), vm, metav1.UpdateOptions{})
 }
 
-func (c fakeVMClient) UpdateStatus(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+func (c fakeVMClient) UpdateStatus(*kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	panic("implement me")
 }
 
@@ -268,15 +268,15 @@ func (c fakeVMCache) Get(namespace, name string) (*kubevirtv1.VirtualMachine, er
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c fakeVMCache) List(namespace string, selector labels.Selector) ([]*kubevirtv1.VirtualMachine, error) {
+func (c fakeVMCache) List(_ string, _ labels.Selector) ([]*kubevirtv1.VirtualMachine, error) {
 	panic("implement me")
 }
 
-func (c fakeVMCache) AddIndexer(indexName string, indexer kv1ctl.VirtualMachineIndexer) {
+func (c fakeVMCache) AddIndexer(_ string, _ kv1ctl.VirtualMachineIndexer) {
 	panic("implement me")
 }
 
-func (c fakeVMCache) GetByIndex(indexName, key string) ([]*kubevirtv1.VirtualMachine, error) {
+func (c fakeVMCache) GetByIndex(_, _ string) ([]*kubevirtv1.VirtualMachine, error) {
 	panic("implement me")
 }
 
@@ -290,7 +290,7 @@ func (c fakeVMIClient) Update(vm *kubevirtv1.VirtualMachineInstance) (*kubevirtv
 	return c(vm.Namespace).Update(context.TODO(), vm, metav1.UpdateOptions{})
 }
 
-func (c fakeVMIClient) UpdateStatus(vm *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
+func (c fakeVMIClient) UpdateStatus(*kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
 	panic("implement me")
 }
 

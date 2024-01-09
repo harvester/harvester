@@ -12,7 +12,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
 	upgradeLogHandler := Handler{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,

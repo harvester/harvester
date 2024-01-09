@@ -24,7 +24,7 @@ func (c ConfigmapClient) Update(configMap *v1.ConfigMap) (*v1.ConfigMap, error) 
 	return c(configMap.Namespace).Update(context.TODO(), configMap, metav1.UpdateOptions{})
 }
 
-func (c ConfigmapClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+func (c ConfigmapClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
 
@@ -36,11 +36,11 @@ func (c ConfigmapClient) List(namespace string, opts metav1.ListOptions) (*v1.Co
 	return c(namespace).List(context.TODO(), opts)
 }
 
-func (c ConfigmapClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c ConfigmapClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
 
-func (c ConfigmapClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.ConfigMap, err error) {
+func (c ConfigmapClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *v1.ConfigMap, err error) {
 	panic("implement me")
 }
 
@@ -64,10 +64,10 @@ func (c ConfigmapCache) List(namespace string, selector labels.Selector) ([]*v1.
 	return result, err
 }
 
-func (c ConfigmapCache) AddIndexer(indexName string, indexer ctlcorev1.ConfigMapIndexer) {
+func (c ConfigmapCache) AddIndexer(_ string, _ ctlcorev1.ConfigMapIndexer) {
 	panic("implement me")
 }
 
-func (c ConfigmapCache) GetByIndex(indexName, key string) ([]*v1.ConfigMap, error) {
+func (c ConfigmapCache) GetByIndex(_, _ string) ([]*v1.ConfigMap, error) {
 	panic("implement me")
 }

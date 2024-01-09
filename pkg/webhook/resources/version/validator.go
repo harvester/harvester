@@ -38,7 +38,7 @@ func (v *versionValidator) Resource() types.Resource {
 	}
 }
 
-func (v *versionValidator) Create(request *types.Request, newObj runtime.Object) error {
+func (v *versionValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newVersion := newObj.(*v1beta1.Version)
 	return v.checkAnnotations(newVersion)
 }
@@ -53,7 +53,7 @@ func (v *versionValidator) checkAnnotations(version *v1beta1.Version) error {
 	return nil
 }
 
-func (v *versionValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *versionValidator) Update(_ *types.Request, _ runtime.Object, newObj runtime.Object) error {
 	newVersion := newObj.(*v1beta1.Version)
 	return v.checkAnnotations(newVersion)
 }

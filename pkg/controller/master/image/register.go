@@ -13,7 +13,7 @@ const (
 	backingImageControllerName = "backing-image-controller"
 )
 
-func Register(ctx context.Context, management *config.Management, options config.Options) error {
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	backingImages := management.LonghornFactory.Longhorn().V1beta2().BackingImage()
 	images := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	storageClasses := management.StorageFactory.Storage().V1().StorageClass()

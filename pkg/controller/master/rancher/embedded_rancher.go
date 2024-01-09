@@ -21,7 +21,7 @@ var UpdateRancherUISettings = map[string]string{
 	"ui-brand": "harvester",
 }
 
-func (h *Handler) RancherSettingOnChange(key string, setting *rancherv3api.Setting) (*rancherv3api.Setting, error) {
+func (h *Handler) RancherSettingOnChange(_ string, setting *rancherv3api.Setting) (*rancherv3api.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil {
 		return nil, nil
 	}

@@ -37,7 +37,7 @@ func (m *templateVersionMutator) Resource() types.Resource {
 	})
 }
 
-func (m *templateVersionMutator) Create(request *types.Request, newObj runtime.Object) (types.PatchOps, error) {
+func (m *templateVersionMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
 	vmTemplVersion := newObj.(*v1beta1.VirtualMachineTemplateVersion)
 
 	templateID := vmTemplVersion.Spec.TemplateID

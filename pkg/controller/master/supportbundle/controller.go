@@ -36,7 +36,7 @@ type Handler struct {
 	manager *Manager
 }
 
-func (h *Handler) OnSupportBundleChanged(key string, sb *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {
+func (h *Handler) OnSupportBundleChanged(_ string, sb *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {
 	if sb == nil || sb.DeletionTimestamp != nil {
 		return sb, nil
 	}

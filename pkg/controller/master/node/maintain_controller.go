@@ -29,7 +29,7 @@ type maintainNodeHandler struct {
 }
 
 // MaintainRegister registers the node controller
-func MaintainRegister(ctx context.Context, management *config.Management, options config.Options) error {
+func MaintainRegister(ctx context.Context, management *config.Management, _ config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
 	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	maintainNodeHandler := &maintainNodeHandler{
@@ -44,7 +44,7 @@ func MaintainRegister(ctx context.Context, management *config.Management, option
 }
 
 // OnNodeChanged updates node maintenance status when all VMs are migrated
-func (h *maintainNodeHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.Node, error) {
+func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev1.Node, error) {
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
 	}

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	. "github.com/onsi/ginkgo/v2"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -19,7 +18,6 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
-	. "github.com/harvester/harvester/tests/framework/dsl"
 	"github.com/harvester/harvester/tests/framework/env"
 	"github.com/harvester/harvester/tests/framework/fuzz"
 	"github.com/harvester/harvester/tests/framework/helper"

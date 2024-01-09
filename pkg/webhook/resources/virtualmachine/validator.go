@@ -66,7 +66,7 @@ func (v *vmValidator) Resource() types.Resource {
 	}
 }
 
-func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) error {
+func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	vm := newObj.(*kubevirtv1.VirtualMachine)
 	if vm == nil {
 		return nil
@@ -78,7 +78,7 @@ func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) erro
 	return nil
 }
 
-func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	newVM := newObj.(*kubevirtv1.VirtualMachine)
 	if newVM == nil {
 		return nil

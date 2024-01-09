@@ -14,13 +14,13 @@ type Handler struct {
 	settingsCache ctlharvesterv1.SettingCache
 }
 
-func NewUIInfoHandler(scaled *config.Scaled, option config.Options) *Handler {
+func NewUIInfoHandler(scaled *config.Scaled, _ config.Options) *Handler {
 	return &Handler{
 		settingsCache: scaled.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 	}
 }
 
-func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (h *Handler) ServeHTTP(rw http.ResponseWriter, _ *http.Request) {
 	uiSource := settings.UISource.Get()
 	if uiSource == "auto" {
 		if !settings.IsRelease() {

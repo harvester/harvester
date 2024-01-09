@@ -3,20 +3,20 @@ package controllers
 import (
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/harvester/harvester/pkg/util/drainhelper"
-	. "github.com/harvester/harvester/tests/framework/dsl"
+	"github.com/harvester/harvester/tests/framework/dsl"
 )
 
-var _ = Describe("verify node drain apis", func() {
+var _ = ginkgo.Describe("verify node drain apis", func() {
 	var node corev1.Node
 
-	BeforeEach(func() {
-		Eventually(func() error {
+	ginkgo.BeforeEach(func() {
+		gomega.Eventually(func() error {
 			nodeList, err := scaled.CoreFactory.Core().V1().Node().List(metav1.ListOptions{})
 			if err != nil {
 				return err
@@ -29,16 +29,16 @@ var _ = Describe("verify node drain apis", func() {
 				}
 			}
 			return fmt.Errorf("no worker node found in cluster")
-		}).ShouldNot(HaveOccurred())
+		}).ShouldNot(gomega.HaveOccurred())
 	})
 
-	It("drain node using drainhelper", func() {
-		By("draining nodes", func() {
+	ginkgo.It("drain node using drainhelper", func() {
+		ginkgo.By("draining nodes", func() {
 			err := drainhelper.DrainNode(testCtx, cfg, &node)
-			MustNotError(err)
+			dsl.MustNotError(err)
 		})
 
-		Eventually(func() error {
+		gomega.Eventually(func() error {
 			nodeObj, err := scaled.CoreFactory.Core().V1().Node().Get(node.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
@@ -58,7 +58,7 @@ var _ = Describe("verify node drain apis", func() {
 			}
 
 			return fmt.Errorf("expected to find taint for no schedule")
-		}, "30s", "5s").ShouldNot(HaveOccurred())
+		}, "30s", "5s").ShouldNot(gomega.HaveOccurred())
 
 	})
 })

@@ -39,7 +39,7 @@ type nodeVolumeDetachController struct {
 }
 
 // VolumeDetachRegister registers the node volume detach controller
-func VolumeDetachRegister(ctx context.Context, management *config.Management, options config.Options) error {
+func VolumeDetachRegister(ctx context.Context, management *config.Management, _ config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
 	pods := management.CoreFactory.Core().V1().Pod()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
@@ -62,7 +62,7 @@ func VolumeDetachRegister(ctx context.Context, management *config.Management, op
 }
 
 // OnNodeChanged is called when a node is changed
-func (c *nodeVolumeDetachController) OnNodeChanged(key string, node *corev1.Node) (*corev1.Node, error) {
+func (c *nodeVolumeDetachController) OnNodeChanged(_ string, node *corev1.Node) (*corev1.Node, error) {
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
 	}

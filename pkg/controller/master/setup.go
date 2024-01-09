@@ -62,7 +62,7 @@ func register(ctx context.Context, management *config.Management, options config
 	return nil
 }
 
-func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
+func Setup(ctx context.Context, _ *server.Server, controllers *server.Controllers, options config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
 
 	go leader.RunOrDie(ctx, "", "harvester-controllers", controllers.K8s, func(ctx context.Context) {

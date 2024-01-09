@@ -12,7 +12,7 @@ import (
 )
 
 // MonitorAddonRancherMonitoring will track status change of rancher-monitroing addon
-func (h *Handler) MonitorAddonRancherMonitoring(key string, aObj *harvesterv1.Addon) (*harvesterv1.Addon, error) {
+func (h *Handler) MonitorAddonRancherMonitoring(_ string, aObj *harvesterv1.Addon) (*harvesterv1.Addon, error) {
 	if aObj == nil || aObj.DeletionTimestamp != nil {
 		return nil, nil
 	}

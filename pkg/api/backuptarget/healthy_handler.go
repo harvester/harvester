@@ -35,7 +35,7 @@ func NewHealthyHandler(scaled *config.Scaled) *HealthyHandler {
 	}
 }
 
-func (h *HealthyHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (h *HealthyHandler) ServeHTTP(rw http.ResponseWriter, _ *http.Request) {
 	backupTargetSetting, err := h.settingCache.Get(settings.BackupTargetSettingName)
 	if err != nil {
 		util.ResponseError(rw, http.StatusInternalServerError, fmt.Errorf("can't get %s setting, error: %w", settings.BackupTargetSettingName, err))

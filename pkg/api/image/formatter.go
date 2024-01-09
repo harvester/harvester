@@ -136,7 +136,7 @@ func (h Handler) downloadImage(rw http.ResponseWriter, req *http.Request) error 
 	return nil
 }
 
-func (h Handler) uploadImage(rw http.ResponseWriter, req *http.Request) error {
+func (h Handler) uploadImage(_ http.ResponseWriter, req *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(req))
 	namespace := vars["namespace"]
 	name := vars["name"]

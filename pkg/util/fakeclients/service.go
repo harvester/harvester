@@ -22,7 +22,7 @@ func (c ServiceClient) Update(service *corev1.Service) (*corev1.Service, error) 
 	return c(service.Namespace).Update(context.TODO(), service, metav1.UpdateOptions{})
 }
 
-func (c ServiceClient) UpdateStatus(service *corev1.Service) (*corev1.Service, error) {
+func (c ServiceClient) UpdateStatus(*corev1.Service) (*corev1.Service, error) {
 	panic("implement me")
 }
 
@@ -52,14 +52,14 @@ func (c ServiceCache) Get(namespace, name string) (*corev1.Service, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c ServiceCache) List(namespace string, selector labels.Selector) ([]*corev1.Service, error) {
+func (c ServiceCache) List(_ string, _ labels.Selector) ([]*corev1.Service, error) {
 	panic("implement me")
 }
 
-func (c ServiceCache) AddIndexer(indexName string, indexer ctlv1.ServiceIndexer) {
+func (c ServiceCache) AddIndexer(_ string, _ ctlv1.ServiceIndexer) {
 	panic("implement me")
 }
 
-func (c ServiceCache) GetByIndex(indexName, key string) ([]*corev1.Service, error) {
+func (c ServiceCache) GetByIndex(_, _ string) ([]*corev1.Service, error) {
 	panic("implement me")
 }

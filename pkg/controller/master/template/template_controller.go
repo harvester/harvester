@@ -16,7 +16,7 @@ type templateHandler struct {
 	templateController   ctlharvesterv1.VirtualMachineTemplateController
 }
 
-func (h *templateHandler) OnChanged(key string, tp *harvesterv1.VirtualMachineTemplate) (*harvesterv1.VirtualMachineTemplate, error) {
+func (h *templateHandler) OnChanged(_ string, tp *harvesterv1.VirtualMachineTemplate) (*harvesterv1.VirtualMachineTemplate, error) {
 	if tp == nil || tp.DeletionTimestamp != nil {
 		return tp, nil
 	}

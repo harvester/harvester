@@ -143,7 +143,7 @@ func (v *virtualMachineImageValidator) CheckImagePVC(request *types.Request, new
 	return nil
 }
 
-func (v *virtualMachineImageValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *virtualMachineImageValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	newImage := newObj.(*v1beta1.VirtualMachineImage)
 	oldImage := oldObj.(*v1beta1.VirtualMachineImage)
 
@@ -175,7 +175,7 @@ func (v *virtualMachineImageValidator) Update(request *types.Request, oldObj run
 	return v.CheckImageDisplayNameAndURL(newImage)
 }
 
-func (v *virtualMachineImageValidator) Delete(request *types.Request, oldObj runtime.Object) error {
+func (v *virtualMachineImageValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
 	image := oldObj.(*v1beta1.VirtualMachineImage)
 
 	if image.Status.StorageClassName == "" {

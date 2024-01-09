@@ -16,12 +16,12 @@ type VersionCache func(string) harv1type.VersionInterface
 func (c VersionCache) Get(namespace, name string) (*harvesterv1.Version, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
-func (c VersionCache) List(namespace string, selector labels.Selector) ([]*harvesterv1.Version, error) {
+func (c VersionCache) List(_ string, _ labels.Selector) ([]*harvesterv1.Version, error) {
 	panic("implement me")
 }
-func (c VersionCache) AddIndexer(indexName string, indexer ctlharvesterv1.VersionIndexer) {
+func (c VersionCache) AddIndexer(_ string, _ ctlharvesterv1.VersionIndexer) {
 	panic("implement me")
 }
-func (c VersionCache) GetByIndex(indexName, key string) ([]*harvesterv1.Version, error) {
+func (c VersionCache) GetByIndex(_, _ string) ([]*harvesterv1.Version, error) {
 	panic("implement me")
 }

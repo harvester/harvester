@@ -30,7 +30,7 @@ type templateVersionHandler struct {
 	mu                 sync.RWMutex //use mutex to avoid create duplicated version
 }
 
-func (h *templateVersionHandler) OnChanged(key string, tv *harvesterv1.VirtualMachineTemplateVersion) (*harvesterv1.VirtualMachineTemplateVersion, error) {
+func (h *templateVersionHandler) OnChanged(_ string, tv *harvesterv1.VirtualMachineTemplateVersion) (*harvesterv1.VirtualMachineTemplateVersion, error) {
 	if tv == nil || tv.DeletionTimestamp != nil {
 		return nil, nil
 	}

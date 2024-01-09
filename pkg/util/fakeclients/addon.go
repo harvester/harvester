@@ -27,9 +27,9 @@ func (c AddonCache) List(namespace string, selector labels.Selector) ([]*harvest
 	}
 	return result, err
 }
-func (c AddonCache) AddIndexer(indexName string, indexer ctlharvesterv1.AddonIndexer) {
+func (c AddonCache) AddIndexer(_ string, _ ctlharvesterv1.AddonIndexer) {
 	panic("implement me")
 }
-func (c AddonCache) GetByIndex(indexName, key string) ([]*harvesterv1.Addon, error) {
+func (c AddonCache) GetByIndex(_, _ string) ([]*harvesterv1.Addon, error) {
 	panic("implement me")
 }
