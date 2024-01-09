@@ -576,7 +576,7 @@ func newAddonBuilder(name string) *addonBuilder {
 	}
 }
 
-func (p *addonBuilder) Enable(value bool) *addonBuilder {
+func (p *addonBuilder) Enable(_ bool) *addonBuilder {
 	p.addon.Spec.Enabled = true
 	return p
 }

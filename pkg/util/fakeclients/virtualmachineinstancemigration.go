@@ -33,11 +33,11 @@ func (c VirtualMachineInstanceMigrationCache) List(namespace string, selector la
 	return result, err
 }
 
-func (c VirtualMachineInstanceMigrationCache) AddIndexer(indexName string, indexer kubevirtctrl.VirtualMachineInstanceMigrationIndexer) {
+func (c VirtualMachineInstanceMigrationCache) AddIndexer(_ string, _ kubevirtctrl.VirtualMachineInstanceMigrationIndexer) {
 	panic("implement me")
 }
 
-func (c VirtualMachineInstanceMigrationCache) GetByIndex(indexName, key string) ([]*kubevirtv1.VirtualMachineInstanceMigration, error) {
+func (c VirtualMachineInstanceMigrationCache) GetByIndex(_, _ string) ([]*kubevirtv1.VirtualMachineInstanceMigration, error) {
 	panic("implement me")
 }
 

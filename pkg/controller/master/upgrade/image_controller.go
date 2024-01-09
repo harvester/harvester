@@ -17,7 +17,7 @@ type vmImageHandler struct {
 	upgradeCache  ctlharvesterv1.UpgradeCache
 }
 
-func (h *vmImageHandler) OnChanged(key string, image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
+func (h *vmImageHandler) OnChanged(_ string, image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	if image == nil || image.DeletionTimestamp != nil || image.Labels == nil || image.Namespace != upgradeNamespace || image.Labels[harvesterUpgradeLabel] == "" {
 		return image, nil
 	}

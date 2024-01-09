@@ -19,24 +19,24 @@ func (c PlanClient) Update(plan *upgradeapiv1.Plan) (*upgradeapiv1.Plan, error) 
 	return c(plan.Namespace).Update(context.TODO(), plan, metav1.UpdateOptions{})
 }
 func (c PlanClient) Get(namespace, name string, options metav1.GetOptions) (*upgradeapiv1.Plan, error) {
-	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	return c(namespace).Get(context.TODO(), name, options)
 }
 func (c PlanClient) Create(plan *upgradeapiv1.Plan) (*upgradeapiv1.Plan, error) {
 	return c(plan.Namespace).Create(context.TODO(), plan, metav1.CreateOptions{})
 }
-func (c PlanClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+func (c PlanClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
-func (c PlanClient) List(namespace string, opts metav1.ListOptions) (*upgradeapiv1.PlanList, error) {
+func (c PlanClient) List(_ string, _ metav1.ListOptions) (*upgradeapiv1.PlanList, error) {
 	panic("implement me")
 }
 func (c PlanClient) UpdateStatus(*upgradeapiv1.Plan) (*upgradeapiv1.Plan, error) {
 	panic("implement me")
 }
-func (c PlanClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c PlanClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
-func (c PlanClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *upgradeapiv1.Plan, err error) {
+func (c PlanClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *upgradeapiv1.Plan, err error) {
 	panic("implement me")
 }
 
@@ -46,14 +46,14 @@ func (c PlanCache) Get(namespace, name string) (*upgradeapiv1.Plan, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c PlanCache) List(namespace string, selector labels.Selector) ([]*upgradeapiv1.Plan, error) {
+func (c PlanCache) List(_ string, _ labels.Selector) ([]*upgradeapiv1.Plan, error) {
 	panic("implement me")
 }
 
-func (c PlanCache) AddIndexer(indexName string, indexer upgradectlv1.PlanIndexer) {
+func (c PlanCache) AddIndexer(_ string, _ upgradectlv1.PlanIndexer) {
 	panic("implement me")
 }
 
-func (c PlanCache) GetByIndex(indexName, key string) ([]*upgradeapiv1.Plan, error) {
+func (c PlanCache) GetByIndex(_, _ string) ([]*upgradeapiv1.Plan, error) {
 	panic("implement me")
 }

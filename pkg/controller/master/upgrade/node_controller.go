@@ -29,7 +29,7 @@ type nodeHandler struct {
 	secretClient  ctlcorev1.SecretClient
 }
 
-func (h *nodeHandler) OnChanged(key string, node *corev1.Node) (*corev1.Node, error) {
+func (h *nodeHandler) OnChanged(_ string, node *corev1.Node) (*corev1.Node, error) {
 	if node == nil || node.DeletionTimestamp != nil || node.Annotations == nil {
 		return node, nil
 	}

@@ -4,11 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"k8s.io/client-go/rest"
-
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/settings"
-	"github.com/harvester/harvester/tests/framework/cluster"
 	"github.com/harvester/harvester/tests/framework/fuzz"
 )
 
@@ -46,7 +43,7 @@ var (
 )
 
 // SetConfig configures the public variables exported in github.com/harvester/harvester/pkg/config package.
-func SetConfig(kubeConfig *rest.Config, testCluster cluster.Cluster) (config.Options, error) {
+func SetConfig() (config.Options, error) {
 	var options config.Options
 
 	// generate two random ports

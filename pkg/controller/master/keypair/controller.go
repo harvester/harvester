@@ -14,7 +14,7 @@ type Handler struct {
 	keyPairClient ctlharvesterv1.KeyPairClient
 }
 
-func (h *Handler) OnKeyPairChanged(key string, keyPair *harvesterv1.KeyPair) (*harvesterv1.KeyPair, error) {
+func (h *Handler) OnKeyPairChanged(_ string, keyPair *harvesterv1.KeyPair) (*harvesterv1.KeyPair, error) {
 	if keyPair == nil || keyPair.DeletionTimestamp != nil {
 		return keyPair, nil
 	}

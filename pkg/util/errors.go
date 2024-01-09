@@ -51,7 +51,6 @@ func IsRetriableNetworkError(err error) bool {
 		return true
 	} else if errors.Is(err, syscall.EHOSTUNREACH) {
 		return true
-	} else {
-		return false
 	}
+	return false
 }

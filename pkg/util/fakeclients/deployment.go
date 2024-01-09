@@ -17,7 +17,7 @@ func (c DeploymentClient) Update(deployment *appsv1.Deployment) (*appsv1.Deploym
 }
 
 func (c DeploymentClient) Get(namespace, name string, options metav1.GetOptions) (*appsv1.Deployment, error) {
-	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	return c(namespace).Get(context.TODO(), name, options)
 }
 
 func (c DeploymentClient) Create(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
@@ -28,18 +28,18 @@ func (c DeploymentClient) UpdateStatus(*appsv1.Deployment) (*appsv1.Deployment, 
 	panic("implement me")
 }
 
-func (c DeploymentClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+func (c DeploymentClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
 
-func (c DeploymentClient) List(namespace string, opts metav1.ListOptions) (*appsv1.DeploymentList, error) {
+func (c DeploymentClient) List(_ string, _ metav1.ListOptions) (*appsv1.DeploymentList, error) {
 	panic("implement me")
 }
 
-func (c DeploymentClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c DeploymentClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
 
-func (c DeploymentClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *appsv1.Deployment, err error) {
+func (c DeploymentClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *appsv1.Deployment, err error) {
 	panic("implement me")
 }

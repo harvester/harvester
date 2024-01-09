@@ -16,7 +16,7 @@ type vmImageHandler struct {
 	templateVersionController ctlharvesterv1.VirtualMachineTemplateVersionController
 }
 
-func (h *vmImageHandler) OnChanged(key string, vmImage *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
+func (h *vmImageHandler) OnChanged(_ string, vmImage *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	if vmImage == nil || vmImage.DeletionTimestamp != nil {
 		return nil, nil
 	}

@@ -23,7 +23,7 @@ func (c LonghornReplicaClient) Update(replica *lhv1beta2.Replica) (*lhv1beta2.Re
 	return c(replica.Namespace).Update(context.TODO(), replica, metav1.UpdateOptions{})
 }
 
-func (c LonghornReplicaClient) UpdateStatus(replica *lhv1beta2.Replica) (*lhv1beta2.Replica, error) {
+func (c LonghornReplicaClient) UpdateStatus(_ *lhv1beta2.Replica) (*lhv1beta2.Replica, error) {
 	panic("implement me")
 }
 
@@ -68,10 +68,10 @@ func (c LonghornReplicaCache) List(namespace string, selector labels.Selector) (
 	return returnReplicas, nil
 }
 
-func (c LonghornReplicaCache) AddIndexer(indexName string, indexer ctllhv1.ReplicaIndexer) {
+func (c LonghornReplicaCache) AddIndexer(_ string, _ ctllhv1.ReplicaIndexer) {
 	panic("implement me")
 }
 
-func (c LonghornReplicaCache) GetByIndex(indexName, key string) ([]*lhv1beta2.Replica, error) {
+func (c LonghornReplicaCache) GetByIndex(_, _ string) ([]*lhv1beta2.Replica, error) {
 	panic("implement me")
 }

@@ -103,7 +103,7 @@ type RestoreHandler struct {
 	restClient *rest.RESTClient
 }
 
-func RegisterRestore(ctx context.Context, management *config.Management, opts config.Options) error {
+func RegisterRestore(ctx context.Context, management *config.Management, _ config.Options) error {
 	restores := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore()
 	backups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
@@ -163,7 +163,7 @@ func RegisterRestore(ctx context.Context, management *config.Management, opts co
 
 // RestoreOnChanged handles vmRestore CRD object on change, it will help to create the new PVCs and either replace them
 // with existing VM or used for the new VM.
-func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
+func (h *RestoreHandler) RestoreOnChanged(_ string, restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
 	if restore == nil || restore.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -202,7 +202,7 @@ func (h *RestoreHandler) RestoreOnChanged(key string, restore *harvesterv1.Virtu
 // Since we would like to prevent LH Backups from being removed when users delete the VM,
 // we use Retain policy in VolumeSnapshotContent.
 // We need to delete VolumeSnapshotContent by restore controller, or there will have remaining VolumeSnapshotContent in the system.
-func (h *RestoreHandler) RestoreOnRemove(key string, restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
+func (h *RestoreHandler) RestoreOnRemove(_ string, restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
 	if restore == nil || restore.Status == nil {
 		return nil, nil
 	}
@@ -263,7 +263,7 @@ func getVolumeName(pvc *corev1.PersistentVolumeClaim) (string, error) {
 }
 
 // PersistentVolumeClaimOnChange watching the PVCs on change and enqueue the vmRestore if it has the restore annotation
-func (h *RestoreHandler) PersistentVolumeClaimOnChange(key string, pvc *corev1.PersistentVolumeClaim) (*corev1.PersistentVolumeClaim, error) {
+func (h *RestoreHandler) PersistentVolumeClaimOnChange(_ string, pvc *corev1.PersistentVolumeClaim) (*corev1.PersistentVolumeClaim, error) {
 	if pvc == nil || pvc.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -303,7 +303,7 @@ func (h *RestoreHandler) PersistentVolumeClaimOnChange(key string, pvc *corev1.P
 	return nil, nil
 }
 
-func (h *RestoreHandler) LHEngineOnChange(key string, lhEngine *lhv1beta2.Engine) (*lhv1beta2.Engine, error) {
+func (h *RestoreHandler) LHEngineOnChange(_ string, lhEngine *lhv1beta2.Engine) (*lhv1beta2.Engine, error) {
 	if lhEngine == nil || lhEngine.DeletionTimestamp != nil || len(lhEngine.Status.RestoreStatus) == 0 {
 		return nil, nil
 	}
@@ -361,7 +361,7 @@ func (h *RestoreHandler) LHEngineOnChange(key string, lhEngine *lhv1beta2.Engine
 }
 
 // VMOnChange watching the VM on change and enqueue the vmRestore if it has the restore annotation
-func (h *RestoreHandler) VMOnChange(key string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+func (h *RestoreHandler) VMOnChange(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp != nil {
 		return nil, nil
 	}

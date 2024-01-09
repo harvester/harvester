@@ -38,7 +38,7 @@ const (
 )
 
 // RegisterBackupTarget register the setting controller and reconsile longhorn setting when backup target changed
-func RegisterBackupTarget(ctx context.Context, management *config.Management, opts config.Options) error {
+func RegisterBackupTarget(ctx context.Context, management *config.Management, _ config.Options) error {
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
@@ -69,7 +69,7 @@ type TargetHandler struct {
 }
 
 // OnBackupTargetChange handles backupTarget setting object on change
-func (h *TargetHandler) OnBackupTargetChange(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil ||
 		setting.Name != settings.BackupTargetSettingName {
 		return setting, nil
@@ -247,7 +247,7 @@ func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) 
 		}
 	}
 
-	return h.updateLonghornBackupTargetSecretSetting(target)
+	return h.updateLonghornBackupTargetSecretSetting()
 }
 
 func (h *TargetHandler) resetBackupTargetSecret() error {
@@ -278,7 +278,7 @@ func (h *TargetHandler) resetBackupTargetSecret() error {
 	return nil
 }
 
-func (h *TargetHandler) updateLonghornBackupTargetSecretSetting(target *settings.BackupTarget) error {
+func (h *TargetHandler) updateLonghornBackupTargetSecretSetting() error {
 	targetSecret, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, longhornBackupTargetSecretSettingName)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {

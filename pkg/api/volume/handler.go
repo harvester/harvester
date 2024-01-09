@@ -58,7 +58,7 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
+func (h *ActionHandler) do(_ http.ResponseWriter, r *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(r))
 	action := vars["action"]
 	pvcName := vars["name"]
@@ -102,7 +102,7 @@ func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 	}
 }
 
-func (h *ActionHandler) exportVolume(ctx context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) error {
+func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) error {
 	vmImage := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "image-",
@@ -129,7 +129,7 @@ func (h *ActionHandler) exportVolume(ctx context.Context, imageNamespace, imageD
 	return nil
 }
 
-func (h *ActionHandler) cancelExpand(ctx context.Context, pvcNamespace, pvcName string) error {
+func (h *ActionHandler) cancelExpand(_ context.Context, pvcNamespace, pvcName string) error {
 	// get pvc
 	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
 	if err != nil {
@@ -236,7 +236,7 @@ func (h *ActionHandler) tryUpdatePV(pvName string, update func(pv *corev1.Persis
 	})
 }
 
-func (h *ActionHandler) clone(ctx context.Context, pvcNamespace, pvcName, newPVCName string) error {
+func (h *ActionHandler) clone(_ context.Context, pvcNamespace, pvcName, newPVCName string) error {
 	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
 	if err != nil {
 		return err
@@ -272,7 +272,7 @@ func (h *ActionHandler) clone(ctx context.Context, pvcNamespace, pvcName, newPVC
 	return nil
 }
 
-func (h *ActionHandler) snapshot(ctx context.Context, pvcNamespace, pvcName, snapshotName string) error {
+func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snapshotName string) error {
 	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
 	if err != nil {
 		return err
