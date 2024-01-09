@@ -44,7 +44,7 @@ type ControllerHandler struct {
 	context                      context.Context
 }
 
-func Register(ctx context.Context, management *config.Management, options config.Options) error {
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
 	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
@@ -68,7 +68,7 @@ func Register(ctx context.Context, management *config.Management, options config
 }
 
 // OnNodeChange handles reconcile logic for node drains
-func (ndc *ControllerHandler) OnNodeChange(key string, node *corev1.Node) (*corev1.Node, error) {
+func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1.Node, error) {
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
 	}

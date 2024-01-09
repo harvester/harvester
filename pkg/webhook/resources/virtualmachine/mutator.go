@@ -55,7 +55,7 @@ func (m *vmMutator) Resource() types.Resource {
 	}
 }
 
-func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types.PatchOps, error) {
+func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
 	vm := newObj.(*kubevirtv1.VirtualMachine)
 
 	logrus.Debugf("create VM %s/%s", vm.Namespace, vm.Name)
@@ -78,7 +78,7 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 	return patchOps, nil
 }
 
-func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
+func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
 	newVM := newObj.(*kubevirtv1.VirtualMachine)
 	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 

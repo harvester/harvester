@@ -20,18 +20,18 @@ func (c VirtualMachineInstanceClient) Update(vmi *kubevirtv1api.VirtualMachineIn
 }
 
 func (c VirtualMachineInstanceClient) Get(namespace, name string, options metav1.GetOptions) (*kubevirtv1api.VirtualMachineInstance, error) {
-	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	return c(namespace).Get(context.TODO(), name, options)
 }
 
 func (c VirtualMachineInstanceClient) Create(vmi *kubevirtv1api.VirtualMachineInstance) (*kubevirtv1api.VirtualMachineInstance, error) {
 	return c(vmi.Namespace).Create(context.TODO(), vmi, metav1.CreateOptions{})
 }
 
-func (c VirtualMachineInstanceClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+func (c VirtualMachineInstanceClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
 
-func (c VirtualMachineInstanceClient) List(namespace string, opts metav1.ListOptions) (*kubevirtv1api.VirtualMachineInstanceList, error) {
+func (c VirtualMachineInstanceClient) List(_ string, _ metav1.ListOptions) (*kubevirtv1api.VirtualMachineInstanceList, error) {
 	panic("implement me")
 }
 
@@ -39,11 +39,11 @@ func (c VirtualMachineInstanceClient) UpdateStatus(*kubevirtv1api.VirtualMachine
 	panic("implement me")
 }
 
-func (c VirtualMachineInstanceClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c VirtualMachineInstanceClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
 
-func (c VirtualMachineInstanceClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *kubevirtv1api.VirtualMachineInstance, err error) {
+func (c VirtualMachineInstanceClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *kubevirtv1api.VirtualMachineInstance, err error) {
 	panic("implement me")
 }
 
@@ -67,10 +67,10 @@ func (c VirtualMachineInstanceCache) List(namespace string, selector labels.Sele
 	return result, err
 }
 
-func (c VirtualMachineInstanceCache) AddIndexer(indexName string, indexer kubevirtctlv1.VirtualMachineInstanceIndexer) {
+func (c VirtualMachineInstanceCache) AddIndexer(_ string, _ kubevirtctlv1.VirtualMachineInstanceIndexer) {
 	panic("implement me")
 }
 
-func (c VirtualMachineInstanceCache) GetByIndex(indexName, key string) ([]*kubevirtv1api.VirtualMachineInstance, error) {
+func (c VirtualMachineInstanceCache) GetByIndex(_, _ string) ([]*kubevirtv1api.VirtualMachineInstance, error) {
 	panic("implement me")
 }

@@ -37,11 +37,11 @@ func (v *storageClassValidator) Resource() types.Resource {
 	}
 }
 
-func (v *storageClassValidator) Create(request *types.Request, newObj runtime.Object) error {
+func (v *storageClassValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	return v.validateSetUniqueDefault(newObj)
 }
 
-func (v *storageClassValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *storageClassValidator) Update(_ *types.Request, _ runtime.Object, newObj runtime.Object) error {
 	return v.validateSetUniqueDefault(newObj)
 }
 

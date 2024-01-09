@@ -10,18 +10,18 @@ type Mutator Admitter
 type DefaultMutator struct {
 }
 
-func (v *DefaultMutator) Create(request *Request, newObj runtime.Object) (PatchOps, error) {
+func (v *DefaultMutator) Create(_ *Request, _ runtime.Object) (PatchOps, error) {
 	return nil, nil
 }
 
-func (v *DefaultMutator) Update(request *Request, oldObj runtime.Object, newObj runtime.Object) (PatchOps, error) {
+func (v *DefaultMutator) Update(_ *Request, _ runtime.Object, _ runtime.Object) (PatchOps, error) {
 	return nil, nil
 }
 
-func (v *DefaultMutator) Delete(request *Request, oldObj runtime.Object) (PatchOps, error) {
+func (v *DefaultMutator) Delete(_ *Request, _ runtime.Object) (PatchOps, error) {
 	return nil, nil
 }
 
-func (v *DefaultMutator) Connect(request *Request, newObj runtime.Object) (PatchOps, error) {
+func (v *DefaultMutator) Connect(_ *Request, _ runtime.Object) (PatchOps, error) {
 	return nil, nil
 }

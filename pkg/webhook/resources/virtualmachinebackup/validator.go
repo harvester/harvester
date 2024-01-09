@@ -61,7 +61,7 @@ func (v *virtualMachineBackupValidator) Resource() types.Resource {
 	}
 }
 
-func (v *virtualMachineBackupValidator) Create(request *types.Request, newObj runtime.Object) error {
+func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newVMBackup := newObj.(*v1beta1.VirtualMachineBackup)
 
 	if newVMBackup.Spec.Source.Name == "" {
@@ -155,7 +155,7 @@ func (v *virtualMachineBackupValidator) checkBackupTarget() error {
 	return nil
 }
 
-func (v *virtualMachineBackupValidator) Delete(request *types.Request, obj runtime.Object) error {
+func (v *virtualMachineBackupValidator) Delete(_ *types.Request, obj runtime.Object) error {
 	vmBackup := obj.(*v1beta1.VirtualMachineBackup)
 
 	vmRestores, err := v.vmrestores.GetByIndex(indexeres.VMRestoreByVMBackupNamespaceAndName, fmt.Sprintf("%s-%s", vmBackup.Namespace, vmBackup.Name))

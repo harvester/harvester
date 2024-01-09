@@ -104,7 +104,7 @@ func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) e
 	return nil
 }
 
-func (h *Handler) updateVolumeSnapshotChanged(key string, snapshot *snapshotv1.VolumeSnapshot) (*snapshotv1.VolumeSnapshot, error) {
+func (h *Handler) updateVolumeSnapshotChanged(_ string, snapshot *snapshotv1.VolumeSnapshot) (*snapshotv1.VolumeSnapshot, error) {
 	if snapshot == nil || snapshot.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -188,7 +188,7 @@ func getVolumeSnapshotContentName(volumeBackup harvesterv1.VolumeBackup) string 
 	return fmt.Sprintf("%s-vsc", *volumeBackup.Name)
 }
 
-func (h *Handler) OnLHBackupChanged(key string, lhBackup *lhv1beta2.Backup) (*lhv1beta2.Backup, error) {
+func (h *Handler) OnLHBackupChanged(_ string, lhBackup *lhv1beta2.Backup) (*lhv1beta2.Backup, error) {
 	if lhBackup == nil || lhBackup.DeletionTimestamp != nil || lhBackup.Status.SnapshotName == "" {
 		return nil, nil
 	}

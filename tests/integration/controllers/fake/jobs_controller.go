@@ -28,7 +28,7 @@ type handler struct {
 	helm ctlhelmv1.HelmChartController
 }
 
-func RegisterFakeControllers(ctx context.Context, management *config.Management, opts config.Options) error {
+func RegisterFakeControllers(ctx context.Context, management *config.Management, _ config.Options) error {
 	jc := management.BatchFactory.Batch().V1().Job()
 	hc := management.HelmFactory.Helm().V1().HelmChart()
 	h := &handler{
@@ -41,7 +41,7 @@ func RegisterFakeControllers(ctx context.Context, management *config.Management,
 	return nil
 }
 
-func (h *handler) OnHelmChartChange(key string, hc *helmv1.HelmChart) (*helmv1.HelmChart, error) {
+func (h *handler) OnHelmChartChange(_ string, hc *helmv1.HelmChart) (*helmv1.HelmChart, error) {
 	if hc == nil || hc.DeletionTimestamp != nil {
 		return hc, nil
 	}
@@ -74,7 +74,7 @@ func (h *handler) OnHelmChartChange(key string, hc *helmv1.HelmChart) (*helmv1.H
 	return h.helm.Update(hcCopy)
 }
 
-func (h *handler) OnHelmChartDelete(key string, hc *helmv1.HelmChart) (*helmv1.HelmChart, error) {
+func (h *handler) OnHelmChartDelete(_ string, hc *helmv1.HelmChart) (*helmv1.HelmChart, error) {
 	if hc == nil || hc.DeletionTimestamp == nil {
 		return nil, nil
 	}

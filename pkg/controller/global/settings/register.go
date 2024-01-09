@@ -15,7 +15,7 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 )
 
-func Register(ctx context.Context, scaled *config.Scaled, server *server.Server, options config.Options) error {
+func Register(ctx context.Context, scaled *config.Scaled, _ *server.Server, _ config.Options) error {
 	sp := &settingsProvider{
 		context:        ctx,
 		settings:       scaled.HarvesterFactory.Harvesterhci().V1beta1().Setting(),

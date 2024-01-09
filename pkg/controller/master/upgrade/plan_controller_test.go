@@ -113,8 +113,10 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 		if tc.expected.plan != nil {
 			actual.plan, err = handler.planClient.Get(sucNamespace, tc.expected.plan.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
-			sanitizeStatus(&tc.expected.plan.Status)
+			expectedPlanStatus := tc.expected.plan.Status
+			sanitizeStatus(&expectedPlanStatus)
 			sanitizeStatus(&actual.plan.Status)
+			tc.expected.plan.Status = expectedPlanStatus
 		}
 
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)

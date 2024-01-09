@@ -2,12 +2,9 @@ package api_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
-
-	"github.com/onsi/ginkgo/v2"
 
 	"github.com/harvester/harvester/pkg/builder"
 )
@@ -119,15 +116,15 @@ func Exec(command string) error {
 	cmd := exec.Command("bash", "-c", command)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		ginkgo.GinkgoT().Errorf("failed to exec command %s, out: %s, err: %v", cmd, out, err)
+		GinkgoT().Errorf("failed to exec command %s, out: %s, err: %v", cmd, out, err)
 		return err
 	}
-	ginkgo.GinkgoT().Logf("exec command %s, out: %s", cmd, out)
+	GinkgoT().Logf("exec command %s, out: %s", cmd, out)
 	return nil
 }
 
 func CreateTmpFile(dir, pattern, content string, mode os.FileMode) (string, error) {
-	tmpFile, err := ioutil.TempFile(dir, pattern)
+	tmpFile, err := os.CreateTemp(dir, pattern)
 	if err != nil {
 		return "", err
 	}

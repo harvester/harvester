@@ -42,7 +42,7 @@ func (m *virtualMachineImageMutator) Resource() types.Resource {
 	}
 }
 
-func (m *virtualMachineImageMutator) Create(request *types.Request, newObj runtime.Object) (types.PatchOps, error) {
+func (m *virtualMachineImageMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
 	newImage := newObj.(*harvesterv1.VirtualMachineImage)
 
 	return m.patchImageStorageClassParams(newImage)

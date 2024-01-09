@@ -16,7 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
-func Formatter(request *types.APIRequest, resource *types.RawResource) {
+func Formatter(_ *types.APIRequest, resource *types.RawResource) {
 	resource.Actions = nil
 	delete(resource.Links, "update")
 }

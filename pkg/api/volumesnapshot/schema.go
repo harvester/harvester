@@ -15,7 +15,7 @@ const (
 	volumesnapshotSchemaID = "snapshot.storage.k8s.io.volumesnapshot"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
 	server.BaseSchemas.MustImportAndCustomize(RestoreSnapshotInput{}, nil)
 	actionHandler := ActionHandler{
 		pvcs:              scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),

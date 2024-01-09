@@ -26,7 +26,7 @@ type PowerActionInput struct {
 	Operation string `json:"operation"`
 }
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
 
 	dynamicClient, err := dynamic.NewForConfig(scaled.Management.RestConfig)
 	if err != nil {

@@ -23,7 +23,7 @@ func (c LonghornSettingClient) Update(setting *lhv1beta2.Setting) (*lhv1beta2.Se
 	return c(setting.Namespace).Update(context.TODO(), setting, metav1.UpdateOptions{})
 }
 
-func (c LonghornSettingClient) UpdateStatus(setting *lhv1beta2.Setting) (*lhv1beta2.Setting, error) {
+func (c LonghornSettingClient) UpdateStatus(_ *lhv1beta2.Setting) (*lhv1beta2.Setting, error) {
 	panic("implement me")
 }
 
@@ -53,14 +53,14 @@ func (c LonghornSettingCache) Get(namespace, name string) (*lhv1beta2.Setting, e
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c LonghornSettingCache) List(namespace string, selector labels.Selector) ([]*lhv1beta2.Setting, error) {
+func (c LonghornSettingCache) List(_ string, _ labels.Selector) ([]*lhv1beta2.Setting, error) {
 	panic("implement me")
 }
 
-func (c LonghornSettingCache) AddIndexer(indexName string, indexer ctllhv1.SettingIndexer) {
+func (c LonghornSettingCache) AddIndexer(_ string, _ ctllhv1.SettingIndexer) {
 	panic("implement me")
 }
 
-func (c LonghornSettingCache) GetByIndex(indexName, key string) ([]*lhv1beta2.Setting, error) {
+func (c LonghornSettingCache) GetByIndex(_, _ string) ([]*lhv1beta2.Setting, error) {
 	panic("implement me")
 }

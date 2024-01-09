@@ -3,8 +3,8 @@ package controllers
 import (
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	ctlcatalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,11 +12,11 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/mcmsettings"
 )
 
-var _ = Describe("verify cluster repos are patched", func() {
+var _ = ginkgo.Describe("verify cluster repos are patched", func() {
 	var harvestercharts, partnercharts *catalogv1.ClusterRepo
 	var clusterRepoController ctlcatalogv1.ClusterRepoController
 
-	BeforeEach(func() {
+	ginkgo.BeforeEach(func() {
 		harvestercharts = &catalogv1.ClusterRepo{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "harvester-charts",
@@ -32,21 +32,21 @@ var _ = Describe("verify cluster repos are patched", func() {
 		}
 
 		clusterRepoController = scaled.Management.CatalogFactory.Catalog().V1().ClusterRepo()
-		Eventually(func() error {
+		gomega.Eventually(func() error {
 			_, err := clusterRepoController.Create(harvestercharts)
 			return err
-		}, "30s", "5s").ShouldNot(HaveOccurred())
+		}, "30s", "5s").ShouldNot(gomega.HaveOccurred())
 
-		Eventually(func() error {
+		gomega.Eventually(func() error {
 			_, err := clusterRepoController.Create(partnercharts)
 			return err
-		}, "30s", "5s").ShouldNot(HaveOccurred())
+		}, "30s", "5s").ShouldNot(gomega.HaveOccurred())
 
 	})
 
-	It("verify cluster repo annotations", func() {
-		By("checking annotation on harvester-charts", func() {
-			Eventually(func() error {
+	ginkgo.It("verify cluster repo annotations", func() {
+		ginkgo.By("checking annotation on harvester-charts", func() {
+			gomega.Eventually(func() error {
 				obj, err := clusterRepoController.Get(harvestercharts.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
@@ -60,11 +60,11 @@ var _ = Describe("verify cluster repos are patched", func() {
 				}
 
 				return fmt.Errorf("waiting for hide key/value: %s/%s to be annotated on cluster repo", mcmsettings.HideClusterRepoKey, mcmsettings.HideClusterRepoValue)
-			}, "30s", "5s").ShouldNot(HaveOccurred())
+			}, "30s", "5s").ShouldNot(gomega.HaveOccurred())
 		})
 
-		By("checking annotation on rancher-partner-charts", func() {
-			Consistently(func() error {
+		ginkgo.By("checking annotation on rancher-partner-charts", func() {
+			gomega.Consistently(func() error {
 				obj, err := clusterRepoController.Get(partnercharts.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
@@ -79,17 +79,17 @@ var _ = Describe("verify cluster repos are patched", func() {
 				}
 
 				return fmt.Errorf("key/value %s/%s should not have been annotated on cluster repo", mcmsettings.HideClusterRepoKey, mcmsettings.HideClusterRepoValue)
-			}, "30s", "5s").ShouldNot(HaveOccurred())
+			}, "30s", "5s").ShouldNot(gomega.HaveOccurred())
 		})
 	})
-	AfterEach(func() {
-		Eventually(func() error {
+	ginkgo.AfterEach(func() {
+		gomega.Eventually(func() error {
 			return clusterRepoController.Delete(harvestercharts.Name, &metav1.DeleteOptions{})
-		}, "30s", "5s").ShouldNot(HaveOccurred())
+		}, "30s", "5s").ShouldNot(gomega.HaveOccurred())
 
-		Eventually(func() error {
+		gomega.Eventually(func() error {
 			return clusterRepoController.Delete(partnercharts.Name, &metav1.DeleteOptions{})
-		}, "30s", "5s").ShouldNot(HaveOccurred())
+		}, "30s", "5s").ShouldNot(gomega.HaveOccurred())
 	})
 
 })

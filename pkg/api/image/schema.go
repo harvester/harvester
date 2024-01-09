@@ -11,7 +11,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
 	imgHandler := Handler{
 		httpClient:                  http.Client{},
 		Images:                      scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
