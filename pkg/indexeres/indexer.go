@@ -31,7 +31,7 @@ const (
 	VolumeSnapshotBySourcePVCIndex     = "harvesterhci.io/volumesnapshot-by-source-pvc"
 )
 
-func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
+func Setup(ctx context.Context, _ *server.Server, _ *server.Controllers, _ config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
 	management := scaled.Management
 

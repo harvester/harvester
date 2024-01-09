@@ -25,7 +25,7 @@ type mcmSettingsHandler struct {
 	configMapClient       ctlcorev1.ConfigMapClient
 }
 
-func Register(ctx context.Context, management *config.Management, options config.Options) error {
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	rancherSettingController := management.RancherManagementFactory.Management().V3().Setting()
 	clusterRepoController := management.CatalogFactory.Catalog().V1().ClusterRepo()
 	configMapController := management.CoreFactory.Core().V1().ConfigMap()

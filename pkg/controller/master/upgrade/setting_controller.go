@@ -11,7 +11,7 @@ type settingHandler struct {
 	versionSyncer *versionSyncer
 }
 
-func (h *settingHandler) OnChanged(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+func (h *settingHandler) OnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != "server-version" {
 		return setting, nil
 	}

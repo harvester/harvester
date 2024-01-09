@@ -302,4 +302,4 @@ func ResourcePath(resource string, namespaced bool) string {
 	return fmt.Sprintf("/%s/{name:[a-z0-9][a-z0-9\\-]*}", resource)
 }
 
-func Noop(request *restful.Request, response *restful.Response) {}
+func Noop(*restful.Request, *restful.Response) {}

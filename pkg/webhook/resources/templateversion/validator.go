@@ -45,7 +45,7 @@ func (v *templateVersionValidator) Resource() types.Resource {
 	})
 }
 
-func (v *templateVersionValidator) Create(request *types.Request, newObj runtime.Object) error {
+func (v *templateVersionValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	vmTemplVersion := newObj.(*v1beta1.VirtualMachineTemplateVersion)
 
 	templateID := vmTemplVersion.Spec.TemplateID
@@ -92,7 +92,7 @@ func (v *templateVersionValidator) Create(request *types.Request, newObj runtime
 	return nil
 }
 
-func (v *templateVersionValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *templateVersionValidator) Update(request *types.Request, _ runtime.Object, _ runtime.Object) error {
 	if request.IsFromController() {
 		return nil
 	}

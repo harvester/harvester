@@ -139,7 +139,7 @@ func (f *Factory) CreateCRDs(ctx context.Context, updateIfExisted bool, crds ...
 	return crdStatus, nil
 }
 
-func (f *Factory) createCRD(ctx context.Context, crdDef crd.CRD, ready map[string]*apiext.CustomResourceDefinition) (*apiext.CustomResourceDefinition, error) {
+func (f *Factory) createCRD(ctx context.Context, crdDef crd.CRD, _ map[string]*apiext.CustomResourceDefinition) (*apiext.CustomResourceDefinition, error) {
 	crd, err := crdDef.ToCustomResourceDefinition()
 	if err != nil {
 		return nil, err

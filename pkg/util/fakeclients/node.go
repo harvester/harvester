@@ -33,11 +33,11 @@ func (c NodeCache) List(selector labels.Selector) ([]*v1.Node, error) {
 	return result, err
 }
 
-func (c NodeCache) AddIndexer(indexName string, indexer ctlcorev1.NodeIndexer) {
+func (c NodeCache) AddIndexer(_ string, _ ctlcorev1.NodeIndexer) {
 	panic("implement me")
 }
 
-func (c NodeCache) GetByIndex(indexName, key string) ([]*v1.Node, error) {
+func (c NodeCache) GetByIndex(_, _ string) ([]*v1.Node, error) {
 	panic("implement me")
 }
 
@@ -48,18 +48,18 @@ func (c NodeClient) Update(node *v1.Node) (*v1.Node, error) {
 }
 
 func (c NodeClient) Get(name string, options metav1.GetOptions) (*v1.Node, error) {
-	return c().Get(context.TODO(), name, metav1.GetOptions{})
+	return c().Get(context.TODO(), name, options)
 }
 
 func (c NodeClient) Create(node *v1.Node) (*v1.Node, error) {
 	return c().Create(context.TODO(), node, metav1.CreateOptions{})
 }
 
-func (c NodeClient) Delete(name string, options *metav1.DeleteOptions) error {
+func (c NodeClient) Delete(_ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
 
-func (c NodeClient) List(opts metav1.ListOptions) (*v1.NodeList, error) {
+func (c NodeClient) List(metav1.ListOptions) (*v1.NodeList, error) {
 	panic("implement me")
 }
 
@@ -67,10 +67,10 @@ func (c NodeClient) UpdateStatus(*v1.Node) (*v1.Node, error) {
 	panic("implement me")
 }
 
-func (c NodeClient) Watch(pts metav1.ListOptions) (watch.Interface, error) {
+func (c NodeClient) Watch(metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
 
-func (c NodeClient) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.Node, err error) {
+func (c NodeClient) Patch(_ string, _ types.PatchType, _ []byte, _ ...string) (result *v1.Node, err error) {
 	panic("implement me")
 }

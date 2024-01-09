@@ -21,7 +21,7 @@ const (
 	oldWranglerFinalizer                                         = "wrangler.cattle.io/VMController.UnsetOwnerOfPVCs"
 )
 
-func Register(ctx context.Context, management *config.Management, options config.Options) error {
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	var (
 		nsCache        = management.CoreFactory.Core().V1().Namespace().Cache()
 		podCache       = management.CoreFactory.Core().V1().Pod().Cache()

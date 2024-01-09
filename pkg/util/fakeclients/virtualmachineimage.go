@@ -21,7 +21,7 @@ func (c VirtualMachineImageClient) Update(virtualMachineImage *harvesterv1.Virtu
 	return c(virtualMachineImage.Namespace).Update(context.TODO(), virtualMachineImage, metav1.UpdateOptions{})
 }
 func (c VirtualMachineImageClient) Get(namespace, name string, options metav1.GetOptions) (*harvesterv1.VirtualMachineImage, error) {
-	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	return c(namespace).Get(context.TODO(), name, options)
 }
 func (c VirtualMachineImageClient) Create(virtualMachineImage *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	if virtualMachineImage.GenerateName != "" {
@@ -29,19 +29,19 @@ func (c VirtualMachineImageClient) Create(virtualMachineImage *harvesterv1.Virtu
 	}
 	return c(virtualMachineImage.Namespace).Create(context.TODO(), virtualMachineImage, metav1.CreateOptions{})
 }
-func (c VirtualMachineImageClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+func (c VirtualMachineImageClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
-func (c VirtualMachineImageClient) List(namespace string, opts metav1.ListOptions) (*harvesterv1.VirtualMachineImageList, error) {
+func (c VirtualMachineImageClient) List(_ string, _ metav1.ListOptions) (*harvesterv1.VirtualMachineImageList, error) {
 	panic("implement me")
 }
 func (c VirtualMachineImageClient) UpdateStatus(*harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	panic("implement me")
 }
-func (c VirtualMachineImageClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c VirtualMachineImageClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
-func (c VirtualMachineImageClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterv1.VirtualMachineImage, err error) {
+func (c VirtualMachineImageClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *harvesterv1.VirtualMachineImage, err error) {
 	panic("implement me")
 }
 
@@ -61,9 +61,9 @@ func (c VirtualMachineImageCache) List(namespace string, selector labels.Selecto
 	}
 	return result, err
 }
-func (c VirtualMachineImageCache) AddIndexer(indexName string, indexer ctlharvesterv1.VirtualMachineImageIndexer) {
+func (c VirtualMachineImageCache) AddIndexer(_ string, _ ctlharvesterv1.VirtualMachineImageIndexer) {
 	panic("implement me")
 }
-func (c VirtualMachineImageCache) GetByIndex(indexName, key string) ([]*harvesterv1.VirtualMachineImage, error) {
+func (c VirtualMachineImageCache) GetByIndex(_, _ string) ([]*harvesterv1.VirtualMachineImage, error) {
 	panic("implement me")
 }

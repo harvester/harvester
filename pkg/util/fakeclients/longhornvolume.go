@@ -23,7 +23,7 @@ func (c LonghornVolumeClient) Update(volume *lhv1beta2.Volume) (*lhv1beta2.Volum
 	return c(volume.Namespace).Update(context.TODO(), volume, metav1.UpdateOptions{})
 }
 
-func (c LonghornVolumeClient) UpdateStatus(volume *lhv1beta2.Volume) (*lhv1beta2.Volume, error) {
+func (c LonghornVolumeClient) UpdateStatus(*lhv1beta2.Volume) (*lhv1beta2.Volume, error) {
 	panic("implement me")
 }
 
@@ -68,10 +68,10 @@ func (c LonghornVolumeCache) List(namespace string, selector labels.Selector) ([
 	return returnVolumes, nil
 }
 
-func (c LonghornVolumeCache) AddIndexer(indexName string, indexer ctllhv1.VolumeIndexer) {
+func (c LonghornVolumeCache) AddIndexer(_ string, _ ctllhv1.VolumeIndexer) {
 	panic("implement me")
 }
 
-func (c LonghornVolumeCache) GetByIndex(indexName, key string) ([]*lhv1beta2.Volume, error) {
+func (c LonghornVolumeCache) GetByIndex(_, _ string) ([]*lhv1beta2.Volume, error) {
 	panic("implement me")
 }

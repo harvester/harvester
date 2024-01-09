@@ -13,7 +13,7 @@ const (
 	templateVersionSchemaID = "harvesterhci.io.virtualmachinetemplateversion"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
 	templateVersionCache := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache()
 	th := &templateLinkHandler{
 		templateVersionCache: templateVersionCache,

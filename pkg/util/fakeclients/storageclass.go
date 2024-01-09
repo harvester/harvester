@@ -22,7 +22,7 @@ func (c StorageClassClient) Update(s *storagev1.StorageClass) (*storagev1.Storag
 	return c().Update(context.TODO(), s, metav1.UpdateOptions{})
 }
 
-func (c StorageClassClient) UpdateStatus(s *storagev1.StorageClass) (*storagev1.StorageClass, error) {
+func (c StorageClassClient) UpdateStatus(_ *storagev1.StorageClass) (*storagev1.StorageClass, error) {
 	panic("implement me")
 }
 
@@ -64,10 +64,10 @@ func (c StorageClassCache) List(selector labels.Selector) ([]*storagev1.StorageC
 	return result, err
 }
 
-func (c StorageClassCache) AddIndexer(indexName string, indexer ctlstoragev1.StorageClassIndexer) {
+func (c StorageClassCache) AddIndexer(_ string, _ ctlstoragev1.StorageClassIndexer) {
 	panic("implement me")
 }
 
-func (c StorageClassCache) GetByIndex(indexName, key string) ([]*storagev1.StorageClass, error) {
+func (c StorageClassCache) GetByIndex(_, _ string) ([]*storagev1.StorageClass, error) {
 	panic("implement me")
 }

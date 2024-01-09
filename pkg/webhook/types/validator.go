@@ -54,18 +54,18 @@ func (c *ValidatorAdapter) Resource() Resource {
 type DefaultValidator struct {
 }
 
-func (v *DefaultValidator) Create(request *Request, newObj runtime.Object) error {
+func (v *DefaultValidator) Create(_ *Request, _ runtime.Object) error {
 	return nil
 }
 
-func (v *DefaultValidator) Update(request *Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *DefaultValidator) Update(_ *Request, _ runtime.Object, _ runtime.Object) error {
 	return nil
 }
 
-func (v *DefaultValidator) Delete(request *Request, oldObj runtime.Object) error {
+func (v *DefaultValidator) Delete(_ *Request, _ runtime.Object) error {
 	return nil
 }
 
-func (v *DefaultValidator) Connect(request *Request, newObj runtime.Object) error {
+func (v *DefaultValidator) Connect(_ *Request, _ runtime.Object) error {
 	return nil
 }

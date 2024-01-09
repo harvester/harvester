@@ -23,7 +23,7 @@ func (c HarvesterSettingClient) Update(s *v1beta1.Setting) (*v1beta1.Setting, er
 	return c().Update(context.TODO(), s, metav1.UpdateOptions{})
 }
 
-func (c HarvesterSettingClient) UpdateStatus(s *v1beta1.Setting) (*v1beta1.Setting, error) {
+func (c HarvesterSettingClient) UpdateStatus(_ *v1beta1.Setting) (*v1beta1.Setting, error) {
 	panic("implement me")
 }
 
@@ -53,14 +53,14 @@ func (c HarvesterSettingCache) Get(name string) (*v1beta1.Setting, error) {
 	return c().Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c HarvesterSettingCache) List(selector labels.Selector) ([]*v1beta1.Setting, error) {
+func (c HarvesterSettingCache) List(_ labels.Selector) ([]*v1beta1.Setting, error) {
 	panic("implement me")
 }
 
-func (c HarvesterSettingCache) AddIndexer(indexName string, indexer harvesterv1ctl.SettingIndexer) {
+func (c HarvesterSettingCache) AddIndexer(_ string, _ harvesterv1ctl.SettingIndexer) {
 	panic("implement me")
 }
 
-func (c HarvesterSettingCache) GetByIndex(indexName, key string) ([]*v1beta1.Setting, error) {
+func (c HarvesterSettingCache) GetByIndex(_, _ string) ([]*v1beta1.Setting, error) {
 	panic("implement me")
 }

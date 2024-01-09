@@ -30,7 +30,7 @@ type secretHandler struct {
 	machineCache  clusterv1ctl.MachineCache
 }
 
-func (h *secretHandler) OnChanged(key string, secret *v1.Secret) (*v1.Secret, error) {
+func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, error) {
 	if secret == nil || secret.DeletionTimestamp != nil || secret.Namespace != rancherPlanSecretNamespace || secret.Annotations == nil || secret.Type != rancherPlanSecretType {
 		return secret, nil
 	}
@@ -150,9 +150,8 @@ func checkEligibleToDrain(upgrade *harvesterv1.Upgrade, nodeName string) error {
 		}
 		if status.State == StateSucceeded || status.State == nodeStateImagesPreloaded {
 			continue
-		} else {
-			return fmt.Errorf("%s is in \"%s\" state so %s is not allowed to run any kind of job", name, status, nodeName)
 		}
+		return fmt.Errorf("%s is in \"%s\" state so %s is not allowed to run any kind of job", name, status, nodeName)
 	}
 	return nil
 }

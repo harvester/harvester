@@ -127,7 +127,8 @@ func createConfig() *common.Config {
 func addSummaryForMethods(swagger *spec.Swagger) {
 	t := reflect.TypeOf(new(spec.Operation))
 	for _, path := range swagger.Paths.Paths {
-		v := reflect.ValueOf(&path.PathItemProps).Elem()
+		pathItemProps := path.PathItemProps
+		v := reflect.ValueOf(&pathItemProps).Elem()
 		for j := 0; j < v.NumField(); j++ {
 			f := v.Field(j)
 			if t == f.Type() && !f.IsNil() {

@@ -111,7 +111,7 @@ type Handler struct {
 }
 
 // register the setting controller and reconsile longhorn setting when storage network changed
-func Register(ctx context.Context, management *config.Management, opts config.Options) error {
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	longhornVolumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
@@ -166,7 +166,7 @@ func (h *Handler) setConfiguredCondition(setting *harvesterv1.Setting, finish bo
 }
 
 // webhook needs check if VMs are off
-func (h *Handler) OnStorageNetworkChange(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+func (h *Handler) OnStorageNetworkChange(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != settings.StorageNetworkName {
 		return setting, nil
 	}

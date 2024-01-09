@@ -12,7 +12,7 @@ const (
 	controllerAgentName = "supportbundle-controller"
 )
 
-func Register(ctx context.Context, management *config.Management, options config.Options) error {
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	sbs := management.HarvesterFactory.Harvesterhci().V1beta1().SupportBundle()
 	nodeCache := management.CoreFactory.Core().V1().Node().Cache()
 	podCache := management.CoreFactory.Core().V1().Pod().Cache()

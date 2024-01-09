@@ -60,7 +60,7 @@ type jobHandler struct {
 	nodeCache    ctlcorev1.NodeCache
 }
 
-func (h *jobHandler) OnChanged(key string, job *batchv1.Job) (*batchv1.Job, error) {
+func (h *jobHandler) OnChanged(_ string, job *batchv1.Job) (*batchv1.Job, error) {
 	if job == nil || job.DeletionTimestamp != nil || job.Labels == nil || (job.Namespace != upgradeNamespace && job.Namespace != sucNamespace) {
 		return job, nil
 	}
