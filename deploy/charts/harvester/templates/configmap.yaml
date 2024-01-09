@@ -20,9 +20,10 @@ metadata:
 data:
   promote.sh: |-
     {{`KUBECTL="/host/$(readlink /host/var/lib/rancher/rke2/bin)/kubectl"
+    YQ="/host/usr/bin/yq"
     ROLE_LABELS="rke.cattle.io/control-plane-role=true rke.cattle.io/etcd-role=true"
     ETCD_ONLY=false
-    if [[ -n "$1" ]]; then
+    if [[ -n "$1" && $1 == "rke.cattle.io/etcd-role=true" ]]; then
       ETCD_ONLY=true
       ROLE_LABELS=$1
     fi
@@ -93,10 +94,30 @@ data:
     - rke2-snapshot-validation-webhook
     EOF
 
+    # make sure we should not have any related label/taint on the node
+    if [[ $ETCD_ONLY == false ]]; then
+      found=$($KUBECTL get node $HOSTNAME -o yaml | $YQ '.spec.taints[] | select (.effect == "NoSchedule" and .key == "node-role.kubernetes.io/etcd=true") | .effect')
+      if [[ -n $found ]]
+      then
+        $KUBECTL taint nodes $HOSTNAME node-role.kubernetes.io/etcd=true:NoExecute-
+      fi
+      $KUBECTL label --overwrite nodes $HOSTNAME node-role.harvesterhci.io/witness-
+    fi
+
     # For how to promote nodes, see: https://github.com/rancher/rancher/issues/36480#issuecomment-1039253499
     $KUBECTL label --overwrite -n fleet-local machines.cluster.x-k8s.io $CUSTOM_MACHINE $ROLE_LABELS
     $KUBECTL label --overwrite -n fleet-local secret $PLAN_SECRET $ROLE_LABELS
     $KUBECTL label --overwrite -n fleet-local rkebootstraps.rke.cattle.io $CUSTOM_MACHINE $ROLE_LABELS
+
+    kickout_longhorn_node()
+    {
+      target=$1
+      found=$($KUBECTL get nodes.longhorn.io -n longhorn-system |grep -q $target && echo true || echo false)
+      if [[ $found == true ]]; then
+        echo "Found longhorn node $target, kicking it out..."
+        $KUBECTL delete nodes.longhorn.io $target -n longhorn-system
+      fi
+    }
 
     while true
     do
@@ -104,10 +125,11 @@ data:
         ETCD_STATE=$($KUBECTL get node $HOSTNAME -o go-template=$'{{index .metadata.labels "node-role.kubernetes.io/etcd"}}\n' || true)
 
         if [ "$ETCD_STATE" = "true" ]; then
-          $KUBECTL taint nodes $HOSTNAME node-role.kubernetes.io/etcd=true:NoExecute
+          $KUBECTL taint nodes $HOSTNAME node-role.kubernetes.io/etcd=true:NoExecute --overwrite
           $KUBECTL patch managedchart harvester -n fleet-local --type=json -p='[{"op":"replace", "path":"/spec/values/replicas", "value": 2}]'
           $KUBECTL patch managedchart harvester -n fleet-local --type=json -p='[{"op":"replace", "path":"/spec/values/webhook/replicas", "value": 2}]'
           $KUBECTL annotate --overwrite deployment rancher -n cattle-system management.cattle.io/scale-available="2"
+          kickout_longhorn_node $HOSTNAME
           break
         fi
 

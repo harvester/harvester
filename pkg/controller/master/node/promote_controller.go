@@ -33,7 +33,7 @@ const (
 	KubeEtcdNodeLabelKey         = KubeNodeRoleLabelPrefix + "etcd"
 
 	HarvesterNodeRoleLabelPrefix = "node-role.harvesterhci.io/"
-	HarvesterEtcdNodeLabelKey    = HarvesterNodeRoleLabelPrefix + "etcd"
+	HarvesterWitnessNodeLabelKey = HarvesterNodeRoleLabelPrefix + "witness"
 
 	HarvesterLabelAnnotationPrefix      = "harvesterhci.io/"
 	HarvesterManagedNodeLabelKey        = HarvesterLabelAnnotationPrefix + "managed"
@@ -71,6 +71,7 @@ type PromoteHandler struct {
 	recorder  record.EventRecorder
 	namespace string
 	appCache  catalogv1.AppCache
+	etcdNodes []string
 }
 
 // PromoteRegister registers the node controller
@@ -87,6 +88,7 @@ func PromoteRegister(ctx context.Context, management *config.Management, options
 		appCache:  appCache,
 		recorder:  management.NewRecorder("harvester-"+promoteControllerName, "", ""),
 		namespace: options.Namespace,
+		etcdNodes: []string{},
 	}
 
 	nodes.OnChange(ctx, promoteControllerName, promoteController.OnNodeChanged)
@@ -398,7 +400,10 @@ func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, erro
 		return nil, fmt.Errorf("failed to get harvester image (%s): %v", image.ImageName(), err)
 	}
 
-	job := buildPromoteJob(h.namespace, node, image.ImageName())
+	job := buildPromoteJob(h.namespace, node, image.ImageName(), len(h.etcdNodes))
+	if node.Labels[HarvesterWitnessNodeLabelKey] == "true" {
+		h.etcdNodes = append(h.etcdNodes, node.Name)
+	}
 	return h.jobs.Create(job)
 }
 
@@ -406,11 +411,11 @@ func (h *PromoteHandler) deleteJob(job *batchv1.Job, deletionPropagation metav1.
 	return h.jobs.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{PropagationPolicy: &deletionPropagation})
 }
 
-func buildPromoteJob(namespace string, node *corev1.Node, promoteImage string) *batchv1.Job {
+func buildPromoteJob(namespace string, node *corev1.Node, promoteImage string, numOfEtcdNodes int) *batchv1.Job {
 	nodeName := node.Name
-	nodeRoleEtcd := node.Labels[HarvesterEtcdNodeLabelKey]
+	nodeRoleEtcd := node.Labels[HarvesterWitnessNodeLabelKey]
 	promoteParameter := ""
-	if nodeRoleEtcd == "true" {
+	if nodeRoleEtcd == "true" && numOfEtcdNodes == 0 {
 		promoteParameter = "rke.cattle.io/etcd-role=true"
 	}
 	hostPathDirectory := corev1.HostPathDirectory

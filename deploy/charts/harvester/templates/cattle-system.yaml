@@ -11,6 +11,9 @@ spec:
   nodeSelector:
     matchLabels:
       harvesterhci.io/managed: "true"
+  tolerations:
+  - effect: NoExecute
+    operator: Exists 
   serviceAccountName: system-upgrade-controller
   secrets:
     - name: harvester-additional-ca
