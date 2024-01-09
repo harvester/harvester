@@ -19,7 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
-	"github.com/harvester/harvester/pkg/util"
+	supportBundleUtil "github.com/harvester/harvester/pkg/util/supportbundle"
 )
 
 // Handler generates support bundles for the cluster
@@ -96,7 +96,7 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 	)
 
 	if expiration := settings.SupportBundleExpiration.GetInt(); expiration == 0 {
-		expiredTime = time.Duration(util.SupportBundleExpirationDefault) * time.Minute
+		expiredTime = time.Duration(supportBundleUtil.SupportBundleExpirationDefault) * time.Minute
 	} else {
 		expiredTime = time.Duration(expiration) * time.Minute
 	}
