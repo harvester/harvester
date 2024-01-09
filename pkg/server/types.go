@@ -207,7 +207,7 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 
 	var scaled *config.Scaled
 
-	s.Context, scaled, err = config.SetupScaled(s.Context, s.RESTConfig, factoryOpts, options.Namespace)
+	s.Context, scaled, err = config.SetupScaled(s.Context, s.RESTConfig, factoryOpts)
 	if err != nil {
 		return err
 	}

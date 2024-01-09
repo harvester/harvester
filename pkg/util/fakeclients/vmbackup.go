@@ -25,7 +25,7 @@ func (c VMBackupClient) Update(volume *harvesterv1beta1.VirtualMachineBackup) (*
 	return c(volume.Namespace).Update(context.TODO(), volume, metav1.UpdateOptions{})
 }
 
-func (c VMBackupClient) UpdateStatus(volume *harvesterv1beta1.VirtualMachineBackup) (*harvesterv1beta1.VirtualMachineBackup, error) {
+func (c VMBackupClient) UpdateStatus(_ *harvesterv1beta1.VirtualMachineBackup) (*harvesterv1beta1.VirtualMachineBackup, error) {
 	panic("implement me")
 }
 
@@ -55,11 +55,11 @@ func (c VMBackupCache) Get(namespace, name string) (*harvesterv1beta1.VirtualMac
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c VMBackupCache) List(namespace string, selector labels.Selector) ([]*harvesterv1beta1.VirtualMachineBackup, error) {
+func (c VMBackupCache) List(_ string, _ labels.Selector) ([]*harvesterv1beta1.VirtualMachineBackup, error) {
 	panic("implement me")
 }
 
-func (c VMBackupCache) AddIndexer(indexName string, indexer harvesterv1ctl.VirtualMachineBackupIndexer) {
+func (c VMBackupCache) AddIndexer(_ string, _ harvesterv1ctl.VirtualMachineBackupIndexer) {
 	panic("implement me")
 }
 

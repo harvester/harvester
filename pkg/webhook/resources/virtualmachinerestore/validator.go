@@ -82,7 +82,7 @@ func (v *restoreValidator) Resource() types.Resource {
 	}
 }
 
-func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object) error {
+func (v *restoreValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newRestore := newObj.(*v1beta1.VirtualMachineRestore)
 
 	targetVM := newRestore.Spec.Target.Name
@@ -126,7 +126,7 @@ func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object)
 	return v.handleExistVM(newVM, vm)
 }
 
-func (v *restoreValidator) Update(request *types.Request, oldObj, newObj runtime.Object) error {
+func (v *restoreValidator) Update(_ *types.Request, oldObj, newObj runtime.Object) error {
 	oldRestore := oldObj.(*v1beta1.VirtualMachineRestore)
 	newRestore := newObj.(*v1beta1.VirtualMachineRestore)
 	if !reflect.DeepEqual(oldRestore.Spec, newRestore.Spec) {

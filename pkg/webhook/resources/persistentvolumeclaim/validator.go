@@ -115,7 +115,7 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 	return nil
 }
 
-func (v *pvcValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	oldPVC := oldObj.(*corev1.PersistentVolumeClaim)
 	newPVC := newObj.(*corev1.PersistentVolumeClaim)
 

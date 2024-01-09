@@ -27,7 +27,7 @@ func registerSchemas(scaled *config.Scaled, server *server.Server, options confi
 	return nil
 }
 
-func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
+func Setup(ctx context.Context, server *server.Server, _ *server.Controllers, options config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
 	return registerSchemas(scaled, server, options,
 		image.RegisterSchema,

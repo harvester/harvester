@@ -59,7 +59,7 @@ func (m *podMutator) Resource() types.Resource {
 	})
 }
 
-func (m *podMutator) Create(request *types.Request, newObj runtime.Object) (types.PatchOps, error) {
+func (m *podMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
 	pod := newObj.(*corev1.Pod)
 
 	podLabels := labels.Set(pod.Labels)

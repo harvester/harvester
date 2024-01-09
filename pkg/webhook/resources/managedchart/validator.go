@@ -31,7 +31,7 @@ func (v *managedChartValidator) Resource() types.Resource {
 		},
 	}
 }
-func (v *managedChartValidator) Delete(request *types.Request, oldObj runtime.Object) error {
+func (v *managedChartValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
 	managedChart := oldObj.(*managementv3.ManagedChart)
 
 	// ManagedChart namespaces and names are from:

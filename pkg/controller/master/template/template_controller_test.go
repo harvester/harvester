@@ -310,15 +310,15 @@ func (c fakeTemplateVersionCache) Get(namespace, name string) (*harvesterv1.Virt
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c fakeTemplateVersionCache) List(namespace string, selector labels.Selector) (ret []*harvesterv1.VirtualMachineTemplateVersion, err error) {
+func (c fakeTemplateVersionCache) List(_ string, _ labels.Selector) ([]*harvesterv1.VirtualMachineTemplateVersion, error) {
 	panic("implement me")
 }
 
-func (c fakeTemplateVersionCache) AddIndexer(indexName string, indexer ctlharvesterv1.VirtualMachineTemplateVersionIndexer) {
+func (c fakeTemplateVersionCache) AddIndexer(_ string, _ ctlharvesterv1.VirtualMachineTemplateVersionIndexer) {
 	panic("implement me")
 }
 
-func (c fakeTemplateVersionCache) GetByIndex(indexName, key string) (ret []*harvesterv1.VirtualMachineTemplateVersion, err error) {
+func (c fakeTemplateVersionCache) GetByIndex(_, _ string) ([]*harvesterv1.VirtualMachineTemplateVersion, error) {
 	panic("implement me")
 }
 

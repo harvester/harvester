@@ -42,7 +42,7 @@ func (v *keyPairValidator) Resource() types.Resource {
 	}
 }
 
-func (v *keyPairValidator) Create(request *types.Request, newObj runtime.Object) error {
+func (v *keyPairValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	keypair := newObj.(*v1beta1.KeyPair)
 
 	if err := v.checkPublicKey(keypair.Spec.PublicKey); err != nil {
@@ -51,7 +51,7 @@ func (v *keyPairValidator) Create(request *types.Request, newObj runtime.Object)
 	return nil
 }
 
-func (v *keyPairValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *keyPairValidator) Update(_ *types.Request, _ runtime.Object, newObj runtime.Object) error {
 	keypair := newObj.(*v1beta1.KeyPair)
 
 	if err := v.checkPublicKey(keypair.Spec.PublicKey); err != nil {

@@ -166,15 +166,15 @@ func (v *settingValidator) Resource() types.Resource {
 	}
 }
 
-func (v *settingValidator) Create(request *types.Request, newObj runtime.Object) error {
+func (v *settingValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	return validateSetting(newObj)
 }
 
-func (v *settingValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *settingValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	return validateUpdateSetting(oldObj, newObj)
 }
 
-func (v *settingValidator) Delete(request *types.Request, oldObj runtime.Object) error {
+func (v *settingValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
 	return validateDeleteSetting(oldObj)
 }
 
@@ -220,7 +220,7 @@ func validateHTTPProxy(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateHTTPProxy(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateHTTPProxy(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateHTTPProxy(newSetting)
 }
 
@@ -248,7 +248,7 @@ func validateOvercommitConfig(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateOvercommitConfig(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateOvercommitConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateOvercommitConfig(newSetting)
 }
 
@@ -264,7 +264,7 @@ func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateVMForceResetPolicy(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateVMForceResetPolicy(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateVMForceResetPolicy(newSetting)
 }
 
@@ -278,11 +278,9 @@ func (v *settingValidator) isUpdatedS3BackupTarget(target *settings.BackupTarget
 		return false
 	} else if savedTarget, err := settings.DecodeBackupTarget(savedSetting.Value); err != nil {
 		return false
-	} else {
+	} else if savedTarget.Type != target.Type || savedTarget.BucketName != target.BucketName || savedTarget.BucketRegion != target.BucketRegion || savedTarget.Endpoint != target.Endpoint || savedTarget.VirtualHostedStyle != target.VirtualHostedStyle {
 		// when any of those fields is different, then it is from user input, not from internal re-config
-		if savedTarget.Type != target.Type || savedTarget.BucketName != target.BucketName || savedTarget.BucketRegion != target.BucketRegion || savedTarget.Endpoint != target.Endpoint || savedTarget.VirtualHostedStyle != target.VirtualHostedStyle {
-			return false
-		}
+		return false
 	}
 
 	return true
@@ -321,7 +319,7 @@ func (v *settingValidator) validateBackupTargetFields(target *settings.BackupTar
 	return nil
 }
 
-func (v *settingValidator) validateUpdateBackupTarget(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateBackupTarget(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateBackupTarget(newSetting)
 }
 
@@ -496,7 +494,7 @@ func validateNTPServer(server string, nameValidator, patternValidator *regexp.Re
 	return true
 }
 
-func validateUpdateNTPServers(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateNTPServers(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateNTPServers(newSetting)
 }
 
@@ -518,7 +516,7 @@ func validateVipPoolsConfig(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateVipPoolsConfig(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateVipPoolsConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateVipPoolsConfig(newSetting)
 }
 
@@ -537,7 +535,7 @@ func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundleTimeout(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundleTimeout(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleTimeout(newSetting)
 }
 
@@ -570,7 +568,7 @@ func validateSSLCertificates(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSSLCertificates(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSSLCertificates(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSSLCertificates(newSetting)
 }
 
@@ -598,7 +596,7 @@ func validateSSLParameters(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSSLParameters(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSSLParameters(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSSLParameters(newSetting)
 }
 
@@ -664,7 +662,7 @@ func validateSupportBundleImage(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundleImage(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundleImage(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleImage(newSetting)
 }
 
@@ -676,7 +674,7 @@ func (v *settingValidator) validateVolumeSnapshotClass(setting *v1beta1.Setting)
 	return err
 }
 
-func (v *settingValidator) validateUpdateVolumeSnapshotClass(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateVolumeSnapshotClass(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateVolumeSnapshotClass(newSetting)
 }
 
@@ -693,7 +691,7 @@ func validateContainerdRegistry(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateContainerdRegistry(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateContainerdRegistry(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateContainerdRegistry(newSetting)
 }
 
@@ -723,7 +721,7 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 	return v.checkStorageNetworkValueVaild(newSetting)
 }
 
-func (v *settingValidator) validateDeleteStorageNetwork(setting *v1beta1.Setting) error {
+func (v *settingValidator) validateDeleteStorageNetwork(_ *v1beta1.Setting) error {
 	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.StorageNetworkName))
 }
 

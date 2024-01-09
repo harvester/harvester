@@ -102,7 +102,7 @@ func (v *upgradeValidator) Resource() types.Resource {
 	}
 }
 
-func (v *upgradeValidator) Create(request *types.Request, newObj runtime.Object) error {
+func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newUpgrade := newObj.(*v1beta1.Upgrade)
 
 	if newUpgrade.Spec.Version == "" && newUpgrade.Spec.Image == "" {

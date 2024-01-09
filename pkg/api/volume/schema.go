@@ -15,7 +15,7 @@ const (
 	pvcSchemaID = "persistentvolumeclaim"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
 	server.BaseSchemas.MustImportAndCustomize(ExportVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CloneVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(SnapshotVolumeInput{}, nil)

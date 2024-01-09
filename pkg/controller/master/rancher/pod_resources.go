@@ -19,7 +19,7 @@ const (
 	LimitsAnnotation   = "management.cattle.io/pod-limits"
 )
 
-func (h *Handler) PodResourcesOnChanged(key string, node *corev1.Node) (*corev1.Node, error) {
+func (h *Handler) PodResourcesOnChanged(_ string, node *corev1.Node) (*corev1.Node, error) {
 	if node == nil {
 		return node, nil
 	}

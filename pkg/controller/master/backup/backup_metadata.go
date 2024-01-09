@@ -57,7 +57,7 @@ type MetadataHandler struct {
 }
 
 // RegisterBackupMetadata register the setting controller and resync vm backup metadata when backup target change
-func RegisterBackupMetadata(ctx context.Context, management *config.Management, opts config.Options) error {
+func RegisterBackupMetadata(ctx context.Context, management *config.Management, _ config.Options) error {
 	vmBackups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
@@ -82,7 +82,7 @@ func RegisterBackupMetadata(ctx context.Context, management *config.Management, 
 }
 
 // OnBackupTargetChange resync vm metadata files when backup target change
-func (h *MetadataHandler) OnBackupTargetChange(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+func (h *MetadataHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil || setting.DeletionTimestamp != nil ||
 		setting.Name != settings.BackupTargetSettingName || setting.Value == "" {
 		return nil, nil

@@ -1417,14 +1417,14 @@ func (c fakeVirtualMachineCache) Get(namespace, name string) (*kubevirtv1.Virtua
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c fakeVirtualMachineCache) List(namespace string, selector labels.Selector) ([]*kubevirtv1.VirtualMachine, error) {
+func (c fakeVirtualMachineCache) List(_ string, _ labels.Selector) ([]*kubevirtv1.VirtualMachine, error) {
 	panic("implement me")
 }
 
-func (c fakeVirtualMachineCache) AddIndexer(indexName string, indexer kubevirtctrl.VirtualMachineIndexer) {
+func (c fakeVirtualMachineCache) AddIndexer(_ string, _ kubevirtctrl.VirtualMachineIndexer) {
 	panic("implement me")
 }
 
-func (c fakeVirtualMachineCache) GetByIndex(indexName, key string) ([]*kubevirtv1.VirtualMachine, error) {
+func (c fakeVirtualMachineCache) GetByIndex(_, _ string) ([]*kubevirtv1.VirtualMachine, error) {
 	panic("implement me")
 }

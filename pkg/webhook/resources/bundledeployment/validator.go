@@ -35,7 +35,7 @@ func (v *bundleDeploymentValidator) Resource() types.Resource {
 		},
 	}
 }
-func (v *bundleDeploymentValidator) Delete(request *types.Request, oldObj runtime.Object) error {
+func (v *bundleDeploymentValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
 	bundleDeployment := oldObj.(*fleetv1alpha1.BundleDeployment)
 
 	// BundleDeployment name is from Bundle.

@@ -67,7 +67,7 @@ const (
 var vmBackupKind = harvesterv1.SchemeGroupVersion.WithKind(vmBackupKindName)
 
 // RegisterBackup register the vmBackup and volumeSnapshot controller
-func RegisterBackup(ctx context.Context, management *config.Management, opts config.Options) error {
+func RegisterBackup(ctx context.Context, management *config.Management, _ config.Options) error {
 	vmBackups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 	pv := management.CoreFactory.Core().V1().PersistentVolume()
 	pvc := management.CoreFactory.Core().V1().PersistentVolumeClaim()
@@ -146,7 +146,7 @@ type Handler struct {
 }
 
 // OnBackupChange handles vm backup object on change and reconcile vm backup status
-func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
+func (h *Handler) OnBackupChange(_ string, vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
 	if vmBackup == nil || vmBackup.DeletionTimestamp != nil {
 		return nil, nil
 	}
@@ -200,7 +200,7 @@ func (h *Handler) OnBackupChange(key string, vmBackup *harvesterv1.VirtualMachin
 }
 
 // OnBackupRemove remove remote vm backup metadata
-func (h *Handler) OnBackupRemove(key string, vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
+func (h *Handler) OnBackupRemove(_ string, vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
 	if vmBackup == nil || vmBackup.Status == nil || vmBackup.Status.BackupTarget == nil {
 		return nil, nil
 	}

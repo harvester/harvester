@@ -115,7 +115,7 @@ type Management struct {
 	starters []start.Starter
 }
 
-func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.FactoryOptions, namespace string) (context.Context, *Scaled, error) {
+func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.FactoryOptions) (context.Context, *Scaled, error) {
 	scaled := &Scaled{
 		Ctx: ctx,
 	}

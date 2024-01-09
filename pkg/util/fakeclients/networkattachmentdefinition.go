@@ -33,10 +33,10 @@ func (c NetworkAttachmentDefinitionCache) List(namespace string, selector labels
 	return nads, nil
 }
 
-func (c NetworkAttachmentDefinitionCache) AddIndexer(indexName string, indexer ctlcniv1.NetworkAttachmentDefinitionIndexer) {
+func (c NetworkAttachmentDefinitionCache) AddIndexer(_ string, _ ctlcniv1.NetworkAttachmentDefinitionIndexer) {
 	panic("implement me")
 }
 
-func (c NetworkAttachmentDefinitionCache) GetByIndex(indexName, key string) ([]*cniv1.NetworkAttachmentDefinition, error) {
+func (c NetworkAttachmentDefinitionCache) GetByIndex(_, _ string) ([]*cniv1.NetworkAttachmentDefinition, error) {
 	panic("implement me")
 }
