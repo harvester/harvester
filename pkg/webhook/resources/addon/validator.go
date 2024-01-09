@@ -49,7 +49,7 @@ func (v *addonValidator) Resource() types.Resource {
 }
 
 // Do not allow one addon to be created twice
-func (v *addonValidator) Create(request *types.Request, newObj runtime.Object) error {
+func (v *addonValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newAddon := newObj.(*v1beta1.Addon)
 
 	addons, err := v.addons.List(metav1.NamespaceAll, labels.Everything())
@@ -61,7 +61,7 @@ func (v *addonValidator) Create(request *types.Request, newObj runtime.Object) e
 }
 
 // Do not allow some fields to be changed, or set to non-existing values
-func (v *addonValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *addonValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	newAddon := newObj.(*v1beta1.Addon)
 	oldAddon := oldObj.(*v1beta1.Addon)
 

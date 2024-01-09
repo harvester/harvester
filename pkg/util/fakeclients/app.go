@@ -18,13 +18,13 @@ type AppCache func(string) catalogv1type.AppInterface
 func (c AppCache) Get(namespace, name string) (*catalogv1.App, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
-func (c AppCache) List(namespace string, selector labels.Selector) ([]*catalogv1.App, error) {
+func (c AppCache) List(_ string, _ labels.Selector) ([]*catalogv1.App, error) {
 	panic("implement me")
 }
-func (c AppCache) AddIndexer(indexName string, indexer ctlcatalogv1.AppIndexer) {
+func (c AppCache) AddIndexer(_ string, _ ctlcatalogv1.AppIndexer) {
 	panic("implement me")
 }
-func (c AppCache) GetByIndex(indexName, key string) ([]*catalogv1.App, error) {
+func (c AppCache) GetByIndex(_, _ string) ([]*catalogv1.App, error) {
 	panic("implement me")
 }
 
@@ -42,11 +42,11 @@ func (c AppClient) Create(app *catalogv1.App) (*catalogv1.App, error) {
 	return c(app.Namespace).Create(context.TODO(), app, metav1.CreateOptions{})
 }
 
-func (c AppClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+func (c AppClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
 
-func (c AppClient) List(namespace string, opts metav1.ListOptions) (*catalogv1.AppList, error) {
+func (c AppClient) List(_ string, _ metav1.ListOptions) (*catalogv1.AppList, error) {
 	panic("implement me")
 }
 
@@ -54,10 +54,10 @@ func (c AppClient) UpdateStatus(*catalogv1.App) (*catalogv1.App, error) {
 	panic("implement me")
 }
 
-func (c AppClient) Watch(namespace string, pts metav1.ListOptions) (watch.Interface, error) {
+func (c AppClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
 
-func (c AppClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *catalogv1.App, err error) {
+func (c AppClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *catalogv1.App, err error) {
 	panic("implement me")
 }

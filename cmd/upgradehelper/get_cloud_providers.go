@@ -17,7 +17,7 @@ var getCloudProviderCmd = &cobra.Command{
 	Short: "Get ClusterRole with Harvester Cloud Provider",
 	Long:  `A command for getting the ClusterRole with "harvesterhci.io:cloudprovider"`,
 
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(*cobra.Command, []string) {
 		if err := getCloudProvider(); err != nil {
 			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
 			os.Exit(1)

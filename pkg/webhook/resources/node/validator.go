@@ -36,7 +36,7 @@ func (v *nodeValidator) Resource() types.Resource {
 	}
 }
 
-func (v *nodeValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *nodeValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	oldNode := oldObj.(*corev1.Node)
 	newNode := newObj.(*corev1.Node)
 

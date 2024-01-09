@@ -12,7 +12,7 @@ const (
 	vmImageControllerAgentName         = "vm-image-in-template-controller"
 )
 
-func Register(ctx context.Context, management *config.Management, options config.Options) error {
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	templates := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
 	templateVersions := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
 	vmImages := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()

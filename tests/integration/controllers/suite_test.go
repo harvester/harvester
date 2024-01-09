@@ -2,14 +2,14 @@ package controllers
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	"github.com/rancher/lasso/pkg/cache"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
@@ -40,7 +40,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	"github.com/harvester/harvester/pkg/server"
 	"github.com/harvester/harvester/tests/framework/cluster"
-	. "github.com/harvester/harvester/tests/framework/dsl"
+	"github.com/harvester/harvester/tests/framework/dsl"
 	"github.com/harvester/harvester/tests/integration/controllers/fake"
 )
 
@@ -65,61 +65,61 @@ const (
 )
 
 func TestAPI(t *testing.T) {
-	defer GinkgoRecover()
+	defer ginkgo.GinkgoRecover()
 
-	RegisterFailHandler(Fail)
+	gomega.RegisterFailHandler(ginkgo.Fail)
 
-	RunSpecs(t, "api suite")
+	ginkgo.RunSpecs(t, "api suite")
 }
 
-var _ = BeforeSuite(func() {
+var _ = ginkgo.BeforeSuite(func() {
 	testCtx, testCtxCancel = context.WithCancel(context.Background())
 	var err error
 
-	By("starting test cluster")
-	KubeClientConfig, testCluster, err = cluster.Start(GinkgoWriter)
-	MustNotError(err)
+	ginkgo.By("starting test cluster")
+	KubeClientConfig, testCluster, err = cluster.Start(ginkgo.GinkgoWriter)
+	dsl.MustNotError(err)
 
 	cfg, err = KubeClientConfig.ClientConfig()
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 	kubeConfig, err := KubeClientConfig.ClientConfig()
-	MustNotError(err)
+	dsl.MustNotError(err)
 
-	By("install crds")
+	ginkgo.By("install crds")
 	var crds []apiextensionsv1.CustomResourceDefinition
 
 	for _, v := range crdList {
 		objs, err := generateObjects(v)
-		MustNotError(err)
+		dsl.MustNotError(err)
 		crds = append(crds, objs)
 	}
 	err = applyObj(crds)
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 	err = helmv1.AddToScheme(scheme)
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 	err = harvesterv1.AddToScheme(scheme)
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 	err = batchv1.AddToScheme(scheme)
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 	err = catalogv1.AddToScheme(scheme)
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 	err = managementv3.AddToScheme(scheme)
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 	err = corev1.AddToScheme(scheme)
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 	err = catalogv1.AddToScheme(scheme)
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 	clientFactory, err := client.NewSharedClientFactory(kubeConfig, nil)
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 	cacheFactory := cache.NewSharedCachedFactory(clientFactory, nil)
 	scf := controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{})
@@ -128,22 +128,22 @@ var _ = BeforeSuite(func() {
 		SharedControllerFactory: scf,
 	}
 
-	testCtx, scaled, err = config.SetupScaled(testCtx, cfg, factoryOpts, "")
-	MustNotError(err)
+	testCtx, scaled, err = config.SetupScaled(testCtx, cfg, factoryOpts)
+	dsl.MustNotError(err)
 
 	err = startControllers(testCtx, kubeConfig, factoryOpts)
-	MustNotError(err)
+	dsl.MustNotError(err)
 
 })
 
-var _ = AfterSuite(func() {
+var _ = ginkgo.AfterSuite(func() {
 
 	testCtx.Done()
-	By("tearing down test cluster")
-	err := cluster.Stop(GinkgoWriter)
-	MustNotError(err)
+	ginkgo.By("tearing down test cluster")
+	err := cluster.Stop(ginkgo.GinkgoWriter)
+	dsl.MustNotError(err)
 
-	By("tearing down harvester server")
+	ginkgo.By("tearing down harvester server")
 	if testCtxCancel != nil {
 		testCtxCancel()
 	}
@@ -152,7 +152,7 @@ var _ = AfterSuite(func() {
 
 func generateObjects(fileName string) (apiextensionsv1.CustomResourceDefinition, error) {
 	var result apiextensionsv1.CustomResourceDefinition
-	contentBytes, err := ioutil.ReadFile(fileName)
+	contentBytes, err := os.ReadFile(fileName)
 	if err != nil {
 		return result, err
 	}

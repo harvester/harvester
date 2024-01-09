@@ -46,7 +46,7 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
+func (h *ActionHandler) do(_ http.ResponseWriter, r *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(r))
 	action := vars["action"]
 	snapshotName := vars["name"]
@@ -67,7 +67,7 @@ func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 	}
 }
 
-func (h *ActionHandler) restore(ctx context.Context, snapshotNamespace, snapshotName, newPVCName, storageClassName string) error {
+func (h *ActionHandler) restore(_ context.Context, snapshotNamespace, snapshotName, newPVCName, storageClassName string) error {
 	volumeSnapshot, err := h.snapshotCache.Get(snapshotNamespace, snapshotName)
 	if err != nil {
 		return err

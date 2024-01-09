@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -18,7 +16,6 @@ import (
 	"github.com/harvester/harvester/pkg/builder"
 	"github.com/harvester/harvester/pkg/config"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	. "github.com/harvester/harvester/tests/framework/dsl"
 	"github.com/harvester/harvester/tests/framework/fuzz"
 	"github.com/harvester/harvester/tests/framework/helper"
 )

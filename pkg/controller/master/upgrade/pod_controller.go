@@ -15,7 +15,7 @@ type podHandler struct {
 	upgradeCache  ctlharvesterv1.UpgradeCache
 }
 
-func (h *podHandler) OnChanged(key string, pod *v1.Pod) (*v1.Pod, error) {
+func (h *podHandler) OnChanged(_ string, pod *v1.Pod) (*v1.Pod, error) {
 	if pod == nil || pod.DeletionTimestamp != nil || pod.Labels == nil || pod.Namespace != upgradeNamespace || pod.Labels[harvesterUpgradeLabel] == "" {
 		return pod, nil
 	}

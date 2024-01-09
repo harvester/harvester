@@ -95,7 +95,7 @@ func PromoteRegister(ctx context.Context, management *config.Management, options
 // OnNodeChanged automate the upgrade of node roles
 // If the number of managements in the cluster is less than spec number,
 // the harvester oldest node will be automatically promoted to be management.
-func (h *PromoteHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.Node, error) {
+func (h *PromoteHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev1.Node, error) {
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
 	}
@@ -129,7 +129,7 @@ func (h *PromoteHandler) OnNodeChanged(key string, node *corev1.Node) (*corev1.N
 // If the node corresponding to the promote job has been removed, delete the job.
 // If the promote job executes successfully, the node's promote status will be marked as complete and schedulable
 // If the promote job fails, the node's promote status will be marked as failed.
-func (h *PromoteHandler) OnJobChanged(key string, job *batchv1.Job) (*batchv1.Job, error) {
+func (h *PromoteHandler) OnJobChanged(_ string, job *batchv1.Job) (*batchv1.Job, error) {
 	if job == nil || job.DeletionTimestamp != nil {
 		return job, nil
 	}
@@ -160,7 +160,7 @@ func (h *PromoteHandler) OnJobChanged(key string, job *batchv1.Job) (*batchv1.Jo
 
 // OnJobRemove
 // If the running promote job is deleted, the node's promote status will be marked as unknown
-func (h *PromoteHandler) OnJobRemove(key string, job *batchv1.Job) (*batchv1.Job, error) {
+func (h *PromoteHandler) OnJobRemove(_ string, job *batchv1.Job) (*batchv1.Job, error) {
 	if job == nil {
 		return job, nil
 	}

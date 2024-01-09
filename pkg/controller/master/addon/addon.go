@@ -38,7 +38,7 @@ type Handler struct {
 	pvc   ctlcorev1.PersistentVolumeClaimController
 }
 
-func Register(ctx context.Context, management *config.Management, opts config.Options) error {
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	addonController := management.HarvesterFactory.Harvesterhci().V1beta1().Addon()
 	helmController := management.HelmFactory.Helm().V1().HelmChart()
 	jobController := management.BatchFactory.Batch().V1().Job()
@@ -63,7 +63,7 @@ func Register(ctx context.Context, management *config.Management, opts config.Op
 }
 
 // MonitorAddonPerStatus will track the OnChange on addon, route actions per addon status
-func (h *Handler) MonitorAddonPerStatus(key string, aObj *harvesterv1.Addon) (*harvesterv1.Addon, error) {
+func (h *Handler) MonitorAddonPerStatus(_ string, aObj *harvesterv1.Addon) (*harvesterv1.Addon, error) {
 	if aObj == nil || aObj.DeletionTimestamp != nil {
 		return nil, nil
 	}
