@@ -16,7 +16,7 @@ const (
 	keygen = "keygen"
 )
 
-func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
+func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
 	server.BaseSchemas.MustImportAndCustomize(harvesterv1.KeyGenInput{}, nil)
 	t := schema.Template{
 		ID: "harvesterhci.io.keypair",

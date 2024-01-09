@@ -15,7 +15,7 @@ var registerFuncs = []registerFunc{
 	settings.Register,
 }
 
-func Setup(ctx context.Context, server *server.Server, controllers *server.Controllers, options config.Options) error {
+func Setup(ctx context.Context, server *server.Server, _ *server.Controllers, options config.Options) error {
 	scaled := config.ScaledWithContext(ctx)
 
 	for _, f := range registerFuncs {

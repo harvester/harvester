@@ -19,39 +19,39 @@ func (c ClusterFlowClient) Create(clusterFlow *loggingv1.ClusterFlow) (*loggingv
 	clusterFlow.Namespace = ""
 	return c().Create(context.TODO(), clusterFlow, metav1.CreateOptions{})
 }
-func (c ClusterFlowClient) Update(clusterFlow *loggingv1.ClusterFlow) (*loggingv1.ClusterFlow, error) {
+func (c ClusterFlowClient) Update(*loggingv1.ClusterFlow) (*loggingv1.ClusterFlow, error) {
 	panic("implement me")
 }
-func (c ClusterFlowClient) UpdateStatus(clusterFlow *loggingv1.ClusterFlow) (*loggingv1.ClusterFlow, error) {
+func (c ClusterFlowClient) UpdateStatus(*loggingv1.ClusterFlow) (*loggingv1.ClusterFlow, error) {
 	panic("implement me")
 }
-func (c ClusterFlowClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	return c().Delete(context.TODO(), name, metav1.DeleteOptions{})
+func (c ClusterFlowClient) Delete(_, name string, options *metav1.DeleteOptions) error {
+	return c().Delete(context.TODO(), name, *options)
 }
-func (c ClusterFlowClient) Get(namespace, name string, options metav1.GetOptions) (*loggingv1.ClusterFlow, error) {
-	return c().Get(context.TODO(), name, metav1.GetOptions{})
+func (c ClusterFlowClient) Get(_, name string, options metav1.GetOptions) (*loggingv1.ClusterFlow, error) {
+	return c().Get(context.TODO(), name, options)
 }
-func (c ClusterFlowClient) List(namespace string, opts metav1.ListOptions) (*loggingv1.ClusterFlowList, error) {
+func (c ClusterFlowClient) List(_ string, _ metav1.ListOptions) (*loggingv1.ClusterFlowList, error) {
 	panic("implement me")
 }
-func (c ClusterFlowClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c ClusterFlowClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
-func (c ClusterFlowClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *loggingv1.ClusterFlow, err error) {
+func (c ClusterFlowClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *loggingv1.ClusterFlow, err error) {
 	panic("implement me")
 }
 
 type ClusterFlowCache func() loggingv1type.ClusterFlowInterface
 
-func (c ClusterFlowCache) Get(namespace, name string) (*loggingv1.ClusterFlow, error) {
+func (c ClusterFlowCache) Get(_, _ string) (*loggingv1.ClusterFlow, error) {
 	panic("implement me")
 }
-func (c ClusterFlowCache) List(namespace string, selector labels.Selector) ([]*loggingv1.ClusterFlow, error) {
+func (c ClusterFlowCache) List(_ string, _ labels.Selector) ([]*loggingv1.ClusterFlow, error) {
 	panic("implement me")
 }
-func (c ClusterFlowCache) AddIndexer(indexName string, indexer ctlloggingv1.ClusterFlowIndexer) {
+func (c ClusterFlowCache) AddIndexer(_ string, _ ctlloggingv1.ClusterFlowIndexer) {
 	panic("implement me")
 }
-func (c ClusterFlowCache) GetByIndex(indexName, key string) ([]*loggingv1.ClusterFlow, error) {
+func (c ClusterFlowCache) GetByIndex(_, _ string) ([]*loggingv1.ClusterFlow, error) {
 	panic("implement me")
 }

@@ -18,25 +18,25 @@ type UpgradeClient func(string) harv1type.UpgradeInterface
 func (c UpgradeClient) Update(upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
 	return c(upgrade.Namespace).Update(context.TODO(), upgrade, metav1.UpdateOptions{})
 }
-func (c UpgradeClient) Get(namespace, name string, options metav1.GetOptions) (*harvesterv1.Upgrade, error) {
+func (c UpgradeClient) Get(_, _ string, _ metav1.GetOptions) (*harvesterv1.Upgrade, error) {
 	panic("implement me")
 }
 func (c UpgradeClient) Create(*harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
 	panic("implement me")
 }
-func (c UpgradeClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+func (c UpgradeClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
-func (c UpgradeClient) List(namespace string, opts metav1.ListOptions) (*harvesterv1.UpgradeList, error) {
+func (c UpgradeClient) List(_ string, _ metav1.ListOptions) (*harvesterv1.UpgradeList, error) {
 	panic("implement me")
 }
 func (c UpgradeClient) UpdateStatus(*harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
 	panic("implement me")
 }
-func (c UpgradeClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c UpgradeClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
-func (c UpgradeClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterv1.Upgrade, err error) {
+func (c UpgradeClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *harvesterv1.Upgrade, err error) {
 	panic("implement me")
 }
 
@@ -56,9 +56,9 @@ func (c UpgradeCache) List(namespace string, selector labels.Selector) ([]*harve
 	}
 	return result, err
 }
-func (c UpgradeCache) AddIndexer(indexName string, indexer ctlharvesterv1.UpgradeIndexer) {
+func (c UpgradeCache) AddIndexer(_ string, _ ctlharvesterv1.UpgradeIndexer) {
 	panic("implement me")
 }
-func (c UpgradeCache) GetByIndex(indexName, key string) ([]*harvesterv1.Upgrade, error) {
+func (c UpgradeCache) GetByIndex(_, _ string) ([]*harvesterv1.Upgrade, error) {
 	panic("implement me")
 }

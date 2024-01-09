@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	. "github.com/onsi/ginkgo/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -12,7 +11,6 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	. "github.com/harvester/harvester/tests/framework/dsl"
 	"github.com/harvester/harvester/tests/framework/fuzz"
 	"github.com/harvester/harvester/tests/framework/helper"
 )

@@ -31,7 +31,7 @@ func (v *bundleValidator) Resource() types.Resource {
 		},
 	}
 }
-func (v *bundleValidator) Delete(request *types.Request, oldObj runtime.Object) error {
+func (v *bundleValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
 	bundle := oldObj.(*fleetv1alpha1.Bundle)
 
 	// Template of Bundle name is "mcc-<managedchart>".

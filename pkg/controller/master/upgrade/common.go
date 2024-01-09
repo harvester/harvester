@@ -624,7 +624,7 @@ func (p *upgradeBuilder) ImageReadyCondition(status corev1.ConditionStatus, reas
 	return p
 }
 
-func (p *upgradeBuilder) RepoProvisionedCondition(status corev1.ConditionStatus, reason, message string) *upgradeBuilder {
+func (p *upgradeBuilder) RepoProvisionedCondition(status corev1.ConditionStatus, _, _ string) *upgradeBuilder {
 	setRepoProvisionedCondition(p.upgrade, status, "", "")
 	return p
 }

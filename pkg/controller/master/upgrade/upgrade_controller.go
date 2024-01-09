@@ -97,7 +97,7 @@ type upgradeHandler struct {
 	lhSettingCache  ctllhv1.SettingCache
 }
 
-func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
+func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
 	if upgrade == nil || upgrade.DeletionTimestamp != nil {
 		return upgrade, nil
 	}

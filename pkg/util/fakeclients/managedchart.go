@@ -21,7 +21,7 @@ func (c ManagedChartClient) Update(managedChart *mgmtv3.ManagedChart) (*mgmtv3.M
 	return c(managedChart.Namespace).Update(context.TODO(), managedChart, metav1.UpdateOptions{})
 }
 func (c ManagedChartClient) Get(namespace, name string, options metav1.GetOptions) (*mgmtv3.ManagedChart, error) {
-	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	return c(namespace).Get(context.TODO(), name, options)
 }
 func (c ManagedChartClient) Create(managedChart *mgmtv3.ManagedChart) (*mgmtv3.ManagedChart, error) {
 	if managedChart.GenerateName != "" {
@@ -30,18 +30,18 @@ func (c ManagedChartClient) Create(managedChart *mgmtv3.ManagedChart) (*mgmtv3.M
 	return c(managedChart.Namespace).Create(context.TODO(), managedChart, metav1.CreateOptions{})
 }
 func (c ManagedChartClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	return c(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	return c(namespace).Delete(context.TODO(), name, *options)
 }
-func (c ManagedChartClient) List(namespace string, opts metav1.ListOptions) (*mgmtv3.ManagedChartList, error) {
+func (c ManagedChartClient) List(_ string, _ metav1.ListOptions) (*mgmtv3.ManagedChartList, error) {
 	panic("implement me")
 }
 func (c ManagedChartClient) UpdateStatus(*mgmtv3.ManagedChart) (*mgmtv3.ManagedChart, error) {
 	panic("implement me")
 }
-func (c ManagedChartClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c ManagedChartClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
-func (c ManagedChartClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *mgmtv3.ManagedChart, err error) {
+func (c ManagedChartClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *mgmtv3.ManagedChart, err error) {
 	panic("implement me")
 }
 
@@ -61,9 +61,9 @@ func (c ManagedChartCache) List(namespace string, selector labels.Selector) ([]*
 	}
 	return result, err
 }
-func (c ManagedChartCache) AddIndexer(indexName string, indexer ctlmgmtv3.ManagedChartIndexer) {
+func (c ManagedChartCache) AddIndexer(_ string, _ ctlmgmtv3.ManagedChartIndexer) {
 	panic("implement me")
 }
-func (c ManagedChartCache) GetByIndex(indexName, key string) ([]*mgmtv3.ManagedChart, error) {
+func (c ManagedChartCache) GetByIndex(_, _ string) ([]*mgmtv3.ManagedChart, error) {
 	panic("implement me")
 }

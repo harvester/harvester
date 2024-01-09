@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
-	. "github.com/onsi/ginkgo/v2"
 	"github.com/tidwall/gjson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	. "github.com/harvester/harvester/tests/framework/dsl"
 	"github.com/harvester/harvester/tests/framework/helper"
 )
 

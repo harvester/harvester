@@ -27,7 +27,7 @@ type planHandler struct {
 	planClient    upgradectlv1.PlanClient
 }
 
-func (h *planHandler) OnChanged(key string, plan *upgradev1.Plan) (*upgradev1.Plan, error) {
+func (h *planHandler) OnChanged(_ string, plan *upgradev1.Plan) (*upgradev1.Plan, error) {
 	if plan == nil || plan.DeletionTimestamp != nil {
 		return plan, nil
 	}

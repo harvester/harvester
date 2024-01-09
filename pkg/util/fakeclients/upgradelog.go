@@ -21,22 +21,22 @@ func (c UpgradeLogClient) Create(upgradeLog *harvesterv1.UpgradeLog) (*harvester
 func (c UpgradeLogClient) Update(upgradeLog *harvesterv1.UpgradeLog) (*harvesterv1.UpgradeLog, error) {
 	return c(upgradeLog.Namespace).Update(context.TODO(), upgradeLog, metav1.UpdateOptions{})
 }
-func (c UpgradeLogClient) UpdateStatus(upgradeLog *harvesterv1.UpgradeLog) (*harvesterv1.UpgradeLog, error) {
+func (c UpgradeLogClient) UpdateStatus(*harvesterv1.UpgradeLog) (*harvesterv1.UpgradeLog, error) {
 	panic("implement me")
 }
 func (c UpgradeLogClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	return c(namespace).Delete(context.TODO(), name, *options)
 }
 func (c UpgradeLogClient) Get(namespace, name string, options metav1.GetOptions) (*harvesterv1.UpgradeLog, error) {
-	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	return c(namespace).Get(context.TODO(), name, options)
 }
-func (c UpgradeLogClient) List(namespace string, opts metav1.ListOptions) (*harvesterv1.UpgradeLogList, error) {
+func (c UpgradeLogClient) List(_ string, _ metav1.ListOptions) (*harvesterv1.UpgradeLogList, error) {
 	panic("implement me")
 }
-func (c UpgradeLogClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c UpgradeLogClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
-func (c UpgradeLogClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterv1.UpgradeLog, err error) {
+func (c UpgradeLogClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *harvesterv1.UpgradeLog, err error) {
 	panic("implement me")
 }
 
@@ -45,12 +45,12 @@ type UpgradeLogCache func(string) harv1type.UpgradeLogInterface
 func (c UpgradeLogCache) Get(namespace, name string) (*harvesterv1.UpgradeLog, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
-func (c UpgradeLogCache) List(namespace string, selector labels.Selector) ([]*harvesterv1.UpgradeLog, error) {
+func (c UpgradeLogCache) List(_ string, _ labels.Selector) ([]*harvesterv1.UpgradeLog, error) {
 	panic("implement me")
 }
-func (c UpgradeLogCache) AddIndexer(indexName string, indexer ctlharvesterv1.UpgradeLogIndexer) {
+func (c UpgradeLogCache) AddIndexer(_ string, _ ctlharvesterv1.UpgradeLogIndexer) {
 	panic("implement me")
 }
-func (c UpgradeLogCache) GetByIndex(indexName, key string) ([]*harvesterv1.UpgradeLog, error) {
+func (c UpgradeLogCache) GetByIndex(_, _ string) ([]*harvesterv1.UpgradeLog, error) {
 	panic("implement me")
 }

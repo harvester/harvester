@@ -187,9 +187,8 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 		if strings.Contains(tc.name, "fail") {
 			assert.EqualError(t, actual.err, tc.expected.err.Error())
 			continue
-		} else {
-			assert.NoError(t, actual.err)
 		}
+		assert.NoError(t, actual.err)
 
 		var clientset = fake.NewSimpleClientset()
 		if tc.given.setting != nil {

@@ -19,39 +19,39 @@ func (c ClusterOutputClient) Create(clusterOutput *loggingv1.ClusterOutput) (*lo
 	clusterOutput.Namespace = ""
 	return c().Create(context.TODO(), clusterOutput, metav1.CreateOptions{})
 }
-func (c ClusterOutputClient) Update(clusterOutput *loggingv1.ClusterOutput) (*loggingv1.ClusterOutput, error) {
+func (c ClusterOutputClient) Update(*loggingv1.ClusterOutput) (*loggingv1.ClusterOutput, error) {
 	panic("implement me")
 }
-func (c ClusterOutputClient) UpdateStatus(clusterOutput *loggingv1.ClusterOutput) (*loggingv1.ClusterOutput, error) {
+func (c ClusterOutputClient) UpdateStatus(*loggingv1.ClusterOutput) (*loggingv1.ClusterOutput, error) {
 	panic("implement me")
 }
-func (c ClusterOutputClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	return c().Delete(context.TODO(), name, metav1.DeleteOptions{})
+func (c ClusterOutputClient) Delete(_, name string, options *metav1.DeleteOptions) error {
+	return c().Delete(context.TODO(), name, *options)
 }
-func (c ClusterOutputClient) Get(namespace, name string, options metav1.GetOptions) (*loggingv1.ClusterOutput, error) {
-	return c().Get(context.TODO(), name, metav1.GetOptions{})
+func (c ClusterOutputClient) Get(_, name string, options metav1.GetOptions) (*loggingv1.ClusterOutput, error) {
+	return c().Get(context.TODO(), name, options)
 }
-func (c ClusterOutputClient) List(namespace string, opts metav1.ListOptions) (*loggingv1.ClusterOutputList, error) {
+func (c ClusterOutputClient) List(_ string, _ metav1.ListOptions) (*loggingv1.ClusterOutputList, error) {
 	panic("implement me")
 }
-func (c ClusterOutputClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c ClusterOutputClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
-func (c ClusterOutputClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *loggingv1.ClusterOutput, err error) {
+func (c ClusterOutputClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (*loggingv1.ClusterOutput, error) {
 	panic("implement me")
 }
 
 type ClusterOutputCache func() loggingv1type.ClusterOutputInterface
 
-func (c ClusterOutputCache) Get(namespace, name string) (*loggingv1.ClusterOutput, error) {
+func (c ClusterOutputCache) Get(_, _ string) (*loggingv1.ClusterOutput, error) {
 	panic("implement me")
 }
-func (c ClusterOutputCache) List(namespace string, selector labels.Selector) ([]*loggingv1.ClusterOutput, error) {
+func (c ClusterOutputCache) List(_ string, _ labels.Selector) ([]*loggingv1.ClusterOutput, error) {
 	panic("implement me")
 }
-func (c ClusterOutputCache) AddIndexer(indexName string, indexer ctlloggingv1.ClusterOutputIndexer) {
+func (c ClusterOutputCache) AddIndexer(_ string, _ ctlloggingv1.ClusterOutputIndexer) {
 	panic("implement me")
 }
-func (c ClusterOutputCache) GetByIndex(indexName, key string) ([]*loggingv1.ClusterOutput, error) {
+func (c ClusterOutputCache) GetByIndex(_, _ string) ([]*loggingv1.ClusterOutput, error) {
 	panic("implement me")
 }
