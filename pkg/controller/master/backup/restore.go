@@ -404,7 +404,7 @@ func (h *RestoreHandler) initVolumesStatus(vmRestore *harvesterv1.VirtualMachine
 		restoreCpy.Status.VolumeRestores = volumeRestores
 	}
 
-	if !isNewVMOrHasRetainPolicy(vmRestore) && vmRestore.Status.DeletedVolumes == nil {
+	if !IsNewVMOrHasRetainPolicy(vmRestore) && vmRestore.Status.DeletedVolumes == nil {
 		var deletedVolumes []string
 		for _, vol := range backup.Status.VolumeBackups {
 			deletedVolumes = append(deletedVolumes, vol.PersistentVolumeClaim.ObjectMeta.Name)
@@ -891,7 +891,7 @@ func (h *RestoreHandler) getOrCreateVolumeSnapshot(
 }
 
 func (h *RestoreHandler) deleteOldPVC(vmRestore *harvesterv1.VirtualMachineRestore, vm *kubevirtv1.VirtualMachine) error {
-	if isNewVMOrHasRetainPolicy(vmRestore) {
+	if IsNewVMOrHasRetainPolicy(vmRestore) {
 		logrus.Infof("skip deleting old PVC of vm %s/%s", vm.Name, vm.Namespace)
 		return nil
 	}
