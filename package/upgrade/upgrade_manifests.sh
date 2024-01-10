@@ -1136,12 +1136,6 @@ skip_restart_rancher_system_agent() {
   # by adding an env var to temporarily make rancher-system-agent on each node skip restarting rke2-server/agent.
   # issue link: https://github.com/rancher/rancher/issues/41965
 
-  # only versions before v1.2.0 that upgrading to v1.2.0 need this workaround
-  if [[ ! "${UPGRADE_PREVIOUS_VERSION%%-rc*}" < "v1.2.0" ]]; then
-    echo "Only versions before v1.2.0 need this patch."
-    return
-  fi
-
   plan_manifest="$(mktemp --suffix=.yaml)"
   plan_name="$HARVESTER_UPGRADE_NAME"-skip-restart-rancher-system-agent
   plan_version="$(openssl rand -hex 4)"
