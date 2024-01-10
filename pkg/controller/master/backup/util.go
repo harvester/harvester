@@ -52,10 +52,10 @@ func isVMRestoreProgressing(vmRestore *harvesterv1.VirtualMachineRestore) bool {
 
 func isVMRestoreMissingVolumes(vmRestore *harvesterv1.VirtualMachineRestore) bool {
 	return len(vmRestore.Status.VolumeRestores) == 0 ||
-		(!isNewVMOrHasRetainPolicy(vmRestore) && len(vmRestore.Status.DeletedVolumes) == 0)
+		(!IsNewVMOrHasRetainPolicy(vmRestore) && len(vmRestore.Status.DeletedVolumes) == 0)
 }
 
-func isNewVMOrHasRetainPolicy(vmRestore *harvesterv1.VirtualMachineRestore) bool {
+func IsNewVMOrHasRetainPolicy(vmRestore *harvesterv1.VirtualMachineRestore) bool {
 	return vmRestore.Spec.NewVM || vmRestore.Spec.DeletionPolicy == harvesterv1.VirtualMachineRestoreRetain
 }
 
