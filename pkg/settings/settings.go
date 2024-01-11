@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
+
+	supportBundleUtil "github.com/harvester/harvester/pkg/util/supportbundle"
 )
 
 var (
@@ -36,7 +38,8 @@ var (
 	SSLParameters                          = NewSetting(SSLParametersName, "{}")
 	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
 	SupportBundleNamespaces                = NewSetting("support-bundle-namespaces", "")
-	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10") // Unit is minute. 0 means disable timeout.
+	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")                                                   // Unit is minute. 0 means disable timeout.
+	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, supportBundleUtil.SupportBundleExpirationDefaultStr) // Unit is minute.
 	DefaultStorageClass                    = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                              = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet                  = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
@@ -78,6 +81,7 @@ const (
 	HarvesterCSICCMSettingName                        = "harvester-csi-ccm-versions"
 	StorageNetworkName                                = "storage-network"
 	DefaultVMTerminationGracePeriodSecondsSettingName = "default-vm-termination-grace-period-seconds"
+	SupportBundleExpirationSettingName                = "support-bundle-expiration"
 	NTPServersSettingName                             = "ntp-servers"
 )
 
@@ -141,16 +145,23 @@ func (s Setting) Get() string {
 }
 
 func (s Setting) GetInt() int {
-	v := s.Get()
-	i, err := strconv.Atoi(v)
-	if err == nil {
-		return i
+	var (
+		i   int
+		err error
+		v   = s.Get()
+	)
+
+	if v != "" {
+		if i, err = strconv.Atoi(v); err == nil {
+			return i
+		}
+		logrus.Errorf("failed to parse setting %s=%s as int: %v", s.Name, v, err)
 	}
-	logrus.Errorf("failed to parse setting %s=%s as int: %v", s.Name, v, err)
-	i, err = strconv.Atoi(s.Default)
-	if err != nil {
+
+	if i, err = strconv.Atoi(s.Default); err != nil {
 		return 0
 	}
+
 	return i
 }
 
