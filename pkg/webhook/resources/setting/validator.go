@@ -75,6 +75,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.VMForceResetPolicySettingName:                     validateVMForceResetPolicy,
 	settings.SupportBundleImageName:                            validateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateSupportBundleTimeout,
+	settings.SupportBundleExpirationSettingName:                validateSupportBundleExpiration,
 	settings.OvercommitConfigSettingName:                       validateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:                         validateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:                        validateSSLCertificates,
@@ -91,6 +92,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.VMForceResetPolicySettingName:                     validateUpdateVMForceResetPolicy,
 	settings.SupportBundleImageName:                            validateUpdateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateUpdateSupportBundleTimeout,
+	settings.SupportBundleExpirationSettingName:                validateUpdateSupportBundle,
 	settings.OvercommitConfigSettingName:                       validateUpdateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:                         validateUpdateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:                        validateUpdateSSLCertificates,
@@ -539,6 +541,25 @@ func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
 
 func validateUpdateSupportBundleTimeout(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleTimeout(newSetting)
+}
+
+func validateSupportBundleExpiration(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	i, err := strconv.Atoi(setting.Value)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+	if i < 0 {
+		return werror.NewInvalidError("expiration can't be negative", "value")
+	}
+	return nil
+}
+
+func validateUpdateSupportBundle(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateSupportBundleExpiration(newSetting)
 }
 
 func validateSSLCertificates(setting *v1beta1.Setting) error {
