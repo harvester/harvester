@@ -86,7 +86,7 @@ func (h *Handler) OnSupportBundleChanged(key string, sb *harvesterv1.SupportBund
 func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {
 	t, err := time.Parse(time.RFC3339, harvesterv1.SupportBundleInitialized.GetLastUpdated(sb))
 	if err != nil {
-		logrus.Debugf("[%s] fail to parse %s", sb.Name, sb.Status.Conditions[0].LastUpdateTime)
+		logrus.Debugf("[%s] fail to parse %s", sb.Name, harvesterv1.SupportBundleInitialized.GetLastUpdated(sb))
 		return sb, err
 	}
 
@@ -103,7 +103,7 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 
 	logrus.Debugf("[%s] support bundle status: %s exist time is %s", sb.Name, sb.Status.State, existTime.String())
 	if existTime < expiredTime {
-		h.supportBundleController.EnqueueAfter(sb.Namespace, sb.Name, expiredTime)
+		h.supportBundleController.EnqueueAfter(sb.Namespace, sb.Name, expiredTime-existTime)
 		return sb, err
 	}
 
