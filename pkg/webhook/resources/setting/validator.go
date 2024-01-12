@@ -556,7 +556,7 @@ func validateSupportBundleExpiration(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundle(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundle(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleExpiration(newSetting)
 }
 
