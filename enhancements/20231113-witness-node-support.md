@@ -79,7 +79,7 @@ After this feature, the harvester node will have the following roles:
 2. etcd node roles:
    - node-role.kubernetes.io/etcd: "true"
 
-3. worker node roles:沒沒
+3. worker node roles:
 
 #### Taint and Toleration
 
