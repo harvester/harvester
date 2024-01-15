@@ -197,9 +197,7 @@ The controller will deploy agents on the fly in the managing namespace (the same
 
 #### Private VM Networks
 
-The plan is to create two VM networks that are mutually isolated and separate from the outside. The VM attached to these two networks will be assigned IP addresses for each NIC from the DHCP services and gain network connectivity (within these two networks).
-
-##### Prerequisites
+The plan is to create two VM networks that are isolated and separate from the outside. The VM attached to these two networks will be assigned IP addresses for each NIC from the DHCP services and gain network connectivity (within these two networks).
 
 Prepare a Harvester cluster consists of multiple nodes (2+). We'll need to create two cluster networks so each Harvester node should have more than two NICs.
 
@@ -220,17 +218,17 @@ From now on, the steps will interact with the managed DHCP feature.
     apiVersion: network.harvesterhci.io/v1alpha1
     kind: IPPool
     metadata:
-    name: priv-net-all
-    namespace: default
+      name: priv-net-all
+      namespace: default
     spec:
-    ipv4Config:
+      ipv4Config:
         serverIP: 172.19.150.2
         cidr: 172.19.150.0/28
         pool:
         start: 172.19.150.5
         end: 172.19.150.14
         leaseTime: 600
-    networkName: default/priv-net-all
+      networkName: default/priv-net-all
     ```
 
 2. Create another IPPool object `priv-net-cp` with the following YAML content:
@@ -239,17 +237,17 @@ From now on, the steps will interact with the managed DHCP feature.
     apiVersion: network.harvesterhci.io/v1alpha1
     kind: IPPool
     metadata:
-    name: priv-net-cp
-    namespace: default
+      name: priv-net-cp
+      namespace: default
     spec:
-    ipv4Config:
+      ipv4Config:
         serverIP: 172.19.100.2
         cidr: 172.19.100.0/28
         pool:
         start: 172.19.100.10
         end: 172.19.100.14
         leaseTime: 300
-    networkName: default/priv-net-cp
+      networkName: default/priv-net-cp
     ```
 
 3. Create a VirtualMachineNetworkConfig object for the VM `test-vm-1`:
@@ -258,15 +256,15 @@ From now on, the steps will interact with the managed DHCP feature.
     apiVersion: network.harvesterhci.io/v1alpha1
     kind: VirtualMachineNetworkConfig
     metadata:
-    name: test-vm-1
-    namespace: default 
+      name: test-vm-1
+      namespace: default 
     spec:
-    vmName: test-vm-1
-    networkConfig:
-    - macAddress: 02:d4:6f:a8:bc:ed
+      vmName: test-vm-1
+      networkConfig:
+      - macAddress: 02:d4:6f:a8:bc:ed
         networkName: default/priv-net-all
         ipAddress: 172.19.150.9
-    - macAddress: 24:ab:56:78:9c:01
+      - macAddress: 24:ab:56:78:9c:01
         networkName: default/priv-net-cp
     ```
 
@@ -277,6 +275,39 @@ From now on, the steps will interact with the managed DHCP feature.
     - The VirtualMachineNetworkConfig object's `.status` field should show the two NICs have IP addresses allocated
     - The VM `test-vm-1` should have the correct IP addresses configured automatically via DHCP from the agents respectively
 
+#### Kubernetes Guest Clusters (Rancher Integration)
+
+The plan is to create an RKE2 guest cluster with the Harvester node driver. There's no need to have an external DHCP server set up. If there's one, please make sure to disable it first. The managed DHCP feature will help create the VirtualMachineNetworkConfig objects accordingly. 
+
+Prepare a Harvester cluster consists of multiple nodes (2+). Also, a Rancher Manager is required.
+
+1. Create a cluster network called `provider` (the cluster network consists of **all the nodes**)
+2. Create a network config called `provider-nc` for the cluster network `provider` with all nodes and one of their NICs as the uplink
+3. Create a VM network called `provider-net` with cluster network `provider` selected. The VLAN ID should be configured with the one that has Internet accessibility, e.g., `1`.
+4. Create an IPPool object `provider-net` with the following YAML content (the actual network configs should be adapted to your environment):
+
+    ```yaml
+    apiVersion: network.harvesterhci.io/v1alpha1
+    kind: IPPool
+    metadata:
+      name: provider-net
+      namespace: default
+    spec:
+      ipv4Config:
+        serverIP: 192.168.48.2
+        cidr: 192.168.48.0/24
+        pool:
+        start: 192.168.48.81
+        end: 192.168.48.90
+        leaseTime: 600
+      networkName: default/provider-net
+    ```
+
+5. Create an RKE2 guest cluster with 3 nodes
+6. After the provisioning, check if the guest cluster is working correctly:
+
+    - Each node of the guest cluster is configured with the IP address within the IPPool definition
+	- Can use the Rancher dashboard to view the guest cluster
 
 ### Upgrade strategy
 
