@@ -43,7 +43,10 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 	resources := []types.Resource{}
 	validators := []types.Validator{
 		node.NewValidator(clients.Core.Node().Cache()),
-		persistentvolumeclaim.NewValidator(clients.Core.PersistentVolumeClaim().Cache(), clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()),
+		persistentvolumeclaim.NewValidator(
+			clients.Core.PersistentVolumeClaim().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()),
 		keypair.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
 		virtualmachine.NewValidator(
 			clients.Core.Namespace().Cache(),
