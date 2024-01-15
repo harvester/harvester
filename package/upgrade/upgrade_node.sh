@@ -609,9 +609,17 @@ EOF
   # stuck on the grub file search for about 30 minutes, this can be
   # mitigated by adding the `grubenv` file.
   #
-  # PATCH: add /oem/grubenv if it does not exist on upgrade_path
+  # We need to patch grubenv, grubcustom
+
+  # PATCH1: add /oem/grubenv if it does not exist
+  # grubenv use load_env to load, so we use grub2-editenv
   GRUBENV_FILE="/oem/grubenv"
   chroot $HOST_DIR /bin/bash -c "if ! [ -f ${GRUBENV_FILE} ]; then grub2-editenv ${GRUBENV_FILE} create; fi"
+
+  # PATCH2: add /oem/grubcustom if it does not exist
+  # grubcustom use source to load, so we can use touch directly
+  GRUBENV_FILE="/oem/grubcustom"
+  chroot $HOST_DIR /bin/bash -c "if ! [ -f ${GRUBENV_FILE} ]; then touch ${GRUBENV_FILE}; fi" 
 
   umount $target_elemental_cli
   umount $tmp_rootfs_mount
