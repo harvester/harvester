@@ -28,3 +28,4 @@ COPY patch_99_custom.sh /usr/local/bin
 COPY extra_manifests /usr/local/share/extra_manifests
 COPY migrations /usr/local/share/migrations
 COPY addons /usr/local/share/addons
+COPY vm-live-migrate-detector /usr/local/bin/

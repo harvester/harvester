@@ -11,3 +11,4 @@ api.test
 .nocalhost
 package/harvester
 package/harvester-webhook
+package/upgrade/vm-live-migrate-detector
