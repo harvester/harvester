@@ -32,8 +32,16 @@ const (
 	KubeControlPlaneNodeLabelKey = KubeNodeRoleLabelPrefix + "control-plane"
 	KubeEtcdNodeLabelKey         = KubeNodeRoleLabelPrefix + "etcd"
 
+	// promote rules:
+	// w/o role definition: promote the ready worker node randomly
+	// w/ role definition:
+	//   1. promote the witness node to etcd node. (maxmimum: 1)
+	//   2. promote the mgmt node to mgmt node.
+	//   3. do not promote the worker node.
 	HarvesterNodeRoleLabelPrefix = "node-role.harvesterhci.io/"
 	HarvesterWitnessNodeLabelKey = HarvesterNodeRoleLabelPrefix + "witness"
+	HarvesterMgmtNodeLabelKey    = HarvesterNodeRoleLabelPrefix + "management"
+	HarvesterWorkerNodeLabelKey  = HarvesterNodeRoleLabelPrefix + "worker"
 
 	HarvesterLabelAnnotationPrefix      = "harvesterhci.io/"
 	HarvesterManagedNodeLabelKey        = HarvesterLabelAnnotationPrefix + "managed"
@@ -109,6 +117,11 @@ func (h *PromoteHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev1.Nod
 	nodeList, err := h.nodeCache.List(labels.Everything())
 	if err != nil {
 		return nil, err
+	}
+
+	// early return if the node number not enough
+	if len(nodeList) < defaultSpecManagementNumber {
+		return node, nil
 	}
 
 	promoteNode := selectPromoteNode(nodeList)
@@ -259,6 +272,7 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	var (
 		promoteNode                             *corev1.Node
 		healthyHarvesterWorkers                 []*corev1.Node
+		managementPreferred                     []*corev1.Node
 		managementOrHealthyHarvesterWorkerZones = make(map[string]bool)
 		managementZones                         = make(map[string]bool)
 		managementNumber                        int
@@ -299,11 +313,15 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 				managementZones[zone] = true
 				managementOrHealthyHarvesterWorkerZones[zone] = true
 			}
-		} else if isHealthyNode(node) && isHarvesterNode(node) {
+		} else if isHealthyNode(node) && isHarvesterNode(node) && !isWorkerPreferredNode(node) {
 			if zone != "" {
 				managementOrHealthyHarvesterWorkerZones[zone] = true
 			}
-			healthyHarvesterWorkers = append(healthyHarvesterWorkers, node)
+			if _, found := node.Labels[HarvesterMgmtNodeLabelKey]; found {
+				managementPreferred = append(managementPreferred, node)
+			} else {
+				healthyHarvesterWorkers = append(healthyHarvesterWorkers, node)
+			}
 		} else {
 			canBeManagementNodeCount--
 		}
@@ -322,7 +340,17 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	}
 
 	promoteNode = nil
-	for _, node := range healthyHarvesterWorkers {
+
+	// promote the management preferred node first
+	getCandidate := func() []*corev1.Node {
+		if len(managementPreferred) > 0 {
+			return managementPreferred
+		}
+		return healthyHarvesterWorkers
+
+	}()
+
+	for _, node := range getCandidate {
 		zone := node.Labels[corev1.LabelTopologyZone]
 		hasNewZone := zone != "" && !managementZones[zone]
 		if !hasZones || hasNewZone {
@@ -334,6 +362,11 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 
 	// promote the oldest node
 	return promoteNode
+}
+
+func isWorkerPreferredNode(node *corev1.Node) bool {
+	_, found := node.Labels[HarvesterWorkerNodeLabelKey]
+	return found
 }
 
 // isHealthyNode determine whether it's an healthy node
