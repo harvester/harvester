@@ -11,9 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	"k8s.io/component-helpers/scheduling/corev1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/client-go/kubecli"
+
+	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
 type vmLiveMigrateDetector struct {
@@ -54,25 +55,12 @@ func (d *vmLiveMigrateDetector) init() (err error) {
 	return
 }
 
-func (d *vmLiveMigrateDetector) getFilteredNodes(nodes []v1.Node) ([]v1.Node, error) {
-	var found bool
-	var filteredNodes []v1.Node
-	for _, node := range nodes {
-		if d.nodeName != node.Name {
-			filteredNodes = append(filteredNodes, node)
-			continue
-		}
-		found = true
+func (d *vmLiveMigrateDetector) run(ctx context.Context) error {
+	if d.nodeName == "" {
+		return fmt.Errorf("please specify a node name")
 	}
-	if !found {
-		return filteredNodes, fmt.Errorf("node %s not found", d.nodeName)
-	}
-	return filteredNodes, nil
-}
 
-func (d *vmLiveMigrateDetector) getNonMigratableVMs(ctx context.Context, nodes []v1.Node) ([]string, error) {
-	var vmNames []string
-
+	// Get all VMs running on the specified node
 	labelSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"kubevirt.io/nodeName": d.nodeName,
@@ -81,70 +69,26 @@ func (d *vmLiveMigrateDetector) getNonMigratableVMs(ctx context.Context, nodes [
 	listOptions := metav1.ListOptions{
 		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
 	}
-	vmis, err := d.virtClient.VirtualMachineInstance("").List(ctx, &listOptions)
+	vmiList, err := d.virtClient.VirtualMachineInstance("").List(ctx, &listOptions)
 	if err != nil {
-		return vmNames, err
+		return err
+	}
+	vmis := make([]*kubevirtv1.VirtualMachineInstance, 0, len(vmiList.Items))
+	for i := range vmiList.Items {
+		vmis = append(vmis, &vmiList.Items[i])
 	}
 
-	for _, vmi := range vmis.Items {
-		logrus.Debugf("%s/%s", vmi.Namespace, vmi.Name)
-
-		// Check nodeSelector
-		if vmi.Spec.NodeSelector != nil {
-			vmNames = append(vmNames, vmi.Namespace+"/"+vmi.Name)
-			continue
-		}
-
-		// Check pcidevices
-		if len(vmi.Spec.Domain.Devices.HostDevices) > 0 {
-			vmNames = append(vmNames, vmi.Namespace+"/"+vmi.Name)
-			continue
-		}
-
-		// Check nodeAffinity
-		var matched bool
-		if vmi.Spec.Affinity == nil || vmi.Spec.Affinity.NodeAffinity == nil {
-			continue
-		}
-		nodeSelectorTerms := vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
-		for i := range nodes {
-			matched, err = corev1.MatchNodeSelectorTerms(&nodes[i], nodeSelectorTerms)
-			if err != nil {
-				return vmNames, fmt.Errorf(err.Error())
-			}
-			if !matched {
-				continue
-			}
-			if nodes[i].Spec.Unschedulable {
-				matched = false
-				continue
-			}
-		}
-		if !matched {
-			vmNames = append(vmNames, vmi.Namespace+"/"+vmi.Name)
-		}
-	}
-	return vmNames, nil
-}
-
-func (d *vmLiveMigrateDetector) run(ctx context.Context) error {
-	if d.nodeName == "" {
-		return fmt.Errorf("please specify a node name")
-	}
-
+	// Get all nodes
 	nodeList, err := d.virtClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
-
-	filteredNodes, err := d.getFilteredNodes(nodeList.Items)
-	if err != nil {
-		return err
+	nodes := make([]*v1.Node, 0, nodeList.Size())
+	for i := range nodeList.Items {
+		nodes = append(nodes, &nodeList.Items[i])
 	}
 
-	logrus.Infof("Checking vms on node %s...", d.nodeName)
-
-	nonLiveMigratableVMNames, err := d.getNonMigratableVMs(ctx, filteredNodes)
+	nonLiveMigratableVMNames, err := virtualmachineinstance.GetAllNonLiveMigratableVMINames(vmis, nodes)
 	if err != nil {
 		return err
 	}

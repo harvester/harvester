@@ -1910,7 +1910,7 @@ k8s.io/component-base/metrics/prometheusextension
 k8s.io/component-base/tracing
 k8s.io/component-base/tracing/api/v1
 k8s.io/component-base/version
-# k8s.io/component-helpers v0.27.1 => k8s.io/component-helpers v0.26.10
+# k8s.io/component-helpers v0.28.5 => k8s.io/component-helpers v0.26.13
 ## explicit; go 1.19
 k8s.io/component-helpers/scheduling/corev1
 k8s.io/component-helpers/scheduling/corev1/nodeaffinity
