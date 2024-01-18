@@ -1,6 +1,8 @@
 package upgrade
 
 import (
+	"strconv"
+
 	"github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io"
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -67,6 +69,16 @@ func (h *planHandler) OnChanged(key string, plan *upgradev1.Plan) (*upgradev1.Pl
 	}
 
 	component := plan.Labels[harvesterUpgradeComponentLabel]
+	if component == cleanupComponent {
+		toUpdate := upgrade.DeepCopy()
+		if toUpdate.Annotations == nil {
+			toUpdate.Annotations = make(map[string]string)
+		}
+		toUpdate.Annotations[imageCleanupPlanCompletedAnnotation] = strconv.FormatBool(true)
+		if _, err := h.upgradeClient.Update(toUpdate); err != nil {
+			return plan, err
+		}
+	}
 	if !harvesterv1.NodesPrepared.IsTrue(upgrade) && component == nodeComponent {
 		toUpdate := upgrade.DeepCopy()
 		setNodesPreparedCondition(toUpdate, corev1.ConditionTrue, "", "")
