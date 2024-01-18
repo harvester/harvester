@@ -1,6 +1,7 @@
 package upgrade
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -34,6 +35,7 @@ stages:
     - echo > /sysroot/harvester-serve-iso
 `
 	repoServiceNamePrefix = "upgrade-repo-"
+	currentVersion        = "current"
 )
 
 type HarvesterRelease struct {
@@ -453,4 +455,57 @@ func (r *Repo) getInfo() (*RepoInfo, error) {
 		return nil, err
 	}
 	return &info, nil
+}
+
+func (r *Repo) getImageList(version string, imageList map[string]bool) error {
+	imageListURL := fmt.Sprintf("http://%s.%s/harvester-iso/bundle/harvester/images-lists-archive/%s/image_list_all.txt",
+		r.getRepoServiceName(),
+		upgradeNamespace,
+		version,
+	)
+
+	req, err := http.NewRequestWithContext(r.ctx, http.MethodGet, imageListURL, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status: %s", resp.Status)
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		imageName := scanner.Text()
+		imageList[imageName] = true
+	}
+
+	return scanner.Err()
+}
+
+func (r *Repo) getImagesDiffList() (diffList []string, err error) {
+	previousImageList := make(map[string]bool)
+	currentImageList := make(map[string]bool)
+
+	logrus.Infof("Trying to get %s image list", r.upgrade.Status.PreviousVersion)
+	if err = r.getImageList(r.upgrade.Status.PreviousVersion, previousImageList); err != nil {
+		return
+	}
+
+	logrus.Infof("Trying to get %s image list", currentVersion)
+	if err = r.getImageList(currentVersion, currentImageList); err != nil {
+		return
+	}
+
+	diffList = difference(previousImageList, currentImageList)
+	for _, imageName := range diffList {
+		fmt.Println(imageName)
+	}
+
+	return
 }
