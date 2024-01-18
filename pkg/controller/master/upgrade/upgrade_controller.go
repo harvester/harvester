@@ -63,7 +63,8 @@ const (
 	replicaReplenishmentAnnotation           = "harvesterhci.io/" + replicaReplenishmentWaitIntervalSetting
 	extendedReplicaReplenishmentWaitInterval = 1800
 
-	skipVersionCheckAnnotation = "harvesterhci.io/skip-version-check"
+	imageCleanupPlanCompletedAnnotation = "harvesterhci.io/image-cleanup-plan-completed"
+	skipVersionCheckAnnotation          = "harvesterhci.io/skip-version-check"
 )
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades
@@ -188,8 +189,26 @@ func (h *upgradeHandler) OnChanged(key string, upgrade *harvesterv1.Upgrade) (*h
 		return upgrade, nil
 	}
 
-	// clean upgrade repo VMs and images if a upgrade succeeds or fails.
-	if harvesterv1.UpgradeCompleted.IsTrue(upgrade) || harvesterv1.UpgradeCompleted.IsFalse(upgrade) {
+	// clean upgrade repo VMs and images if a upgrade succeeds.
+	if harvesterv1.UpgradeCompleted.IsTrue(upgrade) {
+		_, exists := upgrade.Annotations[imageCleanupPlanCompletedAnnotation]
+		if exists {
+			return nil, h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
+		}
+
+		if err := h.cleanupImages(upgrade, repo); err != nil {
+			logrus.Warningf("Unable to cleanup images: %s", err.Error())
+			toUpdate := upgrade.DeepCopy()
+			toUpdate.Annotations = make(map[string]string)
+			toUpdate.Annotations[imageCleanupPlanCompletedAnnotation] = strconv.FormatBool(true)
+			return h.upgradeClient.Update(toUpdate)
+		}
+
+		return upgrade, nil
+	}
+
+	// clean upgrade repo VMs if a upgrade fails.
+	if harvesterv1.UpgradeCompleted.IsFalse(upgrade) {
 		return nil, h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
 	}
 
@@ -327,6 +346,24 @@ func (h *upgradeHandler) OnRemove(_ string, upgrade *harvesterv1.Upgrade) (*harv
 
 	logrus.Debugf("Deleting upgrade %s", upgrade.Name)
 	return upgrade, h.cleanup(upgrade, true)
+}
+
+func (h *upgradeHandler) cleanupImages(upgrade *harvesterv1.Upgrade, repo *Repo) error {
+	toBePurgedImageList, err := repo.getImagesDiffList()
+	if err != nil {
+		return err
+	}
+
+	if len(toBePurgedImageList) == 0 {
+		return fmt.Errorf("no images to be purged")
+	}
+
+	logrus.Info("Start purging unneeded container images on the nodes")
+	if _, err := h.planClient.Create(prepareCleanupPlan(upgrade, toBePurgedImageList)); err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
+	return nil
 }
 
 func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) error {
