@@ -2,6 +2,7 @@ package upgrade
 
 import (
 	"fmt"
+	"strings"
 
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/name"
@@ -17,6 +18,7 @@ import (
 const (
 	nodeComponent     = "node"
 	manifestComponent = "manifest"
+	cleanupComponent  = "cleanup"
 
 	labelArch               = "kubernetes.io/arch"
 	labelCriticalAddonsOnly = "CriticalAddonsOnly"
@@ -25,6 +27,29 @@ const (
 	defaultTTLSecondsAfterFinished = 604800
 	// Give up to an hour for slower hardware to preload images.
 	defaultPrepareDeadlineSeconds = 3600
+	imageCleanupScript            = `
+#!/usr/bin/env sh
+set -e
+
+HOST_DIR="${HOST_DIR:-/host}"
+
+export CONTAINER_RUNTIME_ENDPOINT=unix:///$HOST_DIR/run/k3s/containerd/containerd.sock
+export CONTAINERD_ADDRESS=$HOST_DIR/run/k3s/containerd/containerd.sock
+
+CTR="$HOST_DIR/$(readlink $HOST_DIR/var/lib/rancher/rke2/bin)/ctr"
+if [ -z "$CTR" ];then
+	echo "Fail to get host ctr binary."
+	exit 0
+fi
+
+ret=0
+"$CTR" -n k8s.io i rm $IMAGES || ret=$?
+
+if [ "$ret" -ne 0 ]; then
+	echo "Fail to remove images"
+	exit 0
+fi
+`
 )
 
 func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {
@@ -142,6 +167,79 @@ func prepareUpgradeLog(upgrade *harvesterv1.Upgrade) *harvesterv1.UpgradeLog {
 		},
 		Spec: harvesterv1.UpgradeLogSpec{
 			UpgradeName: upgrade.Name,
+		},
+	}
+}
+
+func prepareCleanupPlan(upgrade *harvesterv1.Upgrade, imageList []string) *upgradev1.Plan {
+	concurrency := len(upgrade.Status.NodeStatuses)
+	planVersion := upgrade.Name
+	imageVersion := upgrade.Status.PreviousVersion
+
+	return &upgradev1.Plan{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-cleanup", upgrade.Name),
+			Namespace: sucNamespace,
+			Labels: map[string]string{
+				harvesterUpgradeLabel:          upgrade.Name,
+				harvesterUpgradeComponentLabel: cleanupComponent,
+			},
+		},
+		Spec: upgradev1.PlanSpec{
+			Concurrency: int64(concurrency),
+			Version:     planVersion,
+			NodeSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					harvesterManagedLabel: "true",
+				},
+			},
+			ServiceAccountName: upgradeServiceAccount,
+			Tolerations: []corev1.Toleration{
+				{
+					Key:      labelCriticalAddonsOnly,
+					Operator: corev1.TolerationOpExists,
+				},
+				{
+					Key:      "kubevirt.io/drain",
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+				{
+					Key:      node.KubeControlPlaneNodeLabelKey,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoExecute,
+				},
+				{
+					Key:      labelArch,
+					Operator: corev1.TolerationOpEqual,
+					Effect:   corev1.TaintEffectNoSchedule,
+					Value:    "amd64",
+				},
+				{
+					Key:      labelArch,
+					Operator: corev1.TolerationOpEqual,
+					Effect:   corev1.TaintEffectNoSchedule,
+					Value:    "arm64",
+				},
+				{
+					Key:      labelArch,
+					Operator: corev1.TolerationOpEqual,
+					Effect:   corev1.TaintEffectNoSchedule,
+					Value:    "arm",
+				},
+			},
+			Upgrade: &upgradev1.ContainerSpec{
+				Image: fmt.Sprintf("%s:%s", upgradeImageRepository, imageVersion),
+				Command: []string{
+					"sh", "-c", imageCleanupScript,
+				},
+				Env: []corev1.EnvVar{
+					{
+						Name:  "IMAGES",
+						Value: strings.Join(imageList, " "),
+					},
+				},
+			},
 		},
 	}
 }
@@ -669,4 +767,14 @@ func upgradeReference(upgrade *harvesterv1.Upgrade) metav1.OwnerReference {
 		UID:        upgrade.UID,
 		APIVersion: upgrade.APIVersion,
 	}
+}
+
+func difference(setA, setB map[string]bool) []string {
+	var diff []string
+	for key := range setA {
+		if !setB[key] {
+			diff = append(diff, key)
+		}
+	}
+	return diff
 }
