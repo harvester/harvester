@@ -1204,28 +1204,18 @@ EOF
 upgrade_addon_rancher_monitoring()
 {
   echo "upgrade addon rancher_monitoring"
-  if [[ $(is_formal_release $UPGRADE_PREVIOUS_VERSION) = "true" ]]; then
-    if [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.2.0" ]] || [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.2.0" ]]; then
-      echo ".spec.valuesContent has dynamic fields, cannot merge simply, review in each release"
-    fi
-  else
-    # the addon may be existing in v1.2.0 master-head release and the chart version is bumped, then the addon is upgraded to new version
-    upgrade_addon_try_patch_version_only "rancher-monitoring" "cattle-monitoring-system" $REPO_MONITORING_CHART_VERSION
-  fi
+  # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
+  # in v1.3.0, patch version is OK
+  upgrade_addon_try_patch_version_only "rancher-monitoring" "cattle-monitoring-system" $REPO_MONITORING_CHART_VERSION
 }
 
 # NOTE: review in each release, add corresponding process
 upgrade_addon_rancher_logging()
 {
   echo "upgrade addon rancher_logging"
-  if [[ $(is_formal_release $UPGRADE_PREVIOUS_VERSION) = "true" ]]; then
-    if [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.2.0" ]] || [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.2.0" ]]; then
-      echo ".spec.valuesContent has dynamic fields, cannot merge simply, review in each release"
-    fi
-  else
-    # the addon may be existing in v1.2.0 master-head release and the chart version is bumped, then the addon is upgraded to new version
-    upgrade_addon_try_patch_version_only "rancher-logging" "cattle-logging-system" $REPO_LOGGING_CHART_VERSION
-  fi
+  # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
+  # in v1.3.0, patch version is OK
+  upgrade_addon_try_patch_version_only "rancher-logging" "cattle-logging-system" $REPO_LOGGING_CHART_VERSION
 }
 
 upgrade_addons()
