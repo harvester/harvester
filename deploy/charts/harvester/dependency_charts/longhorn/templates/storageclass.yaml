@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: longhorn-storageclass
+  namespace: {{ include "release_namespace" . }}
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+data:
+  storageclass.yaml: |
+    kind: StorageClass
+    apiVersion: storage.k8s.io/v1
+    metadata:
+      name: longhorn
+      annotations:
+        storageclass.kubernetes.io/is-default-class: {{ .Values.persistence.defaultClass | quote }}
+    provisioner: driver.longhorn.io
+    allowVolumeExpansion: true
+    reclaimPolicy: "{{ .Values.persistence.reclaimPolicy }}"
+    volumeBindingMode: Immediate
+    parameters:
+      numberOfReplicas: "{{ .Values.persistence.defaultClassReplicaCount }}"
+      staleReplicaTimeout: "30"
+      fromBackup: ""
+      {{- if .Values.persistence.defaultFsType }}
+      fsType: "{{ .Values.persistence.defaultFsType }}"
+      {{- end }}
+      {{- if .Values.persistence.defaultMkfsParams }}
+      mkfsParams: "{{ .Values.persistence.defaultMkfsParams }}"
+      {{- end }}
+      {{- if .Values.persistence.migratable }}
+      migratable: "{{ .Values.persistence.migratable }}"
+      {{- end }}    
+      {{- if .Values.persistence.nfsOptions }}
+      nfsOptions: "{{ .Values.persistence.nfsOptions }}"
+      {{- end }}    
+      {{- if .Values.persistence.backingImage.enable }}
+      backingImage: {{ .Values.persistence.backingImage.name }}
+      backingImageDataSourceType: {{ .Values.persistence.backingImage.dataSourceType }}
+      backingImageDataSourceParameters: {{ .Values.persistence.backingImage.dataSourceParameters }}
+      backingImageChecksum: {{ .Values.persistence.backingImage.expectedChecksum }}
+      {{- end }}
+      {{- if .Values.persistence.recurringJobSelector.enable }}
+      recurringJobSelector: '{{ .Values.persistence.recurringJobSelector.jobList }}'
+      {{- end }}
+      dataLocality: {{ .Values.persistence.defaultDataLocality | quote }}
+      {{- if .Values.persistence.defaultNodeSelector.enable }}
+      nodeSelector: "{{ .Values.persistence.defaultNodeSelector.selector }}"
+      {{- end }}

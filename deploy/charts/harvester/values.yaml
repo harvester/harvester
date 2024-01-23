@@ -406,7 +406,24 @@ longhorn:
   defaultSettings:
     ## Specify the concurrent automatic engine upgrade per node limit
     concurrentAutomaticEngineUpgradePerNodeLimit: 3
-    priorityClass: system-cluster-critical
+    priorityClass: &longhornPriorityClass system-cluster-critical
+
+  # after upgrade to longhorn 1.6.0, we need to set the priorityClass for longhorn-manager, longhorn-driver and longhorn-ui
+  # or it will be default one longhorn-critical
+  longhornManager:
+    priorityClass: *longhornPriorityClass
+
+  longhornDriver:
+    priorityClass: *longhornPriorityClass
+
+  longhornUI:
+    priorityClass: *longhornPriorityClass
+
+  # Skip the check when bumping Harv from v1.2.1 to v1.3.0
+  # TODO: remove this after harvester v1.3.1
+  preUpgradeChecker:
+    jobEnabled: false
+    upgradeVersionCheck: false
 
 rancherEmbedded: false
 
