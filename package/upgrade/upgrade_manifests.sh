@@ -1215,7 +1215,7 @@ upgrade_addon_rancher_logging()
 upgrade_addons()
 {
   wait_for_addons_crd
-  addons="vm-import-controller pcidevices-controller harvester-seeder"
+  addons="vm-import-controller pcidevices-controller harvester-seeder nvidia-driver-toolkit"
   for addon in $addons; do
     upgrade_addon $addon "harvester-system"
   done
