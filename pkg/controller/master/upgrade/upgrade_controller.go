@@ -190,9 +190,16 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 
 	// clean upgrade repo VMs and images if a upgrade succeeds.
 	if harvesterv1.UpgradeCompleted.IsTrue(upgrade) {
+		// try to clean up images before purging the repo VM
 		_, exists := upgrade.Annotations[imageCleanupPlanCompletedAnnotation]
 		if exists {
 			return nil, h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
+		}
+
+		// repo VM is required for the image cleaning procedure, bring it up if it's down
+		logrus.Info("Try to start repo VM for image pruning")
+		if err := repo.startVM(); err != nil {
+			return upgrade, err
 		}
 
 		if err := h.cleanupImages(upgrade, repo); err != nil {
