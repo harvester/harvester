@@ -132,7 +132,7 @@ get_running_vm_count()
 {
   local count
 
-  count=$(kubectl get vmi -A -l kubevirt.io/nodeName=$HARVESTER_UPGRADE_NODE_NAME -ojson | jq '.items | length' || true)
+  count=$(kubectl get vmi -A -l kubevirt.io/nodeName=$HARVESTER_UPGRADE_NODE_NAME -o yaml | yq e '.items[] | [select(.status.phase!="Succeeded")] | length' || true)
   echo $count
 }
 
