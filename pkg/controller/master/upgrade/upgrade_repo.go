@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -321,6 +324,29 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 	return r.h.vmClient.Create(&vm)
 }
 
+func (r *Repo) startVM() error {
+	vmName := r.getVMName()
+	vm, err := r.h.vmCache.Get(upgradeNamespace, vmName)
+	if err != nil {
+		return err
+	}
+
+	if vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusRunning {
+		return nil
+	}
+
+	toUpdate := vm.DeepCopy()
+
+	toUpdate.Spec.Running = func(b bool) *bool { return &b }(true)
+	if !reflect.DeepEqual(toUpdate, vm) {
+		if _, err = r.h.vmClient.Update(toUpdate); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *Repo) deleteVM() error {
 	vmName := r.getVMName()
 
@@ -488,24 +514,31 @@ func (r *Repo) getImageList(version string, imageList map[string]bool) error {
 	return scanner.Err()
 }
 
-func (r *Repo) getImagesDiffList() (diffList []string, err error) {
+func (r *Repo) getImagesDiffList() ([]string, error) {
 	previousImageList := make(map[string]bool)
 	currentImageList := make(map[string]bool)
 
-	logrus.Infof("Trying to get %s image list", r.upgrade.Status.PreviousVersion)
-	if err = r.getImageList(r.upgrade.Status.PreviousVersion, previousImageList); err != nil {
-		return
+	backoff := wait.Backoff{
+		Steps:    30,
+		Duration: 10 * time.Second,
+		Factor:   1.0,
+		Jitter:   0.1,
 	}
 
-	logrus.Infof("Trying to get %s image list", currentVersion)
-	if err = r.getImageList(currentVersion, currentImageList); err != nil {
-		return
+	if err := retry.OnError(backoff, util.IsRetriableNetworkError, func() error {
+		logrus.Infof("Trying to get %s image list", r.upgrade.Status.PreviousVersion)
+		err := r.getImageList(r.upgrade.Status.PreviousVersion, previousImageList)
+		if err != nil {
+			return err
+		}
+		logrus.Infof("Trying to get %s image list", currentVersion)
+		return r.getImageList(currentVersion, currentImageList)
+	}); err != nil {
+		return nil, err
 	}
 
-	diffList = difference(previousImageList, currentImageList)
-	for _, imageName := range diffList {
-		fmt.Println(imageName)
-	}
+	diffList := difference(previousImageList, currentImageList)
+	logrus.Debugf("Diff: %v", diffList)
 
-	return
+	return diffList, nil
 }
