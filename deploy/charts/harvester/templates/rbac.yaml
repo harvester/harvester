@@ -131,6 +131,7 @@ rules:
       - virtualmachines/removevolume
       - virtualmachineinstances/addvolume
       - virtualmachineinstances/removevolume
+      - virtualmachineinstances/guestosinfo
     verbs:
       - get
       - update
