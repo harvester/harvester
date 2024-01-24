@@ -133,6 +133,7 @@ var (
 
 	w1rm  = NewDefaultNodeBuilder().Name("w-1-r-mgmt").Harvester().RoleMgmt().Worker()
 	w1rwk = NewDefaultNodeBuilder().Name("w-1-r-worker").Harvester().RoleWorker().Worker()
+	w1rw  = NewDefaultNodeBuilder().Name("w-1-r-witness").Harvester().RoleWitness().Worker()
 
 	// zone aware nodes
 	mu1z2 = NewDefaultNodeBuilder().Name("m-unmanaged-1-z2").Zone("zone2").Management()
@@ -668,6 +669,13 @@ func Test_selectPromoteNode(t *testing.T) {
 				nodeList: []*corev1.Node{m1, m2, w1, w1rm},
 			},
 			want: w1rm,
+		},
+		{
+			name: "two management one worker one worker and one worker with role witness",
+			args: args{
+				nodeList: []*corev1.Node{m1, m2, w1, w1rw},
+			},
+			want: w1rw,
 		},
 		{
 			name: "two management one worker with role worker",
