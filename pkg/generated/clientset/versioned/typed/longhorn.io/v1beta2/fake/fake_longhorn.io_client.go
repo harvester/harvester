@@ -44,6 +44,10 @@ func (c *FakeLonghornV1beta2) Backups(namespace string) v1beta2.BackupInterface 
 	return &FakeBackups{c, namespace}
 }
 
+func (c *FakeLonghornV1beta2) BackupBackingImages(namespace string) v1beta2.BackupBackingImageInterface {
+	return &FakeBackupBackingImages{c, namespace}
+}
+
 func (c *FakeLonghornV1beta2) BackupTargets(namespace string) v1beta2.BackupTargetInterface {
 	return &FakeBackupTargets{c, namespace}
 }
