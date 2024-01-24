@@ -9,13 +9,13 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/longhorn/longhorn-manager/util"
+	lhtypes "github.com/longhorn/go-common-libs/types"
 )
 
 func GetDeviceTypeOf(mountPath string) (string, error) {
 	procMountPaths := []string{
 		"/proc/mounts",
-		filepath.Join(util.HostProcPath, "1", "mounts"),
+		filepath.Join(lhtypes.HostProcDirectory, "1", "mounts"),
 	}
 
 	var devicePath string
@@ -33,7 +33,7 @@ func GetDeviceTypeOf(mountPath string) (string, error) {
 		return "", errors.Wrapf(err, "failed to get device path in %v", procMountPaths)
 	}
 
-	return getBlockDeviceType(devicePath)
+	return GetBlockDeviceType(devicePath)
 }
 
 func getDevicePathOf(mountPath, procMountPath string) (string, error) {
@@ -67,7 +67,7 @@ func getDevicePathOf(mountPath, procMountPath string) (string, error) {
 	return devicePath, nil
 }
 
-func getBlockDeviceType(devicePath string) (string, error) {
+func GetBlockDeviceType(devicePath string) (string, error) {
 	// Check if device rotational file exist
 	deviceID := filepath.Base(devicePath)
 	rotationalPath := fmt.Sprintf("/sys/block/%s/queue/rotational", deviceID)
@@ -84,7 +84,7 @@ func getBlockDeviceType(devicePath string) (string, error) {
 			}
 
 			// Try to get the device type of the parent device
-			return getBlockDeviceType(parentDevicePath)
+			return GetBlockDeviceType(parentDevicePath)
 
 		}
 		return "", errors.Wrapf(err, "failed to get %v file information", rotationalPath)

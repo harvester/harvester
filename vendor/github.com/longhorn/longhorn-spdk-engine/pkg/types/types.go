@@ -17,10 +17,11 @@ const (
 type InstanceState string
 
 const (
-	InstanceStatePending = "pending"
-	InstanceStateStopped = "stopped"
-	InstanceStateRunning = "running"
-	InstanceStateError   = "error"
+	InstanceStatePending     = "pending"
+	InstanceStateStopped     = "stopped"
+	InstanceStateRunning     = "running"
+	InstanceStateTerminating = "terminating"
+	InstanceStateError       = "error"
 )
 
 type InstanceType string
@@ -29,5 +30,7 @@ const (
 	InstanceTypeReplica = InstanceType("replica")
 	InstanceTypeEngine  = InstanceType("engine")
 )
+
+const VolumeHead = "volume-head"
 
 const SPDKServicePort = 8504

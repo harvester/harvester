@@ -2,8 +2,10 @@ syntax="proto3";
 
 package ptypes;
 
+option go_package = "github.com/longhorn/longhorn-engine/proto/ptypes";
+
 import "google/protobuf/empty.proto";
-import "common.proto";
+import "github.com/longhorn/longhorn-engine/proto/ptypes/common.proto";
 
 service ControllerService {
     rpc VolumeGet(google.protobuf.Empty) returns (Volume);
@@ -15,6 +17,8 @@ service ControllerService {
     rpc VolumeFrontendStart(VolumeFrontendStartRequest) returns (Volume);
     rpc VolumeFrontendShutdown(google.protobuf.Empty) returns (Volume);
     rpc VolumeUnmapMarkSnapChainRemovedSet(VolumeUnmapMarkSnapChainRemovedSetRequest) returns (Volume);
+    rpc VolumeSnapshotMaxCountSet(VolumeSnapshotMaxCountSetRequest) returns (Volume);
+    rpc VolumeSnapshotMaxSizeSet(VolumeSnapshotMaxSizeSetRequest) returns (Volume);
 
     rpc ReplicaList(google.protobuf.Empty) returns (ReplicaListReply);
     rpc ReplicaGet(ReplicaAddress) returns (ControllerReplica);
@@ -44,6 +48,8 @@ message Volume {
     string last_expansion_failed_at = 9;
 
     bool unmap_mark_snap_chain_removed = 10;
+    int32 snapshot_max_count = 11;
+    int64 snapshot_max_size = 12;
 }
 
 message ReplicaAddress {
@@ -91,6 +97,14 @@ message VolumeFrontendStartRequest {
 
 message VolumeUnmapMarkSnapChainRemovedSetRequest {
     bool enabled = 1;
+}
+
+message VolumeSnapshotMaxCountSetRequest {
+    int32 count = 1;
+}
+
+message VolumeSnapshotMaxSizeSetRequest {
+    int64 size = 1;
 }
 
 message VolumePrepareRestoreRequest {

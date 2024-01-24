@@ -30,6 +30,7 @@ type LonghornV1beta2Interface interface {
 	BackingImageDataSourcesGetter
 	BackingImageManagersGetter
 	BackupsGetter
+	BackupBackingImagesGetter
 	BackupTargetsGetter
 	BackupVolumesGetter
 	EnginesGetter
@@ -68,6 +69,10 @@ func (c *LonghornV1beta2Client) BackingImageManagers(namespace string) BackingIm
 
 func (c *LonghornV1beta2Client) Backups(namespace string) BackupInterface {
 	return newBackups(c, namespace)
+}
+
+func (c *LonghornV1beta2Client) BackupBackingImages(namespace string) BackupBackingImageInterface {
+	return newBackupBackingImages(c, namespace)
 }
 
 func (c *LonghornV1beta2Client) BackupTargets(namespace string) BackupTargetInterface {

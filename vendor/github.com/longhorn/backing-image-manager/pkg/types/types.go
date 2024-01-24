@@ -51,15 +51,19 @@ const (
 	DataSourceTypeDownload         = DataSourceType("download")
 	DataSourceTypeUpload           = DataSourceType("upload")
 	DataSourceTypeExportFromVolume = DataSourceType("export-from-volume")
+	DataSourceTypeRestore          = DataSourceType("restore")
 )
 
 const (
-	DataSourceTypeDownloadParameterURL = "url"
-	DataSourceTypeFileType             = "file-type"
+	DataSourceTypeDownloadParameterURL            = "url"
+	DataSourceTypeRestoreParameterBackupURL       = "backup-url"
+	DataSourceTypeRestoreParameterConcurrentLimit = "concurrent-limit"
+	DataSourceTypeFileType                        = "file-type"
 
-	DataSourceTypeExportFromVolumeParameterVolumeSize    = "volume-size"
-	DataSourceTypeExportFromVolumeParameterSnapshotName  = "snapshot-name"
-	DataSourceTypeExportFromVolumeParameterSenderAddress = "sender-address"
+	DataSourceTypeExportFromVolumeParameterVolumeSize                = "volume-size"
+	DataSourceTypeExportFromVolumeParameterSnapshotName              = "snapshot-name"
+	DataSourceTypeExportFromVolumeParameterSenderAddress             = "sender-address"
+	DataSourceTypeExportFromVolumeParameterFileSyncHTTPClientTimeout = "file-sync-http-client-timeout"
 
 	DataSourceTypeExportFromVolumeParameterExportTypeRAW   = "raw"
 	DataSourceTypeExportFromVolumeParameterExportTypeQCOW2 = "qcow2"

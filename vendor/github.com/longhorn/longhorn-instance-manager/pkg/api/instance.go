@@ -1,11 +1,17 @@
 package api
 
 import (
-	"github.com/golang/protobuf/ptypes/empty"
-
-	"github.com/longhorn/longhorn-spdk-engine/proto/spdkrpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
+	"github.com/longhorn/longhorn-spdk-engine/proto/spdkrpc"
+)
+
+var (
+	dataEngines = map[string]string{
+		"DATA_ENGINE_V1": "v1",
+		"DATA_ENGINE_V2": "v2",
+	}
 )
 
 type InstanceProcessSpec struct {
@@ -14,22 +20,27 @@ type InstanceProcessSpec struct {
 }
 
 type Instance struct {
-	Name               string         `json:"name"`
-	Type               string         `json:"type"`
-	BackendStoreDriver string         `json:"backendStoreDriver"`
-	PortCount          int32          `json:"portCount"`
-	PortArgs           []string       `json:"portArgs"`
-	InstanceStatus     InstanceStatus `json:"instanceStatus"`
-	Deleted            bool           `json:"deleted"`
+	Name           string         `json:"name"`
+	Type           string         `json:"type"`
+	DataEngine     string         `json:"dataEngine"`
+	PortCount      int32          `json:"portCount"`
+	PortArgs       []string       `json:"portArgs"`
+	InstanceStatus InstanceStatus `json:"instanceStatus"`
+	Deleted        bool           `json:"deleted"`
 
 	InstanceProccessSpec *InstanceProcessSpec
+
+	// Deprecated: replaced by DataEngine.
+	BackendStoreDriver string `json:"backendStoreDriver"`
 }
 
 func RPCToInstance(obj *rpc.InstanceResponse) *Instance {
 	instance := &Instance{
-		Name:               obj.Spec.Name,
-		Type:               obj.Spec.Type,
+		Name: obj.Spec.Name,
+		Type: obj.Spec.Type,
+		//lint:ignore SA1019 replaced with DataEngine
 		BackendStoreDriver: obj.Spec.BackendStoreDriver.String(),
+		DataEngine:         dataEngines[obj.Spec.DataEngine.String()],
 		PortCount:          obj.Spec.PortCount,
 		PortArgs:           obj.Spec.PortArgs,
 		InstanceStatus:     RPCToInstanceStatus(obj.Status),
@@ -54,18 +65,20 @@ func RPCToInstanceList(obj *rpc.InstanceListResponse) map[string]*Instance {
 }
 
 type InstanceStatus struct {
-	State     string `json:"state"`
-	ErrorMsg  string `json:"errorMsg"`
-	PortStart int32  `json:"portStart"`
-	PortEnd   int32  `json:"portEnd"`
+	State      string          `json:"state"`
+	ErrorMsg   string          `json:"errorMsg"`
+	Conditions map[string]bool `json:"conditions"`
+	PortStart  int32           `json:"portStart"`
+	PortEnd    int32           `json:"portEnd"`
 }
 
 func RPCToInstanceStatus(obj *rpc.InstanceStatus) InstanceStatus {
 	return InstanceStatus{
-		State:     obj.State,
-		ErrorMsg:  obj.ErrorMsg,
-		PortStart: obj.PortStart,
-		PortEnd:   obj.PortEnd,
+		State:      obj.State,
+		ErrorMsg:   obj.ErrorMsg,
+		Conditions: obj.Conditions,
+		PortStart:  obj.PortStart,
+		PortEnd:    obj.PortEnd,
 	}
 }
 
@@ -79,7 +92,7 @@ func NewInstanceStream(stream rpc.InstanceService_InstanceWatchClient) *Instance
 	}
 }
 
-func (s *InstanceStream) Recv() (*empty.Empty, error) {
+func (s *InstanceStream) Recv() (*emptypb.Empty, error) {
 	return s.stream.Recv()
 }
 
@@ -93,7 +106,7 @@ func NewReplicaStream(stream spdkrpc.SPDKService_ReplicaWatchClient) *ReplicaStr
 	}
 }
 
-func (s *ReplicaStream) Recv() (*empty.Empty, error) {
+func (s *ReplicaStream) Recv() (*emptypb.Empty, error) {
 	return s.stream.Recv()
 }
 
@@ -107,7 +120,7 @@ func NewEngineStream(stream spdkrpc.SPDKService_EngineWatchClient) *EngineStream
 	}
 }
 
-func (s *EngineStream) Recv() (*empty.Empty, error) {
+func (s *EngineStream) Recv() (*emptypb.Empty, error) {
 	return s.stream.Recv()
 }
 

@@ -245,6 +245,14 @@ func (e *EngineSimulator) VolumeUnmapMarkSnapChainRemovedSet(*longhorn.Engine) e
 	return fmt.Errorf(ErrNotImplement)
 }
 
+func (e *EngineSimulator) VolumeSnapshotMaxCountSet(*longhorn.Engine) error {
+	return fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) VolumeSnapshotMaxSizeSet(*longhorn.Engine) error {
+	return fmt.Errorf(ErrNotImplement)
+}
+
 func (e *EngineSimulator) ReplicaRebuildVerify(engine *longhorn.Engine, replicaName, url string) error {
 	return fmt.Errorf(ErrNotImplement)
 }
@@ -263,4 +271,8 @@ func (e *EngineSimulator) ReplicaModeUpdate(engine *longhorn.Engine, url, mode s
 
 func (e *EngineSimulator) MetricsGet(*longhorn.Engine) (*Metrics, error) {
 	return nil, fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) CleanupBackupMountPoints() error {
+	return fmt.Errorf(ErrNotImplement)
 }

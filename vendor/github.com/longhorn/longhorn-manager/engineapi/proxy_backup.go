@@ -38,7 +38,7 @@ func (p *Proxy) SnapshotBackup(e *longhorn.Engine, snapshotName, backupName, bac
 		return "", "", err
 	}
 
-	backupID, replicaAddress, err := p.grpcClient.SnapshotBackup(string(e.Spec.BackendStoreDriver), e.Name,
+	backupID, replicaAddress, err := p.grpcClient.SnapshotBackup(string(e.Spec.DataEngine), e.Name,
 		e.Spec.VolumeName, p.DirectToURL(e), backupName, snapshotName, backupTarget, backingImageName,
 		backingImageChecksum, compressionMethod, concurrentLimit, storageClassName, labels, credentialEnv,
 	)
@@ -51,7 +51,7 @@ func (p *Proxy) SnapshotBackup(e *longhorn.Engine, snapshotName, backupName, bac
 
 func (p *Proxy) SnapshotBackupStatus(e *longhorn.Engine, backupName, replicaAddress,
 	replicaName string) (status *longhorn.EngineBackupStatus, err error) {
-	recv, err := p.grpcClient.SnapshotBackupStatus(string(e.Spec.BackendStoreDriver), e.Name, e.Spec.VolumeName,
+	recv, err := p.grpcClient.SnapshotBackupStatus(string(e.Spec.DataEngine), e.Name, e.Spec.VolumeName,
 		p.DirectToURL(e), backupName, replicaAddress, replicaName)
 	if err != nil {
 		return nil, err
@@ -70,12 +70,12 @@ func (p *Proxy) BackupRestore(e *longhorn.Engine, backupTarget, backupName, back
 		return err
 	}
 
-	return p.grpcClient.BackupRestore(string(e.Spec.BackendStoreDriver), e.Name, e.Spec.VolumeName, p.DirectToURL(e),
+	return p.grpcClient.BackupRestore(string(e.Spec.DataEngine), e.Name, e.Spec.VolumeName, p.DirectToURL(e),
 		backupURL, backupTarget, backupVolumeName, envs, concurrentLimit)
 }
 
 func (p *Proxy) BackupRestoreStatus(e *longhorn.Engine) (status map[string]*longhorn.RestoreStatus, err error) {
-	recv, err := p.grpcClient.BackupRestoreStatus(string(e.Spec.BackendStoreDriver), e.Name, e.Spec.VolumeName,
+	recv, err := p.grpcClient.BackupRestoreStatus(string(e.Spec.DataEngine), e.Name, e.Spec.VolumeName,
 		p.DirectToURL(e))
 	if err != nil {
 		return nil, err
@@ -86,4 +86,8 @@ func (p *Proxy) BackupRestoreStatus(e *longhorn.Engine) (status map[string]*long
 		status[k] = (*longhorn.RestoreStatus)(v)
 	}
 	return status, nil
+}
+
+func (p *Proxy) CleanupBackupMountPoints() (err error) {
+	return p.grpcClient.CleanupBackupMountPoints()
 }

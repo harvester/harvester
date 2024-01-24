@@ -12,6 +12,7 @@ import (
 
 	"github.com/longhorn/longhorn-manager/engineapi"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 )
 
@@ -207,6 +208,14 @@ func (m *VolumeManager) PurgeSnapshot(volumeName string) error {
 		return fmt.Errorf("volume name required")
 	}
 
+	disablePurge, err := m.ds.GetSettingAsBool(types.SettingNameDisableSnapshotPurge)
+	if err != nil {
+		return err
+	}
+	if disablePurge {
+		return errors.Errorf("cannot purge snapshots while %v setting is true", types.SettingNameDisableSnapshotPurge)
+	}
+
 	if err := m.checkVolumeNotInMigration(volumeName); err != nil {
 		return err
 	}
@@ -293,7 +302,7 @@ func (m *VolumeManager) GetRunningEngineByVolume(name string) (e *longhorn.Engin
 		return nil, errors.Errorf("engine is not running")
 	}
 
-	if isReady, err := m.ds.CheckEngineImageReadiness(e.Status.CurrentImage, m.currentNodeID); !isReady {
+	if isReady, err := m.ds.CheckDataEngineImageReadiness(e.Status.CurrentImage, e.Spec.DataEngine, m.currentNodeID); !isReady {
 		if err != nil {
 			return nil, errors.Errorf("cannot get engine with image %v: %v", e.Status.CurrentImage, err)
 		}

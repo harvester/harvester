@@ -8,19 +8,22 @@ import (
 	iscsidevtypes "github.com/longhorn/go-iscsi-helper/types"
 	spdkdevtypes "github.com/longhorn/go-spdk-helper/pkg/types"
 
+	emeta "github.com/longhorn/longhorn-engine/pkg/meta"
+
+	"github.com/longhorn/longhorn-manager/datastore"
+
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
-	// CurrentCLIVersion indicates the default API version manager used to talk with the
-	// engine, including `longhorn-engine` and `longhorn-instance-manager`
-	CurrentCLIVersion = 7
-	// MinCLIVersion indicates the Min API version manager used to talk with the
-	// engine.
-	MinCLIVersion = 3
-
 	CLIVersionFour = 4
 	CLIVersionFive = 5
+
+	// CLIAPIMinVersionForExistingEngineBeforeUpgrade will enable already created volumes before the upgrade to operate normally.
+	// Additionally, they will not be impacted by the new engine upgrade enforcement mechanism.
+	// This mechanism exclusively focuses on preventing users from creating or updating a volume, engine, or replica using any incompatible version.
+	// It is strictly bound to the default engine image of the release, emeta.CLIAPIMinVersion.
+	CLIAPIMinVersionForExistingEngineBeforeUpgrade = 3
 
 	InstanceManagerProcessManagerServiceDefaultPort = 8500
 	InstanceManagerProxyServiceDefaultPort          = InstanceManagerProcessManagerServiceDefaultPort + 1 // 8501
@@ -78,6 +81,8 @@ type EngineClient interface {
 	VolumeFrontendStart(*longhorn.Engine) error
 	VolumeFrontendShutdown(*longhorn.Engine) error
 	VolumeUnmapMarkSnapChainRemovedSet(engine *longhorn.Engine) error
+	VolumeSnapshotMaxCountSet(engine *longhorn.Engine) error
+	VolumeSnapshotMaxSizeSet(engine *longhorn.Engine) error
 
 	ReplicaList(*longhorn.Engine) (map[string]*Replica, error)
 	ReplicaAdd(engine *longhorn.Engine, replicaName, url string, isRestoreVolume, fastSync bool, replicaFileSyncHTTPClientTimeout int64) error
@@ -102,6 +107,8 @@ type EngineClient interface {
 
 	BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolume, lastRestored string, credential map[string]string, concurrentLimit int) error
 	BackupRestoreStatus(engine *longhorn.Engine) (map[string]*longhorn.RestoreStatus, error)
+
+	CleanupBackupMountPoints() error
 
 	MetricsGet(engine *longhorn.Engine) (*Metrics, error)
 }
@@ -129,6 +136,8 @@ type Volume struct {
 	LastExpansionError        string `json:"lastExpansionError"`
 	LastExpansionFailedAt     string `json:"lastExpansionFailedAt"`
 	UnmapMarkSnapChainRemoved bool   `json:"unmapMarkSnapChainRemoved"`
+	SnapshotMaxCount          int    `json:"snapshotMaxCount"`
+	SnapshotMaxSize           int64  `json:"SnapshotMaxSize"`
 }
 
 type BackupTarget struct {
@@ -237,17 +246,21 @@ func ValidateReplicaURL(url string) error {
 }
 
 func CheckCLICompatibility(cliVersion, cliMinVersion int) error {
-	if MinCLIVersion > cliVersion || CurrentCLIVersion < cliMinVersion {
-		return fmt.Errorf("manager current CLI version %v and min CLI version %v is not compatible with CLIVersion %v and CLIMinVersion %v", CurrentCLIVersion, MinCLIVersion, cliVersion, cliMinVersion)
+	currentCLIVersion := emeta.CLIAPIVersion
+	minCLIVersion := emeta.CLIAPIMinVersion
+
+	if minCLIVersion > cliVersion || currentCLIVersion < cliMinVersion {
+		return fmt.Errorf("manager current CLI version %v and min CLI version %v is not compatible with CLIVersion %v and CLIMinVersion %v", currentCLIVersion, minCLIVersion, cliVersion, cliMinVersion)
 	}
+
 	return nil
 }
 
-func GetEngineInstanceFrontend(backendStoreDriver longhorn.BackendStoreDriverType, volumeFrontend longhorn.VolumeFrontend) (frontend string, err error) {
+func GetEngineInstanceFrontend(dataEngine longhorn.DataEngineType, volumeFrontend longhorn.VolumeFrontend) (frontend string, err error) {
 	switch volumeFrontend {
 	case longhorn.VolumeFrontendBlockDev:
 		frontend = string(iscsidevtypes.FrontendTGTBlockDev)
-		if backendStoreDriver == longhorn.BackendStoreDriverTypeV2 {
+		if datastore.IsDataEngineV2(dataEngine) {
 			frontend = string(spdkdevtypes.FrontendSPDKTCPBlockdev)
 		}
 	case longhorn.VolumeFrontendISCSI:

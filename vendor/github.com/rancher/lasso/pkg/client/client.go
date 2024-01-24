@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+// Client performs CRUD like operations on a specific GVR.
 type Client struct {
 	// Default RESTClient
 	RESTClient rest.Interface
@@ -33,6 +34,8 @@ type Client struct {
 	kind       string
 }
 
+// IsNamespaced determines if the give GroupVersionResource is namespaced using the given RESTMapper.
+// returns true if namespaced and an error if the scope could not be determined.
 func IsNamespaced(gvr schema.GroupVersionResource, mapper meta.RESTMapper) (bool, error) {
 	kind, err := mapper.KindFor(gvr)
 	if err != nil {
@@ -58,9 +61,31 @@ func (c *Client) WithAgent(userAgent string) (*Client, error) {
 		return nil, fmt.Errorf("failed to created restClient with userAgent [%s]: %w", userAgent, err)
 	}
 	client.RESTClient = restClient
+	client.Config = config
 	return &client, nil
 }
 
+// WithImpersonation attempts to return a copy of the Client but
+// with a new restClient created with the passed in impersonation configuration.
+func (c *Client) WithImpersonation(impersonate rest.ImpersonationConfig) (*Client, error) {
+	client := *c
+	config := c.Config
+	config.Impersonate = impersonate
+	restClient, err := rest.UnversionedRESTClientFor(&config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to created restClient with impersonation [%v]: %w", impersonate, err)
+	}
+	client.RESTClient = restClient
+	client.Config = config
+	return &client, nil
+}
+
+// NewClient will create a client for the given GroupResourceVersion and Kind.
+// If namespaced is set to true all request will be sent with the scoped to a namespace.
+// The namespaced option can be changed after creation with the client.Namespace variable.
+// defaultTimeout will be used to set the timeout for all request from this client. The value of 0 is used to specify an infinite timeout.
+// request will return if the provided context is canceled regardless of the value of defaultTimeout.
+// Changing the value of client.GVR after it's creation of NewClient will not affect future request.
 func NewClient(gvr schema.GroupVersionResource, kind string, namespaced bool, client rest.Interface, defaultTimeout time.Duration) *Client {
 	var (
 		prefix []string
@@ -93,22 +118,23 @@ func NewClient(gvr schema.GroupVersionResource, kind string, namespaced bool, cl
 
 func noop() {}
 
-func (c *Client) setupCtx(ctx context.Context, minTimeout time.Duration) (context.Context, func()) {
-	if minTimeout == 0 && c.timeout == 0 {
+// setupCtx wraps the provided context with client.timeout, and returns the new context and it's cancel func.
+// If client.timeout is 0 then the provided context is returned with a noop function instead of a cancel function.
+func (c *Client) setupCtx(ctx context.Context) (context.Context, func()) {
+	if c.timeout == 0 {
 		return ctx, noop
 	}
 
-	timeout := c.timeout
-	if minTimeout > 0 && timeout < minTimeout {
-		timeout = minTimeout
-	}
-
-	return context.WithTimeout(ctx, timeout)
+	return context.WithTimeout(ctx, c.timeout)
 }
 
+// Get will attempt to find the requested resource with the given name in the given namespace (if client.Namespaced is set to true).
+// Get will then attempt to unmarshal the response into the provide result object.
+// If the returned response object is of type Status and has .Status != StatusSuccess, the
+// additional information in Status will be used to enrich the error.
 func (c *Client) Get(ctx context.Context, namespace, name string, result runtime.Object, options metav1.GetOptions) (err error) {
 	defer c.setKind(result)
-	ctx, cancel := c.setupCtx(ctx, 0)
+	ctx, cancel := c.setupCtx(ctx)
 	defer cancel()
 	err = c.RESTClient.Get().
 		Prefix(c.prefix...).
@@ -121,8 +147,12 @@ func (c *Client) Get(ctx context.Context, namespace, name string, result runtime
 	return
 }
 
+// List will attempt to find resources in the given namespace (if client.Namespaced is set to true).
+// List will then attempt to unmarshal the response into the provide result object.
+// If the returned response object is of type Status and has .Status != StatusSuccess, the
+// additional information in Status will be used to enrich the error.
 func (c *Client) List(ctx context.Context, namespace string, result runtime.Object, opts metav1.ListOptions) (err error) {
-	ctx, cancel := c.setupCtx(ctx, 0)
+	ctx, cancel := c.setupCtx(ctx)
 	defer cancel()
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
@@ -141,6 +171,9 @@ func (c *Client) List(ctx context.Context, namespace string, result runtime.Obje
 	return
 }
 
+// Watch will attempt to start a watch request with the kube-apiserver for resources in the given namespace (if client.Namespaced is set to true).
+// Results will be streamed too the returned watch.Interface.
+// The returned watch.Interface is determine by *("k8s.io/client-go/rest").Request.Watch
 func (c *Client) Watch(ctx context.Context, namespace string, opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
@@ -156,9 +189,13 @@ func (c *Client) Watch(ctx context.Context, namespace string, opts metav1.ListOp
 		Watch(ctx))
 }
 
+// Create will attempt create the provided object in the given namespace (if client.Namespaced is set to true).
+// Create will then attempt to unmarshal the created object from the response into the provide result object.
+// If the returned response object is of type Status and has .Status != StatusSuccess, the
+// additional information in Status will be used to enrich the error.
 func (c *Client) Create(ctx context.Context, namespace string, obj, result runtime.Object, opts metav1.CreateOptions) (err error) {
 	defer c.setKind(result)
-	ctx, cancel := c.setupCtx(ctx, 0)
+	ctx, cancel := c.setupCtx(ctx)
 	defer cancel()
 	err = c.RESTClient.Post().
 		Prefix(c.prefix...).
@@ -171,9 +208,13 @@ func (c *Client) Create(ctx context.Context, namespace string, obj, result runti
 	return
 }
 
+// Update will attempt update the provided object in the given namespace (if client.Namespaced is set to true).
+// Update will then attempt to unmarshal the updated object from the response into the provide result object.
+// If the returned response object is of type Status and has .Status != StatusSuccess, the
+// additional information in Status will be used to enrich the error.
 func (c *Client) Update(ctx context.Context, namespace string, obj, result runtime.Object, opts metav1.UpdateOptions) (err error) {
 	defer c.setKind(result)
-	ctx, cancel := c.setupCtx(ctx, 0)
+	ctx, cancel := c.setupCtx(ctx)
 	defer cancel()
 	m, err := meta.Accessor(obj)
 	if err != nil {
@@ -191,9 +232,13 @@ func (c *Client) Update(ctx context.Context, namespace string, obj, result runti
 	return
 }
 
+// UpdateStatus will attempt update the status on the provided object in the given namespace (if client.Namespaced is set to true).
+// UpdateStatus will then attempt to unmarshal the updated object from the response into the provide result object.
+// If the returned response object is of type Status and has .Status != StatusSuccess, the
+// additional information in Status will be used to enrich the error.
 func (c *Client) UpdateStatus(ctx context.Context, namespace string, obj, result runtime.Object, opts metav1.UpdateOptions) (err error) {
 	defer c.setKind(result)
-	ctx, cancel := c.setupCtx(ctx, 0)
+	ctx, cancel := c.setupCtx(ctx)
 	defer cancel()
 	m, err := meta.Accessor(obj)
 	if err != nil {
@@ -212,8 +257,9 @@ func (c *Client) UpdateStatus(ctx context.Context, namespace string, obj, result
 	return
 }
 
+// Delete will attempt to delete the resource with the matching name in the given namespace (if client.Namespaced is set to true).
 func (c *Client) Delete(ctx context.Context, namespace, name string, opts metav1.DeleteOptions) error {
-	ctx, cancel := c.setupCtx(ctx, 0)
+	ctx, cancel := c.setupCtx(ctx)
 	defer cancel()
 	return c.RESTClient.Delete().
 		Prefix(c.prefix...).
@@ -225,8 +271,9 @@ func (c *Client) Delete(ctx context.Context, namespace, name string, opts metav1
 		Error()
 }
 
+// DeleteCollection will attempt to delete all resource the given namespace (if client.Namespaced is set to true).
 func (c *Client) DeleteCollection(ctx context.Context, namespace string, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	ctx, cancel := c.setupCtx(ctx, 0)
+	ctx, cancel := c.setupCtx(ctx)
 	defer cancel()
 	var timeout time.Duration
 	if listOpts.TimeoutSeconds != nil {
@@ -243,9 +290,13 @@ func (c *Client) DeleteCollection(ctx context.Context, namespace string, opts me
 		Error()
 }
 
+// Patch attempts to patch the existing resource with the provided data and patchType that matches the given name in the given namespace (if client.Namespaced is set to true).
+// Patch will then attempt to unmarshal the updated object from the response into the provide result object.
+// If the returned response object is of type Status and has .Status != StatusSuccess, the
+// additional information in Status will be used to enrich the error.
 func (c *Client) Patch(ctx context.Context, namespace, name string, pt types.PatchType, data []byte, result runtime.Object, opts metav1.PatchOptions, subresources ...string) (err error) {
 	defer c.setKind(result)
-	ctx, cancel := c.setupCtx(ctx, 0)
+	ctx, cancel := c.setupCtx(ctx)
 	defer cancel()
 	err = c.RESTClient.Patch(pt).
 		Prefix(c.prefix...).
@@ -298,6 +349,7 @@ type watcher struct {
 	eventChan chan watch.Event
 }
 
+// ResultChan returns a receive only channel of watch events.
 func (w *watcher) ResultChan() <-chan watch.Event {
 	return w.eventChan
 }
