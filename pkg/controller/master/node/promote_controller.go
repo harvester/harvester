@@ -273,6 +273,7 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 		promoteNode                             *corev1.Node
 		healthyHarvesterWorkers                 []*corev1.Node
 		managementPreferred                     []*corev1.Node
+		witnessPreferred                        []*corev1.Node
 		managementOrHealthyHarvesterWorkerZones = make(map[string]bool)
 		managementZones                         = make(map[string]bool)
 		managementNumber                        int
@@ -319,6 +320,8 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 			}
 			if _, found := node.Labels[HarvesterMgmtNodeLabelKey]; found {
 				managementPreferred = append(managementPreferred, node)
+			} else if _, found := node.Labels[HarvesterWitnessNodeLabelKey]; found {
+				witnessPreferred = append(witnessPreferred, node)
 			} else {
 				healthyHarvesterWorkers = append(healthyHarvesterWorkers, node)
 			}
@@ -345,6 +348,8 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	getCandidate := func() []*corev1.Node {
 		if len(managementPreferred) > 0 {
 			return managementPreferred
+		} else if len(witnessPreferred) > 0 {
+			return witnessPreferred
 		}
 		return healthyHarvesterWorkers
 
