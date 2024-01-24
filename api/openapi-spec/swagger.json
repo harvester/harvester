@@ -8439,23 +8439,6 @@
         }
       }
     },
-    "kubevirt.io.api.core.v1.AddInterfaceOptions": {
-      "type": "object",
-      "required": [
-        "networkAttachmentDefinitionName",
-        "name"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "default": ""
-        },
-        "networkAttachmentDefinitionName": {
-          "type": "string",
-          "default": ""
-        }
-      }
-    },
     "kubevirt.io.api.core.v1.AddVolumeOptions": {
       "type": "object",
       "required": [
@@ -8882,6 +8865,9 @@
             "$ref": "#/definitions/kubevirt.io.api.core.v1.Disk"
           }
         },
+        "downwardMetrics": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.DownwardMetrics"
+        },
         "filesystems": {
           "type": "array",
           "items": {
@@ -8919,6 +8905,9 @@
             "default": {},
             "$ref": "#/definitions/kubevirt.io.api.core.v1.Interface"
           }
+        },
+        "logSerialConsole": {
+          "type": "boolean"
         },
         "networkInterfaceMultiqueue": {
           "type": "boolean"
@@ -8964,6 +8953,9 @@
         },
         "disk": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.DiskTarget"
+        },
+        "errorPolicy": {
+          "type": "string"
         },
         "io": {
           "type": "string"
@@ -9075,12 +9067,18 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.DownwardMetrics": {
+      "type": "object"
+    },
     "kubevirt.io.api.core.v1.DownwardMetricsVolumeSource": {
       "type": "object"
     },
     "kubevirt.io.api.core.v1.EFI": {
       "type": "object",
       "properties": {
+        "persistent": {
+          "type": "boolean"
+        },
         "secureBoot": {
           "type": "boolean"
         }
@@ -9416,6 +9414,9 @@
         "inferFromVolume": {
           "type": "string"
         },
+        "inferFromVolumeFailurePolicy": {
+          "type": "string"
+        },
         "kind": {
           "type": "string"
         },
@@ -9436,6 +9437,9 @@
         "acpiIndex": {
           "type": "integer",
           "format": "int32"
+        },
+        "binding": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.PluginBinding"
         },
         "bootOrder": {
           "type": "integer",
@@ -9564,6 +9568,9 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.LiveUpdateAffinity": {
+      "type": "object"
+    },
     "kubevirt.io.api.core.v1.LiveUpdateCPU": {
       "type": "object",
       "properties": {
@@ -9576,8 +9583,22 @@
     "kubevirt.io.api.core.v1.LiveUpdateFeatures": {
       "type": "object",
       "properties": {
+        "affinity": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.LiveUpdateAffinity"
+        },
         "cpu": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.LiveUpdateCPU"
+        },
+        "memory": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.LiveUpdateMemory"
+        }
+      }
+    },
+    "kubevirt.io.api.core.v1.LiveUpdateMemory": {
+      "type": "object",
+      "properties": {
+        "maxGuest": {
+          "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
         }
       }
     },
@@ -9612,6 +9633,9 @@
         },
         "hugepages": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.Hugepages"
+        },
+        "maxGuest": {
+          "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
         }
       }
     },
@@ -9630,6 +9654,20 @@
         },
         "readOnly": {
           "type": "boolean"
+        }
+      }
+    },
+    "kubevirt.io.api.core.v1.MemoryStatus": {
+      "type": "object",
+      "properties": {
+        "guestAtBoot": {
+          "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
+        },
+        "guestCurrent": {
+          "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
+        },
+        "guestRequested": {
+          "$ref": "#/definitions/k8s.io.apimachinery.pkg.api.resource.Quantity"
         }
       }
     },
@@ -9722,6 +9760,9 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.NoCloudSSHPublicKeyAccessCredentialPropagation": {
+      "type": "object"
+    },
     "kubevirt.io.api.core.v1.PITTimer": {
       "type": "object",
       "properties": {
@@ -9787,6 +9828,18 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.PluginBinding": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "kubevirt.io.api.core.v1.PodNetwork": {
       "type": "object",
       "properties": {
@@ -9821,6 +9874,9 @@
       "type": "object",
       "properties": {
         "inferFromVolume": {
+          "type": "string"
+        },
+        "inferFromVolumeFailurePolicy": {
           "type": "string"
         },
         "kind": {
@@ -9912,18 +9968,6 @@
         }
       }
     },
-    "kubevirt.io.api.core.v1.RemoveInterfaceOptions": {
-      "type": "object",
-      "required": [
-        "name"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "default": ""
-        }
-      }
-    },
     "kubevirt.io.api.core.v1.RemoveVolumeOptions": {
       "type": "object",
       "required": [
@@ -9972,10 +10016,22 @@
     "kubevirt.io.api.core.v1.SEV": {
       "type": "object",
       "properties": {
+        "attestation": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.SEVAttestation"
+        },
+        "dhCert": {
+          "type": "string"
+        },
         "policy": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.SEVPolicy"
+        },
+        "session": {
+          "type": "string"
         }
       }
+    },
+    "kubevirt.io.api.core.v1.SEVAttestation": {
+      "type": "object"
     },
     "kubevirt.io.api.core.v1.SEVPolicy": {
       "type": "object",
@@ -10007,6 +10063,9 @@
       "properties": {
         "configDrive": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.ConfigDriveSSHPublicKeyAccessCredentialPropagation"
+        },
+        "noCloud": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.NoCloudSSHPublicKeyAccessCredentialPropagation"
         },
         "qemuGuestAgent": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.QemuGuestAgentSSHPublicKeyAccessCredentialPropagation"
@@ -10749,6 +10808,9 @@
         "machine": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.Machine"
         },
+        "memory": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.MemoryStatus"
+        },
         "migrationMethod": {
           "type": "string"
         },
@@ -10812,17 +10874,6 @@
         "spec": {
           "default": {},
           "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineInstanceSpec"
-        }
-      }
-    },
-    "kubevirt.io.api.core.v1.VirtualMachineInterfaceRequest": {
-      "type": "object",
-      "properties": {
-        "addInterfaceOptions": {
-          "$ref": "#/definitions/kubevirt.io.api.core.v1.AddInterfaceOptions"
-        },
-        "removeInterfaceOptions": {
-          "$ref": "#/definitions/kubevirt.io.api.core.v1.RemoveInterfaceOptions"
         }
       }
     },
@@ -10971,14 +11022,6 @@
         "desiredGeneration": {
           "type": "integer",
           "format": "int64"
-        },
-        "interfaceRequests": {
-          "type": "array",
-          "items": {
-            "default": {},
-            "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineInterfaceRequest"
-          },
-          "x-kubernetes-list-type": "atomic"
         },
         "memoryDumpRequest": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineMemoryDumpRequest"
