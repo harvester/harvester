@@ -1,6 +1,7 @@
 syntax="proto3";
 
 package ptypes;
+option go_package = "github.com/longhorn/longhorn-engine/proto/ptypes";
 
 message SyncFileInfo {
     string from_file_name = 1;

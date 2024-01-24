@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -200,6 +201,47 @@ func (client *SyncClient) DownloadFromURL(downloadURL, filePath, uuid, diskUUID,
 	q.Add("uuid", uuid)
 	q.Add("disk-uuid", diskUUID)
 	q.Add("expected-checksum", expectedChecksum)
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("download from URL failed, err: %s", err)
+	}
+	defer resp.Body.Close()
+
+	bodyContent, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("%s, failed to read the response body: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s, response body content: %v", util.GetHTTPClientErrorPrefix(resp.StatusCode), string(bodyContent))
+	}
+
+	return nil
+}
+
+func (client *SyncClient) RestoreFromBackupURL(backupURL, concurrentLimit, filePath, uuid, diskUUID, expectedChecksum string, credential map[string]string) error {
+	httpClient := &http.Client{Timeout: 0}
+	encodedCredential, err := json.Marshal(credential)
+	if err != nil {
+		return err
+	}
+
+	requestURL := fmt.Sprintf("http://%s/v1/files", client.Remote)
+	req, err := http.NewRequest("POST", requestURL, bytes.NewReader(encodedCredential))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	q := req.URL.Query()
+	q.Add("action", "restoreFromBackupURL")
+	q.Add("backup-url", backupURL)
+	q.Add("file-path", filePath)
+	q.Add("uuid", uuid)
+	q.Add("disk-uuid", diskUUID)
+	q.Add("expected-checksum", expectedChecksum)
+	q.Add("concurrent-limit", concurrentLimit)
+
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := httpClient.Do(req)

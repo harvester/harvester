@@ -4,7 +4,7 @@ package longhorn.backingimagemanager.pkg.rpc;
 
 import "google/protobuf/empty.proto";
 
-option go_package = "rpc";
+option go_package = "github.com/longhorn/backing-image-manager/pkg/rpc";
 
 service BackingImageManagerService {
 	rpc Delete(DeleteRequest) returns (google.protobuf.Empty) {}
@@ -15,6 +15,8 @@ service BackingImageManagerService {
 	rpc Send(SendRequest) returns (google.protobuf.Empty) {}
 	rpc Fetch(FetchRequest) returns (BackingImageResponse) {}
 	rpc PrepareDownload(PrepareDownloadRequest) returns (PrepareDownloadResponse) {}
+	rpc BackupCreate(BackupCreateRequest) returns (google.protobuf.Empty) {}
+	rpc BackupStatus(BackupStatusRequest) returns (BackupStatusResponse) {}
 
 	rpc Watch(google.protobuf.Empty) returns (stream google.protobuf.Empty) {}
 }
@@ -87,4 +89,26 @@ message PrepareDownloadRequest {
 message PrepareDownloadResponse {
 	string src_file_path = 1;
 	string address = 2;
+}
+
+message BackupCreateRequest {
+  string name = 1;
+  string uuid = 2;
+  string checksum = 3;
+  string backup_target = 4;
+  repeated string labels = 5;
+  map<string, string> credential = 6;
+  string compression_method = 7;
+  int32 concurrent_limit = 8;
+}
+
+message BackupStatusRequest {
+	string name = 1;
+}
+
+message BackupStatusResponse {
+  int32 progress = 1;
+  string backup_url = 2;
+  string error = 3;
+  string state = 4;
 }

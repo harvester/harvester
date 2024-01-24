@@ -53,6 +53,22 @@ func RPCToBackingImageList(obj *rpc.ListResponse) map[string]*BackingImage {
 	return ret
 }
 
+type BackupStatus struct {
+	Progress  int    `json:"progress"`
+	BackupURL string `json:"backupURL"`
+	ErrorMsg  string `json:"errorMsg"`
+	State     string `json:"state"`
+}
+
+func RPCToBackupStatus(obj *rpc.BackupStatusResponse) *BackupStatus {
+	return &BackupStatus{
+		Progress:  int(obj.Progress),
+		BackupURL: obj.BackupUrl,
+		ErrorMsg:  obj.Error,
+		State:     obj.State,
+	}
+}
+
 type BackingImageStream struct {
 	conn      *grpc.ClientConn
 	ctxCancel context.CancelFunc

@@ -12,7 +12,7 @@ import (
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
-func (c *ProxyClient) VolumeGet(backendStoreDriver, engineName, volumeName, serviceAddress string) (info *etypes.VolumeInfo, err error) {
+func (c *ProxyClient) VolumeGet(dataEngine, engineName, volumeName, serviceAddress string) (info *etypes.VolumeInfo, err error) {
 	input := map[string]string{
 		"engineName":     engineName,
 		"volumeName":     volumeName,
@@ -22,9 +22,9 @@ func (c *ProxyClient) VolumeGet(backendStoreDriver, engineName, volumeName, serv
 		return nil, errors.Wrap(err, "failed to get volume")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return nil, fmt.Errorf("failed to get volume: invalid backend store driver %v", backendStoreDriver)
+		return nil, fmt.Errorf("failed to get volume: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -32,9 +32,11 @@ func (c *ProxyClient) VolumeGet(backendStoreDriver, engineName, volumeName, serv
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address:            serviceAddress,
-		EngineName:         engineName,
+		Address:    serviceAddress,
+		EngineName: engineName,
+		// nolint:all replaced with DataEngine
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		DataEngine:         rpc.DataEngine(driver),
 		VolumeName:         volumeName,
 	}
 	resp, err := c.service.VolumeGet(getContextWithGRPCTimeout(c.ctx), req)
@@ -53,11 +55,13 @@ func (c *ProxyClient) VolumeGet(backendStoreDriver, engineName, volumeName, serv
 		LastExpansionError:        resp.Volume.LastExpansionError,
 		LastExpansionFailedAt:     resp.Volume.LastExpansionFailedAt,
 		UnmapMarkSnapChainRemoved: resp.Volume.UnmapMarkSnapChainRemoved,
+		SnapshotMaxCount:          int(resp.Volume.SnapshotMaxCount),
+		SnapshotMaxSize:           resp.Volume.SnapshotMaxSize,
 	}
 	return info, nil
 }
 
-func (c *ProxyClient) VolumeExpand(backendStoreDriver, engineName, volumeName, serviceAddress string,
+func (c *ProxyClient) VolumeExpand(dataEngine, engineName, volumeName, serviceAddress string,
 	size int64) (err error) {
 	input := map[string]string{
 		"engineName":     engineName,
@@ -68,9 +72,9 @@ func (c *ProxyClient) VolumeExpand(backendStoreDriver, engineName, volumeName, s
 		return errors.Wrap(err, "failed to expand volume")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return fmt.Errorf("failed to expand volume: invalid backend store driver %v", backendStoreDriver)
+		return fmt.Errorf("failed to expand volume: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -79,9 +83,11 @@ func (c *ProxyClient) VolumeExpand(backendStoreDriver, engineName, volumeName, s
 
 	req := &rpc.EngineVolumeExpandRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address:            serviceAddress,
-			EngineName:         engineName,
+			Address:    serviceAddress,
+			EngineName: engineName,
+			// nolint:all replaced with DataEngine
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
 		Expand: &eptypes.VolumeExpandRequest{
@@ -96,7 +102,7 @@ func (c *ProxyClient) VolumeExpand(backendStoreDriver, engineName, volumeName, s
 	return nil
 }
 
-func (c *ProxyClient) VolumeFrontendStart(backendStoreDriver, engineName, volumeName, serviceAddress, frontendName string) (err error) {
+func (c *ProxyClient) VolumeFrontendStart(dataEngine, engineName, volumeName, serviceAddress, frontendName string) (err error) {
 	input := map[string]string{
 		"engineName":     engineName,
 		"volumeName":     volumeName,
@@ -107,9 +113,9 @@ func (c *ProxyClient) VolumeFrontendStart(backendStoreDriver, engineName, volume
 		return errors.Wrap(err, "failed to start volume frontend")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return fmt.Errorf("failed to start volume frontend: invalid backend store driver %v", backendStoreDriver)
+		return fmt.Errorf("failed to start volume frontend: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -118,9 +124,11 @@ func (c *ProxyClient) VolumeFrontendStart(backendStoreDriver, engineName, volume
 
 	req := &rpc.EngineVolumeFrontendStartRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address:            serviceAddress,
-			EngineName:         engineName,
+			Address:    serviceAddress,
+			EngineName: engineName,
+			// nolint:all replaced with DataEngine
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
 		FrontendStart: &eptypes.VolumeFrontendStartRequest{
@@ -135,8 +143,7 @@ func (c *ProxyClient) VolumeFrontendStart(backendStoreDriver, engineName, volume
 	return nil
 }
 
-func (c *ProxyClient) VolumeFrontendShutdown(backendStoreDriver, engineName, volumeName,
-	serviceAddress string) (err error) {
+func (c *ProxyClient) VolumeFrontendShutdown(dataEngine, engineName, volumeName, serviceAddress string) (err error) {
 	input := map[string]string{
 		"engineName":     engineName,
 		"volumeName":     volumeName,
@@ -146,9 +153,9 @@ func (c *ProxyClient) VolumeFrontendShutdown(backendStoreDriver, engineName, vol
 		return errors.Wrap(err, "failed to shutdown volume frontend")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return fmt.Errorf("failed to shutdown volume frontend: invalid backend store driver %v", backendStoreDriver)
+		return fmt.Errorf("failed to shutdown volume frontend: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -156,9 +163,11 @@ func (c *ProxyClient) VolumeFrontendShutdown(backendStoreDriver, engineName, vol
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address:            serviceAddress,
-		EngineName:         engineName,
+		Address:    serviceAddress,
+		EngineName: engineName,
+		// nolint:all replaced with DataEngine
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		DataEngine:         rpc.DataEngine(driver),
 		VolumeName:         volumeName,
 	}
 	_, err = c.service.VolumeFrontendShutdown(getContextWithGRPCTimeout(c.ctx), req)
@@ -169,8 +178,7 @@ func (c *ProxyClient) VolumeFrontendShutdown(backendStoreDriver, engineName, vol
 	return nil
 }
 
-func (c *ProxyClient) VolumeUnmapMarkSnapChainRemovedSet(backendStoreDriver, engineName, volumeName,
-	serviceAddress string, enabled bool) (err error) {
+func (c *ProxyClient) VolumeUnmapMarkSnapChainRemovedSet(dataEngine, engineName, volumeName, serviceAddress string, enabled bool) (err error) {
 	input := map[string]string{
 		"engineName":     engineName,
 		"volumeName":     volumeName,
@@ -181,9 +189,9 @@ func (c *ProxyClient) VolumeUnmapMarkSnapChainRemovedSet(backendStoreDriver, eng
 		return errors.Wrap(err, "failed to set volume flag UnmapMarkSnapChainRemoved")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return fmt.Errorf("failed to set volume flag UnmapMarkSnapChainRemoved: invalid backend store driver %v", backendStoreDriver)
+		return fmt.Errorf("failed to set volume flag UnmapMarkSnapChainRemoved: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -192,14 +200,96 @@ func (c *ProxyClient) VolumeUnmapMarkSnapChainRemovedSet(backendStoreDriver, eng
 
 	req := &rpc.EngineVolumeUnmapMarkSnapChainRemovedSetRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address:            serviceAddress,
-			EngineName:         engineName,
+			Address:    serviceAddress,
+			EngineName: engineName,
+			// nolint:all replaced with DataEngine
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
 		UnmapMarkSnap: &eptypes.VolumeUnmapMarkSnapChainRemovedSetRequest{Enabled: enabled},
 	}
 	_, err = c.service.VolumeUnmapMarkSnapChainRemovedSet(getContextWithGRPCTimeout(c.ctx), req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *ProxyClient) VolumeSnapshotMaxCountSet(dataEngine, engineName, volumeName,
+	serviceAddress string, count int) (err error) {
+	input := map[string]string{
+		"engineName":     engineName,
+		"volumeName":     volumeName,
+		"serviceAddress": serviceAddress,
+		"count":          strconv.Itoa(count),
+	}
+	if err := validateProxyMethodParameters(input); err != nil {
+		return errors.Wrap(err, "failed to set volume flag SnapshotMaxCount")
+	}
+
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
+	if !ok {
+		return fmt.Errorf("failed to set volume flag SnapshotMaxCount: invalid data engine %v", dataEngine)
+	}
+
+	defer func() {
+		err = errors.Wrapf(err, "%v failed to set SnapshotMaxCount", c.getProxyErrorPrefix(serviceAddress))
+	}()
+
+	req := &rpc.EngineVolumeSnapshotMaxCountSetRequest{
+		ProxyEngineRequest: &rpc.ProxyEngineRequest{
+			Address:    serviceAddress,
+			EngineName: engineName,
+			// nolint:all replaced with DataEngine
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
+			VolumeName:         volumeName,
+		},
+		Count: &eptypes.VolumeSnapshotMaxCountSetRequest{Count: int32(count)},
+	}
+	_, err = c.service.VolumeSnapshotMaxCountSet(getContextWithGRPCTimeout(c.ctx), req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *ProxyClient) VolumeSnapshotMaxSizeSet(dataEngine, engineName, volumeName,
+	serviceAddress string, size int64) (err error) {
+	input := map[string]string{
+		"engineName":     engineName,
+		"volumeName":     volumeName,
+		"serviceAddress": serviceAddress,
+		"size":           strconv.FormatInt(size, 10),
+	}
+	if err := validateProxyMethodParameters(input); err != nil {
+		return errors.Wrap(err, "failed to set volume flag SnapshotMaxSize")
+	}
+
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
+	if !ok {
+		return fmt.Errorf("failed to set volume flag SnapshotMaxSize: invalid data engine %v", dataEngine)
+	}
+
+	defer func() {
+		err = errors.Wrapf(err, "%v failed to set SnapshotMaxSize", c.getProxyErrorPrefix(serviceAddress))
+	}()
+
+	req := &rpc.EngineVolumeSnapshotMaxSizeSetRequest{
+		ProxyEngineRequest: &rpc.ProxyEngineRequest{
+			Address:    serviceAddress,
+			EngineName: engineName,
+			// nolint:all replaced with DataEngine
+			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
+			VolumeName:         volumeName,
+		},
+		Size: &eptypes.VolumeSnapshotMaxSizeSetRequest{Size: size},
+	}
+	_, err = c.service.VolumeSnapshotMaxSizeSet(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
 		return err
 	}

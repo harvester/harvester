@@ -5,9 +5,9 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/longhorn/longhorn-instance-manager/pkg/api"
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
@@ -117,8 +117,8 @@ func (c *DiskServiceClient) DiskCreate(diskType, diskName, diskUUID, diskPath st
 
 // DiskGet returns the disk info with the given name and path.
 func (c *DiskServiceClient) DiskGet(diskType, diskName, diskPath string) (*api.DiskInfo, error) {
-	if diskName == "" || diskPath == "" {
-		return nil, fmt.Errorf("failed to get disk info: missing required parameters")
+	if diskName == "" {
+		return nil, fmt.Errorf("failed to get disk info: missing required parameter")
 	}
 
 	t, ok := rpc.DiskType_value[diskType]
@@ -229,7 +229,7 @@ func (c *DiskServiceClient) VersionGet() (*meta.DiskServiceVersionOutput, error)
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
 	defer cancel()
 
-	resp, err := client.VersionGet(ctx, &empty.Empty{})
+	resp, err := client.VersionGet(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get disk service version")
 	}

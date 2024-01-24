@@ -11,7 +11,7 @@ import (
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
-func (c *ProxyClient) ReplicaAdd(backendStoreDriver, engineName, volumeName, serviceAddress, replicaName,
+func (c *ProxyClient) ReplicaAdd(dataEngine, engineName, volumeName, serviceAddress, replicaName,
 	replicaAddress string, restore bool, size, currentSize int64, fileSyncHTTPClientTimeout int,
 	fastSync bool) (err error) {
 	input := map[string]string{
@@ -25,9 +25,9 @@ func (c *ProxyClient) ReplicaAdd(backendStoreDriver, engineName, volumeName, ser
 		return errors.Wrap(err, "failed to add replica for volume")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return fmt.Errorf("failed to add replica for volume: invalid backend store driver %v", backendStoreDriver)
+		return fmt.Errorf("failed to add replica for volume: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -40,9 +40,11 @@ func (c *ProxyClient) ReplicaAdd(backendStoreDriver, engineName, volumeName, ser
 
 	req := &rpc.EngineReplicaAddRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address:            serviceAddress,
-			EngineName:         engineName,
+			Address:    serviceAddress,
+			EngineName: engineName,
+			// nolint:all replaced with DataEngine
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
 		ReplicaName:               replicaName,
@@ -61,7 +63,7 @@ func (c *ProxyClient) ReplicaAdd(backendStoreDriver, engineName, volumeName, ser
 	return nil
 }
 
-func (c *ProxyClient) ReplicaList(backendStoreDriver, engineName, volumeName,
+func (c *ProxyClient) ReplicaList(dataEngine, engineName, volumeName,
 	serviceAddress string) (rInfoList []*etypes.ControllerReplicaInfo, err error) {
 	input := map[string]string{
 		"engineName":     engineName,
@@ -72,9 +74,9 @@ func (c *ProxyClient) ReplicaList(backendStoreDriver, engineName, volumeName,
 		return nil, errors.Wrap(err, "failed to list replicas for volume")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return nil, fmt.Errorf("failed to list replicas for volume: invalid backend store driver %v", backendStoreDriver)
+		return nil, fmt.Errorf("failed to list replicas for volume: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -82,9 +84,11 @@ func (c *ProxyClient) ReplicaList(backendStoreDriver, engineName, volumeName,
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address:            serviceAddress,
-		EngineName:         engineName,
+		Address:    serviceAddress,
+		EngineName: engineName,
+		// nolint:all replaced with DataEngine
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		DataEngine:         rpc.DataEngine(driver),
 		VolumeName:         volumeName,
 	}
 	resp, err := c.service.ReplicaList(getContextWithGRPCTimeout(c.ctx), req)
@@ -102,7 +106,7 @@ func (c *ProxyClient) ReplicaList(backendStoreDriver, engineName, volumeName,
 	return rInfoList, nil
 }
 
-func (c *ProxyClient) ReplicaRebuildingStatus(backendStoreDriver, engineName, volumeName,
+func (c *ProxyClient) ReplicaRebuildingStatus(dataEngine, engineName, volumeName,
 	serviceAddress string) (status map[string]*ReplicaRebuildStatus, err error) {
 	input := map[string]string{
 		"engineName":     engineName,
@@ -113,9 +117,9 @@ func (c *ProxyClient) ReplicaRebuildingStatus(backendStoreDriver, engineName, vo
 		return nil, errors.Wrap(err, "failed to get replicas rebuilding status")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return nil, fmt.Errorf("failed to get replicas rebuilding status: invalid backend store driver %v", backendStoreDriver)
+		return nil, fmt.Errorf("failed to get replicas rebuilding status: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -123,9 +127,11 @@ func (c *ProxyClient) ReplicaRebuildingStatus(backendStoreDriver, engineName, vo
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address:            serviceAddress,
-		EngineName:         engineName,
+		Address:    serviceAddress,
+		EngineName: engineName,
+		// nolint:all replaced with DataEngine
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		DataEngine:         rpc.DataEngine(driver),
 		VolumeName:         volumeName,
 	}
 	recv, err := c.service.ReplicaRebuildingStatus(getContextWithGRPCTimeout(c.ctx), req)
@@ -146,7 +152,7 @@ func (c *ProxyClient) ReplicaRebuildingStatus(backendStoreDriver, engineName, vo
 	return status, nil
 }
 
-func (c *ProxyClient) ReplicaVerifyRebuild(backendStoreDriver, engineName, volumeName, serviceAddress,
+func (c *ProxyClient) ReplicaVerifyRebuild(dataEngine, engineName, volumeName, serviceAddress,
 	replicaAddress, replicaName string) (err error) {
 	input := map[string]string{
 		"engineName":     engineName,
@@ -159,9 +165,9 @@ func (c *ProxyClient) ReplicaVerifyRebuild(backendStoreDriver, engineName, volum
 		return errors.Wrap(err, "failed to verify replica rebuild")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return fmt.Errorf("failed to verify replica rebuild: invalid backend store driver %v", backendStoreDriver)
+		return fmt.Errorf("failed to verify replica rebuild: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -170,9 +176,11 @@ func (c *ProxyClient) ReplicaVerifyRebuild(backendStoreDriver, engineName, volum
 
 	req := &rpc.EngineReplicaVerifyRebuildRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address:            serviceAddress,
-			EngineName:         engineName,
+			Address:    serviceAddress,
+			EngineName: engineName,
+			// nolint:all replaced with DataEngine
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
 		ReplicaAddress: replicaAddress,
@@ -186,7 +194,7 @@ func (c *ProxyClient) ReplicaVerifyRebuild(backendStoreDriver, engineName, volum
 	return nil
 }
 
-func (c *ProxyClient) ReplicaRemove(backendStoreDriver, serviceAddress, engineName, replicaAddress, replicaName string) (err error) {
+func (c *ProxyClient) ReplicaRemove(dataEngine, serviceAddress, engineName, replicaAddress, replicaName string) (err error) {
 	input := map[string]string{
 		"serviceAddress": serviceAddress,
 		"engineName":     engineName,
@@ -196,9 +204,9 @@ func (c *ProxyClient) ReplicaRemove(backendStoreDriver, serviceAddress, engineNa
 		return errors.Wrap(err, "failed to remove replica for volume")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return fmt.Errorf("failed to remove replica for volume: invalid backend store driver %v", backendStoreDriver)
+		return fmt.Errorf("failed to remove replica for volume: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -207,9 +215,11 @@ func (c *ProxyClient) ReplicaRemove(backendStoreDriver, serviceAddress, engineNa
 
 	req := &rpc.EngineReplicaRemoveRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address:            serviceAddress,
-			EngineName:         engineName,
+			Address:    serviceAddress,
+			EngineName: engineName,
+			// nolint:all replaced with DataEngine
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
 		},
 		ReplicaAddress: replicaAddress,
 		ReplicaName:    replicaName,
@@ -222,7 +232,7 @@ func (c *ProxyClient) ReplicaRemove(backendStoreDriver, serviceAddress, engineNa
 	return nil
 }
 
-func (c *ProxyClient) ReplicaModeUpdate(backendStoreDriver, serviceAddress, replicaAddress string, mode string) (err error) {
+func (c *ProxyClient) ReplicaModeUpdate(dataEngine, serviceAddress, replicaAddress string, mode string) (err error) {
 	input := map[string]string{
 		"serviceAddress": serviceAddress,
 		"replicaAddress": replicaAddress,
@@ -231,9 +241,9 @@ func (c *ProxyClient) ReplicaModeUpdate(backendStoreDriver, serviceAddress, repl
 		return errors.Wrap(err, "failed to remove replica for volume")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return fmt.Errorf("failed to remove replica for volume: invalid backend store driver %v", backendStoreDriver)
+		return fmt.Errorf("failed to remove replica for volume: invalid data engine %v", dataEngine)
 	}
 
 	defer func() {
@@ -242,8 +252,10 @@ func (c *ProxyClient) ReplicaModeUpdate(backendStoreDriver, serviceAddress, repl
 
 	req := &rpc.EngineReplicaModeUpdateRequest{
 		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address:            serviceAddress,
+			Address: serviceAddress,
+			// nolint:all replaced with DataEngine
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
 		},
 		ReplicaAddress: replicaAddress,
 		Mode:           eptypes.ReplicaModeToGRPCReplicaMode(etypes.Mode(mode)),

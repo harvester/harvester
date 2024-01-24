@@ -10,9 +10,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+
+	lhns "github.com/longhorn/go-common-libs/ns"
 
 	"github.com/longhorn/longhorn-manager/util"
 
@@ -90,12 +93,6 @@ const (
 	DefaultAdmissionWebhookPort      = 9502
 	DefaultRecoveryBackendServerPort = 9503
 
-	WebhookTypeConversion = "conversion"
-	WebhookTypeAdmission  = "admission"
-
-	ValidatingWebhookName = "longhorn-webhook-validator"
-	MutatingWebhookName   = "longhorn-webhook-mutator"
-
 	EngineBinaryDirectoryInContainer = "/engine-binaries/"
 	EngineBinaryDirectoryOnHost      = "/var/lib/longhorn/engine-binaries/"
 	ReplicaHostPrefix                = "/host"
@@ -121,6 +118,8 @@ const (
 	NodeCreateDefaultDiskLabelKey             = "node.longhorn.io/create-default-disk"
 	NodeCreateDefaultDiskLabelValueTrue       = "true"
 	NodeCreateDefaultDiskLabelValueConfig     = "config"
+	NodeDisableV2DataEngineLabelKey           = "node.longhorn.io/disable-v2-data-engine"
+	NodeDisableV2DataEngineLabelKeyTrue       = "true"
 	KubeNodeDefaultDiskConfigAnnotationKey    = "node.longhorn.io/default-disks-config"
 	KubeNodeDefaultNodeTagConfigAnnotationKey = "node.longhorn.io/default-node-tags"
 
@@ -173,6 +172,7 @@ const (
 	LonghornLabelLastSystemRestore          = "last-system-restored"
 	LonghornLabelLastSystemRestoreAt        = "last-system-restored-at"
 	LonghornLabelLastSystemRestoreBackup    = "last-system-restored-backup"
+	LonghornLabelDataEngine                 = "data-engine"
 	LonghornLabelVersion                    = "version"
 
 	LonghornLabelValueEnabled = "enabled"
@@ -417,15 +417,19 @@ func GetEIDaemonSetLabelSelector(engineImageName string) map[string]string {
 	return labels
 }
 
-func GetInstanceManagerLabels(node, instanceManagerImage string, managerType longhorn.InstanceManagerType) map[string]string {
+func GetInstanceManagerLabels(node, imImage string, imType longhorn.InstanceManagerType, dataEngine longhorn.DataEngineType) map[string]string {
 	labels := GetBaseLabelsForSystemManagedComponent()
 	labels[GetLonghornLabelComponentKey()] = LonghornLabelInstanceManager
-	labels[GetLonghornLabelKey(LonghornLabelInstanceManagerType)] = string(managerType)
+	labels[GetLonghornLabelKey(LonghornLabelInstanceManagerType)] = string(imType)
+
 	if node != "" {
 		labels[GetLonghornLabelKey(LonghornLabelNode)] = node
 	}
-	if instanceManagerImage != "" {
-		labels[GetLonghornLabelKey(LonghornLabelInstanceManagerImage)] = GetInstanceManagerImageChecksumName(GetImageCanonicalName(instanceManagerImage))
+	if imImage != "" {
+		labels[GetLonghornLabelKey(LonghornLabelInstanceManagerImage)] = GetInstanceManagerImageChecksumName(GetImageCanonicalName(imImage))
+	}
+	if dataEngine != "" && dataEngine != longhorn.DataEngineTypeAll {
+		labels[GetLonghornLabelKey(LonghornLabelDataEngine)] = string(dataEngine)
 	}
 
 	return labels
@@ -659,8 +663,8 @@ func ValidateEngineImageChecksumName(name string) bool {
 	return matched
 }
 
-func GetInstanceManagerName(imType longhorn.InstanceManagerType, nodeName, image string) (string, error) {
-	hashedSuffix := util.GetStringChecksum(nodeName + image)[:InstanceManagerSuffixChecksumLength]
+func GetInstanceManagerName(imType longhorn.InstanceManagerType, nodeName, image, dataEngine string) (string, error) {
+	hashedSuffix := util.GetStringChecksum(nodeName + image + dataEngine)[:InstanceManagerSuffixChecksumLength]
 	switch imType {
 	case longhorn.InstanceManagerTypeEngine:
 		return engineManagerPrefix + hashedSuffix, nil
@@ -831,6 +835,15 @@ func ValidateReplicaZoneSoftAntiAffinity(value longhorn.ReplicaZoneSoftAntiAffin
 	return nil
 }
 
+func ValidateReplicaDiskSoftAntiAffinity(value longhorn.ReplicaDiskSoftAntiAffinity) error {
+	if value != longhorn.ReplicaDiskSoftAntiAffinityDefault &&
+		value != longhorn.ReplicaDiskSoftAntiAffinityEnabled &&
+		value != longhorn.ReplicaDiskSoftAntiAffinityDisabled {
+		return fmt.Errorf("invalid ReplicaDiskSoftAntiAffinity setting: %v", value)
+	}
+	return nil
+}
+
 func GetDaemonSetNameFromEngineImageName(engineImageName string) string {
 	return "engine-image-" + engineImageName
 }
@@ -864,7 +877,7 @@ func CreateDisksFromAnnotation(annotation string) (map[string]longhorn.DiskSpec,
 		if disk.Path == "" {
 			return nil, fmt.Errorf("invalid disk %+v", disk)
 		}
-		diskStat, err := util.GetDiskStat(disk.Path)
+		diskStat, err := lhns.GetDiskStat(disk.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -947,13 +960,42 @@ func UnmarshalToNodeTags(s string) ([]string, error) {
 }
 
 func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[string]longhorn.DiskSpec, error) {
-	if err := util.CreateDiskPathReplicaSubdirectory(dataPath); err != nil {
-		return nil, err
-	}
-	diskStat, err := util.GetDiskStat(dataPath)
+	fileInfo, err := os.Stat(dataPath)
 	if err != nil {
-		return nil, err
+		if !os.IsNotExist(err) {
+			return nil, errors.Wrapf(err, "failed to stat %v for creating default disk", dataPath)
+		}
+
+		// Longhorn is unable to create block-type disk automatically
+		if strings.HasPrefix(dataPath, "/dev/") {
+			return nil, errors.Wrapf(err, "creating default block-type disk %v is not supported", dataPath)
+		}
 	}
+
+	// Block-type disk
+	if fileInfo != nil && (fileInfo.Mode()&os.ModeDevice) == os.ModeDevice {
+		return map[string]longhorn.DiskSpec{
+			DefaultDiskPrefix + util.RandomID(): {
+				Type:              longhorn.DiskTypeBlock,
+				Path:              dataPath,
+				AllowScheduling:   true,
+				EvictionRequested: false,
+				StorageReserved:   0,
+				Tags:              []string{},
+			},
+		}, nil
+	}
+
+	// Currently, we create a filesystem-type disk for any disk path except for that in /dev/
+	if _, err := lhns.CreateDirectory(filepath.Join(dataPath, util.ReplicaDirectory), time.Now()); err != nil {
+		return nil, errors.Wrapf(err, "failed to create filesystem-type disk %v", dataPath)
+	}
+
+	diskStat, err := lhns.GetDiskStat(dataPath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get disk stat for creating default disk %v", dataPath)
+	}
+
 	return map[string]longhorn.DiskSpec{
 		DefaultDiskPrefix + diskStat.DiskID: {
 			Type:              longhorn.DiskTypeFilesystem,
@@ -966,15 +1008,25 @@ func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[st
 	}, nil
 }
 
-func ValidateCPUReservationValues(instanceManagerCPUStr string) error {
+func ValidateCPUReservationValues(settingName SettingName, instanceManagerCPUStr string) error {
 	instanceManagerCPU, err := strconv.Atoi(instanceManagerCPUStr)
 	if err != nil {
 		return errors.Wrapf(err, "invalid guaranteed/requested instance manager CPU value (%v)", instanceManagerCPUStr)
 	}
-	isUnderLimit := instanceManagerCPU < 0
-	isOverLimit := instanceManagerCPU > 40
-	if isUnderLimit || isOverLimit {
-		return fmt.Errorf("invalid requested instance manager CPUs. Valid instance manager CPU range between 0%% - 40%%")
+
+	switch settingName {
+	case SettingNameGuaranteedInstanceManagerCPU:
+		isUnderLimit := instanceManagerCPU < 0
+		isOverLimit := instanceManagerCPU > 40
+		if isUnderLimit || isOverLimit {
+			return fmt.Errorf("invalid requested v1 data engine instance manager CPUs. Valid instance manager CPU range between 0%% - 40%%")
+		}
+	case SettingNameV2DataEngineGuaranteedInstanceManagerCPU:
+		isUnderLimit := instanceManagerCPU < 1000
+		isOverLimit := instanceManagerCPU > 8000
+		if isUnderLimit || isOverLimit {
+			return fmt.Errorf("invalid requested v2 data engine instance manager CPUs. Valid instance manager CPU range between 1000 - 8000 millicpu")
+		}
 	}
 	return nil
 }
@@ -1023,10 +1075,16 @@ func GetLHVolumeAttachmentNameFromVolumeName(volName string) string {
 
 // IsSelectorsInTags checks if all the selectors are present in the tags slice.
 // It returns true if all selectors are found, false otherwise.
-func IsSelectorsInTags(tags, selectors []string) bool {
+func IsSelectorsInTags(tags, selectors []string, allowEmptySelector bool) bool {
 	if !sort.StringsAreSorted(tags) {
 		logrus.Debug("BUG: Tags are not sorted, sorting now")
 		sort.Strings(tags)
+	}
+
+	if len(selectors) == 0 {
+		if !allowEmptySelector && len(tags) != 0 {
+			return false
+		}
 	}
 
 	for _, selector := range selectors {
@@ -1064,4 +1122,16 @@ func GetBackupTargetSchemeFromURL(backupTargetURL string) string {
 	default:
 		return ValueUnknown
 	}
+}
+
+func GetPDBName(im *longhorn.InstanceManager) string {
+	return GetPDBNameFromIMName(im.Name)
+}
+
+func GetPDBNameFromIMName(imName string) string {
+	return imName
+}
+
+func GetIMNameFromPDBName(pdbName string) string {
+	return pdbName
 }

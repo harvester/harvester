@@ -22,7 +22,7 @@ type Volume struct {
 	BackingImageChecksum string `json:",string"`
 	CompressionMethod    string `json:",string"`
 	StorageClassName     string `json:",string"`
-	BackendStoreDriver   string `json:",string"`
+	DataEngine           string `json:",string"`
 }
 
 type Snapshot struct {

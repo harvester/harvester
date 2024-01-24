@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/longhorn/longhorn-manager/datastore"
@@ -149,6 +150,11 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 		}
 	}
 
+	// restore backing image if needed
+	if err := m.restoreBackingImage(spec.BackingImage); err != nil {
+		return nil, errors.Wrapf(err, "failed to restore backing image %v when create volume %v", spec.BackingImage, v.Name)
+	}
+
 	v = &longhorn.Volume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
@@ -160,7 +166,7 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 			Migratable:                  spec.Migratable,
 			Encrypted:                   spec.Encrypted,
 			Frontend:                    spec.Frontend,
-			EngineImage:                 "",
+			Image:                       "",
 			FromBackup:                  spec.FromBackup,
 			RestoreVolumeRecurringJob:   spec.RestoreVolumeRecurringJob,
 			DataSource:                  spec.DataSource,
@@ -174,11 +180,14 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 			NodeSelector:                spec.NodeSelector,
 			RevisionCounterDisabled:     spec.RevisionCounterDisabled,
 			SnapshotDataIntegrity:       spec.SnapshotDataIntegrity,
+			SnapshotMaxCount:            spec.SnapshotMaxCount,
+			SnapshotMaxSize:             spec.SnapshotMaxSize,
 			BackupCompressionMethod:     spec.BackupCompressionMethod,
 			UnmapMarkSnapChainRemoved:   spec.UnmapMarkSnapChainRemoved,
 			ReplicaSoftAntiAffinity:     spec.ReplicaSoftAntiAffinity,
 			ReplicaZoneSoftAntiAffinity: spec.ReplicaZoneSoftAntiAffinity,
-			BackendStoreDriver:          spec.BackendStoreDriver,
+			ReplicaDiskSoftAntiAffinity: spec.ReplicaDiskSoftAntiAffinity,
+			DataEngine:                  spec.DataEngine,
 			OfflineReplicaRebuilding:    spec.OfflineReplicaRebuilding,
 		},
 	}
@@ -218,11 +227,11 @@ func (m *VolumeManager) Attach(name, nodeID string, disableFrontend bool, attach
 		return nil, err
 	}
 
-	if isReady, err := m.ds.CheckEngineImageReadyOnAtLeastOneVolumeReplica(v.Spec.EngineImage, v.Name, node.Name, v.Spec.DataLocality); !isReady {
+	if isReady, err := m.ds.CheckDataEngineImageReadyOnAtLeastOneVolumeReplica(v.Spec.Image, v.Name, node.Name, v.Spec.DataLocality, v.Spec.DataEngine); !isReady {
 		if err != nil {
-			return nil, errors.Wrapf(err, "cannot attach volume %v with image %v", v.Name, v.Spec.EngineImage)
+			return nil, errors.Wrapf(err, "cannot attach volume %v with image %v", v.Name, v.Spec.Image)
 		}
-		return nil, fmt.Errorf("cannot attach volume %v because the engine image %v is not deployed on at least one of the the replicas' nodes or the node that the volume is going to attach to", v.Name, v.Spec.EngineImage)
+		return nil, fmt.Errorf("cannot attach volume %v because the data engine image %v is not deployed on at least one of the the replicas' nodes or the node that the volume is going to attach to", v.Name, v.Spec.Image)
 	}
 
 	restoreCondition := types.GetCondition(v.Status.Conditions, longhorn.VolumeConditionTypeRestore)
@@ -303,31 +312,6 @@ func (m *VolumeManager) Detach(name, attachmentID, hostID string, forceDetach bo
 	}
 
 	return v, nil
-}
-
-func (m *VolumeManager) isVolumeAvailableOnNode(volume, node string) bool {
-	es, _ := m.ds.ListVolumeEngines(volume)
-	for _, e := range es {
-		if e.Spec.NodeID != node {
-			continue
-		}
-		if e.DeletionTimestamp != nil {
-			continue
-		}
-		if e.Spec.DesireState != longhorn.InstanceStateRunning || e.Status.CurrentState != longhorn.InstanceStateRunning {
-			continue
-		}
-		hasAvailableReplica := false
-		for _, mode := range e.Status.ReplicaModeMap {
-			hasAvailableReplica = hasAvailableReplica || mode == longhorn.ReplicaModeRW
-		}
-		if !hasAvailableReplica {
-			continue
-		}
-		return true
-	}
-
-	return false
 }
 
 func (m *VolumeManager) Salvage(volumeName string, replicaNames []string) (v *longhorn.Volume, err error) {
@@ -632,7 +616,10 @@ func (m *VolumeManager) trimRWXVolumeFilesystem(volumeName string, encryptedDevi
 	}
 	pod, err := m.ds.GetPodRO(sm.Namespace, types.GetShareManagerPodNameFromShareManagerName(sm.Name))
 	if err != nil {
-		return errors.Wrapf(err, "failed to get share manager pod for trimming volume %v in namespae", volumeName)
+		return errors.Wrapf(err, "failed to get share manager pod for trimming volume %v in namespace", volumeName)
+	}
+	if pod == nil {
+		return fmt.Errorf("share manager pod is not found for trimming volume %v in namespace", volumeName)
 	}
 
 	if sm.Status.State != longhorn.ShareManagerStateRunning {
@@ -714,7 +701,7 @@ func (m *VolumeManager) DeleteReplica(volumeName, replicaName string) error {
 		if !datastore.IsAvailableHealthyReplica(r) {
 			continue
 		}
-		if r.Status.EvictionRequested {
+		if r.Spec.EvictionRequested {
 			continue
 		}
 		healthyReplica = r.Name
@@ -774,28 +761,32 @@ func (m *VolumeManager) EngineUpgrade(volumeName, image string) (v *longhorn.Vol
 		return nil, err
 	}
 
-	if v.Spec.EngineImage == image {
+	if datastore.IsDataEngineV2(v.Spec.DataEngine) {
+		return nil, fmt.Errorf("cannot upgrade engine for volume %v using image %v because the volume is using data engine v2", volumeName, image)
+	}
+
+	if v.Spec.Image == image {
 		return nil, fmt.Errorf("upgrading in process for volume %v engine image from %v to %v already",
-			v.Name, v.Status.CurrentImage, v.Spec.EngineImage)
+			v.Name, v.Status.CurrentImage, v.Spec.Image)
 	}
 
-	if v.Spec.EngineImage != v.Status.CurrentImage && image != v.Status.CurrentImage {
+	if v.Spec.Image != v.Status.CurrentImage && image != v.Status.CurrentImage {
 		return nil, fmt.Errorf("upgrading in process for volume %v engine image from %v to %v, cannot upgrade to another engine image",
-			v.Name, v.Status.CurrentImage, v.Spec.EngineImage)
+			v.Name, v.Status.CurrentImage, v.Spec.Image)
 	}
 
-	if isReady, err := m.ds.CheckEngineImageReadyOnAllVolumeReplicas(image, v.Name, v.Status.CurrentNodeID); !isReady {
+	if isReady, err := m.ds.CheckImageReadyOnAllVolumeReplicas(image, v.Name, v.Status.CurrentNodeID, v.Spec.DataEngine); !isReady {
 		if err != nil {
-			return nil, fmt.Errorf("cannot upgrade engine image for volume %v from image %v to image %v: %v", v.Name, v.Spec.EngineImage, image, err)
+			return nil, fmt.Errorf("cannot upgrade engine image for volume %v from image %v to image %v: %v", v.Name, v.Spec.Image, image, err)
 		}
-		return nil, fmt.Errorf("cannot upgrade engine image for volume %v from image %v to image %v because the engine image %v is not deployed on the replicas' nodes or the node that the volume is attached to", v.Name, v.Spec.EngineImage, image, image)
+		return nil, fmt.Errorf("cannot upgrade engine image for volume %v from image %v to image %v because the engine image %v is not deployed on the replicas' nodes or the node that the volume is attached to", v.Name, v.Spec.Image, image, image)
 	}
 
-	if isReady, err := m.ds.CheckEngineImageReadyOnAllVolumeReplicas(v.Status.CurrentImage, v.Name, v.Status.CurrentNodeID); !isReady {
+	if isReady, err := m.ds.CheckImageReadyOnAllVolumeReplicas(v.Status.CurrentImage, v.Name, v.Status.CurrentNodeID, v.Spec.DataEngine); !isReady {
 		if err != nil {
-			return nil, fmt.Errorf("cannot upgrade engine image for volume %v from image %v to image %v: %v", v.Name, v.Spec.EngineImage, image, err)
+			return nil, fmt.Errorf("cannot upgrade engine image for volume %v from image %v to image %v: %v", v.Name, v.Spec.Image, image, err)
 		}
-		return nil, fmt.Errorf("cannot upgrade engine image for volume %v from image %v to image %v because the volume's current engine image %v is not deployed on the replicas' nodes or the node that the volume is attached to", v.Name, v.Spec.EngineImage, image, v.Status.CurrentImage)
+		return nil, fmt.Errorf("cannot upgrade engine image for volume %v from image %v to image %v because the volume's current engine image %v is not deployed on the replicas' nodes or the node that the volume is attached to", v.Name, v.Spec.Image, image, v.Status.CurrentImage)
 	}
 
 	if v.Spec.MigrationNodeID != "" {
@@ -808,15 +799,15 @@ func (m *VolumeManager) EngineUpgrade(volumeName, image string) (v *longhorn.Vol
 		return nil, fmt.Errorf("cannot do live upgrade for a unhealthy volume %v", v.Name)
 	}
 
-	oldImage := v.Spec.EngineImage
-	v.Spec.EngineImage = image
+	oldImage := v.Spec.Image
+	v.Spec.Image = image
 
 	v, err = m.ds.UpdateVolume(v)
 	if err != nil {
 		return nil, err
 	}
 	if image != v.Status.CurrentImage {
-		logrus.Infof("Upgrading volume %v engine image from %v to %v", v.Name, oldImage, v.Spec.EngineImage)
+		logrus.Infof("Upgrading volume %v engine image from %v to %v", v.Name, oldImage, v.Spec.Image)
 	} else {
 		logrus.Infof("Rolling back volume %v engine image to %v", v.Name, v.Status.CurrentImage)
 	}
@@ -837,7 +828,7 @@ func (m *VolumeManager) UpdateReplicaCount(name string, count int) (v *longhorn.
 	if v.Spec.NodeID == "" || v.Status.State != longhorn.VolumeStateAttached {
 		return nil, fmt.Errorf("invalid volume state to update replica count%v", v.Status.State)
 	}
-	if v.Spec.EngineImage != v.Status.CurrentImage {
+	if v.Spec.Image != v.Status.CurrentImage {
 		return nil, fmt.Errorf("upgrading in process, cannot update replica count")
 	}
 	if v.Spec.MigrationNodeID != "" {
@@ -1078,6 +1069,32 @@ func (m *VolumeManager) UpdateReplicaZoneSoftAntiAffinity(name string, replicaZo
 	return v, nil
 }
 
+func (m *VolumeManager) UpdateReplicaDiskSoftAntiAffinity(name string, replicaDiskSoftAntiAffinity longhorn.ReplicaDiskSoftAntiAffinity) (v *longhorn.Volume, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "unable to update field ReplicaDiskSoftAntiAffinity for volume %v", name)
+	}()
+
+	v, err = m.ds.GetVolume(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if v.Spec.ReplicaDiskSoftAntiAffinity == replicaDiskSoftAntiAffinity {
+		logrus.Debugf("Volume %v already set field ReplicaDiskSoftAntiAffinity to %v", v.Name, replicaDiskSoftAntiAffinity)
+		return v, nil
+	}
+
+	oldReplicaDiskSoftAntiAffinity := v.Spec.ReplicaDiskSoftAntiAffinity
+	v.Spec.ReplicaDiskSoftAntiAffinity = replicaDiskSoftAntiAffinity
+	v, err = m.ds.UpdateVolume(v)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Infof("Updated volume %v field ReplicaDiskSoftAntiAffinity from %v to %v", v.Name, oldReplicaDiskSoftAntiAffinity, replicaDiskSoftAntiAffinity)
+	return v, nil
+}
+
 func (m *VolumeManager) verifyDataSourceForVolumeCreation(dataSource longhorn.VolumeDataSource, requestSize int64) (err error) {
 	defer func() {
 		err = errors.Wrapf(err, "failed to verify data source")
@@ -1107,5 +1124,104 @@ func (m *VolumeManager) verifyDataSourceForVolumeCreation(dataSource longhorn.Vo
 			}
 		}
 	}
+	return nil
+}
+
+func (m *VolumeManager) UpdateSnapshotMaxCount(name string, snapshotMaxCount int) (v *longhorn.Volume, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "unable to update field SnapshotMaxCount for volume %s", name)
+	}()
+
+	v, err = m.ds.GetVolume(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if v.Spec.SnapshotMaxCount == snapshotMaxCount {
+		logrus.Debugf("Volume %s already set field SnapshotMaxCount to %d", v.Name, snapshotMaxCount)
+		return v, nil
+	}
+
+	oldSnapshotMaxCount := v.Spec.SnapshotMaxCount
+	v.Spec.SnapshotMaxCount = snapshotMaxCount
+	v, err = m.ds.UpdateVolume(v)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Infof("Updated volume %s field SnapshotMaxCount from %d to %d", v.Name, oldSnapshotMaxCount, snapshotMaxCount)
+	return v, nil
+}
+
+func (m *VolumeManager) UpdateSnapshotMaxSize(name string, snapshotMaxSize int64) (v *longhorn.Volume, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "unable to update field SnapshotMaxSize for volume %s", name)
+	}()
+
+	v, err = m.ds.GetVolume(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if v.Spec.SnapshotMaxSize == snapshotMaxSize {
+		logrus.Debugf("Volume %s already set field SnapshotMaxSize to %d", v.Name, snapshotMaxSize)
+		return v, nil
+	}
+
+	oldSnapshotMaxSize := v.Spec.SnapshotMaxSize
+	v.Spec.SnapshotMaxSize = snapshotMaxSize
+	v, err = m.ds.UpdateVolume(v)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Infof("Updated volume %s field SnapshotMaxSize from %d to %d", v.Name, oldSnapshotMaxSize, snapshotMaxSize)
+	return v, nil
+}
+
+func (m *VolumeManager) restoreBackingImage(biName string) error {
+	if biName == "" {
+		return nil
+	}
+	bi, err := m.ds.GetBackingImage(biName)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return errors.Wrapf(err, "failed to get backing image %v", biName)
+		}
+	}
+	// backing image already exists
+	if bi != nil {
+		return nil
+	}
+
+	// try find the backup backing image
+	bbi, err := m.ds.GetBackupBackingImage(biName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get backup backing image %v", biName)
+	}
+
+	// restore by creating backing image with type restore
+	concurrentLimit, err := m.ds.GetSettingAsInt(types.SettingNameBackupConcurrentLimit)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get %v value", types.SettingNameBackupConcurrentLimit)
+	}
+
+	restoreBi := &longhorn.BackingImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: biName,
+		},
+		Spec: longhorn.BackingImageSpec{
+			Checksum:   bbi.Status.Checksum,
+			SourceType: longhorn.BackingImageDataSourceTypeRestore,
+			SourceParameters: map[string]string{
+				longhorn.DataSourceTypeRestoreParameterBackupURL:       bbi.Status.URL,
+				longhorn.DataSourceTypeRestoreParameterConcurrentLimit: strconv.FormatInt(concurrentLimit, 10),
+			},
+		},
+	}
+	if _, err = m.ds.CreateBackingImage(restoreBi); err != nil && !apierrors.IsAlreadyExists(err) {
+		return errors.Wrapf(err, "failed to create backing image %v", biName)
+	}
+
 	return nil
 }

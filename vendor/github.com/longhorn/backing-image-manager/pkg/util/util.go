@@ -3,15 +3,18 @@ package util
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,6 +23,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -91,8 +95,12 @@ func DetectGRPCServerAvailability(address string, waitIntervalInSecond int, shou
 		<-ticker.C
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		conn, err := grpc.DialContext(ctx, address, grpc.WithInsecure())
-		cancel()
+		grpcOpts := []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithBlock(),
+		}
+		conn, err := grpc.DialContext(ctx, address, grpcOpts...)
+		defer cancel()
 		if !shouldAvailable {
 			if err != nil {
 				return true
@@ -104,7 +112,7 @@ func DetectGRPCServerAvailability(address string, waitIntervalInSecond int, shou
 		}
 		if shouldAvailable && err == nil {
 			state := conn.GetState()
-			if state == connectivity.Ready || state == connectivity.Idle {
+			if state == connectivity.Ready || state == connectivity.Idle || state == connectivity.Connecting {
 				return true
 			}
 		}
@@ -287,4 +295,50 @@ func FileModificationTime(filePath string) string {
 		return ""
 	}
 	return fi.ModTime().UTC().String()
+}
+
+func GunzipFile(filePath string, dstFilePath string) error {
+	gzipfile, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer gzipfile.Close()
+
+	reader, err := gzip.NewReader(gzipfile)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	writer, err := os.Create(dstFilePath)
+	if err != nil {
+		return err
+	}
+	defer writer.Close()
+
+	if _, err = io.Copy(writer, reader); err != nil {
+		return err
+	}
+	return nil
+}
+
+var (
+	MaximumBackingImageNameSize = 64
+	validBackingImageName       = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]+$`)
+)
+
+func CheckBackupType(backupTarget string) (string, error) {
+	u, err := url.Parse(backupTarget)
+	if err != nil {
+		return "", err
+	}
+
+	return u.Scheme, nil
+}
+
+func ValidBackingImageName(name string) bool {
+	if len(name) > MaximumBackingImageNameSize {
+		return false
+	}
+	return validBackingImageName.MatchString(name)
 }

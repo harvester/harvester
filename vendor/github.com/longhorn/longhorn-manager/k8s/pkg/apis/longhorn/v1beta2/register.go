@@ -29,6 +29,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&BackingImageManagerList{},
 		&Backup{},
 		&BackupList{},
+		&BackupBackingImage{},
+		&BackupBackingImageList{},
 		&BackupTarget{},
 		&BackupTargetList{},
 		&BackupVolume{},

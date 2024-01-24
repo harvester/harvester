@@ -50,6 +50,14 @@ type BackupListerExpansion interface{}
 // BackupNamespaceLister.
 type BackupNamespaceListerExpansion interface{}
 
+// BackupBackingImageListerExpansion allows custom methods to be added to
+// BackupBackingImageLister.
+type BackupBackingImageListerExpansion interface{}
+
+// BackupBackingImageNamespaceListerExpansion allows custom methods to be added to
+// BackupBackingImageNamespaceLister.
+type BackupBackingImageNamespaceListerExpansion interface{}
+
 // BackupTargetListerExpansion allows custom methods to be added to
 // BackupTargetLister.
 type BackupTargetListerExpansion interface{}

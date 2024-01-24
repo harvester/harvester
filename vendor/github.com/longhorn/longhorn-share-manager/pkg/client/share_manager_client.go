@@ -3,9 +3,9 @@ package client
 import (
 	"context"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	rpc "github.com/longhorn/longhorn-share-manager/pkg/rpc"
 	"github.com/longhorn/longhorn-share-manager/pkg/types"
@@ -50,7 +50,7 @@ func (c *ShareManagerClient) Unmount() error {
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
 	defer cancel()
 
-	_, err := c.client.Unmount(ctx, &empty.Empty{})
+	_, err := c.client.Unmount(ctx, &emptypb.Empty{})
 	return err
 }
 
@@ -58,6 +58,6 @@ func (c *ShareManagerClient) Mount() error {
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
 	defer cancel()
 
-	_, err := c.client.Mount(ctx, &empty.Empty{})
+	_, err := c.client.Mount(ctx, &emptypb.Empty{})
 	return err
 }

@@ -18,7 +18,7 @@ func NewDiskServiceClient(im *longhorn.InstanceManager, logger logrus.FieldLogge
 
 	isInstanceManagerRunning := im.Status.CurrentState == longhorn.InstanceManagerStateRunning
 	if !isInstanceManagerRunning {
-		err = errors.Errorf("%v instance manager is in %v, not running state", im.Name, im.Status.CurrentState)
+		err = errors.Errorf("%v instance manager is in %v state, not running state", im.Name, im.Status.CurrentState)
 		return nil, err
 	}
 

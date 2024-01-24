@@ -13,6 +13,8 @@ import (
 	"github.com/longhorn/backupstore"
 
 	btypes "github.com/longhorn/backupstore/types"
+	lhexec "github.com/longhorn/go-common-libs/exec"
+	lhtypes "github.com/longhorn/go-common-libs/types"
 	etypes "github.com/longhorn/longhorn-engine/pkg/types"
 
 	"github.com/longhorn/longhorn-manager/datastore"
@@ -128,7 +130,7 @@ func (btc *BackupTargetClient) ExecuteEngineBinary(args ...string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	return util.Execute(envs, btc.LonghornEngineBinary(), args...)
+	return lhexec.NewExecutor().Execute(envs, btc.LonghornEngineBinary(), args, lhtypes.ExecuteDefaultTimeout)
 }
 
 func (btc *BackupTargetClient) ExecuteEngineBinaryWithTimeout(timeout time.Duration, args ...string) (string, error) {
@@ -136,7 +138,7 @@ func (btc *BackupTargetClient) ExecuteEngineBinaryWithTimeout(timeout time.Durat
 	if err != nil {
 		return "", err
 	}
-	return util.ExecuteWithTimeout(timeout, envs, btc.LonghornEngineBinary(), args...)
+	return lhexec.NewExecutor().Execute(envs, btc.LonghornEngineBinary(), args, timeout)
 }
 
 func (btc *BackupTargetClient) ExecuteEngineBinaryWithoutTimeout(args ...string) (string, error) {
@@ -144,7 +146,7 @@ func (btc *BackupTargetClient) ExecuteEngineBinaryWithoutTimeout(args ...string)
 	if err != nil {
 		return "", err
 	}
-	return util.ExecuteWithoutTimeout(envs, btc.LonghornEngineBinary(), args...)
+	return lhexec.NewExecutor().Execute(envs, btc.LonghornEngineBinary(), args, lhtypes.ExecuteNoTimeout)
 }
 
 // parseBackupVolumeNamesList parses a list of backup volume names into a sorted string slice
@@ -156,7 +158,9 @@ func parseBackupVolumeNamesList(output string) ([]string, error) {
 
 	volumeNames := []string{}
 	for volumeName := range data {
-		volumeNames = append(volumeNames, volumeName)
+		if util.ValidateName(volumeName) {
+			volumeNames = append(volumeNames, volumeName)
+		}
 	}
 	sort.Strings(volumeNames)
 	return volumeNames, nil
@@ -458,4 +462,10 @@ func (e *EngineBinary) BackupRestoreStatus(*longhorn.Engine) (map[string]*longho
 		return nil, err
 	}
 	return replicaStatusMap, nil
+}
+
+// CleanupBackupMountPoints calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy, just to match the interface
+func (e *EngineBinary) CleanupBackupMountPoints() error {
+	return fmt.Errorf(ErrNotImplement)
 }

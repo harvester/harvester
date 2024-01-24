@@ -5,9 +5,9 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/longhorn/longhorn-instance-manager/pkg/api"
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
@@ -84,19 +84,22 @@ type ReplicaCreateRequest struct {
 }
 
 type InstanceCreateRequest struct {
-	BackendStoreDriver string
-	Name               string
-	InstanceType       string
-	VolumeName         string
-	Size               uint64
-	PortCount          int
-	PortArgs           []string
+	DataEngine   string
+	Name         string
+	InstanceType string
+	VolumeName   string
+	Size         uint64
+	PortCount    int
+	PortArgs     []string
 
 	Binary     string
 	BinaryArgs []string
 
 	Engine  EngineCreateRequest
 	Replica ReplicaCreateRequest
+
+	// Deprecated: replaced by DataEngine.
+	BackendStoreDriver string
 }
 
 func (c *InstanceServiceClient) InstanceCreate(req *InstanceCreateRequest) (*api.Instance, error) {
@@ -104,9 +107,9 @@ func (c *InstanceServiceClient) InstanceCreate(req *InstanceCreateRequest) (*api
 		return nil, fmt.Errorf("failed to create instance: missing required parameter")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[req.BackendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(req.DataEngine)]
 	if !ok {
-		return nil, fmt.Errorf("failed to delete instance: invalid backend store driver %v", req.BackendStoreDriver)
+		return nil, fmt.Errorf("failed to delete instance: invalid data engine %v", req.DataEngine)
 	}
 
 	client := c.getControllerServiceClient()
@@ -115,7 +118,7 @@ func (c *InstanceServiceClient) InstanceCreate(req *InstanceCreateRequest) (*api
 
 	var processInstanceSpec *rpc.ProcessInstanceSpec
 	var spdkInstanceSpec *rpc.SpdkInstanceSpec
-	if rpc.BackendStoreDriver(driver) == rpc.BackendStoreDriver_v1 {
+	if rpc.DataEngine(driver) == rpc.DataEngine_DATA_ENGINE_V1 {
 		processInstanceSpec = &rpc.ProcessInstanceSpec{
 			Binary: req.Binary,
 			Args:   req.BinaryArgs,
@@ -142,7 +145,9 @@ func (c *InstanceServiceClient) InstanceCreate(req *InstanceCreateRequest) (*api
 
 	p, err := client.InstanceCreate(ctx, &rpc.InstanceCreateRequest{
 		Spec: &rpc.InstanceSpec{
+			// nolint:all replaced with DataEngine
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
 			Name:               req.Name,
 			Type:               req.InstanceType,
 			VolumeName:         req.VolumeName,
@@ -160,14 +165,14 @@ func (c *InstanceServiceClient) InstanceCreate(req *InstanceCreateRequest) (*api
 	return api.RPCToInstance(p), nil
 }
 
-func (c *InstanceServiceClient) InstanceDelete(backendStoreDriver, name, instanceType, diskUUID string, cleanupRequired bool) (*api.Instance, error) {
+func (c *InstanceServiceClient) InstanceDelete(dataEngine, name, instanceType, diskUUID string, cleanupRequired bool) (*api.Instance, error) {
 	if name == "" {
 		return nil, fmt.Errorf("failed to delete instance: missing required parameter name")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return nil, fmt.Errorf("failed to delete instance: invalid backend store driver %v", backendStoreDriver)
+		return nil, fmt.Errorf("failed to delete instance: invalid data engine %v", dataEngine)
 	}
 
 	client := c.getControllerServiceClient()
@@ -175,9 +180,11 @@ func (c *InstanceServiceClient) InstanceDelete(backendStoreDriver, name, instanc
 	defer cancel()
 
 	p, err := client.InstanceDelete(ctx, &rpc.InstanceDeleteRequest{
-		Name:               name,
-		Type:               instanceType,
+		Name: name,
+		Type: instanceType,
+		// nolint:all replaced with DataEngine
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		DataEngine:         rpc.DataEngine(driver),
 		DiskUuid:           diskUUID,
 		CleanupRequired:    cleanupRequired,
 	})
@@ -187,14 +194,14 @@ func (c *InstanceServiceClient) InstanceDelete(backendStoreDriver, name, instanc
 	return api.RPCToInstance(p), nil
 }
 
-func (c *InstanceServiceClient) InstanceGet(backendStoreDriver, name, instanceType string) (*api.Instance, error) {
+func (c *InstanceServiceClient) InstanceGet(dataEngine, name, instanceType string) (*api.Instance, error) {
 	if name == "" {
 		return nil, fmt.Errorf("failed to get instance: missing required parameter name")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return nil, fmt.Errorf("failed to get instance: invalid backend store driver %v", backendStoreDriver)
+		return nil, fmt.Errorf("failed to get instance: invalid data engine %v", dataEngine)
 	}
 
 	client := c.getControllerServiceClient()
@@ -202,9 +209,11 @@ func (c *InstanceServiceClient) InstanceGet(backendStoreDriver, name, instanceTy
 	defer cancel()
 
 	p, err := client.InstanceGet(ctx, &rpc.InstanceGetRequest{
-		Name:               name,
-		Type:               instanceType,
+		Name: name,
+		Type: instanceType,
+		// nolint:all replaced with DataEngine
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		DataEngine:         rpc.DataEngine(driver),
 	})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get instance %v", name)
@@ -217,28 +226,30 @@ func (c *InstanceServiceClient) InstanceList() (map[string]*api.Instance, error)
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
 	defer cancel()
 
-	instances, err := client.InstanceList(ctx, &empty.Empty{})
+	instances, err := client.InstanceList(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list instances")
 	}
 	return api.RPCToInstanceList(instances), nil
 }
 
-func (c *InstanceServiceClient) InstanceLog(ctx context.Context, backendStoreDriver, name, instanceType string) (*api.LogStream, error) {
+func (c *InstanceServiceClient) InstanceLog(ctx context.Context, dataEngine, name, instanceType string) (*api.LogStream, error) {
 	if name == "" {
 		return nil, fmt.Errorf("failed to get instance: missing required parameter name")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return nil, fmt.Errorf("failed to log instance: invalid backend store driver %v", backendStoreDriver)
+		return nil, fmt.Errorf("failed to log instance: invalid data engine %v", dataEngine)
 	}
 
 	client := c.getControllerServiceClient()
 	stream, err := client.InstanceLog(ctx, &rpc.InstanceLogRequest{
-		Name:               name,
-		Type:               instanceType,
+		Name: name,
+		Type: instanceType,
+		// nolint:all replaced with DataEngine
 		BackendStoreDriver: rpc.BackendStoreDriver(driver),
+		DataEngine:         rpc.DataEngine(driver),
 	})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get instance log of %v", name)
@@ -248,7 +259,7 @@ func (c *InstanceServiceClient) InstanceLog(ctx context.Context, backendStoreDri
 
 func (c *InstanceServiceClient) InstanceWatch(ctx context.Context) (*api.InstanceStream, error) {
 	client := c.getControllerServiceClient()
-	stream, err := client.InstanceWatch(ctx, &empty.Empty{})
+	stream, err := client.InstanceWatch(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open instance update stream")
 	}
@@ -256,14 +267,14 @@ func (c *InstanceServiceClient) InstanceWatch(ctx context.Context) (*api.Instanc
 	return api.NewInstanceStream(stream), nil
 }
 
-func (c *InstanceServiceClient) InstanceReplace(backendStoreDriver, name, instanceType, binary string, portCount int, args, portArgs []string, terminateSignal string) (*api.Instance, error) {
+func (c *InstanceServiceClient) InstanceReplace(dataEngine, name, instanceType, binary string, portCount int, args, portArgs []string, terminateSignal string) (*api.Instance, error) {
 	if name == "" || binary == "" {
 		return nil, fmt.Errorf("failed to replace instance: missing required parameter")
 	}
 
-	driver, ok := rpc.BackendStoreDriver_value[backendStoreDriver]
+	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
 	if !ok {
-		return nil, fmt.Errorf("failed to replace instance: invalid backend store driver %v", backendStoreDriver)
+		return nil, fmt.Errorf("failed to replace instance: invalid data engine %v", dataEngine)
 	}
 
 	if terminateSignal != "SIGHUP" {
@@ -276,9 +287,11 @@ func (c *InstanceServiceClient) InstanceReplace(backendStoreDriver, name, instan
 
 	p, err := client.InstanceReplace(ctx, &rpc.InstanceReplaceRequest{
 		Spec: &rpc.InstanceSpec{
-			Name:               name,
-			Type:               instanceType,
+			Name: name,
+			Type: instanceType,
+			// nolint:all replaced with DataEngine
 			BackendStoreDriver: rpc.BackendStoreDriver(driver),
+			DataEngine:         rpc.DataEngine(driver),
 			ProcessInstanceSpec: &rpc.ProcessInstanceSpec{
 				Binary: binary,
 				Args:   args,
@@ -299,7 +312,7 @@ func (c *InstanceServiceClient) VersionGet() (*meta.VersionOutput, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
 	defer cancel()
 
-	resp, err := client.VersionGet(ctx, &empty.Empty{})
+	resp, err := client.VersionGet(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get version")
 	}

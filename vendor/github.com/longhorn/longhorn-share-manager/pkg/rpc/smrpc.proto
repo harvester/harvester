@@ -1,5 +1,7 @@
 syntax="proto3";
 
+option go_package = "github.com/longhorn/longhorn-share-manager/pkg/smrpc";
+
 import "google/protobuf/empty.proto";
 
 service ShareManagerService {

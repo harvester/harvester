@@ -143,7 +143,6 @@ func (c *controller) run(workers int, stopCh <-chan struct{}) {
 	// Start the informer factories to begin populating the informer caches
 	log.Infof("Starting %s controller", c.name)
 
-	// Launch two workers to process Foo resources
 	for i := 0; i < workers; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}

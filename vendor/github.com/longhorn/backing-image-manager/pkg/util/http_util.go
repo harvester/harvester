@@ -96,33 +96,11 @@ func GetLocalIPv4fromInterface(name string) (ip string, err error) {
 	return ipv4.String(), nil
 }
 
-func IsLoopbackHost(host string) bool {
-	if host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0" || host == "::1" || host == "" {
-		return true
-	}
-	// Check for loopback network.
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return false
-	}
-	for _, ip := range ips {
-		if !ip.IsLoopback() {
-			return false
-		}
-	}
-	return true
-}
-
-func ConvertToStorageAddress(address string) (string, error) {
-	host, port, err := net.SplitHostPort(address)
+func GetSyncServiceAddressWithPodIP(address string) (string, error) {
+	_, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return "", err
 	}
-	if IsLoopbackHost(host) {
-		host, err = GetIPForPod()
-		if err != nil {
-			return "", err
-		}
-	}
-	return net.JoinHostPort(host, port), nil
+	podIP := os.Getenv(EnvPodIP)
+	return net.JoinHostPort(podIP, port), nil
 }

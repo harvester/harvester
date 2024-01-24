@@ -143,3 +143,44 @@ func (c *BackingImageManagerClient) VersionGet() (int, int, error) {
 	}
 	return output.BackingImageManagerAPIMinVersion, output.BackingImageManagerAPIVersion, nil
 }
+
+func (c *BackingImageManagerClient) BackupCreate(name, uuid, checksum, backupTargetURL string, labels, credential map[string]string, compressionMethod string, concurrentLimit int) error {
+
+	if err := CheckBackingImageManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
+		return err
+	}
+	return c.grpcClient.BackupCreate(name, uuid, checksum, backupTargetURL, labels, credential, compressionMethod, concurrentLimit)
+}
+
+func (c *BackingImageManagerClient) BackupStatus(name string) (*longhorn.BackupBackingImageStatus, error) {
+
+	if err := CheckBackingImageManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
+		return nil, err
+	}
+
+	resp, err := c.grpcClient.BackupStatus(name)
+	if err != nil {
+		return nil, err
+	}
+	backupBackingImageStatus := &longhorn.BackupBackingImageStatus{
+		Progress: resp.Progress,
+		URL:      resp.BackupURL,
+		Error:    resp.ErrorMsg,
+		State:    convertBackupState(resp.State),
+	}
+	return backupBackingImageStatus, nil
+}
+
+// ConvertBackupState converts longhorn backup backing image state to BackupBackingImage CR state
+func convertBackupState(state string) longhorn.BackupState {
+	switch state {
+	case backupStateInProgress:
+		return longhorn.BackupStateInProgress
+	case backupStateComplete:
+		return longhorn.BackupStateCompleted
+	case backupStateError:
+		return longhorn.BackupStateError
+	default:
+		return longhorn.BackupStateUnknown
+	}
+}

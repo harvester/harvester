@@ -14,32 +14,32 @@ func GetEngineBinaryClient(ds *datastore.DataStore, volumeName, nodeID string) (
 	var e *longhorn.Engine
 
 	defer func() {
-		err = errors.Wrapf(err, "cannot get client for volume %v", volumeName)
+		err = errors.Wrapf(err, "cannot get client for volume %v on node %v", volumeName, nodeID)
 	}()
 	es, err := ds.ListVolumeEngines(volumeName)
 	if err != nil {
 		return nil, err
 	}
 	if len(es) == 0 {
-		return nil, fmt.Errorf("cannot find engine")
+		return nil, fmt.Errorf("cannot find engine for volume %v", volumeName)
 	}
 	if len(es) != 1 {
-		return nil, fmt.Errorf("more than one engine exists")
+		return nil, fmt.Errorf("more than one engine found for volume %v", volumeName)
 	}
 	for _, e = range es {
 		break
 	}
-	if e.Spec.BackendStoreDriver == longhorn.BackendStoreDriverTypeV2 {
+	if datastore.IsDataEngineV2(e.Spec.DataEngine) {
 		return nil, nil
 	}
 	if e.Status.CurrentState != longhorn.InstanceStateRunning {
 		return nil, fmt.Errorf("engine is not running")
 	}
-	if isReady, err := ds.CheckEngineImageReadiness(e.Status.CurrentImage, nodeID); !isReady {
+	if isReady, err := ds.CheckDataEngineImageReadiness(e.Status.CurrentImage, e.Spec.DataEngine, nodeID); !isReady {
 		if err != nil {
-			return nil, fmt.Errorf("cannot get engine client with image %v: %v", e.Status.CurrentImage, err)
+			return nil, errors.Wrapf(err, "cannot get engine client with image %v", e.Status.CurrentImage)
 		}
-		return nil, fmt.Errorf("cannot get engine client with image %v because it isn't deployed on this node", e.Status.CurrentImage)
+		return nil, fmt.Errorf("cannot get engine client with image %v because it isn't deployed", e.Status.CurrentImage)
 	}
 
 	engineCollection := &EngineCollection{}

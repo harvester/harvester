@@ -1,25 +1,27 @@
 package smrpc
 
 import (
-	fmt "fmt"
-	"io/ioutil"
+	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
 
 	"k8s.io/mount-utils"
 
-	empty "github.com/golang/protobuf/ptypes/empty"
-	"golang.org/x/net/context"
 	grpccodes "google.golang.org/grpc/codes"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
-	iscsiutil "github.com/longhorn/go-iscsi-helper/util"
+	lhns "github.com/longhorn/go-common-libs/ns"
+	lhtypes "github.com/longhorn/go-common-libs/types"
 
 	"github.com/longhorn/longhorn-share-manager/pkg/server"
 	"github.com/longhorn/longhorn-share-manager/pkg/server/nfs"
@@ -49,14 +51,14 @@ func NewShareManagerServer(manager *server.ShareManager) *ShareManagerServer {
 	}
 }
 
-func (s *ShareManagerServer) FilesystemTrim(ctx context.Context, req *FilesystemTrimRequest) (resp *empty.Empty, err error) {
+func (s *ShareManagerServer) FilesystemTrim(ctx context.Context, req *FilesystemTrimRequest) (resp *emptypb.Empty, err error) {
 	s.Lock()
 	defer s.Unlock()
 
 	vol := s.manager.GetVolume()
 	if vol.Name == "" {
 		s.logger.Warn("Volume name is missing")
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	log := s.logger.WithField("volume", vol.Name)
@@ -69,23 +71,23 @@ func (s *ShareManagerServer) FilesystemTrim(ctx context.Context, req *Filesystem
 
 	devicePath := types.GetVolumeDevicePath(vol.Name, req.EncryptedDevice)
 	if !volume.CheckDeviceValid(devicePath) {
-		return &empty.Empty{}, grpcstatus.Errorf(grpccodes.FailedPrecondition, "volume %v is not valid", vol.Name)
+		return &emptypb.Empty{}, grpcstatus.Errorf(grpccodes.FailedPrecondition, "volume %v is not valid", vol.Name)
 	}
 
 	mountPath := types.GetMountPath(vol.Name)
 
 	mnt, err := filesystem.GetMount(mountPath)
 	if err != nil {
-		return &empty.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
+		return &emptypb.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
 	}
 
 	deviceNumber, err := util.GetDeviceNumber(devicePath)
 	if err != nil {
-		return &empty.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
+		return &emptypb.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
 	}
 
 	if uint64(mnt.DeviceNumber) != uint64(deviceNumber) {
-		return &empty.Empty{}, grpcstatus.Errorf(grpccodes.InvalidArgument, "the device of mount point %v is not expected", mountPath)
+		return &emptypb.Empty{}, grpcstatus.Errorf(grpccodes.InvalidArgument, "the device of mount point %v is not expected", mountPath)
 	}
 
 	log.Infof("Trimming mounted filesystem %v", mountPath)
@@ -93,24 +95,30 @@ func (s *ShareManagerServer) FilesystemTrim(ctx context.Context, req *Filesystem
 	mounter := mount.New("")
 	notMounted, err := mount.IsNotMountPoint(mounter, mountPath)
 	if notMounted {
-		return &empty.Empty{}, grpcstatus.Errorf(grpccodes.InvalidArgument, "%v is not a mount point", mountPath)
+		return &emptypb.Empty{}, grpcstatus.Errorf(grpccodes.InvalidArgument, "%v is not a mount point", mountPath)
 	}
+	if err != nil {
+		return &emptypb.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
+	}
+
+	if _, err := os.ReadDir(mountPath); err != nil {
+		return &emptypb.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
+	}
+
+	namespaces := []lhtypes.Namespace{lhtypes.NamespaceMnt, lhtypes.NamespaceNet}
+	nsexec, err := lhns.NewNamespaceExecutor(lhns.GetDefaultProcessName(), lhtypes.HostProcDirectory, namespaces)
 	if err != nil {
 		return &empty.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
 	}
 
-	if _, err := ioutil.ReadDir(mountPath); err != nil {
-		return &empty.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
-	}
-
-	_, err = iscsiutil.Execute("fstrim", []string{mountPath})
+	_, err = nsexec.Execute(lhtypes.BinaryFstrim, []string{mountPath}, lhtypes.ExecuteDefaultTimeout)
 	if err != nil {
-		return &empty.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
+		return &emptypb.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
 	}
 
 	log.Infof("Finished trimming mounted filesystem %v", mountPath)
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (s *ShareManagerServer) unexport(vol volume.Volume) error {
@@ -145,21 +153,21 @@ func (s *ShareManagerServer) unmount(vol volume.Volume) error {
 	return volume.UnmountVolume(mountPath)
 }
 
-func (s *ShareManagerServer) Unmount(ctx context.Context, req *empty.Empty) (resp *empty.Empty, err error) {
+func (s *ShareManagerServer) Unmount(ctx context.Context, req *emptypb.Empty) (resp *emptypb.Empty, err error) {
 	s.Lock()
 	defer s.Unlock()
 
 	vol := s.manager.GetVolume()
 	if vol.Name == "" {
 		s.logger.Warn("Volume name is missing")
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	log := s.logger.WithField("volume", vol.Name)
 
 	if !nfsServerIsRunning() {
 		log.Info("NFS server is not running, skip unexporting and unmounting volume")
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	// Blindly mark the volume as unexported, even if the unmount fails.
@@ -193,7 +201,7 @@ func (s *ShareManagerServer) Unmount(ctx context.Context, req *empty.Empty) (res
 
 	log.Info("Volume is unexported and unmounted")
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (s *ShareManagerServer) mount(vol volume.Volume, devicePath, mountPath string) error {
@@ -221,25 +229,25 @@ func (s *ShareManagerServer) export(vol volume.Volume) error {
 	return nil
 }
 
-func (s *ShareManagerServer) Mount(ctx context.Context, req *empty.Empty) (resp *empty.Empty, err error) {
+func (s *ShareManagerServer) Mount(ctx context.Context, req *emptypb.Empty) (resp *emptypb.Empty, err error) {
 	s.Lock()
 	defer s.Unlock()
 
 	vol := s.manager.GetVolume()
 	if vol.Name == "" {
 		s.logger.Warn("Volume name is missing")
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	log := s.logger.WithField("volume", vol.Name)
 
 	if !nfsServerIsRunning() {
 		log.Info("NFS server is not running, skip mounting and exporting volume")
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	if s.manager.ShareIsExported() {
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	log.Info("Mounting and exporting volume")
@@ -257,7 +265,7 @@ func (s *ShareManagerServer) Mount(ctx context.Context, req *empty.Empty) (resp 
 	notMounted, err := mount.IsNotMountPoint(mounter, mountPath)
 	if err != nil {
 		err = errors.Wrapf(err, "failed to check mount point %v", mountPath)
-		return &empty.Empty{}, grpcstatus.Errorf(grpccodes.Internal, err.Error())
+		return &emptypb.Empty{}, grpcstatus.Errorf(grpccodes.Internal, err.Error())
 	}
 	if notMounted {
 		log.Info("Mounting volume")
@@ -276,7 +284,7 @@ func (s *ShareManagerServer) Mount(ctx context.Context, req *empty.Empty) (resp 
 	log.Info("Volume is mounted and exported")
 	s.manager.SetShareExported(true)
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 type ShareManagerHealthCheckServer struct {
