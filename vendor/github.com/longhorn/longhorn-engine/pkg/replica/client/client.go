@@ -6,10 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/longhorn/longhorn-engine/pkg/types"
 	"github.com/longhorn/longhorn-engine/pkg/util"
@@ -90,7 +91,7 @@ func NewReplicaClient(address, volumeName, instanceName string) (*ReplicaClient,
 // for the longhorn-manager which executes these command as binaries invocations
 func (c *ReplicaClient) getReplicaServiceClient() (ptypes.ReplicaServiceClient, error) {
 	err := c.replicaServiceContext.once.Do(func() error {
-		cc, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure(),
+		cc, err := grpc.Dial(c.replicaServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()),
 			ptypes.WithIdentityValidationClientInterceptor(c.volumeName, c.instanceName))
 		if err != nil {
 			return err
@@ -111,7 +112,7 @@ func (c *ReplicaClient) getReplicaServiceClient() (ptypes.ReplicaServiceClient, 
 // for the longhorn-manager which executes these command as binaries invocations
 func (c *ReplicaClient) getSyncServiceClient() (ptypes.SyncAgentServiceClient, error) {
 	err := c.syncServiceContext.once.Do(func() error {
-		cc, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure(),
+		cc, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()),
 			ptypes.WithIdentityValidationClientInterceptor(c.volumeName, c.instanceName))
 		if err != nil {
 			return err
@@ -165,6 +166,8 @@ func GetReplicaInfo(r *ptypes.Replica) *types.ReplicaInfo {
 		HeadFileSize:              r.HeadFileSize,
 		RevisionCounterDisabled:   r.RevisionCounterDisabled,
 		UnmapMarkDiskChainRemoved: r.UnmapMarkDiskChainRemoved,
+		SnapshotCountUsage:        int(r.SnapshotCountUsage),
+		SnapshotSizeUsage:         r.SnapshotSizeUsage,
 	}
 
 	for diskName, diskInfo := range r.Disks {
@@ -198,7 +201,7 @@ func (c *ReplicaClient) GetReplica() (*types.ReplicaInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	resp, err := replicaServiceClient.ReplicaGet(ctx, &empty.Empty{})
+	resp, err := replicaServiceClient.ReplicaGet(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get replica %v", c.replicaServiceURL)
 	}
@@ -214,7 +217,7 @@ func (c *ReplicaClient) OpenReplica() error {
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	if _, err := replicaServiceClient.ReplicaOpen(ctx, &empty.Empty{}); err != nil {
+	if _, err := replicaServiceClient.ReplicaOpen(ctx, &emptypb.Empty{}); err != nil {
 		return errors.Wrapf(err, "failed to open replica %v", c.replicaServiceURL)
 	}
 
@@ -229,7 +232,7 @@ func (c *ReplicaClient) CloseReplica() error {
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	if _, err := replicaServiceClient.ReplicaClose(ctx, &empty.Empty{}); err != nil {
+	if _, err := replicaServiceClient.ReplicaClose(ctx, &emptypb.Empty{}); err != nil {
 		return errors.Wrapf(err, "failed to close replica %v", c.replicaServiceURL)
 	}
 
@@ -244,7 +247,7 @@ func (c *ReplicaClient) ReloadReplica() (*types.ReplicaInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	resp, err := replicaServiceClient.ReplicaReload(ctx, &empty.Empty{})
+	resp, err := replicaServiceClient.ReplicaReload(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to reload replica %v", c.replicaServiceURL)
 	}
@@ -612,7 +615,7 @@ func (c *ReplicaClient) Reset() error {
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	if _, err := syncAgentServiceClient.Reset(ctx, &empty.Empty{}); err != nil {
+	if _, err := syncAgentServiceClient.Reset(ctx, &emptypb.Empty{}); err != nil {
 		return errors.Wrap(err, "failed to clean up restore info in Sync Agent Server")
 	}
 
@@ -627,7 +630,7 @@ func (c *ReplicaClient) RestoreStatus() (*ptypes.RestoreStatusResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	resp, err := syncAgentServiceClient.RestoreStatus(ctx, &empty.Empty{})
+	resp, err := syncAgentServiceClient.RestoreStatus(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get restore status")
 	}
@@ -643,7 +646,7 @@ func (c *ReplicaClient) SnapshotPurge() error {
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	if _, err := syncAgentServiceClient.SnapshotPurge(ctx, &empty.Empty{}); err != nil {
+	if _, err := syncAgentServiceClient.SnapshotPurge(ctx, &emptypb.Empty{}); err != nil {
 		return errors.Wrap(err, "failed to start snapshot purge")
 	}
 
@@ -658,7 +661,7 @@ func (c *ReplicaClient) SnapshotPurgeStatus() (*ptypes.SnapshotPurgeStatusRespon
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	status, err := syncAgentServiceClient.SnapshotPurgeStatus(ctx, &empty.Empty{})
+	status, err := syncAgentServiceClient.SnapshotPurgeStatus(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get snapshot purge status")
 	}
@@ -674,7 +677,7 @@ func (c *ReplicaClient) ReplicaRebuildStatus() (*ptypes.ReplicaRebuildStatusResp
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	status, err := syncAgentServiceClient.ReplicaRebuildStatus(ctx, &empty.Empty{})
+	status, err := syncAgentServiceClient.ReplicaRebuildStatus(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get replica rebuild status")
 	}
@@ -712,7 +715,7 @@ func (c *ReplicaClient) SnapshotCloneStatus() (*ptypes.SnapshotCloneStatusRespon
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	status, err := syncAgentServiceClient.SnapshotCloneStatus(ctx, &empty.Empty{})
+	status, err := syncAgentServiceClient.SnapshotCloneStatus(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get snapshot clone status")
 	}
@@ -779,7 +782,7 @@ func (c *ReplicaClient) SnapshotHashLockState() (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), GRPCServiceCommonTimeout)
 	defer cancel()
 
-	resp, err := syncAgentServiceClient.SnapshotHashLockState(ctx, &empty.Empty{})
+	resp, err := syncAgentServiceClient.SnapshotHashLockState(ctx, &emptypb.Empty{})
 	if err != nil {
 		return false, errors.Wrapf(err, "failed to get snapshot hash lock state")
 	}

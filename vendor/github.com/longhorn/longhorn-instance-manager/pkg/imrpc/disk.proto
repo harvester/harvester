@@ -2,6 +2,8 @@ syntax="proto3";
 
 package imrpc;
 
+option go_package = "github.com/longhorn/longhorn-instance-manager/pkg/imrpc";
+
 import "google/protobuf/empty.proto";
 
 service DiskService {

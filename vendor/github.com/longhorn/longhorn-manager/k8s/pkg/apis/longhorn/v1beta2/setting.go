@@ -15,6 +15,7 @@ type Setting struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// The value of the setting.
 	Value string `json:"value"`
 }
 

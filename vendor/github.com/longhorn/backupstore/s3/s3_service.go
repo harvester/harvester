@@ -5,9 +5,11 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/pkg/errors"
@@ -124,6 +126,14 @@ func (s *Service) PutObject(key string, reader io.ReadSeeker) error {
 		return err
 	}
 	defer s.Close()
+
+	svc.Client.Config.Retryer = client.DefaultRetryer{
+		NumMaxRetries:    10,
+		MinRetryDelay:    500 * time.Millisecond,
+		MinThrottleDelay: 1 * time.Second,
+		MaxRetryDelay:    300 * time.Second,
+		MaxThrottleDelay: 600 * time.Second,
+	}
 
 	params := &s3.PutObjectInput{
 		Bucket: aws.String(s.Bucket),

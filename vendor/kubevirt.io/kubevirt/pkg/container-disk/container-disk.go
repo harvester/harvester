@@ -28,8 +28,6 @@ import (
 	"strconv"
 	"strings"
 
-	"kubevirt.io/client-go/log"
-
 	kubev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -114,8 +112,16 @@ func GetKernelBootArtifactPathFromLauncherView(artifact string) string {
 	return filepath.Join(mountBaseDir, KernelBootName, artifactBase)
 }
 
-func SetLocalDirectory(dir string) error {
+// SetLocalDirectoryOnly TODO: Refactor this package. This package is used by virt-controller
+// to set proper paths on the virt-launcher template and by virt-launcher to create directories
+// at the right location. The functions have side-effects and mix path setting and creation
+// which makes it hard to differentiate the usage per component.
+func SetLocalDirectoryOnly(dir string) {
 	mountBaseDir = dir
+}
+
+func SetLocalDirectory(dir string) error {
+	SetLocalDirectoryOnly(dir)
 	return os.MkdirAll(dir, 0750)
 }
 
@@ -326,8 +332,6 @@ func generateContainerFromVolume(vmi *v1.VirtualMachineInstance, config *virtcon
 		name = diskContainerName
 		copyPathArg := path.Join(volumeMountDir, mountedDiskName)
 		args = []string{"--copy-path", copyPathArg}
-
-		log.Log.Object(vmi).Infof("arguments for container-disk \"%s\": --copy-path %s", name, copyPathArg)
 	}
 
 	noPrivilegeEscalation := false

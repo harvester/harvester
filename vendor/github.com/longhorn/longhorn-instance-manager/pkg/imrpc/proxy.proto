@@ -2,6 +2,8 @@ syntax="proto3";
 
 package imrpc;
 
+option go_package = "github.com/longhorn/longhorn-instance-manager/pkg/imrpc";
+
 import "google/protobuf/empty.proto";
 import "github.com/longhorn/longhorn-engine/proto/ptypes/controller.proto";
 import "github.com/longhorn/longhorn-engine/proto/ptypes/syncagent.proto";
@@ -16,6 +18,8 @@ service ProxyEngineService {
 	rpc VolumeFrontendStart(EngineVolumeFrontendStartRequest) returns (google.protobuf.Empty);
 	rpc VolumeFrontendShutdown(ProxyEngineRequest) returns (google.protobuf.Empty);
 	rpc VolumeUnmapMarkSnapChainRemovedSet(EngineVolumeUnmapMarkSnapChainRemovedSetRequest) returns (google.protobuf.Empty);
+	rpc VolumeSnapshotMaxCountSet(EngineVolumeSnapshotMaxCountSetRequest) returns (google.protobuf.Empty);
+	rpc VolumeSnapshotMaxSizeSet(EngineVolumeSnapshotMaxSizeSetRequest) returns (google.protobuf.Empty);
 
 	rpc VolumeSnapshot(EngineVolumeSnapshotRequest) returns (EngineVolumeSnapshotProxyResponse);
 	rpc SnapshotList(ProxyEngineRequest) returns (EngineSnapshotListProxyResponse);
@@ -32,6 +36,8 @@ service ProxyEngineService {
 	rpc SnapshotBackupStatus(EngineSnapshotBackupStatusRequest) returns (EngineSnapshotBackupStatusProxyResponse);
 	rpc BackupRestore(EngineBackupRestoreRequest) returns (EngineBackupRestoreProxyResponse);
 	rpc BackupRestoreStatus(ProxyEngineRequest) returns (EngineBackupRestoreStatusProxyResponse);
+	rpc BackupRestoreFinish(EngineBackupRestoreFinishRequest) returns (google.protobuf.Empty);
+	rpc CleanupBackupMountPoints(google.protobuf.Empty) returns (google.protobuf.Empty);
 
 	rpc ReplicaAdd(EngineReplicaAddRequest) returns (google.protobuf.Empty);
 	rpc ReplicaList(ProxyEngineRequest) returns (EngineReplicaListProxyResponse);
@@ -45,9 +51,11 @@ service ProxyEngineService {
 
 message ProxyEngineRequest{
 	string address = 1;
-	BackendStoreDriver backend_store_driver = 2;
+	// Deprecated: Replaced by `data_engine`.
+	BackendStoreDriver backend_store_driver = 2 [deprecated=true];
 	string engine_name = 3;
 	string volume_name = 4;
+	DataEngine data_engine = 5;
 }
 
 message EngineVersionProxyResponse {
@@ -84,6 +92,18 @@ message EngineVolumeUnmapMarkSnapChainRemovedSetRequest {
 	ProxyEngineRequest proxy_engine_request = 1;
 
 	ptypes.VolumeUnmapMarkSnapChainRemovedSetRequest unmap_mark_snap = 2;
+}
+
+message EngineVolumeSnapshotMaxCountSetRequest {
+	ProxyEngineRequest proxy_engine_request = 1;
+
+	ptypes.VolumeSnapshotMaxCountSetRequest count = 2;
+}
+
+message EngineVolumeSnapshotMaxSizeSetRequest {
+	ProxyEngineRequest proxy_engine_request = 1;
+
+	ptypes.VolumeSnapshotMaxSizeSetRequest size = 2;
 }
 
 message EngineSnapshotListProxyResponse {
@@ -206,6 +226,10 @@ message EngineBackupRestoreStatus {
 	string filename = 6;
 	string state = 7;
 	string backup_url = 8;
+}
+
+message EngineBackupRestoreFinishRequest {
+	ProxyEngineRequest proxy_engine_request = 1;
 }
 
 message EngineReplicaAddRequest {

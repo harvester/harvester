@@ -39,8 +39,6 @@ type BackupMonitor struct {
 	engine            *longhorn.Engine
 	engineClientProxy EngineClientProxy
 
-	compressionMethod longhorn.BackupCompressionMethod
-
 	backupStatus     longhorn.BackupStatus
 	backupStatusLock sync.RWMutex
 
@@ -251,7 +249,7 @@ func (m *BackupMonitor) exponentialBackOffTimer() bool {
 			}
 
 			// Set to Error state
-			err = fmt.Errorf("Max retry period %s reached in exponential backoff timer", BackupMonitorMaxRetryPeriod)
+			err = fmt.Errorf("max retry period %s reached in exponential backoff timer", BackupMonitorMaxRetryPeriod)
 			m.logger.Error(err)
 
 			currentBackupStatus.State = longhorn.BackupStateError

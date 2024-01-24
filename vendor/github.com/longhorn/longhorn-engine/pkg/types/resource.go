@@ -17,6 +17,8 @@ type ReplicaInfo struct {
 	HeadFileSize              int64               `json:"headfilesize"`
 	RevisionCounterDisabled   bool                `json:"revisioncounterdisabled"`
 	UnmapMarkDiskChainRemoved bool                `json:"unmapMarkDiskChainRemoved"`
+	SnapshotCountUsage        int                 `json:"snapshotCountUsage"`
+	SnapshotSizeUsage         int64               `json:"snapshotSizeUsage"`
 }
 
 type DiskInfo struct {
@@ -47,6 +49,8 @@ type VolumeInfo struct {
 	LastExpansionError        string `json:"lastExpansionError"`
 	LastExpansionFailedAt     string `json:"lastExpansionFailedAt"`
 	UnmapMarkSnapChainRemoved bool   `json:"unmapMarkSnapChainRemoved"`
+	SnapshotMaxCount          int    `json:"snapshotMaxCount"`
+	SnapshotMaxSize           int64  `json:"SnapshotMaxSize"`
 }
 
 type ControllerReplicaInfo struct {

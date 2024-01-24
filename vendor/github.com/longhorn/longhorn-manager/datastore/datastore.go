@@ -64,6 +64,8 @@ type DataStore struct {
 	BackingImageManagerInformer    cache.SharedInformer
 	backingImageDataSourceLister   lhlisters.BackingImageDataSourceLister
 	BackingImageDataSourceInformer cache.SharedInformer
+	backupBackingImageLister       lhlisters.BackupBackingImageLister
+	BackupBackingImageInformer     cache.SharedInformer
 	backupTargetLister             lhlisters.BackupTargetLister
 	BackupTargetInformer           cache.SharedInformer
 	backupVolumeLister             lhlisters.BackupVolumeLister
@@ -147,6 +149,8 @@ func NewDataStore(namespace string, lhClient lhclientset.Interface, kubeClient c
 	cacheSyncs = append(cacheSyncs, backingImageManagerInformer.Informer().HasSynced)
 	backingImageDataSourceInformer := informerFactories.LhInformerFactory.Longhorn().V1beta2().BackingImageDataSources()
 	cacheSyncs = append(cacheSyncs, backingImageDataSourceInformer.Informer().HasSynced)
+	backupBackingImageInformer := informerFactories.LhInformerFactory.Longhorn().V1beta2().BackupBackingImages()
+	cacheSyncs = append(cacheSyncs, backupBackingImageInformer.Informer().HasSynced)
 	backupTargetInformer := informerFactories.LhInformerFactory.Longhorn().V1beta2().BackupTargets()
 	cacheSyncs = append(cacheSyncs, backupTargetInformer.Informer().HasSynced)
 	backupVolumeInformer := informerFactories.LhInformerFactory.Longhorn().V1beta2().BackupVolumes()
@@ -230,6 +234,8 @@ func NewDataStore(namespace string, lhClient lhclientset.Interface, kubeClient c
 		BackingImageManagerInformer:    backingImageManagerInformer.Informer(),
 		backingImageDataSourceLister:   backingImageDataSourceInformer.Lister(),
 		BackingImageDataSourceInformer: backingImageDataSourceInformer.Informer(),
+		backupBackingImageLister:       backupBackingImageInformer.Lister(),
+		BackupBackingImageInformer:     backupBackingImageInformer.Informer(),
 		backupTargetLister:             backupTargetInformer.Lister(),
 		BackupTargetInformer:           backupTargetInformer.Informer(),
 		backupVolumeLister:             backupVolumeInformer.Lister(),

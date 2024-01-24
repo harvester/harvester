@@ -2,8 +2,10 @@ syntax="proto3";
 
 package ptypes;
 
+option go_package = "github.com/longhorn/longhorn-engine/proto/ptypes";
+
 import "google/protobuf/empty.proto";
-import "common.proto";
+import "github.com/longhorn/longhorn-engine/proto/ptypes/common.proto";
 
 service SyncAgentService {
   rpc FileRemove(FileRemoveRequest) returns (google.protobuf.Empty) {}

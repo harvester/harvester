@@ -2,6 +2,8 @@ syntax="proto3";
 
 package ptypes;
 
+option go_package = "github.com/longhorn/longhorn-engine/proto/ptypes";
+
 import "google/protobuf/empty.proto";
 
 service ReplicaService {
@@ -26,6 +28,10 @@ service ReplicaService {
     (RevisionCounterSetResponse) {}
   rpc UnmapMarkDiskChainRemovedSet(UnmapMarkDiskChainRemovedSetRequest) returns
     (UnmapMarkDiskChainRemovedSetResponse) {}
+  rpc SnapshotMaxCountSet(SnapshotMaxCountSetRequest) returns
+    (SnapshotMaxCountSetResponse) {}
+  rpc SnapshotMaxSizeSet(SnapshotMaxSizeSetRequest) returns
+    (SnapshotMaxSizeSetResponse) {}
 }
 
 message ReplicaCreateRequest {
@@ -138,6 +144,22 @@ message UnmapMarkDiskChainRemovedSetResponse {
   Replica replica = 1;
 }
 
+message SnapshotMaxCountSetRequest {
+  int32 count = 1;
+}
+
+message SnapshotMaxCountSetResponse {
+  Replica replica = 1;
+}
+
+message SnapshotMaxSizeSetRequest {
+  int64 size = 1;
+}
+
+message SnapshotMaxSizeSetResponse {
+  Replica replica = 1;
+}
+
 message DiskInfo {
   string name = 1;
   string parent = 2;
@@ -166,6 +188,8 @@ message Replica {
   int64 head_file_size = 14;
   bool revision_counter_disabled = 15;
   bool unmap_mark_disk_chain_removed = 16;
+  int32 snapshot_count_usage = 17;
+  int64 snapshot_size_usage = 18;
 }
 
 message PrepareRemoveAction {

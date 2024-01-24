@@ -90,7 +90,6 @@ type Backend interface {
 	Expand(size int64) error
 	Size() (int64, error)
 	SectorSize() (int64, error)
-	RemainSnapshots() (int, error)
 	GetRevisionCounter() (int64, error)
 	SetRevisionCounter(counter int64) error
 	GetState() (string, error)
@@ -101,6 +100,10 @@ type Backend interface {
 	GetHeadFileSize() (int64, error)
 	GetUnmapMarkSnapChainRemoved() (bool, error)
 	SetUnmapMarkSnapChainRemoved(enabled bool) error
+	ResetRebuild() error
+	SetSnapshotMaxCount(count int) error
+	SetSnapshotMaxSize(size int64) error
+	GetSnapshotCountAndSizeUsage() (int, int64, error)
 }
 
 type BackendFactory interface {

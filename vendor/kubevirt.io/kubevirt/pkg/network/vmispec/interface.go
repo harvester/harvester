@@ -110,16 +110,6 @@ func IndexInterfaceSpecByName(interfaces []v1.Interface) map[string]v1.Interface
 	return ifacesByName
 }
 
-func IndexInterfaceSpecByMac(interfaces []v1.Interface) map[string]v1.Interface {
-	ifacesByMac := map[string]v1.Interface{}
-	for _, ifaceSpec := range interfaces {
-		if mac := ifaceSpec.MacAddress; mac != "" {
-			ifacesByMac[mac] = ifaceSpec
-		}
-	}
-	return ifacesByMac
-}
-
 func LookupInterfaceByName(ifaces []v1.Interface, name string) *v1.Interface {
 	for idx := range ifaces {
 		if ifaces[idx].Name == name {
@@ -129,29 +119,23 @@ func LookupInterfaceByName(ifaces []v1.Interface, name string) *v1.Interface {
 	return nil
 }
 
-// InterfacesNames returns slice with the names of the given interfaces.
-func InterfacesNames(interfaces []v1.Interface) []string {
-	var ifaceNames []string
+func IndexInterfaceStatusByName(interfaces []v1.VirtualMachineInstanceNetworkInterface, p func(ifaceStatus v1.VirtualMachineInstanceNetworkInterface) bool) map[string]v1.VirtualMachineInstanceNetworkInterface {
+	indexedInterfaceStatus := map[string]v1.VirtualMachineInstanceNetworkInterface{}
 	for _, iface := range interfaces {
-		ifaceNames = append(ifaceNames, iface.Name)
-	}
-	return ifaceNames
-}
-
-// FilterStatusInterfacesByNames returns filtered slice of interfaces by the given slice of names.
-// Matching by the interface 'Name' attribute.
-func FilterStatusInterfacesByNames(interfaces []v1.VirtualMachineInstanceNetworkInterface, names []string) []v1.VirtualMachineInstanceNetworkInterface {
-	lookupNameSet := map[string]struct{}{}
-	for _, name := range names {
-		lookupNameSet[name] = struct{}{}
-	}
-
-	var filtered []v1.VirtualMachineInstanceNetworkInterface
-	for _, iface := range interfaces {
-		if _, exists := lookupNameSet[iface.Name]; exists {
-			filtered = append(filtered, iface)
+		if p == nil || p(iface) {
+			indexedInterfaceStatus[iface.Name] = iface
 		}
 	}
+	return indexedInterfaceStatus
+}
 
-	return filtered
+func FilterInterfacesByNetworks(interfaces []v1.Interface, networks []v1.Network) []v1.Interface {
+	var ifaces []v1.Interface
+	ifacesByName := IndexInterfaceSpecByName(interfaces)
+	for _, net := range networks {
+		if iface, exists := ifacesByName[net.Name]; exists {
+			ifaces = append(ifaces, iface)
+		}
+	}
+	return ifaces
 }
