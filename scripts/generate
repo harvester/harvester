@@ -4,4 +4,3 @@ set -e
 cd $(dirname $0)/..
 
 go generate
-./scripts/generate-openapi

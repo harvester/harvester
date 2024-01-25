@@ -73,7 +73,7 @@ ENV DAPPER_RUN_ARGS --privileged --network host -v /run/containerd/containerd.so
 ENV GO111MODULE off
 ENV DAPPER_ENV REPO TAG DRONE_TAG DRONE_BRANCH CROSS GOPROXY PUSH RKE2_IMAGE_REPO USE_LOCAL_IMAGES CODECOV_TOKEN
 ENV DAPPER_SOURCE /go/src/github.com/harvester/harvester/
-ENV DAPPER_OUTPUT ./bin ./dist ./package ./pkg
+ENV DAPPER_OUTPUT ./api ./bin ./deploy ./dist ./package ./pkg
 ENV DAPPER_DOCKER_SOCKET true
 ENV HOME ${DAPPER_SOURCE}
 # -- for dapper
