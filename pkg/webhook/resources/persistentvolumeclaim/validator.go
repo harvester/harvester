@@ -37,10 +37,20 @@ func (v *pvcValidator) Resource() types.Resource {
 		APIVersion: corev1.SchemeGroupVersion.Version,
 		ObjectType: &corev1.PersistentVolumeClaim{},
 		OperationTypes: []admissionregv1.OperationType{
+			admissionregv1.Create,
 			admissionregv1.Delete,
 			admissionregv1.Update,
 		},
 	}
+}
+
+func (v *pvcValidator) Create(_ *types.Request, obj runtime.Object) error {
+	pvc := obj.(*corev1.PersistentVolumeClaim)
+	if _, err := ref.GetSchemaOwnersFromAnnotation(pvc); err != nil {
+		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
+
+	}
+	return nil
 }
 
 func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) error {
@@ -87,6 +97,10 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 func (v *pvcValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	oldPVC := oldObj.(*corev1.PersistentVolumeClaim)
 	newPVC := newObj.(*corev1.PersistentVolumeClaim)
+
+	if _, err := ref.GetSchemaOwnersFromAnnotation(newPVC); err != nil {
+		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
+	}
 
 	newQuantity := newPVC.Spec.Resources.Requests.Storage()
 	oldQuantity := oldPVC.Spec.Resources.Requests.Storage()
