@@ -488,9 +488,14 @@ whereabouts:
 
 harvester-node-manager:
   image:
-    imagePullPolicy: IfNotPresent
+    pullPolicy: IfNotPresent
     repository: rancher/harvester-node-manager
     tag: master-head
+  webhook:
+    image:
+      pullPolicy: IfNotPresent
+      repository: rancher/harvester-node-manager-webhook
+      tag: master-head
 
 snapshot-validation-webhook:
   enabled: true
