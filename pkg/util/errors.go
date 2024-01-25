@@ -3,6 +3,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"syscall"
@@ -37,6 +38,8 @@ func NewStillExists(qualifiedResource schema.GroupResource, name string) *apierr
 }
 
 func IsRetriableNetworkError(err error) bool {
+	var dnsError *net.DNSError
+
 	if os.IsTimeout(err) {
 		return true
 	} else if errors.Is(err, syscall.ENETDOWN) {
@@ -51,7 +54,8 @@ func IsRetriableNetworkError(err error) bool {
 		return true
 	} else if errors.Is(err, syscall.EHOSTUNREACH) {
 		return true
-	} else {
-		return false
+	} else if errors.As(err, &dnsError) && dnsError.IsTemporary {
+		return true
 	}
+	return false
 }
