@@ -63,11 +63,8 @@ const (
 	replicaReplenishmentAnnotation           = "harvesterhci.io/" + replicaReplenishmentWaitIntervalSetting
 	extendedReplicaReplenishmentWaitInterval = 1800
 
-<<<<<<< HEAD
-	skipVersionCheckAnnotation = "harvesterhci.io/skip-version-check"
-=======
+	skipVersionCheckAnnotation          = "harvesterhci.io/skip-version-check"
 	imageCleanupPlanCompletedAnnotation = "harvesterhci.io/image-cleanup-plan-completed"
->>>>>>> 7698d7b4 (feat(upgrade): unneeded image cleanup after upgrade)
 )
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades

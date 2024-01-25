@@ -25,11 +25,9 @@ const (
 
 	// keep jobs for 7 days
 	defaultTTLSecondsAfterFinished = 604800
-<<<<<<< HEAD
 	// Give up to an hour for slower hardware to preload images.
 	defaultPrepareDeadlineSeconds = 3600
-=======
-	imageCleanupScript             = `
+	imageCleanupScript            = `
 #!/usr/bin/env sh
 set -e
 
@@ -52,7 +50,6 @@ if [ "$ret" -ne 0 ]; then
 	exit 0
 fi
 `
->>>>>>> 7698d7b4 (feat(upgrade): unneeded image cleanup after upgrade)
 )
 
 func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {

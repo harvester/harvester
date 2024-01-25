@@ -1,8 +1,4 @@
 versions:
-<<<<<<< HEAD
-- name: v1.2.0-rc2
-  minUpgradableVersion: v1.1.2
-=======
 - name: v1.2.1
   minUpgradableVersion: v1.1.2
 - name: v1.2.0
@@ -13,7 +9,6 @@ versions:
   minUpgradableVersion: v1.1.0
 - name: v1.1.1
   minUpgradableVersion: v1.0.3
->>>>>>> d77647d0 (chore: add previous versions into upgrade matrix)
 - name: v1.1.0
   minUpgradableVersion: v1.0.3
 - name: v1.0.3
