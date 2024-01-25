@@ -538,7 +538,7 @@ func (r *Repo) getImagesDiffList() ([]string, error) {
 	}
 
 	diffList := difference(previousImageList, currentImageList)
-	logrus.Debugf("Diff: %v", diffList)
+	logrus.Infof("Diff: %v", diffList)
 
 	return diffList, nil
 }
