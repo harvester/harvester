@@ -83,6 +83,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.ContainerdRegistrySettingName:                     validateContainerdRegistry,
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateDefaultVMTerminationGracePeriodSeconds,
 	settings.NTPServersSettingName:                             validateNTPServers,
+	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -100,6 +101,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.ContainerdRegistrySettingName:                     validateUpdateContainerdRegistry,
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateUpdateDefaultVMTerminationGracePeriodSeconds,
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
+	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -914,4 +916,30 @@ func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) er
 
 func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateDefaultVMTerminationGracePeriodSeconds(newSetting)
+}
+
+func validateAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	autoRotateRKE2Certs := &settings.AutoRotateRKE2Certs{}
+	if err := json.Unmarshal([]byte(setting.Value), autoRotateRKE2Certs); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	if autoRotateRKE2Certs.ExpiringInHours <= 0 {
+		return werror.NewInvalidError("expiringInHours can't be negative or zero", "value")
+	}
+
+	largestExpiringInHours := 24*365 - 1
+	if autoRotateRKE2Certs.ExpiringInHours > largestExpiringInHours {
+		return werror.NewInvalidError(fmt.Sprintf("expiringInHours can't be large than %d", largestExpiringInHours), "value")
+	}
+
+	return nil
+}
+
+func validateUpdateAutoRotateRKE2Certs(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateAutoRotateRKE2Certs(newSetting)
 }
