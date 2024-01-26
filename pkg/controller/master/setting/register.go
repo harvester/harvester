@@ -19,6 +19,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
+	services := management.CoreFactory.Core().V1().Service()
 	lhs := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	apps := management.CatalogFactory.Catalog().V1().App()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
@@ -26,11 +27,13 @@ func Register(ctx context.Context, management *config.Management, options config
 	helmChartConfigs := management.HelmFactory.Helm().V1().HelmChartConfig()
 	nodeConfigs := management.NodeConfigFactory.Node().V1beta1().NodeConfig()
 	node := management.CoreFactory.Core().V1().Node()
+	rkeControlPlane := management.RKEFactory.Rke().V1().RKEControlPlane()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
 		settings:             settings,
 		settingCache:         settings.Cache(),
+		settingController:    settings,
 		secrets:              secrets,
 		secretCache:          secrets.Cache(),
 		clusters:             clusters,
@@ -43,6 +46,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		longhornSettingCache: lhs.Cache(),
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
+		serviceCache:         services.Cache(),
 		apps:                 apps,
 		managedCharts:        managedCharts,
 		managedChartCache:    managedCharts.Cache(),
@@ -52,6 +56,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		nodeConfigsCache:     nodeConfigs.Cache(),
 		nodeClient:           node,
 		nodeCache:            node.Cache(),
+		rkeControlPlaneCache: rkeControlPlane.Cache(),
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -75,6 +80,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		"ssl-parameters":            controller.syncSSLParameters,
 		"containerd-registry":       controller.syncContainerdRegistry,
 		"ntp-servers":               controller.syncNTPServer,
+		"auto-rotate-rke2-certs":    controller.syncAutoRotateRKE2Certs,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
 	}

@@ -50,6 +50,7 @@ var (
 	ContainerdRegistry                     = NewSetting(ContainerdRegistrySettingName, "")
 	StorageNetwork                         = NewSetting(StorageNetworkName, "")
 	DefaultVMTerminationGracePeriodSeconds = NewSetting(DefaultVMTerminationGracePeriodSecondsSettingName, "120")
+	AutoRotateRKE2CertsSet                 = NewSetting(AutoRotateRKE2CertsSettingName, InitAutoRotateRKE2Certs())
 
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
@@ -83,6 +84,7 @@ const (
 	DefaultVMTerminationGracePeriodSecondsSettingName = "default-vm-termination-grace-period-seconds"
 	SupportBundleExpirationSettingName                = "support-bundle-expiration"
 	NTPServersSettingName                             = "ntp-servers"
+	AutoRotateRKE2CertsSettingName                    = "auto-rotate-rke2-certs"
 )
 
 func init() {
@@ -285,6 +287,23 @@ type SSLParameter struct {
 type CSIDriverInfo struct {
 	VolumeSnapshotClassName       string `json:"volumeSnapshotClassName"`
 	BackupVolumeSnapshotClassName string `json:"backupVolumeSnapshotClassName"`
+}
+
+type AutoRotateRKE2Certs struct {
+	Enable          bool `json:"enable"`
+	ExpiringInHours int  `json:"expiringInHours"`
+}
+
+func InitAutoRotateRKE2Certs() string {
+	autoRotateRKE2Certs := &AutoRotateRKE2Certs{
+		Enable:          false,
+		ExpiringInHours: 240, // 7 days
+	}
+	autoRotateRKE2CertsStr, err := json.Marshal(autoRotateRKE2Certs)
+	if err != nil {
+		logrus.WithField("name", AutoRotateRKE2CertsSettingName).WithError(err).Error("failed to init setting")
+	}
+	return string(autoRotateRKE2CertsStr)
 }
 
 func GetCSIDriverInfo(provisioner string) (*CSIDriverInfo, error) {
