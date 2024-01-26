@@ -2,7 +2,7 @@
 
 ## Summary
 
-We want a mechanism for VMs attached to VM networks to have network connectivity out of the box, and such funtionality is provided by Harvester itself, not external services.
+We propose enhancing Harvester as a robust IP helper, utilizing DHCP for efficient IP and gateway information provision and withdrawal for VMs. This feature streamlines IP address management for VMs within the existing infrastructure, ensuring seamless address assignment.
 
 ### Related Issues
 
