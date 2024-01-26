@@ -14,6 +14,7 @@ import (
 	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
+	ctlrkev1 "github.com/rancher/rancher/pkg/generated/controllers/rke.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -36,6 +37,9 @@ var (
 	bootstrapSettings = []string{
 		settings.SSLCertificatesSettingName,
 	}
+	skipHashCheckSettings = []string{
+		settings.AutoRotateRKE2CertsSettingName,
+	}
 )
 
 type Handler struct {
@@ -46,6 +50,7 @@ type Handler struct {
 	clusters             provisioningv1.ClusterClient
 	settings             v1beta1.SettingClient
 	settingCache         v1beta1.SettingCache
+	settingController    v1beta1.SettingController
 	secrets              ctlcorev1.SecretClient
 	secretCache          ctlcorev1.SecretCache
 	deployments          v1.DeploymentClient
@@ -56,6 +61,7 @@ type Handler struct {
 	longhornSettingCache ctllhv1.SettingCache
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
+	serviceCache         ctlcorev1.ServiceCache
 	apps                 catalogv1.AppClient
 	managedCharts        ctlmgmtv3.ManagedChartClient
 	managedChartCache    ctlmgmtv3.ManagedChartCache
@@ -65,6 +71,7 @@ type Handler struct {
 	nodeCache            ctlcorev1.NodeCache
 	nodeConfigs          ctlnodev1.NodeConfigClient
 	nodeConfigsCache     ctlnodev1.NodeConfigCache
+	rkeControlPlaneCache ctlrkev1.RKEControlPlaneCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
@@ -87,7 +94,7 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 	hash := sha256.New224()
 	io.Copy(hash, toMeasure)
 	currentHash := fmt.Sprintf("%x", hash.Sum(nil))
-	if currentHash == setting.Annotations[util.AnnotationHash] {
+	if !slice.ContainsString(skipHashCheckSettings, setting.Name) && currentHash == setting.Annotations[util.AnnotationHash] {
 		return nil, nil
 	}
 
