@@ -10,6 +10,7 @@ import (
 	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io"
+	rkev1 "github.com/rancher/rancher/pkg/generated/controllers/rke.cattle.io"
 	"github.com/rancher/wrangler/pkg/apply"
 	appsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps"
 	batchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch"
@@ -107,6 +108,7 @@ type Management struct {
 	UpgradeFactory    *upgrade.Factory
 	ClusterFactory    *cluster.Factory
 	NodeConfigFactory *ctlnodeharvester.Factory
+	RKEFactory        *rkev1.Factory
 
 	ClientSet  *kubernetes.Clientset
 	RestConfig *rest.Config
@@ -389,6 +391,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.NodeConfigFactory = nodeconfig
 	management.starters = append(management.starters, nodeconfig)
+
+	rke, err := rkev1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.RKEFactory = rke
+	management.starters = append(management.starters, rke)
 
 	management.RestConfig = restConfig
 	management.ClientSet, err = kubernetes.NewForConfig(restConfig)
