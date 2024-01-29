@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/longhorn/longhorn-instance-manager/pkg/api"
@@ -17,8 +18,13 @@ import (
 )
 
 type DiskServiceContext struct {
-	cc      *grpc.ClientConn
+	cc *grpc.ClientConn
+
+	ctx  context.Context
+	quit context.CancelFunc
+
 	service rpc.DiskServiceClient
+	health  healthpb.HealthClient
 }
 
 func (c *DiskServiceClient) Close() error {
@@ -39,7 +45,7 @@ type DiskServiceClient struct {
 }
 
 // NewDiskServiceClient creates a new DiskServiceClient.
-func NewDiskServiceClient(serviceURL string, tlsConfig *tls.Config) (*DiskServiceClient, error) {
+func NewDiskServiceClient(ctx context.Context, ctxCancel context.CancelFunc, serviceURL string, tlsConfig *tls.Config) (*DiskServiceClient, error) {
 	getDiskServiceContext := func(serviceUrl string, tlsConfig *tls.Config) (DiskServiceContext, error) {
 		connection, err := util.Connect(serviceUrl, tlsConfig)
 		if err != nil {
@@ -48,7 +54,10 @@ func NewDiskServiceClient(serviceURL string, tlsConfig *tls.Config) (*DiskServic
 
 		return DiskServiceContext{
 			cc:      connection,
+			ctx:     ctx,
+			quit:    ctxCancel,
 			service: rpc.NewDiskServiceClient(connection),
+			health:  healthpb.NewHealthClient(connection),
 		}, nil
 	}
 
@@ -65,13 +74,13 @@ func NewDiskServiceClient(serviceURL string, tlsConfig *tls.Config) (*DiskServic
 }
 
 // NewDiskServiceClientWithTLS creates a new DiskServiceClient with TLS
-func NewDiskServiceClientWithTLS(serviceURL, caFile, certFile, keyFile, peerName string) (*DiskServiceClient, error) {
+func NewDiskServiceClientWithTLS(ctx context.Context, ctxCancel context.CancelFunc, serviceURL, caFile, certFile, keyFile, peerName string) (*DiskServiceClient, error) {
 	tlsConfig, err := util.LoadClientTLS(caFile, certFile, keyFile, peerName)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load tls key pair from file")
 	}
 
-	return NewDiskServiceClient(serviceURL, tlsConfig)
+	return NewDiskServiceClient(ctx, ctxCancel, serviceURL, tlsConfig)
 }
 
 // DiskCreate creates a disk with the given name and path.
@@ -242,4 +251,10 @@ func (c *DiskServiceClient) VersionGet() (*meta.DiskServiceVersionOutput, error)
 		InstanceManagerDiskServiceAPIVersion:    int(resp.InstanceManagerDiskServiceAPIVersion),
 		InstanceManagerDiskServiceAPIMinVersion: int(resp.InstanceManagerDiskServiceAPIMinVersion),
 	}, nil
+}
+
+func (c *DiskServiceClient) CheckConnection() error {
+	req := &healthpb.HealthCheckRequest{}
+	_, err := c.health.Check(getContextWithGRPCTimeout(c.ctx), req)
+	return err
 }

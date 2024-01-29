@@ -1,6 +1,8 @@
 package engineapi
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -28,8 +30,9 @@ func NewDiskServiceClient(im *longhorn.InstanceManager, logger logrus.FieldLogge
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	endpoint := "tcp://" + imutil.GetURL(im.Status.IP, InstanceManagerDiskServiceDefaultPort)
-	client, err := imclient.NewDiskServiceClient(endpoint, nil)
+	client, err := imclient.NewDiskServiceClient(ctx, cancel, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
