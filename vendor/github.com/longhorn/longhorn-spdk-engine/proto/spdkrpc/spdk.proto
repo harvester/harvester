@@ -1,0 +1,222 @@
+syntax="proto3";
+
+package spdkrpc;
+
+import "google/protobuf/empty.proto";
+
+service SPDKService {
+    rpc ReplicaCreate(ReplicaCreateRequest) returns (Replica);
+    rpc ReplicaDelete(ReplicaDeleteRequest) returns (google.protobuf.Empty);
+    rpc ReplicaGet(ReplicaGetRequest) returns (Replica);
+    rpc ReplicaSnapshotCreate(SnapshotRequest) returns (Replica);
+    rpc ReplicaSnapshotDelete(SnapshotRequest) returns (google.protobuf.Empty);
+    rpc ReplicaList(google.protobuf.Empty) returns (ReplicaListResponse);
+    rpc ReplicaWatch(google.protobuf.Empty) returns (stream google.protobuf.Empty) {}
+    rpc ReplicaRebuildingSrcStart(ReplicaRebuildingSrcStartRequest) returns (google.protobuf.Empty) {}
+    rpc ReplicaRebuildingSrcFinish(ReplicaRebuildingSrcFinishRequest) returns (google.protobuf.Empty) {}
+    rpc ReplicaSnapshotShallowCopy(ReplicaSnapshotShallowCopyRequest) returns (google.protobuf.Empty);
+    rpc ReplicaRebuildingDstStart(ReplicaRebuildingDstStartRequest) returns (ReplicaRebuildingDstStartResponse) {}
+    rpc ReplicaRebuildingDstFinish(ReplicaRebuildingDstFinishRequest) returns (google.protobuf.Empty) {}
+    rpc ReplicaRebuildingDstSnapshotCreate(SnapshotRequest) returns (google.protobuf.Empty);
+
+
+    rpc EngineCreate(EngineCreateRequest) returns (Engine);
+    rpc EngineDelete(EngineDeleteRequest) returns (google.protobuf.Empty);
+    rpc EngineGet(EngineGetRequest) returns (Engine);
+    rpc EngineSnapshotCreate(SnapshotRequest) returns (Engine);
+    rpc EngineSnapshotDelete(SnapshotRequest) returns (google.protobuf.Empty);
+    rpc EngineList(google.protobuf.Empty) returns (EngineListResponse);
+    rpc EngineWatch(google.protobuf.Empty) returns (stream google.protobuf.Empty) {}
+    rpc EngineReplicaAdd(EngineReplicaAddRequest) returns (google.protobuf.Empty) {}
+    rpc EngineReplicaDelete(EngineReplicaDeleteRequest) returns (google.protobuf.Empty) {}
+
+    rpc DiskCreate(DiskCreateRequest) returns (Disk);
+    rpc DiskDelete(DiskDeleteRequest) returns (google.protobuf.Empty);
+    rpc DiskGet(DiskGetRequest) returns (Disk);
+
+    rpc VersionDetailGet(google.protobuf.Empty) returns(VersionDetailGetReply);
+}
+
+message Lvol {
+    string name = 1;
+    string uuid = 2;
+    uint64 spec_size = 3;
+    uint64 actual_size = 4;
+    string parent = 5;
+    map<string, bool> children = 6;
+}
+
+message Replica {
+    string name = 1;
+    string uuid = 2;
+    string lvs_name = 3;
+    string lvs_uuid = 4;
+    uint64 spec_size = 5;
+    uint64 actual_size = 6;
+    string ip = 7;
+    int32 port_start = 8;
+    int32 port_end = 9;
+    map<string, Lvol> snapshots = 10;
+    bool rebuilding = 11;
+    string state = 12;
+}
+
+message ReplicaCreateRequest {
+    string name = 1;
+    string lvs_name = 2;
+    string lvs_uuid = 3;
+    uint64 spec_size = 4;
+    bool expose_required = 5;
+    int32 port_count = 6;
+}
+
+message ReplicaDeleteRequest {
+    string name = 1;
+    bool cleanup_required = 2;
+}
+
+message ReplicaGetRequest {
+    string name = 1;
+}
+
+message ReplicaListResponse {
+	map<string, Replica> replicas = 1;
+}
+
+enum ReplicaMode {
+    WO = 0;
+    RW = 1;
+    ERR = 2;
+}
+
+message ReplicaRebuildingSrcStartRequest {
+    string name = 1;
+    string dst_replica_name = 2;
+    string dst_rebuilding_lvol_address = 3;
+}
+
+message ReplicaRebuildingSrcFinishRequest {
+    string name = 1;
+    string dst_replica_name = 2;
+}
+
+message ReplicaSnapshotShallowCopyRequest {
+    string name = 1;
+    string snapshot_name = 2;
+}
+
+message ReplicaRebuildingDstStartRequest {
+    string name = 1;
+    bool expose_required = 2;
+}
+
+message ReplicaRebuildingDstStartResponse {
+    string address = 1;
+}
+
+message ReplicaRebuildingDstFinishRequest {
+    string name = 1;
+    bool unexpose_required = 2;
+}
+
+message Engine {
+    string name = 1;
+    string volume_name = 2;
+    uint64 spec_size = 3;
+    uint64 actual_size = 4;
+    string ip = 5;
+    int32 port = 6;
+    map<string, string> replica_address_map = 7;
+    map<string, ReplicaMode> replica_mode_map = 8;
+    string frontend = 9;
+    string endpoint = 10;
+    string state = 11;
+}
+
+message EngineCreateRequest {
+    string name = 1;
+    string volume_name = 2;
+    uint64 spec_size = 3;
+    map<string, string> replica_address_map = 4;
+    string frontend = 5;
+    int32 port_count = 6;
+}
+
+message EngineDeleteRequest {
+    string name = 1;
+}
+
+message EngineGetRequest {
+    string name = 1;
+}
+
+message EngineListResponse {
+	map<string, Engine> engines = 1;
+}
+
+message EngineReplicaAddRequest {
+    string engine_name = 1;
+    string replica_name = 2;
+    string replica_address = 3;
+}
+
+message EngineReplicaDeleteRequest {
+    string engine_name = 1;
+    string replica_name = 2;
+    string replica_address = 3;
+}
+
+message SnapshotRequest {
+    string name = 1;
+    string snapshot_name = 2;
+}
+
+message VersionOutput {
+    string version = 1;
+    string gitCommit = 2;
+    string buildDate = 3;
+
+    int64 cliAPIVersion = 4;
+    int64 cliAPIMinVersion = 5;
+    int64 controllerAPIVersion = 6;
+    int64 controllerAPIMinVersion = 7;
+    int64 dataFormatVersion = 8;
+    int64 dataFormatMinVersion = 9;
+}
+
+message VersionDetailGetReply {
+    VersionOutput version = 1;
+}
+
+
+message Disk {
+    string id = 1;
+    string uuid = 2;
+    string path = 3;
+    string type = 4;
+
+    int64 total_size = 5;
+    int64 free_size = 6;
+
+    int64 total_blocks = 7;
+    int64 free_blocks = 8;
+
+    int64 block_size = 9;
+    int64 cluster_size = 10;
+}
+
+message DiskCreateRequest {
+    string disk_name = 1;
+    string disk_uuid = 2;
+    string disk_path = 3;
+    int64 block_size = 4;
+}
+
+message DiskGetRequest {
+    string disk_name = 1;
+}
+
+message DiskDeleteRequest {
+    string disk_name = 1;
+    string disk_uuid = 2;
+}

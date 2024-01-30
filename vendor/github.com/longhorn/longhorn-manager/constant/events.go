@@ -42,9 +42,9 @@ const (
 	EventReasonUnknown        = "Unknown"
 	EventReasonFailedEviction = "FailedEviction"
 
-	EventReasonDetachedUnexpectly = "DetachedUnexpectly"
-	EventReasonRemount            = "Remount"
-	EventReasonAutoSalvaged       = "AutoSalvaged"
+	EventReasonDetachedUnexpectedly = "DetachedUnexpectedly"
+	EventReasonRemount              = "Remount"
+	EventReasonAutoSalvaged         = "AutoSalvaged"
 
 	EventReasonFetching = "Fetching"
 	EventReasonFetched  = "Fetched"

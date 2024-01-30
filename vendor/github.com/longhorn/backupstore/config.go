@@ -15,6 +15,7 @@ import (
 	"github.com/slok/goresilience/timeout"
 
 	. "github.com/longhorn/backupstore/logging"
+	"github.com/longhorn/backupstore/types"
 	"github.com/longhorn/backupstore/util"
 )
 
@@ -162,8 +163,8 @@ func getVolumeNames(jobQueues *workerpool.WorkerPool, driver BackupStoreDriver) 
 	}
 
 	var errs []string
-	lv1Trackers := make(chan JobResult)
-	lv2Trackers := make(chan JobResult)
+	lv1Trackers := make(chan types.JobResult)
+	lv2Trackers := make(chan types.JobResult)
 	defer close(lv1Trackers)
 	defer close(lv2Trackers)
 
@@ -187,10 +188,16 @@ func getVolumeNames(jobQueues *workerpool.WorkerPool, driver BackupStoreDriver) 
 				return nil
 			})
 			if err != nil {
-				lv1Trackers <- JobResult{nil, err}
+				lv1Trackers <- types.JobResult{
+					Payload: nil,
+					Err:     err,
+				}
 				return
 			}
-			lv1Trackers <- JobResult{lv2Paths, nil}
+			lv1Trackers <- types.JobResult{
+				Payload: lv2Paths,
+				Err:     nil,
+			}
 			return
 		})
 	}
@@ -198,7 +205,7 @@ func getVolumeNames(jobQueues *workerpool.WorkerPool, driver BackupStoreDriver) 
 	lv2PathsNum := 0
 	for i := 0; i < len(lv1Dirs); i++ {
 		lv1Tracker := <-lv1Trackers
-		payload, err := lv1Tracker.payload, lv1Tracker.err
+		payload, err := lv1Tracker.Payload, lv1Tracker.Err
 		if err != nil {
 			errs = append(errs, err.Error())
 			continue
@@ -219,10 +226,16 @@ func getVolumeNames(jobQueues *workerpool.WorkerPool, driver BackupStoreDriver) 
 					return nil
 				})
 				if err != nil {
-					lv2Trackers <- JobResult{nil, err}
+					lv2Trackers <- types.JobResult{
+						Payload: nil,
+						Err:     err,
+					}
 					return
 				}
-				lv2Trackers <- JobResult{volumeNames, nil}
+				lv2Trackers <- types.JobResult{
+					Payload: volumeNames,
+					Err:     nil,
+				}
 				return
 			})
 		}
@@ -230,7 +243,7 @@ func getVolumeNames(jobQueues *workerpool.WorkerPool, driver BackupStoreDriver) 
 
 	for i := 0; i < lv2PathsNum; i++ {
 		lv2Tracker := <-lv2Trackers
-		payload, err := lv2Tracker.payload, lv2Tracker.err
+		payload, err := lv2Tracker.Payload, lv2Tracker.Err
 		if err != nil {
 			errs = append(errs, err.Error())
 			continue
@@ -255,6 +268,9 @@ func loadVolume(driver BackupStoreDriver, volumeName string) (*Volume, error) {
 	if v.CompressionMethod == "" {
 		log.Infof("Falling back compression method to %v for volume %v", LEGACY_COMPRESSION_METHOD, v.Name)
 		v.CompressionMethod = LEGACY_COMPRESSION_METHOD
+	}
+	if v.BackendStoreDriver == "" {
+		v.BackendStoreDriver = string(BackendStoreDriverV1)
 	}
 	return v, nil
 }

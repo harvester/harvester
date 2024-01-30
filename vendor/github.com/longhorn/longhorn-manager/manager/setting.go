@@ -52,6 +52,6 @@ func (m *VolumeManager) CreateOrUpdateSetting(s *longhorn.Setting) (*longhorn.Se
 		}
 		return nil, err
 	}
-	logrus.Debugf("Updated setting %v to %v", s.Name, setting.Value)
+	logrus.Infof("Updated setting %v to %v", s.Name, setting.Value)
 	return setting, nil
 }

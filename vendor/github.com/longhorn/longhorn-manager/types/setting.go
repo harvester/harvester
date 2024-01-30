@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,15 +14,19 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/meta"
 	"github.com/longhorn/longhorn-manager/util"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
 	DefaultSettingYAMLFileName = "default-setting.yaml"
+
+	ValueEmpty   = "none"
+	ValueUnknown = "unknown"
 )
 
 type SettingType string
@@ -43,20 +48,20 @@ const (
 	SettingNameDefaultDataPath                                          = SettingName("default-data-path")
 	SettingNameDefaultEngineImage                                       = SettingName("default-engine-image")
 	SettingNameDefaultInstanceManagerImage                              = SettingName("default-instance-manager-image")
-	SettingNameDefaultShareManagerImage                                 = SettingName("default-share-manager-image")
 	SettingNameDefaultBackingImageManagerImage                          = SettingName("default-backing-image-manager-image")
 	SettingNameSupportBundleManagerImage                                = SettingName("support-bundle-manager-image")
 	SettingNameReplicaSoftAntiAffinity                                  = SettingName("replica-soft-anti-affinity")
 	SettingNameReplicaAutoBalance                                       = SettingName("replica-auto-balance")
 	SettingNameStorageOverProvisioningPercentage                        = SettingName("storage-over-provisioning-percentage")
 	SettingNameStorageMinimalAvailablePercentage                        = SettingName("storage-minimal-available-percentage")
+	SettingNameStorageReservedPercentageForDefaultDisk                  = SettingName("storage-reserved-percentage-for-default-disk")
 	SettingNameUpgradeChecker                                           = SettingName("upgrade-checker")
+	SettingNameAllowCollectingLonghornUsage                             = SettingName("allow-collecting-longhorn-usage-metrics")
 	SettingNameCurrentLonghornVersion                                   = SettingName("current-longhorn-version")
 	SettingNameLatestLonghornVersion                                    = SettingName("latest-longhorn-version")
 	SettingNameStableLonghornVersions                                   = SettingName("stable-longhorn-versions")
 	SettingNameDefaultReplicaCount                                      = SettingName("default-replica-count")
 	SettingNameDefaultDataLocality                                      = SettingName("default-data-locality")
-	SettingNameGuaranteedEngineCPU                                      = SettingName("guaranteed-engine-cpu")
 	SettingNameDefaultLonghornStaticStorageClass                        = SettingName("default-longhorn-static-storage-class")
 	SettingNameBackupstorePollInterval                                  = SettingName("backupstore-poll-interval")
 	SettingNameTaintToleration                                          = SettingName("taint-toleration")
@@ -68,12 +73,9 @@ const (
 	SettingNameDisableSchedulingOnCordonedNode                          = SettingName("disable-scheduling-on-cordoned-node")
 	SettingNameReplicaZoneSoftAntiAffinity                              = SettingName("replica-zone-soft-anti-affinity")
 	SettingNameNodeDownPodDeletionPolicy                                = SettingName("node-down-pod-deletion-policy")
-	SettingNameAllowNodeDrainWithLastHealthyReplica                     = SettingName("allow-node-drain-with-last-healthy-replica")
 	SettingNameNodeDrainPolicy                                          = SettingName("node-drain-policy")
-	SettingNameMkfsExt4Parameters                                       = SettingName("mkfs-ext4-parameters")
 	SettingNamePriorityClass                                            = SettingName("priority-class")
 	SettingNameDisableRevisionCounter                                   = SettingName("disable-revision-counter")
-	SettingNameDisableReplicaRebuild                                    = SettingName("disable-replica-rebuild")
 	SettingNameReplicaReplenishmentWaitInterval                         = SettingName("replica-replenishment-wait-interval")
 	SettingNameConcurrentReplicaRebuildPerNodeLimit                     = SettingName("concurrent-replica-rebuild-per-node-limit")
 	SettingNameConcurrentBackupRestorePerNodeLimit                      = SettingName("concurrent-volume-backup-restore-per-node-limit")
@@ -83,8 +85,7 @@ const (
 	SettingNameConcurrentAutomaticEngineUpgradePerNodeLimit             = SettingName("concurrent-automatic-engine-upgrade-per-node-limit")
 	SettingNameBackingImageCleanupWaitInterval                          = SettingName("backing-image-cleanup-wait-interval")
 	SettingNameBackingImageRecoveryWaitInterval                         = SettingName("backing-image-recovery-wait-interval")
-	SettingNameGuaranteedEngineManagerCPU                               = SettingName("guaranteed-engine-manager-cpu")
-	SettingNameGuaranteedReplicaManagerCPU                              = SettingName("guaranteed-replica-manager-cpu")
+	SettingNameGuaranteedInstanceManagerCPU                             = SettingName("guaranteed-instance-manager-cpu")
 	SettingNameKubernetesClusterAutoscalerEnabled                       = SettingName("kubernetes-cluster-autoscaler-enabled")
 	SettingNameOrphanAutoDeletion                                       = SettingName("orphan-auto-deletion")
 	SettingNameStorageNetwork                                           = SettingName("storage-network")
@@ -101,6 +102,13 @@ const (
 	SettingNameRemoveSnapshotsDuringFilesystemTrim                      = SettingName("remove-snapshots-during-filesystem-trim")
 	SettingNameFastReplicaRebuildEnabled                                = SettingName("fast-replica-rebuild-enabled")
 	SettingNameReplicaFileSyncHTTPClientTimeout                         = SettingName("replica-file-sync-http-client-timeout")
+	SettingNameBackupCompressionMethod                                  = SettingName("backup-compression-method")
+	SettingNameBackupConcurrentLimit                                    = SettingName("backup-concurrent-limit")
+	SettingNameRestoreConcurrentLimit                                   = SettingName("restore-concurrent-limit")
+	SettingNameLogLevel                                                 = SettingName("log-level")
+	SettingNameV2DataEngine                                             = SettingName("v2-data-engine")
+	SettingNameV2DataEngineHugepageLimit                                = SettingName("v2-data-engine-hugepage-limit")
+	SettingNameOfflineReplicaRebuilding                                 = SettingName("offline-replica-rebuilding")
 )
 
 var (
@@ -112,20 +120,20 @@ var (
 		SettingNameDefaultDataPath,
 		SettingNameDefaultEngineImage,
 		SettingNameDefaultInstanceManagerImage,
-		SettingNameDefaultShareManagerImage,
 		SettingNameDefaultBackingImageManagerImage,
 		SettingNameSupportBundleManagerImage,
 		SettingNameReplicaSoftAntiAffinity,
 		SettingNameReplicaAutoBalance,
 		SettingNameStorageOverProvisioningPercentage,
 		SettingNameStorageMinimalAvailablePercentage,
+		SettingNameStorageReservedPercentageForDefaultDisk,
 		SettingNameUpgradeChecker,
+		SettingNameAllowCollectingLonghornUsage,
 		SettingNameCurrentLonghornVersion,
 		SettingNameLatestLonghornVersion,
 		SettingNameStableLonghornVersions,
 		SettingNameDefaultReplicaCount,
 		SettingNameDefaultDataLocality,
-		SettingNameGuaranteedEngineCPU,
 		SettingNameDefaultLonghornStaticStorageClass,
 		SettingNameBackupstorePollInterval,
 		SettingNameTaintToleration,
@@ -137,12 +145,9 @@ var (
 		SettingNameDisableSchedulingOnCordonedNode,
 		SettingNameReplicaZoneSoftAntiAffinity,
 		SettingNameNodeDownPodDeletionPolicy,
-		SettingNameAllowNodeDrainWithLastHealthyReplica,
 		SettingNameNodeDrainPolicy,
-		SettingNameMkfsExt4Parameters,
 		SettingNamePriorityClass,
 		SettingNameDisableRevisionCounter,
-		SettingNameDisableReplicaRebuild,
 		SettingNameReplicaReplenishmentWaitInterval,
 		SettingNameConcurrentReplicaRebuildPerNodeLimit,
 		SettingNameConcurrentBackupRestorePerNodeLimit,
@@ -152,8 +157,7 @@ var (
 		SettingNameConcurrentAutomaticEngineUpgradePerNodeLimit,
 		SettingNameBackingImageCleanupWaitInterval,
 		SettingNameBackingImageRecoveryWaitInterval,
-		SettingNameGuaranteedEngineManagerCPU,
-		SettingNameGuaranteedReplicaManagerCPU,
+		SettingNameGuaranteedInstanceManagerCPU,
 		SettingNameKubernetesClusterAutoscalerEnabled,
 		SettingNameOrphanAutoDeletion,
 		SettingNameStorageNetwork,
@@ -170,18 +174,26 @@ var (
 		SettingNameRemoveSnapshotsDuringFilesystemTrim,
 		SettingNameFastReplicaRebuildEnabled,
 		SettingNameReplicaFileSyncHTTPClientTimeout,
+		SettingNameBackupCompressionMethod,
+		SettingNameBackupConcurrentLimit,
+		SettingNameRestoreConcurrentLimit,
+		SettingNameLogLevel,
+		SettingNameV2DataEngine,
+		SettingNameV2DataEngineHugepageLimit,
+		SettingNameOfflineReplicaRebuilding,
 	}
 )
 
 type SettingCategory string
 
 const (
-	SettingCategoryGeneral    = SettingCategory("general")
-	SettingCategoryBackup     = SettingCategory("backup")
-	SettingCategoryOrphan     = SettingCategory("orphan")
-	SettingCategoryScheduling = SettingCategory("scheduling")
-	SettingCategoryDangerZone = SettingCategory("danger Zone")
-	SettingCategorySnapshot   = SettingCategory("snapshot")
+	SettingCategoryGeneral      = SettingCategory("general")
+	SettingCategoryBackup       = SettingCategory("backup")
+	SettingCategoryOrphan       = SettingCategory("orphan")
+	SettingCategoryScheduling   = SettingCategory("scheduling")
+	SettingCategoryDangerZone   = SettingCategory("danger Zone")
+	SettingCategorySnapshot     = SettingCategory("snapshot")
+	SettingCategoryV2DataEngine = SettingCategory("v2 data engine (Preview Feature)")
 )
 
 type SettingDefinition struct {
@@ -206,20 +218,20 @@ var (
 		SettingNameDefaultDataPath:                                          SettingDefinitionDefaultDataPath,
 		SettingNameDefaultEngineImage:                                       SettingDefinitionDefaultEngineImage,
 		SettingNameDefaultInstanceManagerImage:                              SettingDefinitionDefaultInstanceManagerImage,
-		SettingNameDefaultShareManagerImage:                                 SettingDefinitionDefaultShareManagerImage,
 		SettingNameDefaultBackingImageManagerImage:                          SettingDefinitionDefaultBackingImageManagerImage,
 		SettingNameSupportBundleManagerImage:                                SettingDefinitionSupportBundleManagerImage,
 		SettingNameReplicaSoftAntiAffinity:                                  SettingDefinitionReplicaSoftAntiAffinity,
 		SettingNameReplicaAutoBalance:                                       SettingDefinitionReplicaAutoBalance,
 		SettingNameStorageOverProvisioningPercentage:                        SettingDefinitionStorageOverProvisioningPercentage,
 		SettingNameStorageMinimalAvailablePercentage:                        SettingDefinitionStorageMinimalAvailablePercentage,
+		SettingNameStorageReservedPercentageForDefaultDisk:                  SettingDefinitionStorageReservedPercentageForDefaultDisk,
 		SettingNameUpgradeChecker:                                           SettingDefinitionUpgradeChecker,
+		SettingNameAllowCollectingLonghornUsage:                             SettingDefinitionAllowCollectingLonghornUsageMetrics,
 		SettingNameCurrentLonghornVersion:                                   SettingDefinitionCurrentLonghornVersion,
 		SettingNameLatestLonghornVersion:                                    SettingDefinitionLatestLonghornVersion,
 		SettingNameStableLonghornVersions:                                   SettingDefinitionStableLonghornVersions,
 		SettingNameDefaultReplicaCount:                                      SettingDefinitionDefaultReplicaCount,
 		SettingNameDefaultDataLocality:                                      SettingDefinitionDefaultDataLocality,
-		SettingNameGuaranteedEngineCPU:                                      SettingDefinitionGuaranteedEngineCPU,
 		SettingNameDefaultLonghornStaticStorageClass:                        SettingDefinitionDefaultLonghornStaticStorageClass,
 		SettingNameBackupstorePollInterval:                                  SettingDefinitionBackupstorePollInterval,
 		SettingNameTaintToleration:                                          SettingDefinitionTaintToleration,
@@ -231,12 +243,9 @@ var (
 		SettingNameDisableSchedulingOnCordonedNode:                          SettingDefinitionDisableSchedulingOnCordonedNode,
 		SettingNameReplicaZoneSoftAntiAffinity:                              SettingDefinitionReplicaZoneSoftAntiAffinity,
 		SettingNameNodeDownPodDeletionPolicy:                                SettingDefinitionNodeDownPodDeletionPolicy,
-		SettingNameAllowNodeDrainWithLastHealthyReplica:                     SettingDefinitionAllowNodeDrainWithLastHealthyReplica,
 		SettingNameNodeDrainPolicy:                                          SettingDefinitionNodeDrainPolicy,
-		SettingNameMkfsExt4Parameters:                                       SettingDefinitionMkfsExt4Parameters,
 		SettingNamePriorityClass:                                            SettingDefinitionPriorityClass,
 		SettingNameDisableRevisionCounter:                                   SettingDefinitionDisableRevisionCounter,
-		SettingNameDisableReplicaRebuild:                                    SettingDefinitionDisableReplicaRebuild,
 		SettingNameReplicaReplenishmentWaitInterval:                         SettingDefinitionReplicaReplenishmentWaitInterval,
 		SettingNameConcurrentReplicaRebuildPerNodeLimit:                     SettingDefinitionConcurrentReplicaRebuildPerNodeLimit,
 		SettingNameConcurrentBackupRestorePerNodeLimit:                      SettingDefinitionConcurrentVolumeBackupRestorePerNodeLimit,
@@ -246,8 +255,7 @@ var (
 		SettingNameConcurrentAutomaticEngineUpgradePerNodeLimit:             SettingDefinitionConcurrentAutomaticEngineUpgradePerNodeLimit,
 		SettingNameBackingImageCleanupWaitInterval:                          SettingDefinitionBackingImageCleanupWaitInterval,
 		SettingNameBackingImageRecoveryWaitInterval:                         SettingDefinitionBackingImageRecoveryWaitInterval,
-		SettingNameGuaranteedEngineManagerCPU:                               SettingDefinitionGuaranteedEngineManagerCPU,
-		SettingNameGuaranteedReplicaManagerCPU:                              SettingDefinitionGuaranteedReplicaManagerCPU,
+		SettingNameGuaranteedInstanceManagerCPU:                             SettingDefinitionGuaranteedInstanceManagerCPU,
 		SettingNameKubernetesClusterAutoscalerEnabled:                       SettingDefinitionKubernetesClusterAutoscalerEnabled,
 		SettingNameOrphanAutoDeletion:                                       SettingDefinitionOrphanAutoDeletion,
 		SettingNameStorageNetwork:                                           SettingDefinitionStorageNetwork,
@@ -264,11 +272,18 @@ var (
 		SettingNameRemoveSnapshotsDuringFilesystemTrim:                      SettingDefinitionRemoveSnapshotsDuringFilesystemTrim,
 		SettingNameFastReplicaRebuildEnabled:                                SettingDefinitionFastReplicaRebuildEnabled,
 		SettingNameReplicaFileSyncHTTPClientTimeout:                         SettingDefinitionReplicaFileSyncHTTPClientTimeout,
+		SettingNameBackupCompressionMethod:                                  SettingDefinitionBackupCompressionMethod,
+		SettingNameBackupConcurrentLimit:                                    SettingDefinitionBackupConcurrentLimit,
+		SettingNameRestoreConcurrentLimit:                                   SettingDefinitionRestoreConcurrentLimit,
+		SettingNameLogLevel:                                                 SettingDefinitionLogLevel,
+		SettingNameV2DataEngine:                                             SettingDefinitionV2DataEngine,
+		SettingNameV2DataEngineHugepageLimit:                                SettingDefinitionV2DataEngineHugepageLimit,
+		SettingNameOfflineReplicaRebuilding:                                 SettingDefinitionOfflineReplicaRebuilding,
 	}
 
 	SettingDefinitionBackupTarget = SettingDefinition{
 		DisplayName: "Backup Target",
-		Description: "The endpoint used to access the backupstore. NFS and S3 are supported.",
+		Description: "The endpoint used to access the backupstore. NFS, CIFS and S3 are supported.",
 		Category:    SettingCategoryBackup,
 		Type:        SettingTypeString,
 		Required:    false,
@@ -369,16 +384,7 @@ var (
 		DisplayName: "Default Instance Manager Image",
 		Description: "The default instance manager image used by the manager. Can be changed on the manager starting command line only",
 		Category:    SettingCategoryGeneral,
-		Type:        SettingTypeString,
-		Required:    true,
-		ReadOnly:    true,
-	}
-
-	SettingDefinitionDefaultShareManagerImage = SettingDefinition{
-		DisplayName: "Default Share Manager Image",
-		Description: "The default share manager image used by the manager. Can be changed on the manager starting command line only",
-		Category:    SettingCategoryGeneral,
-		Type:        SettingTypeString,
+		Type:        SettingTypeDeprecated,
 		Required:    true,
 		ReadOnly:    true,
 	}
@@ -387,7 +393,7 @@ var (
 		DisplayName: "Default Backing Image Manager Image",
 		Description: "The default backing image manager image used by the manager. Can be changed on the manager starting command line only",
 		Category:    SettingCategoryGeneral,
-		Type:        SettingTypeString,
+		Type:        SettingTypeDeprecated,
 		Required:    true,
 		ReadOnly:    true,
 	}
@@ -443,7 +449,7 @@ var (
 		Type:        SettingTypeInt,
 		Required:    true,
 		ReadOnly:    false,
-		Default:     "200",
+		Default:     "100",
 	}
 
 	SettingDefinitionStorageMinimalAvailablePercentage = SettingDefinition{
@@ -456,6 +462,16 @@ var (
 		Default:     "25",
 	}
 
+	SettingDefinitionStorageReservedPercentageForDefaultDisk = SettingDefinition{
+		DisplayName: "Storage Reserved Percentage For Default Disk",
+		Description: "The reserved percentage specifies the percentage of disk space that will not be allocated to the default disk on each new Longhorn node",
+		Category:    SettingCategoryScheduling,
+		Type:        SettingTypeInt,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "30",
+	}
+
 	SettingDefinitionUpgradeChecker = SettingDefinition{
 		DisplayName: "Enable Upgrade Checker",
 		Description: "Upgrade Checker will check for new Longhorn version periodically. When there is a new version available, a notification will appear in the UI",
@@ -464,6 +480,17 @@ var (
 		Required:    true,
 		ReadOnly:    false,
 		Default:     "true",
+	}
+
+	SettingDefinitionAllowCollectingLonghornUsageMetrics = SettingDefinition{
+		DisplayName: "Allow Collecting Longhorn Usage Metrics",
+		Description: "Enabling this setting will allow Longhorn to provide additional usage metrics to https://metrics.longhorn.io/.\n" +
+			"This information will help us better understand how Longhorn is being used, which will ultimately contribute to future improvements.\n",
+		Category: SettingCategoryGeneral,
+		Type:     SettingTypeBool,
+		Required: true,
+		ReadOnly: false,
+		Default:  "true",
 	}
 
 	SettingDefinitionCurrentLonghornVersion = SettingDefinition{
@@ -522,17 +549,6 @@ var (
 			string(longhorn.DataLocalityBestEffort),
 			string(longhorn.DataLocalityStrictLocal),
 		},
-	}
-
-	SettingDefinitionGuaranteedEngineCPU = SettingDefinition{
-		DisplayName: "Guaranteed Engine CPU (Deprecated)",
-		Description: "This setting is replaced by 2 new settings \"Guaranteed Engine Manager CPU\" and \"Guaranteed Replica Manager CPU\" since Longhorn version v1.1.1. \n" +
-			"This setting was used to control the CPU requests of all Longhorn Instance Manager pods. \n",
-		Category: SettingCategoryDangerZone,
-		Type:     SettingTypeDeprecated,
-		Required: false,
-		ReadOnly: true,
-		Default:  "",
 	}
 
 	SettingDefinitionDefaultLonghornStaticStorageClass = SettingDefinition{
@@ -595,7 +611,7 @@ var (
 
 	SettingDefinitionAutoSalvage = SettingDefinition{
 		DisplayName: "Automatic salvage",
-		Description: "If enabled, volumes will be automatically salvaged when all the replicas become faulty e.g. due to network disconnection. Longhorn will try to figure out which replica(s) are usable, then use them for the volume.",
+		Description: "If enabled, volumes will be automatically salvaged when all the replicas become faulty e.g. due to network disconnection. Longhorn will try to figure out which replica(s) are usable, then use them for the volume.",
 		Category:    SettingCategoryGeneral,
 		Type:        SettingTypeBool,
 		Required:    true,
@@ -604,8 +620,8 @@ var (
 	}
 
 	SettingDefinitionAutoDeletePodWhenVolumeDetachedUnexpectedly = SettingDefinition{
-		DisplayName: "Automatically Delete Workload Pod when The ReadWriteOnce (RWO) Volume Is Detached Unexpectedly",
-		Description: "If enabled, Longhorn will automatically delete the workload pod that is managed by a controller (e.g. deployment, statefulset, daemonset, etc...) when Longhorn ReadWriteOnce(RWO) volume is detached unexpectedly (e.g. during Kubernetes upgrade, Docker reboot, or network disconnect). " +
+		DisplayName: "Automatically Delete Workload Pod when The Volume Is Detached Unexpectedly",
+		Description: "If enabled, Longhorn will automatically delete the workload pod that is managed by a controller (e.g. deployment, statefulset, daemonset, etc...) when Longhorn volume is detached unexpectedly (e.g. during Kubernetes upgrade, Docker reboot, or network disconnect). " +
 			"By deleting the pod, its controller restarts the pod and Kubernetes handles volume reattachment and remount. \n\n" +
 			"If disabled, Longhorn will not delete the workload pod that is managed by a controller. You will have to manually restart the pod to reattach and remount the volume. \n\n" +
 			"**Note:** This setting doesn't apply to the workload pods that don't have a controller. Longhorn never deletes them.",
@@ -625,6 +641,7 @@ var (
 		ReadOnly:    false,
 		Default:     "",
 	}
+
 	SettingDefinitionDisableSchedulingOnCordonedNode = SettingDefinition{
 		DisplayName: "Disable Scheduling On Cordoned Node",
 		Description: `Disable Longhorn manager to schedule replica on Kubernetes cordoned node`,
@@ -634,6 +651,7 @@ var (
 		ReadOnly:    false,
 		Default:     "true",
 	}
+
 	SettingDefinitionReplicaZoneSoftAntiAffinity = SettingDefinition{
 		DisplayName: "Replica Zone Level Soft Anti-Affinity",
 		Description: "Allow scheduling new Replicas of Volume to the Nodes in the same Zone as existing healthy Replicas. Nodes don't belong to any Zone will be treated as in the same Zone. Notice that Longhorn relies on label `topology.kubernetes.io/zone=<Zone name of the node>` in the Kubernetes node object to identify the zone.",
@@ -643,6 +661,7 @@ var (
 		ReadOnly:    false,
 		Default:     "true",
 	}
+
 	SettingDefinitionNodeDownPodDeletionPolicy = SettingDefinition{
 		DisplayName: "Pod Deletion Policy When Node is Down",
 		Description: "Defines the Longhorn action when a Volume is stuck with a StatefulSet/Deployment Pod on a node that is down.\n" +
@@ -663,17 +682,6 @@ var (
 		},
 	}
 
-	SettingDefinitionAllowNodeDrainWithLastHealthyReplica = SettingDefinition{
-		DisplayName: "Allow Node Drain with the Last Healthy Replica (Deprecated)",
-		Description: "By default, Longhorn will block `kubectl drain` action on a node if the node contains the last healthy replica of a volume.\n\n" +
-			"If this setting is enabled, Longhorn will **not** block `kubectl drain` action on a node even if the node contains the last healthy replica of a volume.",
-		Category: SettingCategoryGeneral,
-		Type:     SettingTypeBool,
-		Required: true,
-		ReadOnly: false,
-		Default:  "false",
-	}
-
 	SettingDefinitionNodeDrainPolicy = SettingDefinition{
 		DisplayName: "Node Drain Policy",
 		Description: "Define the policy to use when a node with the last healthy replica of a volume is drained. \n" +
@@ -692,14 +700,6 @@ var (
 		},
 	}
 
-	SettingDefinitionMkfsExt4Parameters = SettingDefinition{
-		DisplayName: "Custom mkfs.ext4 parameters",
-		Description: "Allows setting additional filesystem creation parameters for ext4. For older host kernels it might be necessary to disable the optional ext4 metadata_csum feature by specifying `-O ^64bit,^metadata_csum`",
-		Category:    SettingCategoryGeneral,
-		Type:        SettingTypeString,
-		Required:    false,
-		ReadOnly:    false,
-	}
 	SettingDefinitionPriorityClass = SettingDefinition{
 		DisplayName: "Priority Class",
 		Description: "The name of the Priority Class to set on the Longhorn components. This can help prevent Longhorn components from being evicted under Node Pressure. \n" +
@@ -711,20 +711,12 @@ var (
 		Required: false,
 		ReadOnly: false,
 	}
+
 	SettingDefinitionDisableRevisionCounter = SettingDefinition{
 		DisplayName: "Disable Revision Counter",
 		Description: "This setting is only for volumes created by UI. By default, this is false meaning there will be a revision counter file to track every write to the volume. During salvage recovering Longhorn will pick the repica with largest revision counter as candidate to recover the whole volume. If revision counter is disabled, Longhorn will not track every write to the volume. During the salvage recovering, Longhorn will use the 'volume-head-xxx.img' file last modification time and file size to pick the replica candidate to recover the whole volume.",
 		Category:    SettingCategoryGeneral,
 		Type:        SettingTypeBool,
-		Required:    true,
-		ReadOnly:    false,
-		Default:     "false",
-	}
-	SettingDefinitionDisableReplicaRebuild = SettingDefinition{
-		DisplayName: "Disable Replica Rebuild",
-		Description: "This setting disable replica rebuild cross the whole cluster, eviction and data locality feature won't work if this setting is true. But doesn't have any impact to any current replica rebuild and restore disaster recovery volume.",
-		Category:    SettingCategoryDangerZone,
-		Type:        SettingTypeDeprecated,
 		Required:    true,
 		ReadOnly:    false,
 		Default:     "false",
@@ -839,41 +831,21 @@ var (
 		Default:  "300",
 	}
 
-	SettingDefinitionGuaranteedEngineManagerCPU = SettingDefinition{
-		DisplayName: "Guaranteed Engine Manager CPU",
-		Description: "This integer value indicates how many percentage of the total allocatable CPU on each node will be reserved for each engine manager Pod. For example, 10 means 10% of the total CPU on a node will be allocated to each engine manager pod on this node. This will help maintain engine stability during high node workload. \n\n" +
-			"In order to prevent unexpected volume engine crash as well as guarantee a relative acceptable IO performance, you can use the following formula to calculate a value for this setting: \n\n" +
-			"`Guaranteed Engine Manager CPU = The estimated max Longhorn volume engine count on a node * 0.1 / The total allocatable CPUs on the node * 100` \n\n" +
+	SettingDefinitionGuaranteedInstanceManagerCPU = SettingDefinition{
+		DisplayName: "Guaranteed Instance Manager CPU",
+		Description: "This integer value indicates how many percentage of the total allocatable CPU on each node will be reserved for each instance manager Pod. For example, 10 means 10% of the total CPU on a node will be allocated to each instance manager pod on this node. This will help maintain engine and replica stability during high node workload. \n\n" +
+			"In order to prevent unexpected volume instance (engine/replica) crash as well as guarantee a relative acceptable IO performance, you can use the following formula to calculate a value for this setting: \n\n" +
+			"`Guaranteed Instance Manager CPU = The estimated max Longhorn volume engine and replica count on a node * 0.1 / The total allocatable CPUs on the node * 100` \n\n" +
 			"The result of above calculation doesn't mean that's the maximum CPU resources the Longhorn workloads require. To fully exploit the Longhorn volume I/O performance, you can allocate/guarantee more CPU resources via this setting. \n\n" +
 			"If it's hard to estimate the usage now, you can leave it with the default value, which is 12%. Then you can tune it when there is no running workload using Longhorn volumes. \n\n" +
 			"WARNING: \n\n" +
-			"  - Value 0 means unsetting CPU requests for engine manager pods. \n\n" +
-			"  - Considering the possible new instance manager pods in the further system upgrade, this integer value is range from 0 to 40. And the sum with setting 'Guaranteed Engine Manager CPU' should not be greater than 40. \n\n" +
+			"  - Value 0 means unsetting CPU requests for instance manager pods. \n\n" +
+			"  - Considering the possible new instance manager pods in the further system upgrade, this integer value is range from 0 to 40. \n\n" +
 			"  - One more set of instance manager pods may need to be deployed when the Longhorn system is upgraded. If current available CPUs of the nodes are not enough for the new instance manager pods, you need to detach the volumes using the oldest instance manager pods so that Longhorn can clean up the old pods automatically and release the CPU resources. And the new pods with the latest instance manager image will be launched then. \n\n" +
-			"  - This global setting will be ignored for a node if the field \"EngineManagerCPURequest\" on the node is set. \n\n" +
-			"  - After this setting is changed, all engine manager pods using this global setting on all the nodes will be automatically restarted. In other words, DO NOT CHANGE THIS SETTING WITH ATTACHED VOLUMES. \n\n",
+			"  - This global setting will be ignored for a node if the field \"InstanceManagerCPURequest\" on the node is set. \n\n" +
+			"  - After this setting is changed, all instance manager pods using this global setting on all the nodes will be automatically restarted. In other words, DO NOT CHANGE THIS SETTING WITH ATTACHED VOLUMES. \n\n",
 		Category: SettingCategoryDangerZone,
-		Type:     SettingTypeString,
-		Required: true,
-		ReadOnly: false,
-		Default:  "12",
-	}
-
-	SettingDefinitionGuaranteedReplicaManagerCPU = SettingDefinition{
-		DisplayName: "Guaranteed Replica Manager CPU",
-		Description: "This integer value indicates how many percentage of the total allocatable CPU on each node will be reserved for each replica manager Pod. 10 means 10% of the total CPU on a node will be allocated to each replica manager pod on this node. This will help maintain replica stability during high node workload. \n\n" +
-			"In order to prevent unexpected volume replica crash as well as guarantee a relative acceptable IO performance, you can use the following formula to calculate a value for this setting: \n\n" +
-			"`Guaranteed Replica Manager CPU = The estimated max Longhorn volume replica count on a node * 0.1 / The total allocatable CPUs on the node * 100` \n\n" +
-			"The result of above calculation doesn't mean that's the maximum CPU resources the Longhorn workloads require. To fully exploit the Longhorn volume I/O performance, you can allocate/guarantee more CPU resources via this setting. \n\n" +
-			"If it's hard to estimate the usage now, you can leave it with the default value, which is 12%. Then you can tune it when there is no running workload using Longhorn volumes. \n\n" +
-			"WARNING: \n\n" +
-			"  - Value 0 means unsetting CPU requests for replica manager pods. \n\n" +
-			"  - Considering the possible new instance manager pods in the further system upgrade, this integer value is range from 0 to 40. And the sum with setting 'Guaranteed Replica Manager CPU' should not be greater than 40. \n\n" +
-			"  - One more set of instance manager pods may need to be deployed when the Longhorn system is upgraded. If current available CPUs of the nodes are not enough for the new instance manager pods, you need to detach the volumes using the oldest instance manager pods so that Longhorn can clean up the old pods automatically and release the CPU resources. And the new pods with the latest instance manager image will be launched then. \n\n" +
-			"  - This global setting will be ignored for a node if the field \"ReplicaManagerCPURequest\" on the node is set. \n\n" +
-			"  - After this setting is changed, all replica manager pods using this global setting on all the nodes will be automatically restarted. In other words, DO NOT CHANGE THIS SETTING WITH ATTACHED VOLUMES. \n\n",
-		Category: SettingCategoryDangerZone,
-		Type:     SettingTypeString,
+		Type:     SettingTypeInt,
 		Required: true,
 		ReadOnly: false,
 		Default:  "12",
@@ -1047,6 +1019,92 @@ var (
 		ReadOnly:    false,
 		Default:     "30",
 	}
+
+	SettingDefinitionBackupCompressionMethod = SettingDefinition{
+		DisplayName: "Backup Compression Method",
+		Description: "This setting allows users to specify backup compression method.\n\n" +
+			"Available options are: \n\n" +
+			"- **none**: Disable the compression method. Suitable for multimedia data such as encoded images and videos. \n\n" +
+			"- **lz4**: Fast compression method. Suitable for flat files. \n\n" +
+			"- **gzip**: A bit of higher compression ratio but relatively slow.",
+		Category: SettingCategoryBackup,
+		Type:     SettingTypeString,
+		Required: true,
+		ReadOnly: false,
+		Default:  string(longhorn.BackupCompressionMethodLz4),
+		Choices: []string{
+			string(longhorn.BackupCompressionMethodNone),
+			string(longhorn.BackupCompressionMethodLz4),
+			string(longhorn.BackupCompressionMethodGzip),
+		},
+	}
+
+	SettingDefinitionBackupConcurrentLimit = SettingDefinition{
+		DisplayName: "Backup Concurrent Limit Per Backup",
+		Description: "This setting controls how many worker threads per backup concurrently.",
+		Category:    SettingCategoryBackup,
+		Type:        SettingTypeInt,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "2",
+	}
+
+	SettingDefinitionRestoreConcurrentLimit = SettingDefinition{
+		DisplayName: "Restore Concurrent Limit Per Backup",
+		Description: "This setting controls how many worker threads per restore concurrently.",
+		Category:    SettingCategoryBackup,
+		Type:        SettingTypeInt,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "2",
+	}
+
+	SettingDefinitionLogLevel = SettingDefinition{
+		DisplayName: "Log Level",
+		Description: "The log level Panic, Fatal, Error, Warn, Info, Debug, Trace used in longhorn manager. By default Info.",
+		Category:    SettingCategoryGeneral,
+		Type:        SettingTypeString,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "Info",
+	}
+
+	SettingDefinitionOfflineReplicaRebuilding = SettingDefinition{
+		DisplayName: "Offline Replica Rebuilding",
+		Description: "This setting allows users to enable the offline replica rebuilding for volumes using v2 data engine.",
+		Category:    SettingCategoryV2DataEngine,
+		Type:        SettingTypeString,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     string(longhorn.OfflineReplicaRebuildingEnabled),
+		Choices: []string{
+			string(longhorn.OfflineReplicaRebuildingEnabled),
+			string(longhorn.OfflineReplicaRebuildingDisabled),
+		},
+	}
+
+	SettingDefinitionV2DataEngine = SettingDefinition{
+		DisplayName: "V2 Data Engine",
+		Description: "This setting allows users to activate v2 data engine which is based on SPDK. Currently, it is in the preview phase and should not be utilized in a production environment.\n\n" +
+			"  - DO NOT CHANGE THIS SETTING WITH ATTACHED VOLUMES. Longhorn will block this setting update when there are attached volumes. \n\n" +
+			"  - When applying the setting, Longhorn will restart all instance-manager pods. \n\n" +
+			"  - When the V2 Data Engine is enabled, each instance-manager pod utilizes 1 CPU core. This high CPU usage is attributed to the spdk_tgt process running within each instance-manager pod. The spdk_tgt process is responsible for handling input/output (IO) operations and requires intensive polling. As a result, it consumes 100% of a dedicated CPU core to efficiently manage and process the IO requests, ensuring optimal performance and responsiveness for storage operations. \n\n",
+		Category: SettingCategoryV2DataEngine,
+		Type:     SettingTypeBool,
+		Required: true,
+		ReadOnly: false,
+		Default:  "false",
+	}
+
+	SettingDefinitionV2DataEngineHugepageLimit = SettingDefinition{
+		DisplayName: "Hugepage Size for V2 Data Engine",
+		Description: "Hugepage size in MiB for v2 data engine",
+		Category:    SettingCategoryV2DataEngine,
+		Type:        SettingTypeInt,
+		Required:    true,
+		ReadOnly:    true,
+		Default:     "1024",
+	}
 )
 
 type NodeDownPodDeletionPolicy string
@@ -1078,7 +1136,16 @@ type CNIAnnotation string
 
 const (
 	CNIAnnotationNetworks      = CNIAnnotation("k8s.v1.cni.cncf.io/networks")
-	CNIAnnotationNetworkStatus = CNIAnnotation("k8s.v1.cni.cncf.io/networks-status")
+	CNIAnnotationNetworkStatus = CNIAnnotation("k8s.v1.cni.cncf.io/network-status")
+
+	// CNIAnnotationNetworksStatus is deprecated since Multus v3.6 and completely removed in v4.0.0.
+	// This exists to support older Multus versions.
+	// Ref: https://github.com/longhorn/longhorn/issues/6953
+	CNIAnnotationNetworksStatus = CNIAnnotation("k8s.v1.cni.cncf.io/networks-status")
+)
+
+const (
+	V2DataEngineAnnotation = "longhorn.io/v2-data-engine"
 )
 
 func ValidateSetting(name, value string) (err error) {
@@ -1097,10 +1164,20 @@ func ValidateSetting(name, value string) (err error) {
 
 	switch sName {
 	case SettingNameBackupTarget:
-		// check whether have $ or , have been set in BackupTarget
+		u, err := url.Parse(value)
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse %v as url", value)
+		}
+
+		// Check whether have $ or , have been set in BackupTarget path
 		regStr := `[\$\,]`
+		if u.Scheme == "cifs" {
+			// The $ in SMB/CIFS URIs means that the share is hidden.
+			regStr = `[\,]`
+		}
+
 		reg := regexp.MustCompile(regStr)
-		findStr := reg.FindAllString(value, -1)
+		findStr := reg.FindAllString(u.Path, -1)
 		if len(findStr) != 0 {
 			return fmt.Errorf("value %s, contains %v", value, strings.Join(findStr, " or "))
 		}
@@ -1115,8 +1192,6 @@ func ValidateSetting(name, value string) (err error) {
 	case SettingNameDisableSchedulingOnCordonedNode:
 		fallthrough
 	case SettingNameReplicaZoneSoftAntiAffinity:
-		fallthrough
-	case SettingNameAllowNodeDrainWithLastHealthyReplica:
 		fallthrough
 	case SettingNameAllowVolumeCreationWithDegradedAvailability:
 		fallthrough
@@ -1137,6 +1212,10 @@ func ValidateSetting(name, value string) (err error) {
 	case SettingNameFastReplicaRebuildEnabled:
 		fallthrough
 	case SettingNameUpgradeChecker:
+		fallthrough
+	case SettingNameV2DataEngine:
+		fallthrough
+	case SettingNameAllowCollectingLonghornUsage:
 		if value != "true" && value != "false" {
 			return fmt.Errorf("value %v of setting %v should be true or false", value, sName)
 		}
@@ -1153,6 +1232,8 @@ func ValidateSetting(name, value string) (err error) {
 		if value < 0 {
 			return fmt.Errorf("value %v should be positive", value)
 		}
+	case SettingNameStorageReservedPercentageForDefaultDisk:
+		fallthrough
 	case SettingNameStorageMinimalAvailablePercentage:
 		if _, err := strconv.Atoi(value); err != nil {
 			return errors.Wrapf(err, "value %v is not a number", value)
@@ -1177,10 +1258,6 @@ func ValidateSetting(name, value string) (err error) {
 		if err := ValidateReplicaAutoBalance(longhorn.ReplicaAutoBalance(value)); err != nil {
 			return errors.Wrapf(err, "failed to validate replica auto balance: %v", value)
 		}
-	case SettingNameGuaranteedEngineCPU:
-		if value != "" {
-			return fmt.Errorf("cannot set a value %v for the deprecated setting %v", value, sName)
-		}
 	case SettingNameBackingImageCleanupWaitInterval:
 		fallthrough
 	case SettingNameBackingImageRecoveryWaitInterval:
@@ -1196,19 +1273,19 @@ func ValidateSetting(name, value string) (err error) {
 	case SettingNameSupportBundleFailedHistoryLimit:
 		fallthrough
 	case SettingNameBackupstorePollInterval:
+		fallthrough
+	case SettingNameRecurringSuccessfulJobsHistoryLimit:
+		fallthrough
+	case SettingNameRecurringFailedJobsHistoryLimit:
+		fallthrough
+	case SettingNameFailedBackupTTL:
+		fallthrough
+	case SettingNameV2DataEngineHugepageLimit:
 		value, err := strconv.Atoi(value)
 		if err != nil {
 			errors.Wrapf(err, "value %v is not a number", value)
 		}
 		if value < 0 {
-			return fmt.Errorf("the value %v shouldn't be less than 0", value)
-		}
-	case SettingNameFailedBackupTTL:
-		interval, err := strconv.Atoi(value)
-		if err != nil {
-			errors.Wrapf(err, "value %v is not a number", value)
-		}
-		if interval < 0 {
 			return fmt.Errorf("the value %v shouldn't be less than 0", value)
 		}
 	case SettingNameTaintToleration:
@@ -1222,22 +1299,6 @@ func ValidateSetting(name, value string) (err error) {
 	case SettingNameStorageNetwork:
 		if err = ValidateStorageNetwork(value); err != nil {
 			return errors.Wrapf(err, "the value of %v is invalid", sName)
-		}
-	case SettingNameRecurringSuccessfulJobsHistoryLimit:
-		successJobsHistLimit, err := strconv.Atoi(value)
-		if err != nil {
-			return errors.Wrapf(err, "value %v is not a number", value)
-		}
-		if successJobsHistLimit < 0 {
-			return fmt.Errorf("the value %v shouldn't be less than 0", value)
-		}
-	case SettingNameRecurringFailedJobsHistoryLimit:
-		failedJobsHistLimit, err := strconv.Atoi(value)
-		if err != nil {
-			return errors.Wrapf(err, "value %v is not a number", value)
-		}
-		if failedJobsHistLimit < 0 {
-			return fmt.Errorf("the value %v shouldn't be less than 0", value)
 		}
 	case SettingNameReplicaFileSyncHTTPClientTimeout:
 		timeout, err := strconv.Atoi(value)
@@ -1257,8 +1318,27 @@ func ValidateSetting(name, value string) (err error) {
 		if timeout < 8 || timeout > 30 {
 			return fmt.Errorf("the value %v should be between 8 and 30", value)
 		}
+	case SettingNameBackupConcurrentLimit:
+		fallthrough
+	case SettingNameRestoreConcurrentLimit:
+		val, err := strconv.Atoi(value)
+		if err != nil {
+			return errors.Wrapf(err, "value %v is not a number", value)
+		}
+
+		if val < 1 {
+			return fmt.Errorf("the value %v shouldn't be less than 1", value)
+		}
+	case SettingNameOfflineReplicaRebuilding:
+		if err = ValidateOfflineReplicaRebuilding(value); err != nil {
+			return errors.Wrapf(err, "the value of %v is invalid", sName)
+		}
 	case SettingNameSnapshotDataIntegrity:
 		if err = ValidateSnapshotDataIntegrity(value); err != nil {
+			return errors.Wrapf(err, "the value of %v is invalid", sName)
+		}
+	case SettingNameBackupCompressionMethod:
+		if err = ValidateBackupCompressionMethod(value); err != nil {
 			return errors.Wrapf(err, "the value of %v is invalid", sName)
 		}
 	case SettingNameSnapshotDataIntegrityCronJob:
@@ -1270,7 +1350,7 @@ func ValidateSetting(name, value string) (err error) {
 		runAt := schedule.Next(time.Unix(0, 0))
 		nextRunAt := schedule.Next(runAt)
 
-		logrus.Debugf("The interval between two data integrity checks is %v seconds", nextRunAt.Sub(runAt).Seconds())
+		logrus.Infof("The interval between two data integrity checks is %v seconds", nextRunAt.Sub(runAt).Seconds())
 
 	// multi-choices
 	case SettingNameNodeDownPodDeletionPolicy:
@@ -1285,15 +1365,17 @@ func ValidateSetting(name, value string) (err error) {
 		if !isValidChoice(choices, value) {
 			return fmt.Errorf("value %v is not a valid choice, available choices %v", value, choices)
 		}
-	case SettingNameGuaranteedEngineManagerCPU:
-		fallthrough
-	case SettingNameGuaranteedReplicaManagerCPU:
+	case SettingNameGuaranteedInstanceManagerCPU:
 		i, err := strconv.Atoi(value)
 		if err != nil {
-			return errors.Wrapf(err, "guaranteed engine/replica cpu value %v is not a valid integer", value)
+			return errors.Wrapf(err, "guaranteed instance manager cpu value %v is not a valid integer", value)
 		}
 		if i < 0 || i > 40 {
-			return fmt.Errorf("guaranteed engine/replica cpu value %v should be between 0 to 40", value)
+			return fmt.Errorf("guaranteed instance manager cpu value %v should be between 0 to 40", value)
+		}
+	case SettingNameLogLevel:
+		if err := ValidateLogLevel(value); err != nil {
+			return errors.Wrapf(err, "failed to validate log level %v", value)
 		}
 	}
 	return nil
@@ -1310,7 +1392,7 @@ func isValidChoice(choices []string, value string) bool {
 	return len(choices) == 0
 }
 
-func GetCustomizedDefaultSettings(defaultSettingCM *v1.ConfigMap) (defaultSettings map[string]string, err error) {
+func GetCustomizedDefaultSettings(defaultSettingCM *corev1.ConfigMap) (defaultSettings map[string]string, err error) {
 	defaultSettingYAMLData := []byte(defaultSettingCM.Data[DefaultSettingYAMLFileName])
 
 	defaultSettings, err = getDefaultSettingFromYAML(defaultSettingYAMLData)
@@ -1335,30 +1417,26 @@ func GetCustomizedDefaultSettings(defaultSettingCM *v1.ConfigMap) (defaultSettin
 		if definition.Type == SettingTypeBool {
 			result, err := strconv.ParseBool(value)
 			if err != nil {
-				logrus.Errorf("Invalid value %v for the boolean setting %v: %v", value, name, err)
+				logrus.WithError(err).Errorf("Invalid value %v for the boolean setting %v", value, name)
 				defaultSettings = map[string]string{}
 				break
 			}
 			value = strconv.FormatBool(result)
 		}
 		if err := ValidateSetting(name, value); err != nil {
-			logrus.Errorf("Customized settings are invalid, will give up using them: the value of customized setting %v is invalid: %v", name, err)
+			logrus.WithError(err).Errorf("Customized settings are invalid, will give up using them: the value of customized setting %v is invalid", name)
 			defaultSettings = map[string]string{}
 			break
 		}
 		defaultSettings[name] = value
 	}
 
-	guaranteedEngineManagerCPU := SettingDefinitionGuaranteedEngineManagerCPU.Default
-	if defaultSettings[string(SettingNameGuaranteedEngineManagerCPU)] != "" {
-		guaranteedEngineManagerCPU = defaultSettings[string(SettingNameGuaranteedEngineManagerCPU)]
+	guaranteedInstanceManagerCPU := SettingDefinitionGuaranteedInstanceManagerCPU.Default
+	if defaultSettings[string(SettingNameGuaranteedInstanceManagerCPU)] != "" {
+		guaranteedInstanceManagerCPU = defaultSettings[string(SettingNameGuaranteedInstanceManagerCPU)]
 	}
-	guaranteedReplicaManagerCPU := SettingDefinitionGuaranteedReplicaManagerCPU.Default
-	if defaultSettings[string(SettingNameGuaranteedReplicaManagerCPU)] != "" {
-		guaranteedReplicaManagerCPU = defaultSettings[string(SettingNameGuaranteedReplicaManagerCPU)]
-	}
-	if err := ValidateCPUReservationValues(guaranteedEngineManagerCPU, guaranteedReplicaManagerCPU); err != nil {
-		logrus.Errorf("Customized settings GuaranteedEngineManagerCPU and GuaranteedReplicaManagerCPU are invalid, will give up using them: %v", err)
+	if err := ValidateCPUReservationValues(guaranteedInstanceManagerCPU); err != nil {
+		logrus.WithError(err).Error("Customized settings GuaranteedInstanceManagerCPU is invalid, will give up using it")
 		defaultSettings = map[string]string{}
 	}
 
@@ -1369,16 +1447,15 @@ func getDefaultSettingFromYAML(defaultSettingYAMLData []byte) (map[string]string
 	defaultSettings := map[string]string{}
 
 	if err := yaml.Unmarshal(defaultSettingYAMLData, &defaultSettings); err != nil {
-		logrus.Errorf("Failed to unmarshal customized default settings from yaml data %v, will give up using them: %v",
-			string(defaultSettingYAMLData), err)
+		logrus.WithError(err).Errorf("Failed to unmarshal customized default settings from yaml data %v, will give up using them", string(defaultSettingYAMLData))
 		defaultSettings = map[string]string{}
 	}
 
 	return defaultSettings, nil
 }
 
-func UnmarshalTolerations(tolerationSetting string) ([]v1.Toleration, error) {
-	tolerations := []v1.Toleration{}
+func UnmarshalTolerations(tolerationSetting string) ([]corev1.Toleration, error) {
+	tolerations := []corev1.Toleration{}
 
 	tolerationSetting = strings.ReplaceAll(tolerationSetting, " ", "")
 	if tolerationSetting == "" {
@@ -1396,7 +1473,7 @@ func UnmarshalTolerations(tolerationSetting string) ([]v1.Toleration, error) {
 	return tolerations, nil
 }
 
-func parseToleration(taintToleration string) (*v1.Toleration, error) {
+func parseToleration(taintToleration string) (*corev1.Toleration, error) {
 	// The schema should be `key=value:effect` or `key:effect`
 	parts := strings.Split(taintToleration, ":")
 	if len(parts) != 2 {
@@ -1404,23 +1481,23 @@ func parseToleration(taintToleration string) (*v1.Toleration, error) {
 	}
 
 	// parse `key=value` or `key`
-	key, value, operator := "", "", v1.TolerationOperator("")
+	key, value, operator := "", "", corev1.TolerationOperator("")
 	pair := strings.Split(parts[0], "=")
 	switch len(pair) {
 	case 1:
-		key, value, operator = parts[0], "", v1.TolerationOpExists
+		key, value, operator = parts[0], "", corev1.TolerationOpExists
 	case 2:
-		key, value, operator = pair[0], pair[1], v1.TolerationOpEqual
+		key, value, operator = pair[0], pair[1], corev1.TolerationOpEqual
 	}
 
-	effect := v1.TaintEffect(parts[1])
+	effect := corev1.TaintEffect(parts[1])
 	switch effect {
-	case "", v1.TaintEffectNoExecute, v1.TaintEffectNoSchedule, v1.TaintEffectPreferNoSchedule:
+	case "", corev1.TaintEffectNoExecute, corev1.TaintEffectNoSchedule, corev1.TaintEffectPreferNoSchedule:
 	default:
 		return nil, fmt.Errorf("invalid effect: %v", parts[1])
 	}
 
-	return &v1.Toleration{
+	return &corev1.Toleration{
 		Key:      key,
 		Value:    value,
 		Operator: operator,
@@ -1454,6 +1531,7 @@ func UnmarshalNodeSelector(nodeSelectorSetting string) (map[string]string, error
 	return nodeSelector, nil
 }
 
+// GetSettingDefinition gets the setting definition in `settingDefinitions` by the parameter `name`
 func GetSettingDefinition(name SettingName) (SettingDefinition, bool) {
 	settingDefinitionsLock.RLock()
 	defer settingDefinitionsLock.RUnlock()
@@ -1461,6 +1539,7 @@ func GetSettingDefinition(name SettingName) (SettingDefinition, bool) {
 	return setting, ok
 }
 
+// SetSettingDefinition sets the setting definition in `settingDefinitions` by the parameter `name` and `definition`
 func SetSettingDefinition(name SettingName, definition SettingDefinition) {
 	settingDefinitionsLock.Lock()
 	defer settingDefinitionsLock.Unlock()

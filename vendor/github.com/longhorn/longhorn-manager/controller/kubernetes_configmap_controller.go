@@ -7,18 +7,19 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	v1 "k8s.io/api/core/v1"
-	storagev1 "k8s.io/api/storage/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/controller"
+
+	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientset "k8s.io/client-go/kubernetes"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
@@ -65,7 +66,7 @@ func NewKubernetesConfigMapController(
 		ds: ds,
 
 		kubeClient:    kubeClient,
-		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-kubernetes-configmap-controller"}),
+		eventRecorder: eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "longhorn-kubernetes-configmap-controller"}),
 	}
 
 	ds.ConfigMapInformer.AddEventHandlerWithResyncPeriod(
@@ -93,8 +94,8 @@ func (kc *KubernetesConfigMapController) Run(workers int, stopCh <-chan struct{}
 	defer utilruntime.HandleCrash()
 	defer kc.queue.ShutDown()
 
-	kc.logger.Infof("Start")
-	defer kc.logger.Infof("Shutting down")
+	kc.logger.Info("Starting Longhorn Kubernetes config map controller")
+	defer kc.logger.Info("Shut down Longhorn Kubernetes config map controller")
 
 	if !cache.WaitForNamedCacheSync(kc.name, stopCh, kc.cacheSyncs...) {
 		return
@@ -127,20 +128,21 @@ func (kc *KubernetesConfigMapController) handleErr(err error, key interface{}) {
 		return
 	}
 
+	log := kc.logger.WithField("ConfigMap", key)
 	if kc.queue.NumRequeues(key) < maxRetries {
-		kc.logger.WithError(err).Warnf("Error syncing ConfigMap %v", key)
+		handleReconcileErrorLogging(log, err, "Failed to syncing ConfigMap")
 		kc.queue.AddRateLimited(key)
 		return
 	}
 
-	kc.logger.WithError(err).Warnf("Dropping ConfigMap %v out of the queue", key)
+	handleReconcileErrorLogging(log, err, "Dropping ConfigMap out of the queue")
 	kc.queue.Forget(key)
 	utilruntime.HandleError(err)
 }
 
 func (kc *KubernetesConfigMapController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: failed to sync %v", kc.name, key)
+		err = errors.Wrapf(err, "failed to sync config map %v", key)
 	}()
 
 	namespace, cfmName, err := cache.SplitMetaNamespaceKey(key)
@@ -169,7 +171,7 @@ func (kc *KubernetesConfigMapController) reconcile(namespace, cfmName string) er
 
 		storageclassYAML, ok := storageCFM.Data["storageclass.yaml"]
 		if !ok {
-			return fmt.Errorf("cannot find storageclass.yaml inside the default StorageClass ConfigMap")
+			return fmt.Errorf("failed to find storageclass.yaml inside the default StorageClass ConfigMap")
 		}
 
 		existingSC, err := kc.ds.GetStorageClassRO(types.DefaultStorageClassName)
@@ -213,7 +215,7 @@ func buildStorageClassManifestFromYAMLString(storageclassYAML string) (*storagev
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 	obj, _, err := decode([]byte(storageclassYAML), nil, nil)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error while decoding YAML string")
+		return nil, errors.Wrap(err, "failed to decode YAML string")
 	}
 
 	storageclass, ok := obj.(*storagev1.StorageClass)
@@ -246,7 +248,7 @@ func needToUpdateStorageClass(storageclassYAML string, existingSC *storagev1.Sto
 func (kc *KubernetesConfigMapController) enqueueConfigMapChange(obj interface{}) {
 	key, err := controller.KeyFunc(obj)
 	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", obj, err))
+		utilruntime.HandleError(fmt.Errorf("failed to get key for object %#v: %v", obj, err))
 		return
 	}
 

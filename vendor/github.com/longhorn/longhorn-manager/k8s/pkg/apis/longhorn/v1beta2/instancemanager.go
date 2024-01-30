@@ -19,10 +19,12 @@ const (
 	InstanceManagerStateUnknown  = InstanceManagerState("unknown")
 )
 
-// +kubebuilder:validation:Enum=engine;replica
+// +kubebuilder:validation:Enum=aio;engine;replica
 type InstanceManagerType string
 
 const (
+	InstanceManagerTypeAllInOne = InstanceManagerType("aio")
+	// Deprecate
 	InstanceManagerTypeEngine  = InstanceManagerType("engine")
 	InstanceManagerTypeReplica = InstanceManagerType("replica")
 )
@@ -45,6 +47,8 @@ type InstanceProcess struct {
 type InstanceProcessSpec struct {
 	// +optional
 	Name string `json:"name"`
+	// +optional
+	BackendStoreDriver BackendStoreDriverType `json:"backendStoreDriver"`
 }
 
 type InstanceState string
@@ -74,6 +78,9 @@ type InstanceSpec struct {
 	LogRequested bool `json:"logRequested"`
 	// +optional
 	SalvageRequested bool `json:"salvageRequested"`
+	// +kubebuilder:validation:Enum=v1;v2
+	// +optional
+	BackendStoreDriver BackendStoreDriverType `json:"backendStoreDriver"`
 }
 
 type InstanceStatus struct {
@@ -129,9 +136,6 @@ type InstanceManagerSpec struct {
 	NodeID string `json:"nodeID"`
 	// +optional
 	Type InstanceManagerType `json:"type"`
-	// Deprecated: This field is useless.
-	// +optional
-	EngineImage string `json:"engineImage"`
 }
 
 // InstanceManagerStatus defines the observed state of the Longhorn instance manager
@@ -142,7 +146,10 @@ type InstanceManagerStatus struct {
 	CurrentState InstanceManagerState `json:"currentState"`
 	// +optional
 	// +nullable
-	Instances map[string]InstanceProcess `json:"instances"`
+	InstanceEngines map[string]InstanceProcess `json:"instanceEngines,omitempty"`
+	// +optional
+	// +nullable
+	InstanceReplicas map[string]InstanceProcess `json:"instanceReplicas,omitempty"`
 	// +optional
 	IP string `json:"ip"`
 	// +optional
@@ -153,6 +160,11 @@ type InstanceManagerStatus struct {
 	ProxyAPIMinVersion int `json:"proxyApiMinVersion"`
 	// +optional
 	ProxyAPIVersion int `json:"proxyApiVersion"`
+
+	// Deprecated: Replaced by InstanceEngines and InstanceReplicas
+	// +optional
+	// +nullable
+	Instances map[string]InstanceProcess `json:"instances,omitempty"`
 }
 
 // +genclient

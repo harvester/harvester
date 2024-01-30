@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	devtypes "github.com/longhorn/go-iscsi-helper/types"
+	iscsidevtypes "github.com/longhorn/go-iscsi-helper/types"
+	spdkdevtypes "github.com/longhorn/go-spdk-helper/pkg/types"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
@@ -21,12 +22,17 @@ const (
 	CLIVersionFour = 4
 	CLIVersionFive = 5
 
-	InstanceManagerDefaultPort      = 8500
-	InstanceManagerProxyDefaultPort = InstanceManagerDefaultPort + 1
+	InstanceManagerProcessManagerServiceDefaultPort = 8500
+	InstanceManagerProxyServiceDefaultPort          = InstanceManagerProcessManagerServiceDefaultPort + 1 // 8501
+	InstanceManagerDiskServiceDefaultPort           = InstanceManagerProcessManagerServiceDefaultPort + 2 // 8502
+	InstanceManagerInstanceServiceDefaultPort       = InstanceManagerProcessManagerServiceDefaultPort + 3 // 8503
+	InstanceManagerSpdkServiceDefaultPort           = InstanceManagerProcessManagerServiceDefaultPort + 4 // 8504
 
 	BackingImageManagerDefaultPort    = 8000
 	BackingImageDataSourceDefaultPort = 8000
 	BackingImageSyncServerDefaultPort = 8001
+
+	ShareManagerDefaultPort = 9600
 
 	EndpointISCSIPrefix = "iscsi://"
 	DefaultISCSIPort    = "3260"
@@ -74,10 +80,10 @@ type EngineClient interface {
 	VolumeUnmapMarkSnapChainRemovedSet(engine *longhorn.Engine) error
 
 	ReplicaList(*longhorn.Engine) (map[string]*Replica, error)
-	ReplicaAdd(engine *longhorn.Engine, url string, isRestoreVolume, fastSync bool, replicaFileSyncHTTPClientTimeout int64) error
+	ReplicaAdd(engine *longhorn.Engine, replicaName, url string, isRestoreVolume, fastSync bool, replicaFileSyncHTTPClientTimeout int64) error
 	ReplicaRemove(engine *longhorn.Engine, url string) error
 	ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longhorn.RebuildStatus, error)
-	ReplicaRebuildVerify(engine *longhorn.Engine, url string) error
+	ReplicaRebuildVerify(engine *longhorn.Engine, replicaName, url string) error
 	ReplicaModeUpdate(engine *longhorn.Engine, url string, mode string) error
 
 	SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string) (string, error)
@@ -87,24 +93,25 @@ type EngineClient interface {
 	SnapshotRevert(engine *longhorn.Engine, name string) error
 	SnapshotPurge(engine *longhorn.Engine) error
 	SnapshotPurgeStatus(engine *longhorn.Engine) (map[string]*longhorn.PurgeStatus, error)
-	SnapshotBackup(engine *longhorn.Engine, backupName, snapName, backupTarget, backingImageName, backingImageChecksum string, labels, credential map[string]string) (string, string, error)
-	SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress string) (*longhorn.EngineBackupStatus, error)
+	SnapshotBackup(engine *longhorn.Engine, backupName, snapName, backupTarget, backingImageName, backingImageChecksum, compressionMethod string, concurrentLimit int, storageClassName string, labels, credential map[string]string) (string, string, error)
+	SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress, replicaName string) (*longhorn.EngineBackupStatus, error)
 	SnapshotCloneStatus(engine *longhorn.Engine) (map[string]*longhorn.SnapshotCloneStatus, error)
-	SnapshotClone(engine *longhorn.Engine, snapshotName, fromControllerAddress string, fileSyncHTTPClientTimeout int64) error
+	SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName, fromEngineName string, fileSyncHTTPClientTimeout int64) error
 	SnapshotHash(engine *longhorn.Engine, snapshotName string, rehash bool) error
 	SnapshotHashStatus(engine *longhorn.Engine, snapshotName string) (map[string]*longhorn.HashStatus, error)
 
-	BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolume, lastRestored string, credential map[string]string) error
+	BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolume, lastRestored string, credential map[string]string, concurrentLimit int) error
 	BackupRestoreStatus(engine *longhorn.Engine) (map[string]*longhorn.RestoreStatus, error)
 
 	MetricsGet(engine *longhorn.Engine) (*Metrics, error)
 }
 
 type EngineClientRequest struct {
-	VolumeName  string
-	EngineImage string
-	IP          string
-	Port        int
+	VolumeName   string
+	EngineImage  string
+	IP           string
+	Port         int
+	InstanceName string
 }
 
 type EngineClientCollection interface {
@@ -144,6 +151,7 @@ type BackupVolume struct {
 	Backups              map[string]*Backup `json:"backups"`
 	BackingImageName     string             `json:"backingImageName"`
 	BackingImageChecksum string             `json:"backingImageChecksum"`
+	StorageClassName     string             `json:"storageClassName"`
 }
 
 type Backup struct {
@@ -160,6 +168,7 @@ type Backup struct {
 	VolumeCreated          string               `json:"volumeCreated"`
 	VolumeBackingImageName string               `json:"volumeBackingImageName"`
 	Messages               map[string]string    `json:"messages"`
+	CompressionMethod      string               `json:"compressionMethod"`
 }
 
 type ConfigMetadata struct {
@@ -234,19 +243,24 @@ func CheckCLICompatibility(cliVersion, cliMinVersion int) error {
 	return nil
 }
 
-func GetEngineProcessFrontend(volumeFrontend longhorn.VolumeFrontend) (string, error) {
-	frontend := ""
-	if volumeFrontend == longhorn.VolumeFrontendBlockDev {
-		frontend = string(devtypes.FrontendTGTBlockDev)
-	} else if volumeFrontend == longhorn.VolumeFrontendISCSI {
-		frontend = string(devtypes.FrontendTGTISCSI)
-	} else if volumeFrontend == longhorn.VolumeFrontend("") {
+func GetEngineInstanceFrontend(backendStoreDriver longhorn.BackendStoreDriverType, volumeFrontend longhorn.VolumeFrontend) (frontend string, err error) {
+	switch volumeFrontend {
+	case longhorn.VolumeFrontendBlockDev:
+		frontend = string(iscsidevtypes.FrontendTGTBlockDev)
+		if backendStoreDriver == longhorn.BackendStoreDriverTypeV2 {
+			frontend = string(spdkdevtypes.FrontendSPDKTCPBlockdev)
+		}
+	case longhorn.VolumeFrontendISCSI:
+		frontend = string(iscsidevtypes.FrontendTGTISCSI)
+	case longhorn.VolumeFrontendNvmf:
+		frontend = string(spdkdevtypes.FrontendSPDKTCPNvmf)
+	case longhorn.VolumeFrontendEmpty:
 		frontend = ""
-	} else {
-		return "", fmt.Errorf("unknown volume frontend %v", volumeFrontend)
+	default:
+		err = fmt.Errorf("unknown volume frontend %v", volumeFrontend)
 	}
 
-	return frontend, nil
+	return frontend, err
 }
 
 func GetEngineEndpoint(volume *Volume, ip string) (string, error) {
@@ -255,9 +269,9 @@ func GetEngineEndpoint(volume *Volume, ip string) (string, error) {
 	}
 
 	switch volume.Frontend {
-	case devtypes.FrontendTGTBlockDev:
+	case iscsidevtypes.FrontendTGTBlockDev, spdkdevtypes.FrontendSPDKTCPBlockdev:
 		return volume.Endpoint, nil
-	case devtypes.FrontendTGTISCSI:
+	case iscsidevtypes.FrontendTGTISCSI:
 		if ip == "" {
 			return "", fmt.Errorf("iscsi endpoint %v is missing ip", volume.Endpoint)
 		}
@@ -265,6 +279,8 @@ func GetEngineEndpoint(volume *Volume, ip string) (string, error) {
 		// it will looks like this in the end
 		// iscsi://10.42.0.12:3260/iqn.2014-09.com.rancher:vol-name/1
 		return EndpointISCSIPrefix + ip + ":" + DefaultISCSIPort + "/" + volume.Endpoint + "/" + DefaultISCSILUN, nil
+	case spdkdevtypes.FrontendSPDKTCPNvmf:
+		return volume.Endpoint, nil
 	}
 
 	return "", fmt.Errorf("unknown frontend %v", volume.Frontend)

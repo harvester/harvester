@@ -13,17 +13,18 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	clientset "k8s.io/client-go/kubernetes"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/controller"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientset "k8s.io/client-go/kubernetes"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	imapi "github.com/longhorn/longhorn-instance-manager/pkg/api"
 
@@ -76,7 +77,7 @@ func NewReplicaController(
 		controllerID: controllerID,
 
 		kubeClient:    kubeClient,
-		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-replica-controller"}),
+		eventRecorder: eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "longhorn-replica-controller"}),
 
 		ds: ds,
 
@@ -172,24 +173,24 @@ func (rc *ReplicaController) handleErr(err error, key interface{}) {
 		return
 	}
 
+	log := rc.logger.WithField("Replica", key)
 	if rc.queue.NumRequeues(key) < maxRetries {
-		rc.logger.WithError(err).Warnf("Error syncing Longhorn replica %v", key)
+		handleReconcileErrorLogging(log, err, "Failed to sync Longhorn replica")
 		rc.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	rc.logger.WithError(err).Warnf("Dropping Longhorn replica %v out of the queue", key)
+	handleReconcileErrorLogging(log, err, "Dropping Longhorn replica out of the queue")
 	rc.queue.Forget(key)
 }
 
 func getLoggerForReplica(logger logrus.FieldLogger, r *longhorn.Replica) *logrus.Entry {
 	return logger.WithFields(
 		logrus.Fields{
-			"replica":  r.Name,
-			"nodeID":   r.Spec.NodeID,
-			"dataPath": r.Spec.DataPath,
-			"ownerID":  r.Status.OwnerID,
+			"replica": r.Name,
+			"nodeID":  r.Spec.NodeID,
+			"ownerID": r.Status.OwnerID,
 		},
 	)
 }
@@ -245,14 +246,14 @@ func (rc *ReplicaController) UpdateReplicaEvictionStatus(replica *longhorn.Repli
 	if rc.isEvictionRequested(replica) &&
 		!replica.Status.EvictionRequested {
 		replica.Status.EvictionRequested = true
-		log.Debug("Replica has requested eviction")
+		log.Info("Replica has requested eviction")
 	}
 
 	// Check if eviction has been cancelled on this replica
 	if !rc.isEvictionRequested(replica) &&
 		replica.Status.EvictionRequested {
 		replica.Status.EvictionRequested = false
-		log.Debug("Replica has cancelled eviction")
+		log.Info("Replica has cancelled eviction")
 	}
 
 }
@@ -273,11 +274,9 @@ func (rc *ReplicaController) syncReplica(key string) (err error) {
 	replica, err := rc.ds.GetReplica(name)
 	if err != nil {
 		if datastore.ErrorIsNotFound(err) {
-			log := rc.logger.WithField("replica", name)
-			log.Info("Replica has been deleted")
 			return nil
 		}
-		return err
+		return errors.Wrap(err, "failed to get replica")
 	}
 	dataPath := types.GetReplicaDataPath(replica.Spec.DiskPath, replica.Spec.DataDirectoryName)
 
@@ -296,30 +295,37 @@ func (rc *ReplicaController) syncReplica(key string) (err error) {
 			}
 			return err
 		}
-		log.WithField(
-			"controllerID", rc.controllerID,
-		).Debug("Replica controller picked up")
+		log.Infof("Replica got new owner %v", rc.controllerID)
 	}
 
 	if replica.DeletionTimestamp != nil {
 		if err := rc.DeleteInstance(replica); err != nil {
-			return errors.Wrapf(err, "failed to cleanup the related replica process before deleting replica %v", replica.Name)
+			return errors.Wrapf(err, "failed to cleanup the related replica instance before deleting replica %v", replica.Name)
+		}
+
+		rs, err := rc.ds.ListReplicasByNodeRO(replica.Spec.NodeID)
+		if err != nil {
+			return errors.Wrapf(err, "failed to list replicas by node before deleting replica %v", replica.Name)
 		}
 
 		if replica.Spec.NodeID != "" && replica.Spec.NodeID != rc.controllerID {
-			log.Warn("can't cleanup replica's data because the replica's data is not on this node")
+			log.Warn("Failed to cleanup replica's data because the replica's data is not on this node")
 		} else if replica.Spec.NodeID != "" {
-			if replica.Spec.Active && dataPath != "" {
-				// prevent accidentally deletion
-				if !strings.Contains(filepath.Base(filepath.Clean(dataPath)), "-") {
-					return fmt.Errorf("%v doesn't look like a replica data path", dataPath)
+			if replica.Spec.BackendStoreDriver == longhorn.BackendStoreDriverTypeV1 {
+				// Clean up the data directory if this is the active replica or if this inactive replica is the only one
+				// using it.
+				if (replica.Spec.Active || !hasMatchingReplica(replica, rs)) && dataPath != "" {
+					// prevent accidentally deletion
+					if !strings.Contains(filepath.Base(filepath.Clean(dataPath)), "-") {
+						return fmt.Errorf("%v doesn't look like a replica data path", dataPath)
+					}
+					log.Info("Cleaning up replica")
+					if err := util.RemoveHostDirectoryContent(dataPath); err != nil {
+						return errors.Wrapf(err, "cannot cleanup after replica %v at %v", replica.Name, dataPath)
+					}
+				} else {
+					log.Info("Didn't cleanup replica since it's not the active one for the path or the path is empty")
 				}
-				if err := util.RemoveHostDirectoryContent(dataPath); err != nil {
-					return errors.Wrapf(err, "cannot cleanup after replica %v at %v", replica.Name, dataPath)
-				}
-				log.Debug("Cleanup replica completed")
-			} else {
-				log.Debug("Didn't cleanup replica since it's not the active one for the path or the path is empty")
 			}
 		}
 
@@ -359,24 +365,31 @@ func (rc *ReplicaController) enqueueReplica(obj interface{}) {
 func (rc *ReplicaController) CreateInstance(obj interface{}) (*longhorn.InstanceProcess, error) {
 	r, ok := obj.(*longhorn.Replica)
 	if !ok {
-		return nil, fmt.Errorf("BUG: invalid object for replica process creation: %v", obj)
+		return nil, fmt.Errorf("invalid object for replica instance creation: %v", obj)
 	}
 
 	dataPath := types.GetReplicaDataPath(r.Spec.DiskPath, r.Spec.DataDirectoryName)
 	if r.Spec.NodeID == "" || dataPath == "" || r.Spec.DiskID == "" || r.Spec.VolumeSize == 0 {
-		return nil, fmt.Errorf("missing parameters for replica process creation: %v", r)
+		return nil, fmt.Errorf("missing parameters for replica instance creation: %v", r)
 	}
 
 	var err error
 	backingImagePath := ""
 	if r.Spec.BackingImage != "" {
 		if backingImagePath, err = rc.GetBackingImagePathForReplicaStarting(r); err != nil {
+			r.Status.Conditions = types.SetCondition(r.Status.Conditions, longhorn.ReplicaConditionTypeWaitForBackingImage,
+				longhorn.ConditionStatusTrue, longhorn.ReplicaConditionReasonWaitForBackingImageFailed, err.Error())
 			return nil, err
 		}
 		if backingImagePath == "" {
+			r.Status.Conditions = types.SetCondition(r.Status.Conditions, longhorn.ReplicaConditionTypeWaitForBackingImage,
+				longhorn.ConditionStatusTrue, longhorn.ReplicaConditionReasonWaitForBackingImageWaiting, "")
 			return nil, nil
 		}
 	}
+
+	r.Status.Conditions = types.SetCondition(r.Status.Conditions, longhorn.ReplicaConditionTypeWaitForBackingImage,
+		longhorn.ConditionStatusFalse, "", "")
 
 	if IsRebuildingReplica(r) {
 		canStart, err := rc.CanStartRebuildingReplica(r)
@@ -408,7 +421,39 @@ func (rc *ReplicaController) CreateInstance(obj interface{}) (*longhorn.Instance
 		return nil, err
 	}
 
-	return c.ReplicaProcessCreate(r, dataPath, backingImagePath, v.Spec.DataLocality, engineCLIAPIVersion)
+	diskName, err := rc.getDiskNameFromUUID(r)
+	if err != nil {
+		return nil, err
+	}
+
+	exposeRequired := true
+	if v.Spec.NodeID == rc.controllerID {
+		exposeRequired = false
+	}
+
+	return c.ReplicaInstanceCreate(&engineapi.ReplicaInstanceCreateRequest{
+		Replica:             r,
+		DiskName:            diskName,
+		DataPath:            dataPath,
+		BackingImagePath:    backingImagePath,
+		DataLocality:        v.Spec.DataLocality,
+		ExposeRequired:      exposeRequired,
+		ImIP:                im.Status.IP,
+		EngineCLIAPIVersion: engineCLIAPIVersion,
+	})
+}
+
+func (rc *ReplicaController) getDiskNameFromUUID(r *longhorn.Replica) (string, error) {
+	node, err := rc.ds.GetNodeRO(rc.controllerID)
+	if err != nil {
+		return "", err
+	}
+	for name, disk := range node.Status.DiskStatus {
+		if disk.DiskUUID == r.Spec.DiskID {
+			return name, nil
+		}
+	}
+	return "", fmt.Errorf("cannot find disk name for replica %v", r.Name)
 }
 
 func (rc *ReplicaController) GetBackingImagePathForReplicaStarting(r *longhorn.Replica) (string, error) {
@@ -419,30 +464,27 @@ func (rc *ReplicaController) GetBackingImagePathForReplicaStarting(r *longhorn.R
 		return "", err
 	}
 	if bi.Status.UUID == "" {
-		log.Debugf("The requested backing image %v has not been initialized, UUID is empty", bi.Name)
+		log.Warnf("The requested backing image %v has not been initialized, UUID is empty", bi.Name)
 		return "", nil
 	}
 	if bi.Spec.Disks == nil {
-		log.Debugf("The requested backing image %v has not started disk file handling", bi.Name)
+		log.Warnf("The requested backing image %v has not started disk file handling", bi.Name)
 		return "", nil
 	}
 	if _, exists := bi.Spec.Disks[r.Spec.DiskID]; !exists {
 		bi.Spec.Disks[r.Spec.DiskID] = ""
-		log.Debugf("Replica %v will ask backing image %v to download file to node %v disk %v",
-			r.Name, bi.Name, r.Spec.NodeID, r.Spec.DiskID)
+		log.Infof("Asking backing image %v to download file to node %v disk %v", bi.Name, r.Spec.NodeID, r.Spec.DiskID)
 		if _, err := rc.ds.UpdateBackingImage(bi); err != nil {
 			return "", err
 		}
 		return "", nil
 	}
-	// bi.Spec.Disks[r.Spec.DiskID] exists
 	if fileStatus, exists := bi.Status.DiskFileStatusMap[r.Spec.DiskID]; !exists || fileStatus.State != longhorn.BackingImageStateReady {
 		currentBackingImageState := ""
 		if fileStatus != nil {
 			currentBackingImageState = string(fileStatus.State)
 		}
-		log.Debugf("Replica %v is waiting for backing image %v downloading file to node %v disk %v, the current state is %v",
-			r.Name, bi.Name, r.Spec.NodeID, r.Spec.DiskID, currentBackingImageState)
+		log.Infof("Waiting for backing image %v to download file to node %v disk %v, the current state is %v", bi.Name, r.Spec.NodeID, r.Spec.DiskID, currentBackingImageState)
 		return "", nil
 	}
 	return types.GetBackingImagePathForReplicaManagerContainer(r.Spec.DiskPath, r.Spec.BackingImage, bi.Status.UUID), nil
@@ -461,7 +503,7 @@ func (rc *ReplicaController) CanStartRebuildingReplica(r *longhorn.Replica) (boo
 	}
 
 	// If the concurrent value is 0, Longhorn will rely on
-	// skipping replica replenishment rather than blocking process launching here to disable the rebuilding.
+	// skipping replica replenishment rather than blocking instance launching here to disable the rebuilding.
 	// Otherwise, the newly created replicas will keep hanging up there.
 	if concurrentRebuildingLimit < 1 {
 		return true, nil
@@ -506,7 +548,7 @@ func (rc *ReplicaController) CanStartRebuildingReplica(r *longhorn.Replica) (boo
 	}
 
 	if len(rc.inProgressRebuildingMap) >= int(concurrentRebuildingLimit) {
-		log.Debugf("Replica rebuildings for %+v are in progress on this node, which reaches or exceeds the concurrent limit value %v",
+		log.Warnf("Replica rebuildings for %+v are in progress on this node, which reaches or exceeds the concurrent limit value %v",
 			rc.inProgressRebuildingMap, concurrentRebuildingLimit)
 		return false, nil
 	}
@@ -519,7 +561,7 @@ func (rc *ReplicaController) CanStartRebuildingReplica(r *longhorn.Replica) (boo
 func (rc *ReplicaController) DeleteInstance(obj interface{}) error {
 	r, ok := obj.(*longhorn.Replica)
 	if !ok {
-		return fmt.Errorf("BUG: invalid object for replica process deletion: %v", obj)
+		return fmt.Errorf("invalid object for replica instance deletion: %v", obj)
 	}
 	log := getLoggerForReplica(rc.logger, r)
 
@@ -532,15 +574,15 @@ func (rc *ReplicaController) DeleteInstance(obj interface{}) error {
 	// Not assigned or not updated, try best to delete
 	if r.Status.InstanceManagerName == "" {
 		if r.Spec.NodeID == "" {
-			log.Warnf("Replica %v does not set instance manager name and node ID, will skip the actual process deletion", r.Name)
+			log.Warnf("Replica %v does not set instance manager name and node ID, will skip the actual instance deletion", r.Name)
 			return nil
 		}
 		im, err = rc.ds.GetInstanceManagerByInstance(obj)
 		if err != nil {
-			log.Warnf("Failed to detect instance manager for replica %v, will skip the actual process deletion: %v", r.Name, err)
+			log.WithError(err).Warnf("Failed to detect instance manager for replica %v, will skip the actual instance deletion", r.Name)
 			return nil
 		}
-		log.Infof("Try best to clean up the process for replica %v in instance manager %v", r.Name, im.Name)
+		log.Infof("Cleaning up the instance for replica %v in instance manager %v", r.Name, im.Name)
 	} else {
 		im, err = rc.ds.GetInstanceManager(r.Status.InstanceManagerName)
 		if err != nil {
@@ -563,16 +605,23 @@ func (rc *ReplicaController) DeleteInstance(obj interface{}) error {
 	}
 	defer c.Close()
 
-	if err := c.ProcessDelete(r.Name); err != nil && !types.ErrorIsNotFound(err) {
+	// No need to delete the instance if the replica is backed by a SPDK lvol
+	cleanupRequired := false
+	if canDeleteInstance(r) {
+		cleanupRequired = true
+	}
+	err = c.InstanceDelete(r.Spec.BackendStoreDriver, r.Name, string(longhorn.InstanceManagerTypeReplica), r.Spec.DiskID, cleanupRequired)
+	if err != nil && !types.ErrorIsNotFound(err) {
 		return err
 	}
 
 	if err := deleteUnixSocketFile(r.Spec.VolumeName); err != nil && !types.ErrorIsNotFound(err) {
-		log.Warnf("Failed to delete unix-domain-socket file for volume %v since %v", r.Spec.VolumeName, err)
+		log.WithError(err).Warnf("Failed to delete unix-domain-socket file for volume %v", r.Spec.VolumeName)
 	}
 
 	// Directly remove the instance from the map. Best effort.
 	if im.Status.APIVersion == engineapi.IncompatibleInstanceManagerAPIVersion {
+		delete(im.Status.InstanceReplicas, r.Name)
 		delete(im.Status.Instances, r.Name)
 		if _, err := rc.ds.UpdateInstanceManagerStatus(im); err != nil {
 			return err
@@ -580,6 +629,11 @@ func (rc *ReplicaController) DeleteInstance(obj interface{}) error {
 	}
 
 	return nil
+}
+
+func canDeleteInstance(r *longhorn.Replica) bool {
+	return r.Spec.BackendStoreDriver == longhorn.BackendStoreDriverTypeV1 ||
+		(r.Spec.BackendStoreDriver == longhorn.BackendStoreDriverTypeV2 && r.DeletionTimestamp != nil)
 }
 
 func deleteUnixSocketFile(volumeName string) error {
@@ -605,18 +659,16 @@ func (rc *ReplicaController) deleteInstanceWithCLIAPIVersionOne(r *longhorn.Repl
 		}
 
 		log := getLoggerForReplica(rc.logger, r)
-		log.Debug("Prepared to delete old version replica with running pod")
-		if err := rc.deleteOldReplicaPod(pod, r); err != nil {
-			return err
-		}
+		log.Info("Deleting old version replica with running pod")
+		rc.deleteOldReplicaPod(pod, r)
 	}
 	return nil
 }
 
-func (rc *ReplicaController) deleteOldReplicaPod(pod *v1.Pod, r *longhorn.Replica) (err error) {
+func (rc *ReplicaController) deleteOldReplicaPod(pod *corev1.Pod, r *longhorn.Replica) {
 	// pod already stopped
 	if pod == nil {
-		return nil
+		return
 	}
 
 	if pod.DeletionTimestamp != nil {
@@ -626,30 +678,29 @@ func (rc *ReplicaController) deleteOldReplicaPod(pod *v1.Pod, r *longhorn.Replic
 			now := time.Now().UTC()
 			if now.After(deletionDeadline) {
 				log := rc.logger.WithField("pod", pod.Name)
-				log.Debugf("Replica pod still exists after grace period %v passed, force deletion: now %v, deadline %v",
+				log.Warnf("Replica pod still exists after grace period %v passed, force deletion: now %v, deadline %v",
 					pod.DeletionGracePeriodSeconds, now, deletionDeadline)
 				gracePeriod := int64(0)
 				if err := rc.kubeClient.CoreV1().Pods(rc.namespace).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod}); err != nil {
-					log.WithError(err).Debug("Failed to force deleting replica pod")
-					return nil
+					log.WithError(err).Warn("Failed to force deleting replica pod")
+					return
 				}
 			}
 		}
-		return nil
+		return
 	}
 
 	if err := rc.kubeClient.CoreV1().Pods(rc.namespace).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{}); err != nil {
-		rc.eventRecorder.Eventf(r, v1.EventTypeWarning, constant.EventReasonFailedStopping, "Error stopping pod for old replica %v: %v", pod.Name, err)
-		return nil
+		rc.eventRecorder.Eventf(r, corev1.EventTypeWarning, constant.EventReasonFailedStopping, "Error stopping pod for old replica %v: %v", pod.Name, err)
+		return
 	}
-	rc.eventRecorder.Eventf(r, v1.EventTypeNormal, constant.EventReasonStop, "Stops pod for old replica %v", pod.Name)
-	return nil
+	rc.eventRecorder.Eventf(r, corev1.EventTypeNormal, constant.EventReasonStop, "Stops pod for old replica %v", pod.Name)
 }
 
 func (rc *ReplicaController) GetInstance(obj interface{}) (*longhorn.InstanceProcess, error) {
 	r, ok := obj.(*longhorn.Replica)
 	if !ok {
-		return nil, fmt.Errorf("BUG: invalid object for replica process get: %v", obj)
+		return nil, fmt.Errorf("invalid object for replica instance get: %v", obj)
 	}
 
 	var (
@@ -673,13 +724,24 @@ func (rc *ReplicaController) GetInstance(obj interface{}) (*longhorn.InstancePro
 	}
 	defer c.Close()
 
-	return c.ProcessGet(r.Name)
+	instance, err := c.InstanceGet(r.Spec.BackendStoreDriver, r.Name, string(longhorn.InstanceManagerTypeReplica))
+	if err != nil {
+		return nil, err
+	}
+
+	if instance.Spec.BackendStoreDriver == longhorn.BackendStoreDriverTypeV2 {
+		if instance.Status.State == longhorn.InstanceStateStopped {
+			return nil, fmt.Errorf("instance %v is stopped", instance.Spec.Name)
+		}
+	}
+
+	return instance, nil
 }
 
 func (rc *ReplicaController) LogInstance(ctx context.Context, obj interface{}) (*engineapi.InstanceManagerClient, *imapi.LogStream, error) {
 	r, ok := obj.(*longhorn.Replica)
 	if !ok {
-		return nil, nil, fmt.Errorf("BUG: invalid object for replica process log: %v", obj)
+		return nil, nil, fmt.Errorf("invalid object for replica instance log: %v", obj)
 	}
 
 	im, err := rc.ds.GetInstanceManager(r.Status.InstanceManagerName)
@@ -692,7 +754,7 @@ func (rc *ReplicaController) LogInstance(ctx context.Context, obj interface{}) (
 	}
 
 	// TODO: #2441 refactor this when we do the resource monitoring refactor
-	stream, err := c.ProcessLog(ctx, r.Name)
+	stream, err := c.InstanceLog(ctx, r.Spec.BackendStoreDriver, r.Name, string(longhorn.InstanceManagerTypeReplica))
 	return c, stream, err
 }
 
@@ -714,7 +776,7 @@ func (rc *ReplicaController) enqueueInstanceManagerChange(obj interface{}) {
 	}
 
 	imType, err := datastore.CheckInstanceManagerType(im)
-	if err != nil || imType != longhorn.InstanceManagerTypeReplica {
+	if err != nil || (imType != longhorn.InstanceManagerTypeReplica && imType != longhorn.InstanceManagerTypeAllInOne) {
 		return
 	}
 
@@ -881,4 +943,13 @@ func (rc *ReplicaController) enqueueAllRebuildingReplicaOnCurrentNode() {
 
 func (rc *ReplicaController) isResponsibleFor(r *longhorn.Replica) bool {
 	return isControllerResponsibleFor(rc.controllerID, rc.ds, r.Name, r.Spec.NodeID, r.Status.OwnerID)
+}
+
+func hasMatchingReplica(replica *longhorn.Replica, replicas []*longhorn.Replica) bool {
+	for _, r := range replicas {
+		if r.Name != replica.Name && r.Spec.DataDirectoryName == replica.Spec.DataDirectoryName {
+			return true
+		}
+	}
+	return false
 }

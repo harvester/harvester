@@ -1,0 +1,13 @@
+syntax="proto3";
+
+import "google/protobuf/empty.proto";
+
+service ShareManagerService {
+	rpc FilesystemTrim(FilesystemTrimRequest) returns (google.protobuf.Empty) {}
+	rpc Unmount(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+	rpc Mount(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+}
+
+message FilesystemTrimRequest {
+	bool encrypted_device = 1;
+}

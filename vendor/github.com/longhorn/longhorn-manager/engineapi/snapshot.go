@@ -83,7 +83,7 @@ func (e *EngineBinary) SnapshotPurge(*longhorn.Engine) error {
 	if _, err := e.ExecuteEngineBinaryWithoutTimeout([]string{}, "snapshot", "purge", "--skip-if-in-progress"); err != nil {
 		return errors.Wrapf(err, "error starting snapshot purge")
 	}
-	logrus.Debugf("Volume %v snapshot purge started", e.Name())
+	logrus.Infof("Volume %v snapshot purge started", e.Name())
 	return nil
 }
 
@@ -105,12 +105,23 @@ func (e *EngineBinary) SnapshotPurgeStatus(*longhorn.Engine) (map[string]*longho
 
 // SnapshotClone calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
-func (e *EngineBinary) SnapshotClone(engine *longhorn.Engine, snapshotName, fromControllerAddress string, fileSyncHTTPClientTimeout int64) error {
-	args := []string{"snapshot", "clone", "--snapshot-name", snapshotName, "--from-controller-address", fromControllerAddress}
+func (e *EngineBinary) SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName,
+	fromEngineName string, fileSyncHTTPClientTimeout int64) error {
+	args := []string{"snapshot", "clone", "--snapshot-name", snapshotName, "--from-controller-address",
+		fromEngineAddress}
+
+	version, err := e.VersionGet(engine, true)
+	if err != nil {
+		return err
+	}
+	if version.ClientVersion.CLIAPIVersion >= 9 {
+		args = append(args, "--from-controller-instance-name", fromEngineName)
+	}
+
 	if _, err := e.ExecuteEngineBinaryWithoutTimeout([]string{}, args...); err != nil {
 		return errors.Wrapf(err, "error starting snapshot clone")
 	}
-	logrus.Debugf("Cloned snapshot %v from volume %v to volume %v", snapshotName, fromControllerAddress, e.cURL)
+	logrus.Infof("Cloned snapshot %v from volume %v to volume %v", snapshotName, fromEngineAddress, e.cURL)
 	return nil
 }
 
@@ -144,7 +155,7 @@ func (e *EngineBinary) SnapshotHash(engine *longhorn.Engine, snapshotName string
 		return errors.Wrapf(err, "error starting hashing snapshot")
 	}
 
-	logrus.Debugf("Volume %v snapshot hashing started", e.Name())
+	logrus.Infof("Volume %v snapshot hashing started", e.Name())
 	return nil
 }
 

@@ -4,23 +4,19 @@ import (
 	"github.com/sirupsen/logrus"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/longhorn/longhorn-manager/util"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
-func (m *VolumeManager) CreateSystemBackup(name string) (*longhorn.SystemBackup, error) {
-	logrus.WithField("systemBackup", name).Info("Creating SystemBackup")
+func (m *VolumeManager) CreateSystemBackup(obj *longhorn.SystemBackup) (*longhorn.SystemBackup, error) {
+	logrus.WithFields(logrus.Fields{
+		"systemBackup":       obj.Name,
+		"volumeBackupPolicy": obj.Spec.VolumeBackupPolicy,
+	}).Info("Creating SystemBackup")
 
-	return m.ds.CreateSystemBackup(
-		&longhorn.SystemBackup{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-			},
-		},
-	)
+	return m.ds.CreateSystemBackup(obj)
 }
 
 func (m *VolumeManager) DeleteSystemBackup(name string) error {

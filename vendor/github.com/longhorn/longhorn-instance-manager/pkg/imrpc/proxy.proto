@@ -5,6 +5,8 @@ package imrpc;
 import "google/protobuf/empty.proto";
 import "github.com/longhorn/longhorn-engine/proto/ptypes/controller.proto";
 import "github.com/longhorn/longhorn-engine/proto/ptypes/syncagent.proto";
+import "github.com/longhorn/longhorn-instance-manager/pkg/imrpc/common.proto";
+
 
 service ProxyEngineService {
 	rpc ServerVersionGet(ProxyEngineRequest) returns (EngineVersionProxyResponse);
@@ -43,6 +45,9 @@ service ProxyEngineService {
 
 message ProxyEngineRequest{
 	string address = 1;
+	BackendStoreDriver backend_store_driver = 2;
+	string engine_name = 3;
+	string volume_name = 4;
 }
 
 message EngineVersionProxyResponse {
@@ -115,10 +120,12 @@ message EngineSnapshotPurgeStatusProxyResponse {
 message EngineSnapshotCloneRequest {
 	ProxyEngineRequest proxy_engine_request = 1;
 
-	string from_controller = 2;
+	string from_engine_address = 2;
 	string snapshot_name = 3;
 	bool export_backing_image_if_exist = 4;
 	int32 file_sync_http_client_timeout = 5;
+	string from_engine_name = 6;
+	string from_volume_name = 7;
 }
 
 message EngineSnapshotCloneStatusProxyResponse {
@@ -142,6 +149,9 @@ message EngineSnapshotBackupRequest {
 	string backing_image_name = 5;
 	string backing_image_checksum = 6;
 	map<string, string> labels = 7;
+	string compression_method = 9;
+	int32 concurrent_limit = 10;
+	string storage_class_name = 11;
 }
 
 message EngineSnapshotBackupProxyResponse {
@@ -155,6 +165,7 @@ message EngineSnapshotBackupStatusRequest {
 
 	string backup_name = 2;
 	string replica_address = 3;
+	string replica_name = 4;
 }
 
 message EngineSnapshotBackupStatusProxyResponse {
@@ -175,6 +186,7 @@ message EngineBackupRestoreRequest {
 	string url = 3;
 	string target = 4;
 	string volume_name = 5;
+	int32 concurrent_limit = 6;
 }
 
 message EngineBackupRestoreProxyResponse {
@@ -205,6 +217,7 @@ message EngineReplicaAddRequest {
 	int64 current_size = 5;
 	bool fast_sync = 6;
 	int32 file_sync_http_client_timeout = 7;
+	string replica_name = 8;
 }
 
 message EngineReplicaListProxyResponse {
@@ -215,6 +228,7 @@ message EngineReplicaVerifyRebuildRequest {
 	ProxyEngineRequest proxy_engine_request = 1;
 
 	string replica_address = 2;
+	string replica_name = 3;
 }
 
 message EngineReplicaRebuildStatusProxyResponse {
@@ -225,6 +239,7 @@ message EngineReplicaRemoveRequest {
 	ProxyEngineRequest proxy_engine_request = 1;
 
 	string replica_address = 2;
+	string replica_name = 3;
 }
 
 message EngineReplicaModeUpdateRequest {

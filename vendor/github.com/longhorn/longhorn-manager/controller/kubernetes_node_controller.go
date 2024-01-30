@@ -9,16 +9,17 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	clientset "k8s.io/client-go/kubernetes"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/controller"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientset "k8s.io/client-go/kubernetes"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
@@ -57,7 +58,7 @@ func NewKubernetesNodeController(
 		controllerID: controllerID,
 
 		kubeClient:    kubeClient,
-		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-kubernetes-node-controller"}),
+		eventRecorder: eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "longhorn-kubernetes-node-controller"}),
 
 		ds: ds,
 	}
@@ -110,8 +111,8 @@ func (knc *KubernetesNodeController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer knc.queue.ShutDown()
 
-	logrus.Infof("Starting Longhorn Kubernetes node controller")
-	defer logrus.Infof("Shut down Longhorn Kubernetes node controller")
+	logrus.Info("Starting Longhorn Kubernetes node controller")
+	defer logrus.Info("Shut down Longhorn Kubernetes node controller")
 
 	if !cache.WaitForNamedCacheSync("longhorn kubernetes node", stopCh, knc.cacheSyncs...) {
 		return
@@ -149,20 +150,21 @@ func (knc *KubernetesNodeController) handleErr(err error, key interface{}) {
 		return
 	}
 
+	log := knc.logger.WithField("KubernetesNode", key)
 	if knc.queue.NumRequeues(key) < maxRetries {
-		logrus.Warnf("Error syncing Longhorn node %v: %v", key, err)
+		handleReconcileErrorLogging(log, err, "Failed to sync Kubernetes node")
 		knc.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	logrus.Warnf("Dropping Longhorn node %v out of the queue: %v", key, err)
+	handleReconcileErrorLogging(log, err, "Dropping Kubernetes node out of the queue")
 	knc.queue.Forget(key)
 }
 
 func (knc *KubernetesNodeController) syncKubernetesNode(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "failed to sync node for %v", key)
+		err = errors.Wrapf(err, "failed to sync node %v", key)
 	}()
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -174,11 +176,11 @@ func (knc *KubernetesNodeController) syncKubernetesNode(key string) (err error) 
 		if !datastore.ErrorIsNotFound(err) {
 			return err
 		}
-		logrus.Errorf("Kubernetes node %v has been deleted", key)
+		logrus.Warnf("Kubernetes node %v has been deleted", key)
 	}
 
 	if kubeNode == nil {
-		logrus.Debugf("Cannot find the related kube node for Longhorn node %v, will do cleanup", name)
+		logrus.Infof("Cleaning up Longhorn node %v since failed to find the related kubernetes node", name)
 		if err := knc.ds.DeleteNode(name); err != nil {
 			return err
 		}
@@ -292,7 +294,11 @@ func (knc *KubernetesNodeController) syncDefaultDisks(node *longhorn.Node) (err 
 		if err != nil {
 			return err
 		}
-		disks, err = types.CreateDefaultDisk(dataPath)
+		storageReservedPercentageForDefaultDisk, err := knc.ds.GetSettingAsInt(types.SettingNameStorageReservedPercentageForDefaultDisk)
+		if err != nil {
+			return err
+		}
+		disks, err = types.CreateDefaultDisk(dataPath, storageReservedPercentageForDefaultDisk)
 		if err != nil {
 			return err
 		}
@@ -303,11 +309,11 @@ func (knc *KubernetesNodeController) syncDefaultDisks(node *longhorn.Node) (err 
 		}
 		disks, err = types.CreateDisksFromAnnotation(annotation)
 		if err != nil {
-			logrus.Warnf("Kubernetes node: invalid annotation %v: %v: %v", types.KubeNodeDefaultDiskConfigAnnotationKey, val, err)
+			logrus.Warnf("Failed to create disk from annotation, invalid annotation %v: %v: %v", types.KubeNodeDefaultDiskConfigAnnotationKey, val, err)
 			return nil
 		}
 	default:
-		logrus.Warnf("Kubernetes node: invalid label value: %v: %v", types.NodeCreateDefaultDiskLabelKey, val)
+		logrus.Warnf("Got invalid label value for %v: %v", types.NodeCreateDefaultDiskLabelKey, val)
 		return nil
 	}
 
@@ -333,7 +339,7 @@ func (knc *KubernetesNodeController) syncDefaultNodeTags(node *longhorn.Node) er
 	if val, exist := kubeNode.Annotations[types.KubeNodeDefaultNodeTagConfigAnnotationKey]; exist {
 		tags, err := types.GetNodeTagsFromAnnotation(val)
 		if err != nil {
-			logrus.Errorf("failed to set default node tags for node %v: %v", node.Name, err)
+			logrus.Warnf("Failed to set default node tags for node %v: %v", node.Name, err)
 			return nil
 		}
 		node.Spec.Tags = tags

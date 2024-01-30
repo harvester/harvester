@@ -30,6 +30,7 @@ import (
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	systembackupstore "github.com/longhorn/backupstore/systembackup"
+	bsutil "github.com/longhorn/backupstore/util"
 
 	"github.com/longhorn/longhorn-manager/constant"
 	"github.com/longhorn/longhorn-manager/datastore"
@@ -49,6 +50,7 @@ const (
 	SystemBackupErrArchive       = "failed to archive system backup file"
 	SystemBackupErrDelete        = "failed to delete system backup in backup target"
 	SystemBackupErrGenerate      = "failed to generate system backup file"
+	SystemBackupErrGenerateYAML  = "failed to generate resource YAMLs"
 	SystemBackupErrGetFmt        = "failed to get %v"
 	SystemBackupErrGetConfig     = "failed to get system backup config"
 	SystemBackupErrMkdir         = "failed to create system backup file directory"
@@ -58,7 +60,7 @@ const (
 	SystemBackupErrSync          = "failed to sync from backup target"
 	SystemBackupErrTimeoutUpload = "timeout uploading system backup"
 	SystemBackupErrUpload        = "failed to upload system backup file"
-	SystemBackupErrGenerateYAML  = "failed to generate resource YAMLs"
+	SystemBackupErrVolumeBackup  = "failed to backup volumes"
 
 	SystemBackupMsgCreatedArchieveFmt  = "Created system backup file: %v"
 	SystemBackupMsgDeletingRemote      = "Deleting system backup in backup target"
@@ -196,17 +198,16 @@ func (c *SystemBackupController) handleErr(err error, key interface{}) {
 		return
 	}
 
-	log := c.logger.WithField("systemBackup", key)
+	log := c.logger.WithField("SystemBackup", key)
 
 	if c.queue.NumRequeues(key) < maxRetries {
-		log.WithError(err).Warn("Failed to sync Longhorn SystemBackup, and requeuing to reconcile")
-
+		handleReconcileErrorLogging(log, err, "Failed to sync Longhorn SystemBackup")
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	log.WithError(err).Warn("Failed to sync Longhorn systemBackup, and dropping it out of the queue")
+	handleReconcileErrorLogging(log, err, "Dropping SystemBackup out of the queue")
 	c.queue.Forget(key)
 }
 
@@ -275,8 +276,12 @@ func (c *SystemBackupController) syncSystemBackup(key string) (err error) {
 	return c.reconcile(name, backupTargetClient)
 }
 
-func getLoggerForSystemBackup(logger logrus.FieldLogger, systemBackup *longhorn.SystemBackup) *logrus.Entry {
-	return logger.WithField("systemBackup", systemBackup.Name)
+func getLoggerForSystemBackup(logger logrus.FieldLogger, systemBackup *longhorn.SystemBackup) logrus.FieldLogger {
+	logger = logger.WithField("systemBackup", systemBackup.Name)
+	if systemBackup.Spec.VolumeBackupPolicy != "" {
+		logger = logger.WithField("volumeBackupPolicy", systemBackup.Spec.VolumeBackupPolicy)
+	}
+	return logger
 }
 
 func (c *SystemBackupController) LogErrorState(record *systemBackupRecord, systemBackup *longhorn.SystemBackup, log logrus.FieldLogger) {
@@ -337,7 +342,7 @@ func (c *SystemBackupController) reconcile(name string, backupTargetClient engin
 			return err
 		}
 
-		log.Infof("Picked up by SystemBackup Controller %v", c.controllerID)
+		log.Infof("System backup got new owner %v", c.controllerID)
 	}
 
 	record := &systemBackupRecord{}
@@ -411,9 +416,21 @@ func (c *SystemBackupController) reconcile(name string, backupTargetClient engin
 		}
 
 		c.updateSystemBackupRecord(record,
-			systemBackupRecordTypeNormal, longhorn.SystemBackupStateGenerating,
+			systemBackupRecordTypeNormal, longhorn.SystemBackupStateVolumeBackup,
 			constant.EventReasonStart, SystemBackupMsgStarting,
 		)
+
+	case longhorn.SystemBackupStateVolumeBackup:
+		backups, err := c.BackupVolumes(systemBackup)
+		if err != nil {
+			c.updateSystemBackupRecord(record,
+				systemBackupRecordTypeError, longhorn.SystemBackupStateError,
+				constant.EventReasonStart, err.Error(),
+			)
+			return nil
+		}
+
+		go c.WaitForVolumeBackupToComplete(backups, systemBackup)
 
 	case longhorn.SystemBackupStateGenerating:
 		go c.GenerateSystemBackup(systemBackup, tempBackupArchivePath, tempBackupDir)
@@ -525,8 +542,7 @@ func (c *SystemBackupController) UploadSystemBackup(systemBackup *longhorn.Syste
 		return
 	}
 
-	timeout := time.Duration(datastore.SystemBackupTimeout) * time.Second
-	timer := time.NewTimer(timeout)
+	timer := time.NewTimer(datastore.SystemBackupTimeout)
 	defer timer.Stop()
 
 	ticker := time.NewTicker(time.Second)
@@ -541,7 +557,6 @@ func (c *SystemBackupController) UploadSystemBackup(systemBackup *longhorn.Syste
 		case <-ticker.C:
 			systemBackupCfg, err = backupTargetClient.GetSystemBackupConfig(systemBackup.Name, systemBackup.Status.Version)
 			if err != nil && !types.ErrorIsNotFound(err) {
-				log.WithError(err).Debugf("Getting system backup config")
 				err = errors.Wrap(err, SystemBackupErrGetConfig)
 				continue
 			}
@@ -556,7 +571,7 @@ func (c *SystemBackupController) UploadSystemBackup(systemBackup *longhorn.Syste
 					err = nil
 				}
 
-				log.WithError(err).Debugf("Failed to upload %v to backup target", archievePath)
+				log.WithError(err).Warnf("Failed to upload %v to backup target", archievePath)
 			}
 		}
 	}
@@ -681,6 +696,149 @@ func (c *SystemBackupController) GenerateSystemBackup(systemBackup *longhorn.Sys
 		errMessage = fmt.Sprint(errors.Wrap(err, SystemBackupErrOSStat))
 		return
 	}
+}
+
+func (c *SystemBackupController) BackupVolumes(systemBackup *longhorn.SystemBackup) (map[string]*longhorn.Backup, error) {
+	switch systemBackup.Spec.VolumeBackupPolicy {
+	case longhorn.SystemBackupCreateVolumeBackupPolicyIfNotPresent:
+		return c.backupVolumesIfNotPresent(systemBackup)
+	case longhorn.SystemBackupCreateVolumeBackupPolicyAlways:
+		return c.backupVolumesAlways(systemBackup)
+	}
+	return nil, nil
+}
+
+func (c *SystemBackupController) backupVolumesAlways(systemBackup *longhorn.SystemBackup) (map[string]*longhorn.Backup, error) {
+	volumes, err := c.ds.ListVolumesRO()
+	if err != nil {
+		return nil, err
+	}
+
+	volumeBackups := make(map[string]*longhorn.Backup, len(volumes))
+	for _, volume := range volumes {
+		backup, err := c.createVolumeBackup(volume, systemBackup)
+		if err != nil {
+			return nil, err
+		}
+
+		volumeBackups[backup.Name] = backup
+	}
+
+	return volumeBackups, nil
+}
+
+func (c *SystemBackupController) backupVolumesIfNotPresent(systemBackup *longhorn.SystemBackup) (map[string]*longhorn.Backup, error) {
+	volumes, err := c.ds.ListVolumesRO()
+	if err != nil {
+		return nil, err
+	}
+
+	volumeBackups := make(map[string]*longhorn.Backup, len(volumes))
+	for _, volume := range volumes {
+		if volume.Status.LastBackup != "" {
+			continue
+		}
+
+		backup, err := c.createVolumeBackup(volume, systemBackup)
+		if err != nil {
+			return nil, err
+		}
+
+		volumeBackups[backup.Name] = backup
+	}
+
+	return volumeBackups, nil
+}
+
+func (c *SystemBackupController) WaitForVolumeBackupToComplete(backups map[string]*longhorn.Backup, systemBackup *longhorn.SystemBackup) (err error) {
+	log := getLoggerForSystemBackup(c.logger, systemBackup)
+
+	existingSystemBackup := systemBackup.DeepCopy()
+	defer func() {
+		record := &systemBackupRecord{}
+		if err != nil {
+			c.updateSystemBackupRecord(record,
+				systemBackupRecordTypeError, longhorn.SystemBackupStateError,
+				constant.EventReasonStart, err.Error(),
+			)
+		}
+
+		c.updateSystemBackupRecord(record,
+			systemBackupRecordTypeNormal, longhorn.SystemBackupStateGenerating,
+			constant.EventReasonStart, SystemBackupMsgStarting,
+		)
+
+		c.handleStatusUpdate(record, systemBackup, existingSystemBackup, err, log)
+	}()
+
+	startTime := time.Now()
+	ticker := time.NewTicker(time.Second * 5)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		for name := range backups {
+			// Retrieve the latest backup
+			var backup *longhorn.Backup
+			backup, err = c.ds.GetBackup(name)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					continue
+				}
+				break
+			}
+
+			switch backup.Status.State {
+			case longhorn.BackupStateCompleted:
+				delete(backups, name)
+			case longhorn.BackupStateError:
+				return errors.Wrapf(fmt.Errorf(backup.Status.Error), "failed creating Volume backup %v", name)
+			}
+		}
+
+		if len(backups) == 0 {
+			return
+		}
+
+		// Return error when Volume backup exceeds timeout
+		if time.Since(startTime) > datastore.VolumeBackupTimeout {
+			return fmt.Errorf("timed out waiting for Volume backups to complete")
+		}
+	}
+	// This should never be reached, return this error just in case.
+	return fmt.Errorf("unexpected error: stopped waiting for Volume backups without completing, failing or timing out")
+}
+
+func (c *SystemBackupController) createVolumeBackup(volume *longhorn.Volume, systemBackup *longhorn.SystemBackup) (backup *longhorn.Backup, err error) {
+	volumeBackupName := bsutil.GenerateName("system-backup")
+
+	snapshotCR := &longhorn.Snapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: volumeBackupName,
+		},
+		Spec: longhorn.SnapshotSpec{
+			Volume:         volume.Name,
+			CreateSnapshot: true,
+		},
+	}
+
+	snapshot, err := c.ds.CreateSnapshot(snapshotCR)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create Volume %v snapshot %s", volume.Name, snapshot.Name)
+	}
+
+	backup = &longhorn.Backup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: volumeBackupName,
+		},
+		Spec: longhorn.BackupSpec{
+			SnapshotName: snapshot.Name,
+		},
+	}
+	backup, err = c.ds.CreateBackup(backup, volume.Name)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create Volume %v backup %s", volume.Name, volumeBackupName)
+	}
+	return backup, nil
 }
 
 func (c *SystemBackupController) generateSystemBackup(systemBackupMeta *systemBackupMeta, tempDir string) (err error) {
@@ -1019,6 +1177,10 @@ func (c *SystemBackupController) generateSystemBackupYAMLsForAPIExtensions(dir s
 	}
 
 	return getObjectsAndPrintToYAML(dir, "customresourcedefinitions", c.ds.GetAllLonghornCustomResourceDefinitions, scheme)
+}
+
+func (c *SystemBackupController) getVolumeBackupName(systemBackupName, volumeName string) string {
+	return fmt.Sprintf("%s-%s-%s", SystemBackupControllerName, systemBackupName, volumeName)
 }
 
 type GetRuntimeObjectListFunc func() (runtime.Object, error)

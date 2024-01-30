@@ -515,11 +515,11 @@ func (t *grpcTunnel) Recv() (*client.Packet, error) {
 
 	const segment = commonmetrics.SegmentToClient
 	pkt, err := t.stream.Recv()
+	if err != nil && err != io.EOF {
+		metrics.Metrics.ObserveStreamErrorNoPacket(segment, err)
+	}
 	if err != nil {
-		if err != io.EOF {
-			metrics.Metrics.ObserveStreamErrorNoPacket(segment, err)
-		}
-		return nil, err
+		return pkt, err
 	}
 	metrics.Metrics.ObservePacket(segment, pkt.Type)
 	return pkt, nil
