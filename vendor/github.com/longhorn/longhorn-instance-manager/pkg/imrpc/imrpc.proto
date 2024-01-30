@@ -58,23 +58,23 @@ message LogRequest {
 	string name = 1;
 }
 
-message LogResponse{
-	string line = 2;
-}
-
 message ProcessReplaceRequest {
 	ProcessSpec spec = 1;
 	string terminate_signal = 2;
 }
 
+message LogResponse {
+	string line = 2;
+}
+
 message VersionResponse {
-    string version = 1;
-    string gitCommit = 2;
-    string buildDate = 3;
+	string version = 1;
+	string gitCommit = 2;
+	string buildDate = 3;
 
-    int64 instanceManagerAPIVersion = 4;
-    int64 instanceManagerAPIMinVersion = 5;
+	int64 instanceManagerAPIVersion = 4;
+	int64 instanceManagerAPIMinVersion = 5;
 
-    int64 instanceManagerProxyAPIVersion = 6;
-    int64 instanceManagerProxyAPIMinVersion = 7;
+	int64 instanceManagerProxyAPIVersion = 6;
+	int64 instanceManagerProxyAPIMinVersion = 7;
 }

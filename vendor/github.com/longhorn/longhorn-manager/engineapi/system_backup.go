@@ -2,7 +2,6 @@ package engineapi
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -46,7 +45,7 @@ func (btc *BackupTargetClient) DownloadSystemBackup(name, version, downloadPath 
 	}
 
 	_, err = btc.ExecuteEngineBinaryWithTimeout(
-		time.Duration(datastore.SystemRestoreTimeout)*time.Second,
+		datastore.SystemRestoreTimeout,
 		"system-backup", "download", systemBackupURL, downloadPath,
 	)
 	if err != nil {
@@ -103,7 +102,7 @@ func (btc *BackupTargetClient) UploadSystemBackup(name, localFile, longhornVersi
 	}
 
 	output, err := btc.ExecuteEngineBinaryWithTimeout(
-		time.Duration(datastore.SystemBackupTimeout)*time.Second,
+		datastore.SystemBackupTimeout,
 		"system-backup", "upload", localFile, systemBackupURL,
 		"--git-commit", longhornGitCommit,
 		"--manager-image", managerImage,

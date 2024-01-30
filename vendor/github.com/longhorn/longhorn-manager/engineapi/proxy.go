@@ -9,8 +9,9 @@ import (
 	imutil "github.com/longhorn/longhorn-instance-manager/pkg/util"
 
 	"github.com/longhorn/longhorn-manager/datastore"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/util"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 func getLoggerForEngineProxyClient(logger logrus.FieldLogger, im *longhorn.InstanceManager) *logrus.Entry {
@@ -80,7 +81,7 @@ func NewEngineClientProxy(im *longhorn.InstanceManager, logger logrus.FieldLogge
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client, err := imclient.NewProxyClient(ctx, cancel, im.Status.IP, InstanceManagerProxyDefaultPort)
+	client, err := imclient.NewProxyClient(ctx, cancel, im.Status.IP, InstanceManagerProxyServiceDefaultPort)
 	if err != nil {
 		return nil, err
 	}
@@ -109,12 +110,12 @@ type EngineClientProxy interface {
 
 func (p *Proxy) Close() {
 	if p.grpcClient == nil {
-		p.logger.WithError(errors.New("gRPC client not exist")).Debugf("cannot close engine client proxy")
+		p.logger.WithError(errors.New("gRPC client not exist")).Warn("Failed to close engine proxy service client")
 		return
 	}
 
 	if err := p.grpcClient.Close(); err != nil {
-		p.logger.WithError(err).Warn("failed to close engine client proxy")
+		p.logger.WithError(err).Warn("Failed to close engine client proxy")
 	}
 
 	// The only potential returning error from Close() is

@@ -160,17 +160,16 @@ func (c *SystemRestoreController) handleErr(err error, key interface{}) {
 		return
 	}
 
-	log := c.logger.WithField("systemRestore", key)
+	log := c.logger.WithField("SystemRestore", key)
 
 	if c.queue.NumRequeues(key) < maxRetries {
-		log.WithError(err).Warn("Failed to sync SystemRestore")
-
+		handleReconcileErrorLogging(log, err, "Failed to sync SystemRestore")
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	log.WithError(err).Warnf("Dropping Longhorn SystemRestore %v out of the queue", key)
+	handleReconcileErrorLogging(log, err, "Dropping Longhorn SystemRestore out of the queue")
 	c.queue.Forget(key)
 }
 
@@ -240,7 +239,7 @@ func (c *SystemRestoreController) reconcile(name string, backupTargetClient engi
 			}
 			return err
 		}
-		log.Infof("Picked up by SystemRestore Controller %v", c.controllerID)
+		log.Infof("System restore got new  Controller %v", c.controllerID)
 	}
 
 	record := &systemRestoreRecord{}
@@ -476,7 +475,7 @@ func (c *SystemRestoreController) cleanupSystemRestore(systemRestore *longhorn.S
 			return
 		}
 
-		log.WithError(err).Error("Failed to delete SystemRestore")
+		err = errors.Wrapf(err, "failed to delete SystemRestore")
 		systemRestore.Status.Conditions = types.SetCondition(systemRestore.Status.Conditions,
 			longhorn.SystemRestoreConditionTypeError, longhorn.ConditionStatusTrue, "", err.Error())
 	}()
@@ -490,6 +489,6 @@ func (c *SystemRestoreController) cleanupSystemRestore(systemRestore *longhorn.S
 		return
 	}
 
-	log.WithField("job", systemRolloutName).Debug("Deleting job")
+	log.WithField("job", systemRolloutName).Info("Deleting job")
 	return c.ds.DeleteJob(systemRolloutName)
 }

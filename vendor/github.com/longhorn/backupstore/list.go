@@ -8,6 +8,7 @@ import (
 
 	"github.com/gammazero/workerpool"
 
+	"github.com/longhorn/backupstore/types"
 	"github.com/longhorn/backupstore/util"
 )
 
@@ -20,13 +21,14 @@ type VolumeInfo struct {
 	LastBackupAt   string
 	DataStored     int64 `json:",string"`
 
-	Messages map[MessageType]string
+	Messages map[types.MessageType]string
 
 	Backups map[string]*BackupInfo `json:",omitempty"`
 
 	BackingImageName     string
 	BackingImageChecksum string
 	StorageClassname     string
+	BackendStoreDriver   string
 }
 
 type BackupInfo struct {
@@ -45,7 +47,7 @@ type BackupInfo struct {
 	VolumeCreated          string `json:",omitempty"`
 	VolumeBackingImageName string `json:",omitempty"`
 
-	Messages map[MessageType]string
+	Messages map[types.MessageType]string
 }
 
 func addListVolume(driver BackupStoreDriver, volumeName string, volumeOnly bool) (*VolumeInfo, error) {
@@ -57,11 +59,11 @@ func addListVolume(driver BackupStoreDriver, volumeName string, volumeOnly bool)
 		return nil, fmt.Errorf("invalid volume name %v", volumeName)
 	}
 
-	volumeInfo := &VolumeInfo{Messages: make(map[MessageType]string)}
+	volumeInfo := &VolumeInfo{Messages: make(map[types.MessageType]string)}
 	if !volumeExists(driver, volumeName) {
 		// If the backup volume folder exist but volume.cfg not exist
 		// save the error in Messages field
-		volumeInfo.Messages[MessageTypeError] = fmt.Sprintf("cannot find %v in backupstore", getVolumeFilePath(volumeName))
+		volumeInfo.Messages[types.MessageTypeError] = fmt.Sprintf("cannot find %v in backupstore", getVolumeFilePath(volumeName))
 		return volumeInfo, nil
 	}
 
@@ -72,7 +74,7 @@ func addListVolume(driver BackupStoreDriver, volumeName string, volumeOnly bool)
 	// try to find all backups for this volume
 	backupNames, err := getBackupNamesForVolume(driver, volumeName)
 	if err != nil {
-		volumeInfo.Messages[MessageTypeError] = err.Error()
+		volumeInfo.Messages[types.MessageTypeError] = err.Error()
 		return volumeInfo, nil
 	}
 	volumeInfo.Backups = make(map[string]*BackupInfo)

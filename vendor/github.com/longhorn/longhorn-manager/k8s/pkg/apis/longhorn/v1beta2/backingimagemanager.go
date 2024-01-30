@@ -31,15 +31,6 @@ type BackingImageFileInfo struct {
 	SenderManagerAddress string `json:"senderManagerAddress"`
 	// +optional
 	Progress int `json:"progress"`
-	// Deprecated: This field is useless now. The manager of backing image files doesn't care if a file is downloaded and how.
-	// +optional
-	URL string `json:"url"`
-	// Deprecated: This field is useless.
-	// +optional
-	Directory string `json:"directory"`
-	// Deprecated: This field is renamed to `Progress`.
-	// +optional
-	DownloadProgress int `json:"downloadProgress"`
 }
 
 // BackingImageManagerSpec defines the desired state of the Longhorn backing image manager

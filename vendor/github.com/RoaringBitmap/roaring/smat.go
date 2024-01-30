@@ -1,3 +1,4 @@
+//go:build gofuzz
 // +build gofuzz
 
 /*
@@ -62,8 +63,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/bits-and-blooms/bitset"
 	"github.com/mschoch/smat"
-	"github.com/willf/bitset"
 )
 
 // fuzz test using state machine driven by byte stream.

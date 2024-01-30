@@ -248,7 +248,7 @@ func (c *SystemRolloutController) syncSystemRollout() error {
 		log := c.getLoggerForSystemRollout()
 		systemRestore, err := c.ds.GetSystemRestore(c.systemRestoreName)
 		if err != nil {
-			log.WithError(err).Error("failed to get SystemRestore")
+			log.WithError(err).Error("Failed to get SystemRestore")
 			close(c.stopCh)
 		}
 
@@ -281,7 +281,7 @@ func (c *SystemRolloutController) handleErr(err error, key interface{}) {
 		return
 	}
 
-	c.logger.WithError(err).Warn("Worker error")
+	handleReconcileErrorLogging(c.logger, err, "Worker error")
 	c.queue.AddRateLimited(key)
 }
 
@@ -522,7 +522,7 @@ func (c *SystemRolloutController) syncController() error {
 
 	backupTargetClient, err := newBackupTargetClientFromDefaultEngineImage(c.ds, backupTarget)
 	if err != nil {
-		return errors.Wrapf(err, "failed to init backup target clients")
+		return errors.Wrap(err, "failed to init backup target clients")
 	}
 
 	systemBackupCfg, err := backupTargetClient.GetSystemBackupConfig(c.systemRestore.Spec.SystemBackup, c.systemRestoreVersion)
@@ -545,7 +545,7 @@ func (c *SystemRolloutController) syncController() error {
 
 	rolloutBackupTargetClient, err := newBackupTargetClient(c.ds, backupTarget, systemBackupCfg.EngineImage)
 	if err != nil {
-		return errors.Wrapf(err, "failed to init rollout backup target clients")
+		return errors.Wrap(err, "failed to init rollout backup target clients")
 	}
 
 	c.backupTargetClient = rolloutBackupTargetClient
@@ -630,14 +630,13 @@ func (c *SystemRolloutController) cacheResourcesFromDirectory(name string, schem
 
 	for _, f := range files {
 		if f.IsDir() {
-			logrus.Debugf("%v is a directory", f.Name())
 			continue
 		}
 
 		path := filepath.Join(name, f.Name())
 		contents, err := os.ReadFile(path)
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to read file %v", path)
+			logrus.WithError(err).Warnf("Failed to read file %v", path)
 			continue
 		}
 
@@ -693,7 +692,7 @@ func (c *SystemRolloutController) cacheResourcesFromDirectory(name string, schem
 			c.volumeList = obj.(*longhorn.VolumeList)
 		default:
 			log := c.getLoggerForSystemRollout()
-			log.Errorf("Unknown resource kind %v", gvk.Kind)
+			log.Warnf("Unknown resource kind %v", gvk.Kind)
 		}
 	}
 	return nil
@@ -761,19 +760,18 @@ func (c *SystemRolloutController) GetSystemBackupURL() (string, error) {
 		}
 
 		if systemBackupVersion != c.systemRestoreVersion {
-			log.Debugf("Found %v version in mismatching version %v, expecting %v", name, systemBackupVersion, c.systemRestoreVersion)
+			log.Warnf("Found %v version in mismatching version %v, expecting %v", name, systemBackupVersion, c.systemRestoreVersion)
 			continue
 		}
 
 		return c.backupTargetURL + systemBackupURI, nil
 	}
 
-	return "", errors.Errorf("cannot find system backup %v of version %v in %v", c.systemRestore.Spec.SystemBackup, c.systemRestoreVersion, systemBackups)
+	return "", errors.Errorf("failed to find system backup %v of version %v in %v", c.systemRestore.Spec.SystemBackup, c.systemRestoreVersion, systemBackups)
 }
 
 func (c *SystemRolloutController) restore(kind string, fn func() error, log logrus.FieldLogger) {
-	timeout := time.Duration(datastore.SystemRestoreTimeout) * time.Second
-	timer := time.NewTimer(timeout)
+	timer := time.NewTimer(datastore.SystemRestoreTimeout)
 	defer timer.Stop()
 
 	ticker := time.NewTicker(1 * time.Second)
@@ -791,7 +789,7 @@ func (c *SystemRolloutController) restore(kind string, fn func() error, log logr
 				c.postRestoreHandle(kind, nil)
 				return
 			}
-			log.WithError(err).Debugf(SystemRolloutMsgRestoringFmt, kind)
+			log.WithError(err).Warnf(SystemRolloutMsgRestoringFmt, kind)
 		}
 	}
 }
@@ -1048,7 +1046,7 @@ func (c *SystemRolloutController) restoreCustomResourceDefinitions() (err error)
 				log.WithFields(logrus.Fields{
 					"CRD":     restore.Name,
 					"version": restoreVersion.Name,
-				}).Debug("Adding CustomResourceDefinition version")
+				}).Info("Adding CustomResourceDefinition version")
 
 				continue
 			}
@@ -1064,7 +1062,7 @@ func (c *SystemRolloutController) restoreCustomResourceDefinitions() (err error)
 					log.WithFields(logrus.Fields{
 						"CRD":     updateExist.Name,
 						"version": existVersion.Name,
-					}).Debug("Updating CustomResourceDefinition version")
+					}).Info("Updating CustomResourceDefinition version")
 				}
 				break
 			}
@@ -1852,7 +1850,7 @@ func (c *SystemRolloutController) restoreVolumes() (err error) {
 
 			ei, ok := obj.(*longhorn.EngineImage)
 			if !ok {
-				return fmt.Errorf("BUG: cannot convert %v to EngineImage object", restoreEngineImage.Name)
+				return fmt.Errorf("failed to convert %v to EngineImage object", restoreEngineImage.Name)
 			}
 
 			if !ei.DeletionTimestamp.IsZero() {
@@ -1875,7 +1873,7 @@ func (c *SystemRolloutController) restoreVolumes() (err error) {
 
 		exist, err := c.ds.GetVolume(restore.Name)
 		if err == nil && exist != nil && exist.Spec.NodeID != "" {
-			log.Warn("Cannot restore attached volume")
+			log.Warn("Failed to restore attached volume")
 			continue
 
 		} else if err != nil {

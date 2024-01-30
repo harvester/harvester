@@ -6,8 +6,10 @@ import (
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 )
 
-func (c *ProxyClient) MetricsGet(serviceAddress string) (metrics *Metrics, err error) {
+func (c *ProxyClient) MetricsGet(engineName, volumeName, serviceAddress string) (metrics *Metrics, err error) {
 	input := map[string]string{
+		"engineName":     engineName,
+		"volumeName":     volumeName,
 		"serviceAddress": serviceAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
@@ -19,7 +21,9 @@ func (c *ProxyClient) MetricsGet(serviceAddress string) (metrics *Metrics, err e
 	}()
 
 	req := &rpc.ProxyEngineRequest{
-		Address: serviceAddress,
+		Address:    serviceAddress,
+		EngineName: engineName,
+		VolumeName: volumeName,
 	}
 	resp, err := c.service.MetricsGet(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {

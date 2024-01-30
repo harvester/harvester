@@ -57,3 +57,5 @@ type SystemBackupExpansion interface{}
 type SystemRestoreExpansion interface{}
 
 type VolumeExpansion interface{}
+
+type VolumeAttachmentExpansion interface{}

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -396,4 +397,24 @@ func CleanUpMountPoints(mounter mount.Interface, log logrus.FieldLogger) error {
 	})
 
 	return errs
+}
+
+func CheckBackupType(backupTarget string) (string, error) {
+	u, err := url.Parse(backupTarget)
+	if err != nil {
+		return "", err
+	}
+
+	return u.Scheme, nil
+}
+
+func SplitMountOptions(options []string) []string {
+	logrus.Infof("Splitting array of %d strings %v ", len(options), options)
+	if len(options) > 1 {
+		// Options in the form "nfsOptions=soft&nfsOptions=timeo=450&nfsOptions=retrans=3" are legal and
+		// are already split by url.Parse.
+		return options
+	}
+	// Options in the form "nfsOptions=soft,timeo=450,retrans=3" are more likely, but we must split them.
+	return strings.Split(options[0], ",")
 }

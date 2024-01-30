@@ -2,9 +2,10 @@ package util
 
 import (
 	"bufio"
-	"github.com/pkg/errors"
 	"os/exec"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 func CmdOutLines(cmd *exec.Cmd, cancel <-chan interface{}) (<-chan string, <-chan error) {

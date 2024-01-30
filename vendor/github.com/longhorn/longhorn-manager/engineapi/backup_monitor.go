@@ -39,6 +39,8 @@ type BackupMonitor struct {
 	engine            *longhorn.Engine
 	engineClientProxy EngineClientProxy
 
+	compressionMethod longhorn.BackupCompressionMethod
+
 	backupStatus     longhorn.BackupStatus
 	backupStatusLock sync.RWMutex
 
@@ -47,13 +49,10 @@ type BackupMonitor struct {
 
 	ctx  context.Context
 	quit context.CancelFunc
-
-	retryCount int
 }
 
-func NewBackupMonitor(logger logrus.FieldLogger, ds *datastore.DataStore,
-	backup *longhorn.Backup, volume *longhorn.Volume, backupTargetClient *BackupTargetClient,
-	biChecksum string, engine *longhorn.Engine, engineClientProxy EngineClientProxy,
+func NewBackupMonitor(logger logrus.FieldLogger, ds *datastore.DataStore, backup *longhorn.Backup, volume *longhorn.Volume, backupTargetClient *BackupTargetClient,
+	biChecksum string, compressionMethod longhorn.BackupCompressionMethod, concurrentLimit int, storageClassName string, engine *longhorn.Engine, engineClientProxy EngineClientProxy,
 	syncCallback func(key string)) (*BackupMonitor, error) {
 	ctx, quit := context.WithCancel(context.Background())
 	m := &BackupMonitor{
@@ -85,9 +84,8 @@ func NewBackupMonitor(logger logrus.FieldLogger, ds *datastore.DataStore,
 		if volumeRecurringJobInfo != "" {
 			backup.Spec.Labels[types.VolumeRecurringJobInfoLabel] = volumeRecurringJobInfo
 		}
-		_, replicaAddress, err := engineClientProxy.SnapshotBackup(engine,
-			backup.Spec.SnapshotName, backup.Name, backupTargetClient.URL,
-			volume.Spec.BackingImage, biChecksum,
+		_, replicaAddress, err := engineClientProxy.SnapshotBackup(engine, backup.Spec.SnapshotName, backup.Name,
+			backupTargetClient.URL, volume.Spec.BackingImage, biChecksum, string(compressionMethod), concurrentLimit, storageClassName,
 			backup.Spec.Labels, backupTargetClient.Credential)
 		if err != nil {
 			if !strings.Contains(err.Error(), "DeadlineExceeded") {
@@ -296,7 +294,7 @@ func (m *BackupMonitor) syncBackupStatusFromEngineReplica() (currentBackupStatus
 	m.backupStatus.DeepCopyInto(&currentBackupStatus)
 	m.backupStatusLock.RUnlock()
 
-	engineBackupStatus, err = m.engineClientProxy.SnapshotBackupStatus(m.engine, m.backupName, m.replicaAddress)
+	engineBackupStatus, err = m.engineClientProxy.SnapshotBackupStatus(m.engine, m.backupName, m.replicaAddress, "")
 	if err != nil {
 		return currentBackupStatus, err
 	}

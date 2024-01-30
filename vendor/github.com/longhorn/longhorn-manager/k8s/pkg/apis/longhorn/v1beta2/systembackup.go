@@ -5,13 +5,14 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type SystemBackupState string
 
 const (
-	SystemBackupStateDeleting   = SystemBackupState("Deleting")
-	SystemBackupStateError      = SystemBackupState("Error")
-	SystemBackupStateGenerating = SystemBackupState("Generating")
-	SystemBackupStateNone       = SystemBackupState("")
-	SystemBackupStateReady      = SystemBackupState("Ready")
-	SystemBackupStateSyncing    = SystemBackupState("Syncing")
-	SystemBackupStateUploading  = SystemBackupState("Uploading")
+	SystemBackupStateDeleting     = SystemBackupState("Deleting")
+	SystemBackupStateError        = SystemBackupState("Error")
+	SystemBackupStateGenerating   = SystemBackupState("Generating")
+	SystemBackupStateNone         = SystemBackupState("")
+	SystemBackupStateReady        = SystemBackupState("Ready")
+	SystemBackupStateSyncing      = SystemBackupState("Syncing")
+	SystemBackupStateUploading    = SystemBackupState("Uploading")
+	SystemBackupStateVolumeBackup = SystemBackupState("CreatingVolumeBackups")
 
 	SystemBackupConditionTypeError = "Error"
 
@@ -21,8 +22,22 @@ const (
 	SystemBackupConditionReasonSync     = "Sync"
 )
 
+type SystemBackupCreateVolumeBackupPolicy string
+
+const (
+	SystemBackupCreateVolumeBackupPolicyAlways       = SystemBackupCreateVolumeBackupPolicy("always")
+	SystemBackupCreateVolumeBackupPolicyDisabled     = SystemBackupCreateVolumeBackupPolicy("disabled")
+	SystemBackupCreateVolumeBackupPolicyIfNotPresent = SystemBackupCreateVolumeBackupPolicy("if-not-present")
+)
+
 // SystemBackupSpec defines the desired state of the Longhorn SystemBackup
-type SystemBackupSpec struct{}
+type SystemBackupSpec struct {
+	// The create volume backup policy
+	// Can be "if-not-present", "always" or "disabled"
+	// +optional
+	// +nullable
+	VolumeBackupPolicy SystemBackupCreateVolumeBackupPolicy `json:"volumeBackupPolicy"`
+}
 
 // SystemBackupStatus defines the observed state of the Longhorn SystemBackup
 type SystemBackupStatus struct {

@@ -22,7 +22,7 @@ func unixDialer(ctx context.Context, addr string) (net.Conn, error) {
 	return dialer.DialContext(ctx, "unix", addr)
 }
 
-//Connect is a helper function to initiate a grpc client connection to server running at endpoint using tlsConfig
+// Connect is a helper function to initiate a grpc client connection to server running at endpoint using tlsConfig
 func Connect(endpoint string, tlsConfig *tls.Config, dialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
 	proto, address, err := parseEndpoint(endpoint)
 	if err != nil {

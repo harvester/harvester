@@ -14,20 +14,22 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	etypes "github.com/longhorn/longhorn-engine/pkg/types"
 
 	"github.com/longhorn/longhorn-manager/constant"
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/engineapi"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -299,7 +301,7 @@ func (m *SnapshotMonitor) shouldAddToInProgressSnapshotCheckTasks(snapshotName s
 
 	_, ok := m.inProgressSnapshotCheckTasks[snapshotName]
 	if ok {
-		m.logger.WithField("monitor", monitorName).Debugf("snapshot %s is being checked", snapshotName)
+		m.logger.WithField("monitor", monitorName).Infof("Checking snapshot %s", snapshotName)
 		return false
 	}
 	m.inProgressSnapshotCheckTasks[snapshotName] = struct{}{}
@@ -473,7 +475,7 @@ func (m *SnapshotMonitor) syncHashStatusFromEngineReplicas(engine *longhorn.Engi
 
 	checksum, err := determineChecksumFromHashStatus(m.logger, snapshotName, snapshot.Status.Checksum, hashStatus)
 	if err != nil {
-		m.eventRecorder.Eventf(engine, v1.EventTypeWarning, constant.EventReasonFailedSnapshotDataIntegrityCheck,
+		m.eventRecorder.Eventf(engine, corev1.EventTypeWarning, constant.EventReasonFailedSnapshotDataIntegrityCheck,
 			"Failed to check the data integrity of snapshot %v for volume %v", snapshotName, engine.Spec.VolumeName)
 		return errors.Wrapf(err, "failed to determine checksum for snapshot %v", snapshotName)
 	}
@@ -498,7 +500,7 @@ func (m *SnapshotMonitor) kickOutCorruptedReplicas(engine *longhorn.Engine, engi
 			continue
 		}
 
-		m.eventRecorder.Eventf(engine, v1.EventTypeWarning, constant.EventReasonFaulted, "Detected corrupted replica %v", address)
+		m.eventRecorder.Eventf(engine, corev1.EventTypeWarning, constant.EventReasonFaulted, "Detected corrupted replica %v", address)
 
 		if err := engineClientProxy.ReplicaModeUpdate(engine, address, string(etypes.ERR)); err != nil {
 			m.logger.WithField("monitor", monitorName).Errorf("failed to update replica %v mode to ERR", address)

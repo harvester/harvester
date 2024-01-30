@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	. "github.com/longhorn/backupstore/logging"
+	"github.com/longhorn/backupstore/types"
 )
 
 func InspectVolume(volumeURL string) (*VolumeInfo, error) {
@@ -70,11 +71,12 @@ func fillVolumeInfo(volume *Volume) *VolumeInfo {
 		LastBackupName:       volume.LastBackupName,
 		LastBackupAt:         volume.LastBackupAt,
 		DataStored:           int64(volume.BlockCount * DEFAULT_BLOCK_SIZE),
-		Messages:             make(map[MessageType]string),
+		Messages:             make(map[types.MessageType]string),
 		Backups:              make(map[string]*BackupInfo),
 		BackingImageName:     volume.BackingImageName,
 		BackingImageChecksum: volume.BackingImageChecksum,
 		StorageClassname:     volume.StorageClassName,
+		BackendStoreDriver:   volume.BackendStoreDriver,
 	}
 }
 
