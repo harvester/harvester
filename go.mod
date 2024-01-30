@@ -87,6 +87,7 @@ require (
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210727200656-10b094e30007
 	github.com/rancher/wharfie v0.5.3
 	github.com/rancher/wrangler v1.1.1
+	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.2
 	github.com/stretchr/testify v1.8.3
 	github.com/tidwall/gjson v1.9.3
@@ -257,7 +258,6 @@ require (
 	github.com/rubenv/sql-migrate v1.1.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
-	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/slok/goresilience v0.2.0 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/cobra v1.7.0 // indirect
