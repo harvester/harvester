@@ -1,0 +1,95 @@
+syntax="proto3";
+
+package imrpc;
+
+import "google/protobuf/empty.proto";
+
+service DiskService {
+    rpc DiskCreate(DiskCreateRequest) returns (Disk);
+    rpc DiskDelete(DiskDeleteRequest) returns (google.protobuf.Empty);
+    rpc DiskGet(DiskGetRequest) returns (Disk);
+    rpc DiskReplicaInstanceList(DiskReplicaInstanceListRequest) returns (DiskReplicaInstanceListResponse);
+    rpc DiskReplicaInstanceDelete(DiskReplicaInstanceDeleteRequest) returns (google.protobuf.Empty);
+
+    rpc VersionGet(google.protobuf.Empty) returns(DiskVersionResponse);
+}
+
+message Disk {
+    string id = 1;
+    string uuid = 2;
+    string path = 3;
+    string type = 4;
+
+    int64 total_size = 5;
+    int64 free_size = 6;
+
+    int64 total_blocks = 7;
+    int64 free_blocks = 8;
+
+    int64 block_size = 9;
+    int64 cluster_size = 10;
+}
+
+message ReplicaInstance {
+    string name = 1;
+    string uuid = 2;
+    string disk_name = 3;
+    string disk_uuid = 4;
+    uint64 spec_size = 5;
+    uint64 actual_size = 6;
+}
+
+enum DiskType {
+    filesystem = 0;
+    block = 1;
+}
+
+message DiskCreateRequest{
+    DiskType disk_type = 1;
+
+    string disk_name = 2;
+    string disk_uuid = 3;
+    string disk_path = 4;
+    int64 block_size = 5;
+}
+
+message DiskGetRequest {
+    DiskType disk_type = 1;
+
+    string disk_name = 2;
+    string disk_path = 3;
+}
+
+message DiskDeleteRequest {
+    DiskType disk_type = 1;
+
+    string disk_name = 2;
+    string disk_uuid = 3;
+}
+
+message DiskReplicaInstanceListRequest {
+    DiskType disk_type = 1;
+
+    string disk_name = 2;
+}
+
+message DiskReplicaInstanceListResponse {
+	map<string, ReplicaInstance> replica_instances = 1;
+}
+
+message DiskReplicaInstanceDeleteRequest {
+    DiskType disk_type = 1;
+
+    string disk_name = 2;
+    string disk_uuid = 3;
+    string replcia_instance_name = 4;
+}
+
+message DiskVersionResponse {
+    string version = 1;
+    string gitCommit = 2;
+    string buildDate = 3;
+
+    int64 instanceManagerDiskServiceAPIVersion = 4;
+    int64 instanceManagerDiskServiceAPIMinVersion = 5;
+}

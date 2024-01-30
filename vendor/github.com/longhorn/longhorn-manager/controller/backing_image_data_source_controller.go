@@ -12,19 +12,20 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	clientset "k8s.io/client-go/kubernetes"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/kubernetes/pkg/controller"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientset "k8s.io/client-go/kubernetes"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	bimtypes "github.com/longhorn/backing-image-manager/pkg/types"
 
@@ -38,11 +39,6 @@ import (
 
 const (
 	BackingImageDataSourcePodContainerName = "backing-image-data-source"
-
-	DataSourceTypeExportFromVolumeParameterVolumeName    = "volume-name"
-	DataSourceTypeExportFromVolumeParameterVolumeSize    = "volume-size"
-	DataSourceTypeExportFromVolumeParameterSnapshotName  = "snapshot-name"
-	DataSourceTypeExportFromVolumeParameterSenderAddress = "sender-address"
 )
 
 type BackingImageDataSourceController struct {
@@ -51,6 +47,7 @@ type BackingImageDataSourceController struct {
 	namespace      string
 	controllerID   string
 	serviceAccount string
+	bimImageName   string
 
 	kubeClient    clientset.Interface
 	eventRecorder record.EventRecorder
@@ -84,7 +81,7 @@ func NewBackingImageDataSourceController(
 	ds *datastore.DataStore,
 	scheme *runtime.Scheme,
 	kubeClient clientset.Interface,
-	namespace, controllerID, serviceAccount string,
+	namespace, controllerID, serviceAccount, imageManagerImage string,
 	proxyConnCounter util.Counter,
 ) *BackingImageDataSourceController {
 
@@ -98,9 +95,10 @@ func NewBackingImageDataSourceController(
 		namespace:      namespace,
 		controllerID:   controllerID,
 		serviceAccount: serviceAccount,
+		bimImageName:   imageManagerImage,
 
 		kubeClient:    kubeClient,
-		eventRecorder: eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "longhorn-backing-image-data-source-controller"}),
+		eventRecorder: eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "longhorn-backing-image-data-source-controller"}),
 
 		ds: ds,
 
@@ -154,8 +152,8 @@ func (c *BackingImageDataSourceController) Run(workers int, stopCh <-chan struct
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	logrus.Infof("Starting Longhorn backing image data source controller")
-	defer logrus.Infof("Shut down Longhorn backing image data source controller")
+	logrus.Info("Starting Longhorn backing image data source controller")
+	defer logrus.Info("Shut down Longhorn backing image data source controller")
 
 	if !cache.WaitForNamedCacheSync("longhorn backing image data source", stopCh, c.cacheSyncs...) {
 		return
@@ -193,14 +191,15 @@ func (c *BackingImageDataSourceController) handleErr(err error, key interface{})
 		return
 	}
 
+	log := c.logger.WithField("BackingImageDataSource", key)
 	if c.queue.NumRequeues(key) < maxRetries {
-		logrus.WithError(err).Warnf("Error syncing Longhorn backing image data source %v", key)
+		handleReconcileErrorLogging(log, err, "Failed to sync Longhorn backing image data source")
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	logrus.WithError(err).Warnf("Dropping Longhorn backing image data source %v out of the queue", key)
+	handleReconcileErrorLogging(log, err, "Dropping Longhorn backing image data source out of the queue")
 	c.queue.Forget(key)
 }
 
@@ -245,12 +244,10 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSource(key string
 
 	bids, err := c.ds.GetBackingImageDataSource(name)
 	if err != nil {
-		if !datastore.ErrorIsNotFound(err) {
-			c.logger.WithField("backingImageDataSource", name).WithError(err).Error("Failed to retrieve backing image data source from datastore")
-			return err
+		if datastore.ErrorIsNotFound(err) {
+			return nil
 		}
-		c.logger.WithField("backingImageDataSource", name).Warn("Failed to find backing image data source, may have been deleted")
-		return nil
+		return errors.Wrap(err, "failed to get backing image data source")
 	}
 
 	log := getLoggerForBackingImageDataSource(c.logger, bids)
@@ -308,7 +305,7 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSource(key string
 			_, err = c.ds.UpdateBackingImageDataSourceStatus(bids)
 		}
 		if apierrors.IsConflict(errors.Cause(err)) {
-			log.WithError(err).Warnf("Requeue %v due to conflict", key)
+			log.WithError(err).Debugf("Requeue %v due to conflict", key)
 			c.enqueueBackingImageDataSource(bids)
 			err = nil
 		}
@@ -348,6 +345,10 @@ func (c *BackingImageDataSourceController) cleanup(bids *longhorn.BackingImageDa
 
 	if c.isMonitoring(bids.Name) {
 		c.stopMonitoring(bids.Name)
+	}
+
+	if err := c.handleAttachmentTicketDeletion(bids); err != nil {
+		return err
 	}
 
 	pod, err := c.ds.GetPod(types.GetBackingImageDataSourcePodName(bids.Name))
@@ -398,14 +399,9 @@ func (c *BackingImageDataSourceController) syncBackingImage(bids *longhorn.Backi
 
 func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *longhorn.BackingImageDataSource) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "failed to sync backing image data source pod")
+		err = errors.Wrap(err, "failed to sync backing image data source pod")
 	}()
 	log := getLoggerForBackingImageDataSource(c.logger, bids)
-
-	defaultImage, err := c.ds.GetSettingValueExisted(types.SettingNameDefaultBackingImageManagerImage)
-	if err != nil {
-		return err
-	}
 
 	newBackingImageDataSource := bids.Status.CurrentState == ""
 
@@ -423,20 +419,20 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 		podNotReadyMessage = fmt.Sprintf("pod spec node ID %v doesn't match the desired node ID %v", pod.Spec.NodeName, bids.Spec.NodeID)
 	} else if pod.DeletionTimestamp != nil {
 		podNotReadyMessage = "the pod dedicated to prepare the first backing image file is being deleted"
-	} else if pod.Spec.Containers[0].Image != defaultImage {
+	} else if pod.Spec.Containers[0].Image != c.bimImageName {
 		podNotReadyMessage = "the pod image is not the default one"
 	} else {
 		switch pod.Status.Phase {
-		case v1.PodRunning:
+		case corev1.PodRunning:
 			podReady = true
 			for _, st := range pod.Status.ContainerStatuses {
 				if !st.Ready {
 					podReady = false
-					podNotReadyMessage = fmt.Sprintf("pod phase %v but the containers not ready", v1.PodRunning)
+					podNotReadyMessage = fmt.Sprintf("pod phase %v but the containers not ready", corev1.PodRunning)
 					break
 				}
 			}
-		case v1.PodFailed:
+		case corev1.PodFailed:
 			podFailed = true
 		default:
 			podNotReadyMessage = fmt.Sprintf("pod phase %v", pod.Status.Phase)
@@ -509,12 +505,15 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 				isInBackoffWindow = false
 				log.Infof("Preparing to recreate pod for image data source %v since the backoff window is already passed", bids.Name)
 			} else {
-				log.Infof("Failed backing image data source %v is still in the backoff window, Longhorn cannot recreate pod for it", bids.Name)
+				log.Debugf("Failed backing image data source %v is still in the backoff window, Longhorn cannot recreate pod for it", bids.Name)
 			}
 		}
 
 		if newBackingImageDataSource ||
 			(isValidTypeForRetry && !isInBackoffWindow) {
+			if err := c.handleAttachmentTicketCreation(bids); err != nil {
+				return err
+			}
 			// For recovering the backing image exported from volumes, the controller needs to update the state regardless of the pod being created immediately.
 			// Otherwise, the backing image data source will stay in state failed/unknown then the volume controller won't do auto attachment.
 			bids.Status.CurrentState = ""
@@ -528,6 +527,70 @@ func (c *BackingImageDataSourceController) syncBackingImageDataSourcePod(bids *l
 			c.backoff.Next(bids.Name, time.Now())
 		}
 	}
+
+	return nil
+}
+
+// handleAttachmentTicketDeletion check and delete attachment so that the source volume is detached if needed
+func (c *BackingImageDataSourceController) handleAttachmentTicketDeletion(bids *longhorn.BackingImageDataSource) (err error) {
+	if bids.Spec.SourceType != longhorn.BackingImageDataSourceTypeExportFromVolume {
+		return nil
+	}
+
+	volumeName := bids.Spec.Parameters[longhorn.DataSourceTypeExportFromVolumeParameterVolumeName]
+	va, err := c.ds.GetLHVolumeAttachmentByVolumeName(volumeName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	attachmentTicketID := longhorn.GetAttachmentTicketID(longhorn.AttacherTypeBackingImageDataSourceController, bids.Name)
+
+	if _, ok := va.Spec.AttachmentTickets[attachmentTicketID]; ok {
+		delete(va.Spec.AttachmentTickets, attachmentTicketID)
+		if _, err = c.ds.UpdateLHVolumeAttachment(va); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// handleAttachmentTicketCreation check and create attachment so that the source volume is attached if needed
+func (c *BackingImageDataSourceController) handleAttachmentTicketCreation(bids *longhorn.BackingImageDataSource) (err error) {
+	if bids.Spec.SourceType != longhorn.BackingImageDataSourceTypeExportFromVolume {
+		return nil
+	}
+
+	volumeName := bids.Spec.Parameters[longhorn.DataSourceTypeExportFromVolumeParameterVolumeName]
+	vol, err := c.ds.GetVolume(volumeName)
+	if err != nil {
+		return err
+	}
+
+	va, err := c.ds.GetLHVolumeAttachmentByVolumeName(vol.Name)
+	if err != nil {
+		return err
+	}
+
+	existingVA := va.DeepCopy()
+	defer func() {
+		if err != nil {
+			return
+		}
+		if reflect.DeepEqual(existingVA.Spec, va.Spec) {
+			return
+		}
+
+		if _, err = c.ds.UpdateLHVolumeAttachment(va); err != nil {
+			return
+		}
+	}()
+
+	attachmentTicketID := longhorn.GetAttachmentTicketID(longhorn.AttacherTypeBackingImageDataSourceController, bids.Name)
+	createOrUpdateAttachmentTicket(va, attachmentTicketID, vol.Status.OwnerID, longhorn.AnyValue, longhorn.AttacherTypeBackingImageDataSourceController)
 
 	return nil
 }
@@ -549,12 +612,10 @@ func (c *BackingImageDataSourceController) createBackingImageDataSourcePod(bids 
 		return err
 	}
 
-	log.Info("Created backing image data source pod")
-
 	return nil
 }
 
-func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodManifest(bids *longhorn.BackingImageDataSource) (*v1.Pod, error) {
+func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodManifest(bids *longhorn.BackingImageDataSource) (*corev1.Pod, error) {
 	nodeSelector, err := c.ds.GetSettingSystemManagedComponentsNodeSelector()
 	if err != nil {
 		return nil, err
@@ -575,11 +636,6 @@ func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodMani
 	}
 
 	imagePullPolicy, err := c.ds.GetSettingImagePullPolicy()
-	if err != nil {
-		return nil, err
-	}
-
-	bimImage, err := c.ds.GetSettingValueExisted(types.SettingNameDefaultBackingImageManagerImage)
 	if err != nil {
 		return nil, err
 	}
@@ -613,7 +669,7 @@ func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodMani
 	}
 
 	privileged := true
-	podSpec := &v1.Pod{
+	podSpec := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            types.GetBackingImageDataSourcePodName(bids.Name),
 			Namespace:       c.namespace,
@@ -621,20 +677,20 @@ func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodMani
 			Labels:          types.GetBackingImageDataSourceLabels(bids.Name, bids.Spec.NodeID, bids.Spec.DiskUUID),
 			Annotations:     map[string]string{types.GetLonghornLabelKey(types.LastAppliedTolerationAnnotationKeySuffix): string(tolerationsByte)},
 		},
-		Spec: v1.PodSpec{
+		Spec: corev1.PodSpec{
 			ServiceAccountName: c.serviceAccount,
 			Tolerations:        util.GetDistinctTolerations(tolerations),
 			NodeSelector:       nodeSelector,
 			PriorityClassName:  priorityClass.Value,
-			Containers: []v1.Container{
+			Containers: []corev1.Container{
 				{
 					Name:            BackingImageDataSourcePodContainerName,
-					Image:           bimImage,
+					Image:           c.bimImageName,
 					ImagePullPolicy: imagePullPolicy,
 					Command:         cmd,
-					ReadinessProbe: &v1.Probe{
-						ProbeHandler: v1.ProbeHandler{
-							TCPSocket: &v1.TCPSocketAction{
+					ReadinessProbe: &corev1.Probe{
+						ProbeHandler: corev1.ProbeHandler{
+							TCPSocket: &corev1.TCPSocketAction{
 								Port: intstr.FromInt(engineapi.BackingImageDataSourceDefaultPort),
 							},
 						},
@@ -643,39 +699,39 @@ func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodMani
 						TimeoutSeconds:      datastore.PodProbeTimeoutSeconds,
 						FailureThreshold:    datastore.PodLivenessProbeFailureThreshold,
 					},
-					VolumeMounts: []v1.VolumeMount{
+					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      "disk-path",
 							MountPath: bimtypes.DiskPathInContainer,
 						},
 					},
-					Env: []v1.EnvVar{
+					Env: []corev1.EnvVar{
 						{
 							Name: types.EnvPodIP,
-							ValueFrom: &v1.EnvVarSource{
-								FieldRef: &v1.ObjectFieldSelector{
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
 									FieldPath: "status.podIP",
 								},
 							},
 						},
 					},
-					SecurityContext: &v1.SecurityContext{
+					SecurityContext: &corev1.SecurityContext{
 						Privileged: &privileged,
 					},
 				},
 			},
-			Volumes: []v1.Volume{
+			Volumes: []corev1.Volume{
 				{
 					Name: "disk-path",
-					VolumeSource: v1.VolumeSource{
-						HostPath: &v1.HostPathVolumeSource{
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
 							Path: bids.Spec.DiskPath,
 						},
 					},
 				},
 			},
 			NodeName:      bids.Spec.NodeID,
-			RestartPolicy: v1.RestartPolicyNever,
+			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
 
@@ -684,7 +740,7 @@ func (c *BackingImageDataSourceController) generateBackingImageDataSourcePodMani
 		return nil, err
 	}
 	if registrySecretSetting.Value != "" {
-		podSpec.Spec.ImagePullSecrets = []v1.LocalObjectReference{
+		podSpec.Spec.ImagePullSecrets = []corev1.LocalObjectReference{
 			{
 				Name: registrySecretSetting.Value,
 			},
@@ -710,7 +766,7 @@ func (c *BackingImageDataSourceController) prepareRunningParameters(bids *longho
 		return nil
 	}
 
-	volumeName := bids.Spec.Parameters[DataSourceTypeExportFromVolumeParameterVolumeName]
+	volumeName := bids.Spec.Parameters[longhorn.DataSourceTypeExportFromVolumeParameterVolumeName]
 	v, err := c.ds.GetVolume(volumeName)
 	if err != nil {
 		return err
@@ -718,7 +774,7 @@ func (c *BackingImageDataSourceController) prepareRunningParameters(bids *longho
 	if v.Status.State != longhorn.VolumeStateAttached {
 		return fmt.Errorf("need to wait for volume %v attached before preparing parameters", volumeName)
 	}
-	bids.Status.RunningParameters[DataSourceTypeExportFromVolumeParameterVolumeSize] = strconv.FormatInt(v.Spec.Size, 10)
+	bids.Status.RunningParameters[longhorn.DataSourceTypeExportFromVolumeParameterVolumeSize] = strconv.FormatInt(v.Spec.Size, 10)
 
 	e, err := c.ds.GetVolumeCurrentEngine(volumeName)
 	if err != nil {
@@ -732,8 +788,8 @@ func (c *BackingImageDataSourceController) prepareRunningParameters(bids *longho
 	}
 
 	newSnapshotRequired := true
-	if bids.Status.RunningParameters[DataSourceTypeExportFromVolumeParameterSnapshotName] != "" {
-		if _, ok := e.Status.Snapshots[bids.Status.RunningParameters[DataSourceTypeExportFromVolumeParameterSnapshotName]]; ok {
+	if bids.Status.RunningParameters[longhorn.DataSourceTypeExportFromVolumeParameterSnapshotName] != "" {
+		if _, ok := e.Status.Snapshots[bids.Status.RunningParameters[longhorn.DataSourceTypeExportFromVolumeParameterSnapshotName]]; ok {
 			newSnapshotRequired = false
 		}
 	}
@@ -749,7 +805,7 @@ func (c *BackingImageDataSourceController) prepareRunningParameters(bids *longho
 		if err != nil {
 			return err
 		}
-		bids.Status.RunningParameters[DataSourceTypeExportFromVolumeParameterSnapshotName] = snapshotName
+		bids.Status.RunningParameters[longhorn.DataSourceTypeExportFromVolumeParameterSnapshotName] = snapshotName
 	}
 
 	for rName, mode := range e.Status.ReplicaModeMap {
@@ -767,9 +823,9 @@ func (c *BackingImageDataSourceController) prepareRunningParameters(bids *longho
 		if rAddress == "" || rAddress != fmt.Sprintf("%s:%d", r.Status.StorageIP, r.Status.Port) {
 			continue
 		}
-		bids.Status.RunningParameters[DataSourceTypeExportFromVolumeParameterSenderAddress] = rAddress
+		bids.Status.RunningParameters[longhorn.DataSourceTypeExportFromVolumeParameterSenderAddress] = rAddress
 	}
-	if bids.Status.RunningParameters[DataSourceTypeExportFromVolumeParameterSenderAddress] == "" {
+	if bids.Status.RunningParameters[longhorn.DataSourceTypeExportFromVolumeParameterSenderAddress] == "" {
 		return fmt.Errorf("failed to get an available replica from volume %v during backing image %v exporting", v.Name, bids.Name)
 	}
 
@@ -787,7 +843,7 @@ func (c *BackingImageDataSourceController) enqueueBackingImageDataSource(backing
 }
 
 func isBackingImageDataSourcePod(obj interface{}) bool {
-	pod, ok := obj.(*v1.Pod)
+	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
@@ -795,7 +851,7 @@ func isBackingImageDataSourcePod(obj interface{}) bool {
 		}
 
 		// use the last known state, to enqueue, dependent objects
-		pod, ok = deletedState.Obj.(*v1.Pod)
+		pod, ok = deletedState.Obj.(*corev1.Pod)
 		if !ok {
 			return false
 		}
@@ -903,7 +959,7 @@ func (c *BackingImageDataSourceController) enqueueForLonghornNode(obj interface{
 }
 
 func (c *BackingImageDataSourceController) enqueueForBackingImageDataSourcePod(obj interface{}) {
-	pod, ok := obj.(*v1.Pod)
+	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
@@ -912,7 +968,7 @@ func (c *BackingImageDataSourceController) enqueueForBackingImageDataSourcePod(o
 		}
 
 		// use the last known state, to enqueue, dependent objects
-		pod, ok = deletedState.Obj.(*v1.Pod)
+		pod, ok = deletedState.Obj.(*corev1.Pod)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("DeletedFinalStateUnknown contained invalid object: %#v", deletedState.Obj))
 			return
@@ -950,14 +1006,11 @@ func (c *BackingImageDataSourceController) stopMonitoring(bidsName string) {
 	log := c.logger.WithField("backingImageDataSource", bidsName)
 	stopCh, ok := c.monitorMap[bidsName]
 	if !ok {
-		log.Warn("No monitor goroutine for stopping")
 		return
 	}
 	log.Info("Stopping monitoring")
 	close(stopCh)
 	delete(c.monitorMap, bidsName)
-	log.Info("Stopped monitoring")
-
 }
 
 func (c *BackingImageDataSourceController) startMonitoring(bids *longhorn.BackingImageDataSource) {
@@ -967,12 +1020,11 @@ func (c *BackingImageDataSourceController) startMonitoring(bids *longhorn.Backin
 	defer c.lock.Unlock()
 
 	if _, ok := c.monitorMap[bids.Name]; ok {
-		log.Error("Monitor goroutine already exists")
 		return
 	}
 
 	if bids.Status.IP == "" {
-		log.Errorf("Failed to get backing image data source pod IP before launching the monitor")
+		log.Error("Failed to get backing image data source pod IP before launching the monitor")
 		return
 	}
 

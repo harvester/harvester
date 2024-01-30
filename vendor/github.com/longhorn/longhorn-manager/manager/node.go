@@ -68,7 +68,7 @@ func (m *VolumeManager) UpdateNode(n *longhorn.Node) (*longhorn.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	logrus.Debugf("Updated node %v to %+v", node.Spec.Name, node.Spec)
+	logrus.Infof("Updated node %v to %+v", node.Spec.Name, node.Spec)
 	return node, nil
 }
 
@@ -113,7 +113,7 @@ func (m *VolumeManager) DiskUpdate(name string, updateDisks map[string]longhorn.
 	if err != nil {
 		return nil, err
 	}
-	logrus.Debugf("Updated node disks of %v to %+v", name, node.Spec.Disks)
+	logrus.Infof("Updated node disks of %v to %+v", name, node.Spec.Disks)
 	return node, nil
 }
 
@@ -143,6 +143,6 @@ func (m *VolumeManager) DeleteNode(name string) error {
 	if err := m.ds.DeleteNode(name); err != nil {
 		return err
 	}
-	logrus.Debugf("Deleted node %v", name)
+	logrus.Infof("Deleted node %v", name)
 	return nil
 }

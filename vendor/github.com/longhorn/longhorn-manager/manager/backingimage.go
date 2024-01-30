@@ -67,6 +67,7 @@ func (m *VolumeManager) GetBackingImageDataSourcePod(name string) (*v1.Pod, erro
 	return pod, nil
 }
 
+// GetDefaultBackingImageManagersByDiskUUID returns a default backing image manager resource object searched by the disk UUID
 func (m *VolumeManager) GetDefaultBackingImageManagersByDiskUUID(diskUUID string) (*longhorn.BackingImageManager, error) {
 	defaultImage, err := m.ds.GetSettingValueExisted(types.SettingNameDefaultBackingImageManagerImage)
 	if err != nil {

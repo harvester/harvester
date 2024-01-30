@@ -3,7 +3,6 @@ package controller
 import (
 	"fmt"
 	"math"
-	"os"
 	"strconv"
 	"time"
 
@@ -11,23 +10,18 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
-	corev1 "k8s.io/api/core/v1"
-	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/informers"
-	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/engineapi"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
+	"github.com/longhorn/longhorn-manager/util/client"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
-	lhinformers "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions"
 )
 
 var (
@@ -35,116 +29,92 @@ var (
 	longhornFinalizerKey = longhorn.SchemeGroupVersion.Group
 )
 
-func StartControllers(logger logrus.FieldLogger, stopCh chan struct{}, controllerID, serviceAccount, managerImage, kubeconfigPath, version string, proxyConnCounter util.Counter) (*datastore.DataStore, *WebsocketController, error) {
-	namespace := os.Getenv(types.EnvPodNamespace)
-	if namespace == "" {
-		logrus.Warnf("Cannot detect pod namespace, environment variable %v is missing, "+
-			"using default namespace", types.EnvPodNamespace)
-		namespace = corev1.NamespaceDefault
-	}
+// StartControllers initiates all Longhorn component controllers and monitors to manage the creating, updating, and deletion of Longhorn resources
+func StartControllers(logger logrus.FieldLogger, clients *client.Clients,
+	controllerID, serviceAccount, managerImage, backingImageManagerImage, shareManagerImage,
+	kubeconfigPath, version string, proxyConnCounter util.Counter) (*WebsocketController, error) {
+	namespace := clients.Namespace
+	kubeClient := clients.Clients.K8s
+	metricsClient := clients.MetricsClient
+	ds := clients.Datastore
+	scheme := clients.Scheme
+	stopCh := clients.StopCh
 
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to get client config")
-	}
+	// Longhorn controllers
+	replicaController := NewReplicaController(logger, ds, scheme, kubeClient, namespace, controllerID)
+	engineController := NewEngineController(logger, ds, scheme, kubeClient, &engineapi.EngineCollection{}, namespace, controllerID, proxyConnCounter)
+	volumeController := NewVolumeController(logger, ds, scheme, kubeClient, namespace, controllerID, shareManagerImage, proxyConnCounter)
+	engineImageController := NewEngineImageController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount)
+	nodeController := NewNodeController(logger, ds, scheme, kubeClient, namespace, controllerID)
+	websocketController := NewWebsocketController(logger, ds)
+	settingController := NewSettingController(logger, ds, scheme, kubeClient, metricsClient, namespace, controllerID, version)
+	backupTargetController := NewBackupTargetController(logger, ds, scheme, kubeClient, controllerID, namespace, proxyConnCounter)
+	backupVolumeController := NewBackupVolumeController(logger, ds, scheme, kubeClient, controllerID, namespace, proxyConnCounter)
+	backupController := NewBackupController(logger, ds, scheme, kubeClient, controllerID, namespace, proxyConnCounter)
+	instanceManagerController := NewInstanceManagerController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount)
+	shareManagerController := NewShareManagerController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount)
+	backingImageController := NewBackingImageController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount, backingImageManagerImage)
+	backingImageManagerController := NewBackingImageManagerController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount, backingImageManagerImage)
+	backingImageDataSourceController := NewBackingImageDataSourceController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount, backingImageManagerImage, proxyConnCounter)
+	recurringJobController := NewRecurringJobController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount, managerImage)
+	orphanController := NewOrphanController(logger, ds, scheme, kubeClient, controllerID, namespace)
+	snapshotController := NewSnapshotController(logger, ds, scheme, kubeClient, namespace, controllerID, &engineapi.EngineCollection{}, proxyConnCounter)
+	supportBundleController := NewSupportBundleController(logger, ds, scheme, kubeClient, controllerID, namespace, serviceAccount)
+	systemBackupController := NewSystemBackupController(logger, ds, scheme, kubeClient, namespace, controllerID, managerImage)
+	systemRestoreController := NewSystemRestoreController(logger, ds, scheme, kubeClient, namespace, controllerID)
+	volumeAttachmentController := NewLonghornVolumeAttachmentController(logger, ds, scheme, kubeClient, controllerID, namespace)
+	volumeRestoreController := NewVolumeRestoreController(logger, ds, scheme, kubeClient, controllerID, namespace)
+	volumeRebuildingController := NewVolumeRebuildingController(logger, ds, scheme, kubeClient, controllerID, namespace)
+	volumeEvictionController := NewVolumeEvictionController(logger, ds, scheme, kubeClient, controllerID, namespace)
+	volumeCloneController := NewVolumeCloneController(logger, ds, scheme, kubeClient, controllerID, namespace)
+	volumeExpansionController := NewVolumeExpansionController(logger, ds, scheme, kubeClient, controllerID, namespace)
 
-	config.Burst = 100
-	config.QPS = 50
+	// Kubernetes controllers
+	kubernetesPVController := NewKubernetesPVController(logger, ds, scheme, kubeClient, controllerID)
+	kubernetesNodeController := NewKubernetesNodeController(logger, ds, scheme, kubeClient, controllerID)
+	kubernetesPodController := NewKubernetesPodController(logger, ds, scheme, kubeClient, controllerID)
+	kubernetesConfigMapController := NewKubernetesConfigMapController(logger, ds, scheme, kubeClient, controllerID, namespace)
+	kubernetesSecretController := NewKubernetesSecretController(logger, ds, scheme, kubeClient, controllerID, namespace)
+	kubernetesPDBController := NewKubernetesPDBController(logger, ds, kubeClient, controllerID, namespace)
 
-	kubeClient, err := clientset.NewForConfig(config)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to get k8s client")
-	}
+	// Start goroutines for Longhorn controllers
+	go replicaController.Run(Workers, stopCh)
+	go engineController.Run(Workers, stopCh)
+	go volumeController.Run(Workers, stopCh)
+	go engineImageController.Run(Workers, stopCh)
+	go nodeController.Run(Workers, stopCh)
+	go websocketController.Run(stopCh)
+	go settingController.Run(stopCh)
+	go instanceManagerController.Run(Workers, stopCh)
+	go shareManagerController.Run(Workers, stopCh)
+	go backingImageController.Run(Workers, stopCh)
+	go backingImageManagerController.Run(Workers, stopCh)
+	go backingImageDataSourceController.Run(Workers, stopCh)
+	go backupTargetController.Run(Workers, stopCh)
+	go backupVolumeController.Run(Workers, stopCh)
+	go backupController.Run(Workers, stopCh)
+	go recurringJobController.Run(Workers, stopCh)
+	go orphanController.Run(Workers, stopCh)
+	go snapshotController.Run(Workers, stopCh)
+	go supportBundleController.Run(Workers, stopCh)
+	go systemBackupController.Run(Workers, stopCh)
+	go systemRestoreController.Run(Workers, stopCh)
+	go volumeAttachmentController.Run(Workers, stopCh)
+	go volumeRestoreController.Run(Workers, stopCh)
+	go volumeRebuildingController.Run(Workers, stopCh)
+	go volumeEvictionController.Run(Workers, stopCh)
+	go volumeCloneController.Run(Workers, stopCh)
+	go volumeExpansionController.Run(Workers, stopCh)
 
-	lhClient, err := lhclientset.NewForConfig(config)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to get clientset")
-	}
+	// Start goroutines for Kubernetes controllers
+	go kubernetesPVController.Run(Workers, stopCh)
+	go kubernetesNodeController.Run(Workers, stopCh)
+	go kubernetesPodController.Run(Workers, stopCh)
+	go kubernetesConfigMapController.Run(Workers, stopCh)
+	go kubernetesSecretController.Run(Workers, stopCh)
+	go kubernetesPDBController.Run(Workers, stopCh)
 
-	extensionsClient, err := apiextensionsclientset.NewForConfig(config)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to get k8s extension client")
-	}
-
-	scheme := runtime.NewScheme()
-	if err := longhorn.SchemeBuilder.AddToScheme(scheme); err != nil {
-		return nil, nil, errors.Wrap(err, "unable to create scheme")
-	}
-
-	// TODO: there shouldn't be a need for a 30s resync period unless our code is buggy and our controllers aren't really
-	//  level based. What we are effectively doing with this is hiding faulty logic in production.
-	//  Another reason for increasing this substantially, is that it introduces a lot of unnecessary work and will
-	//  lead to scalability problems, since we dump the whole cache of each object back in to the reconciler every 30 seconds.
-	//  if a specific controller requires a periodic resync, one enable it only for that informer, add a resync to the event handler, go routine, etc.
-	//  some refs to look at: https://github.com/kubernetes-sigs/controller-runtime/issues/521
-	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClient, time.Second*30)
-	lhInformerFactory := lhinformers.NewSharedInformerFactory(lhClient, time.Second*30)
-
-	ds := datastore.NewDataStore(lhInformerFactory, lhClient, kubeInformerFactory, kubeClient, extensionsClient, namespace)
-
-	rc := NewReplicaController(logger, ds, scheme, kubeClient, namespace, controllerID)
-	ec := NewEngineController(logger, ds, scheme, kubeClient, &engineapi.EngineCollection{}, namespace, controllerID, proxyConnCounter)
-	vc := NewVolumeController(logger, ds, scheme, kubeClient, namespace, controllerID, proxyConnCounter)
-	ic := NewEngineImageController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount)
-	nc := NewNodeController(logger, ds, scheme, kubeClient, namespace, controllerID)
-	ws := NewWebsocketController(logger, ds)
-	sc := NewSettingController(logger, ds, scheme, kubeClient, namespace, controllerID, version)
-	btc := NewBackupTargetController(logger, ds, scheme, kubeClient, controllerID, namespace, proxyConnCounter)
-	bvc := NewBackupVolumeController(logger, ds, scheme, kubeClient, controllerID, namespace, proxyConnCounter)
-	bc := NewBackupController(logger, ds, scheme, kubeClient, controllerID, namespace, proxyConnCounter)
-	imc := NewInstanceManagerController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount)
-	smc := NewShareManagerController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount)
-	bic := NewBackingImageController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount)
-	bimc := NewBackingImageManagerController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount)
-	bidsc := NewBackingImageDataSourceController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount, proxyConnCounter)
-	rjc := NewRecurringJobController(logger, ds, scheme, kubeClient, namespace, controllerID, serviceAccount, managerImage)
-	oc := NewOrphanController(logger, ds, scheme, kubeClient, controllerID, namespace)
-	snapc := NewSnapshotController(logger, ds, scheme, kubeClient, namespace, controllerID, &engineapi.EngineCollection{}, proxyConnCounter)
-	bundlec := NewSupportBundleController(logger, ds, scheme, kubeClient, controllerID, namespace, serviceAccount)
-	sbc := NewSystemBackupController(logger, ds, scheme, kubeClient, namespace, controllerID, managerImage)
-	src := NewSystemRestoreController(logger, ds, scheme, kubeClient, namespace, controllerID)
-	kpvc := NewKubernetesPVController(logger, ds, scheme, kubeClient, controllerID)
-	knc := NewKubernetesNodeController(logger, ds, scheme, kubeClient, controllerID)
-	kpc := NewKubernetesPodController(logger, ds, scheme, kubeClient, controllerID)
-	kcfmc := NewKubernetesConfigMapController(logger, ds, scheme, kubeClient, controllerID, namespace)
-	ksc := NewKubernetesSecretController(logger, ds, scheme, kubeClient, controllerID, namespace)
-	kpdbc := NewKubernetesPDBController(logger, ds, kubeClient, controllerID, namespace)
-
-	go kubeInformerFactory.Start(stopCh)
-	go lhInformerFactory.Start(stopCh)
-	if !ds.Sync(stopCh) {
-		return nil, nil, fmt.Errorf("datastore cache sync up failed")
-	}
-	go rc.Run(Workers, stopCh)
-	go ec.Run(Workers, stopCh)
-	go vc.Run(Workers, stopCh)
-	go ic.Run(Workers, stopCh)
-	go nc.Run(Workers, stopCh)
-	go ws.Run(stopCh)
-	go sc.Run(stopCh)
-	go imc.Run(Workers, stopCh)
-	go smc.Run(Workers, stopCh)
-	go bic.Run(Workers, stopCh)
-	go bimc.Run(Workers, stopCh)
-	go bidsc.Run(Workers, stopCh)
-	go btc.Run(Workers, stopCh)
-	go bvc.Run(Workers, stopCh)
-	go bc.Run(Workers, stopCh)
-	go rjc.Run(Workers, stopCh)
-	go oc.Run(Workers, stopCh)
-	go snapc.Run(Workers, stopCh)
-	go bundlec.Run(Workers, stopCh)
-	go sbc.Run(Workers, stopCh)
-	go src.Run(Workers, stopCh)
-
-	go kpvc.Run(Workers, stopCh)
-	go knc.Run(Workers, stopCh)
-	go kpc.Run(Workers, stopCh)
-	go kcfmc.Run(Workers, stopCh)
-	go ksc.Run(Workers, stopCh)
-	go kpdbc.Run(Workers, stopCh)
-
-	return ds, ws, nil
+	return websocketController, nil
 }
 
 func ParseResourceRequirement(val string) (*corev1.ResourceRequirements, error) {
@@ -177,39 +147,21 @@ func GetInstanceManagerCPURequirement(ds *datastore.DataStore, imName string) (*
 		return nil, err
 	}
 
-	allocatableMilliCPU := float64(kubeNode.Status.Allocatable.Cpu().MilliValue())
-	switch im.Spec.Type {
-	case longhorn.InstanceManagerTypeEngine:
-		emCPURequest := lhNode.Spec.EngineManagerCPURequest
-		if emCPURequest == 0 {
-			emCPUSetting, err := ds.GetSetting(types.SettingNameGuaranteedEngineManagerCPU)
-			if err != nil {
-				return nil, err
-			}
-			emCPUPercentage, err := strconv.ParseFloat(emCPUSetting.Value, 64)
-			if err != nil {
-				return nil, err
-			}
-			emCPURequest = int(math.Round(allocatableMilliCPU * emCPUPercentage / 100.0))
+	cpuRequest := lhNode.Spec.InstanceManagerCPURequest
+	guaranteedCPUSettingName := types.SettingNameGuaranteedInstanceManagerCPU
+	if cpuRequest == 0 {
+		guaranteedCPUSetting, err := ds.GetSetting(guaranteedCPUSettingName)
+		if err != nil {
+			return nil, err
 		}
-		return ParseResourceRequirement(fmt.Sprintf("%dm", emCPURequest))
-	case longhorn.InstanceManagerTypeReplica:
-		rmCPURequest := lhNode.Spec.ReplicaManagerCPURequest
-		if rmCPURequest == 0 {
-			rmCPUSetting, err := ds.GetSetting(types.SettingNameGuaranteedReplicaManagerCPU)
-			if err != nil {
-				return nil, err
-			}
-			rmCPUPercentage, err := strconv.ParseFloat(rmCPUSetting.Value, 64)
-			if err != nil {
-				return nil, err
-			}
-			rmCPURequest = int(math.Round(allocatableMilliCPU * rmCPUPercentage / 100.0))
+		guaranteedCPUPercentage, err := strconv.ParseFloat(guaranteedCPUSetting.Value, 64)
+		if err != nil {
+			return nil, err
 		}
-		return ParseResourceRequirement(fmt.Sprintf("%dm", rmCPURequest))
-	default:
-		return nil, fmt.Errorf("instance manager %v has unknown type %v", im.Name, im.Spec.Type)
+		allocatableMilliCPU := float64(kubeNode.Status.Allocatable.Cpu().MilliValue())
+		cpuRequest = int(math.Round(allocatableMilliCPU * guaranteedCPUPercentage / 100.0))
 	}
+	return ParseResourceRequirement(fmt.Sprintf("%dm", cpuRequest))
 }
 
 func isControllerResponsibleFor(controllerID string, ds *datastore.DataStore, name, preferredOwnerID, currentOwnerID string) bool {

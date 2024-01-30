@@ -10,15 +10,16 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
-	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientset "k8s.io/client-go/kubernetes"
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
@@ -249,7 +250,7 @@ func (c *UninstallController) handleErr(err error, key interface{}) {
 		return
 	}
 
-	c.logger.WithError(err).Warn("worker error")
+	c.logger.WithError(err).Warn("Failed to uninstall")
 	c.queue.AddRateLimited(key)
 }
 
@@ -296,17 +297,6 @@ func (c *UninstallController) uninstall() error {
 		return err
 	}
 
-	deployments := []string{
-		types.LonghornRecoveryBackendDeploymentName,
-		types.LonghornAdmissionWebhookDeploymentName,
-		types.LonghornConversionWebhookDeploymentName,
-	}
-	for _, deployment := range deployments {
-		if waitForUpdate, err := c.deleteDeployment(deployment); err != nil || waitForUpdate {
-			return err
-		}
-	}
-
 	if err := c.deleteWebhookConfiguration(); err != nil {
 		return err
 	}
@@ -327,7 +317,7 @@ func (c *UninstallController) uninstall() error {
 func (c *UninstallController) checkPreconditions() error {
 	confirmationFlag, err := c.ds.GetSettingAsBool(types.SettingNameDeletingConfirmationFlag)
 	if err != nil {
-		return errors.Wrapf(err, "failed to check deleting-confirmation-flag setting")
+		return errors.Wrap(err, "failed to check deleting-confirmation-flag setting")
 	}
 	if !confirmationFlag {
 		return fmt.Errorf("cannot uninstall Longhorn because deleting-confirmation-flag is set to `false`. " +
@@ -339,7 +329,7 @@ func (c *UninstallController) checkPreconditions() error {
 		return err
 	} else if !ready {
 		if c.force {
-			c.logger.Warn("Manager not ready, this may leave data behind")
+			c.logger.Warn("Manager is not ready, this may leave data behind")
 			gracePeriod = 0 * time.Second
 		} else {
 			return fmt.Errorf("manager not ready, set --force to continue")
@@ -354,12 +344,12 @@ func (c *UninstallController) checkPreconditions() error {
 			if vol.Status.State == longhorn.VolumeStateAttaching ||
 				vol.Status.State == longhorn.VolumeStateAttached {
 				log := getLoggerForVolume(c.logger, vol)
-				log.Warn("Volume in use")
+				log.Warn("Volume is in use")
 				volumesInUse = true
 			}
 		}
 		if volumesInUse && !c.force {
-			return fmt.Errorf("volume(s) in use, set --force to continue")
+			return fmt.Errorf("volume(s) are in use, set --force to continue")
 		}
 	}
 
@@ -556,7 +546,7 @@ func (c *UninstallController) deleteVolumes(vols map[string]*longhorn.Volume) (e
 			log.Info("Marked for deletion")
 		} else if vol.DeletionTimestamp.Before(&timeout) {
 			if err = c.ds.RemoveFinalizerForVolume(vol); err != nil {
-				err = errors.Wrapf(err, "failed to remove finalizer")
+				err = errors.Wrap(err, "failed to remove finalizer")
 				return
 			}
 			log.Info("Removed finalizer")
@@ -581,7 +571,7 @@ func (c *UninstallController) deleteSnapshots(snapshots map[string]*longhorn.Sna
 			log.Info("Marked for deletion")
 		} else if snap.DeletionTimestamp.Before(&timeout) {
 			if err = c.ds.RemoveFinalizerForSnapshot(snap); err != nil {
-				err = errors.Wrapf(err, "failed to remove finalizer")
+				err = errors.Wrap(err, "failed to remove finalizer")
 				return
 			}
 			log.Info("Removed finalizer")
@@ -1015,36 +1005,6 @@ func (c *UninstallController) deleteDriver() (bool, error) {
 			continue
 		} else if driver.DeletionTimestamp == nil {
 			if err := c.ds.DeleteDeployment(name); err != nil {
-				log.Warn("Failed to mark for deletion")
-				wait = true
-				continue
-			}
-			log.Info("Marked for deletion")
-			wait = true
-			continue
-		}
-		log.Info("Already marked for deletion")
-		wait = true
-	}
-
-	servicesToClean := []string{
-		types.CSIAttacherName,
-		types.CSIProvisionerName,
-		types.CSIResizerName,
-		types.CSISnapshotterName,
-	}
-	for _, name := range servicesToClean {
-		log := getLoggerForUninstallService(c.logger, name)
-
-		if service, err := c.ds.GetService(c.namespace, name); err != nil {
-			if apierrors.IsNotFound(err) {
-				continue
-			}
-			log.WithError(err).Warn("Failed to get for deletion")
-			wait = true
-			continue
-		} else if service.DeletionTimestamp == nil {
-			if err := c.ds.DeleteService(c.namespace, name); err != nil {
 				log.Warn("Failed to mark for deletion")
 				wait = true
 				continue

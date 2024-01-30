@@ -8,9 +8,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/longhorn/longhorn-manager/datastore"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -71,8 +72,8 @@ func (rcs *ReplicaScheduler) ScheduleReplica(replica *longhorn.Replica, replicas
 	nodeDisksMap := map[string]map[string]struct{}{}
 	for _, node := range nodeCandidates {
 		disks := map[string]struct{}{}
-		for fsid, diskStatus := range node.Status.DiskStatus {
-			diskSpec, exists := node.Spec.Disks[fsid]
+		for diskName, diskStatus := range node.Status.DiskStatus {
+			diskSpec, exists := node.Spec.Disks[diskName]
 			if !exists {
 				continue
 			}
@@ -145,16 +146,23 @@ func getNodesWithEvictingReplicas(replicas map[string]*longhorn.Replica, nodeInf
 func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Node, nodeDisksMap map[string]map[string]struct{}, replicas map[string]*longhorn.Replica, volume *longhorn.Volume, requireSchedulingCheck bool) (map[string]*Disk, util.MultiError) {
 	multiError := util.NewMultiError()
 
-	nodeSoftAntiAffinity, err :=
-		rcs.ds.GetSettingAsBool(types.SettingNameReplicaSoftAntiAffinity)
+	nodeSoftAntiAffinity, err := rcs.ds.GetSettingAsBool(types.SettingNameReplicaSoftAntiAffinity)
 	if err != nil {
 		logrus.Errorf("error getting replica soft anti-affinity setting: %v", err)
 	}
 
-	zoneSoftAntiAffinity, err :=
-		rcs.ds.GetSettingAsBool(types.SettingNameReplicaZoneSoftAntiAffinity)
+	if volume.Spec.ReplicaSoftAntiAffinity != longhorn.ReplicaSoftAntiAffinityDefault &&
+		volume.Spec.ReplicaSoftAntiAffinity != "" {
+		nodeSoftAntiAffinity = volume.Spec.ReplicaSoftAntiAffinity == longhorn.ReplicaSoftAntiAffinityEnabled
+	}
+
+	zoneSoftAntiAffinity, err := rcs.ds.GetSettingAsBool(types.SettingNameReplicaZoneSoftAntiAffinity)
 	if err != nil {
 		logrus.Errorf("Error getting replica zone soft anti-affinity setting: %v", err)
+	}
+	if volume.Spec.ReplicaZoneSoftAntiAffinity != longhorn.ReplicaZoneSoftAntiAffinityDefault &&
+		volume.Spec.ReplicaZoneSoftAntiAffinity != "" {
+		zoneSoftAntiAffinity = volume.Spec.ReplicaZoneSoftAntiAffinity == longhorn.ReplicaZoneSoftAntiAffinityEnabled
 	}
 
 	getDiskCandidatesFromNodes := func(nodes map[string]*longhorn.Node) (diskCandidates map[string]*Disk, multiError util.MultiError) {
@@ -291,17 +299,17 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 
 	// find disk that fit for current replica
 	for diskUUID := range disks {
-		var fsid string
+		var diskName string
 		var diskSpec longhorn.DiskSpec
 		var diskStatus *longhorn.DiskStatus
 		diskFound := false
-		for fsid, diskStatus = range node.Status.DiskStatus {
+		for diskName, diskStatus = range node.Status.DiskStatus {
 			if diskStatus.DiskUUID != diskUUID {
 				continue
 			}
 			if !requireSchedulingCheck || types.GetCondition(diskStatus.Conditions, longhorn.DiskConditionTypeSchedulable).Status == longhorn.ConditionStatusTrue {
 				diskFound = true
-				diskSpec = node.Spec.Disks[fsid]
+				diskSpec = node.Spec.Disks[diskName]
 				break
 			}
 		}
@@ -310,6 +318,13 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 			multiError.Append(util.NewMultiError(longhorn.ErrorReplicaScheduleDiskNotFound))
 			continue
 		}
+
+		if !(volume.Spec.BackendStoreDriver == longhorn.BackendStoreDriverTypeV1 && diskSpec.Type == longhorn.DiskTypeFilesystem) &&
+			!(volume.Spec.BackendStoreDriver == longhorn.BackendStoreDriverTypeV2 && diskSpec.Type == longhorn.DiskTypeBlock) {
+			logrus.Debugf("Volume %v is not compatible with disk %v", volume.Name, diskName)
+			continue
+		}
+
 		if requireSchedulingCheck {
 			info, err := rcs.GetDiskSchedulingInfo(diskSpec, diskStatus)
 			if err != nil {
@@ -387,7 +402,7 @@ func (rcs *ReplicaScheduler) scheduleReplicaToDisk(replica *longhorn.Replica, di
 		"disk":              replica.Spec.DiskID,
 		"diskPath":          replica.Spec.DiskPath,
 		"dataDirectoryName": replica.Spec.DataDirectoryName,
-	}).Debugf("Schedule replica to node %v", replica.Spec.NodeID)
+	}).Infof("Schedule replica to node %v", replica.Spec.NodeID)
 }
 
 func (rcs *ReplicaScheduler) getDiskWithMostUsableStorage(disks map[string]*Disk) *Disk {
@@ -520,7 +535,7 @@ func (rcs *ReplicaScheduler) RequireNewReplica(replicas map[string]*longhorn.Rep
 		return 0
 	}
 
-	logrus.Debugf("Replica replenishment is delayed until %v", lastDegradedAt.Add(waitInterval))
+	logrus.Infof("Replica replenishment is delayed until %v", lastDegradedAt.Add(waitInterval))
 	// Adding 1 more second to the check back interval to avoid clock skew
 	return lastDegradedAt.Add(waitInterval).Sub(now) + time.Second
 }
@@ -618,6 +633,10 @@ func IsPotentiallyReusableReplica(r *longhorn.Replica, hardNodeAffinity string) 
 		return false
 	}
 	if hardNodeAffinity != "" && r.Spec.NodeID != hardNodeAffinity {
+		return false
+	}
+	// TODO: Reuse failed replicas for a SPDK volume
+	if r.Spec.BackendStoreDriver == longhorn.BackendStoreDriverTypeV2 {
 		return false
 	}
 	return true

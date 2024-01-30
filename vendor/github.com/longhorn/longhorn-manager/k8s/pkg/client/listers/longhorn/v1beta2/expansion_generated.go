@@ -177,3 +177,11 @@ type VolumeListerExpansion interface{}
 // VolumeNamespaceListerExpansion allows custom methods to be added to
 // VolumeNamespaceLister.
 type VolumeNamespaceListerExpansion interface{}
+
+// VolumeAttachmentListerExpansion allows custom methods to be added to
+// VolumeAttachmentLister.
+type VolumeAttachmentListerExpansion interface{}
+
+// VolumeAttachmentNamespaceListerExpansion allows custom methods to be added to
+// VolumeAttachmentNamespaceLister.
+type VolumeAttachmentNamespaceListerExpansion interface{}
