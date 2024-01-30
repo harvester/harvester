@@ -10,40 +10,33 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/mod/semver"
 
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	clientset "k8s.io/client-go/kubernetes"
-	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
-	"github.com/longhorn/longhorn-manager/types"
-	upgradeutil "github.com/longhorn/longhorn-manager/upgrade/util"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientset "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 
 	"github.com/longhorn/longhorn-manager/meta"
-	"github.com/longhorn/longhorn-manager/upgrade/v070to080"
-	"github.com/longhorn/longhorn-manager/upgrade/v100to101"
-	"github.com/longhorn/longhorn-manager/upgrade/v102to110"
-	"github.com/longhorn/longhorn-manager/upgrade/v110to111"
-	"github.com/longhorn/longhorn-manager/upgrade/v110to120"
-	"github.com/longhorn/longhorn-manager/upgrade/v111to120"
-	"github.com/longhorn/longhorn-manager/upgrade/v120to121"
-	"github.com/longhorn/longhorn-manager/upgrade/v122to123"
-	"github.com/longhorn/longhorn-manager/upgrade/v12xto130"
-	"github.com/longhorn/longhorn-manager/upgrade/v13xto140"
+	"github.com/longhorn/longhorn-manager/types"
+	"github.com/longhorn/longhorn-manager/upgrade/v14xto150"
+	"github.com/longhorn/longhorn-manager/upgrade/v151to152"
 	"github.com/longhorn/longhorn-manager/upgrade/v1beta1"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
+	upgradeutil "github.com/longhorn/longhorn-manager/upgrade/util"
 )
 
 const (
 	LeaseLockName = "longhorn-manager-upgrade-lock"
 )
 
-func Upgrade(kubeconfigPath, currentNodeID string) error {
+func Upgrade(kubeconfigPath, currentNodeID, managerImage string) error {
 	namespace := os.Getenv(types.EnvPodNamespace)
 	if namespace == "" {
 		logrus.Warnf("Cannot detect pod namespace, environment variable %v is missing, "+
@@ -75,7 +68,11 @@ func Upgrade(kubeconfigPath, currentNodeID string) error {
 		return errors.Wrap(err, "unable to create scheme")
 	}
 
-	if err := upgradeLocalNode(); err != nil {
+	if err := upgradeutil.CheckUpgradePathSupported(namespace, lhClient); err != nil {
+		return err
+	}
+
+	if err := waitForOldLonghornManagersToBeFullyRemoved(namespace, managerImage, kubeClient); err != nil {
 		return err
 	}
 
@@ -218,16 +215,6 @@ func doAPIVersionUpgrade(namespace string, config *restclient.Config, lhClient *
 	return nil
 }
 
-func upgradeLocalNode() (err error) {
-	defer func() {
-		err = errors.Wrap(err, "upgrade local node failed")
-	}()
-	if err := v070to080.UpgradeLocalNode(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func doResourceUpgrade(namespace string, lhClient *lhclientset.Clientset, kubeClient *clientset.Clientset) (err error) {
 	defer func() {
 		err = errors.Wrap(err, "upgrade resources failed")
@@ -238,66 +225,74 @@ func doResourceUpgrade(namespace string, lhClient *lhclientset.Clientset, kubeCl
 		return err
 	}
 
-	if semver.Compare(lhVersionBeforeUpgrade, "v0.8.0") < 0 {
-		logrus.Debugf("Walking through the upgrade path v0.7.0 to v0.8.0")
-		if err := v070to080.UpgradeResources(namespace, lhClient); err != nil {
+	// When lhVersionBeforeUpgrade < v1.5.0, it is v1.4.x. The `CheckUpgradePathSupported` method would have failed us out earlier if it was not v1.4.x.
+	resourceMaps := map[string]interface{}{}
+	if semver.Compare(lhVersionBeforeUpgrade, "v1.5.0") < 0 {
+		logrus.Info("Walking through the resource upgrade path v1.4.x to v1.5.0")
+		if err := v14xto150.UpgradeResources(namespace, lhClient, kubeClient, resourceMaps); err != nil {
 			return err
 		}
 	}
-	if semver.Compare(lhVersionBeforeUpgrade, "v1.0.1") < 0 {
-		logrus.Debugf("Walking through the upgrade path v1.0.0 to v1.0.1")
-		if err := v100to101.UpgradeResources(namespace, lhClient, kubeClient); err != nil {
+	if semver.Compare(lhVersionBeforeUpgrade, "v1.5.2") < 0 {
+		logrus.Info("Walking through the resource upgrade path v1.5.1 to v1.5.2")
+		if err := v151to152.UpgradeResources(namespace, lhClient, kubeClient, resourceMaps); err != nil {
 			return err
 		}
 	}
-	if semver.Compare(lhVersionBeforeUpgrade, "v1.1.0") < 0 {
-		logrus.Debugf("Walking through the upgrade path v1.0.2 to v1.1.0")
-		if err := v102to110.UpgradeResources(namespace, lhClient, kubeClient); err != nil {
+	if err := upgradeutil.UpdateResources(namespace, lhClient, resourceMaps); err != nil {
+		return err
+	}
+
+	// When lhVersionBeforeUpgrade < v1.5.0, it is v1.4.x. The `CheckUpgradePathSupported` method would have failed us out earlier if it was not v1.4.x.
+	resourceMaps = map[string]interface{}{}
+	if semver.Compare(lhVersionBeforeUpgrade, "v1.5.0") < 0 {
+		logrus.Info("Walking through the resource status upgrade path v1.4.x to v1.5.0")
+		if err := v14xto150.UpgradeResourcesStatus(namespace, lhClient, kubeClient, resourceMaps); err != nil {
 			return err
 		}
 	}
-	if semver.Compare(lhVersionBeforeUpgrade, "v1.1.1") < 0 {
-		logrus.Debugf("Walking through the upgrade path v1.1.0 to v1.1.1")
-		if err := v110to111.UpgradeResources(namespace, lhClient, kubeClient); err != nil {
-			return err
-		}
+	if err := upgradeutil.UpdateResourcesStatus(namespace, lhClient, resourceMaps); err != nil {
+		return err
 	}
-	if semver.Compare(lhVersionBeforeUpgrade, "v1.2.0") < 0 {
-		logrus.Debugf("Walking through the upgrade path v1.1.0 to v1.2.0")
-		if err := v110to120.UpgradeResources(namespace, lhClient, kubeClient); err != nil {
-			return err
-		}
-	}
-	if semver.Compare(lhVersionBeforeUpgrade, "v1.2.0") < 0 {
-		logrus.Debugf("Walking through the upgrade path v1.1.1 to v1.2.0")
-		if err := v111to120.UpgradeResources(namespace, lhClient); err != nil {
-			return err
-		}
-	}
-	if semver.Compare(lhVersionBeforeUpgrade, "v1.2.1") < 0 {
-		logrus.Debugf("Walking through the upgrade path v1.2.0 to v1.2.1")
-		if err := v120to121.UpgradeResources(namespace, lhClient); err != nil {
-			return err
-		}
-	}
-	if semver.Compare(lhVersionBeforeUpgrade, "v1.2.3") < 0 {
-		logrus.Debugf("Walking through the upgrade path v1.2.2 to v1.2.3")
-		if err := v122to123.UpgradeResources(namespace, lhClient); err != nil {
-			return err
-		}
-	}
-	if semver.Compare(lhVersionBeforeUpgrade, "v1.3.0") < 0 {
-		logrus.Debugf("Walking through the upgrade path v1.2.x to v1.3.0")
-		if err := v12xto130.UpgradeResources(namespace, lhClient, kubeClient); err != nil {
-			return err
-		}
-	}
-	if semver.Compare(lhVersionBeforeUpgrade, "v1.4.0") < 0 {
-		logrus.Debugf("Walking through the upgrade path v1.3.x to v1.4.0")
-		if err := v13xto140.UpgradeResources(namespace, lhClient, kubeClient); err != nil {
-			return err
-		}
+
+	if err := upgradeutil.DeleteRemovedSettings(namespace, lhClient); err != nil {
+		return err
 	}
 
 	return upgradeutil.CreateOrUpdateLonghornVersionSetting(namespace, lhClient)
+}
+
+func waitForOldLonghornManagersToBeFullyRemoved(namespace, managerImage string, kubeClient *clientset.Clientset) error {
+	logrus.Info("Waiting for old Longhorn manager pods to be fully removed")
+	for i := 0; i < 600; i++ {
+		managerPods, err := upgradeutil.ListManagerPods(namespace, kubeClient)
+		if err != nil {
+			return err
+		}
+		foundOldManager := false
+		for _, pod := range managerPods {
+			if isOldPod, oldImage := isOldManagerPod(pod, managerImage); isOldPod {
+				logrus.Infof("Found old longhorn manager: %v with image %v", pod.Name, oldImage)
+				foundOldManager = true
+				break
+			}
+		}
+		if !foundOldManager {
+			return nil
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	return fmt.Errorf("timed out while waiting for old Longhorn manager pods to be fully removed")
+}
+
+func isOldManagerPod(pod corev1.Pod, managerImage string) (bool, string) {
+	for _, container := range pod.Spec.Containers {
+		if container.Name == "longhorn-manager" {
+			if container.Image != managerImage {
+				return true, container.Image
+			}
+		}
+	}
+	return false, ""
 }

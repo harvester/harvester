@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/longhorn/longhorn-instance-manager/pkg/api"
@@ -72,7 +73,15 @@ func NewProcessManagerClientWithTLS(serviceURL, caFile, certFile, keyFile, peerN
 	return NewProcessManagerClient(serviceURL, tlsConfig)
 }
 
-func (c *ProcessManagerClient) ProcessCreate(name, binary string, portCount int, args, portArgs []string) (*api.Process, error) {
+func (c *ProcessManagerClient) ProcessCreate(name, binary string, portCount int, args, portArgs []string) (*rpc.ProcessResponse, error) {
+	logrus.WithFields(logrus.Fields{
+		"name":      name,
+		"binary":    binary,
+		"args":      args,
+		"portCount": portCount,
+		"portArgs":  portArgs,
+	}).Info("Creating process")
+
 	if name == "" || binary == "" {
 		return nil, fmt.Errorf("failed to start process: missing required parameter")
 	}
@@ -81,7 +90,7 @@ func (c *ProcessManagerClient) ProcessCreate(name, binary string, portCount int,
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
 	defer cancel()
 
-	p, err := client.ProcessCreate(ctx, &rpc.ProcessCreateRequest{
+	return client.ProcessCreate(ctx, &rpc.ProcessCreateRequest{
 		Spec: &rpc.ProcessSpec{
 			Name:      name,
 			Binary:    binary,
@@ -90,14 +99,9 @@ func (c *ProcessManagerClient) ProcessCreate(name, binary string, portCount int,
 			PortArgs:  portArgs,
 		},
 	})
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to start process")
-	}
-
-	return api.RPCToProcess(p), nil
 }
 
-func (c *ProcessManagerClient) ProcessDelete(name string) (*api.Process, error) {
+func (c *ProcessManagerClient) ProcessDelete(name string) (*rpc.ProcessResponse, error) {
 	if name == "" {
 		return nil, fmt.Errorf("failed to delete process: missing required parameter name")
 	}
@@ -106,16 +110,12 @@ func (c *ProcessManagerClient) ProcessDelete(name string) (*api.Process, error) 
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
 	defer cancel()
 
-	p, err := client.ProcessDelete(ctx, &rpc.ProcessDeleteRequest{
+	return client.ProcessDelete(ctx, &rpc.ProcessDeleteRequest{
 		Name: name,
 	})
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to delete process %v", name)
-	}
-	return api.RPCToProcess(p), nil
 }
 
-func (c *ProcessManagerClient) ProcessGet(name string) (*api.Process, error) {
+func (c *ProcessManagerClient) ProcessGet(name string) (*rpc.ProcessResponse, error) {
 	if name == "" {
 		return nil, fmt.Errorf("failed to get process: missing required parameter name")
 	}
@@ -124,25 +124,21 @@ func (c *ProcessManagerClient) ProcessGet(name string) (*api.Process, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
 	defer cancel()
 
-	p, err := client.ProcessGet(ctx, &rpc.ProcessGetRequest{
+	return client.ProcessGet(ctx, &rpc.ProcessGetRequest{
 		Name: name,
 	})
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get process %v", name)
-	}
-	return api.RPCToProcess(p), nil
 }
 
-func (c *ProcessManagerClient) ProcessList() (map[string]*api.Process, error) {
+func (c *ProcessManagerClient) ProcessList() (map[string]*rpc.ProcessResponse, error) {
 	client := c.getControllerServiceClient()
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
 	defer cancel()
 
-	ps, err := client.ProcessList(ctx, &rpc.ProcessListRequest{})
+	resp, err := client.ProcessList(ctx, &rpc.ProcessListRequest{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list processes")
 	}
-	return api.RPCToProcessList(ps), nil
+	return resp.Processes, nil
 }
 
 func (c *ProcessManagerClient) ProcessLog(ctx context.Context, name string) (*api.LogStream, error) {
@@ -170,7 +166,7 @@ func (c *ProcessManagerClient) ProcessWatch(ctx context.Context) (*api.ProcessSt
 	return api.NewProcessStream(stream), nil
 }
 
-func (c *ProcessManagerClient) ProcessReplace(name, binary string, portCount int, args, portArgs []string, terminateSignal string) (*api.Process, error) {
+func (c *ProcessManagerClient) ProcessReplace(name, binary string, portCount int, args, portArgs []string, terminateSignal string) (*rpc.ProcessResponse, error) {
 	if name == "" || binary == "" {
 		return nil, fmt.Errorf("failed to start process: missing required parameter")
 	}
@@ -182,7 +178,7 @@ func (c *ProcessManagerClient) ProcessReplace(name, binary string, portCount int
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
 	defer cancel()
 
-	p, err := client.ProcessReplace(ctx, &rpc.ProcessReplaceRequest{
+	return client.ProcessReplace(ctx, &rpc.ProcessReplaceRequest{
 		Spec: &rpc.ProcessSpec{
 			Name:      name,
 			Binary:    binary,
@@ -192,10 +188,6 @@ func (c *ProcessManagerClient) ProcessReplace(name, binary string, portCount int
 		},
 		TerminateSignal: terminateSignal,
 	})
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to start process")
-	}
-	return api.RPCToProcess(p), nil
 }
 
 func (c *ProcessManagerClient) VersionGet() (*meta.VersionOutput, error) {

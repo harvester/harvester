@@ -7,26 +7,26 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	policyv1 "k8s.io/api/policy/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
 
+	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientset "k8s.io/client-go/kubernetes"
+
 	"github.com/longhorn/longhorn-manager/datastore"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 var targetingDeployment map[string]bool = map[string]bool{
-	types.CSIAttacherName:                         true,
-	types.CSIProvisionerName:                      true,
-	types.LonghornAdmissionWebhookDeploymentName:  true,
-	types.LonghornConversionWebhookDeploymentName: true,
+	types.CSIAttacherName:    true,
+	types.CSIProvisionerName: true,
 }
 
 type KubernetesPDBController struct {
@@ -82,8 +82,8 @@ func (pc *KubernetesPDBController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer pc.queue.ShutDown()
 
-	pc.logger.Infof("Starting Kubernetes PDB controller")
-	defer pc.logger.Infof("Shut down Kubernetes PDB controller")
+	pc.logger.Info("Starting Kubernetes PDB controller")
+	defer pc.logger.Info("Shut down Kubernetes PDB controller")
 
 	if !cache.WaitForNamedCacheSync(pc.name, stopCh, pc.cacheSyncs...) {
 		return
@@ -116,13 +116,14 @@ func (pc *KubernetesPDBController) handleErr(err error, key interface{}) {
 		return
 	}
 
-	pc.logger.WithError(err).Warnf("Error syncing PDB for %v", key)
+	log := pc.logger.WithField("PDB", key)
+	handleReconcileErrorLogging(log, err, "Failed to sync PDB")
 	pc.queue.AddRateLimited(key)
 }
 
 func (pc *KubernetesPDBController) syncHandler(key string) (err error) {
 	defer func() {
-		err = errors.Wrapf(err, "%v: failed to sync PDB for %v", pc.name, key)
+		err = errors.Wrapf(err, "failed to sync PDB %v", key)
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -172,19 +173,19 @@ func (pc *KubernetesPDBController) reconcile(name string) (err error) {
 	if pdb != nil {
 		return nil
 	}
+
+	pc.logger.Infof("Creating PDB %v", pdbName)
 	pdb = generatePDBManifest(pdbName, pc.namespace, deployment.Spec.Selector)
 	if _, err := pc.ds.CreatePDB(pdb); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
-	pc.logger.Infof("Created %v PDB", pdbName)
-
 	return nil
 }
 
 func (pc *KubernetesPDBController) enqueueDeployment(obj interface{}) {
 	key, err := controller.KeyFunc(obj)
 	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", obj, err))
+		utilruntime.HandleError(fmt.Errorf("failed to get key for object %#v: %v", obj, err))
 		return
 	}
 	pc.queue.Add(key)
@@ -213,10 +214,10 @@ func deletePDBObject(log logrus.FieldLogger, ds *datastore.DataStore, pdb *polic
 	if pdb == nil {
 		return nil
 	}
+	log.Infof("Deleting %v PDB", pdb.Name)
 	err := ds.DeletePDB(pdb.Name)
 	if err != nil && !datastore.ErrorIsNotFound(err) {
 		return err
 	}
-	log.Infof("Deleted %v PDB", pdb.Name)
 	return nil
 }

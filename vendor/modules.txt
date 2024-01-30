@@ -5,7 +5,7 @@ emperror.dev/errors
 ## explicit; go 1.16
 github.com/Azure/go-ansiterm
 github.com/Azure/go-ansiterm/winterm
-# github.com/BurntSushi/toml v1.0.0
+# github.com/BurntSushi/toml v1.2.1
 ## explicit; go 1.16
 github.com/BurntSushi/toml
 github.com/BurntSushi/toml/internal
@@ -24,9 +24,10 @@ github.com/Masterminds/sprig/v3
 # github.com/Masterminds/squirrel v1.5.3
 ## explicit; go 1.14
 github.com/Masterminds/squirrel
-# github.com/RoaringBitmap/roaring v0.4.18
-## explicit; go 1.12
+# github.com/RoaringBitmap/roaring v1.2.3
+## explicit; go 1.14
 github.com/RoaringBitmap/roaring
+github.com/RoaringBitmap/roaring/internal
 # github.com/adrg/xdg v0.3.1
 ## explicit; go 1.14
 github.com/adrg/xdg
@@ -93,6 +94,9 @@ github.com/aws/aws-sdk-go/service/sts/stsiface
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
+# github.com/bits-and-blooms/bitset v1.7.0
+## explicit; go 1.14
+github.com/bits-and-blooms/bitset
 # github.com/blang/semver v3.5.1+incompatible
 ## explicit
 github.com/blang/semver
@@ -121,6 +125,9 @@ github.com/cisco-open/operator-tools/pkg/typeoverride
 github.com/cisco-open/operator-tools/pkg/types
 github.com/cisco-open/operator-tools/pkg/utils
 github.com/cisco-open/operator-tools/pkg/volume
+# github.com/container-storage-interface/spec v1.7.0
+## explicit; go 1.18
+github.com/container-storage-interface/spec/lib/go/csi
 # github.com/containerd/containerd v1.6.6 => github.com/containerd/containerd v1.6.18
 ## explicit; go 1.17
 github.com/containerd/containerd/archive/compression
@@ -235,20 +242,17 @@ github.com/felixge/httpsnoop
 # github.com/fsnotify/fsnotify v1.6.0
 ## explicit; go 1.16
 github.com/fsnotify/fsnotify
-# github.com/gammazero/deque v0.1.0
-## explicit; go 1.15
+# github.com/gammazero/deque v0.2.1
+## explicit; go 1.18
 github.com/gammazero/deque
-# github.com/gammazero/workerpool v1.1.2
-## explicit; go 1.15
+# github.com/gammazero/workerpool v1.1.3
+## explicit; go 1.18
 github.com/gammazero/workerpool
 # github.com/ghodss/yaml v1.0.0
 ## explicit
 github.com/ghodss/yaml
 # github.com/gin-gonic/gin v1.7.0 => github.com/gin-gonic/gin v1.7.7
 ## explicit; go 1.13
-# github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2
-## explicit
-github.com/glycerine/go-unsnap-stream
 # github.com/go-co-op/gocron v1.18.0
 ## explicit; go 1.19
 github.com/go-co-op/gocron
@@ -314,21 +318,26 @@ github.com/golang/groupcache/lru
 github.com/golang/mock/gomock
 # github.com/golang/protobuf v1.5.3
 ## explicit; go 1.9
+github.com/golang/protobuf/descriptor
 github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
+github.com/golang/protobuf/protoc-gen-go/descriptor
 github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/empty
 github.com/golang/protobuf/ptypes/timestamp
-# github.com/golang/snappy v0.0.3
-## explicit
-github.com/golang/snappy
+github.com/golang/protobuf/ptypes/wrappers
 # github.com/gomodule/redigo v2.0.0+incompatible
 ## explicit
 # github.com/google/btree v1.0.1
 ## explicit; go 1.12
 github.com/google/btree
+# github.com/google/fscrypt v0.3.4
+## explicit; go 1.16
+github.com/google/fscrypt/filesystem
+github.com/google/fscrypt/metadata
+github.com/google/fscrypt/util
 # github.com/google/gnostic v0.6.9
 ## explicit; go 1.12
 github.com/google/gnostic/compiler
@@ -482,6 +491,9 @@ github.com/kube-logging/logging-operator/pkg/sdk/logging/model/output
 github.com/kube-logging/logging-operator/pkg/sdk/logging/model/syslogng/filter
 github.com/kube-logging/logging-operator/pkg/sdk/logging/model/syslogng/output
 github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types
+# github.com/kubernetes-csi/csi-lib-utils v0.6.1
+## explicit
+github.com/kubernetes-csi/csi-lib-utils/protosanitizer
 # github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 ## explicit; go 1.15
 github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1
@@ -502,15 +514,15 @@ github.com/lib/pq/scram
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 ## explicit
 github.com/liggitt/tabwriter
-# github.com/longhorn/backing-image-manager v0.0.0-20220609065820-a08f7f47442f
-## explicit; go 1.13
+# github.com/longhorn/backing-image-manager v1.4.0-rc1.0.20230521151917-38ff27cc2cbb
+## explicit; go 1.20
 github.com/longhorn/backing-image-manager/api
 github.com/longhorn/backing-image-manager/pkg/client
 github.com/longhorn/backing-image-manager/pkg/meta
 github.com/longhorn/backing-image-manager/pkg/rpc
 github.com/longhorn/backing-image-manager/pkg/types
 github.com/longhorn/backing-image-manager/pkg/util
-# github.com/longhorn/backupstore v0.0.0-20230627040634-5b4f2d040e9d
+# github.com/longhorn/backupstore v0.0.0-20231025000449-5316e8b5320d
 ## explicit; go 1.17
 github.com/longhorn/backupstore
 github.com/longhorn/backupstore/fsops
@@ -519,31 +531,38 @@ github.com/longhorn/backupstore/logging
 github.com/longhorn/backupstore/nfs
 github.com/longhorn/backupstore/s3
 github.com/longhorn/backupstore/systembackup
+github.com/longhorn/backupstore/types
 github.com/longhorn/backupstore/util
-# github.com/longhorn/go-iscsi-helper v0.0.0-20230425064248-72f136f48524
-## explicit; go 1.13
+# github.com/longhorn/go-iscsi-helper v0.0.0-20231113050545-9df1e6b605c7
+## explicit; go 1.21
 github.com/longhorn/go-iscsi-helper/types
 github.com/longhorn/go-iscsi-helper/util
-# github.com/longhorn/longhorn-engine v1.4.2-0.20230505032747-3343bb5fba06
+# github.com/longhorn/go-spdk-helper v0.0.0-20231002161457-6c31a95f76e8
 ## explicit; go 1.17
+github.com/longhorn/go-spdk-helper/pkg/types
+# github.com/longhorn/longhorn-engine v1.5.2-0.20230906182804-9475221d9535
+## explicit; go 1.20
 github.com/longhorn/longhorn-engine/pkg/meta
 github.com/longhorn/longhorn-engine/pkg/replica/client
 github.com/longhorn/longhorn-engine/pkg/types
 github.com/longhorn/longhorn-engine/pkg/util
 github.com/longhorn/longhorn-engine/proto/ptypes
-# github.com/longhorn/longhorn-instance-manager v1.4.2-0.20230505034424-c9378d6b7c65
-## explicit; go 1.17
+# github.com/longhorn/longhorn-instance-manager v1.5.2-0.20231006022904-b2c88ac8080d
+## explicit; go 1.20
 github.com/longhorn/longhorn-instance-manager/pkg/api
 github.com/longhorn/longhorn-instance-manager/pkg/client
 github.com/longhorn/longhorn-instance-manager/pkg/imrpc
 github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.4.3
-## explicit; go 1.17
+# github.com/longhorn/longhorn-manager v1.5.3
+## explicit; go 1.21
+github.com/longhorn/longhorn-manager/client
 github.com/longhorn/longhorn-manager/constant
 github.com/longhorn/longhorn-manager/controller
 github.com/longhorn/longhorn-manager/controller/monitor
+github.com/longhorn/longhorn-manager/csi
+github.com/longhorn/longhorn-manager/csi/crypto
 github.com/longhorn/longhorn-manager/datastore
 github.com/longhorn/longhorn-manager/engineapi
 github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn
@@ -566,18 +585,25 @@ github.com/longhorn/longhorn-manager/scheduler
 github.com/longhorn/longhorn-manager/types
 github.com/longhorn/longhorn-manager/upgrade
 github.com/longhorn/longhorn-manager/upgrade/util
-github.com/longhorn/longhorn-manager/upgrade/v070to080
-github.com/longhorn/longhorn-manager/upgrade/v100to101
-github.com/longhorn/longhorn-manager/upgrade/v102to110
-github.com/longhorn/longhorn-manager/upgrade/v110to111
-github.com/longhorn/longhorn-manager/upgrade/v110to120
-github.com/longhorn/longhorn-manager/upgrade/v111to120
-github.com/longhorn/longhorn-manager/upgrade/v120to121
-github.com/longhorn/longhorn-manager/upgrade/v122to123
-github.com/longhorn/longhorn-manager/upgrade/v12xto130
-github.com/longhorn/longhorn-manager/upgrade/v13xto140
+github.com/longhorn/longhorn-manager/upgrade/v14xto150
+github.com/longhorn/longhorn-manager/upgrade/v151to152
 github.com/longhorn/longhorn-manager/upgrade/v1beta1
 github.com/longhorn/longhorn-manager/util
+github.com/longhorn/longhorn-manager/util/client
+# github.com/longhorn/longhorn-share-manager v1.5.3-rc1.0.20231115141215-5109d5939e17
+## explicit; go 1.20
+github.com/longhorn/longhorn-share-manager/pkg/client
+github.com/longhorn/longhorn-share-manager/pkg/crypto
+github.com/longhorn/longhorn-share-manager/pkg/rpc
+github.com/longhorn/longhorn-share-manager/pkg/server
+github.com/longhorn/longhorn-share-manager/pkg/server/nfs
+github.com/longhorn/longhorn-share-manager/pkg/types
+github.com/longhorn/longhorn-share-manager/pkg/util
+github.com/longhorn/longhorn-share-manager/pkg/volume
+# github.com/longhorn/longhorn-spdk-engine v0.0.0-20231005170812-e9b634e07e47
+## explicit; go 1.17
+github.com/longhorn/longhorn-spdk-engine/pkg/types
+github.com/longhorn/longhorn-spdk-engine/proto/spdkrpc
 # github.com/mailru/easyjson v0.7.7
 ## explicit; go 1.12
 github.com/mailru/easyjson/buffer
@@ -604,6 +630,9 @@ github.com/mitchellh/copystructure
 # github.com/mitchellh/go-homedir v1.1.0
 ## explicit
 github.com/mitchellh/go-homedir
+# github.com/mitchellh/go-ps v1.0.0
+## explicit; go 1.13
+github.com/mitchellh/go-ps
 # github.com/mitchellh/go-wordwrap v1.0.0
 ## explicit
 github.com/mitchellh/go-wordwrap
@@ -639,8 +668,8 @@ github.com/monochromegane/go-gitignore
 # github.com/morikuni/aec v1.0.0
 ## explicit
 github.com/morikuni/aec
-# github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae
-## explicit
+# github.com/mschoch/smat v0.2.0
+## explicit; go 1.13
 github.com/mschoch/smat
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
@@ -689,6 +718,11 @@ github.com/opencontainers/go-digest
 ## explicit; go 1.17
 github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/image-spec/specs-go/v1
+# github.com/opencontainers/selinux v1.10.2
+## explicit; go 1.13
+github.com/opencontainers/selinux/go-selinux
+github.com/opencontainers/selinux/pkg/pwalk
+github.com/opencontainers/selinux/pkg/pwalkdir
 # github.com/openshift/api v0.0.0 => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 ## explicit
 github.com/openshift/api/config/v1
@@ -713,9 +747,6 @@ github.com/pelletier/go-toml
 # github.com/peterbourgon/diskv v2.0.1+incompatible
 ## explicit
 github.com/peterbourgon/diskv
-# github.com/philhofer/fwd v1.0.0
-## explicit
-github.com/philhofer/fwd
 # github.com/pierrec/lz4/v4 v4.1.17
 ## explicit; go 1.14
 github.com/pierrec/lz4/v4
@@ -733,7 +764,7 @@ github.com/pmezard/go-difflib/difflib
 ## explicit; go 1.17
 github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring
 github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1
-# github.com/prometheus/client_golang v1.14.0
+# github.com/prometheus/client_golang v1.15.0
 ## explicit; go 1.17
 github.com/prometheus/client_golang/api
 github.com/prometheus/client_golang/api/prometheus/v1
@@ -744,13 +775,13 @@ github.com/prometheus/client_golang/prometheus/promhttp
 # github.com/prometheus/client_model v0.3.0
 ## explicit; go 1.9
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.37.0
-## explicit; go 1.16
+# github.com/prometheus/common v0.42.0
+## explicit; go 1.18
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
-# github.com/prometheus/procfs v0.8.0
-## explicit; go 1.17
+# github.com/prometheus/procfs v0.9.0
+## explicit; go 1.18
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
@@ -1001,15 +1032,9 @@ github.com/tidwall/match
 # github.com/tidwall/pretty v1.2.0
 ## explicit; go 1.16
 github.com/tidwall/pretty
-# github.com/tinylib/msgp v1.1.1-0.20190612170807-0573788bc2a8
-## explicit
-github.com/tinylib/msgp/msgp
-# github.com/urfave/cli v1.22.9
+# github.com/urfave/cli v1.22.13
 ## explicit; go 1.11
 github.com/urfave/cli
-# github.com/willf/bitset v1.1.11
-## explicit; go 1.14
-github.com/willf/bitset
 # github.com/xeipuuv/gojsonpointer v0.0.0-20190809123943-df4f5c81cb3b
 ## explicit
 github.com/xeipuuv/gojsonpointer
@@ -1087,10 +1112,7 @@ go.starlark.net/resolve
 go.starlark.net/starlark
 go.starlark.net/starlarkstruct
 go.starlark.net/syntax
-# go.uber.org/atomic v1.9.0
-## explicit; go 1.13
-go.uber.org/atomic
-# go.uber.org/multierr v1.9.0
+# go.uber.org/multierr v1.11.0
 ## explicit; go 1.19
 go.uber.org/multierr
 # golang.org/x/crypto v0.14.0
@@ -1224,12 +1246,16 @@ google.golang.org/appengine/internal/log
 google.golang.org/appengine/internal/remote_api
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/urlfetch
-# google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1
+# google.golang.org/genproto v0.0.0-20230525234025-438c736192d0
+## explicit; go 1.19
+google.golang.org/genproto/protobuf/field_mask
+# google.golang.org/genproto/googleapis/api v0.0.0-20230525234020-1aefcd67740a
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/api/httpbody
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc
+## explicit; go 1.19
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
-google.golang.org/genproto/protobuf/field_mask
 # google.golang.org/grpc v1.55.0
 ## explicit; go 1.17
 google.golang.org/grpc
@@ -1249,6 +1275,7 @@ google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/gzip
 google.golang.org/grpc/encoding/proto
 google.golang.org/grpc/grpclog
+google.golang.org/grpc/health/grpc_health_v1
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/balancer/gracefulswitch
@@ -1494,7 +1521,7 @@ k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/netutil
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/apiserver v0.26.10 => k8s.io/apiserver v0.26.10
+# k8s.io/apiserver v0.27.1 => k8s.io/apiserver v0.26.10
 ## explicit; go 1.19
 k8s.io/apiserver/pkg/apis/apiserver
 k8s.io/apiserver/pkg/apis/apiserver/install
@@ -1878,7 +1905,7 @@ k8s.io/component-base/metrics/prometheusextension
 k8s.io/component-base/tracing
 k8s.io/component-base/tracing/api/v1
 k8s.io/component-base/version
-# k8s.io/component-helpers v0.26.10 => k8s.io/component-helpers v0.26.10
+# k8s.io/component-helpers v0.27.1 => k8s.io/component-helpers v0.26.10
 ## explicit; go 1.19
 k8s.io/component-helpers/scheduling/corev1
 k8s.io/component-helpers/scheduling/corev1/nodeaffinity
@@ -1967,6 +1994,16 @@ k8s.io/kubernetes/pkg/fieldpath
 k8s.io/kubernetes/pkg/util/hash
 k8s.io/kubernetes/pkg/util/parsers
 k8s.io/kubernetes/pkg/util/taints
+k8s.io/kubernetes/pkg/volume/util/hostutil
+# k8s.io/metrics v0.27.1 => k8s.io/metrics v0.26.10
+## explicit; go 1.19
+k8s.io/metrics/pkg/apis/metrics
+k8s.io/metrics/pkg/apis/metrics/v1alpha1
+k8s.io/metrics/pkg/apis/metrics/v1beta1
+k8s.io/metrics/pkg/client/clientset/versioned
+k8s.io/metrics/pkg/client/clientset/versioned/scheme
+k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1alpha1
+k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1beta1
 # k8s.io/mount-utils v0.27.1 => k8s.io/mount-utils v0.26.10
 ## explicit; go 1.19
 k8s.io/mount-utils
@@ -2104,7 +2141,7 @@ oras.land/oras-go/pkg/registry/remote/auth
 oras.land/oras-go/pkg/registry/remote/internal/errutil
 oras.land/oras-go/pkg/registry/remote/internal/syncutil
 oras.land/oras-go/pkg/target
-# sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.37
+# sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.1
 ## explicit; go 1.17
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client/metrics

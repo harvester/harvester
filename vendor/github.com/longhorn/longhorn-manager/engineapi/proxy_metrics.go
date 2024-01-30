@@ -5,7 +5,7 @@ import (
 )
 
 func (p *Proxy) MetricsGet(e *longhorn.Engine) (*Metrics, error) {
-	metrics, err := p.grpcClient.MetricsGet(p.DirectToURL(e))
+	metrics, err := p.grpcClient.MetricsGet(e.Name, e.Spec.VolumeName, p.DirectToURL(e))
 	if err != nil {
 		return nil, err
 	}

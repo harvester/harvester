@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,7 +124,7 @@ type DiskConfig struct {
 
 func GetDiskConfig(diskPath string) (string, error) {
 	filePath := filepath.Join(diskPath, DiskConfigFile)
-	output, err := ioutil.ReadFile(filePath)
+	output, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", fmt.Errorf("cannot find disk config file %v: %v", filePath, err)
 	}
@@ -168,11 +167,11 @@ func WriteSyncingFileConfig(configFilePath string, config *SyncingFileConfig) (e
 		}
 	}()
 	// We don't care the previous config file content.
-	return ioutil.WriteFile(configFilePath, encoded, 0666)
+	return os.WriteFile(configFilePath, encoded, 0666)
 }
 
 func ReadSyncingFileConfig(configFilePath string) (*SyncingFileConfig, error) {
-	output, err := ioutil.ReadFile(configFilePath)
+	output, err := os.ReadFile(configFilePath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot find the syncing file config file %v", configFilePath)
 	}

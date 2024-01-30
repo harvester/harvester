@@ -119,7 +119,7 @@ func NewSupportBundleController(
 		UpdateFunc: func(old, cur interface{}) { c.enqueue(cur) },
 		DeleteFunc: c.enqueue,
 	}, 0)
-	c.cacheSyncs = append(c.cacheSyncs, ds.OrphanInformer.HasSynced)
+	c.cacheSyncs = append(c.cacheSyncs, ds.SupportBundleInformer.HasSynced)
 
 	return c
 }
@@ -187,14 +187,13 @@ func (c *SupportBundleController) handleErr(err error, key interface{}) {
 	log := c.logger.WithField("supportBundle", key)
 
 	if c.queue.NumRequeues(key) < maxRetries {
-		log.WithError(err).Warn("Error syncing Longhorn SupportBundle")
-
+		handleReconcileErrorLogging(log, err, "Failed syncing Longhorn SupportBundle")
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	log.WithError(err).Warn("Dropping Longhorn SupportBundle out of the queue")
+	handleReconcileErrorLogging(log, err, "Dropping Longhorn SupportBundle out of the queue")
 	c.queue.Forget(key)
 }
 
@@ -228,7 +227,7 @@ func (c *SupportBundleController) handleStatusUpdate(record *supportBundleRecord
 	if isStatusChange {
 		supportBundle, err = c.ds.UpdateSupportBundleStatus(supportBundle)
 		if apierrors.IsConflict(errors.Cause(err)) {
-			log.WithError(err).Debugf(SupportBundleMsgRequeueOnConflictFmt, supportBundle.Name)
+			log.WithError(err).Warnf(SupportBundleMsgRequeueOnConflictFmt, supportBundle.Name)
 			c.enqueue(supportBundle)
 		}
 
@@ -304,7 +303,7 @@ func (c *SupportBundleController) reconcile(name string) (err error) {
 			}
 			return err
 		}
-		log.Infof("Picked up by SupportBundle Controller %v", c.controllerID)
+		log.Infof("Support bundle got new owner %v", c.controllerID)
 	}
 
 	record := &supportBundleRecord{}
@@ -360,7 +359,7 @@ func (c *SupportBundleController) reconcile(name string) (err error) {
 
 		_, err = c.getSupportBundleManager(supportBundle, log)
 		if err != nil {
-			logrus.WithError(err).Debug("Waiting for support bundle manager to start")
+			logrus.WithError(err).Warn("Waiting for support bundle manager to start")
 			return nil
 		}
 
@@ -383,7 +382,6 @@ func (c *SupportBundleController) reconcile(name string) (err error) {
 		c.recordManagerState(supportBundleManager, supportBundle, log)
 
 		if supportBundle.Status.Progress != 100 {
-			log.WithError(err).Debug("Waiting for support bundle manager to finish")
 			return nil
 		}
 
@@ -397,6 +395,8 @@ func (c *SupportBundleController) reconcile(name string) (err error) {
 		)
 
 	case longhorn.SupportBundleStateDeleting:
+		log.Info("Deleting SupportBundle")
+
 		err := c.cleanupSupportBundle(supportBundle)
 		if err != nil {
 			return c.updateSupportBundleRecord(record,
@@ -412,8 +412,6 @@ func (c *SupportBundleController) reconcile(name string) (err error) {
 				constant.EventReasonFailedDeleting, err.Error(),
 			)
 		}
-
-		log.Info("Deleted SupportBundle")
 
 	case longhorn.SupportBundleStatePurging:
 		supportBundles, err := c.ds.ListSupportBundles()
@@ -441,7 +439,7 @@ func (c *SupportBundleController) reconcile(name string) (err error) {
 			otherSupportBundle.Status.State = longhorn.SupportBundleStatePurging
 			_, err = c.ds.UpdateSupportBundleStatus(otherSupportBundle)
 			if err != nil && !apierrors.IsNotFound(err) && !apierrors.IsConflict(err) {
-				log.WithError(err).Warnf("failed to update SupportBundle %v to state %v", otherSupportBundle.Name, longhorn.SupportBundleStatePurging)
+				log.WithError(err).Warnf("Failed to update SupportBundle %v to state %v", otherSupportBundle.Name, longhorn.SupportBundleStatePurging)
 			}
 		}
 
@@ -589,7 +587,7 @@ func (c *SupportBundleController) recordManagerState(supportBundleManager *Suppo
 	)
 
 	c.eventRecorder.Eventf(supportBundle, corev1.EventTypeNormal, constant.EventReasonCreate, fmt.Sprintf(SupportBundleMsgManagerPhase, message))
-	log.Debug(message)
+	log.Info(message)
 
 }
 
@@ -622,24 +620,24 @@ func (c *SupportBundleController) createSupportBundleManagerDeployment(supportBu
 
 	imagePullPolicy, err := c.ds.GetSettingImagePullPolicy()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get system pods image pull policy before creating support bundle manager deployment")
+		return nil, errors.Wrap(err, "failed to get system pods image pull policy before creating support bundle manager deployment")
 	}
 
 	priorityClassSetting, err := c.ds.GetSetting(types.SettingNamePriorityClass)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get priority class setting before creating support bundle manager deployment")
+		return nil, errors.Wrap(err, "failed to get priority class setting before creating support bundle manager deployment")
 	}
 	priorityClass := priorityClassSetting.Value
 
 	registrySecretSetting, err := c.ds.GetSetting(types.SettingNameRegistrySecret)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get registry secret setting before creating support bundle manager deployment")
+		return nil, errors.Wrap(err, "failed to get registry secret setting before creating support bundle manager deployment")
 	}
 	registrySecret := registrySecretSetting.Value
 
 	newSupportBundleManager, err := c.newSupportBundleManager(supportBundle, nodeSelector, imagePullPolicy, priorityClass, registrySecret)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create new support bundle manager")
+		return nil, errors.Wrap(err, "failed to create new support bundle manager")
 	}
 	return c.ds.CreateDeployment(newSupportBundleManager)
 }

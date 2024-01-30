@@ -1,30 +1,21 @@
 package backupstore
 
-type ProgressState string
-
 const (
-	ProgressStateInProgress = ProgressState("in_progress")
-	ProgressStateComplete   = ProgressState("complete")
-	ProgressStateError      = ProgressState("error")
+	DEFAULT_BLOCK_SIZE        = 2 * 1024 * 1024
+	LEGACY_COMPRESSION_METHOD = "gzip"
+
+	BLOCKS_DIRECTORY      = "blocks"
+	BLOCK_SEPARATE_LAYER1 = 2
+	BLOCK_SEPARATE_LAYER2 = 4
+	BLK_SUFFIX            = ".blk"
+
+	PROGRESS_PERCENTAGE_BACKUP_SNAPSHOT = 95
+	PROGRESS_PERCENTAGE_BACKUP_TOTAL    = 100
 )
 
-type Mapping struct {
-	Offset int64
-	Size   int64
-}
-
-type Mappings struct {
-	Mappings  []Mapping
-	BlockSize int64
-}
-
-type MessageType string
+type BackendStoreDriver string
 
 const (
-	MessageTypeError = MessageType("error")
+	BackendStoreDriverV1 = BackendStoreDriver("v1")
+	BackendStoreDriverV2 = BackendStoreDriver("v2")
 )
-
-type JobResult struct {
-	payload interface{}
-	err     error
-}

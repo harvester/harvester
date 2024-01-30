@@ -48,6 +48,7 @@ message Volume {
 
 message ReplicaAddress {
     string address = 1;
+    string instanceName = 2;
 }
 
 enum ReplicaMode {

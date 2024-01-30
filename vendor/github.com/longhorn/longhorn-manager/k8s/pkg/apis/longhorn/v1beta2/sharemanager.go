@@ -15,16 +15,20 @@ const (
 
 // ShareManagerSpec defines the desired state of the Longhorn share manager
 type ShareManagerSpec struct {
+	// Share manager image used for creating a share manager pod
 	// +optional
 	Image string `json:"image"`
 }
 
 // ShareManagerStatus defines the observed state of the Longhorn share manager
 type ShareManagerStatus struct {
+	// The node ID on which the controller is responsible to reconcile this share manager resource
 	// +optional
 	OwnerID string `json:"ownerID"`
+	// The state of the share manager resource
 	// +optional
 	State ShareManagerState `json:"state"`
+	// NFS endpoint that can access the mounted filesystem of the volume
 	// +optional
 	Endpoint string `json:"endpoint"`
 }

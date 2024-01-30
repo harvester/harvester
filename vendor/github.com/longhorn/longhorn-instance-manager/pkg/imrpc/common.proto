@@ -1,0 +1,8 @@
+syntax="proto3";
+
+package imrpc;
+
+enum BackendStoreDriver {
+    v1 = 0;
+    v2 = 1;
+}

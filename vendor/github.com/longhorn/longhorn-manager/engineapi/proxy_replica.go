@@ -4,16 +4,19 @@ import (
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
-func (p *Proxy) ReplicaAdd(e *longhorn.Engine, address string, restore, fastSync bool, replicaFileSyncHTTPClientTimeout int64) (err error) {
-	return p.grpcClient.ReplicaAdd(p.DirectToURL(e), address, restore, e.Spec.VolumeSize, e.Status.CurrentSize, int(replicaFileSyncHTTPClientTimeout), fastSync)
+func (p *Proxy) ReplicaAdd(e *longhorn.Engine, replicaName, replicaAddress string, restore, fastSync bool, replicaFileSyncHTTPClientTimeout int64) (err error) {
+	return p.grpcClient.ReplicaAdd(string(e.Spec.BackendStoreDriver), e.Name, e.Spec.VolumeName, p.DirectToURL(e),
+		replicaName, replicaAddress, restore, e.Spec.VolumeSize, e.Status.CurrentSize,
+		int(replicaFileSyncHTTPClientTimeout), fastSync)
 }
 
 func (p *Proxy) ReplicaRemove(e *longhorn.Engine, address string) (err error) {
-	return p.grpcClient.ReplicaRemove(p.DirectToURL(e), address)
+	return p.grpcClient.ReplicaRemove(string(e.Spec.BackendStoreDriver), p.DirectToURL(e), e.Name, address, "")
 }
 
 func (p *Proxy) ReplicaList(e *longhorn.Engine) (replicas map[string]*Replica, err error) {
-	resp, err := p.grpcClient.ReplicaList(p.DirectToURL(e))
+	resp, err := p.grpcClient.ReplicaList(string(e.Spec.BackendStoreDriver), e.Name, e.Spec.VolumeName,
+		p.DirectToURL(e))
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +36,8 @@ func (p *Proxy) ReplicaList(e *longhorn.Engine) (replicas map[string]*Replica, e
 }
 
 func (p *Proxy) ReplicaRebuildStatus(e *longhorn.Engine) (status map[string]*longhorn.RebuildStatus, err error) {
-	recv, err := p.grpcClient.ReplicaRebuildingStatus(p.DirectToURL(e))
+	recv, err := p.grpcClient.ReplicaRebuildingStatus(string(e.Spec.BackendStoreDriver), e.Name, e.Spec.VolumeName,
+		p.DirectToURL(e))
 	if err != nil {
 		return nil, err
 	}
@@ -45,12 +49,12 @@ func (p *Proxy) ReplicaRebuildStatus(e *longhorn.Engine) (status map[string]*lon
 	return status, nil
 }
 
-func (p *Proxy) ReplicaRebuildVerify(e *longhorn.Engine, url string) (err error) {
+func (p *Proxy) ReplicaRebuildVerify(e *longhorn.Engine, replicaName, url string) (err error) {
 	if err := ValidateReplicaURL(url); err != nil {
 		return err
 	}
-
-	return p.grpcClient.ReplicaVerifyRebuild(p.DirectToURL(e), url)
+	return p.grpcClient.ReplicaVerifyRebuild(string(e.Spec.BackendStoreDriver), e.Name, e.Spec.VolumeName,
+		p.DirectToURL(e), url, replicaName)
 }
 
 func (p *Proxy) ReplicaModeUpdate(e *longhorn.Engine, url, mode string) (err error) {
@@ -58,5 +62,5 @@ func (p *Proxy) ReplicaModeUpdate(e *longhorn.Engine, url, mode string) (err err
 		return err
 	}
 
-	return p.grpcClient.ReplicaModeUpdate(p.DirectToURL(e), url, mode)
+	return p.grpcClient.ReplicaModeUpdate(string(e.Spec.BackendStoreDriver), p.DirectToURL(e), url, mode)
 }

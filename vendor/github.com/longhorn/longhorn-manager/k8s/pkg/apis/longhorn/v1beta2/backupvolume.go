@@ -48,6 +48,9 @@ type BackupVolumeStatus struct {
 	// the backing image checksum.
 	// +optional
 	BackingImageChecksum string `json:"backingImageChecksum"`
+	// the storage class name of pv/pvc binding with the volume.
+	// +optional
+	StorageClassName string `json:"storageClassName"`
 	// The last time that the backup volume was synced into the cluster.
 	// +optional
 	// +nullable

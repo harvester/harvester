@@ -24,6 +24,7 @@ const (
 	OrphanDiskName = "DiskName"
 	OrphanDiskUUID = "DiskUUID"
 	OrphanDiskPath = "DiskPath"
+	OrphanDiskType = "DiskType"
 )
 
 // OrphanSpec defines the desired state of the Longhorn orphaned data
