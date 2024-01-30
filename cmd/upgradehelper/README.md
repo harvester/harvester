@@ -1,4 +1,12 @@
-# vm-live-migrate-detector
+# Upgrade Helpers
+
+A collection of useful helpers for Harvester upgrades.
+
+subcommands are listed below:
+
+- vm-live-migrate-detector
+
+## vm-live-migrate-detector
 
 A simple command line tool that helps detect if the VMs on a specific node can be live-migrated to other nodes considering the following:
 
@@ -8,7 +16,7 @@ A simple command line tool that helps detect if the VMs on a specific node can b
 
 Besides detecting the live-migratability of the VMs on the node, the tool can also shut down the VMs that are not live-migratable if the `--shutdown` flag is given.
 
-## Usage
+### Usage
 
 ```
 $ vm-live-migrate-detector --help

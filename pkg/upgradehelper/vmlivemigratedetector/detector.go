@@ -1,4 +1,4 @@
-package main
+package vmlivemigratedetector
 
 import (
 	"context"
@@ -17,7 +17,14 @@ import (
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
-type vmLiveMigrateDetector struct {
+type DetectorOptions struct {
+	KubeConfigPath string
+	KubeContext    string
+	Shutdown       bool
+	NodeName       string
+}
+
+type VMLiveMigrateDetector struct {
 	kubeConfig  string
 	kubeContext string
 
@@ -27,16 +34,16 @@ type vmLiveMigrateDetector struct {
 	virtClient kubecli.KubevirtClient
 }
 
-func newVMLiveMigrateDetector(options detectorOptions) *vmLiveMigrateDetector {
-	return &vmLiveMigrateDetector{
-		kubeConfig:  options.kubeConfigPath,
-		kubeContext: options.kubeContext,
-		nodeName:    options.nodeName,
-		shutdown:    options.shutdown,
+func NewVMLiveMigrateDetector(options DetectorOptions) *VMLiveMigrateDetector {
+	return &VMLiveMigrateDetector{
+		kubeConfig:  options.KubeConfigPath,
+		kubeContext: options.KubeContext,
+		nodeName:    options.NodeName,
+		shutdown:    options.Shutdown,
 	}
 }
 
-func (d *vmLiveMigrateDetector) init() (err error) {
+func (d *VMLiveMigrateDetector) Init() (err error) {
 	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{
 			ExplicitPath: d.kubeConfig,
@@ -55,7 +62,7 @@ func (d *vmLiveMigrateDetector) init() (err error) {
 	return
 }
 
-func (d *vmLiveMigrateDetector) run(ctx context.Context) error {
+func (d *VMLiveMigrateDetector) Run(ctx context.Context) error {
 	if d.nodeName == "" {
 		return fmt.Errorf("please specify a node name")
 	}

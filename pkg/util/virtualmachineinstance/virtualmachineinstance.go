@@ -1,6 +1,9 @@
 package virtualmachineinstance
 
 import (
+	"fmt"
+
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	schedulingcorev1 "k8s.io/component-helpers/scheduling/corev1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -15,15 +18,19 @@ func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, 
 	}
 
 	for _, vmi := range vmis {
+		vmiNamespacedName := fmt.Sprintf("%s/%s", vmi.Namespace, vmi.Name)
+
 		// Node selectors
 		if vmi.Spec.NodeSelector != nil {
-			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmi.Namespace+"/"+vmi.Name)
+			logrus.Infof("%s considered non-live migratable due to node selectors", vmiNamespacedName)
+			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
 			continue
 		}
 
 		// PCIe devices
 		if vmi.Spec.Domain.Devices.HostDevices != nil {
-			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmi.Namespace+"/"+vmi.Name)
+			logrus.Infof("%s considered non-live migratable due to pcie devices", vmiNamespacedName)
+			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
 			continue
 		}
 
@@ -33,7 +40,8 @@ func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, 
 			return nonLiveMigratableVMINames, err
 		}
 		if !migratable {
-			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmi.Namespace+"/"+vmi.Name)
+			logrus.Infof("%s considered non-live migratable due to node affinities", vmiNamespacedName)
+			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
 		}
 	}
 

@@ -352,7 +352,7 @@ command_pre_drain() {
   wait_longhorn_engines
 
   # Shut down non-live migratable VMs
-  vm-live-migrate-detector "$HARVESTER_UPGRADE_NODE_NAME" --shutdown
+  upgrade-helper vm-live-migrate-detector "$HARVESTER_UPGRADE_NODE_NAME" --shutdown
 
   # Live migrate VMs
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME --overwrite kubevirt.io/drain=draining:NoSchedule

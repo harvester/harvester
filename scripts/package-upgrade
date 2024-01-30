@@ -15,7 +15,7 @@ if [ -e ${DOCKERFILE}.${ARCH} ]; then
     DOCKERFILE=${DOCKERFILE}.${ARCH}
 fi
 
-cp ../../bin/vm-live-migrate-detector .
+cp ../../bin/upgrade-helper .
 
 docker build -f ${DOCKERFILE} --build-arg ARCH=${ARCH} -t ${IMAGE} .
 echo Built ${IMAGE}
