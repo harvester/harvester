@@ -1328,7 +1328,7 @@ func (ctrl *VMExportController) expandVirtualMachine(vm *virtv1.VirtualMachine) 
 		return vm, nil
 	}
 
-	conflicts := ctrl.instancetypeMethods.ApplyToVmi(field.NewPath("spec", "template", "spec"), instancetypeSpec, preferenceSpec, &vm.Spec.Template.Spec)
+	conflicts := ctrl.instancetypeMethods.ApplyToVmi(field.NewPath("spec", "template", "spec"), instancetypeSpec, preferenceSpec, &vm.Spec.Template.Spec, &vm.Spec.Template.ObjectMeta)
 	if len(conflicts) > 0 {
 		return nil, fmt.Errorf("cannot expand instancetype to VM, due to %d conflicts", len(conflicts))
 	}
@@ -1429,6 +1429,9 @@ func (ctrl *VMExportController) createExportHttpDvFromPVC(namespace, name string
 	if pvc != nil {
 		pvc.Spec.VolumeName = ""
 		pvc.Spec.StorageClassName = nil
+		// Don't copy datasources, will be populated by CDI with the datavolume
+		pvc.Spec.DataSource = nil
+		pvc.Spec.DataSourceRef = nil
 		return &cdiv1.DataVolume{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
