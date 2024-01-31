@@ -39,7 +39,7 @@ dependencies:
     repository: file://dependency_charts/csi-snapshotter
     condition: csi-snapshotter.enabled
   - name: longhorn
-    version: 1.6.0-rc2
+    version: 1.6.0-rc3
     # repository: https://charts.longhorn.io
     repository: file://dependency_charts/longhorn
     condition: longhorn.enabled

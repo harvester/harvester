@@ -29,6 +29,8 @@ const (
 	// detection, transport_ack_timeout should be set.
 	DefaultTransportAckTimeout = 14
 
+	DefaultKeepAliveTimeoutMs = 10000
+
 	ExecuteTimeout = 60 * time.Second
 )
 

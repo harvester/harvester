@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/longhorn/longhorn-instance-manager/pkg/api"
@@ -17,15 +18,24 @@ import (
 )
 
 type InstanceServiceContext struct {
-	cc      *grpc.ClientConn
+	cc *grpc.ClientConn
+
+	ctx  context.Context
+	quit context.CancelFunc
+
 	service rpc.InstanceServiceClient
+	health  healthpb.HealthClient
 }
 
 func (c InstanceServiceContext) Close() error {
+	c.quit()
 	if c.cc == nil {
 		return nil
 	}
-	return c.cc.Close()
+	if err := c.cc.Close(); err != nil {
+		return errors.Wrap(err, "failed to close instance gRPC connection")
+	}
+	return nil
 }
 
 func (c *InstanceServiceClient) getControllerServiceClient() rpc.InstanceServiceClient {
@@ -38,7 +48,7 @@ type InstanceServiceClient struct {
 	InstanceServiceContext
 }
 
-func NewInstanceServiceClient(serviceURL string, tlsConfig *tls.Config) (*InstanceServiceClient, error) {
+func NewInstanceServiceClient(ctx context.Context, ctxCancel context.CancelFunc, serviceURL string, tlsConfig *tls.Config) (*InstanceServiceClient, error) {
 	getInstanceServiceContext := func(serviceUrl string, tlsConfig *tls.Config) (InstanceServiceContext, error) {
 		connection, err := util.Connect(serviceUrl, tlsConfig)
 		if err != nil {
@@ -47,7 +57,10 @@ func NewInstanceServiceClient(serviceURL string, tlsConfig *tls.Config) (*Instan
 
 		return InstanceServiceContext{
 			cc:      connection,
+			ctx:     ctx,
+			quit:    ctxCancel,
 			service: rpc.NewInstanceServiceClient(connection),
+			health:  healthpb.NewHealthClient(connection),
 		}, nil
 	}
 
@@ -63,13 +76,13 @@ func NewInstanceServiceClient(serviceURL string, tlsConfig *tls.Config) (*Instan
 	}, nil
 }
 
-func NewInstanceServiceClientWithTLS(serviceURL, caFile, certFile, keyFile, peerName string) (*InstanceServiceClient, error) {
+func NewInstanceServiceClientWithTLS(ctx context.Context, ctxCancel context.CancelFunc, serviceURL, caFile, certFile, keyFile, peerName string) (*InstanceServiceClient, error) {
 	tlsConfig, err := util.LoadClientTLS(caFile, certFile, keyFile, peerName)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load tls key pair from file")
 	}
 
-	return NewInstanceServiceClient(serviceURL, tlsConfig)
+	return NewInstanceServiceClient(ctx, ctxCancel, serviceURL, tlsConfig)
 }
 
 type EngineCreateRequest struct {
@@ -328,4 +341,10 @@ func (c *InstanceServiceClient) VersionGet() (*meta.VersionOutput, error) {
 		InstanceManagerProxyAPIVersion:    int(resp.InstanceManagerProxyAPIVersion),
 		InstanceManagerProxyAPIMinVersion: int(resp.InstanceManagerProxyAPIMinVersion),
 	}, nil
+}
+
+func (c *InstanceServiceClient) CheckConnection() error {
+	req := &healthpb.HealthCheckRequest{}
+	_, err := c.health.Check(getContextWithGRPCTimeout(c.ctx), req)
+	return err
 }
