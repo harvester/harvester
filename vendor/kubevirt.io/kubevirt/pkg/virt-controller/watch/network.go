@@ -19,71 +19,67 @@
 package watch
 
 import (
-	k8sv1 "k8s.io/api/core/v1"
-
 	v1 "kubevirt.io/api/core/v1"
 
-	"kubevirt.io/client-go/log"
-
-	"kubevirt.io/kubevirt/pkg/network/namescheme"
 	"kubevirt.io/kubevirt/pkg/network/vmispec"
-	"kubevirt.io/kubevirt/pkg/virt-controller/services"
 )
 
-func calculateDynamicInterfaces(vmi *v1.VirtualMachineInstance, pod *k8sv1.Pod) ([]v1.Interface, []v1.Network, bool) {
-	vmiSpecIfaces := vmispec.FilterInterfacesSpec(vmi.Spec.Domain.Devices.Interfaces, func(iface v1.Interface) bool {
+func calculateInterfacesAndNetworksForMultusAnnotationUpdate(vmi *v1.VirtualMachineInstance) ([]v1.Interface, []v1.Network, bool) {
+	vmiNonAbsentSpecIfaces := vmispec.FilterInterfacesSpec(vmi.Spec.Domain.Devices.Interfaces, func(iface v1.Interface) bool {
 		return iface.State != v1.InterfaceStateAbsent
 	})
-	ifacesToHotUnplugExist := len(vmi.Spec.Domain.Devices.Interfaces) > len(vmiSpecIfaces)
+	ifacesToHotUnplugExist := len(vmi.Spec.Domain.Devices.Interfaces) > len(vmiNonAbsentSpecIfaces)
 
-	if ifacesToHotUnplugExist && namescheme.PodHasOrdinalInterfaceName(services.NonDefaultMultusNetworksIndexedByIfaceName(pod)) {
-		vmiSpecIfaces = vmi.Spec.Domain.Devices.Interfaces
-		ifacesToHotUnplugExist = false
-		log.Log.Object(vmi).Error("hot-unplug is not supported on old VMIs with ordered pod interface names")
-	}
-	vmiSpecNets := vmi.Spec.Networks
-	if ifacesToHotUnplugExist {
-		vmiSpecNets = vmispec.FilterNetworksByInterfaces(vmi.Spec.Networks, vmiSpecIfaces)
-	}
-	ifacesToHotplugExist := len(vmispec.NetworksToHotplug(vmiSpecNets, vmi.Status.Interfaces)) > 0
+	ifacesStatusByName := vmispec.IndexInterfaceStatusByName(vmi.Status.Interfaces, nil)
+	ifacesToAnnotate := vmispec.FilterInterfacesSpec(vmiNonAbsentSpecIfaces, func(iface v1.Interface) bool {
+		_, ifaceInStatus := ifacesStatusByName[iface.Name]
+		sriovIfaceNotPlugged := iface.SRIOV != nil && !ifaceInStatus
+		return !sriovIfaceNotPlugged
+	})
+
+	networksToAnnotate := vmispec.FilterNetworksByInterfaces(vmi.Spec.Networks, ifacesToAnnotate)
+
+	ifacesToHotplug := vmispec.FilterInterfacesSpec(ifacesToAnnotate, func(iface v1.Interface) bool {
+		_, inStatus := ifacesStatusByName[iface.Name]
+		return !inStatus
+	})
+	ifacesToHotplugExist := len(ifacesToHotplug) > 0
 
 	isIfaceChangeRequired := ifacesToHotplugExist || ifacesToHotUnplugExist
 	if !isIfaceChangeRequired {
 		return nil, nil, false
 	}
-	return vmiSpecIfaces, vmiSpecNets, isIfaceChangeRequired
+	return ifacesToAnnotate, networksToAnnotate, isIfaceChangeRequired
 }
 
-func trimDoneInterfaceRequests(vm *v1.VirtualMachine) {
-	if len(vm.Status.InterfaceRequests) == 0 {
-		return
-	}
-
-	indexedInterfaces := vmispec.IndexInterfaceSpecByName(vm.Spec.Template.Spec.Domain.Devices.Interfaces)
-	updateIfaceRequests := make([]v1.VirtualMachineInterfaceRequest, 0)
-	for _, request := range vm.Status.InterfaceRequests {
-
-		var ifaceName string
-
-		removeRequest := false
-
-		switch {
-		case request.AddInterfaceOptions != nil:
-			ifaceName = request.AddInterfaceOptions.Name
-			if _, exists := indexedInterfaces[ifaceName]; exists {
-				removeRequest = true
-			}
-		case request.RemoveInterfaceOptions != nil:
-			ifaceName = request.RemoveInterfaceOptions.Name
-			if iface, exists := indexedInterfaces[ifaceName]; exists &&
-				iface.State == v1.InterfaceStateAbsent {
-				removeRequest = true
-			}
+func applyDynamicIfaceRequestOnVMI(vm *v1.VirtualMachine, vmi *v1.VirtualMachineInstance, hasOrdinalIfaces bool) *v1.VirtualMachineInstanceSpec {
+	vmiSpecCopy := vmi.Spec.DeepCopy()
+	vmiIndexedInterfaces := vmispec.IndexInterfaceSpecByName(vmiSpecCopy.Domain.Devices.Interfaces)
+	vmIndexedNetworks := vmispec.IndexNetworkSpecByName(vm.Spec.Template.Spec.Networks)
+	for _, vmIface := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		_, existsInVMISpec := vmiIndexedInterfaces[vmIface.Name]
+		shouldBeHotPlug := !existsInVMISpec && vmIface.State != v1.InterfaceStateAbsent && (vmIface.InterfaceBindingMethod.Bridge != nil || vmIface.InterfaceBindingMethod.SRIOV != nil)
+		shouldBeHotUnplug := !hasOrdinalIfaces && existsInVMISpec && vmIface.State == v1.InterfaceStateAbsent
+		if shouldBeHotPlug {
+			vmiSpecCopy.Networks = append(vmiSpecCopy.Networks, vmIndexedNetworks[vmIface.Name])
+			vmiSpecCopy.Domain.Devices.Interfaces = append(vmiSpecCopy.Domain.Devices.Interfaces, vmIface)
 		}
-
-		if !removeRequest {
-			updateIfaceRequests = append(updateIfaceRequests, request)
+		if shouldBeHotUnplug {
+			vmiIface := vmispec.LookupInterfaceByName(vmiSpecCopy.Domain.Devices.Interfaces, vmIface.Name)
+			vmiIface.State = v1.InterfaceStateAbsent
 		}
 	}
-	vm.Status.InterfaceRequests = updateIfaceRequests
+	return vmiSpecCopy
+}
+
+func clearDetachedInterfaces(specIfaces []v1.Interface, specNets []v1.Network, statusIfaces map[string]v1.VirtualMachineInstanceNetworkInterface) ([]v1.Interface, []v1.Network) {
+	var ifaces []v1.Interface
+	for _, iface := range specIfaces {
+		if _, existInStatus := statusIfaces[iface.Name]; (existInStatus && iface.State == v1.InterfaceStateAbsent) ||
+			iface.State != v1.InterfaceStateAbsent {
+			ifaces = append(ifaces, iface)
+		}
+	}
+
+	return ifaces, vmispec.FilterNetworksByInterfaces(specNets, ifaces)
 }

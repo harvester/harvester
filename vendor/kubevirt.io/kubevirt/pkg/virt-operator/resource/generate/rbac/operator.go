@@ -121,17 +121,6 @@ func NewOperatorClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					"coordination.k8s.io",
-				},
-				Resources: []string{
-					"leases",
-				},
-				Verbs: []string{
-					"get", "list", "watch", "delete", "update", "create", "patch",
-				},
-			},
-			{
-				APIGroups: []string{
 					"",
 				},
 				Resources: []string{
@@ -322,21 +311,6 @@ func NewOperatorClusterRole() *rbacv1.ClusterRole {
 					"list",
 					"watch",
 					"patch",
-				},
-			},
-			// FIXME - Keep the flavor (now renamed instancetype) permissions around until v0.56 to allow the operator to update from v0.54.
-			{
-				APIGroups: []string{
-					"flavor.kubevirt.io",
-				},
-				Resources: []string{
-					"virtualmachineflavors",
-					"virtualmachineclusterflavors",
-					"virtualmachinepreferences",
-					"virtualmachineclusterpreferences",
-				},
-				Verbs: []string{
-					"get", "delete", "create", "update", "patch", "list", "watch", "deletecollection",
 				},
 			},
 		},
@@ -538,6 +512,17 @@ func NewOperatorRole(namespace string) *rbacv1.Role {
 				},
 				Verbs: []string{
 					"create",
+				},
+			},
+			{
+				APIGroups: []string{
+					"coordination.k8s.io",
+				},
+				Resources: []string{
+					"leases",
+				},
+				Verbs: []string{
+					"get", "list", "watch", "delete", "update", "create", "patch",
 				},
 			},
 		},
