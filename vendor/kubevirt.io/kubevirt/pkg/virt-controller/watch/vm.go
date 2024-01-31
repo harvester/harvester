@@ -30,6 +30,9 @@ import (
 	"strings"
 	"time"
 
+	"kubevirt.io/kubevirt/pkg/network/namescheme"
+	"kubevirt.io/kubevirt/pkg/virt-controller/services"
+
 	"kubevirt.io/kubevirt/pkg/util/hardware"
 
 	"kubevirt.io/kubevirt/pkg/virt-api/webhooks"
@@ -41,6 +44,7 @@ import (
 	k8score "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -56,10 +60,10 @@ import (
 	"kubevirt.io/client-go/kubecli"
 	"kubevirt.io/client-go/log"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cdiclone "kubevirt.io/containerized-data-importer/pkg/clone"
 
 	"kubevirt.io/kubevirt/pkg/controller"
 	"kubevirt.io/kubevirt/pkg/instancetype"
+	"kubevirt.io/kubevirt/pkg/network/vmispec"
 	storagetypes "kubevirt.io/kubevirt/pkg/storage/types"
 	"kubevirt.io/kubevirt/pkg/util"
 	"kubevirt.io/kubevirt/pkg/util/migrations"
@@ -74,7 +78,7 @@ const (
 	startingVMIFailureFmt     = "Failure while starting VMI: %v"
 )
 
-type CloneAuthFunc func(pvcNamespace, pvcName, saNamespace, saName string) (bool, string, error)
+type CloneAuthFunc func(dv *cdiv1.DataVolume, requestNamespace, requestName string, proxy cdiv1.AuthorizationHelperProxy, saNamespace, saName string) (bool, string, error)
 
 // Repeating info / error messages
 const (
@@ -108,6 +112,8 @@ const (
 	FailedCreateReason                 = "FailedCreate"
 	VMIFailedDeleteReason              = "FailedDelete"
 	HotPlugNetworkInterfaceErrorReason = "HotPlugNetworkInterfaceError"
+	AffinityChangeErrorReason          = "AffinityChangeError"
+	HotPlugMemoryErrorReason           = "HotPlugMemoryError"
 )
 
 const defaultMaxCrashLoopBackoffDelaySeconds = 300
@@ -115,29 +121,34 @@ const defaultMaxCrashLoopBackoffDelaySeconds = 300
 func NewVMController(vmiInformer cache.SharedIndexInformer,
 	vmInformer cache.SharedIndexInformer,
 	dataVolumeInformer cache.SharedIndexInformer,
+	dataSourceInformer cache.SharedIndexInformer,
+	namespaceStore cache.Store,
 	pvcInformer cache.SharedIndexInformer,
 	crInformer cache.SharedIndexInformer,
+	podInformer cache.SharedIndexInformer,
 	instancetypeMethods instancetype.Methods,
 	recorder record.EventRecorder,
 	clientset kubecli.KubevirtClient,
 	clusterConfig *virtconfig.ClusterConfig) (*VMController, error) {
-
-	proxy := &sarProxy{client: clientset}
 
 	c := &VMController{
 		Queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "virt-controller-vm"),
 		vmiInformer:            vmiInformer,
 		vmInformer:             vmInformer,
 		dataVolumeInformer:     dataVolumeInformer,
+		dataSourceInformer:     dataSourceInformer,
+		namespaceStore:         namespaceStore,
 		pvcInformer:            pvcInformer,
 		crInformer:             crInformer,
+		podInformer:            podInformer,
 		instancetypeMethods:    instancetypeMethods,
 		recorder:               recorder,
 		clientset:              clientset,
 		expectations:           controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
 		dataVolumeExpectations: controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
-		cloneAuthFunc: func(pvcNamespace, pvcName, saNamespace, saName string) (bool, string, error) {
-			return cdiclone.CanServiceAccountClonePVC(proxy, pvcNamespace, pvcName, saNamespace, saName)
+		cloneAuthFunc: func(dv *cdiv1.DataVolume, requestNamespace, requestName string, proxy cdiv1.AuthorizationHelperProxy, saNamespace, saName string) (bool, string, error) {
+			response, err := dv.AuthorizeSA(requestNamespace, requestName, proxy, saNamespace, saName)
+			return response.Allowed, response.Reason, err
 		},
 		statusUpdater: status.NewVMStatusUpdater(clientset),
 		clusterConfig: clusterConfig,
@@ -173,12 +184,39 @@ func NewVMController(vmiInformer cache.SharedIndexInformer,
 	return c, nil
 }
 
-type sarProxy struct {
-	client kubecli.KubevirtClient
+type authProxy struct {
+	client             kubecli.KubevirtClient
+	dataSourceInformer cache.SharedIndexInformer
+	namespaceStore     cache.Store
 }
 
-func (p *sarProxy) Create(sar *authv1.SubjectAccessReview) (*authv1.SubjectAccessReview, error) {
+func (p *authProxy) CreateSar(sar *authv1.SubjectAccessReview) (*authv1.SubjectAccessReview, error) {
 	return p.client.AuthorizationV1().SubjectAccessReviews().Create(context.Background(), sar, v1.CreateOptions{})
+}
+
+func (p *authProxy) GetNamespace(name string) (*k8score.Namespace, error) {
+	obj, exists, err := p.namespaceStore.GetByKey(name)
+	if err != nil {
+		return nil, err
+	} else if !exists {
+		return nil, fmt.Errorf("namespace %s does not exist", name)
+	}
+
+	ns := obj.(*k8score.Namespace).DeepCopy()
+	return ns, nil
+}
+
+func (p *authProxy) GetDataSource(namespace, name string) (*cdiv1.DataSource, error) {
+	key := fmt.Sprintf("%s/%s", namespace, name)
+	obj, exists, err := p.dataSourceInformer.GetStore().GetByKey(key)
+	if err != nil {
+		return nil, err
+	} else if !exists {
+		return nil, fmt.Errorf("dataSource %s does not exist", key)
+	}
+
+	ds := obj.(*cdiv1.DataSource).DeepCopy()
+	return ds, nil
 }
 
 type VMController struct {
@@ -187,8 +225,11 @@ type VMController struct {
 	vmiInformer            cache.SharedIndexInformer
 	vmInformer             cache.SharedIndexInformer
 	dataVolumeInformer     cache.SharedIndexInformer
+	dataSourceInformer     cache.SharedIndexInformer
+	namespaceStore         cache.Store
 	pvcInformer            cache.SharedIndexInformer
 	crInformer             cache.SharedIndexInformer
+	podInformer            cache.SharedIndexInformer
 	instancetypeMethods    instancetype.Methods
 	recorder               record.EventRecorder
 	expectations           *controller.UIDTrackingControllerExpectations
@@ -204,7 +245,7 @@ func (c *VMController) Run(threadiness int, stopCh <-chan struct{}) {
 	log.Log.Info("Starting VirtualMachine controller.")
 
 	// Wait for cache sync before we start the controller
-	cache.WaitForCacheSync(stopCh, c.vmiInformer.HasSynced, c.vmInformer.HasSynced, c.dataVolumeInformer.HasSynced)
+	cache.WaitForCacheSync(stopCh, c.vmiInformer.HasSynced, c.vmInformer.HasSynced, c.dataVolumeInformer.HasSynced, c.podInformer.HasSynced)
 
 	// Start the actual work
 	for i := 0; i < threadiness; i++ {
@@ -275,12 +316,6 @@ func (c *VMController) execute(key string) error {
 		}
 
 		return err
-	}
-
-	//TODO default vm if necessary, the aggregated apiserver will do that in the future
-	if vm.Spec.Template == nil {
-		logger.Error("Invalid controller spec, will not re-enqueue.")
-		return nil
 	}
 
 	vmKey, err := controller.KeyFunc(vm)
@@ -361,39 +396,43 @@ func (c *VMController) handleCloneDataVolume(vm *virtv1.VirtualMachine, dv *cdiv
 		return fmt.Errorf("DataVolume sourceRef not supported")
 	}
 
-	if dv.Spec.Source == nil || dv.Spec.Source.PVC == nil {
+	if dv.Spec.Source == nil {
 		return nil
 	}
 
 	// For consistency with other k8s objects, we allow creating clone DataVolumes even when the source PVC doesn't exist.
 	// This means that a VirtualMachine can be successfully created with volumes that may remain unpopulated until the source PVC is created.
 	// For this reason, we check if the source PVC exists and, if not, we trigger an event to let users know of this behavior.
-	pvc, err := storagetypes.GetPersistentVolumeClaimFromCache(dv.Spec.Source.PVC.Namespace, dv.Spec.Source.PVC.Name, c.pvcInformer)
-	if err != nil {
-		return err
-	}
-	if pvc == nil {
-		c.recorder.Eventf(vm, k8score.EventTypeWarning, SourcePVCNotAvailabe, "Source PVC %s not available: Target PVC %s will remain unpopulated until source is created", dv.Spec.Source.PVC.Name, dv.Name)
+	if dv.Spec.Source.PVC != nil {
+		// TODO: a lot of CDI knowledge, maybe an API to check if source exists?
+		pvc, err := storagetypes.GetPersistentVolumeClaimFromCache(dv.Spec.Source.PVC.Namespace, dv.Spec.Source.PVC.Name, c.pvcInformer)
+		if err != nil {
+			return err
+		}
+		if pvc == nil {
+			c.recorder.Eventf(vm, k8score.EventTypeWarning, SourcePVCNotAvailabe, "Source PVC %s not available: Target PVC %s will remain unpopulated until source is created", dv.Spec.Source.PVC.Name, dv.Name)
+		}
 	}
 
 	if err := c.authorizeDataVolume(vm, dv); err != nil {
 		c.recorder.Eventf(vm, k8score.EventTypeWarning, UnauthorizedDataVolumeCreateReason, "Not authorized to create DataVolume %s: %v", dv.Name, err)
-		return fmt.Errorf("Not authorized to create DataVolume: %v", err)
+		return fmt.Errorf("not authorized to create DataVolume: %v", err)
 	}
 
 	return nil
 }
 
 func (c *VMController) authorizeDataVolume(vm *virtv1.VirtualMachine, dataVolume *cdiv1.DataVolume) error {
-	serviceAccount := "default"
+	serviceAccountName := "default"
 	for _, vol := range vm.Spec.Template.Spec.Volumes {
 		if vol.ServiceAccount != nil {
-			serviceAccount = vol.ServiceAccount.ServiceAccountName
+			serviceAccountName = vol.ServiceAccount.ServiceAccountName
 		}
 	}
 
-	allowed, reason, err := c.cloneAuthFunc(dataVolume.Spec.Source.PVC.Namespace, dataVolume.Spec.Source.PVC.Name, vm.Namespace, serviceAccount)
-	if err != nil {
+	proxy := &authProxy{client: c.clientset, dataSourceInformer: c.dataSourceInformer, namespaceStore: c.namespaceStore}
+	allowed, reason, err := c.cloneAuthFunc(dataVolume, vm.Namespace, dataVolume.Name, proxy, vm.Namespace, serviceAccountName)
+	if err != nil && err != cdiv1.ErrNoTokenOkay {
 		return err
 	}
 
@@ -446,7 +485,7 @@ func (c *VMController) handleDataVolumes(vm *virtv1.VirtualMachine, dataVolumes 
 			if err != nil {
 				c.recorder.Eventf(vm, k8score.EventTypeWarning, FailedDataVolumeCreateReason, "Error creating DataVolume %s: %v", newDataVolume.Name, err)
 				c.dataVolumeExpectations.CreationObserved(vmKey)
-				return ready, fmt.Errorf("Failed to create DataVolume: %v", err)
+				return ready, fmt.Errorf("failed to create DataVolume: %v", err)
 			}
 			c.recorder.Eventf(vm, k8score.EventTypeNormal, SuccessfulDataVolumeCreateReason, "Created DataVolume %s", curDataVolume.Name)
 		} else if curDataVolume.Status.Phase != cdiv1.Succeeded &&
@@ -597,7 +636,7 @@ func (c *VMController) handleCPUChangeRequest(vm *virtv1.VirtualMachine, vmi *vi
 		return nil
 	}
 
-	if vm.Spec.LiveUpdateFeatures == nil {
+	if vm.Spec.LiveUpdateFeatures == nil || vm.Spec.LiveUpdateFeatures.CPU == nil {
 		return nil
 	}
 
@@ -625,6 +664,100 @@ func (c *VMController) handleCPUChangeRequest(vm *virtv1.VirtualMachine, vmi *vi
 		return err
 	}
 
+	return nil
+}
+
+func (c *VMController) VMNodeSelectorPatch(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) error {
+	var ops []string
+
+	if vm.Spec.Template.Spec.NodeSelector != nil {
+		vmNodeSelector := make(map[string]string)
+		// copy the node selector map
+		for k, v := range vm.Spec.Template.Spec.NodeSelector {
+			vmNodeSelector[k] = v
+		}
+		vmNodeSelectorJson, err := json.Marshal(vmNodeSelector)
+		if err != nil {
+			return err
+		}
+
+		if vmi.Spec.NodeSelector == nil {
+			ops = append(ops, fmt.Sprintf(`{ "op": "add", "path": "/spec/nodeSelector", "value": %s }`, string(vmNodeSelectorJson)))
+		} else {
+			currentVMINodeSelector, err := json.Marshal(vmi.Spec.NodeSelector)
+			if err != nil {
+				return err
+			}
+			ops = append(ops, fmt.Sprintf(`{ "op": "test", "path": "/spec/nodeSelector", "value": %s }`, string(currentVMINodeSelector)))
+			ops = append(ops, fmt.Sprintf(`{ "op": "replace", "path": "/spec/nodeSelector", "value": %s }`, string(vmNodeSelectorJson)))
+		}
+
+	} else {
+		ops = append(ops, fmt.Sprintf(`{ "op": "remove", "path": "/spec/nodeSelector" }`))
+	}
+	generatedPatch := controller.GeneratePatchBytes(ops)
+
+	_, err := c.clientset.VirtualMachineInstance(vmi.Namespace).Patch(context.Background(), vmi.Name, types.JSONPatchType, generatedPatch, &v1.PatchOptions{})
+	return err
+}
+
+func (c *VMController) VMIAffinityPatch(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) error {
+	var ops []string
+
+	if vm.Spec.Template.Spec.Affinity != nil {
+		vmAffinity := vm.Spec.Template.Spec.Affinity.DeepCopy()
+		vmAffinityJson, err := json.Marshal(vmAffinity)
+		if err != nil {
+			return err
+		}
+		if vmi.Spec.Affinity == nil {
+			ops = append(ops, fmt.Sprintf(`{ "op": "add", "path": "/spec/affinity", "value": %s }`, string(vmAffinityJson)))
+		} else {
+			currentVMIAffinity, err := json.Marshal(vmi.Spec.Affinity)
+			if err != nil {
+				return err
+			}
+			ops = append(ops, fmt.Sprintf(`{ "op": "test", "path": "/spec/affinity", "value": %s }`, string(currentVMIAffinity)))
+			ops = append(ops, fmt.Sprintf(`{ "op": "replace", "path": "/spec/affinity", "value": %s }`, string(vmAffinityJson)))
+		}
+
+	} else {
+		ops = append(ops, fmt.Sprintf(`{ "op": "remove", "path": "/spec/affinity" }`))
+	}
+
+	_, err := c.clientset.VirtualMachineInstance(vmi.Namespace).Patch(context.Background(), vmi.Name, types.JSONPatchType, controller.GeneratePatchBytes(ops), &v1.PatchOptions{})
+	return err
+}
+
+func (c *VMController) handleAffinityChangeRequest(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) error {
+	if vmi == nil || vmi.DeletionTimestamp != nil {
+		return nil
+	}
+
+	if vm.Spec.LiveUpdateFeatures == nil || vm.Spec.LiveUpdateFeatures.Affinity == nil {
+		return nil
+	}
+
+	hasNodeSelectorChanged := !equality.Semantic.DeepEqual(vm.Spec.Template.Spec.NodeSelector, vmi.Spec.NodeSelector)
+	hasNodeAffinityChanged := !equality.Semantic.DeepEqual(vm.Spec.Template.Spec.Affinity, vmi.Spec.Affinity)
+
+	if migrations.IsMigrating(vmi) && (hasNodeSelectorChanged || hasNodeAffinityChanged) {
+		return fmt.Errorf("Node affinity should not be changed during VMI migration")
+	}
+
+	if hasNodeAffinityChanged {
+		if err := c.VMIAffinityPatch(vm, vmi); err != nil {
+			log.Log.Object(vmi).Errorf("unable to patch vmi to update node affinity: %v", err)
+			return err
+		}
+	}
+
+	if hasNodeSelectorChanged {
+		if err := c.VMNodeSelectorPatch(vm, vmi); err != nil {
+			log.Log.Object(vmi).Errorf("unable to patch vmi to update node selector: %v", err)
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1476,8 +1609,7 @@ func (c *VMController) applyInstancetypeToVmi(vm *virtv1.VirtualMachine, vmi *vi
 	instancetype.AddInstancetypeNameAnnotations(vm, vmi)
 	instancetype.AddPreferenceNameAnnotations(vm, vmi)
 
-	conflicts := c.instancetypeMethods.ApplyToVmi(k8sfield.NewPath("spec"), instancetypeSpec, preferenceSpec, &vmi.Spec)
-	if len(conflicts) > 0 {
+	if conflicts := c.instancetypeMethods.ApplyToVmi(k8sfield.NewPath("spec"), instancetypeSpec, preferenceSpec, &vmi.Spec, &vmi.ObjectMeta); len(conflicts) > 0 {
 		return fmt.Errorf("VMI conflicts with instancetype spec in fields: [%s]", conflicts.String())
 	}
 
@@ -1539,6 +1671,50 @@ func setupStableFirmwareUUID(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachi
 	}
 
 	vmi.Spec.Domain.Firmware.UUID = types.UID(uuid.NewSHA1(firmwareUUIDns, []byte(vmi.ObjectMeta.Name)).String())
+}
+
+func (c *VMController) setupCPUHotplug(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, VMIDefaults *virtv1.VirtualMachineInstance, maxRatio uint32) {
+	if vm.Spec.LiveUpdateFeatures.CPU == nil {
+		return
+	}
+
+	if vmi.Spec.Domain.CPU == nil {
+		vmi.Spec.Domain.CPU = &virtv1.CPU{}
+	}
+
+	if vm.Spec.LiveUpdateFeatures.CPU.MaxSockets != nil {
+		vmi.Spec.Domain.CPU.MaxSockets = *vm.Spec.LiveUpdateFeatures.CPU.MaxSockets
+	}
+
+	if vmi.Spec.Domain.CPU.MaxSockets == 0 {
+		vmi.Spec.Domain.CPU.MaxSockets = c.clusterConfig.GetMaximumCpuSockets()
+	}
+
+	if vmi.Spec.Domain.CPU.MaxSockets == 0 {
+		vmi.Spec.Domain.CPU.MaxSockets = vmi.Spec.Domain.CPU.Sockets * maxRatio
+	}
+
+	if vmi.Spec.Domain.CPU.MaxSockets == 0 {
+		vmi.Spec.Domain.CPU.MaxSockets = VMIDefaults.Spec.Domain.CPU.Sockets * maxRatio
+	}
+}
+
+func (c *VMController) setupMemoryHotplug(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, maxRatio uint32) {
+	if vm.Spec.LiveUpdateFeatures.Memory == nil {
+		return
+	}
+
+	if vm.Spec.LiveUpdateFeatures.Memory.MaxGuest != nil {
+		vmi.Spec.Domain.Memory.MaxGuest = vm.Spec.LiveUpdateFeatures.Memory.MaxGuest
+	}
+
+	if vmi.Spec.Domain.Memory.MaxGuest == nil {
+		vmi.Spec.Domain.Memory.MaxGuest = c.clusterConfig.GetMaximumGuestMemory()
+	}
+
+	if vmi.Spec.Domain.Memory.MaxGuest == nil {
+		vmi.Spec.Domain.Memory.MaxGuest = resource.NewQuantity(vmi.Spec.Domain.Memory.Guest.Value()*int64(maxRatio), resource.BinarySI)
+	}
 }
 
 // filterActiveVMIs takes a list of VMIs and returns all VMIs which are not in a final state
@@ -2058,7 +2234,6 @@ func (c *VMController) updateStatus(vmOrig *virtv1.VirtualMachine, vmi *virtv1.V
 	vm.Status.Ready = ready
 
 	c.trimDoneVolumeRequests(vm)
-	trimDoneInterfaceRequests(vm)
 	c.updateMemoryDumpRequest(vm, vmi)
 
 	if c.isTrimFirstChangeRequestNeeded(vm, vmi) {
@@ -2605,19 +2780,36 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 		}
 	}
 
-	var ifaceHotplugError syncError
 	// Must check needsSync again here because a VMI can be created or
 	// deleted in the startStop function which impacts how we process
 	// hotplugged volumes and interfaces
 	if c.needsSync(key) && syncErr == nil {
 		vmCopy := vm.DeepCopy()
+		if c.clusterConfig.HotplugNetworkInterfacesEnabled() &&
+			vmi != nil && vmi.DeletionTimestamp == nil {
+			vmiCopy := vmi.DeepCopy()
 
-		if c.clusterConfig.HotplugNetworkInterfacesEnabled() {
-			if err := c.handleDynamicInterfaceRequests(vmCopy, vmi); err != nil {
-				log.Log.Object(vm).Errorf("error encountered while handling dynamic interface request: %v", err)
-				ifaceHotplugError = &syncErrorImpl{
-					err:    fmt.Errorf("error encountered while handling dynamic interface request: %v", err),
-					reason: HotPlugNetworkInterfaceErrorReason,
+			indexedStatusIfaces := vmispec.IndexInterfaceStatusByName(vmi.Status.Interfaces,
+				func(ifaceStatus virtv1.VirtualMachineInstanceNetworkInterface) bool { return true })
+
+			ifaces, networks := clearDetachedInterfaces(vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces, vmCopy.Spec.Template.Spec.Networks, indexedStatusIfaces)
+			vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces = ifaces
+			vmCopy.Spec.Template.Spec.Networks = networks
+
+			ifaces, networks = clearDetachedInterfaces(vmiCopy.Spec.Domain.Devices.Interfaces, vmiCopy.Spec.Networks, indexedStatusIfaces)
+			vmiCopy.Spec.Domain.Devices.Interfaces = ifaces
+			vmiCopy.Spec.Networks = networks
+
+			if hasOrdinalIfaces, err := c.hasOrdinalNetworkInterfaces(vmi); err != nil {
+				syncErr = &syncErrorImpl{fmt.Errorf("Error encountered when trying to check if VMI has interface with ordinal names (e.g.: eth1, eth2..): %v", err), HotPlugNetworkInterfaceErrorReason}
+			} else {
+				updatedVmiSpec := applyDynamicIfaceRequestOnVMI(vmCopy, vmiCopy, hasOrdinalIfaces)
+				vmiCopy.Spec = *updatedVmiSpec
+			}
+
+			if syncErr == nil {
+				if err = c.vmiInterfacesPatch(&vmiCopy.Spec, vmi); err != nil {
+					syncErr = &syncErrorImpl{fmt.Errorf("Error encountered when trying to patch vmi: %v", err), FailedUpdateErrorReason}
 				}
 			}
 		}
@@ -2637,6 +2829,17 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 			syncErr = &syncErrorImpl{fmt.Errorf("Error encountered while handling CPU change request: %v", err), HotPlugCPUErrorReason}
 		}
 
+		if err := c.handleAffinityChangeRequest(vmCopy, vmi); err != nil {
+			syncErr = &syncErrorImpl{fmt.Errorf("Error encountered while handling node affinity change request: %v", err), AffinityChangeErrorReason}
+		}
+
+		if err := c.handleMemoryHotplugRequest(vmCopy, vmi); err != nil {
+			syncErr = &syncErrorImpl{
+				err:    fmt.Errorf("error encountered while handling memory hotplug requests: %v", err),
+				reason: HotPlugMemoryErrorReason,
+			}
+		}
+
 		if syncErr == nil {
 			if !equality.Semantic.DeepEqual(vm, vmCopy) {
 				vm, err = c.clientset.VirtualMachine(vmCopy.Namespace).Update(context.Background(), vmCopy)
@@ -2648,9 +2851,6 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 	}
 	virtControllerVMWorkQueueTracer.StepTrace(key, "sync", trace.Field{Key: "VM Name", Value: vm.Name})
 
-	if syncErr == nil && ifaceHotplugError != nil {
-		syncErr = ifaceHotplugError
-	}
 	return vm, syncErr, nil
 }
 
@@ -2708,30 +2908,70 @@ func (c *VMController) applyDevicePreferences(vm *virtv1.VirtualMachine, vmi *vi
 	return nil, nil
 }
 
-func (c *VMController) handleDynamicInterfaceRequests(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) error {
-	if len(vm.Status.InterfaceRequests) == 0 {
+func (c *VMController) hasOrdinalNetworkInterfaces(vmi *virtv1.VirtualMachineInstance) (bool, error) {
+	pod, err := controller.CurrentVMIPod(vmi, c.podInformer)
+	if err != nil {
+		log.Log.Object(vmi).Reason(err).Error("Failed to fetch pod from cache.")
+		return false, err
+	}
+	if pod == nil {
+		log.Log.Object(vmi).Reason(err).Error("Failed to find VMI pod in cache.")
+		return false, err
+	}
+	hasOrdinalIfaces := namescheme.PodHasOrdinalInterfaceName(services.NonDefaultMultusNetworksIndexedByIfaceName(pod))
+	return hasOrdinalIfaces, nil
+}
+
+func (c *VMController) handleMemoryHotplugRequest(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) error {
+	if vmi == nil || vmi.DeletionTimestamp != nil {
 		return nil
 	}
 
-	vmTemplateCopy := vm.Spec.Template.Spec.DeepCopy()
-	for i := range vm.Status.InterfaceRequests {
-		vmTemplateCopy = controller.ApplyNetworkInterfaceRequestOnVMISpec(
-			vmTemplateCopy, &vm.Status.InterfaceRequests[i])
-
-		if vmi == nil || vmi.DeletionTimestamp != nil {
-			continue
-		}
-
-		vmiSpecCopy := vmi.Spec.DeepCopy()
-		vmiSpecCopy = controller.ApplyNetworkInterfaceRequestOnVMISpec(
-			vmiSpecCopy, &vm.Status.InterfaceRequests[i])
-
-		if err := c.vmiInterfacesPatch(vmiSpecCopy, vmi); err != nil {
-			return err
-		}
+	if vm.Spec.LiveUpdateFeatures == nil || vm.Spec.LiveUpdateFeatures.Memory == nil {
+		return nil
 	}
 
-	vm.Spec.Template.Spec = *vmTemplateCopy
+	if vm.Spec.Template.Spec.Domain.Memory == nil || vmi.Spec.Domain.Memory == nil {
+		return nil
+	}
+
+	guestMemory := vmi.Spec.Domain.Memory.Guest
+
+	if vmi.Status.Memory == nil ||
+		vmi.Status.Memory.GuestCurrent == nil ||
+		vm.Spec.Template.Spec.Domain.Memory.Guest.Equal(*guestMemory) {
+		return nil
+
+	}
+
+	conditionManager := controller.NewVirtualMachineInstanceConditionManager()
+
+	if conditionManager.HasConditionWithStatus(vmi,
+		virtv1.VirtualMachineInstanceMemoryChange, k8score.ConditionTrue) {
+		return fmt.Errorf("another memory hotplug is in progress")
+	}
+
+	if migrations.IsMigrating(vmi) {
+		return fmt.Errorf("memory hotplug is not allowed while VMI is migrating")
+	}
+
+	newMemoryReq := vm.Spec.Template.Spec.Domain.Memory.Guest.DeepCopy()
+	newMemoryReq.Sub(*vmi.Status.Memory.GuestCurrent)
+	newMemoryReq.Add(*vmi.Spec.Domain.Resources.Requests.Memory())
+
+	guestTest := fmt.Sprintf(`{ "op": "test", "path": "/spec/domain/memory/guest", "value": "%s"}`, vmi.Spec.Domain.Memory.Guest.String())
+	updateGuest := fmt.Sprintf(`{ "op": "replace", "path": "/spec/domain/memory/guest", "value": "%s"}`, vm.Spec.Template.Spec.Domain.Memory.Guest.String())
+	MemoryReqTest := fmt.Sprintf(`{ "op": "test", "path": "/spec/domain/resources/requests/memory", "value": "%s"}`, vmi.Spec.Domain.Resources.Requests.Memory().String())
+	updateMemoryReq := fmt.Sprintf(`{ "op": "replace", "path": "/spec/domain/resources/requests/memory", "value": "%s"}`, newMemoryReq.String())
+	patch := fmt.Sprintf(`[%s, %s, %s, %s]`, guestTest, updateGuest, MemoryReqTest, updateMemoryReq)
+
+	_, err := c.clientset.VirtualMachineInstance(vmi.Namespace).Patch(context.Background(), vmi.Name, types.JSONPatchType, []byte(patch), &v1.PatchOptions{})
+	if err != nil {
+		return err
+	}
+
+	log.Log.Object(vmi).V(4).Infof("hotplugging memory to %s", vm.Spec.Template.Spec.Domain.Memory.Guest.String())
+
 	return nil
 }
 
@@ -2777,31 +3017,13 @@ func (c *VMController) vmiInterfacesPatch(newVmiSpec *virtv1.VirtualMachineInsta
 func (c *VMController) setupLiveFeatures(
 	vm *virtv1.VirtualMachine,
 	vmi, VMIDefaults *virtv1.VirtualMachineInstance) {
-	const (
-		maxSocketsRatio = 4
-	)
+
+	maxRatio := c.clusterConfig.GetMaxHotplugRatio()
 
 	if vm.Spec.LiveUpdateFeatures == nil {
 		return
 	}
 
-	if vmi.Spec.Domain.CPU == nil {
-		vmi.Spec.Domain.CPU = &virtv1.CPU{}
-	}
-
-	if vm.Spec.LiveUpdateFeatures.CPU.MaxSockets != nil {
-		vmi.Spec.Domain.CPU.MaxSockets = *vm.Spec.LiveUpdateFeatures.CPU.MaxSockets
-	}
-
-	if vmi.Spec.Domain.CPU.MaxSockets == 0 {
-		vmi.Spec.Domain.CPU.MaxSockets = c.clusterConfig.GetMaximumCpuSockets()
-	}
-
-	if vmi.Spec.Domain.CPU.MaxSockets == 0 {
-		vmi.Spec.Domain.CPU.MaxSockets = vmi.Spec.Domain.CPU.Sockets * maxSocketsRatio
-	}
-
-	if vmi.Spec.Domain.CPU.MaxSockets == 0 {
-		vmi.Spec.Domain.CPU.MaxSockets = VMIDefaults.Spec.Domain.CPU.Sockets * maxSocketsRatio
-	}
+	c.setupCPUHotplug(vm, vmi, VMIDefaults, maxRatio)
+	c.setupMemoryHotplug(vm, vmi, maxRatio)
 }

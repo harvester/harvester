@@ -208,6 +208,7 @@ func (s *vmSnapshotSource) captureInstancetypeControllerRevision(namespace, revi
 
 	snapshotCR := existingCR.DeepCopy()
 	snapshotCR.ObjectMeta.Reset()
+	snapshotCR.ObjectMeta.SetLabels(existingCR.Labels)
 
 	// We strip out the source VM name from the CR name and replace it with the snapshot name
 	snapshotCR.Name = strings.Replace(existingCR.Name, s.snapshot.Spec.Source.Name, s.snapshot.Name, 1)
@@ -267,16 +268,8 @@ func (s *vmSnapshotSource) Spec() (snapshotv1.SourceSpec, error) {
 		}
 		vmCpy.ObjectMeta = metaObj
 
-		vmi, exists, err := s.controller.getVMI(s.vm)
-		if err != nil {
-			return snapshotv1.SourceSpec{}, err
-		}
-		if !exists {
-			return snapshotv1.SourceSpec{}, fmt.Errorf("can't get online snapshot spec, vmi doesn't exist")
-		}
-		vmi.Spec.Volumes = s.vm.Spec.Template.Spec.Volumes
-		vmi.Spec.Domain.Devices.Disks = s.vm.Spec.Template.Spec.Domain.Devices.Disks
-		vmCpy.Spec.Template.Spec = vmi.Spec
+		vmCpy.Spec.Template.Spec.Volumes = s.vm.Spec.Template.Spec.Volumes
+		vmCpy.Spec.Template.Spec.Domain.Devices.Disks = s.vm.Spec.Template.Spec.Domain.Devices.Disks
 	} else {
 		vmCpy.ObjectMeta = metaObj
 		vmCpy.Spec = *s.vm.Spec.DeepCopy()
