@@ -157,10 +157,12 @@ message Engine {
     int32 port = 6;
     map<string, string> replica_address_map = 7;
     map<string, ReplicaMode> replica_mode_map = 8;
-    string frontend = 9;
-    string endpoint = 10;
-    string state = 11;
-    string error_msg = 12;
+    Lvol head = 9;
+    map<string, Lvol> snapshots = 10;
+    string frontend = 11;
+    string endpoint = 12;
+    string state = 13;
+    string error_msg = 14;
 }
 
 message EngineCreateRequest {

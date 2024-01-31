@@ -68,7 +68,7 @@ require (
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20240110081942-bd231cfb0c7b
-	github.com/longhorn/longhorn-manager v1.6.0-rc2
+	github.com/longhorn/longhorn-manager v1.6.0-rc3
 	github.com/mattn/go-isatty v0.0.17
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.5.0
@@ -95,7 +95,7 @@ require (
 	github.com/urfave/cli v1.22.13
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.18.0
-	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
+	golang.org/x/exp v0.0.0-20230725012225-302865e7556b
 	golang.org/x/net v0.20.0
 	golang.org/x/sync v0.5.0
 	golang.org/x/text v0.14.0
@@ -147,7 +147,7 @@ require (
 	github.com/coreos/prometheus-operator v0.38.3 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/cli v20.10.17+incompatible // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/docker v20.10.18+incompatible // indirect
@@ -188,7 +188,7 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-containerregistry v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
-	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
+	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.5.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
@@ -213,11 +213,11 @@ require (
 	github.com/longhorn/backing-image-manager v1.6.0-dev-20231217.0.20240103150452-7f8aea1edd03 // indirect
 	github.com/longhorn/go-common-libs v0.0.0-20240109042507-23627e6416b7 // indirect
 	github.com/longhorn/go-iscsi-helper v0.0.0-20240103085736-72aee873888a // indirect
-	github.com/longhorn/go-spdk-helper v0.0.0-20240111043333-3afa7627b1aa // indirect
+	github.com/longhorn/go-spdk-helper v0.0.0-20240117135122-26f8acb2a13d // indirect
 	github.com/longhorn/longhorn-engine v1.6.0-dev-20240105.0.20240110095344-deb8b18a1558 // indirect
-	github.com/longhorn/longhorn-instance-manager v1.6.0-dev-20240105.0.20240111093648-3519c6242106 // indirect
+	github.com/longhorn/longhorn-instance-manager v1.6.0-rc2.0.20240126090453-5a27dd0e4a81 // indirect
 	github.com/longhorn/longhorn-share-manager v1.6.0-dev-20231217.0.20231226052309-99d57c1695ea // indirect
-	github.com/longhorn/longhorn-spdk-engine v0.0.0-20240111044835-64886f5375d0 // indirect
+	github.com/longhorn/longhorn-spdk-engine v0.0.0-20240123044045-c5f14845bd83 // indirect
 	github.com/machadovilaca/operator-observability v0.0.6 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -248,7 +248,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/client_golang v1.17.0 // indirect
 	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16 // indirect
