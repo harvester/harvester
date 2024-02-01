@@ -11,6 +11,7 @@ import (
 	ctlbatchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
+	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -79,7 +80,6 @@ type PromoteHandler struct {
 	recorder  record.EventRecorder
 	namespace string
 	appCache  catalogv1.AppCache
-	etcdNodes []string
 }
 
 // PromoteRegister registers the node controller
@@ -96,7 +96,6 @@ func PromoteRegister(ctx context.Context, management *config.Management, options
 		appCache:  appCache,
 		recorder:  management.NewRecorder("harvester-"+promoteControllerName, "", ""),
 		namespace: options.Namespace,
-		etcdNodes: []string{},
 	}
 
 	nodes.OnChange(ctx, promoteControllerName, promoteController.OnNodeChanged)
@@ -268,6 +267,8 @@ func (h *PromoteHandler) setPromoteResult(job *batchv1.Job, node *corev1.Node, s
 
 // selectPromoteNode select the oldest ready worker node to promote
 // If the cluster doesn't need to be promoted, return nil
+// NOTE: currently, we only support one witness node. If we have more than one witness node,
+// other witness nodes will not be calculated into the management node number.
 func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	var (
 		promoteNode                             *corev1.Node
@@ -277,6 +278,7 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 		managementOrHealthyHarvesterWorkerZones = make(map[string]bool)
 		managementZones                         = make(map[string]bool)
 		managementNumber                        int
+		witnessPromoted                         bool
 	)
 
 	nodeNumber := len(nodeList)
@@ -287,6 +289,8 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 		if isManagement {
 			managementNumber++
 		}
+
+		witnessPromoted = witnessPromoted || isWitnessNode(node, isManagement)
 
 		// return if there are already enough management nodes or total amount of nodes
 		if managementNumber == func() int {
@@ -314,7 +318,8 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 				managementZones[zone] = true
 				managementOrHealthyHarvesterWorkerZones[zone] = true
 			}
-		} else if isHealthyNode(node) && isHarvesterNode(node) && !isWorkerPreferredNode(node) {
+		} else if isHealthyNode(node) && isHarvesterNode(node) &&
+			!isWorkerPreferredNode(node) && !isExtraWitnessNode(node, len(witnessPreferred), witnessPromoted) {
 			if zone != "" {
 				managementOrHealthyHarvesterWorkerZones[zone] = true
 			}
@@ -367,6 +372,32 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 
 	// promote the oldest node
 	return promoteNode
+}
+
+func isWitnessNode(node *corev1.Node, isManagement bool) bool {
+	_, found := node.Labels[HarvesterWitnessNodeLabelKey]
+	if !found {
+		return false
+	}
+
+	// promotion has already been run for this node
+	if found && (isManagement || isPromoteStatusIn(node, PromoteStatusComplete, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown)) {
+		return true
+	}
+
+	return false
+}
+
+func isExtraWitnessNode(node *corev1.Node, numOfWitnessNode int, promotedWitnessNode bool) bool {
+	if numOfWitnessNode == 0 && !promotedWitnessNode {
+		return false
+	}
+
+	_, found := node.Labels[HarvesterWitnessNodeLabelKey]
+	if found {
+		logrus.Warnf("Found extra witness node %s, only one witness node is supported!", node.Name)
+	}
+	return found
 }
 
 func isWorkerPreferredNode(node *corev1.Node) bool {
@@ -438,10 +469,7 @@ func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, erro
 		return nil, fmt.Errorf("failed to get harvester image (%s): %v", image.ImageName(), err)
 	}
 
-	job := buildPromoteJob(h.namespace, node, image.ImageName(), len(h.etcdNodes))
-	if node.Labels[HarvesterWitnessNodeLabelKey] == "true" {
-		h.etcdNodes = append(h.etcdNodes, node.Name)
-	}
+	job := buildPromoteJob(h.namespace, node, image.ImageName())
 	return h.jobs.Create(job)
 }
 
@@ -449,11 +477,11 @@ func (h *PromoteHandler) deleteJob(job *batchv1.Job, deletionPropagation metav1.
 	return h.jobs.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{PropagationPolicy: &deletionPropagation})
 }
 
-func buildPromoteJob(namespace string, node *corev1.Node, promoteImage string, numOfEtcdNodes int) *batchv1.Job {
+func buildPromoteJob(namespace string, node *corev1.Node, promoteImage string) *batchv1.Job {
 	nodeName := node.Name
 	nodeRoleEtcd := node.Labels[HarvesterWitnessNodeLabelKey]
 	promoteParameter := ""
-	if nodeRoleEtcd == "true" && numOfEtcdNodes == 0 {
+	if nodeRoleEtcd == "true" {
 		promoteParameter = "rke.cattle.io/etcd-role=true"
 	}
 	hostPathDirectory := corev1.HostPathDirectory
