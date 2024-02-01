@@ -696,9 +696,11 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 	}
 	vm.Spec.Template.Spec.Volumes = newVolumes
 
-	for i := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
-		// remove the copied mac address of the new VM
-		vm.Spec.Template.Spec.Domain.Devices.Interfaces[i].MacAddress = ""
+	if !restore.Spec.KeepMacAddress {
+		for i := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+			// remove the copied mac address of the new VM
+			vm.Spec.Template.Spec.Domain.Devices.Interfaces[i].MacAddress = ""
+		}
 	}
 
 	newVM, err := h.vms.Create(vm)

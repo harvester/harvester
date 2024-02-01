@@ -208,6 +208,11 @@ type VirtualMachineRestoreSpec struct {
 
 	// +optional
 	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
+
+	// +optional
+	// KeepMacAddress only works when NewVM is true.
+	// For replacing original VM, the macaddress will be the same.
+	KeepMacAddress bool `json:"keepMacAddress,omitempty"`
 }
 
 // VirtualMachineRestoreStatus is the spec for a VirtualMachineRestore resource
