@@ -7031,6 +7031,9 @@
         "deletionPolicy": {
           "type": "string"
         },
+        "keepMacAddress": {
+          "type": "boolean"
+        },
         "newVM": {
           "type": "boolean"
         },
