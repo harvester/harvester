@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"strings"
@@ -56,6 +57,17 @@ type HarvesterServer struct {
 
 	Handler http.Handler
 }
+
+var (
+	whiteListedCiphers = []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+	}
+)
 
 const (
 	RancherKubeConfigSecretName = "rancher-kubeconfig"
@@ -155,6 +167,10 @@ func (s *HarvesterServer) ListenAndServe(listenerCfg *dynamiclistener.Config, op
 		Secrets: s.controllers.Core.Secret(),
 		TLSListenerConfig: dynamiclistener.Config{
 			CloseConnOnCertChange: true,
+			TLSConfig: &tls.Config{
+				MinVersion:   tls.VersionTLS12,
+				CipherSuites: whiteListedCiphers,
+			},
 		},
 	}
 
