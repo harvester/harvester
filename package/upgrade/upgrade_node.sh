@@ -154,7 +154,6 @@ wait_vms_out_or_shutdown()
   local vm_count
   local max_retries=240
 
-  retries=0
   while [ true ]; do
     vm_count="$(get_running_vm_count)"
 
@@ -162,14 +161,8 @@ wait_vms_out_or_shutdown()
       break
     fi
 
-    if [ "$retries" = "$max_retries" ]; then
-      echo "WARNING: fail to live-migrate $vm_count VM(s). Shutting down them..."
-      shutdown_vms_on_node
-    fi
-
     echo "Waiting for VM live-migration or shutdown...($vm_count left)"
     sleep 5
-    retries=$((retries+1))
   done
 }
 
@@ -195,60 +188,6 @@ shutdown_vms_on_node()
       fi
       echo "Stop ${namespace}/${name}"
       virtctl stop $name -n $namespace
-    done
-}
-
-
-shutdown_non_migrate_able_vms()
-{
-  # VMs with nodeSelector
-  kubectl get vmi -A -l kubevirt.io/nodeName=$HARVESTER_UPGRADE_NODE_NAME -o json |
-    jq -r '.items[] | select(.spec.nodeSelector != null) | [.metadata.name, .metadata.namespace] | @tsv' |
-    while IFS=$'\t' read -r name namespace; do
-      if [ -z "$name" ]; then
-        break
-      fi
-      echo "Stop ${namespace}/${name}"
-      virtctl stop $name -n $namespace
-    done
-
-  # VMs with nodeAffinity
-  # Skip only when the VMs have other places to go
-  local node_labels=""
-  local node_count=0
-  kubectl get vmi -A -l kubevirt.io/nodeName=$HARVESTER_UPGRADE_NODE_NAME -o json |
-    jq -r '.items[] | select(.spec.affinity.nodeAffinity != null) | [.metadata.name, .metadata.namespace] | @tsv' |
-    while IFS=$'\t' read -r name namespace; do
-      if [ -z "$name" ]; then
-        break
-      fi
-      node_labels=$(kubectl -n "$namespace" get vmi "$name" -o yaml |
-        yq '.spec.affinity.nodeAffinity.*.nodeSelectorTerms[].matchExpressions[] | select(.operator=="In" and .values[] == "true") | .key')
-      for nl in $node_labels; do
-        # For nodes considered "candidates" for the VM to live-migrate to, they should
-        # 1. match the same labels as nodeAffinity described
-        # 2. not be the node that the VM currently runs on
-        # 3. be schedulable at the time
-        node_count=$(kubectl get nodes -o yaml |
-                nl="$nl" n="$HARVESTER_UPGRADE_NODE_NAME" yq '.items[] | select(.metadata.labels.[env(nl)] == "true" and .metadata.name != env(n) and .spec.unschedulable == null) | .metadata.name' | wc -l)
-
-        if [ "$node_count" -gt 0 ]; then
-          # If such nodes exist, continue to check for the next label
-          echo "$namespace/$name still has $node_count place(s) to go for label $nl"
-          continue
-        else
-          # If there is no candidates for any of the labels, just break the loop and shut the VM down
-          echo "$namespace/$name has no other places to go for label $nl"
-          break
-        fi
-      done
-
-      if [ $node_count -gt 0 ]; then
-        echo "$namespace/$name is considered live-migratable"
-      else
-        echo "$namespace/$name is non-migratable, shutdown immediately"
-        virtctl stop "$name" -n "$namespace"
-      fi
     done
 }
 
@@ -413,7 +352,8 @@ command_pre_drain() {
 
   wait_longhorn_engines
 
-  shutdown_non_migrate_able_vms
+  # Shut down non-live migratable VMs
+  upgrade-helper vm-live-migrate-detector "$HARVESTER_UPGRADE_NODE_NAME" --shutdown
 
   # Live migrate VMs
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME --overwrite kubevirt.io/drain=draining:NoSchedule
