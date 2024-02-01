@@ -89,6 +89,7 @@ require (
 	github.com/rancher/wrangler v1.1.1
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.2
+	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.3
 	github.com/tidwall/gjson v1.9.3
 	github.com/urfave/cli v1.22.13
@@ -106,12 +107,14 @@ require (
 	k8s.io/apimachinery v0.27.1
 	k8s.io/apiserver v0.27.1
 	k8s.io/client-go v12.0.0+incompatible
+	k8s.io/component-helpers v0.28.5
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f
 	k8s.io/kubectl v0.25.0
 	k8s.io/kubelet v0.26.10
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106
 	kubevirt.io/api v1.0.0
+	kubevirt.io/client-go v1.0.0
 	kubevirt.io/containerized-data-importer-api v1.57.0-alpha1
 	kubevirt.io/kubevirt v1.0.0
 	sigs.k8s.io/cluster-api v1.4.8
@@ -133,7 +136,6 @@ require (
 	github.com/adrg/xdg v0.3.1 // indirect
 	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef // indirect
-	github.com/avast/retry-go v3.0.0+incompatible // indirect
 	github.com/aws/aws-sdk-go v1.44.116 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.7.0 // indirect
@@ -143,7 +145,6 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
-	github.com/container-storage-interface/spec v1.7.0 // indirect
 	github.com/containerd/containerd v1.6.6 // indirect
 	github.com/coreos/prometheus-operator v0.38.3 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
@@ -165,7 +166,6 @@ require (
 	github.com/gammazero/workerpool v1.1.3 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/gin-gonic/gin v1.7.0 // indirect
-	github.com/go-co-op/gocron v1.18.0 // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-gorp/gorp/v3 v3.0.2 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
@@ -207,7 +207,6 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.15.11 // indirect
-	github.com/kubernetes-csi/csi-lib-utils v0.6.1 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.6 // indirect
@@ -261,13 +260,11 @@ require (
 	github.com/rancher/rke v1.3.18 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rubenv/sql-migrate v1.1.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/slok/goresilience v0.2.0 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
-	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
@@ -303,14 +300,11 @@ require (
 	k8s.io/cli-runtime v0.27.1 // indirect
 	k8s.io/code-generator v0.26.10 // indirect
 	k8s.io/component-base v0.27.1 // indirect
-	k8s.io/component-helpers v0.27.1 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kube-aggregator v0.26.3 // indirect
 	k8s.io/kubernetes v1.27.1 // indirect
-	k8s.io/metrics v0.27.1 // indirect
 	k8s.io/mount-utils v0.27.1 // indirect
-	kubevirt.io/client-go v1.0.0 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	oras.land/oras-go v1.2.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.1 // indirect

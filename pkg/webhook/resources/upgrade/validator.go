@@ -27,8 +27,10 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1alpha4"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	versionWebhook "github.com/harvester/harvester/pkg/webhook/resources/version"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -53,6 +55,7 @@ func NewValidator(
 	machines ctlclusterv1.MachineCache,
 	managedChartCache mgmtv3.ManagedChartCache,
 	versionCache ctlharvesterv1.VersionCache,
+	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	httpClient *http.Client,
 	bearToken string,
 ) types.Validator {
@@ -64,6 +67,7 @@ func NewValidator(
 		machines:          machines,
 		managedChartCache: managedChartCache,
 		versionCache:      versionCache,
+		vmiCache:          vmiCache,
 		httpClient:        httpClient,
 		bearToken:         bearToken,
 	}
@@ -79,6 +83,7 @@ type upgradeValidator struct {
 	machines          ctlclusterv1.MachineCache
 	managedChartCache mgmtv3.ManagedChartCache
 	versionCache      ctlharvesterv1.VersionCache
+	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
 	httpClient        *http.Client
 	bearToken         string
 }
@@ -163,7 +168,11 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
 		return err
 	}
 
-	return v.checkMachines()
+	if err := v.checkMachines(); err != nil {
+		return err
+	}
+
+	return v.checkNonLiveMigratableVMs()
 }
 
 func (v *upgradeValidator) hasDegradedVolume() (bool, error) {
@@ -302,6 +311,31 @@ func (v *upgradeValidator) checkMachines() error {
 		if machine.Status.GetTypedPhase() != clusterv1alpha4.MachinePhaseRunning {
 			return werror.NewInternalError(fmt.Sprintf("machine %s/%s is not running", machine.Namespace, machine.Name))
 		}
+	}
+
+	return nil
+}
+
+func (v *upgradeValidator) checkNonLiveMigratableVMs() error {
+	allVMIs, err := v.vmiCache.List(corev1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	allNodes, err := v.nodes.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	nonLiveMigratableVMNames, err := virtualmachineinstance.GetAllNonLiveMigratableVMINames(allVMIs, allNodes)
+	if err != nil {
+		return err
+	}
+
+	if len(nonLiveMigratableVMNames) > 0 {
+		return werror.NewInvalidError(
+			fmt.Sprintf("There are non-live migratable VMs that need to be shut off before initiating the upgrade: %s", strings.Join(nonLiveMigratableVMNames, ", ")), "",
+		)
 	}
 
 	return nil
