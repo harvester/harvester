@@ -154,7 +154,6 @@ wait_vms_out_or_shutdown()
   local vm_count
   local max_retries=240
 
-  retries=0
   while [ true ]; do
     vm_count="$(get_running_vm_count)"
 
@@ -162,14 +161,8 @@ wait_vms_out_or_shutdown()
       break
     fi
 
-    if [ "$retries" = "$max_retries" ]; then
-      echo "WARNING: fail to live-migrate $vm_count VM(s). Shutting down them..."
-      shutdown_vms_on_node
-    fi
-
     echo "Waiting for VM live-migration or shutdown...($vm_count left)"
     sleep 5
-    retries=$((retries+1))
   done
 }
 
