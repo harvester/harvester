@@ -32,6 +32,7 @@ const (
 	fieldTargetName               = "spec.target.name"
 	fieldVirtualMachineBackupName = "spec.virtualMachineBackupName"
 	fieldNewVM                    = "spec.newVM"
+	fieldKeepMacAddress           = "spec.keepMacAddress"
 )
 
 func NewValidator(
@@ -85,10 +86,7 @@ func (v *restoreValidator) Resource() types.Resource {
 func (v *restoreValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newRestore := newObj.(*v1beta1.VirtualMachineRestore)
 
-	targetVM := newRestore.Spec.Target.Name
-	newVM := newRestore.Spec.NewVM
-
-	if errs := validationutil.IsDNS1123Subdomain(targetVM); len(errs) != 0 {
+	if errs := validationutil.IsDNS1123Subdomain(newRestore.Spec.Target.Name); len(errs) != 0 {
 		return werror.NewInvalidError(fmt.Sprintf("Target VM name is invalid, err: %v", errs), fieldTargetName)
 	}
 
@@ -101,29 +99,11 @@ func (v *restoreValidator) Create(_ *types.Request, newObj runtime.Object) error
 		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
 	}
 
-	if vmBackup.Spec.Type == v1beta1.Backup {
-		err = v.checkBackup(newRestore, vmBackup)
-	} else {
-		err = v.checkSnapshot(newRestore, vmBackup)
-	}
-	if err != nil {
-		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
+	if err := v.checkVMBackupType(newRestore, vmBackup); err != nil {
+		return err
 	}
 
-	vm, err := v.vms.Get(newRestore.Namespace, targetVM)
-	if err != nil {
-		if newVM && apierrors.IsNotFound(err) {
-			return v.handleNewVM(newRestore, targetVM, vmBackup)
-		}
-		return werror.NewInvalidError(err.Error(), fieldTargetName)
-	}
-
-	// restore a new vm but the vm is already exist
-	if newVM && vm != nil {
-		return werror.NewInvalidError(fmt.Sprintf("VM %s is already exists", vm.Name), fieldNewVM)
-	}
-
-	return v.handleExistVM(newVM, vm)
+	return v.checkNewVMField(newRestore, vmBackup)
 }
 
 func (v *restoreValidator) Update(_ *types.Request, oldObj, newObj runtime.Object) error {
@@ -135,9 +115,32 @@ func (v *restoreValidator) Update(_ *types.Request, oldObj, newObj runtime.Objec
 	return nil
 }
 
-func (v *restoreValidator) handleExistVM(newVM bool, vm *kubevirtv1.VirtualMachine) error {
+func (v *restoreValidator) checkNewVMField(vmRestore *v1beta1.VirtualMachineRestore, vmBackup *v1beta1.VirtualMachineBackup) error {
+	vm, err := v.vms.Get(vmRestore.Namespace, vmRestore.Spec.Target.Name)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return werror.NewInternalError(fmt.Sprintf("failed to get the VM %s/%s, err: %+v", vmRestore.Namespace, vmRestore.Spec.Target.Name, err))
+	}
+
+	switch vmRestore.Spec.NewVM {
+	case true:
+		// restore a new vm but the vm is already exist
+		if vm != nil {
+			return werror.NewInvalidError(fmt.Sprintf("VM %s is already exists", vm.Name), fieldNewVM)
+		}
+		return v.handleNewVM(vmRestore, vmBackup)
+	case false:
+		// replace an existing vm but there is no related vm
+		if vm == nil {
+			return werror.NewInvalidError(fmt.Sprintf("can't replace nonexistent vm %s", vmRestore.Spec.Target.Name), fieldTargetName)
+		}
+		return v.handleExistVM(vm)
+	}
+	return nil
+}
+
+func (v *restoreValidator) handleExistVM(vm *kubevirtv1.VirtualMachine) error {
 	// restore an existing vm but the vm is still running
-	if !newVM && vm.Status.Ready {
+	if vm.Status.Ready {
 		return werror.NewInvalidError(fmt.Sprintf("Please stop the VM %q before doing a restore", vm.Name), fieldTargetName)
 	}
 
@@ -154,11 +157,11 @@ func (v *restoreValidator) handleExistVM(newVM bool, vm *kubevirtv1.VirtualMachi
 	return nil
 }
 
-func (v *restoreValidator) handleNewVM(newRestore *v1beta1.VirtualMachineRestore, targetVM string, vmBackup *v1beta1.VirtualMachineBackup) error {
+func (v *restoreValidator) handleNewVM(vmRestore *v1beta1.VirtualMachineRestore, vmBackup *v1beta1.VirtualMachineBackup) error {
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: newRestore.Namespace,
-			Name:      targetVM,
+			Namespace: vmRestore.Namespace,
+			Name:      vmRestore.Spec.Target.Name,
 		},
 		Spec: vmBackup.Status.SourceSpec.Spec,
 	}
@@ -169,6 +172,34 @@ func (v *restoreValidator) handleNewVM(newRestore *v1beta1.VirtualMachineRestore
 	if err := v.vmrCalculator.CheckIfVMCanStartByResourceQuota(vm); err != nil {
 		return werror.NewInternalError(fmt.Sprintf("Failed to restore the new vm, err: %+v", err))
 	}
+
+	if !vmRestore.Spec.KeepMacAddress {
+		return nil
+	}
+
+	// we don't have a global macaddress checker,
+	// so we just check the source vm name and vmrestores which using the same vmbackup.
+	// this can be removed after https://github.com/harvester/harvester/issues/4893
+	otherVMRestores, err := v.vmRestore.GetByIndex(indexeres.VMRestoreByVMBackupNamespaceAndName, fmt.Sprintf("%s-%s", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName))
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to get vmrestore by index %s, err: %+v", indexeres.VMRestoreByVMBackupNamespaceAndName, err))
+	}
+	for _, otherVMRestore := range otherVMRestores {
+		if otherVMRestore.Spec.NewVM && otherVMRestore.Spec.KeepMacAddress {
+			return werror.NewInvalidError(fmt.Sprintf("can't restore the new vm with the same macaddress as the vmrestore %s/%s", otherVMRestore.Namespace, otherVMRestore.Name), fieldKeepMacAddress)
+		}
+	}
+	sourceVM, err := v.vms.Get(vmBackup.Namespace, vmBackup.Spec.Source.Name)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to get the VM %s/%s, err: %+v", vmBackup.Namespace, vmBackup.Spec.Source.Name, err))
+	}
+	if sourceVM != nil && vmBackup.Status.SourceUID != nil && sourceVM.UID == *vmBackup.Status.SourceUID {
+		return werror.NewInvalidError("can't restore the new vm with the same macaddress because the source vm is still existent", fieldKeepMacAddress)
+	}
+
 	return nil
 }
 
@@ -197,6 +228,20 @@ func (v *restoreValidator) checkSnapshot(vmRestore *v1beta1.VirtualMachineRestor
 		// We don't allow users to use "delete" policy for replacing a VM when the backup type is snapshot.
 		// This will also remove the VMBackup when VMRestore is finished.
 		return fmt.Errorf("Delete policy with backup type snapshot for replacing VM is not supported")
+	}
+	return nil
+}
+
+func (v *restoreValidator) checkVMBackupType(vmRestore *v1beta1.VirtualMachineRestore, vmBackup *v1beta1.VirtualMachineBackup) error {
+	var err error
+	switch vmBackup.Spec.Type {
+	case v1beta1.Backup:
+		err = v.checkBackup(vmRestore, vmBackup)
+	case v1beta1.Snapshot:
+		err = v.checkSnapshot(vmRestore, vmBackup)
+	}
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
 	}
 	return nil
 }
