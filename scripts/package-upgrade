@@ -15,6 +15,8 @@ if [ -e ${DOCKERFILE}.${ARCH} ]; then
     DOCKERFILE=${DOCKERFILE}.${ARCH}
 fi
 
+cp ../../bin/upgrade-helper .
+
 docker build -f ${DOCKERFILE} -t ${IMAGE} .
 echo Built ${IMAGE}
 
