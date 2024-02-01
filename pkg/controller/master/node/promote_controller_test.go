@@ -113,7 +113,10 @@ var (
 	m2 = NewDefaultNodeBuilder().Name("m-2").Harvester().Management()
 	m3 = NewDefaultNodeBuilder().Name("m-3").Harvester().Management()
 
-	e1 = NewDefaultNodeBuilder().Name("e-1").Harvester().Witness()
+	witnc1 = NewDefaultNodeBuilder().Name("witness-c-1").Harvester().Complete().RoleWitness().Witness()
+	witnr1 = NewDefaultNodeBuilder().Name("witness-r-1").Harvester().Running().Witness()
+	witnf1 = NewDefaultNodeBuilder().Name("witness-f-1").Harvester().Failed().Witness()
+	witnu1 = NewDefaultNodeBuilder().Name("witness-u-1").Harvester().Unknown().Witness()
 
 	mc1 = NewDefaultNodeBuilder().Name("m-complete-1").Harvester().Complete().Management()
 
@@ -134,6 +137,7 @@ var (
 	w1rm  = NewDefaultNodeBuilder().Name("w-1-r-mgmt").Harvester().RoleMgmt().Worker()
 	w1rwk = NewDefaultNodeBuilder().Name("w-1-r-worker").Harvester().RoleWorker().Worker()
 	w1rw  = NewDefaultNodeBuilder().Name("w-1-r-witness").Harvester().RoleWitness().Worker()
+	w2rw  = NewDefaultNodeBuilder().Name("w-2-r-witness").Harvester().RoleWitness().Worker()
 
 	// zone aware nodes
 	mu1z2 = NewDefaultNodeBuilder().Name("m-unmanaged-1-z2").Zone("zone2").Management()
@@ -659,7 +663,49 @@ func Test_selectPromoteNode(t *testing.T) {
 		{
 			name: "two management one witness",
 			args: args{
-				nodeList: []*corev1.Node{m1, m2, e1},
+				nodeList: []*corev1.Node{m1, m2, witnc1},
+			},
+			want: nil,
+		},
+		{
+			name: "one management two witness",
+			args: args{
+				nodeList: []*corev1.Node{m1, w1rw, w2rw},
+			},
+			want: nil,
+		},
+		{
+			name: "one management one witness one worker",
+			args: args{
+				nodeList: []*corev1.Node{m1, w1rw, w2rw, w3},
+			},
+			want: w1rw,
+		},
+		{
+			name: "one management one witness promoted one witness one worker",
+			args: args{
+				nodeList: []*corev1.Node{m1, witnc1, w2rw, w3},
+			},
+			want: w3,
+		},
+		{
+			name: "one management one running witness one witness one worker",
+			args: args{
+				nodeList: []*corev1.Node{m1, witnr1, w2rw, w3},
+			},
+			want: nil,
+		},
+		{
+			name: "one management one failed witness one witness one worker",
+			args: args{
+				nodeList: []*corev1.Node{m1, witnf1, w2rw, w3},
+			},
+			want: nil,
+		},
+		{
+			name: "one management one unknown witness one witness one worker",
+			args: args{
+				nodeList: []*corev1.Node{m1, witnu1, w2rw, w3},
 			},
 			want: nil,
 		},
