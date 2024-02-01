@@ -4137,6 +4137,13 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineRestoreSpec(ref common
 							Format: "",
 						},
 					},
+					"keepMacAddress": {
+						SchemaProps: spec.SchemaProps{
+							Description: "KeepMacAddress only works when NewVM is true. For replacing original VM, the macaddress will be the same.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"target", "virtualMachineBackupName", "virtualMachineBackupNamespace"},
 			},
