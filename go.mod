@@ -119,7 +119,6 @@ require (
 	kubevirt.io/containerized-data-importer-api v1.57.0-alpha1
 	kubevirt.io/kubevirt v1.1.0
 	sigs.k8s.io/cluster-api v1.4.8
-	sigs.k8s.io/controller-runtime v0.14.7
 	sigs.k8s.io/kind v0.14.0
 	sigs.k8s.io/kustomize/kyaml v0.13.9
 	sigs.k8s.io/yaml v1.3.0
@@ -315,6 +314,7 @@ require (
 	oras.land/oras-go v1.2.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.2 // indirect
 	sigs.k8s.io/cli-utils v0.27.0 // indirect
+	sigs.k8s.io/controller-runtime v0.14.7 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kustomize/api v0.12.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
