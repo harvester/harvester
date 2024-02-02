@@ -385,7 +385,7 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 				},
 				Spec: pvc.Spec,
 			},
-			ReadyToUse: pointer.BoolPtr(false),
+			ReadyToUse: pointer.Bool(false),
 			VolumeSize: lhvolume.Spec.Size,
 		}
 
@@ -501,7 +501,7 @@ func (h *Handler) initBackup(backup *harvesterv1.VirtualMachineBackup, vm *kubev
 	var err error
 	backupCpy := backup.DeepCopy()
 	backupCpy.Status = &harvesterv1.VirtualMachineBackupStatus{
-		ReadyToUse: pointer.BoolPtr(false),
+		ReadyToUse: pointer.Bool(false),
 		SourceUID:  &vm.UID,
 		SourceSpec: &harvesterv1.VirtualMachineSourceSpec{
 			ObjectMeta: metav1.ObjectMeta{
@@ -664,14 +664,14 @@ func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBacku
 					Kind:       vmBackupKind.Kind,
 					Name:       vmBackup.Name,
 					UID:        vmBackup.UID,
-					Controller: pointer.BoolPtr(true),
+					Controller: pointer.Bool(true),
 				},
 			},
 			Annotations: map[string]string{},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source:                  volumeSnapshotSource,
-			VolumeSnapshotClassName: pointer.StringPtr(volumeSnapshotClass.Name),
+			VolumeSnapshotClassName: pointer.String(volumeSnapshotClass.Name),
 		},
 	}
 
@@ -732,7 +732,7 @@ func (h *Handler) createVolumeSnapshotContent(
 					Kind:       vmBackupKind.Kind,
 					Name:       vmBackup.Name,
 					UID:        vmBackup.UID,
-					Controller: pointer.BoolPtr(true),
+					Controller: pointer.Bool(true),
 				},
 			},
 		},
@@ -740,9 +740,9 @@ func (h *Handler) createVolumeSnapshotContent(
 			Driver:         "driver.longhorn.io",
 			DeletionPolicy: snapshotv1.VolumeSnapshotContentDelete,
 			Source: snapshotv1.VolumeSnapshotContentSource{
-				SnapshotHandle: pointer.StringPtr(snapshotHandle),
+				SnapshotHandle: pointer.String(snapshotHandle),
 			},
-			VolumeSnapshotClassName: pointer.StringPtr(snapshotClass.Name),
+			VolumeSnapshotClassName: pointer.String(snapshotClass.Name),
 			VolumeSnapshotRef: corev1.ObjectReference{
 				Name:      *volumeBackup.Name,
 				Namespace: vmBackup.Namespace,
@@ -755,7 +755,7 @@ func (h *Handler) setStatusError(vmBackup *harvesterv1.VirtualMachineBackup, err
 	vmBackupCpy := vmBackup.DeepCopy()
 	vmBackupCpy.Status.Error = &harvesterv1.Error{
 		Time:    currentTime(),
-		Message: pointer.StringPtr(err.Error()),
+		Message: pointer.String(err.Error()),
 	}
 	updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "Error", err.Error()))
 	updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "", "Not Ready"))

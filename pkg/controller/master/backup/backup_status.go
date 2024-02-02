@@ -85,13 +85,13 @@ func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) e
 	if errorMessage != "" && (vmBackupCpy.Status.Error == nil || vmBackupCpy.Status.Error.Message == nil || *vmBackupCpy.Status.Error.Message != errorMessage) {
 		vmBackupCpy.Status.Error = &harvesterv1.Error{
 			Time:    currentTime(),
-			Message: pointer.StringPtr(errorMessage),
+			Message: pointer.String(errorMessage),
 		}
 		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "Error", errorMessage))
 		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "", "Not Ready"))
 	}
 
-	vmBackupCpy.Status.ReadyToUse = pointer.BoolPtr(ready)
+	vmBackupCpy.Status.ReadyToUse = pointer.Bool(ready)
 
 	if !reflect.DeepEqual(vmBackup.Status, vmBackupCpy.Status) {
 		if _, err := h.vmBackups.Update(vmBackupCpy); err != nil {
@@ -173,7 +173,7 @@ func (h *Handler) OnLHBackupChanged(_ string, lhBackup *lhv1beta2.Backup) (*lhv1
 		vmBackupCpy := vmBackup.DeepCopy()
 		for i, volumeBackup := range vmBackupCpy.Status.VolumeBackups {
 			if *volumeBackup.Name == snapshot.Name {
-				vmBackupCpy.Status.VolumeBackups[i].LonghornBackupName = pointer.StringPtr(lhBackup.Name)
+				vmBackupCpy.Status.VolumeBackups[i].LonghornBackupName = pointer.String(lhBackup.Name)
 			}
 		}
 

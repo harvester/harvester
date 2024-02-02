@@ -254,7 +254,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 										Name: "pvc-disk",
 									},
 									Spec: corev1.PersistentVolumeClaimSpec{
-										StorageClassName: pointer.StringPtr("default"),
+										StorageClassName: pointer.String("default"),
 										AccessModes: []corev1.PersistentVolumeAccessMode{
 											corev1.ReadWriteOnce,
 										},
@@ -327,7 +327,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 							UID:       "fake-pvc-uid",
 						},
 						Spec: corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
+							StorageClassName: pointer.String("default"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								corev1.ReadWriteOnce,
 							},
@@ -354,7 +354,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 										Name: "pvc-disk",
 									},
 									Spec: corev1.PersistentVolumeClaimSpec{
-										StorageClassName: pointer.StringPtr("default"),
+										StorageClassName: pointer.String("default"),
 										AccessModes: []corev1.PersistentVolumeAccessMode{
 											corev1.ReadWriteOnce,
 										},
@@ -431,7 +431,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 							},
 						},
 						Spec: corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
+							StorageClassName: pointer.String("default"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								corev1.ReadWriteOnce,
 							},
@@ -641,7 +641,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 							UID:       "fake-pvc-uid",
 						},
 						Spec: corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
+							StorageClassName: pointer.String("default"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								corev1.ReadWriteOnce,
 							},
@@ -725,7 +725,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 							},
 						},
 						Spec: corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
+							StorageClassName: pointer.String("default"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								corev1.ReadWriteOnce,
 							},
@@ -812,7 +812,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 							},
 						},
 						Spec: corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
+							StorageClassName: pointer.String("default"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								corev1.ReadWriteMany,
 							},
@@ -896,7 +896,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 							},
 						},
 						Spec: corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
+							StorageClassName: pointer.String("default"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								corev1.ReadWriteMany,
 							},
@@ -981,7 +981,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 							UID:       "fake-attached-pvc-uid",
 						},
 						Spec: corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
+							StorageClassName: pointer.String("default"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								corev1.ReadWriteMany,
 							},
@@ -1002,7 +1002,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 							},
 						},
 						Spec: corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
+							StorageClassName: pointer.String("default"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								corev1.ReadWriteMany,
 							},
@@ -1086,7 +1086,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 							},
 						},
 						Spec: corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
+							StorageClassName: pointer.String("default"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								corev1.ReadWriteMany,
 							},
@@ -1104,7 +1104,7 @@ func TestVMController_SetOwnerOfPVCs(t *testing.T) {
 							UID:       "fake-unattached-pvc-uid",
 						},
 						Spec: corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("default"),
+							StorageClassName: pointer.String("default"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								corev1.ReadWriteMany,
 							},
@@ -1318,7 +1318,7 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 										Name: "pvc-disk",
 									},
 									Spec: corev1.PersistentVolumeClaimSpec{
-										StorageClassName: pointer.StringPtr("default"),
+										StorageClassName: pointer.String("default"),
 										AccessModes: []corev1.PersistentVolumeAccessMode{
 											corev1.ReadWriteOnce,
 										},
@@ -1393,7 +1393,7 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 						},
 					},
 					Spec: corev1.PersistentVolumeClaimSpec{
-						StorageClassName: pointer.StringPtr("default"),
+						StorageClassName: pointer.String("default"),
 						AccessModes: []corev1.PersistentVolumeAccessMode{
 							corev1.ReadWriteOnce,
 						},
@@ -1420,7 +1420,7 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 										Name: "pvc-disk",
 									},
 									Spec: corev1.PersistentVolumeClaimSpec{
-										StorageClassName: pointer.StringPtr("default"),
+										StorageClassName: pointer.String("default"),
 										AccessModes: []corev1.PersistentVolumeAccessMode{
 											corev1.ReadWriteOnce,
 										},
@@ -1493,7 +1493,7 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 						UID:       "fake-pvc-uid",
 					},
 					Spec: corev1.PersistentVolumeClaimSpec{
-						StorageClassName: pointer.StringPtr("default"),
+						StorageClassName: pointer.String("default"),
 						AccessModes: []corev1.PersistentVolumeAccessMode{
 							corev1.ReadWriteOnce,
 						},
@@ -1708,7 +1708,7 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 						},
 					},
 					Spec: corev1.PersistentVolumeClaimSpec{
-						StorageClassName: pointer.StringPtr("default"),
+						StorageClassName: pointer.String("default"),
 						AccessModes: []corev1.PersistentVolumeAccessMode{
 							corev1.ReadWriteOnce,
 						},
@@ -1788,7 +1788,7 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 						UID:       "fake-pvc-uid",
 					},
 					Spec: corev1.PersistentVolumeClaimSpec{
-						StorageClassName: pointer.StringPtr("default"),
+						StorageClassName: pointer.String("default"),
 						AccessModes: []corev1.PersistentVolumeAccessMode{
 							corev1.ReadWriteOnce,
 						},
@@ -1874,7 +1874,7 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 						},
 					},
 					Spec: corev1.PersistentVolumeClaimSpec{
-						StorageClassName: pointer.StringPtr("default"),
+						StorageClassName: pointer.String("default"),
 						AccessModes: []corev1.PersistentVolumeAccessMode{
 							corev1.ReadWriteMany,
 						},
@@ -1957,7 +1957,7 @@ func TestVMController_UnsetOwnerOfPVCs(t *testing.T) {
 						},
 					},
 					Spec: corev1.PersistentVolumeClaimSpec{
-						StorageClassName: pointer.StringPtr("default"),
+						StorageClassName: pointer.String("default"),
 						AccessModes: []corev1.PersistentVolumeAccessMode{
 							corev1.ReadWriteMany,
 						},

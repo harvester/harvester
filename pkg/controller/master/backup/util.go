@@ -169,8 +169,8 @@ func configVMOwner(vm *kubevirtv1.VirtualMachine) []metav1.OwnerReference {
 			Kind:               kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 			Name:               vm.Name,
 			UID:                vm.UID,
-			Controller:         pointer.BoolPtr(true),
-			BlockOwnerDeletion: pointer.BoolPtr(true),
+			Controller:         pointer.Bool(true),
+			BlockOwnerDeletion: pointer.Bool(true),
 		},
 	}
 }

@@ -35,7 +35,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	services := management.CoreFactory.Core().V1().Service()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
-	machines := management.ClusterFactory.Cluster().V1alpha4().Machine()
+	machines := management.ClusterFactory.Cluster().V1beta1().Machine()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	lhSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()

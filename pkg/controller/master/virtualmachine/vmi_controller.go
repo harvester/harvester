@@ -81,7 +81,7 @@ func (h *VMIController) UnsetOwnerOfPVCs(_ string, vmi *kubevirtv1.VirtualMachin
 		return vmi, nil
 	}
 
-	var pvcNames = sets.String{}
+	var pvcNames = sets.Set[string]{}
 	if vmiDesired := vm.Spec.Template; vmiDesired != nil { // just a defend, the validating webhook of virt-api will make this never happen
 		pvcNames = getPVCNames(&vmiDesired.Spec)
 	}
@@ -89,7 +89,7 @@ func (h *VMIController) UnsetOwnerOfPVCs(_ string, vmi *kubevirtv1.VirtualMachin
 
 	// unsets ownerless PVCs
 	var pvcNamespace = vmi.Namespace
-	var ownerlessPVCNames = pvcNameObserved.Difference(pvcNames).List()
+	var ownerlessPVCNames = pvcNameObserved.Difference(pvcNames).UnsortedList()
 	for _, pvcName := range ownerlessPVCNames {
 		var pvc, err = h.pvcCache.Get(pvcNamespace, pvcName)
 		if err != nil {
@@ -137,7 +137,7 @@ func (h *VMIController) ReconcileFromHostLabels(_ string, vmi *kubevirtv1.Virtua
 				toUpdate.Annotations = map[string]string{}
 			}
 			toUpdate.Annotations[label] = srcValue
-		} else if _, exist := toUpdate.Annotations[label]; exist {
+		} else {
 			delete(toUpdate.Annotations, label)
 		}
 	}

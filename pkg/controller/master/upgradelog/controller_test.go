@@ -123,11 +123,6 @@ func newTestManagedChartBuilder() *managedChartBuilder {
 	return newManagedChartBuilder(testManagedChartName)
 }
 
-func newTestPvcBuilder() *pvcBuilder {
-	return newPvcBuilder(testPvcName).
-		WithLabel(util.LabelUpgradeLog, testUpgradeLogName)
-}
-
 func newTestStatefulSetBuilder() *statefulSetBuilder {
 	return newStatefulSetBuilder(testStatefulSetName).
 		WithLabel(util.LabelUpgradeLog, testUpgradeLogName)

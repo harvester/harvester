@@ -217,7 +217,7 @@ func (h *vmImageHandler) createStorageClass(image *harvesterv1.VirtualMachineIma
 		},
 		Provisioner:          types.LonghornDriverName,
 		ReclaimPolicy:        &reclaimPolicy,
-		AllowVolumeExpansion: pointer.BoolPtr(true),
+		AllowVolumeExpansion: pointer.Bool(true),
 		VolumeBindingMode:    &volumeBindingMode,
 		Parameters:           params,
 	}

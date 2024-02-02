@@ -334,7 +334,7 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *RepoInfo, nodeName str
 			},
 		},
 		Spec: batchv1.JobSpec{
-			TTLSecondsAfterFinished: pointer.Int32Ptr(defaultTTLSecondsAfterFinished),
+			TTLSecondsAfterFinished: pointer.Int32(defaultTTLSecondsAfterFinished),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -435,7 +435,7 @@ func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *RepoInfo) *batchv
 			},
 		},
 		Spec: batchv1.JobSpec{
-			TTLSecondsAfterFinished: pointer.Int32Ptr(defaultTTLSecondsAfterFinished),
+			TTLSecondsAfterFinished: pointer.Int32(defaultTTLSecondsAfterFinished),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{

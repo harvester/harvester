@@ -268,7 +268,7 @@ func (h *nodeDownHandler) resetHeartbeat(node *corev1.Node) (*corev1.Node, error
 		if err != nil {
 			return node, err
 		}
-		if time.Now().Sub(hbt) > 5*time.Minute {
+		if time.Since(hbt) > 5*time.Minute {
 			return node, nil
 		}
 	}

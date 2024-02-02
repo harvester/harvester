@@ -11,8 +11,6 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	fakegenerated "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
-	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
-	ctlvirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -28,12 +26,6 @@ const (
 
 func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 
-	type fields struct {
-		rqs      ctlharvcorev1.ResourceQuotaClient
-		rqCache  ctlharvcorev1.ResourceQuotaCache
-		vmiCache ctlvirtv1.VirtualMachineInstanceCache
-		vmCache  ctlvirtv1.VirtualMachineCache
-	}
 	type args struct {
 		rq   *corev1.ResourceQuota
 		vmi  *kubevirtv1.VirtualMachineInstance
@@ -42,14 +34,12 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		fields  fields
 		args    args
 		wantErr bool
 		want    *corev1.ResourceQuota
 	}{
 		{
-			name:   "In Pending",
-			fields: fields{},
+			name: "In Pending",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -110,8 +100,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			},
 		},
 		{
-			name:   "Succeeded", // Equivalent to Failed
-			fields: fields{},
+			name: "Succeeded", // Equivalent to Failed
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{

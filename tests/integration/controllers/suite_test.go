@@ -30,7 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/yaml"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -38,30 +37,21 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/addon"
 	"github.com/harvester/harvester/pkg/controller/master/mcmsettings"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
-	"github.com/harvester/harvester/pkg/server"
 	"github.com/harvester/harvester/tests/framework/cluster"
 	"github.com/harvester/harvester/tests/framework/dsl"
 	"github.com/harvester/harvester/tests/integration/controllers/fake"
 )
 
 var (
-	testSuiteStartErrChan chan error
-	testCtx               context.Context
-	testCtxCancel         context.CancelFunc
-	harvester             *server.HarvesterServer
+	testCtx       context.Context
+	testCtxCancel context.CancelFunc
 
 	KubeClientConfig clientcmd.ClientConfig
 	testCluster      cluster.Cluster
-	options          config.Options
 	cfg              *rest.Config
 	scaled           *config.Scaled
-	testEnv          *envtest.Environment
 	scheme           = runtime.NewScheme()
 	crdList          = []string{"./manifest/helm-crd.yaml", "./manifest/app-crd.yaml", "./manifest/ranchersettings-crd.yaml", "./manifest/clusterrepos-crd.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml"}
-)
-
-const (
-	harvesterStartTimeOut = 20
 )
 
 func TestAPI(t *testing.T) {

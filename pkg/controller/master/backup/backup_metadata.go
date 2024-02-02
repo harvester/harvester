@@ -186,7 +186,7 @@ func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachine
 		},
 		Spec: backupMetadata.BackupSpec,
 		Status: &harvesterv1.VirtualMachineBackupStatus{
-			ReadyToUse: pointer.BoolPtr(false),
+			ReadyToUse: pointer.Bool(false),
 			BackupTarget: &harvesterv1.BackupTarget{
 				Endpoint:     target.Endpoint,
 				BucketName:   target.BucketName,

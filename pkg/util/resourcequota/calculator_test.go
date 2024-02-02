@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,15 +45,11 @@ const (
 func Test_vmValidator_checkResourceQuota(t *testing.T) {
 	var coreclientset = corefake.NewSimpleClientset()
 
-	type fields struct {
-		nsCache ctlcorev1.NamespaceCache
-	}
 	type args struct {
 		vm *kubevirtv1.VirtualMachine
 	}
 	tests := []struct {
 		name    string
-		fields  fields
 		args    args
 		want    *v3.NamespaceResourceQuota
 		wantErr error
