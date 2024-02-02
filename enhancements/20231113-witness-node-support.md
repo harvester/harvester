@@ -58,7 +58,7 @@ We need to document the following limitations and requirements for the witness n
 
 - The replica number of the default StorageClass is `3`, but in the two master nodes + one witness node scenario, the replica number should be `2`. Users could manually create a new StorageClass and set it as default or use the installation configuration to change the replica number of the default StorageClass [link](https://docs.harvesterhci.io/v1.2/install/harvester-configuration#installharvesterstorage_classreplica_count).
 
-- Only allow one witness node in the cluster.
+- Only allow one witness node in the cluster. If we have more than one witness node, promote controller will not count the other witness nodes into the management node number.
 
 #### Requirements
 
