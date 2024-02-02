@@ -557,7 +557,7 @@ github.com/longhorn/longhorn-instance-manager/pkg/imrpc
 github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.6.0-rc3
+# github.com/longhorn/longhorn-manager v1.6.0
 ## explicit; go 1.21
 github.com/longhorn/longhorn-manager/csi/crypto
 github.com/longhorn/longhorn-manager/datastore
