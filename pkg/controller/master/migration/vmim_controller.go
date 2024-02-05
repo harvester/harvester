@@ -95,7 +95,7 @@ func (h *Handler) syncVM(vmi *kubevirtv1.VirtualMachineInstance) error {
 // scaleResourceQuota scales the resource quota of the namespace to allow the migration to succeed
 func (h *Handler) scaleResourceQuota(vmi *kubevirtv1.VirtualMachineInstance) error {
 	// If the namespace is not managed by the resource quota, skip scaling
-	if exist, err := h.isNamespaceManagedByResourceQuota(vmi.Namespace); exist == false && err == nil {
+	if exist, err := h.isNamespaceManagedByResourceQuota(vmi.Namespace); !exist && err == nil {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to check if the namespace is managed by the resource quota: %v", err)
@@ -166,7 +166,7 @@ func (h *Handler) restoreResourceQuota(vmim *kubevirtv1.VirtualMachineInstanceMi
 	}
 
 	// If the namespace is not managed by the resource quota, skip scaling
-	if exist, err := h.isNamespaceManagedByResourceQuota(vmi.Namespace); exist == false && err == nil {
+	if exist, err := h.isNamespaceManagedByResourceQuota(vmi.Namespace); !exist && err == nil {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to check if the namespace is managed by the resource quota: %v", err)

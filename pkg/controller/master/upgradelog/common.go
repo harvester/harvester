@@ -532,6 +532,8 @@ func (p *upgradeLogBuilder) Archive(name string, size int64, time string) *upgra
 }
 
 func (p *upgradeLogBuilder) ArchiveReady(name string, ready bool, reason string) *upgradeLogBuilder {
+	// the function is only used in tests, so we ignore the error
+	//nolint:errcheck
 	setUpgradeLogArchiveReady(p.upgradeLog, name, ready, reason)
 	return p
 }
@@ -797,33 +799,6 @@ func (p *managedChartBuilder) Ready() *managedChartBuilder {
 
 func (p *managedChartBuilder) Build() *mgmtv3.ManagedChart {
 	return p.managedChart
-}
-
-type pvcBuilder struct {
-	pvc *corev1.PersistentVolumeClaim
-}
-
-func newPvcBuilder(name string) *pvcBuilder {
-	return &pvcBuilder{
-		pvc: &corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: util.HarvesterSystemNamespaceName,
-			},
-		},
-	}
-}
-
-func (p *pvcBuilder) WithLabel(key, value string) *pvcBuilder {
-	if p.pvc.Labels == nil {
-		p.pvc.Labels = make(map[string]string, 1)
-	}
-	p.pvc.Labels[key] = value
-	return p
-}
-
-func (p *pvcBuilder) Build() *corev1.PersistentVolumeClaim {
-	return p.pvc
 }
 
 type statefulSetBuilder struct {

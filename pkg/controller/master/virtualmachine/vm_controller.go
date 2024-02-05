@@ -144,7 +144,7 @@ func (h *VMController) SetOwnerOfPVCs(vm *kubevirtv1.VirtualMachine) (*kubevirtv
 	}
 
 	var pvcNamespace = vm.Namespace
-	for _, pvcName := range pvcNames.List() {
+	for _, pvcName := range pvcNames.UnsortedList() {
 		var pvc, err = h.pvcCache.Get(pvcNamespace, pvcName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -265,7 +265,7 @@ func (h *VMController) unsetOwnerOfPVCs(vm *kubevirtv1.VirtualMachine) error {
 		pvcNames     = getPVCNames(&vm.Spec.Template.Spec)
 		removedPVCs  = getRemovedPVCs(vm)
 	)
-	for _, pvcName := range pvcNames.List() {
+	for _, pvcName := range pvcNames.UnsortedList() {
 		var pvc, err = h.pvcCache.Get(pvcNamespace, pvcName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -350,8 +350,8 @@ func getRemovedPVCs(vm *kubevirtv1.VirtualMachine) []string {
 }
 
 // getPVCNames returns a name set of the PVCs used by the VMI.
-func getPVCNames(vmiSpecPtr *kubevirtv1.VirtualMachineInstanceSpec) sets.String {
-	var pvcNames = sets.String{}
+func getPVCNames(vmiSpecPtr *kubevirtv1.VirtualMachineInstanceSpec) sets.Set[string] {
+	var pvcNames = sets.Set[string]{}
 
 	for _, volume := range vmiSpecPtr.Volumes {
 		if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {

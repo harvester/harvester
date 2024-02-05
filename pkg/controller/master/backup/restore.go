@@ -250,7 +250,7 @@ func makeVolumeName(prefix, pvcUID string, volumeNameUUIDLength int) (string, er
 }
 
 func getVolumeName(pvc *corev1.PersistentVolumeClaim) (string, error) {
-	volumeName, err := makeVolumeName(pvNamePrefix, fmt.Sprintf("%s", pvc.ObjectMeta.UID), volumeNameUUIDNoTruncate)
+	volumeName, err := makeVolumeName(pvNamePrefix, string(pvc.ObjectMeta.UID), volumeNameUUIDNoTruncate)
 	if err != nil {
 		return "", err
 	}
@@ -379,7 +379,7 @@ func (h *RestoreHandler) initStatus(restore *harvesterv1.VirtualMachineRestore) 
 	restoreCpy := restore.DeepCopy()
 
 	restoreCpy.Status = &harvesterv1.VirtualMachineRestoreStatus{
-		Complete: pointer.BoolPtr(false),
+		Complete: pointer.Bool(false),
 		Conditions: []harvesterv1.Condition{
 			newProgressingCondition(corev1.ConditionTrue, "", "Initializing VirtualMachineRestore"),
 			newReadyCondition(corev1.ConditionFalse, "", "Initializing VirtualMachineRestore"),
@@ -772,15 +772,15 @@ func (h *RestoreHandler) createRestoredPVC(
 					Kind:               vmRestoreKindName,
 					Name:               vmRestore.Name,
 					UID:                vmRestore.UID,
-					Controller:         pointer.BoolPtr(true),
-					BlockOwnerDeletion: pointer.BoolPtr(true),
+					Controller:         pointer.Bool(true),
+					BlockOwnerDeletion: pointer.Bool(true),
 				},
 			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: volumeBackup.PersistentVolumeClaim.Spec.AccessModes,
 			DataSource: &corev1.TypedLocalObjectReference{
-				APIGroup: pointer.StringPtr(snapshotv1.SchemeGroupVersion.Group),
+				APIGroup: pointer.String(snapshotv1.SchemeGroupVersion.Group),
 				Kind:     volumeSnapshotKindName,
 				Name:     dataSourceName,
 			},
@@ -831,9 +831,9 @@ func (h *RestoreHandler) getOrCreateVolumeSnapshotContent(
 			// Use Retain policy to prevent LH Backup from being removed when users delete a VM.
 			DeletionPolicy: snapshotv1.VolumeSnapshotContentRetain,
 			Source: snapshotv1.VolumeSnapshotContentSource{
-				SnapshotHandle: pointer.StringPtr(snapshotHandle),
+				SnapshotHandle: pointer.String(snapshotHandle),
 			},
-			VolumeSnapshotClassName: pointer.StringPtr(settings.VolumeSnapshotClass.Get()),
+			VolumeSnapshotClassName: pointer.String(settings.VolumeSnapshotClass.Get()),
 			VolumeSnapshotRef: corev1.ObjectReference{
 				Name:      h.constructVolumeSnapshotName(vmRestore.Name, *volumeBackup.Name),
 				Namespace: vmRestore.Namespace,
@@ -871,15 +871,15 @@ func (h *RestoreHandler) getOrCreateVolumeSnapshot(
 					Kind:               vmRestoreKindName,
 					Name:               vmRestore.Name,
 					UID:                vmRestore.UID,
-					BlockOwnerDeletion: pointer.BoolPtr(true),
+					BlockOwnerDeletion: pointer.Bool(true),
 				},
 			},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source: snapshotv1.VolumeSnapshotSource{
-				VolumeSnapshotContentName: pointer.StringPtr(volumeSnapshotContent.Name),
+				VolumeSnapshotContentName: pointer.String(volumeSnapshotContent.Name),
 			},
-			VolumeSnapshotClassName: pointer.StringPtr(settings.VolumeSnapshotClass.Get()),
+			VolumeSnapshotClassName: pointer.String(settings.VolumeSnapshotClass.Get()),
 		},
 	})
 }
@@ -1078,7 +1078,7 @@ func (h *RestoreHandler) updateStatus(
 	)
 
 	restoreCpy.Status.RestoreTime = currentTime()
-	restoreCpy.Status.Complete = pointer.BoolPtr(true)
+	restoreCpy.Status.Complete = pointer.Bool(true)
 	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "", "Operation complete"))
 	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionTrue, "", "Operation complete"))
 	if _, err := h.restores.Update(restoreCpy); err != nil {
