@@ -13,7 +13,7 @@ dependencies:
   version: 0.6.0
 - name: csi-snapshotter
   repository: file://dependency_charts/csi-snapshotter
-  version: 0.1.0
+  version: 0.2.0
 - name: longhorn
   repository: https://charts.longhorn.io
   version: 1.6.0
@@ -31,6 +31,6 @@ dependencies:
   version: 0.2.0
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
-  version: 0.1.0
-digest: sha256:e9df0d480bfb8e8b5e5479514b6c56e0578701d21839580c6402877b1f240c76
-generated: "2024-02-02T10:41:21.94316+08:00"
+  version: 0.2.0
+digest: sha256:bca28b147e766c8f432dbc4fb21e0e06c75d753a9ee7248c95f83c703f2f2b08
+generated: "2024-02-07T00:57:16.889986+08:00"
