@@ -396,7 +396,7 @@ csi-snapshotter:
 
   image:
     repository: registry.k8s.io/sig-storage/snapshot-controller
-    tag: v5.0.1
+    tag: v6.3.3
 
 longhorn:
   ## Specify whether to install longhorn,
@@ -511,7 +511,7 @@ snapshot-validation-webhook:
   enabled: true
   image:
     repository: registry.k8s.io/sig-storage/snapshot-validation-webhook
-    tag: v5.0.1
+    tag: v6.3.3
     pullPolicy: IfNotPresent
 
 enableLonghornNetworkPolicy: true
