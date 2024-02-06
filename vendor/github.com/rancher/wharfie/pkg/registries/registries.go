@@ -122,10 +122,7 @@ func (r *registry) getTransport(endpointURL *url.URL) http.RoundTripper {
 			r.transports[endpointURL.Host] = &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
 				DialContext: (&net.Dialer{
-					// By default we wrap the transport in retries, so reduce the
-					// default dial timeout to 5s to avoid 5x 30s of connection
-					// timeouts when doing the "ping" on certain http registries.
-					Timeout:   5 * time.Second,
+					Timeout:   30 * time.Second,
 					KeepAlive: 30 * time.Second,
 				}).DialContext,
 				TLSClientConfig:       tlsConfig,
@@ -154,6 +151,8 @@ func (r *registry) getEndpoints(ref name.Reference) ([]endpoint, error) {
 	keys := []string{registry}
 	if registry == name.DefaultRegistry {
 		keys = append(keys, "docker.io")
+	} else if _, _, err := net.SplitHostPort(registry); err != nil {
+		keys = append(keys, registry+":443", registry+":80")
 	}
 	keys = append(keys, "*")
 
