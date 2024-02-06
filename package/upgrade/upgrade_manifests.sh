@@ -1261,7 +1261,7 @@ sync_containerd_registry_to_rancher() {
 # for new installs this is already patched by rancherd during bootstrap of cluster however rancherd logic is not
 # re-run in the upgrade path as a result this needs to be handled out of band
 patch_local_cluster_details() {
-  kubectl label -n fleet-local cluster.provisioning local "provisioning.cattle.io/management-cluster-name=local"
+  kubectl label -n fleet-local cluster.provisioning local "provisioning.cattle.io/management-cluster-name=local" --overwrite=true
   kubectl patch -n fleet-local cluster.provisioning local --subresource=status --type=merge --patch '{"status":{"fleetWorkspaceName": "fleet-local"}}'
 }
 
