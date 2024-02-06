@@ -27,7 +27,8 @@ spec:
             {{- end }}
           ports:
             - name: https
-              containerPort: {{ .Values.service.port | default 443 }}
+              containerPort: {{ .Values.args.port | default 8443 }}
+              protocol: TCP
           volumeMounts:
             - name: certs
               mountPath: /etc/snapshot-validation-webhook/certs

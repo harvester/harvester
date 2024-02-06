@@ -16,7 +16,7 @@ rbac:
 
 image:
   repository: registry.k8s.io/sig-storage/snapshot-validation-webhook
-  tag: v5.0.1
+  tag: v6.3.3
   pullPolicy: IfNotPresent
 
 podAnnotations: {}
@@ -24,6 +24,7 @@ podAnnotations: {}
 args:
   tlsPrivateKeyFile: /etc/snapshot-validation-webhook/certs/tls.key
   tlsCertFile: /etc/snapshot-validation-webhook/certs/tls.crt
+  port: 8443
 
 resources: {}
 
@@ -38,4 +39,4 @@ webhook:
     certificate: ""
     key: ""
   failurePolicy: Fail
-  timeoutSeconds: 2
+  timeoutSeconds: 10
