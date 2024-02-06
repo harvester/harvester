@@ -16,7 +16,7 @@ RUN curl -sfL https://storage.googleapis.com/kubernetes-release/release/${KUBECT
 
 RUN curl -sfL https://github.com/kubevirt/kubevirt/releases/download/v0.55.2/virtctl-v0.55.2-linux-${ARCH} -o /usr/bin/virtctl && chmod +x /usr/bin/virtctl && \
     curl -sfL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -o /usr/bin/yq && chmod +x /usr/bin/yq && \
-    curl -sfL https://github.com/rancher/wharfie/releases/download/v0.6.3/wharfie-${ARCH}  -o /usr/bin/wharfie && chmod +x /usr/bin/wharfie
+    curl -sfL https://github.com/rancher/wharfie/releases/download/v0.6.5/wharfie-${ARCH}  -o /usr/bin/wharfie && chmod +x /usr/bin/wharfie
 
 COPY --from=temp_elemental /usr/bin/elemental /usr/local/bin/elemental
 
