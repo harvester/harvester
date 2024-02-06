@@ -158,36 +158,43 @@ wait_longhorn_manager() {
   done
 }
 
-wait_longhorn_instance_manager_r() {
+wait_longhorn_instance_manager_aio() {
+  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true -o json | jq -r '.items | length')
+  if [ $node_count -le 2 ]; then
+    echo "Skip waiting instance-manager (aio), node count: $node_count"
+    return
+  fi
+
   im_repo=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.instanceManager.repository)
   im_tag=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.instanceManager.tag)
   im_image="${im_repo}:${im_tag}"
 
-  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true -o json | jq -r '.items | length')
-  if [ $node_count -le 2 ]; then
-    echo "Skip waiting instance-manager-r, node count: $node_count"
-    return
-  fi
+  # Get instance-manager-image chechsum
+  # reference: https://github.com/longhorn/longhorn-manager/blob/2ec649c35486d782731982c9dff1db41c9031c99/types/types.go#L429
+  im_image_checksum="${im_image/\//-}" # replace / with -
+  im_image_checksum="${im_image_checksum/:/-}" # replace : with -
+  im_image_checksum=$(echo -n "$im_image_checksum" | openssl dgst -sha512 | awk '{print $2}')
+  im_image_checksum="imi-${im_image_checksum:0:8}"
 
-  # Wait for instance-manager-r pods upgraded to new version first.
+  # Wait for instance-manager (aio) pods upgraded to new version first.
   kubectl get nodes -o json | jq -r '.items[].metadata.name' | while read -r node; do
-    echo "Checking instance-manager-r pod on node $node..."
+    echo "Checking instance-manager (aio) pod on node $node..."
     while [ true ]; do
-      pod_count=$(kubectl get pod --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio -n longhorn-system -o json | jq -r '.items | length')
-      if [ "$pod_count" != "1" ]; then
-        echo "instance-manager (aio) pod count is not 1 on node $node, will retry..."
+      im_count=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items | length')
+      if [ "$im_count" != "1" ]; then
+        echo "instance-manager (aio) (image=$im_image) count is not 1 on node $node, will retry..."
         sleep 5
         continue
       fi
 
-      container_image=$(kubectl get pod --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio -n longhorn-system -o json | jq -r '.items[0].spec.containers[0].image')
-      if [ "$container_image" != "$im_image" ]; then
-        echo "instance-manager (aio) pod image is not $im_image on node $node, will retry..."
+      im_status=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items[0].status.currentState')
+      if [ "$im_status" != "running" ]; then
+        echo "instance-manager (aio) (image=$im_image) state is not running on node $node, will retry..."
         sleep 5
         continue
       fi
 
-      echo "Checking instance-manager-r pod on node $node OK."
+      echo "Checking instance-manager (aio) (image=$im_image) on node $node OK."
       break
     done
   done
@@ -196,7 +203,7 @@ wait_longhorn_instance_manager_r() {
 wait_longhorn_upgrade() {
   echo "Waiting for LH settling down..."
   wait_longhorn_manager
-  wait_longhorn_instance_manager_r
+  wait_longhorn_instance_manager_aio
 }
 
 get_running_rancher_version() {
