@@ -173,6 +173,12 @@ func needUpdateResourceOvercommit(oldVM, newVM *kubevirtv1.VirtualMachine) bool 
 	if newReservedMemory != oldReservedMemory {
 		return true
 	}
+
+	// if host devices or GPUs are added or removed then resource update is needed
+	if len(newVM.Spec.Template.Spec.Domain.Devices.HostDevices) != len(oldVM.Spec.Template.Spec.Domain.Devices.HostDevices) || len(newVM.Spec.Template.Spec.Domain.Devices.GPUs) != len(oldVM.Spec.Template.Spec.Domain.Devices.GPUs) {
+		return true
+	}
+
 	return false
 }
 
