@@ -115,6 +115,26 @@ func TestJobHandler_OnChanged(t *testing.T) {
 				err:     nil,
 			},
 		},
+		{
+			name: "a previous upgrading manifest job should not complete upgrade",
+			given: input{
+				key: testJobName,
+				job: newJobBuilder(testJobName).
+					WithLabel(harvesterUpgradeLabel, "test-upgrade-old").
+					WithLabel(harvesterUpgradeComponentLabel, manifestComponent).
+					Completed().Build(),
+				plan:    newTestPlanBuilder().Build(),
+				upgrade: newTestUpgradeBuilder().WithLabel(harvesterLatestUpgradeLabel, "true").ChartUpgradeStatus(v1.ConditionUnknown, "", "").Build(),
+			},
+			expected: output{
+				job: newJobBuilder(testJobName).
+					WithLabel(harvesterUpgradeLabel, "test-upgrade-old").
+					WithLabel(harvesterUpgradeComponentLabel, manifestComponent).
+					Completed().Build(),
+				upgrade: newTestUpgradeBuilder().WithLabel(harvesterLatestUpgradeLabel, "true").ChartUpgradeStatus(v1.ConditionUnknown, "", "").Build(),
+				err:     nil,
+			},
+		},
 	}
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset(tc.given.plan, tc.given.upgrade)

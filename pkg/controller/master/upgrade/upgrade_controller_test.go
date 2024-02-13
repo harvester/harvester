@@ -45,6 +45,7 @@ func newTestPlanBuilder() *planBuilder {
 
 func newTestChartJobBuilder() *jobBuilder {
 	return newJobBuilder(testJobName).
+		WithLabel(harvesterUpgradeLabel, testUpgradeName).
 		WithLabel(harvesterUpgradeComponentLabel, manifestComponent)
 }
 
