@@ -9,8 +9,8 @@ import (
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	capiv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -238,23 +238,28 @@ func (h *jobHandler) syncPlanJob(job *batchv1.Job, planName string, nodeName str
 }
 
 func (h *jobHandler) syncManifestJob(job *batchv1.Job) (*batchv1.Job, error) {
-	sets := labels.Set{
-		harvesterLatestUpgradeLabel: "true",
+	upgradeName, ok := job.Labels[harvesterUpgradeLabel]
+	if !ok {
+		return job, nil
 	}
-	onGoingUpgrades, err := h.upgradeCache.List(h.namespace, sets.AsSelector())
+
+	upgrade, err := h.upgradeCache.Get(h.namespace, upgradeName)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return job, nil
+		}
 		return job, err
 	}
-	if len(onGoingUpgrades) == 0 {
-		return job, nil
-	}
-	currentUpgrade := onGoingUpgrades[0]
-	toUpdate := currentUpgrade.DeepCopy()
 
-	if !harvesterv1.SystemServicesUpgraded.IsUnknown(currentUpgrade) || job.Status.Active > 0 {
+	if upgrade.Labels[harvesterLatestUpgradeLabel] != "true" {
 		return job, nil
 	}
 
+	if !harvesterv1.SystemServicesUpgraded.IsUnknown(upgrade) || job.Status.Active > 0 {
+		return job, nil
+	}
+
+	toUpdate := upgrade.DeepCopy()
 	for _, condition := range job.Status.Conditions {
 		if condition.Type == batchv1.JobFailed && condition.Status == "True" {
 			setHelmChartUpgradeStatus(toUpdate, v1.ConditionFalse, condition.Reason, condition.Message)
@@ -262,7 +267,7 @@ func (h *jobHandler) syncManifestJob(job *batchv1.Job) (*batchv1.Job, error) {
 			setHelmChartUpgradeStatus(toUpdate, v1.ConditionTrue, condition.Reason, condition.Message)
 		}
 	}
-	if !reflect.DeepEqual(currentUpgrade, toUpdate) {
+	if !reflect.DeepEqual(upgrade, toUpdate) {
 		if _, err := h.upgradeClient.Update(toUpdate); err != nil {
 			return job, err
 		}
