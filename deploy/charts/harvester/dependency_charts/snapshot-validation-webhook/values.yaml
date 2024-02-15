@@ -24,7 +24,6 @@ podAnnotations: {}
 args:
   tlsPrivateKeyFile: /etc/snapshot-validation-webhook/certs/tls.key
   tlsCertFile: /etc/snapshot-validation-webhook/certs/tls.crt
-  port: 8443
 
 resources: {}
 
