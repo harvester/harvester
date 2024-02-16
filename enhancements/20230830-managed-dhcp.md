@@ -24,6 +24,7 @@ Currently, the network configuration, such as IP address, subnet mask, default g
 
 - Provide network information as a general DHCP service to machines outside of Harvester premises
 - NAT or route the internal traffic to the outside world
+- Relay/proxy DHCP requests to other DHCP servers
 
 ## Proposal
 
@@ -31,23 +32,28 @@ Currently, the network configuration, such as IP address, subnet mask, default g
 
 #### Kubernetes Guest Clusters (Rancher Integration)
 
-Creating a Kubernetes guest cluster from Rancher using the Harvester node driver has a premise that the VMs consisting of the cluster should have network connectivity without human intervention. That is to say, those VMs need to be configured with valid IP addresses and other network configurations like the default gateway, DNS server, NTP server, etc. Usually, people set up an external DHCP server to provide network information to the VMs. This requires skilled users who are familiar with how to install and configure a DHCP server correctly, needless to say, a good understanding of the network configuration of their premises (how servers and switches are connected, what VLANs are provisioned for the Harvester nodes, etc.)
+Creating a Kubernetes guest cluster from Rancher using the Harvester node driver has a premise that the VMs consisting of the cluster should have network connectivity without human intervention. That is to say, those VMs need to be configured with valid IP addresses and other network configurations like the default gateway, DNS server, NTP server, etc. Usually, people set up an external DHCP server to provide network information to the VMs. This requires skilled users who are familiar with how to install and configure a DHCP server correctly; needless to say, a good understanding of the network configuration of their premises (how servers and switches are connected, what VLANs are provisioned for the Harvester nodes, etc.) is required.
 
-The managed DHCP feature incorporates DHCP servers into the Harvester cluster and provides a consistent interface (Kubernetes APIs) for users to operate on the desired configuration for target VMs. With that, users can achieve the same on the Harvester dashboard or `kubectl` without the hassle of setting up external DHCP servers.
+The Managed DHCP feature incorporates DHCP servers into the Harvester cluster and provides a consistent interface (Kubernetes APIs) for users to operate on the desired configuration for target VMs. With that, users can achieve the same on the Harvester dashboard or `kubectl` without the hassle of setting up external DHCP servers.
 
 #### Private VM Networks
 
 Creating fully isolated networks is feasible in the current Harvester implementation (though it requires at least one physical uplink, which is never used in this case.) However, VMs running on these isolated networks are hard to automate as there's no easy way to assign IP addresses to them. An external DHCP server is not an option in this situation, as VMs are not supposed to reach the server outside the isolated network. On the other hand, running a DHCP server in a Pod or VM attached to the network in the cluster also requires human intervention to a certain degree.
 
-The managed DHCP feature incorporates DHCP servers into the Harvester cluster, which means the isolation characteristic imposes no such restriction. The managed DHCP server is in the same L2 network as VMs. And the server is fully configurable in terms of standard DHCP configurations via the Harvester dashboard or with `kubectl`.
+The Managed DHCP feature incorporates DHCP servers into the Harvester cluster, which means the isolation characteristic imposes no such restriction. The managed DHCP server is in the same L2 network as VMs. And the server is fully configurable in terms of standard DHCP configurations via the Harvester dashboard or with `kubectl`.
 
 ### User Experience In Detail
 
 Besides the **Auto (DHCP)** and **Manual** modes in the **Route** tab, users will have a new mode, **Managed DHCP**, to configure the desired managed DHCP service regarding the subnet information, gateway, and available IP ranges associated with the VM network being created. There will be no IP addresses being allocated/issued at the time users create the VM network. It's until the actual VMs associated with the VM network are made. During the VM creation, the IP addresses will be picked from the available IP ranges and allocated for that specific VM's network interface as a static DHCP lease for the managed DHCP server in that VM network. This ensures no surprises will happen to other machines on the same VM network, e.g., devices on the same VLAN network but outside of the Harvester premise got an unexpected IP address from our managed DHCP service.
 
-For users directly operate with the Kubernetes APIs using command line tools like `kubectl`, creating IPPool objects has the same effect as creating VM networks with **Managed DHCP** tab selected and configured. To allocate IP addresses for the VM's network interfaces, a corresponding VirtualMachineNetworkConfig object has to be created, filled with the network interface's MAC address and the associated network name (the name of the NetworkAttachmentDefinition,) plus the desired IP address (non-required.) Behind the scene, the controller continuously reconciles the IPPool and VirtualMachineNetworkConfig objects. When it sees an IPPool object, it spins up a DHCP server with the specified configuration and maintains it until the object is removed. When it sees a VirtualMachineNetworkConfig object, it tries to allocate IP addresses from the target IPPool object.
+For users directly operate with the Kubernetes APIs using command line tools like `kubectl`, creating IPPool objects has the same effect as creating VM networks with **Managed DHCP** tab selected and configured. To allocate IP addresses for the VM's network interfaces, a corresponding VirtualMachineNetworkConfig object has to be created, filled with the network interface's MAC address and the associated network name (the name of the NetworkAttachmentDefinition,) plus the desired IP address (non-required.) Behind the scene, the controller continuously reconciles the IPPool and VirtualMachineNetworkConfig objects. When the controller sees an IPPool object, it spins up a DHCP server with the specified configuration and maintains the server until the object is removed. When it sees a VirtualMachineNetworkConfig object, it tries to allocate IP addresses from the target IPPool object.
 
-Removing the VM will cause the associated VirtualMachineNetworkConfig object to be purged. Users can remove it directly without removing the VM. The static DHCP lease for the VM's network interfaces is removed. After the lease time, the VM loses the IP address. The same logic applies to the IPPool objects: removing the VM network (NetworkAttachmentDefinition) will cause the associated IPPool object to be purged. (Note: The IPPool object cannot be removed if there are still VirtualMachineNetworkConfig objects associated with it.) Users can remove it directly without removing the VM network. In that case, the VM network becomes a purely L2 network, just like we used to see.
+There are mainly two modes when it comes to IP allocation:
+
+- Dynamic allocation: Asking the controller to randomly allocate an IP address for the MAC address
+- Static allocation: Asking the controller to allocate the **desired** IP address for the MAC address. This is accomplished by providing an IP address in the `.spec.networkConfigs[*].ipAddress` field of the VirtualMachineNetworkConfig object.
+
+Removing the VM will cause the associated VirtualMachineNetworkConfig object to be purged. Users can remove it directly without removing the VM. The static DHCP lease for the VM's network interfaces is then removed. After the lease time, the VM loses the IP address. The same logic applies to the IPPool objects: removing the VM network (NetworkAttachmentDefinition) will cause the associated IPPool object to be purged. (Note: The IPPool object cannot be removed if there are still VirtualMachineNetworkConfig objects associated with it.) Users can remove it directly without removing the VM network. In that case, the VM network becomes a purely L2 network, just like we used to see.
 
 ### API changes
 
@@ -56,7 +62,7 @@ Two CRDs are introduced:
 - IPPool (ipl)
 - VirtualMachineNetworkConfig (vmnetcfg)
 
-**IPPool** is where users can define every details of the pool that serves the network.
+**IPPool** is where users can define every detail of the pool that serves the network. The status section also reflects the allocation records and brief statistics.
 
 ```go
 var (
@@ -122,10 +128,12 @@ type IPv4Status struct {
 type PodReference struct {
 	Namespace string `json:"namespace,omitempty"`
 	Name      string `json:"name,omitempty"`
+	Image     string    `json:"image,omitempty"`
+	UID       types.UID `json:"uid,omitempty"`
 }
 ```
 
-**VirtualMachineNetworkConfig** is the essentially the static lease of a individual VM.
+**VirtualMachineNetworkConfig** is essentially the *request for IP address issuance* for an individual VM. A designated IP address could be provided in each `NetworkConfig`; otherwise, the controller will determine what IP addresses to allocate. The allocated IP addresses are reflected under the status section.
 
 ```go
 var (
@@ -142,7 +150,7 @@ type VirtualMachineNetworkConfig struct {
 
 type VirtualMachineNetworkConfigSpec struct {
 	VMName        string          `json:"vmName,omitempty"`
-	NetworkConfig []NetworkConfig `json:"networkConfig,omitempty"`
+	NetworkConfigs []NetworkConfig `json:"networkConfigs,omitempty"`
 }
 
 type NetworkConfig struct {
@@ -153,7 +161,7 @@ type NetworkConfig struct {
 }
 
 type VirtualMachineNetworkConfigStatus struct {
-	NetworkConfig []NetworkConfigStatus `json:"networkConfig,omitempty"`
+	NetworkConfigs []NetworkConfigStatus `json:"networkConfigs,omitempty"`
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 }
 
@@ -202,17 +210,12 @@ The plan is to create two VM networks that are isolated and separate from the ou
 Prepare a Harvester cluster consists of multiple nodes (2+). We'll need to create two cluster networks so each Harvester node should have more than two NICs.
 
 1. Install the `vm-dhcp-controller` chart
-1. Create a cluster network called `provider-all` (the cluster network consists of **all the nodes**)
-1. Create a network config called `provider-all-nc` for the cluster network `provider-all` with all nodes and one of their NICs as the uplink
-1. Create another cluster network called `provider-cp` (the cluster network consists of **only the control plane nodes**)
-1. Create a network config called `provider-cp-nc` for the cluster network `provider-cp` with only the control plane nodes and one of their NICs as the uplink
-1. Create a VM network called `priv-net-all` with cluster network `provider-all` selected. The VLAN ID should be set with a number which is not in use in the premises, say, `817`.
-1. Create another VM network called `priv-net-cp` with cluster network `provider-cp` selected. The VLAN ID should be set with a number which is not in use in the premises and the above VM network, say, `689`.
-1. Create a VM called `test-vm` with two NICs attaching to the `priv-net-all` and the `priv-net-cp` networks respectively. Also, the NIC's MAC address for `priv-net-all` is `02:d4:6f:a8:bc:ed` and the other for `priv-net-cp` is `24:ab:56:78:9c:01`.
-
-From now on, the steps will interact with the managed DHCP feature.
-
-1. Create an IPPool object `priv-net-all` with the following YAML content:
+2. Create a cluster network called `provider-all` (the cluster network consists of **all the nodes**)
+3. Create a network config called `provider-all-nc` for the cluster network `provider-all` with all nodes and one of their NICs as the uplink
+4. Create another cluster network called `provider-cp` (the cluster network consists of **only the control plane nodes**)
+5. Create a network config called `provider-cp-nc` for the cluster network `provider-cp` with only the control plane nodes and one of their NICs as the uplink
+6. Create a VM network called `priv-net-all` with cluster network `provider-all` selected. The VLAN ID should be set with a number which is not in use in the premises, say, `817`.
+7. Create an IPPool object `priv-net-all` with the following YAML content:
 
     ```yaml
     apiVersion: network.harvesterhci.io/v1alpha1
@@ -231,7 +234,9 @@ From now on, the steps will interact with the managed DHCP feature.
       networkName: default/priv-net-all
     ```
 
-2. Create another IPPool object `priv-net-cp` with the following YAML content:
+8. Create another VM network called `priv-net-cp` with cluster network `provider-cp` selected. The VLAN ID should be set with a number which is not in use in the premises and the above VM network, say, `689`.
+
+9. Create another IPPool object `priv-net-cp` with the following YAML content:
 
     ```yaml
     apiVersion: network.harvesterhci.io/v1alpha1
@@ -250,25 +255,8 @@ From now on, the steps will interact with the managed DHCP feature.
       networkName: default/priv-net-cp
     ```
 
-3. Create a VirtualMachineNetworkConfig object for the VM `test-vm-1`:
-
-    ```yaml
-    apiVersion: network.harvesterhci.io/v1alpha1
-    kind: VirtualMachineNetworkConfig
-    metadata:
-      name: test-vm-1
-      namespace: default 
-    spec:
-      vmName: test-vm-1
-      networkConfig:
-      - macAddress: 02:d4:6f:a8:bc:ed
-        networkName: default/priv-net-all
-        ipAddress: 172.19.150.9
-      - macAddress: 24:ab:56:78:9c:01
-        networkName: default/priv-net-cp
-    ```
-
-4. Check the following:
+10. Create a VM called `test-vm` with two NICs attaching to the `priv-net-all` and the `priv-net-cp` networks respectively
+11. Check the following:
 
     - The `default-priv-net-cp-agent` agent Pod should run on one of the control plane nodes
     - The two IPPool objects' `.status` field should contain the correct allocation records and statistics
@@ -277,13 +265,13 @@ From now on, the steps will interact with the managed DHCP feature.
 
 #### Kubernetes Guest Clusters (Rancher Integration)
 
-The plan is to create an RKE2 guest cluster with the Harvester node driver. There's no need to have an external DHCP server set up. If there's one, please make sure to disable it first. The managed DHCP feature will help create the VirtualMachineNetworkConfig objects accordingly. 
+The plan is to create an RKE2 guest cluster with the Harvester node driver. There's no need to have an external DHCP server set up. If there's one, please make sure to disable it first. The Managed DHCP feature will help create the VirtualMachineNetworkConfig objects accordingly. 
 
-Prepare a Harvester cluster consists of multiple nodes (2+). Also, a Rancher Manager is required.
+Prepare a Harvester cluster consists of multiple nodes (2+). Also, an external Rancher Manager is required.
 
 1. Create a cluster network called `provider` (the cluster network consists of **all the nodes**)
 2. Create a network config called `provider-nc` for the cluster network `provider` with all nodes and one of their NICs as the uplink
-3. Create a VM network called `provider-net` with cluster network `provider` selected. The VLAN ID should be configured with the one that has Internet accessibility, e.g., `1`.
+3. Create a VM network called `provider-net` with cluster network `provider` selected. The VLAN ID should be configured with the one that has Internet accessibility in your network infrastructure, e.g., `1`.
 4. Create an IPPool object `provider-net` with the following YAML content (the actual network configs should be adapted to your environment):
 
     ```yaml
@@ -303,11 +291,11 @@ Prepare a Harvester cluster consists of multiple nodes (2+). Also, a Rancher Man
       networkName: default/provider-net
     ```
 
-5. Create an RKE2 guest cluster with 3 nodes
+5. Create an RKE2 guest cluster with 3 nodes using Harvester Node Driver via the external Rancher Manager
 6. After the provisioning, check if the guest cluster is working correctly:
 
     - Each node of the guest cluster is configured with the IP address within the IPPool definition
-	- Can use the Rancher dashboard to view the guest cluster
+    - Can use the Rancher dashboard to view the guest cluster
 
 ### Upgrade strategy
 
@@ -315,4 +303,16 @@ No prerequisites. Harvester clusters with version newer than v1.1.0 are compatib
 
 ## Note
 
+### Limitations
+
 Currently, this is designed for IPv4 only.
+
+### Resource Consumption
+
+**Controller**
+
+The memory consumption of the controller at the beginning is about 60 MiB. It will consume more every time new IPPool objects are created. When creating a `/8` pool, e.g., `10.0.0.0/8` subnet, and making every IP address within the range allocatable (16,777,213 available IP addresses in total), the controller will consume up to 1.5 GiB of memory at spike due to the construction of the internal IPAM cache.
+
+**Agents**
+
+At cold start, one agent consumes around 10~15 MiB of memory and will increase when there are more and more DHCP leases being constructed. The number of agents will increase with the addition of IPPool objects. Hence, the CPU and memory overhead are noteworthy.
