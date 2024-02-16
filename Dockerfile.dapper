@@ -15,6 +15,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     jq \
     mtools \
     dosfstools \
+    patch \
     && rm -rf /var/lib/apt/lists/*
 
 # install yq
