@@ -689,6 +689,13 @@ func Test_selectPromoteNode(t *testing.T) {
 			want: w3,
 		},
 		{
+			name: "one management one witness one promoted witness one worker order testing",
+			args: args{
+				nodeList: []*corev1.Node{m1, w2rw, witnc1, w3},
+			},
+			want: w3,
+		},
+		{
 			name: "one management one running witness one witness one worker",
 			args: args{
 				nodeList: []*corev1.Node{m1, witnr1, w2rw, w3},
