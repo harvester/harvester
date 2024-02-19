@@ -339,6 +339,10 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 			return nil
 		}
 	}
+	// make sure the witness preferred is empty if witness node has been promoted
+	if witnessPromoted {
+		witnessPreferred = nil
+	}
 
 	// return if there are no enough zones
 	hasZones := len(managementZones) > 0
