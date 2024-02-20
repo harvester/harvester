@@ -102,7 +102,7 @@ func (h *GenerateHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.createRoleBindingIfNotExit(req.ClusterRoleName, sa); err != nil {
+	if _, err := h.createRoleBindingIfNotExists(sa); err != nil {
 		util.ResponseError(rw, http.StatusInternalServerError, errors.Wrap(err, "fail to create roleBinding"))
 		return
 	}
@@ -141,7 +141,7 @@ func (h *GenerateHandler) getServerURL() (string, error) {
 	return "https://" + vip + ":" + port, nil
 }
 
-func (h *GenerateHandler) createRoleBindingIfNotExit(clusterRoleName string, sa *corev1.ServiceAccount) (*rbacv1.RoleBinding, error) {
+func (h *GenerateHandler) createRoleBindingIfNotExists(sa *corev1.ServiceAccount) (*rbacv1.RoleBinding, error) {
 	namespace := sa.Namespace
 	name := sa.Namespace + "-" + sa.Name
 	roleBinding, err := h.roleBindingCache.Get(namespace, name)
@@ -175,7 +175,7 @@ func (h *GenerateHandler) createRoleBindingIfNotExit(clusterRoleName string, sa 
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: rbacv1.GroupName,
 			Kind:     "ClusterRole",
-			Name:     clusterRoleName,
+			Name:     "harvesterhci.io:cloudprovider",
 		},
 	})
 }
