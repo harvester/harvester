@@ -1218,12 +1218,20 @@ upgrade_addon_rancher_monitoring()
 upgrade_addon_rancher_logging()
 {
   echo "upgrade addon rancher_logging"
+<<<<<<< HEAD
   if [[ $(is_formal_release $UPGRADE_PREVIOUS_VERSION) = "true" ]]; then
     if [[ "$UPGRADE_PREVIOUS_VERSION" = "v1.2.0" ]] || [[ "$UPGRADE_PREVIOUS_VERSION" > "v1.2.0" ]]; then
       echo ".spec.valuesContent has dynamic fields, cannot merge simply, review in each release"
     fi
   else
     # the addon may be existing in v1.2.0 master-head release and the chart version is bumped, then the addon is upgraded to new version
+=======
+  # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
+  # in v1.3.0, the fluentbit image needs to be patched
+  if [ "$REPO_LOGGING_CHART_VERSION" = "103.0.0+up3.17.10" ]; then
+    upgrade_addon_rancher_logging_with_patch_fluentbit_image $REPO_LOGGING_CHART_VERSION
+  else
+>>>>>>> 81bb0bed (Add processing of fluentbit image in logging upgrade)
     upgrade_addon_try_patch_version_only "rancher-logging" "cattle-logging-system" $REPO_LOGGING_CHART_VERSION
   fi
 }
