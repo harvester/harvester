@@ -431,7 +431,7 @@ upgrade_addon_try_patch_version_only()
   local name=$1
   local namespace=$2
   local newversion=$3
-  echo "try to patch addon $name in $namespace $newversion"
+  echo "try to patch addon $name in $namespace to $newversion"
 
   # check if addon is there
   local version=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.spec.version}' || true)
@@ -466,6 +466,16 @@ EOF
   rm -f ./$patchfile
 
   # wait status only when enabled and already AddonDeploySuccessful
+  wait_for_addon_upgrade_deployment $name $namespace $enabled $curstatus
+}
+
+wait_for_addon_upgrade_deployment() {
+  local name=$1
+  local namespace=$2
+  local enabled=$3
+  local curstatus=$4
+
+  # wait status only when enabled and already AddonDeploySuccessful
   if [[ $enabled = "true" ]]; then
     if [[ "$curstatus" = "AddonDeploySuccessful" ]]; then
       echo "wait addon status to be AddonDeploySuccessful"
@@ -496,3 +506,70 @@ EOF
   fi
 }
 
+# upgrade rancher-logging with the patch of fluentbit image
+upgrade_addon_rancher_logging_with_patch_fluentbit_image()
+{
+  local name=rancher-logging
+  local namespace=cattle-logging-system
+  local newversion=$1
+  echo "try to patch addon $name in $namespace to $newversion, with patch of fluentbit image"
+
+  # check if addon is there
+  local version=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.spec.version}' || true)
+  if [[ -z "$version" ]]; then
+    echo "addon is not found, nothing to do"
+    return 0
+  fi
+
+  local valuesfile="logging-values-temp.yaml"
+  rm -f $valuesfile
+  kubectl get addons.harvesterhci.io $name -n $namespace -ojsonpath="{.spec.valuesContent}" > $valuesfile
+
+  local EXIT_CODE=0
+  # yq shows `Error: no matches found` if it is not existing and returns 1
+  echo "check fluentbit image tag 1.9.5"
+  yq -e '(.images | select(.fluentbit.tag == "1.9.5"))' $valuesfile || EXIT_CODE=$?
+
+  if [ $EXIT_CODE != 0 ]; then
+    # fluentbit image is not 1.9.5
+    echo "fluentbit image is not 1.9.5, fallback to the normal addon $name upgrade"
+    rm -f $valuesfile
+    upgrade_addon_try_patch_version_only $name $namespace $newversion
+    return 0
+  fi
+
+  echo "current valuesContent of the addon $name:"
+  cat $valuesfile
+  # remove fluentbit related images tags
+  yq -e 'del(.images.fluentbit*)' -i $valuesfile
+  # add 4 spaces to each line
+  sed -i -e 's/^/    /' $valuesfile
+  local newvalues=$(<$valuesfile)
+  rm -f $valuesfile
+
+  local patchfile="addon-patch-temp.yaml"
+  rm -f $patchfile
+
+cat > $patchfile <<EOF
+spec:
+  version: $newversion
+  valuesContent: |
+$newvalues
+EOF
+
+  local enabled=""
+  local curstatus=""
+  enabled=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.spec.enabled}' || true)
+  if [[ $enabled = "true" ]]; then
+    curstatus=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.status.status}' || true)
+  fi
+
+  echo "new patch of addon $name:"
+  cat $patchfile
+
+  kubectl patch addons.harvesterhci.io $name -n $namespace --patch-file ./$patchfile --type merge
+  rm -f ./$patchfile
+
+  # wait status only when enabled and already AddonDeploySuccessful
+  wait_for_addon_upgrade_deployment $name $namespace $enabled $curstatus
+}
