@@ -468,22 +468,30 @@ wait_for_addon_upgrade_deployment() {
   local namespace=$2
   local enabled=$3
   local curstatus=$4
+  local targetstatus="AddonDeploySuccessful"
 
-  # wait status only when enabled and already AddonDeploySuccessful
+  # wait status only when enabled and already AddonDeploySuccessful, max 300 s
   if [[ $enabled = "true" ]]; then
-    if [[ "$curstatus" = "AddonDeploySuccessful" ]]; then
-      echo "wait addon status to be AddonDeploySuccessful"
-      local status=""
-      status=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.status.status}' || true)
-      while [[ "$status" != "AddonDeploySuccessful" ]]
+    if [[ "$curstatus" = "$targetstatus" ]]; then
+      date
+      echo "wait addon status to be $targetstatus"
+      for i in $(seq 1 60)
       do
-        # echo "$status"
-        echo "wait for addon status to be AddonDeploySuccessful, current is $status"
         sleep 5
-        status=""
+        local status=""
         status=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.status.status}' || true)
+        if [[ "$status" != "$targetstatus" ]]; then
+          echo "current status is $status, continue wait: $i"
+          continue
+        else
+          date
+          echo "addon status is $targetstatus"
+          return 0
+        fi
       done
-      echo "addon status is AddonDeploySuccessful"
+      # do not block the upgrade if an addon failed after 300s
+      date
+      echo "the addon did not become $targetstatus after 300 seconds, recover it manually after the upgrade"
     else
       if [[ -z $curstatus ]]; then
         echo "addon status is failed to fetch, do not wait"
