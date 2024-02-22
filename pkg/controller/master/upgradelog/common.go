@@ -36,7 +36,6 @@ func upgradeLogReference(upgradeLog *harvesterv1.UpgradeLog) metav1.OwnerReferen
 }
 
 func preparePvc(upgradeLog *harvesterv1.UpgradeLog) *corev1.PersistentVolumeClaim {
-	upgradeLogStorageClassName := util.HarvesterLonghornStorageClassName
 	volumeMode := corev1.PersistentVolumeFilesystem
 
 	return &corev1.PersistentVolumeClaim{
@@ -60,8 +59,7 @@ func preparePvc(upgradeLog *harvesterv1.UpgradeLog) *corev1.PersistentVolumeClai
 					"storage": resource.MustParse(defaultLogArchiveVolumeSize),
 				},
 			},
-			StorageClassName: &upgradeLogStorageClassName,
-			VolumeMode:       &volumeMode,
+			VolumeMode: &volumeMode,
 		},
 	}
 }

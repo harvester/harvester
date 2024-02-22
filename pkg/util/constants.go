@@ -57,7 +57,6 @@ const (
 	RancherMonitoringGrafana            = "rancher-monitoring-grafana"
 	CattleLoggingSystemNamespaceName    = "cattle-logging-system"
 	HarvesterUpgradeImageRepository     = "rancher/harvester-upgrade"
-	HarvesterLonghornStorageClassName   = "harvester-longhorn"
 	GrafanaPVCName                      = "rancher-monitoring-grafana"
 	RancherMonitoringName               = "rancher-monitoring"
 	CattleMonitoringSystemNamespaceName = "cattle-monitoring-system"

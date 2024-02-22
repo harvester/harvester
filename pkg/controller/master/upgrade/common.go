@@ -208,6 +208,11 @@ func prepareCleanupPlan(upgrade *harvesterv1.Upgrade, imageList []string) *upgra
 					Effect:   corev1.TaintEffectNoExecute,
 				},
 				{
+					Key:      node.KubeEtcdNodeLabelKey,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoExecute,
+				},
+				{
 					Key:      labelArch,
 					Operator: corev1.TolerationOpEqual,
 					Effect:   corev1.TaintEffectNoSchedule,
@@ -277,6 +282,11 @@ func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
 				},
 				{
 					Key:      node.KubeControlPlaneNodeLabelKey,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoExecute,
+				},
+				{
+					Key:      node.KubeEtcdNodeLabelKey,
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoExecute,
 				},
@@ -475,6 +485,11 @@ func getDefaultTolerations() []corev1.Toleration {
 		},
 		{
 			Key:      node.KubeControlPlaneNodeLabelKey,
+			Operator: corev1.TolerationOpExists,
+			Effect:   corev1.TaintEffectNoExecute,
+		},
+		{
+			Key:      node.KubeEtcdNodeLabelKey,
 			Operator: corev1.TolerationOpExists,
 			Effect:   corev1.TaintEffectNoExecute,
 		},
