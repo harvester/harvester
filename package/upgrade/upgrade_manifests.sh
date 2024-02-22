@@ -140,7 +140,7 @@ wait_longhorn_manager() {
   lm_repo=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.manager.repository)
   lm_tag=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.manager.tag)
   lm_image="${lm_repo}:${lm_tag}"
-  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true -o json | jq -r '.items | length')
+  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
   while [ true ]; do
     lm_ds_ready=0
@@ -159,7 +159,7 @@ wait_longhorn_manager() {
 }
 
 wait_longhorn_instance_manager_aio() {
-  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true -o json | jq -r '.items | length')
+  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
   if [ $node_count -le 2 ]; then
     echo "Skip waiting instance-manager (aio), node count: $node_count"
     return
@@ -1152,7 +1152,7 @@ spec:
   tolerations:
   - operator: "Exists"
   upgrade:
-    image: registry.suse.com/bci/bci-base:15.4
+    image: registry.suse.com/bci/bci-base:15.5
     command:
     - chroot
     - /host
