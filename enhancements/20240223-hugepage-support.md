@@ -17,6 +17,16 @@ See the following github issues:
 
 ## Motivation
 
+### Background
+
+The Linux huge page support is a somewhat obscure feature whose
+use and behavior is not obvious for most users;
+therefore some explanation seems useful
+before stating the specific things that we propose to do
+with Harvester to enable use of huge pages.
+
+#### What Huge Pages Are
+
 The Linux kernel normally manages physical memory in units of the processor's smallest native page frame size.
 For many processors, including `x86_64` and `arm64`, this is 4KiB.
 This size is determined by the granularity of the processor MMU's page table entry.
@@ -27,6 +37,8 @@ Modern `arm64` processors support 16KiB and 64KiB in addition to the base 4KiB p
 
 The Linux kernel has the ability to make use of these larger units of memory.
 In the linux kernel, these larger pages are referred to as "huge pages".
+
+#### Benefits and Drawbacks of Huge Pages
 
 Using a larger page size removes one or more layers from the page table hierarchy,
 meaning that the processor has to load fewer page table entries to learn
@@ -51,6 +63,8 @@ Some application vendors do have recommendations, based on reference workloads.
 The reality is, however, that the "best answer" will depend heavily
 on the specific workload of a specific application mix in a specific situation.
 
+#### Huge Pages in Harvester
+
 The Linux kernel has the ability to use this,
 and Linux kernel builds normally used in Harvester have the associated features
 enabled at compile time,
@@ -65,6 +79,33 @@ from the availability of this feature.
 
 Given that the kernel itself has the ability to support this,
 it seems reasonable to provide a way for users to enable its use.
+
+### Linux Parameters and Features
+
+There are several aspects to the Linux support for hugepages:
+1. Allocation of RAM for hugepage use.
+2. Interfaces for programs to make explicit use of hugepages.
+3. A Kernel facility to make implicit use of hugepages.
+
+Each of these is discussed briefly below.
+
+Further details of hugepage support may be found in Linux man pages and Linux kernel documentation
+as listed at the end of this document.
+
+#### Allocation of RAM for hugepage use
+
+Normally, all allocatable RAM is managed in the uniform standard page size.
+For x86_64 and ARM architectures, this unit is 4KiB.
+This is the smallest size page that the hardware MMU supports
+in its page tables.
+
+To make use of the larger page sizes,
+the kernel must be told to set aside some amount of RAM
+for that purpose.
+
+#### Interfaces for programs to make explicit use of hugepages
+
+
 
 ### Goals
 
@@ -107,14 +148,33 @@ Details of each phase are discussed below.
 
 The Harvester installer program will be modified as follows
 * At an appropriate stage, a dialog panel will be displayed asking the user whether they want to enable use of hugepages.  If so, then the user will be queried for values of relevant parameters:
-    * 
+    * For each hugepage size supported by the kernel on the system's platform, the user will be able to specify how many pages of that size should be preallocated.  The size chosen will be checked for basic sanity (for example, specifying numbers of pages that exceed the system's total RAM size) but no attempt will be made to check "how good" the choice is.
+	* The user will be able to indicate which of the available hugepage sizes is the "default".
+	* There will also be a box where the users can indicate whether they do or do not want the "transparent_hugepages" feature enabled.
+	* The dialog will contain a disclaimer message indicating that
+	    * The choices they make may _decrease_ system performance, and may even make the system unusuable.
+		* The only way to know is to test specific settings with specific workloads.
+	* The dialog may contain brief summaries of what the parameters do.
+* TBD: a recovery method must be provided for the event where their parameter choices pass the sanity checks but make the system unusable.
+* TBD: Question: should the Harvester UI provide a means for altering the settings for a node while the system is running?  I'm inclined to think there should be, so that the user will not have to completely re-install a node if they find the settings they chose have undesirable results.
+* TBD: Question: should we force all nodes to have the same setting, or allow each node to have its own settings?
+* TBD: Question: if nodes may have different settings, can we using tagging or some other means to allow the user to affect VM scheduling so that certain workloads can preferentially be run on a node with hugepages turned on (or conversely, to be scheduled on a node with hugepages turned off)?
+
+The Harvester upgrader will be modified as follows, if necessary
+* The upgrade procedure will preserve previously chosen hugepage settings
+* TBD: Question: if "sanity" conditions change for valid parameters (e.g. if the base Harvester runtime increases its memory footprint), should the upgrade procedure do anything?
+    * Should it adjust the parameters automatically (perhaps with a message)?
+	* Should there be a dialog instead?
 
 ### Virtual Machine Support
 
-TBD
+The qemu command used to run VMs supports command line options that enable the running VM to have its pages backed by host hugepages.
+
+Details TBD.
 
 
 ### User Stories
+
 Detail the things that people will be able to do if this enhancement is implemented. A good practise is including a comparsion of what user cannot do before the enhancement implemented, why user would want an enhancement and what user need to do after, to make it clear why the enhancement beneficial to the user.
 
 The experience details should be in the `User Experience In Detail` later.
@@ -184,8 +244,13 @@ Anything that requires if user want to upgrade to this enhancement
 
 TBD
 
-## Note [optional]
+## Notes
 
 Additional notes.
 
-TBD
+### References
+
+* Linux kernel document "HugeTLB Pages" Documentation/admin-guide/mm/hugetlbpage.rst
+* Linux man page `mmap(2)`
+* Linux man page `alloc_hugepages(2)`
+* Linux man page `memfd_create(2)`
