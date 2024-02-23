@@ -13,7 +13,7 @@ dependencies:
   version: 0.6.0
 - name: csi-snapshotter
   repository: file://dependency_charts/csi-snapshotter
-  version: 0.1.0
+  version: 0.2.0
 - name: longhorn
   repository: https://charts.longhorn.io
   version: 1.6.0
@@ -28,9 +28,9 @@ dependencies:
   version: 0.1.1
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
-  version: 0.2.0
+  version: 0.2.2
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
-  version: 0.1.0
-digest: sha256:e9df0d480bfb8e8b5e5479514b6c56e0578701d21839580c6402877b1f240c76
-generated: "2024-02-02T10:41:21.94316+08:00"
+  version: 0.2.0
+digest: sha256:39a84179b84ef6ca9102e29cd6c5d414742be6e967334b1742074bdf52bb3719
+generated: "2024-02-19T11:43:15.529711575+08:00"

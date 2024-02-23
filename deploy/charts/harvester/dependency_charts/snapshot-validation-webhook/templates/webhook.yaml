@@ -17,6 +17,7 @@ metadata:
   namespace: {{ include "snapshot-validation-webhook.namespace" . }}
 type: kubernetes.io/tls
 data:
+  ca.crt: {{ $certificate }}
   tls.crt: {{ $certificate }}
   tls.key: {{ $key }}
 ---

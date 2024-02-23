@@ -35,7 +35,7 @@ dependencies:
     repository: https://charts.harvesterhci.io
     condition: harvester-node-disk-manager.enabled
   - name: csi-snapshotter
-    version: 0.1.0
+    version: 0.2.0
     repository: file://dependency_charts/csi-snapshotter
     condition: csi-snapshotter.enabled
   - name: longhorn
@@ -53,8 +53,8 @@ dependencies:
     repository: file://dependency_charts/whereabouts
     condition: whereabouts.enabled
   - name: harvester-node-manager
-    version: 0.2.0
+    version: 0.2.2
     repository: https://charts.harvesterhci.io
   - name: snapshot-validation-webhook
-    version: 0.1.0
+    version: 0.2.0
     repository: file://dependency_charts/snapshot-validation-webhook
