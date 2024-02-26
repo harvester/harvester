@@ -281,6 +281,9 @@ upgrade_rancher() {
   wait_rollout cattle-system deployment rancher-webhook
   echo "Wait for cluster settling down..."
   wait_capi_cluster fleet-local local $pre_generation
+  patch_fleet_cluster
+  wait_for_deployment cattle-fleet-local-system fleet-agent
+  wait_rollout cattle-fleet-local-system deployment fleet-agent
 }
 
 update_local_rke_state_secret() {
@@ -1270,6 +1273,36 @@ sync_containerd_registry_to_rancher() {
 patch_local_cluster_details() {
   kubectl label -n fleet-local cluster.provisioning local "provisioning.cattle.io/management-cluster-name=local" --overwrite=true
   kubectl patch -n fleet-local cluster.provisioning local --subresource=status --type=merge --patch '{"status":{"fleetWorkspaceName": "fleet-local"}}'
+}
+
+# RedeployAgentGeneration can be used to force redeploying the agent.
+# RedeployAgentGeneration int64 `json:"redeployAgentGeneration,omitempty"`
+patch_fleet_cluster() {
+  local generation=$(kubectl get -n fleet-local cluster.fleet local -o jsonpath='{.status.agentDeployedGeneration}')
+  local new_generation=$((generation+1))
+  patch_manifest="$(mktemp --suffix=.json)"
+  cat > "$patch_manifest" <<EOF
+{
+  "spec": {
+    "redeployAgentGeneration": $new_generation
+  }
+}
+EOF
+  kubectl patch -n fleet-local cluster.fleet local  --type=merge --patch-file $patch_manifest
+  rm -f $patch_manifest
+}
+
+# wait for deployment will wait until deployment exists
+wait_for_deployment() {
+  local namespace=$1
+  local name=$2
+  local found=$(kubectl get deployment -n $namespace -o json | jq -r --arg DEPLOYMENT $name '.items[].metadata | select (.name == $DEPLOYMENT) | .name')
+  while [ -z $found ]
+  do
+    echo "waiting for deployment $name to be created in namespace $namespace, sleeping for 10 seconds"
+    sleep 10
+    found=$(kubectl get deployment -n $namespace -o json | jq -r --arg DEPLOYMENT $name '.items[].metadata | select (.name == $DEPLOYMENT) | .name')
+  done
 }
 
 wait_repo
