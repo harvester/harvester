@@ -1275,7 +1275,6 @@ patch_local_cluster_details() {
 wait_repo
 detect_repo
 detect_upgrade
-check_version
 pre_upgrade_manifest
 pause_all_charts
 skip_restart_rancher_system_agent
