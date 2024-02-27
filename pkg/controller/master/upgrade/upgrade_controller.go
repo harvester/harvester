@@ -64,6 +64,7 @@ const (
 	extendedReplicaReplenishmentWaitInterval = 1800
 
 	imageCleanupPlanCompletedAnnotation = "harvesterhci.io/image-cleanup-plan-completed"
+	skipVersionCheckAnnotation          = "harvesterhci.io/skip-version-check"
 )
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades
@@ -263,9 +264,10 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			return h.upgradeClient.Update(toUpdate)
 		}
 
-		logrus.Info("Check minimum upgradable version")
-		if err := isVersionUpgradable(toUpdate.Status.PreviousVersion, repoInfo.Release.MinUpgradableVersion); err != nil {
-			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+		isEligible, reason := upgradeEligibilityCheck(upgrade, repoInfo)
+
+		if !isEligible {
+			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, reason, "")
 			return h.upgradeClient.Update(toUpdate)
 		}
 
@@ -606,6 +608,24 @@ func isVersionUpgradable(currentVersion, minUpgradableVersion string) error {
 	}
 
 	return nil
+}
+
+func upgradeEligibilityCheck(upgrade *harvesterv1.Upgrade, repoInfo *RepoInfo) (bool, string) {
+	skipVersionCheckStr, ok := upgrade.Annotations[skipVersionCheckAnnotation]
+	if ok {
+		skipVersionCheck, err := strconv.ParseBool(skipVersionCheckStr)
+		if err == nil && skipVersionCheck {
+			logrus.Info("Skip minimum upgradable version check")
+			return true, ""
+		}
+	}
+
+	logrus.Info("Check minimum upgradable version")
+	if err := isVersionUpgradable(upgrade.Status.PreviousVersion, repoInfo.Release.MinUpgradableVersion); err != nil {
+		return false, err.Error()
+	}
+
+	return true, ""
 }
 
 func (h *upgradeHandler) getReplicaReplenishmentValue() (int, error) {
