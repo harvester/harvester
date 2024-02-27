@@ -41,6 +41,14 @@ stages:
 	currentVersion        = "current"
 )
 
+var (
+	// Images in the list will be retained during the image pruning process at
+	// the end of an upgrade.
+	imageRetainList = []string{
+		"rancher/harvester-upgrade",
+	}
+)
+
 type HarvesterRelease struct {
 	Harvester            string `yaml:"harvester,omitempty"`
 	HarvesterChart       string `yaml:"harvesterChart,omitempty"`
@@ -514,6 +522,18 @@ func (r *Repo) getImageList(version string, imageList map[string]bool) error {
 	return scanner.Err()
 }
 
+func applyImageRetainList(imageList []string) []string {
+	for _, retainedImage := range imageRetainList {
+		for i, image := range imageList {
+			if strings.Contains(image, retainedImage) {
+				imageList = removeItemFromSlice(imageList, i)
+				break
+			}
+		}
+	}
+	return imageList
+}
+
 func (r *Repo) getImagesDiffList() ([]string, error) {
 	previousImageList := make(map[string]bool)
 	currentImageList := make(map[string]bool)
@@ -537,7 +557,7 @@ func (r *Repo) getImagesDiffList() ([]string, error) {
 		return nil, err
 	}
 
-	diffList := difference(previousImageList, currentImageList)
+	diffList := applyImageRetainList(difference(previousImageList, currentImageList))
 	logrus.Infof("Diff: %v", diffList)
 
 	return diffList, nil
