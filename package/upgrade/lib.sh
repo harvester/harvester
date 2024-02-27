@@ -122,6 +122,11 @@ detect_repo()
 
 check_version()
 {
+  if [ "$SKIP_VERSION_CHECK" = "true" ]; then
+    echo "Skip minimum upgradable version check."
+    return
+  fi
+
   local current_version="${UPGRADE_PREVIOUS_VERSION#v}"
   local min_upgradable_version="${REPO_HARVESTER_MIN_UPGRADABLE_VERSION#v}"
 
@@ -243,6 +248,7 @@ detect_upgrade()
   upgrade_obj=$(kubectl get upgrades.harvesterhci.io $HARVESTER_UPGRADE_NAME -n $UPGRADE_NAMESPACE -o yaml)
 
   UPGRADE_PREVIOUS_VERSION=$(echo "$upgrade_obj" | yq e .status.previousVersion -)
+  SKIP_VERSION_CHECK=$(echo "$upgrade_obj" | yq e '.metadata.annotations."harvesterhci.io/skip-version-check"' -)
 }
 
 # refer https://github.com/harvester/harvester/issues/3098
