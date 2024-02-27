@@ -1,7 +1,3 @@
-# source reference: https://github.com/rancher/elemental-cli/commits/v0.3.1
-# ***NOTE*** Deprecated, we need to use the new elemental-cli in the next release.
-FROM registry.suse.com/rancher/elemental-builder-image/5.3:0.3.1 AS temp_elemental
-
 FROM registry.suse.com/bci/bci-base:15.4
 
 ARG ARCH=amd64
@@ -17,8 +13,6 @@ RUN curl -sfL https://storage.googleapis.com/kubernetes-release/release/${KUBECT
 RUN curl -sfL https://github.com/kubevirt/kubevirt/releases/download/v0.55.2/virtctl-v0.55.2-linux-${ARCH} -o /usr/bin/virtctl && chmod +x /usr/bin/virtctl && \
     curl -sfL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -o /usr/bin/yq && chmod +x /usr/bin/yq && \
     curl -sfL https://github.com/rancher/wharfie/releases/download/v0.6.5/wharfie-${ARCH}  -o /usr/bin/wharfie && chmod +x /usr/bin/wharfie
-
-COPY --from=temp_elemental /usr/bin/elemental /usr/local/bin/elemental
 
 COPY do_upgrade_node.sh /usr/local/bin/
 COPY upgrade_node.sh /usr/local/bin/

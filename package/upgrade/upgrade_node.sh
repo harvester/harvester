@@ -39,10 +39,6 @@ clean_up_tmp_files()
     echo "Try to unmount $tmp_rootfs_mount..."
     umount $tmp_rootfs_mount || echo "Umount $tmp_rootfs_mount failed with return code: $?"
   fi
-  if [ -n "$target_elemental_cli" ] && is_mounted "$target_elemental_cli"; then
-    echo "Try to unmount $target_elemental_cli..."
-    umount $target_elemental_cli || echo "Umount $target_elemental_cli failed with return code: $?"
-  fi
   echo "Clean up tmp files..."
   if [ -n "$NEW_OS_SQUASHFS_IMAGE_FILE" ]; then
     echo "Try to remove $NEW_OS_SQUASHFS_IMAGE_FILE..."
@@ -528,12 +524,8 @@ EOF
   # we would like to clean up the incomplete state.yaml to avoid the issue of https://github.com/harvester/harvester/issues/4526
   cleanup_incomplete_state_file
 
-  # replace the fixed elemental CLI for fix elemental upgrade issues
-  new_elemental_cli=$SCRIPT_DIR/elemental
-  target_elemental_cli=$HOST_DIR/usr/bin/elemental
   elemental_upgrade_log="${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log"
   local ret=0
-  mount --bind $new_elemental_cli $target_elemental_cli
   chroot $HOST_DIR elemental upgrade \
     --logfile "$elemental_upgrade_log" \
     --directory ${tmp_rootfs_mount#"$HOST_DIR"} \
@@ -553,7 +545,6 @@ EOF
   GRUBENV_FILE="/oem/grubenv"
   chroot $HOST_DIR /bin/bash -c "if ! [ -f ${GRUBENV_FILE} ]; then grub2-editenv ${GRUBENV_FILE} create; fi"
 
-  umount $target_elemental_cli
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
