@@ -308,6 +308,11 @@ func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
 					Effect:   corev1.TaintEffectNoSchedule,
 					Value:    "arm",
 				},
+				{
+					Key:      node.KubeEtcdNodeLabelKey,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoExecute,
+				},
 			},
 			Upgrade: &upgradev1.ContainerSpec{
 				Image:   fmt.Sprintf("%s:%s", upgradeImageRepository, imageVersion),
