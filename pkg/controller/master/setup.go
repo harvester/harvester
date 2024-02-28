@@ -11,6 +11,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	"github.com/harvester/harvester/pkg/controller/master/image"
 	"github.com/harvester/harvester/pkg/controller/master/keypair"
+	"github.com/harvester/harvester/pkg/controller/master/machine"
 	"github.com/harvester/harvester/pkg/controller/master/mcmsettings"
 	"github.com/harvester/harvester/pkg/controller/master/migration"
 	"github.com/harvester/harvester/pkg/controller/master/node"
@@ -34,7 +35,9 @@ var registerFuncs = []registerFunc{
 	node.PromoteRegister,
 	node.MaintainRegister,
 	node.DownRegister,
+	node.RemoveRegister,
 	node.VolumeDetachRegister,
+	machine.ControlPlaneRegister,
 	setting.Register,
 	template.Register,
 	virtualmachine.Register,
