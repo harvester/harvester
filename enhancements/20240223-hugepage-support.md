@@ -5,7 +5,7 @@ Hugepage Support DRAFT
 ## Summary
 
 Changes should be made to the Harvester installer, the Harvester web UI, and the underlying VM support
-to make it easy for users to enable use of Linux "hugepages" and to configure associated parameters.
+to make it easy for users to configure the use of Linux "hugepages" and to configure associated parameters.
 The purpose of this would be to enable customers to take advantage of potential performance gains
 that might be possible by making use of this feature.
 
@@ -68,17 +68,17 @@ on the specific workload of a specific application mix in a specific situation.
 The Linux kernel has the ability to use this,
 and Linux kernel builds normally used in Harvester have the associated features
 enabled at compile time,
-but _use_ of the features is disabled by default
-so that normally only 4KiB pages are used.
+but the default behavior may not match
+what is best for a specific customer workload.
 
 Some users and potential users of Harvester have requested the ability
-to turn on use of this feature.
+to configure the parameters for this feature.
 
 It has also been claimed that the Longhorn storage system could benefit
 from the availability of this feature.
 
 Given that the kernel itself has the ability to support this,
-it seems reasonable to provide a way for users to enable its use.
+it seems reasonable to provide a way for users to configure its use.
 
 ### Linux Parameters and Features
 
