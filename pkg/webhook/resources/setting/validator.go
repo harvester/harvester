@@ -21,7 +21,6 @@ import (
 	_ "github.com/longhorn/backupstore/s3"  //nolint
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
-	"github.com/rancher/wharfie/pkg/registries"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/slice"
 	"github.com/sirupsen/logrus"
@@ -32,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/containerd"
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	storagenetworkctl "github.com/harvester/harvester/pkg/controller/master/storagenetwork"
@@ -706,7 +706,7 @@ func validateContainerdRegistry(setting *v1beta1.Setting) error {
 		return nil
 	}
 
-	registry := &registries.Registry{}
+	registry := &containerd.Registry{}
 	if err := json.Unmarshal([]byte(setting.Value), registry); err != nil {
 		return werror.NewInvalidError(err.Error(), "value")
 	}
