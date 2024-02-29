@@ -85,7 +85,6 @@ require (
 	github.com/rancher/rancher/pkg/apis v0.0.0
 	github.com/rancher/steve v0.0.0-20221209194631-acf9d31ce0dd
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210727200656-10b094e30007
-	github.com/rancher/wharfie v0.6.5
 	github.com/rancher/wrangler v1.1.1
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.2
@@ -132,6 +131,7 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/Masterminds/squirrel v1.5.3 // indirect
+	github.com/Microsoft/go-winio v0.6.0 // indirect
 	github.com/RoaringBitmap/roaring v1.2.3 // indirect
 	github.com/adrg/xdg v0.3.1 // indirect
 	github.com/alessio/shellescape v1.4.1 // indirect
@@ -187,7 +187,6 @@ require (
 	github.com/google/fscrypt v0.3.4 // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
-	github.com/google/go-containerregistry v0.12.2-0.20230106184643-b063f6aeac72 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
@@ -223,7 +222,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
-	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
