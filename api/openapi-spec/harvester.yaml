@@ -2,6 +2,9 @@ openapi: 3.0.1
 info:
   title: Harvester APIs
   version: v1beta1
+security:
+- Basic: []
+- Bearer: []
 servers:
 - url: /
 paths:
@@ -6858,6 +6861,13 @@ paths:
                 type: string
       x-codegen-request-body-name: body
 components:
+  securitySchemes:
+    Basic:
+      type: http
+      scheme: basic
+    BearerAuth:
+      type: http
+      scheme: bearer
   schemas:
     harvesterhci.io.v1beta1.BackupTarget:
       type: object
