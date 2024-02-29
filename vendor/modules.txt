@@ -24,6 +24,8 @@ github.com/Masterminds/sprig/v3
 # github.com/Masterminds/squirrel v1.5.3
 ## explicit; go 1.14
 github.com/Masterminds/squirrel
+# github.com/Microsoft/go-winio v0.6.0
+## explicit; go 1.17
 # github.com/RoaringBitmap/roaring v1.2.3
 ## explicit; go 1.14
 github.com/RoaringBitmap/roaring
