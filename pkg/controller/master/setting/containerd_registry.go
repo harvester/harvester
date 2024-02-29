@@ -10,7 +10,6 @@ import (
 
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
-	"github.com/rancher/wharfie/pkg/registries"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,6 +18,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/containerd"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -36,7 +36,7 @@ func (h *Handler) syncContainerdRegistry(setting *harvesterv1.Setting) error {
 		return h.copyContainerdRegistryToRancher(nil)
 	}
 
-	registryFromSetting := &registries.Registry{}
+	registryFromSetting := &containerd.Registry{}
 	if err := json.Unmarshal([]byte(setting.Value), registryFromSetting); err != nil {
 		return err
 	}
@@ -118,10 +118,10 @@ func (h *Handler) clearContainerdRegistrySecret() error {
 	return nil
 }
 
-func (h *Handler) isStaleSecret(secret *corev1.Secret, registryFromSetting *registries.Registry) (bool, error) {
+func (h *Handler) isStaleSecret(secret *corev1.Secret, registryFromSetting *containerd.Registry) (bool, error) {
 	isStale := secret.Data == nil || string(secret.Data[util.ContainerdRegistryFileName]) == ""
 	if !isStale {
-		registryFromSecret := &registries.Registry{}
+		registryFromSecret := &containerd.Registry{}
 		if err := yaml.Unmarshal(secret.Data[util.ContainerdRegistryFileName], registryFromSecret); err != nil {
 			return true, err
 		}
@@ -132,7 +132,7 @@ func (h *Handler) isStaleSecret(secret *corev1.Secret, registryFromSetting *regi
 	return isStale, nil
 }
 
-func (h *Handler) removeCredentialInSetting(setting *harvesterv1.Setting, registry *registries.Registry) error {
+func (h *Handler) removeCredentialInSetting(setting *harvesterv1.Setting, registry *containerd.Registry) error {
 	// Remove credential in configs.
 	for configName, config := range registry.Configs {
 		config.Auth = nil
@@ -154,7 +154,7 @@ func (h *Handler) removeCredentialInSetting(setting *harvesterv1.Setting, regist
 	return nil
 }
 
-func isSameMirrors(fromSetting, fromSecret map[string]registries.Mirror) bool {
+func isSameMirrors(fromSetting, fromSecret map[string]containerd.Mirror) bool {
 	if len(fromSetting) == 0 && len(fromSecret) == 0 {
 		return true
 	}
@@ -180,14 +180,14 @@ func isSameMirrors(fromSetting, fromSecret map[string]registries.Mirror) bool {
 }
 
 func (h *Handler) syncContainerdRegistrySecretToRancher(secret *corev1.Secret) error {
-	var registry registries.Registry
+	var registry containerd.Registry
 	if err := yaml.Unmarshal(secret.Data[util.ContainerdRegistryFileName], &registry); err != nil {
 		return err
 	}
 	return h.copyContainerdRegistryToRancher(&registry)
 }
 
-func (h *Handler) copyContainerdRegistryToRancher(newRegistries *registries.Registry) error {
+func (h *Handler) copyContainerdRegistryToRancher(newRegistries *containerd.Registry) error {
 	ll := logrus.WithFields(logrus.Fields{
 		"containerd_registry_sync_namespace": containerdRegistrySecretsNamespace,
 	})
@@ -202,7 +202,7 @@ func (h *Handler) copyContainerdRegistryToRancher(newRegistries *registries.Regi
 	newConfSecrets := make(map[string]*corev1.Secret)
 
 	var (
-		empty           registries.Registry
+		empty           containerd.Registry
 		clusterRegistry *rkev1.Registry
 	)
 
@@ -292,7 +292,7 @@ func (h *Handler) pruneUnusedContainerdRegistryConfigSecrets(prevConfs, newConfs
 	}
 }
 
-func (h *Handler) syncContainerdRegistryConfigSecret(prevConfs, newConfs map[string]*corev1.Secret, host string, config registries.RegistryConfig) (rkev1.RegistryConfig, error) {
+func (h *Handler) syncContainerdRegistryConfigSecret(prevConfs, newConfs map[string]*corev1.Secret, host string, config containerd.RegistryConfig) (rkev1.RegistryConfig, error) {
 	ll := logrus.WithFields(logrus.Fields{
 		"containerd_registry_sync_host": host,
 	})
