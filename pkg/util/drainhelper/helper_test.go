@@ -32,6 +32,7 @@ var (
 			Name: "harvester-cp-2",
 			Labels: map[string]string{
 				"node-role.kubernetes.io/control-plane": "true",
+				"node-role.kubernetes.io/etcd":          "true",
 			},
 			Annotations: make(map[string]string),
 		},
@@ -41,7 +42,7 @@ var (
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "harvester-cp-3",
 			Labels: map[string]string{
-				"node-role.kubernetes.io/control-plane": "true",
+				"node-role.kubernetes.io/etcd": "true",
 			},
 			Annotations: make(map[string]string),
 		},
@@ -110,4 +111,12 @@ func Test_failsControlPlaneRequirementsSingleNode(t *testing.T) {
 	err := DrainPossible(nodeCache, cpNode1)
 	assert.Error(err, "expected error while trying to place cpNode1 in maintenance mode")
 	assert.True(errors.Is(err, errSingleControlPlaneNode), "expected error singleControlPlaneNodeError")
+}
+
+func Test_meetsWorkerRequirement(t *testing.T) {
+	assert := require.New(t)
+	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
+	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
+	err := DrainPossible(nodeCache, testNode)
+	assert.NoError(err, "expected no error while place worker node in drain")
 }

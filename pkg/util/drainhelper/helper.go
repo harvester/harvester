@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/selection"
+
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/drain"
@@ -77,30 +78,55 @@ func DrainNode(ctx context.Context, cfg *rest.Config, node *corev1.Node) error {
 // to identify if it is possible to place the current mode in maintenance mode
 func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 	_, cpLabelOK := node.Labels["node-role.kubernetes.io/control-plane"]
-	if !cpLabelOK { // not a controlplane node. no further action needed
+	_, etcdLabelOK := node.Labels["node-role.kubernetes.io/etcd"]
+
+	if !cpLabelOK && !etcdLabelOK { // not a controlplane node. no further action needed
 		return nil
 	}
 
-	req, err := labels.NewRequirement("node-role.kubernetes.io/control-plane", selection.Exists, nil)
+	cpReq, err := labels.NewRequirement("node-role.kubernetes.io/control-plane", selection.Exists, nil)
 	if err != nil {
 		return fmt.Errorf("error creating requirement: %v", err)
 	}
 
 	cpSelector := labels.NewSelector()
-	cpSelector = cpSelector.Add(*req)
+	cpSelector = cpSelector.Add(*cpReq)
 
-	nodeList, err := nodeCache.List(cpSelector)
+	cpNodeList, err := nodeCache.List(cpSelector)
 	if err != nil {
 		return fmt.Errorf("error listing nodes matching selector %s: %v", cpSelector.String(), err)
 	}
 
+	etcdReq, err := labels.NewRequirement("node-role.kubernetes.io/etcd", selection.Exists, nil)
+	if err != nil {
+		return fmt.Errorf("error creating requirement: %v", err)
+	}
+
+	etcdSelector := labels.NewSelector()
+	etcdSelector = etcdSelector.Add(*etcdReq)
+
+	etcdNodeList, err := nodeCache.List(etcdSelector)
+	if err != nil {
+		return fmt.Errorf("error listing nodes matching selector %s: %v", etcdSelector.String(), err)
+	}
+
+	// add items to map since controlplane nodes will have etcd labels
+	// this is needed to ensure CI passes on kind since no etcd labels are added
+	// to controlplane nodes in kind
+	nodeMap := make(map[string]*corev1.Node)
+	for _, v := range cpNodeList {
+		nodeMap[v.Name] = v
+	}
+	for _, v := range etcdNodeList {
+		nodeMap[v.Name] = v
+	}
 	// only controlplane node which we are trying to place into maintenance
-	if len(nodeList) == defaultSingleCPCount {
+	if len(nodeMap) == defaultSingleCPCount {
 		return errSingleControlPlaneNode
 	}
 
 	var availableNodes int
-	for _, v := range nodeList {
+	for _, v := range nodeMap {
 		_, ok := v.Annotations[ctlnode.MaintainStatusAnnotationKey]
 		logrus.Debugf("nodeName: %s,  annotation present: %v", v.Name, ok)
 		if !ok {
