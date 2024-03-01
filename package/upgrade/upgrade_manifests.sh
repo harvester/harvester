@@ -1160,7 +1160,7 @@ spec:
     - sh
     - -c
     - set -x && mkdir -p /run/systemd/system/rancher-system-agent.service.d && echo -e '[Service]\nEnvironmentFile=-/run/systemd/system/rancher-system-agent.service.d/10-harvester-upgrade.env' | tee /run/systemd/system/rancher-system-agent.service.d/override.conf && echo 'INSTALL_RKE2_SKIP_ENABLE=true' | tee /run/systemd/system/rancher-system-agent.service.d/10-harvester-upgrade.env && systemctl daemon-reload && systemctl restart rancher-system-agent.service
-  version: $plan_version
+  version: "$plan_version"
 EOF
 
   echo "Creating plan $plan_name to make rancher-system-agent temporarily skip restarting RKE2 server..."
