@@ -14,7 +14,7 @@ import (
 	_ "github.com/openshift/api/operator/v1"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"k8s.io/kube-openapi/pkg/builder"
+	"k8s.io/kube-openapi/pkg/builder" // FIXME should be `builder3`
 	"k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/common/restfuladapter"
 	"k8s.io/kube-openapi/pkg/validation/spec"
