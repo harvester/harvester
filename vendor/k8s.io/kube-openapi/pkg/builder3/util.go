@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,41 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package builder
+package builder3
 
 import (
 	"sort"
 
 	"k8s.io/kube-openapi/pkg/common"
-	"k8s.io/kube-openapi/pkg/validation/spec"
+	"k8s.io/kube-openapi/pkg/spec3"
 )
-
-type parameters []spec.Parameter
-
-func (s parameters) Len() int      { return len(s) }
-func (s parameters) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-
-// byNameIn used in sorting parameters by Name and In fields.
-type byNameIn struct {
-	parameters
-}
-
-func (s byNameIn) Less(i, j int) bool {
-	return s.parameters[i].Name < s.parameters[j].Name || (s.parameters[i].Name == s.parameters[j].Name && s.parameters[i].In < s.parameters[j].In)
-}
-
-// SortParameters sorts parameters by Name and In fields.
-func sortParameters(p []spec.Parameter) {
-	sort.Sort(byNameIn{p})
-}
-
-func groupRoutesByPath(routes []common.Route) map[string][]common.Route {
-	pathToRoutes := make(map[string][]common.Route)
-	for _, r := range routes {
-		pathToRoutes[r.Path()] = append(pathToRoutes[r.Path()], r)
-	}
-	return pathToRoutes
-}
 
 func mapKeyFromParam(param common.Parameter) interface{} {
 	return struct {
@@ -58,4 +31,22 @@ func mapKeyFromParam(param common.Parameter) interface{} {
 		Name: param.Name(),
 		Kind: param.Kind(),
 	}
+}
+
+func (s parameters) Len() int      { return len(s) }
+func (s parameters) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+type parameters []*spec3.Parameter
+
+type byNameIn struct {
+	parameters
+}
+
+func (s byNameIn) Less(i, j int) bool {
+	return s.parameters[i].Name < s.parameters[j].Name || (s.parameters[i].Name == s.parameters[j].Name && s.parameters[i].In < s.parameters[j].In)
+}
+
+// SortParameters sorts parameters by Name and In fields.
+func sortParameters(p []*spec3.Parameter) {
+	sort.Sort(byNameIn{p})
 }

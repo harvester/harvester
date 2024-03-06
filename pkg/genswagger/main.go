@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"reflect"
 	"strings"
 	"unicode"
 
@@ -14,9 +13,10 @@ import (
 	_ "github.com/openshift/api/operator/v1"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"k8s.io/kube-openapi/pkg/builder" // FIXME should be `builder3`
+	builder "k8s.io/kube-openapi/pkg/builder3"
 	"k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/common/restfuladapter"
+	"k8s.io/kube-openapi/pkg/spec3"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 	_ "kubevirt.io/api/snapshot/v1alpha1"
 	_ "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -32,7 +32,7 @@ const (
 	defTimeValue = ""
 )
 
-var outputFile = flag.String("output", "api/openapi-spec/swagger.json", "Output file.")
+var outputFile = flag.String("output", "api/openapi-spec/swagger.json", "Output file.") // TODO: rename to openapi.json
 
 var vowels = map[rune]bool{
 	'a': true,
@@ -81,11 +81,11 @@ func main() {
 	}
 }
 
-func createConfig() *common.Config {
-	return &common.Config{
-		CommonResponses: map[int]spec.Response{
+func createConfig() *common.OpenAPIV3Config {
+	return &common.OpenAPIV3Config{
+		CommonResponses: map[int]*spec3.Response{
 			401: {
-				ResponseProps: spec.ResponseProps{
+				ResponseProps: spec3.ResponseProps{
 					Description: "Unauthorized",
 				},
 			},
@@ -121,20 +121,31 @@ func createConfig() *common.Config {
 			}
 			return r.OperationName(), []string{tag}, nil
 		},
+		// TODO: SecuritySchemes
 	}
 }
 
-func addSummaryForMethods(swagger *spec.Swagger) {
-	t := reflect.TypeOf(new(spec.Operation))
+func addSummaryForMethods(swagger *spec3.OpenAPI) {
+	// t := reflect.TypeOf(new(spec3.Operation))
 	for _, path := range swagger.Paths.Paths {
-		pathItemProps := path.PathItemProps
-		v := reflect.ValueOf(&pathItemProps).Elem()
-		for j := 0; j < v.NumField(); j++ {
-			f := v.Field(j)
-			if t == f.Type() && !f.IsNil() {
-				id := f.Elem().FieldByName("ID").String()
-				id = strings.Replace(id, "Namespaced", "", -1)
-				f.Elem().FieldByName("Summary").SetString(splitAndTitle(id))
+		pathItemProps := path.PathProps
+		// all operations (see the definition of path.PathProps):
+		ops := []*spec3.Operation{
+			pathItemProps.Get,
+			pathItemProps.Put,
+			pathItemProps.Post,
+			pathItemProps.Delete,
+			pathItemProps.Options,
+			pathItemProps.Head,
+			pathItemProps.Patch,
+			pathItemProps.Trace,
+		}
+		for _, op := range ops {
+			if op == nil {
+				continue
+			}
+			if op.Summary == "" {
+				op.Summary = splitAndTitle(op.OperationProps.OperationId)
 			}
 		}
 	}
@@ -183,10 +194,10 @@ func indef(s []string) []string {
 	return append([]string{s[0], a}, s[1:]...)
 }
 
-func fixedTime(swagger *spec.Swagger) {
-	d := swagger.Definitions[defTimeKey]
+func fixedTime(openapi *spec3.OpenAPI) {
+	d := openapi.Components.Schemas[defTimeKey] // FIXME: check if this schema exists, and if `schemas` is the right place to look
 	d.SchemaProps.Format = ""
 	d.SchemaProps.Default = defTimeValue
 
-	swagger.Definitions[defTimeKey] = d
+	openapi.Components.Schemas[defTimeKey] = d
 }
