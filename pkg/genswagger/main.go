@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 	"unicode"
 
@@ -13,7 +13,7 @@ import (
 	_ "github.com/openshift/api/operator/v1"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	builder "k8s.io/kube-openapi/pkg/builder3"
+	"k8s.io/kube-openapi/pkg/builder3"
 	"k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/common/restfuladapter"
 	"k8s.io/kube-openapi/pkg/spec3"
@@ -66,7 +66,7 @@ func main() {
 	flag.Parse()
 	config := createConfig()
 	webServices := rest.AggregatedWebServices()
-	swagger, err := builder.BuildOpenAPISpecFromRoutes(restfuladapter.AdaptWebServices(webServices), config)
+	swagger, err := builder3.BuildOpenAPISpecFromRoutes(restfuladapter.AdaptWebServices(webServices), config)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -76,7 +76,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	if err := ioutil.WriteFile(*outputFile, jsonBytes, 0644); err != nil {
+	if err := os.WriteFile(*outputFile, jsonBytes, 0644); err != nil {
 		log.Fatal(err.Error())
 	}
 }
@@ -195,7 +195,7 @@ func indef(s []string) []string {
 }
 
 func fixedTime(openapi *spec3.OpenAPI) {
-	d := openapi.Components.Schemas[defTimeKey] // FIXME: check if this schema exists, and if `schemas` is the right place to look
+	d := openapi.Components.Schemas[defTimeKey] // TODO: check if this schema exists, and if `schemas` is the right place to look
 	d.SchemaProps.Format = ""
 	d.SchemaProps.Default = defTimeValue
 
