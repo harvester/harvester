@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/emicklei/go-restful/v3"
 	"github.com/gobuffalo/flect"
 	_ "github.com/openshift/api/operator/v1"
 	"golang.org/x/text/cases"
@@ -64,8 +65,8 @@ var kindToTagMappings = map[string]string{
 // Generate OpenAPI spec definitions for Harvester Resource
 func main() {
 	flag.Parse()
-	config := createConfig()
 	webServices := rest.AggregatedWebServices()
+	config := createConfig(webServices)
 	swagger, err := builder3.BuildOpenAPISpecFromRoutes(restfuladapter.AdaptWebServices(webServices), config)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -81,7 +82,21 @@ func main() {
 	}
 }
 
-func createConfig() *common.OpenAPIV3Config {
+func allOperations(path *spec3.Path) []*spec3.Operation {
+	// all operations (see the definition of path.PathProps):
+	return []*spec3.Operation{
+		path.Get,
+		path.Put,
+		path.Post,
+		path.Delete,
+		path.Options,
+		path.Head,
+		path.Patch,
+		path.Trace,
+	}
+}
+
+func createConfig(webServices []*restful.WebService) *common.OpenAPIV3Config {
 	return &common.OpenAPIV3Config{
 		CommonResponses: map[int]*spec3.Response{
 			401: {
@@ -122,16 +137,17 @@ func createConfig() *common.OpenAPIV3Config {
 			return r.OperationName(), []string{tag}, nil
 		},
 		SecuritySchemes: map[string]*spec3.SecurityScheme{
+			// see https://spec.openapis.org/oas/v3.0.3#security-scheme-object
 			"Basic": {
 				SecuritySchemeProps: spec3.SecuritySchemeProps{
 					Type:   "http",
-					Scheme: "basic",
+					Scheme: "Basic",
 				},
 			},
 			"Bearer": {
 				SecuritySchemeProps: spec3.SecuritySchemeProps{
 					Type:   "http",
-					Scheme: "bearer",
+					Scheme: "Bearer",
 				},
 			},
 		},
@@ -139,39 +155,154 @@ func createConfig() *common.OpenAPIV3Config {
 			// find all the schemas in the spec and clear uniqueItems for non-array types
 			for _, path := range swagger.Paths.Paths {
 				for _, param := range path.Parameters {
-					if param != nil {
-						if schema := param.Schema; schema != nil {
-							if !schema.Type.Contains("array") {
-								schema.UniqueItems = false
-							}
+					if param == nil {
+						continue
+					}
+					if schema := param.Schema; schema != nil {
+						if !schema.Type.Contains("array") {
+							schema.UniqueItems = false
 						}
 					}
 				}
-				ops := []*spec3.Operation{
-					path.Get,
-					path.Put,
-					path.Post,
-					path.Delete,
-					path.Options,
-					path.Head,
-					path.Patch,
-					path.Trace,
-				}
-				for _, op := range ops {
-					if op != nil {
-						// find all the schemas in the spec
-						for _, param := range op.Parameters {
-							if param != nil {
-								if schema := param.Schema; schema != nil {
-									if !schema.Type.Contains("array") {
-										schema.UniqueItems = false
-									}
+				for _, op := range allOperations(path) {
+					if op == nil {
+						continue
+					}
+					// find all the schemas in the spec
+					for _, param := range op.Parameters {
+						if param != nil {
+							if schema := param.Schema; schema != nil {
+								if !schema.Type.Contains("array") {
+									schema.UniqueItems = false
 								}
 							}
 						}
 					}
 				}
 			}
+			// add pattern validation, mins, maxes to the generated spec
+			for _, service := range webServices {
+				if service == nil {
+					continue
+				}
+				_ = service.PathParameters()
+				routes := service.Routes()
+				for _, route := range routes {
+					if path, ok := swagger.Paths.Paths[route.Path]; ok && path != nil {
+						var op *spec3.Operation
+						switch route.Method {
+						case "GET":
+							op = path.Get
+						case "POST":
+							op = path.Post
+						case "PUT":
+							op = path.Put
+						case "DELETE":
+							op = path.Delete
+						case "PATCH":
+							op = path.Patch
+						case "OPTIONS":
+							op = path.Options
+						case "HEAD":
+							op = path.Head
+						case "TRACE":
+							op = path.Trace
+						default:
+							log.Panicf("webServices path `%s` has unknown operation `%s %s`", route.Path, route.Method, route.Path)
+						}
+						if op == nil {
+							log.Panicf("webServices path `%s %s` is missing from generated *spec3.OpenAPI", route.Method, route.Path)
+						}
+
+						serviceParams := route.ParameterDocs
+						for _, serviceParam := range serviceParams {
+							if serviceParam == nil {
+								continue
+							}
+							serviceParam := serviceParam.Data()
+							if serviceParam.Name == "body" {
+								continue // don't handle the request body
+							}
+							// find the corresponding spec3.Parameter by searching first
+							// in the path and then in the operation parameters
+							var specParam *spec3.Parameter
+							candidates := append(path.Parameters, op.Parameters...)
+
+							for _, candidate := range candidates {
+								if candidate == nil {
+									continue
+								}
+								if candidate.Name == serviceParam.Name {
+									switch serviceParam.Kind {
+									case restful.PathParameterKind:
+										if candidate.In == "path" {
+											specParam = candidate
+											break
+										}
+									case restful.QueryParameterKind:
+										if candidate.In == "query" {
+											specParam = candidate
+											break
+										}
+									case restful.BodyParameterKind:
+										if candidate.In == "body" {
+											specParam = candidate
+											break
+										}
+									case restful.HeaderParameterKind:
+										if candidate.In == "header" {
+											specParam = candidate
+											break
+										}
+									// we only care about these 3 kinds, though we might also care about cookies
+									case restful.FormParameterKind:
+									case restful.MultiPartFormParameterKind:
+									default:
+										log.Panicf("unexpected service kind `%d`", serviceParam.Kind)
+									}
+								}
+							}
+							if specParam == nil {
+								log.Panicf("webServices route `%s %s` has no parameter `%s` in generated *spec3.OpenAPI", route.Method, route.Path, serviceParam.Name)
+							}
+
+							if specParam == nil {
+								log.Panicf(
+									"webServices route `%s %s` has no parameter `%s` in generated *spec3.OpenAPI",
+									route.Method, route.Path, serviceParam.Name)
+							}
+
+							schema := specParam.Schema
+							if schema == nil {
+								// schema = &spec.Schema{}
+								// specParam.Schema = schema
+								log.Panicf(
+									"Nil schema for parameter `%s` in route `%s %s`",
+									serviceParam.Name, route.Operation, route.Path)
+							}
+							switch serviceParam.DataType {
+							case "string":
+								// propagate pattern, if present
+								if serviceParam.Pattern != "" {
+									schema.Pattern = serviceParam.Pattern
+								}
+							case "integer":
+								// propagate min, max, if present
+								if serviceParam.Minimum != nil {
+									schema.Minimum = serviceParam.Minimum
+								}
+								if serviceParam.Maximum != nil {
+									schema.Maximum = serviceParam.Maximum
+								}
+							}
+						}
+
+					} else {
+						log.Panicf("webServices path `%s` not found in generated *spec3.OpenAPI", route.Path)
+					}
+				}
+			}
+
 			return swagger, nil
 		},
 	}
@@ -180,18 +311,10 @@ func createConfig() *common.OpenAPIV3Config {
 func addSummaryForMethods(swagger *spec3.OpenAPI) {
 	// t := reflect.TypeOf(new(spec3.Operation))
 	for _, path := range swagger.Paths.Paths {
-		pathItemProps := path.PathProps
-		// all operations (see the definition of path.PathProps):
-		ops := []*spec3.Operation{
-			pathItemProps.Get,
-			pathItemProps.Put,
-			pathItemProps.Post,
-			pathItemProps.Delete,
-			pathItemProps.Options,
-			pathItemProps.Head,
-			pathItemProps.Patch,
-			pathItemProps.Trace,
+		if path == nil {
+			continue
 		}
+		ops := allOperations(path)
 		for _, op := range ops {
 			if op == nil {
 				continue

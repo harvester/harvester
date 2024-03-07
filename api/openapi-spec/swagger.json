@@ -214,7 +214,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -491,7 +492,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -500,7 +502,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -950,7 +953,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -1227,7 +1231,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -1236,7 +1241,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -1450,7 +1456,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -1727,7 +1734,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -1736,7 +1744,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -1950,7 +1959,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -2227,7 +2237,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -2236,7 +2247,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -2450,7 +2462,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -2727,7 +2740,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -2736,7 +2750,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -2950,7 +2965,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -3227,7 +3243,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -3236,7 +3253,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -3450,7 +3468,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -3727,7 +3746,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -3736,7 +3756,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -3950,7 +3971,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -4227,7 +4249,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -4236,7 +4259,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -4450,7 +4474,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -4727,7 +4752,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -4736,7 +4762,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -5776,7 +5803,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -6053,7 +6081,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -6062,7 +6091,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -6394,7 +6424,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -6671,7 +6702,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -6680,7 +6712,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -6783,7 +6816,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -6886,7 +6920,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -6895,7 +6930,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -7109,7 +7145,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -7386,7 +7423,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -7395,7 +7433,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -7809,7 +7848,8 @@
             "description": "Object name and auth scope, such as for teams and projects",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "[a-z0-9][a-z0-9\\-]*"
             }
           },
           {
@@ -7894,7 +7934,8 @@
             "description": "Object name and auth scope, such as for teams and projects",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "[a-z0-9][a-z0-9\\-]*"
             }
           }
         ],
@@ -8249,7 +8290,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -8258,7 +8300,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -8318,7 +8361,8 @@
             "description": "Object name and auth scope, such as for teams and projects",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "[a-z0-9][a-z0-9\\-]*"
             }
           },
           {
@@ -8403,7 +8447,8 @@
             "description": "Object name and auth scope, such as for teams and projects",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "[a-z0-9][a-z0-9\\-]*"
             }
           }
         ],
@@ -8758,7 +8803,8 @@
           "description": "Name of the resource",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         },
         {
@@ -8767,7 +8813,8 @@
           "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
         }
       ]
@@ -14963,11 +15010,11 @@
     "securitySchemes": {
       "Basic": {
         "type": "http",
-        "scheme": "basic"
+        "scheme": "Basic"
       },
       "Bearer": {
         "type": "http",
-        "scheme": "bearer"
+        "scheme": "Bearer"
       }
     }
   }
