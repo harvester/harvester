@@ -135,6 +135,45 @@ func createConfig() *common.OpenAPIV3Config {
 				},
 			},
 		},
+		PostProcessSpec: func(swagger *spec3.OpenAPI) (*spec3.OpenAPI, error) {
+			// find all the schemas in the spec and clear uniqueItems for non-array types
+			for _, path := range swagger.Paths.Paths {
+				for _, param := range path.Parameters {
+					if param != nil {
+						if schema := param.Schema; schema != nil {
+							if !schema.Type.Contains("array") {
+								schema.UniqueItems = false
+							}
+						}
+					}
+				}
+				ops := []*spec3.Operation{
+					path.Get,
+					path.Put,
+					path.Post,
+					path.Delete,
+					path.Options,
+					path.Head,
+					path.Patch,
+					path.Trace,
+				}
+				for _, op := range ops {
+					if op != nil {
+						// find all the schemas in the spec
+						for _, param := range op.Parameters {
+							if param != nil {
+								if schema := param.Schema; schema != nil {
+									if !schema.Type.Contains("array") {
+										schema.UniqueItems = false
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			return swagger, nil
+		},
 	}
 }
 
