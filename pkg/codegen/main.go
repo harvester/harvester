@@ -108,6 +108,7 @@ func main() {
 					longhornv1.Volume{},
 					longhornv1.Setting{},
 					longhornv1.Backup{},
+					longhornv1.BackupBackingImage{},
 					longhornv1.Replica{},
 					longhornv1.Engine{},
 				},
