@@ -11,8 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
+	"k8s.io/kubectl/pkg/drain"
 
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -119,4 +121,27 @@ func Test_meetsWorkerRequirement(t *testing.T) {
 	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
 	err := DrainPossible(nodeCache, testNode)
 	assert.NoError(err, "expected no error while place worker node in drain")
+}
+
+func Test_maintainForceShutdownFilter_Skip(t *testing.T) {
+	assert := require.New(t)
+	status := maintainForceShutdownFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "foo",
+		Namespace: "xyz",
+		Labels: map[string]string{
+			util.LabelMaintainForceShutdownStrategy: "StayOff",
+		},
+	}})
+	assert.False(status.Delete)
+	assert.Equal(status.Reason, drain.PodDeleteStatusTypeSkip)
+}
+
+func Test_maintainForceShutdownFilter_Okay(t *testing.T) {
+	assert := require.New(t)
+	status := maintainForceShutdownFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "foo",
+		Namespace: "xyz",
+	}})
+	assert.True(status.Delete)
+	assert.Equal(status.Reason, drain.PodDeleteStatusTypeOkay)
 }
