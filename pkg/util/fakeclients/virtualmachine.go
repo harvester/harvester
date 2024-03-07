@@ -97,8 +97,18 @@ func (c VirtualMachineCache) Get(namespace, name string) (*kubevirtv1api.Virtual
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c VirtualMachineCache) List(_ string, _ labels.Selector) ([]*kubevirtv1api.VirtualMachine, error) {
-	panic("implement me")
+func (c VirtualMachineCache) List(namespace string, selector labels.Selector) ([]*kubevirtv1api.VirtualMachine, error) {
+	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*kubevirtv1api.VirtualMachine, 0, len(list.Items))
+	for i := range list.Items {
+		result = append(result, &list.Items[i])
+	}
+	return result, err
 }
 
 func (c VirtualMachineCache) AddIndexer(_ string, _ kubevirtctlv1.VirtualMachineIndexer) {
