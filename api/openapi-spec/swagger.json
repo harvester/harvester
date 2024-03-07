@@ -15302,6 +15302,16 @@
           }
         }
       }
+    },
+    "securitySchemes": {
+      "Basic": {
+        "type": "http",
+        "scheme": "basic"
+      },
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
     }
   }
 }

@@ -121,7 +121,20 @@ func createConfig() *common.OpenAPIV3Config {
 			}
 			return r.OperationName(), []string{tag}, nil
 		},
-		// TODO: SecuritySchemes
+		SecuritySchemes: map[string]*spec3.SecurityScheme{
+			"Basic": {
+				SecuritySchemeProps: spec3.SecuritySchemeProps{
+					Type:   "http",
+					Scheme: "basic",
+				},
+			},
+			"Bearer": {
+				SecuritySchemeProps: spec3.SecuritySchemeProps{
+					Type:   "http",
+					Scheme: "bearer",
+				},
+			},
+		},
 	}
 }
 
