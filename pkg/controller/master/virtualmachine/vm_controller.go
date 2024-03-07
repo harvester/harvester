@@ -28,6 +28,10 @@ import (
 	rqutils "github.com/harvester/harvester/pkg/util/resourcequota"
 )
 
+// A list of labels that are always automatically synchronized with the
+// VMI in addition to the instance labels.
+var syncLabelsToVmi = []string{util.LabelMaintainModeStrategy}
+
 type VMController struct {
 	pvcClient      v1.PersistentVolumeClaimClient
 	pvcCache       v1.PersistentVolumeClaimCache
@@ -186,6 +190,7 @@ func (h *VMController) SyncLabelsToVmi(_ string, vm *kubevirtv1.VirtualMachine) 
 
 func (h *VMController) syncLabels(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) error {
 	vmiCopy := vmi.DeepCopy()
+
 	// Modification of the following reserved kubevirt.io/ labels on a VMI object is prohibited by the admission webhook
 	// "virtualmachineinstances-update-validator.kubevirt.io", so ignore those labels during synchronization.
 	// Add or update the labels of VMI
@@ -202,6 +207,18 @@ func (h *VMController) syncLabels(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1
 		if _, ok := vm.Spec.Template.ObjectMeta.Labels[k]; !strings.HasPrefix(k, kubevirt.GroupName) && !ok {
 			delete(vmiCopy.Labels, k)
 		}
+	}
+
+	// Finally synchronize several extra labels.
+	for _, k := range syncLabelsToVmi {
+		value, ok := vm.Labels[k]
+		if !ok {
+			continue
+		}
+		if len(vmiCopy.Labels) == 0 {
+			vmiCopy.Labels = make(map[string]string)
+		}
+		vmiCopy.Labels[k] = value
 	}
 
 	if !reflect.DeepEqual(vmi, vmiCopy) {
