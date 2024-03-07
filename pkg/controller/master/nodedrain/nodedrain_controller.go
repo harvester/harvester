@@ -9,7 +9,9 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/strings/slices"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/config"
@@ -18,6 +20,7 @@ import (
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
+	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
 const (
@@ -41,6 +44,7 @@ type ControllerHandler struct {
 	longhornVolumeCache          ctllhv1.VolumeCache
 	longhornReplicaCache         ctllhv1.ReplicaCache
 	restConfig                   *rest.Config
+	virtSubresourceRestClient    rest.Interface
 	context                      context.Context
 }
 
@@ -88,21 +92,71 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 			return node, err
 		}
 
-		logrus.Infof("attempting to place node %s in maintenance mode", node.Name)
-		if forced {
-			shutdownVMs, err := ndc.listVMI(node)
-			if err != nil {
-				return node, fmt.Errorf("error listing VMIs in scope for shutdown: %v", err)
-			}
+		logrus.WithFields(logrus.Fields{
+			"node_name": node.Name,
+		}).Info("attempting to place node in maintenance mode")
 
-			for _, v := range shutdownVMs {
-				// fetch VMI again in case its changed
-				err := ndc.findAndStopVM(v)
+		// Get the list of VMs that are labeled to forcibly shut down before
+		// maintenance mode.
+		shutdownVMs, err := ndc.listVMILabelMaintainModeStrategy(node)
+		if err != nil {
+			return node, fmt.Errorf("error in the listing of VMIs that are to be administratively stopped before migration: %w", err)
+		}
+		// Annotate these VMs so that they can be restarted immediately when
+		// the node has been switched into maintenance mode or when it is
+		// disabled again.
+		// Forcing a shutdown of all VMs via the UI setting overwrites the
+		// individual settings of 'harvesterhci.io/maintain-mode-strategy'.
+		// These VMs are not restarted in that case.
+		if !forced {
+			for _, vmi := range shutdownVMs {
+				// Do not annotate VMs that are not restarted.
+				if !slices.Contains([]string{
+					util.MaintainModeStrategyShutdownAndRestartAfterEnable,
+					util.MaintainModeStrategyShutdownAndRestartAfterDisable},
+					vmi.Labels[util.LabelMaintainModeStrategy]) {
+					continue
+				}
+				vmName, err := findVM(vmi)
+				if err != nil {
+					return node, err
+				}
+				vm, err := ndc.virtualMachineCache.Get(vmi.Namespace, vmName)
+				if err != nil {
+					return node, fmt.Errorf("error looking up VM %s/%s: %w", vmi.Namespace, vmName, err)
+				}
+				vmCopy := vm.DeepCopy()
+				vmCopy.Annotations[util.AnnotationMaintainModeStrategyNodeName] = node.Name
+				_, err = ndc.virtualMachineClient.Update(vmCopy)
 				if err != nil {
 					return node, err
 				}
 			}
 		}
+
+		// Shutdown ALL VMs on that node forcibly? This is activated by a
+		// checkbox in the maintenance mode dialog in the UI.
+		if forced {
+			vmiList, err := ndc.listVMI(node)
+			if err != nil {
+				return node, fmt.Errorf("error listing VMIs in scope for forced shutdown: %v", err)
+			}
+			shutdownVMs = append(shutdownVMs, vmiList...)
+		}
+
+		for _, v := range shutdownVMs {
+			// fetch VMI again in case its changed
+			err := ndc.findAndStopVM(v)
+			if err != nil {
+				return node, err
+			}
+
+			logrus.WithFields(logrus.Fields{
+				"namespace":           v.Namespace,
+				"virtualmachine_name": v.Name,
+			}).Info("force stopping VM")
+		}
+
 		// run node drain
 		nodeCopy := node.DeepCopy()
 		err = drainhelper.DrainNode(ndc.context, ndc.restConfig, nodeCopy)
@@ -130,8 +184,19 @@ func (ndc *ControllerHandler) findAndStopVM(vmi *kubevirtv1.VirtualMachineInstan
 		return fmt.Errorf("error looking up vm %s in namespace %s in vm cache: %v", vmi.Name, vmi.Namespace, err)
 	}
 
+	desiredRunStrategy := kubevirtv1.RunStrategyHalted
+
+	// Exit immediately if the "RunStrategy" is already in the desired state.
+	runStrategy, err := vmObj.RunStrategy()
+	if err != nil {
+		return err
+	}
+	if runStrategy == desiredRunStrategy {
+		return nil
+	}
+
 	vmObjCopy := vmObj.DeepCopy()
-	vmObjCopy.Spec.RunStrategy = &[]kubevirtv1.VirtualMachineRunStrategy{kubevirtv1.RunStrategyHalted}[0]
+	vmObjCopy.Spec.RunStrategy = &[]kubevirtv1.VirtualMachineRunStrategy{desiredRunStrategy}[0]
 	_, err = ndc.virtualMachineClient.Update(vmObjCopy)
 	if err != nil {
 		return fmt.Errorf("error updating run strategy for vm %s in namespace %s: %v", vmObj.Name, vmObj.Namespace, err)
@@ -311,4 +376,20 @@ func (ndc *ControllerHandler) FindAndListVMWithPCIDevices(node *corev1.Node) ([]
 		}
 	}
 	return impactedVMI, nil
+}
+
+// listVMILabelMaintainModeStrategy gets a list of VMs that are labeled
+// with 'harvesterhci.io/maintain-mode-strategy' to forcibly shut down
+// before maintenance mode.
+func (ndc *ControllerHandler) listVMILabelMaintainModeStrategy(node *corev1.Node) ([]*kubevirtv1.VirtualMachineInstance, error) {
+	req, err := labels.NewRequirement(util.LabelMaintainModeStrategy, selection.In, []string{
+		util.MaintainModeStrategyShutdownAndRestartAfterEnable,
+		util.MaintainModeStrategyShutdownAndRestartAfterDisable,
+		util.MaintainModeStrategyShutdown,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create selector to list VMIs that are to be administratively stopped before migration: %w", err)
+	}
+	return virtualmachineinstance.ListByNode(node, labels.NewSelector().Add(*req),
+		ndc.virtualMachineInstanceCache)
 }
