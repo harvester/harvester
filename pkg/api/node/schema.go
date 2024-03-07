@@ -8,9 +8,12 @@ import (
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/wrangler/pkg/schemas"
+	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 )
 
 type MaintenanceModeInput struct {
@@ -32,14 +35,27 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	if err != nil {
 		return fmt.Errorf("error creating dyanmic client: %v", err)
 	}
+
+	copyConfig := rest.CopyConfig(server.RESTConfig)
+	copyConfig.GroupVersion = &k8sschema.GroupVersion{Group: "subresources.kubevirt.io", Version: "v1"}
+	copyConfig.APIPath = "/apis"
+	copyConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	virtSubresourceClient, err := rest.RESTClientFor(copyConfig)
+	if err != nil {
+		return err
+	}
+
 	nodeHandler := ActionHandler{
 		nodeClient:                  scaled.Management.CoreFactory.Core().V1().Node(),
 		nodeCache:                   scaled.Management.CoreFactory.Core().V1().Node().Cache(),
 		longhornReplicaCache:        scaled.Management.LonghornFactory.Longhorn().V1beta2().Replica().Cache(),
 		longhornVolumeCache:         scaled.Management.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
+		virtualMachineClient:        scaled.Management.VirtFactory.Kubevirt().V1().VirtualMachine(),
+		virtualMachineCache:         scaled.Management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 		virtualMachineInstanceCache: scaled.Management.VirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 		addonCache:                  scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache(),
 		dynamicClient:               dynamicClient,
+		virtSubresourceRestClient:   virtSubresourceClient,
 		ctx:                         scaled.Ctx,
 	}
 

@@ -58,9 +58,6 @@ const (
 	pvcNameSpaceAnnotation = "pvc.harvesterhci.io/namespace"
 	pvcNameAnnotation      = "pvc.harvesterhci.io/name"
 
-	vmCreatorLabel = "harvesterhci.io/creator"
-	vmNameLabel    = "harvesterhci.io/vmName"
-
 	restoreErrorEvent    = "VirtualMachineRestoreError"
 	restoreCompleteEvent = "VirtualMachineRestoreComplete"
 
@@ -681,8 +678,8 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: newVMSpecAnnotations,
 					Labels: map[string]string{
-						vmCreatorLabel: "harvester",
-						vmNameLabel:    vmName,
+						util.LabelVMCreator: "harvester",
+						util.LabelVMName:    vmName,
 					},
 				},
 				Spec: sanitizeVirtualMachineForRestore(restore, vmCpy.Spec.Template.Spec),

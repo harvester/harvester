@@ -17,6 +17,7 @@ import (
 	"k8s.io/kubectl/pkg/drain"
 
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 // drain helper leverages k8s.io/kubectl/pkg/drain to evict pods while following longhorn
@@ -57,6 +58,7 @@ func defaultDrainHelper(ctx context.Context, cfg *rest.Config) (*drain.Helper, e
 		Out:                 logger.Writer(),
 		ErrOut:              logger.Writer(),
 		Timeout:             defaultTimeOut,
+		AdditionalFilters:   []drain.PodFilter{maintainForceShutdownFilter},
 	}, nil
 }
 
@@ -139,4 +141,19 @@ func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 	}
 
 	return nil
+}
+
+func maintainForceShutdownFilter(pod corev1.Pod) drain.PodDeleteStatus {
+	// Ignore VMs that should not be migrated in maintenance mode. These
+	// VMs are forcibly shut down when maintenance mode is activated.
+	_, ok := pod.Labels[util.LabelMaintainForceShutdownStrategy]
+	if ok {
+		logrus.WithFields(logrus.Fields{
+			"namespace": pod.Namespace,
+			"pod_name":  pod.Name,
+		}).Infof("migration of pod owned by VM %s is skipped because of the label %s",
+			pod.Labels[util.LabelVMName], util.LabelMaintainForceShutdownStrategy)
+		return drain.MakePodDeleteStatusSkip()
+	}
+	return drain.MakePodDeleteStatusOkay()
 }
