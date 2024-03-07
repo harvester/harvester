@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	metadataFolderPath           = "harvester/vmbackups/"
+	vmBackupMetadataFolderPath   = "harvester/vmbackups/"
 	backupMetadataControllerName = "harvester-backup-metadata-controller"
 )
 
@@ -115,7 +115,7 @@ func (h *MetadataHandler) syncVMBackup(target *settings.BackupTarget) error {
 		return err
 	}
 
-	fileNames, err := bsDriver.List(filepath.Join(metadataFolderPath))
+	fileNames, err := bsDriver.List(filepath.Join(vmBackupMetadataFolderPath))
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (h *MetadataHandler) syncVMBackup(target *settings.BackupTarget) error {
 	namespaceFolderSet := map[string]bool{} // ignore value of map, we only use it as a set
 	requiredMovingFilePaths := []string{}
 	for _, fileName := range fileNames {
-		filePath := filepath.Join(metadataFolderPath, fileName)
+		filePath := filepath.Join(vmBackupMetadataFolderPath, fileName)
 		if bsDriver.FileExists(filePath) {
 			requiredMovingFilePaths = append(requiredMovingFilePaths, filePath)
 			continue
