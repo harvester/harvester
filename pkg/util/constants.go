@@ -103,4 +103,11 @@ const (
 	APIServerCAKey                           = "apiServerCA"
 
 	RKEControlPlaneRoleLabel = "rke.cattle.io/control-plane-role"
+
+	// s3 backup target constants
+	AWSAccessKey       = "AWS_ACCESS_KEY_ID"
+	AWSSecretKey       = "AWS_SECRET_ACCESS_KEY"
+	AWSEndpoints       = "AWS_ENDPOINTS"
+	AWSCERT            = "AWS_CERT"
+	VirtualHostedStyle = "VIRTUAL_HOSTED_STYLE"
 )
