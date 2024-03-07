@@ -5,7 +5,7 @@
     "version": "v1beta1"
   },
   "paths": {
-    "/api/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/persistentvolumeclaims": {
+    "/api/v1/namespaces/{namespace}/persistentvolumeclaims": {
       "get": {
         "tags": [
           "Volumes"
@@ -228,7 +228,7 @@
         }
       ]
     },
-    "/api/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/persistentvolumeclaims/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/api/v1/namespaces/{namespace}/persistentvolumeclaims/{name}": {
       "get": {
         "tags": [
           "Volumes"
@@ -773,7 +773,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/keypairs": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/keypairs": {
       "get": {
         "tags": [
           "SSH Keys"
@@ -996,7 +996,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/keypairs/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/keypairs/{name}": {
       "get": {
         "tags": [
           "SSH Keys"
@@ -1289,7 +1289,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/supportbundles": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/supportbundles": {
       "get": {
         "tags": [
           "Support Bundles"
@@ -1512,7 +1512,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/supportbundles/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/supportbundles/{name}": {
       "get": {
         "tags": [
           "Support Bundles"
@@ -1805,7 +1805,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/upgrades": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/upgrades": {
       "get": {
         "tags": [
           "Upgrades"
@@ -2028,7 +2028,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/upgrades/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/upgrades/{name}": {
       "get": {
         "tags": [
           "Upgrades"
@@ -2321,7 +2321,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachinebackups": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/virtualmachinebackups": {
       "get": {
         "tags": [
           "Backups"
@@ -2544,7 +2544,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachinebackups/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/virtualmachinebackups/{name}": {
       "get": {
         "tags": [
           "Backups"
@@ -2837,7 +2837,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachineimages": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/virtualmachineimages": {
       "get": {
         "tags": [
           "Images"
@@ -3060,7 +3060,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachineimages/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/virtualmachineimages/{name}": {
       "get": {
         "tags": [
           "Images"
@@ -3353,7 +3353,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachinerestores": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/virtualmachinerestores": {
       "get": {
         "tags": [
           "Restores"
@@ -3576,7 +3576,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachinerestores/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/virtualmachinerestores/{name}": {
       "get": {
         "tags": [
           "Restores"
@@ -3869,7 +3869,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachinetemplates": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/virtualmachinetemplates": {
       "get": {
         "tags": [
           "Virtual Machine Templates"
@@ -4092,7 +4092,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachinetemplates/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/virtualmachinetemplates/{name}": {
       "get": {
         "tags": [
           "Virtual Machine Templates"
@@ -4385,7 +4385,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachinetemplateversions": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/virtualmachinetemplateversions": {
       "get": {
         "tags": [
           "Virtual Machine Templates"
@@ -4608,7 +4608,7 @@
         }
       ]
     },
-    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachinetemplateversions/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/harvesterhci.io/v1beta1/namespaces/{namespace}/virtualmachinetemplateversions/{name}": {
       "get": {
         "tags": [
           "Virtual Machine Templates"
@@ -5783,7 +5783,7 @@
         }
       ]
     },
-    "/apis/k8s.cni.cncf.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/network-attachment-definitions": {
+    "/apis/k8s.cni.cncf.io/v1/namespaces/{namespace}/network-attachment-definitions": {
       "get": {
         "tags": [
           "Networks"
@@ -6006,7 +6006,7 @@
         }
       ]
     },
-    "/apis/k8s.cni.cncf.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/network-attachment-definitions/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/k8s.cni.cncf.io/v1/namespaces/{namespace}/network-attachment-definitions/{name}": {
       "get": {
         "tags": [
           "Networks"
@@ -6425,7 +6425,7 @@
         }
       ]
     },
-    "/apis/kubevirt.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachineinstancemigrations": {
+    "/apis/kubevirt.io/v1/namespaces/{namespace}/virtualmachineinstancemigrations": {
       "get": {
         "tags": [
           "Migrations"
@@ -6648,7 +6648,7 @@
         }
       ]
     },
-    "/apis/kubevirt.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachineinstancemigrations/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/kubevirt.io/v1/namespaces/{namespace}/virtualmachineinstancemigrations/{name}": {
       "get": {
         "tags": [
           "Migrations"
@@ -6941,7 +6941,7 @@
         }
       ]
     },
-    "/apis/kubevirt.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachineinstances": {
+    "/apis/kubevirt.io/v1/namespaces/{namespace}/virtualmachineinstances": {
       "get": {
         "tags": [
           "Virtual Machines"
@@ -7077,7 +7077,7 @@
         }
       ]
     },
-    "/apis/kubevirt.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachineinstances/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/kubevirt.io/v1/namespaces/{namespace}/virtualmachineinstances/{name}": {
       "get": {
         "tags": [
           "Virtual Machines"
@@ -7169,7 +7169,7 @@
         }
       ]
     },
-    "/apis/kubevirt.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachines": {
+    "/apis/kubevirt.io/v1/namespaces/{namespace}/virtualmachines": {
       "get": {
         "tags": [
           "Virtual Machines"
@@ -7392,7 +7392,7 @@
         }
       ]
     },
-    "/apis/kubevirt.io/v1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/virtualmachines/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/kubevirt.io/v1/namespaces/{namespace}/virtualmachines/{name}": {
       "get": {
         "tags": [
           "Virtual Machines"
@@ -8296,7 +8296,7 @@
         }
       }
     },
-    "/apis/network.harvesterhci.io/v1beta1/clusternetworks/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/network.harvesterhci.io/v1beta1/clusternetworks/{name}": {
       "get": {
         "tags": [
           "Networks"
@@ -8822,7 +8822,7 @@
         }
       }
     },
-    "/apis/network.harvesterhci.io/v1beta1/nodenetworks/{name:[a-z0-9][a-z0-9\\-]*}": {
+    "/apis/network.harvesterhci.io/v1beta1/nodenetworks/{name}": {
       "get": {
         "tags": [
           "Networks"
