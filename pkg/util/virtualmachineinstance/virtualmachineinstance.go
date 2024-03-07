@@ -5,8 +5,13 @@ import (
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	schedulingcorev1 "k8s.io/component-helpers/scheduling/corev1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, nodes []*corev1.Node) ([]string, error) {
@@ -83,4 +88,19 @@ func migratableByNodeAffinity(vmi *kubevirtv1.VirtualMachineInstance, nodes []*c
 	}
 
 	return migratable, nil
+}
+
+// ListByNode Get a list of VMIs that are running on the specified node
+// and that match the specified labels.
+func ListByNode(node *corev1.Node, selector labels.Selector, cache ctlkubevirtv1.VirtualMachineInstanceCache) ([]*kubevirtv1.VirtualMachineInstance, error) {
+	req, err := labels.NewRequirement(util.LabelNodeNameKey, selection.Equals, []string{node.Name})
+	if err != nil {
+		return nil, err
+	}
+	selector = selector.Add(*req)
+	list, err := cache.List(corev1.NamespaceAll, selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list VMIs on node %s: %w", node.Name, err)
+	}
+	return list, nil
 }
