@@ -8839,8 +8839,8 @@
       "harvesterhci.io.v1beta1.Condition": {
         "type": "object",
         "required": [
-          "type",
-          "status"
+          "status",
+          "type"
         ],
         "properties": {
           "lastTransitionTime": {
@@ -8879,9 +8879,9 @@
       "harvesterhci.io.v1beta1.KeyPair": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -8919,10 +8919,10 @@
       "harvesterhci.io.v1beta1.KeyPairList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {
@@ -9036,9 +9036,9 @@
       "harvesterhci.io.v1beta1.SupportBundle": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -9076,10 +9076,10 @@
       "harvesterhci.io.v1beta1.SupportBundleList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {
@@ -9158,9 +9158,9 @@
       "harvesterhci.io.v1beta1.Upgrade": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -9198,10 +9198,10 @@
       "harvesterhci.io.v1beta1.UpgradeList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {
@@ -9293,9 +9293,9 @@
       "harvesterhci.io.v1beta1.VirtualMachineBackup": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -9328,10 +9328,10 @@
       "harvesterhci.io.v1beta1.VirtualMachineBackupList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {
@@ -9450,9 +9450,9 @@
       "harvesterhci.io.v1beta1.VirtualMachineImage": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -9490,10 +9490,10 @@
       "harvesterhci.io.v1beta1.VirtualMachineImageList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {
@@ -9612,9 +9612,9 @@
       "harvesterhci.io.v1beta1.VirtualMachineRestore": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -9647,10 +9647,10 @@
       "harvesterhci.io.v1beta1.VirtualMachineRestoreList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {
@@ -9786,8 +9786,8 @@
       "harvesterhci.io.v1beta1.VirtualMachineTemplate": {
         "type": "object",
         "required": [
-          "kind",
-          "apiVersion"
+          "apiVersion",
+          "kind"
         ],
         "properties": {
           "apiVersion": {
@@ -9825,10 +9825,10 @@
       "harvesterhci.io.v1beta1.VirtualMachineTemplateList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {
@@ -9886,9 +9886,9 @@
       "harvesterhci.io.v1beta1.VirtualMachineTemplateVersion": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -9926,10 +9926,10 @@
       "harvesterhci.io.v1beta1.VirtualMachineTemplateVersionList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {
@@ -10015,9 +10015,9 @@
       "harvesterhci.io.v1beta1.VolumeBackup": {
         "type": "object",
         "required": [
-          "volumeName",
           "csiDriverName",
-          "persistentVolumeClaim"
+          "persistentVolumeClaim",
+          "volumeName"
         ],
         "properties": {
           "creationTime": {
@@ -10094,9 +10094,9 @@
       "k8s.cni.cncf.io.v1.NetworkAttachmentDefinition": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -10126,10 +10126,10 @@
       "k8s.cni.cncf.io.v1.NetworkAttachmentDefinitionList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {
@@ -10195,8 +10195,8 @@
       "k8s.io.v1.DeleteOptions": {
         "type": "object",
         "required": [
-          "kind",
-          "apiVersion"
+          "apiVersion",
+          "kind"
         ],
         "properties": {
           "apiVersion": {
@@ -10559,9 +10559,7 @@
           "apiVersion",
           "kind",
           "name",
-          "uid",
-          "kind",
-          "apiVersion"
+          "uid"
         ],
         "properties": {
           "apiVersion": {
@@ -10595,8 +10593,8 @@
       "k8s.io.v1.PersistentVolumeClaim": {
         "type": "object",
         "required": [
-          "kind",
-          "apiVersion"
+          "apiVersion",
+          "kind"
         ],
         "properties": {
           "apiVersion": {
@@ -10634,8 +10632,8 @@
       "k8s.io.v1.PersistentVolumeClaimCondition": {
         "type": "object",
         "required": [
-          "type",
-          "status"
+          "status",
+          "type"
         ],
         "properties": {
           "lastProbeTime": {
@@ -10673,9 +10671,9 @@
       "k8s.io.v1.PersistentVolumeClaimList": {
         "type": "object",
         "required": [
+          "apiVersion",
           "items",
-          "kind",
-          "apiVersion"
+          "kind"
         ],
         "properties": {
           "apiVersion": {
@@ -10950,8 +10948,8 @@
       "k8s.io.v1.PreferredSchedulingTerm": {
         "type": "object",
         "required": [
-          "weight",
-          "preference"
+          "preference",
+          "weight"
         ],
         "properties": {
           "preference": {
@@ -11050,8 +11048,8 @@
       "k8s.io.v1.Status": {
         "type": "object",
         "required": [
-          "kind",
-          "apiVersion"
+          "apiVersion",
+          "kind"
         ],
         "properties": {
           "apiVersion": {
@@ -11280,8 +11278,8 @@
       "k8s.io.v1.WeightedPodAffinityTerm": {
         "type": "object",
         "required": [
-          "weight",
-          "podAffinityTerm"
+          "podAffinityTerm",
+          "weight"
         ],
         "properties": {
           "podAffinityTerm": {
@@ -11325,8 +11323,8 @@
       "kubevirt.io.api.core.v1.AddVolumeOptions": {
         "type": "object",
         "required": [
-          "name",
           "disk",
+          "name",
           "volumeSource"
         ],
         "properties": {
@@ -11695,9 +11693,9 @@
       "kubevirt.io.api.core.v1.DataVolumeTemplateSpec": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -12207,8 +12205,8 @@
       "kubevirt.io.api.core.v1.GPU": {
         "type": "object",
         "required": [
-          "name",
-          "deviceName"
+          "deviceName",
+          "name"
         ],
         "properties": {
           "deviceName": {
@@ -12244,8 +12242,8 @@
       "kubevirt.io.api.core.v1.HostDevice": {
         "type": "object",
         "required": [
-          "name",
-          "deviceName"
+          "deviceName",
+          "name"
         ],
         "properties": {
           "deviceName": {
@@ -12338,8 +12336,8 @@
       "kubevirt.io.api.core.v1.Input": {
         "type": "object",
         "required": [
-          "type",
-          "name"
+          "name",
+          "type"
         ],
         "properties": {
           "bus": {
@@ -13011,8 +13009,8 @@
       "kubevirt.io.api.core.v1.SSHPublicKeyAccessCredential": {
         "type": "object",
         "required": [
-          "source",
-          "propagationMethod"
+          "propagationMethod",
+          "source"
         ],
         "properties": {
           "propagationMethod": {
@@ -13154,8 +13152,8 @@
       "kubevirt.io.api.core.v1.UserPasswordAccessCredential": {
         "type": "object",
         "required": [
-          "source",
-          "propagationMethod"
+          "propagationMethod",
+          "source"
         ],
         "properties": {
           "propagationMethod": {
@@ -13214,9 +13212,9 @@
       "kubevirt.io.api.core.v1.VirtualMachine": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -13254,8 +13252,8 @@
       "kubevirt.io.api.core.v1.VirtualMachineCondition": {
         "type": "object",
         "required": [
-          "type",
-          "status"
+          "status",
+          "type"
         ],
         "properties": {
           "lastProbeTime": {
@@ -13293,9 +13291,9 @@
       "kubevirt.io.api.core.v1.VirtualMachineInstance": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -13333,8 +13331,8 @@
       "kubevirt.io.api.core.v1.VirtualMachineInstanceCondition": {
         "type": "object",
         "required": [
-          "type",
-          "status"
+          "status",
+          "type"
         ],
         "properties": {
           "lastProbeTime": {
@@ -13401,9 +13399,9 @@
       "kubevirt.io.api.core.v1.VirtualMachineInstanceList": {
         "type": "object",
         "required": [
+          "apiVersion",
           "items",
-          "kind",
-          "apiVersion"
+          "kind"
         ],
         "properties": {
           "apiVersion": {
@@ -13436,9 +13434,9 @@
       "kubevirt.io.api.core.v1.VirtualMachineInstanceMigration": {
         "type": "object",
         "required": [
-          "spec",
+          "apiVersion",
           "kind",
-          "apiVersion"
+          "spec"
         ],
         "properties": {
           "apiVersion": {
@@ -13476,8 +13474,8 @@
       "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationCondition": {
         "type": "object",
         "required": [
-          "type",
-          "status"
+          "status",
+          "type"
         ],
         "properties": {
           "lastProbeTime": {
@@ -13515,9 +13513,9 @@
       "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationList": {
         "type": "object",
         "required": [
+          "apiVersion",
           "items",
-          "kind",
-          "apiVersion"
+          "kind"
         ],
         "properties": {
           "apiVersion": {
@@ -14007,9 +14005,9 @@
       "kubevirt.io.api.core.v1.VirtualMachineList": {
         "type": "object",
         "required": [
+          "apiVersion",
           "items",
-          "kind",
-          "apiVersion"
+          "kind"
         ],
         "properties": {
           "apiVersion": {
@@ -14295,8 +14293,8 @@
       "kubevirt.io.api.core.v1.VolumeSnapshotStatus": {
         "type": "object",
         "required": [
-          "name",
-          "enabled"
+          "enabled",
+          "name"
         ],
         "properties": {
           "enabled": {
@@ -14372,8 +14370,8 @@
       "kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeCheckpoint": {
         "type": "object",
         "required": [
-          "previous",
-          "current"
+          "current",
+          "previous"
         ],
         "properties": {
           "current": {
@@ -14471,8 +14469,8 @@
       "kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceImageIO": {
         "type": "object",
         "required": [
-          "url",
-          "diskId"
+          "diskId",
+          "url"
         ],
         "properties": {
           "certConfigMap": {
@@ -14494,8 +14492,8 @@
       "kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourcePVC": {
         "type": "object",
         "required": [
-          "namespace",
-          "name"
+          "name",
+          "namespace"
         ],
         "properties": {
           "name": {
@@ -14569,8 +14567,8 @@
       "kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.DataVolumeSourceSnapshot": {
         "type": "object",
         "required": [
-          "namespace",
-          "name"
+          "name",
+          "namespace"
         ],
         "properties": {
           "name": {
@@ -14690,8 +14688,8 @@
       "network.harvesterhci.io.v1beta1.ClusterNetwork": {
         "type": "object",
         "required": [
-          "kind",
-          "apiVersion"
+          "apiVersion",
+          "kind"
         ],
         "properties": {
           "apiVersion": {
@@ -14721,10 +14719,10 @@
       "network.harvesterhci.io.v1beta1.ClusterNetworkList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {
@@ -14773,8 +14771,8 @@
       "network.harvesterhci.io.v1beta1.Condition": {
         "type": "object",
         "required": [
-          "type",
-          "status"
+          "status",
+          "type"
         ],
         "properties": {
           "lastTransitionTime": {
@@ -14836,8 +14834,8 @@
         "required": [
           "index",
           "name",
-          "type",
-          "state"
+          "state",
+          "type"
         ],
         "properties": {
           "index": {
@@ -14872,8 +14870,8 @@
       "network.harvesterhci.io.v1beta1.NodeNetwork": {
         "type": "object",
         "required": [
-          "kind",
-          "apiVersion"
+          "apiVersion",
+          "kind"
         ],
         "properties": {
           "apiVersion": {
@@ -14911,10 +14909,10 @@
       "network.harvesterhci.io.v1beta1.NodeNetworkList": {
         "type": "object",
         "required": [
-          "metadata",
+          "apiVersion",
           "items",
           "kind",
-          "apiVersion"
+          "metadata"
         ],
         "properties": {
           "apiVersion": {

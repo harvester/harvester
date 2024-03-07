@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -300,6 +301,26 @@ func createConfig(webServices []*restful.WebService) *common.OpenAPIV3Config {
 					} else {
 						log.Panicf("webServices path `%s` not found in generated *spec3.OpenAPI", route.Path)
 					}
+				}
+			}
+
+			// clean up invalid component(?)
+			for _, schema := range swagger.Components.Schemas {
+				if schema == nil {
+					continue
+				}
+				if schema.Required != nil {
+					// get unique strings
+					counts := make(map[string]uint8)
+					for _, s := range schema.Required {
+						counts[s]++
+					}
+					required := make([]string, 0, len(counts))
+					for requiredProp := range counts {
+						required = append(required, requiredProp)
+					}
+					sort.Strings(required)
+					schema.Required = required
 				}
 			}
 
