@@ -32,6 +32,7 @@ replace (
 	k8s.io/kms => k8s.io/kms v0.26.10
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.26.10
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.26.10
+	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.26.10
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.26.10
 	k8s.io/kubectl => k8s.io/kubectl v0.26.10
@@ -185,7 +186,6 @@ require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/fscrypt v0.3.4 // indirect
 	github.com/google/gnostic v0.6.9 // indirect
-	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
