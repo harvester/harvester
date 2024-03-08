@@ -28,3 +28,7 @@ const (
 	InstanceTypeEngine  = "engine"
 	InstanceTypeReplica = "replica"
 )
+
+const (
+	EngineConditionFilesystemReadOnly = "FilesystemReadOnly"
+)

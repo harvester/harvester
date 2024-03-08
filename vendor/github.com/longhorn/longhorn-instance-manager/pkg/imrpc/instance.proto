@@ -50,6 +50,7 @@ message InstanceStatus {
 	string error_msg = 2;
 	int32 port_start = 3;
 	int32 port_end = 4;
+	map<string, bool> conditions = 5;
 }
 
 message InstanceCreateRequest {

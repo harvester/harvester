@@ -11,12 +11,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Deprecated: Use LoadOrGenCAChain instead as it supports intermediate CAs
 func LoadOrGenCA(secrets v1controller.SecretClient, namespace, name string) (*x509.Certificate, crypto.Signer, error) {
+	chain, signer, err := LoadOrGenCAChain(secrets, namespace, name)
+	if err != nil {
+		return nil, nil, err
+	}
+	return chain[0], signer, err
+}
+
+func LoadOrGenCAChain(secrets v1controller.SecretClient, namespace, name string) ([]*x509.Certificate, crypto.Signer, error) {
 	secret, err := getSecret(secrets, namespace, name)
 	if err != nil {
 		return nil, nil, err
 	}
-	return factory.LoadCA(secret.Data[v1.TLSCertKey], secret.Data[v1.TLSPrivateKeyKey])
+	return factory.LoadCAChain(secret.Data[v1.TLSCertKey], secret.Data[v1.TLSPrivateKeyKey])
 }
 
 func LoadOrGenClient(secrets v1controller.SecretClient, namespace, name, cn string, ca *x509.Certificate, key crypto.Signer) (*x509.Certificate, crypto.Signer, error) {

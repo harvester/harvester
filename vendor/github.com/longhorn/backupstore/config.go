@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -139,6 +140,27 @@ func volumeExists(driver BackupStoreDriver, volumeName string) bool {
 	return driver.FileExists(getVolumeFilePath(volumeName))
 }
 
+// volumeFolderExists checks if volume folder exists on backupstore
+// by listing all the backup volume name based on the folders on the backupstore
+// since s3 does not support checking folder exist.
+func volumeFolderExists(driver BackupStoreDriver, volumeName string) (bool, error) {
+	jobQueues := workerpool.New(runtime.NumCPU() * 16)
+	defer jobQueues.StopWait()
+
+	volumeNames, err := getVolumeNames(jobQueues, driver)
+	if err != nil {
+		return false, err
+	}
+
+	for _, name := range volumeNames {
+		if volumeName == name {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func getVolumePath(volumeName string) string {
 	checksum := util.GetChecksum([]byte(volumeName))
 	volumeLayer1 := checksum[0:VOLUME_SEPARATE_LAYER1]
@@ -269,8 +291,8 @@ func loadVolume(driver BackupStoreDriver, volumeName string) (*Volume, error) {
 		log.Infof("Falling back compression method to %v for volume %v", LEGACY_COMPRESSION_METHOD, v.Name)
 		v.CompressionMethod = LEGACY_COMPRESSION_METHOD
 	}
-	if v.BackendStoreDriver == "" {
-		v.BackendStoreDriver = string(BackendStoreDriverV1)
+	if v.DataEngine == "" {
+		v.DataEngine = string(DataEngineV1)
 	}
 	return v, nil
 }

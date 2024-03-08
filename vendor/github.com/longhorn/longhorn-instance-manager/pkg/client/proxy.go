@@ -1,15 +1,15 @@
 package client
 
 import (
+	"crypto/tls"
 	"fmt"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/keepalive"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 	"github.com/longhorn/longhorn-instance-manager/pkg/meta"
@@ -39,6 +39,7 @@ type ServiceContext struct {
 	quit context.CancelFunc
 
 	service rpc.ProxyEngineServiceClient
+	health  healthpb.HealthClient
 }
 
 func (s ServiceContext) GetConnectionState() connectivity.State {
@@ -60,16 +61,9 @@ type ProxyClient struct {
 	Version int
 }
 
-func NewProxyClient(ctx context.Context, ctxCancel context.CancelFunc, address string, port int) (*ProxyClient, error) {
+func NewProxyClient(ctx context.Context, ctxCancel context.CancelFunc, address string, port int, tlsConfig *tls.Config) (*ProxyClient, error) {
 	getServiceCtx := func(serviceUrl string) (ServiceContext, error) {
-		dialOptions := []grpc.DialOption{
-			grpc.WithInsecure(),
-			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time:                time.Second * 10,
-				PermitWithoutStream: true,
-			}),
-		}
-		connection, err := grpc.Dial(serviceUrl, dialOptions...)
+		connection, err := util.Connect(serviceUrl, tlsConfig)
 		if err != nil {
 			return ServiceContext{}, errors.Wrapf(err, "cannot connect to ProxyService %v", serviceUrl)
 		}
@@ -78,6 +72,7 @@ func NewProxyClient(ctx context.Context, ctxCancel context.CancelFunc, address s
 			ctx:     ctx,
 			quit:    ctxCancel,
 			service: rpc.NewProxyEngineServiceClient(connection),
+			health:  healthpb.NewHealthClient(connection),
 		}, nil
 	}
 
@@ -93,6 +88,15 @@ func NewProxyClient(ctx context.Context, ctxCancel context.CancelFunc, address s
 		ServiceContext: serviceCtx,
 		Version:        meta.InstanceManagerProxyAPIVersion,
 	}, nil
+}
+
+func NewProxyClientWithTLS(ctx context.Context, ctxCancel context.CancelFunc, address string, port int, caFile, certFile, keyFile, peerName string) (*ProxyClient, error) {
+	tlsConfig, err := util.LoadClientTLS(caFile, certFile, keyFile, peerName)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load tls key pair from file")
+	}
+
+	return NewProxyClient(ctx, ctxCancel, address, port, tlsConfig)
 }
 
 const (
@@ -152,4 +156,10 @@ func (c *ProxyClient) ServerVersionGet(serviceAddress string) (version *emeta.Ve
 func (c *ProxyClient) ClientVersionGet() (version emeta.VersionOutput) {
 	logrus.Trace("Getting client version")
 	return emeta.GetVersion()
+}
+
+func (c *ProxyClient) CheckConnection() error {
+	req := &healthpb.HealthCheckRequest{}
+	_, err := c.health.Check(getContextWithGRPCTimeout(c.ctx), req)
+	return err
 }

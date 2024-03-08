@@ -123,6 +123,18 @@ func GetAttachmentTicketID(attacherType AttacherType, id string) string {
 	return retID
 }
 
+func GetNodeIdOfAttachmentTicket(attachmentID string, va *VolumeAttachment) string {
+	if va == nil {
+		return ""
+	}
+	attachmentTicket, ok := va.Spec.AttachmentTickets[attachmentID]
+	if !ok {
+		return ""
+	}
+
+	return attachmentTicket.NodeID
+}
+
 func IsAttachmentTicketSatisfied(attachmentID string, va *VolumeAttachment) bool {
 	if va == nil {
 		return false
