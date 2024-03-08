@@ -20,6 +20,7 @@ package v1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/rancher/lasso/pkg/client"
@@ -263,10 +264,14 @@ func (c *resourceQuotaCache) GetByIndex(indexName, key string) (result []*v1.Res
 	return result, nil
 }
 
+// ResourceQuotaStatusHandler is executed for every added or modified ResourceQuota. Should return the new status to be updated
 type ResourceQuotaStatusHandler func(obj *v1.ResourceQuota, status v1.ResourceQuotaStatus) (v1.ResourceQuotaStatus, error)
 
+// ResourceQuotaGeneratingHandler is the top-level handler that is executed for every ResourceQuota event. It extends ResourceQuotaStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type ResourceQuotaGeneratingHandler func(obj *v1.ResourceQuota, status v1.ResourceQuotaStatus) ([]runtime.Object, v1.ResourceQuotaStatus, error)
 
+// RegisterResourceQuotaStatusHandler configures a ResourceQuotaController to execute a ResourceQuotaStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterResourceQuotaStatusHandler(ctx context.Context, controller ResourceQuotaController, condition condition.Cond, name string, handler ResourceQuotaStatusHandler) {
 	statusHandler := &resourceQuotaStatusHandler{
 		client:    controller,
@@ -276,6 +281,8 @@ func RegisterResourceQuotaStatusHandler(ctx context.Context, controller Resource
 	controller.AddGenericHandler(ctx, name, FromResourceQuotaHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterResourceQuotaGeneratingHandler configures a ResourceQuotaController to execute a ResourceQuotaGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterResourceQuotaGeneratingHandler(ctx context.Context, controller ResourceQuotaController, apply apply.Apply,
 	condition condition.Cond, name string, handler ResourceQuotaGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &resourceQuotaGeneratingHandler{
@@ -297,6 +304,7 @@ type resourceQuotaStatusHandler struct {
 	handler   ResourceQuotaStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *resourceQuotaStatusHandler) sync(key string, obj *v1.ResourceQuota) (*v1.ResourceQuota, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +350,10 @@ type resourceQuotaGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *resourceQuotaGeneratingHandler) Remove(key string, obj *v1.ResourceQuota) (*v1.ResourceQuota, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +363,17 @@ func (a *resourceQuotaGeneratingHandler) Remove(key string, obj *v1.ResourceQuot
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured ResourceQuotaGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *resourceQuotaGeneratingHandler) Handle(obj *v1.ResourceQuota, status v1.ResourceQuotaStatus) (v1.ResourceQuotaStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +383,41 @@ func (a *resourceQuotaGeneratingHandler) Handle(obj *v1.ResourceQuota, status v1
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *resourceQuotaGeneratingHandler) isNewResourceVersion(obj *v1.ResourceQuota) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *resourceQuotaGeneratingHandler) storeResourceVersion(obj *v1.ResourceQuota) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

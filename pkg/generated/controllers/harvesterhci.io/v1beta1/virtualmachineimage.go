@@ -20,6 +20,7 @@ package v1beta1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -263,10 +264,14 @@ func (c *virtualMachineImageCache) GetByIndex(indexName, key string) (result []*
 	return result, nil
 }
 
+// VirtualMachineImageStatusHandler is executed for every added or modified VirtualMachineImage. Should return the new status to be updated
 type VirtualMachineImageStatusHandler func(obj *v1beta1.VirtualMachineImage, status v1beta1.VirtualMachineImageStatus) (v1beta1.VirtualMachineImageStatus, error)
 
+// VirtualMachineImageGeneratingHandler is the top-level handler that is executed for every VirtualMachineImage event. It extends VirtualMachineImageStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type VirtualMachineImageGeneratingHandler func(obj *v1beta1.VirtualMachineImage, status v1beta1.VirtualMachineImageStatus) ([]runtime.Object, v1beta1.VirtualMachineImageStatus, error)
 
+// RegisterVirtualMachineImageStatusHandler configures a VirtualMachineImageController to execute a VirtualMachineImageStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterVirtualMachineImageStatusHandler(ctx context.Context, controller VirtualMachineImageController, condition condition.Cond, name string, handler VirtualMachineImageStatusHandler) {
 	statusHandler := &virtualMachineImageStatusHandler{
 		client:    controller,
@@ -276,6 +281,8 @@ func RegisterVirtualMachineImageStatusHandler(ctx context.Context, controller Vi
 	controller.AddGenericHandler(ctx, name, FromVirtualMachineImageHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterVirtualMachineImageGeneratingHandler configures a VirtualMachineImageController to execute a VirtualMachineImageGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterVirtualMachineImageGeneratingHandler(ctx context.Context, controller VirtualMachineImageController, apply apply.Apply,
 	condition condition.Cond, name string, handler VirtualMachineImageGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &virtualMachineImageGeneratingHandler{
@@ -297,6 +304,7 @@ type virtualMachineImageStatusHandler struct {
 	handler   VirtualMachineImageStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *virtualMachineImageStatusHandler) sync(key string, obj *v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +350,10 @@ type virtualMachineImageGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *virtualMachineImageGeneratingHandler) Remove(key string, obj *v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +363,17 @@ func (a *virtualMachineImageGeneratingHandler) Remove(key string, obj *v1beta1.V
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured VirtualMachineImageGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *virtualMachineImageGeneratingHandler) Handle(obj *v1beta1.VirtualMachineImage, status v1beta1.VirtualMachineImageStatus) (v1beta1.VirtualMachineImageStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +383,41 @@ func (a *virtualMachineImageGeneratingHandler) Handle(obj *v1beta1.VirtualMachin
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *virtualMachineImageGeneratingHandler) isNewResourceVersion(obj *v1beta1.VirtualMachineImage) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *virtualMachineImageGeneratingHandler) storeResourceVersion(obj *v1beta1.VirtualMachineImage) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }
