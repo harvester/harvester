@@ -19,7 +19,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
-	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/settings" //nolint
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -41,7 +41,7 @@ func (h *Handler) syncContainerdRegistry(setting *harvesterv1.Setting) error {
 		return err
 	}
 
-	registryFromSettingYaml, err := yaml.Marshal(registryFromSetting)
+	registryFromSettingYaml, err := yaml.Marshal(registryFromSetting) //nolint
 	if err != nil {
 		return err
 	}
