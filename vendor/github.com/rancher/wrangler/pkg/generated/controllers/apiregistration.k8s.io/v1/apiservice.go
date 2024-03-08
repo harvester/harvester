@@ -20,6 +20,7 @@ package v1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/rancher/lasso/pkg/client"
@@ -263,10 +264,14 @@ func (c *aPIServiceCache) GetByIndex(indexName, key string) (result []*v1.APISer
 	return result, nil
 }
 
+// APIServiceStatusHandler is executed for every added or modified APIService. Should return the new status to be updated
 type APIServiceStatusHandler func(obj *v1.APIService, status v1.APIServiceStatus) (v1.APIServiceStatus, error)
 
+// APIServiceGeneratingHandler is the top-level handler that is executed for every APIService event. It extends APIServiceStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type APIServiceGeneratingHandler func(obj *v1.APIService, status v1.APIServiceStatus) ([]runtime.Object, v1.APIServiceStatus, error)
 
+// RegisterAPIServiceStatusHandler configures a APIServiceController to execute a APIServiceStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterAPIServiceStatusHandler(ctx context.Context, controller APIServiceController, condition condition.Cond, name string, handler APIServiceStatusHandler) {
 	statusHandler := &aPIServiceStatusHandler{
 		client:    controller,
@@ -276,6 +281,8 @@ func RegisterAPIServiceStatusHandler(ctx context.Context, controller APIServiceC
 	controller.AddGenericHandler(ctx, name, FromAPIServiceHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterAPIServiceGeneratingHandler configures a APIServiceController to execute a APIServiceGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterAPIServiceGeneratingHandler(ctx context.Context, controller APIServiceController, apply apply.Apply,
 	condition condition.Cond, name string, handler APIServiceGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &aPIServiceGeneratingHandler{
@@ -297,6 +304,7 @@ type aPIServiceStatusHandler struct {
 	handler   APIServiceStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *aPIServiceStatusHandler) sync(key string, obj *v1.APIService) (*v1.APIService, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +350,10 @@ type aPIServiceGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *aPIServiceGeneratingHandler) Remove(key string, obj *v1.APIService) (*v1.APIService, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +363,17 @@ func (a *aPIServiceGeneratingHandler) Remove(key string, obj *v1.APIService) (*v
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured APIServiceGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *aPIServiceGeneratingHandler) Handle(obj *v1.APIService, status v1.APIServiceStatus) (v1.APIServiceStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +383,41 @@ func (a *aPIServiceGeneratingHandler) Handle(obj *v1.APIService, status v1.APISe
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *aPIServiceGeneratingHandler) isNewResourceVersion(obj *v1.APIService) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *aPIServiceGeneratingHandler) storeResourceVersion(obj *v1.APIService) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

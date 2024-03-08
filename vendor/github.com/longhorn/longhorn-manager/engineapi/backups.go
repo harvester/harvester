@@ -459,3 +459,9 @@ func (e *EngineBinary) BackupRestoreStatus(*longhorn.Engine) (map[string]*longho
 	}
 	return replicaStatusMap, nil
 }
+
+// CleanupBackupMountPoints calls engine binary
+// TODO: Deprecated, replaced by gRPC proxy, just to match the interface
+func (e *EngineBinary) CleanupBackupMountPoints() error {
+	return fmt.Errorf(ErrNotImplement)
+}

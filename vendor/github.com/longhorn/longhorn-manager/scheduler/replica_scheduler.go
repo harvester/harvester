@@ -134,7 +134,7 @@ func (rcs *ReplicaScheduler) getNodeCandidates(nodesInfo map[string]*longhorn.No
 func getNodesWithEvictingReplicas(replicas map[string]*longhorn.Replica, nodeInfo map[string]*longhorn.Node) map[string]*longhorn.Node {
 	nodesWithEvictingReplicas := map[string]*longhorn.Node{}
 	for _, r := range replicas {
-		if r.Status.EvictionRequested {
+		if r.Spec.EvictionRequested {
 			if node, ok := nodeInfo[r.Spec.NodeID]; ok {
 				nodesWithEvictingReplicas[r.Spec.NodeID] = node
 			}
@@ -322,6 +322,11 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 		if !(volume.Spec.BackendStoreDriver == longhorn.BackendStoreDriverTypeV1 && diskSpec.Type == longhorn.DiskTypeFilesystem) &&
 			!(volume.Spec.BackendStoreDriver == longhorn.BackendStoreDriverTypeV2 && diskSpec.Type == longhorn.DiskTypeBlock) {
 			logrus.Debugf("Volume %v is not compatible with disk %v", volume.Name, diskName)
+			continue
+		}
+
+		if !datastore.IsSupportedVolumeSize(volume.Spec.BackendStoreDriver, diskStatus.FSType, volume.Spec.Size) {
+			logrus.Debugf("Volume %v size %v is not compatible with the file system %v of the disk %v", volume.Name, volume.Spec.Size, diskStatus.Type, diskName)
 			continue
 		}
 
@@ -550,7 +555,7 @@ func (rcs *ReplicaScheduler) isFailedReplicaReusable(r *longhorn.Replica, v *lon
 	if r.Spec.RebuildRetryCount >= FailedReplicaMaxRetryCount {
 		return false
 	}
-	if r.Status.EvictionRequested {
+	if r.Spec.EvictionRequested {
 		return false
 	}
 	if hardNodeAffinity != "" && r.Spec.NodeID != hardNodeAffinity {
@@ -605,7 +610,7 @@ func (rcs *ReplicaScheduler) isFailedReplicaReusable(r *longhorn.Replica, v *lon
 		return false
 	}
 
-	im, err := rcs.ds.GetInstanceManagerByInstance(r)
+	im, err := rcs.ds.GetInstanceManagerByInstanceRO(r)
 	if err != nil {
 		logrus.Errorf("failed to get instance manager when checking replica %v is reusable: %v", r.Name, err)
 		return false
@@ -629,7 +634,7 @@ func IsPotentiallyReusableReplica(r *longhorn.Replica, hardNodeAffinity string) 
 	if r.Spec.RebuildRetryCount >= FailedReplicaMaxRetryCount {
 		return false
 	}
-	if r.Status.EvictionRequested {
+	if r.Spec.EvictionRequested {
 		return false
 	}
 	if hardNodeAffinity != "" && r.Spec.NodeID != hardNodeAffinity {
@@ -669,6 +674,42 @@ func (rcs *ReplicaScheduler) IsSchedulableToDisk(size int64, requiredStorage int
 	return info.StorageMaximum > 0 && info.StorageAvailable > 0 &&
 		info.StorageAvailable-requiredStorage > int64(float64(info.StorageMaximum)*float64(info.MinimalAvailablePercentage)/100) &&
 		(size+info.StorageScheduled) <= int64(float64(info.StorageMaximum-info.StorageReserved)*float64(info.OverProvisioningPercentage)/100)
+}
+
+// FilterNodesSchedulableForVolume filters nodes that are schedulable for a given volume based on the disk space.
+func (rcs *ReplicaScheduler) FilterNodesSchedulableForVolume(nodes map[string]*longhorn.Node, volume *longhorn.Volume) map[string]*longhorn.Node {
+	filteredNodes := map[string]*longhorn.Node{}
+	for _, node := range nodes {
+		isSchedulable := false
+
+		for diskName, diskStatus := range node.Status.DiskStatus {
+			diskSpec, exists := node.Spec.Disks[diskName]
+			if !exists {
+				continue
+			}
+
+			diskInfo, err := rcs.GetDiskSchedulingInfo(diskSpec, diskStatus)
+			if err != nil {
+				logrus.WithError(err).Debugf("Failed to get disk scheduling info for disk %v on node %v", diskName, node.Name)
+				continue
+			}
+
+			if rcs.IsSchedulableToDisk(volume.Spec.Size, volume.Status.ActualSize, diskInfo) {
+				isSchedulable = true
+				break
+			}
+		}
+
+		if isSchedulable {
+			logrus.Tracef("Found node %v schedulable for volume %v", node.Name, volume.Name)
+			filteredNodes[node.Name] = node
+		}
+	}
+
+	if len(filteredNodes) == 0 {
+		logrus.Debugf("Found no nodes schedulable for volume %v", volume.Name)
+	}
+	return filteredNodes
 }
 
 func (rcs *ReplicaScheduler) isDiskNotFull(info *DiskSchedulingInfo) bool {

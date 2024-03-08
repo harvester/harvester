@@ -33,7 +33,7 @@ var (
 )
 
 type TLS struct {
-	CACert              *x509.Certificate
+	CACert              []*x509.Certificate
 	CAKey               crypto.Signer
 	CN                  string
 	Organization        []string
@@ -178,7 +178,7 @@ func (t *TLS) generateCert(secret *v1.Secret, cn ...string) (*v1.Secret, bool, e
 		return nil, false, err
 	}
 
-	keyBytes, certBytes, err := MarshalChain(privateKey, newCert, t.CACert)
+	keyBytes, certBytes, err := MarshalChain(privateKey, append([]*x509.Certificate{newCert}, t.CACert...)...)
 	if err != nil {
 		return nil, false, err
 	}
@@ -226,14 +226,16 @@ func (t *TLS) Verify(secret *v1.Secret) error {
 			x509.ExtKeyUsageAny,
 		},
 	}
-	verifyOpts.Roots.AddCert(t.CACert)
+	for _, c := range t.CACert {
+		verifyOpts.Roots.AddCert(c)
+	}
 
 	_, err = certificates[0].Verify(verifyOpts)
 	return err
 }
 
 func (t *TLS) newCert(domains []string, ips []net.IP, privateKey crypto.Signer) (*x509.Certificate, error) {
-	return NewSignedCert(privateKey, t.CACert, t.CAKey, t.CN, t.Organization, domains, ips)
+	return NewSignedCert(privateKey, t.CACert[0], t.CAKey, t.CN, t.Organization, domains, ips)
 }
 
 func populateCN(secret *v1.Secret, cn ...string) *v1.Secret {

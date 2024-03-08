@@ -54,18 +54,20 @@ func RPCToInstanceList(obj *rpc.InstanceListResponse) map[string]*Instance {
 }
 
 type InstanceStatus struct {
-	State     string `json:"state"`
-	ErrorMsg  string `json:"errorMsg"`
-	PortStart int32  `json:"portStart"`
-	PortEnd   int32  `json:"portEnd"`
+	State      string          `json:"state"`
+	ErrorMsg   string          `json:"errorMsg"`
+	Conditions map[string]bool `json:"conditions"`
+	PortStart  int32           `json:"portStart"`
+	PortEnd    int32           `json:"portEnd"`
 }
 
 func RPCToInstanceStatus(obj *rpc.InstanceStatus) InstanceStatus {
 	return InstanceStatus{
-		State:     obj.State,
-		ErrorMsg:  obj.ErrorMsg,
-		PortStart: obj.PortStart,
-		PortEnd:   obj.PortEnd,
+		State:      obj.State,
+		ErrorMsg:   obj.ErrorMsg,
+		Conditions: obj.Conditions,
+		PortStart:  obj.PortStart,
+		PortEnd:    obj.PortEnd,
 	}
 }
 

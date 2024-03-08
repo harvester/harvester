@@ -13,9 +13,9 @@ const (
 	PROGRESS_PERCENTAGE_BACKUP_TOTAL    = 100
 )
 
-type BackendStoreDriver string
+type DataEngine string
 
 const (
-	BackendStoreDriverV1 = BackendStoreDriver("v1")
-	BackendStoreDriverV2 = BackendStoreDriver("v2")
+	DataEngineV1 = DataEngine("v1")
+	DataEngineV2 = DataEngine("v2")
 )

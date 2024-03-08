@@ -155,7 +155,7 @@ func (s Set[E]) Difference(s2 Set[E]) Set[E] {
 // Equal returns true if and only if s1 is equal (as a set) to s2.
 // Two sets are equal if their membership is identical.
 func (s Set[E]) Equal(s2 Set[E]) bool {
-	return s.Len() == s.Len() && s.IsSuperset(s2)
+	return s.Len() == s2.Len() && s.IsSuperset(s2)
 }
 
 type sortableSlice[E ordered] []E
@@ -212,18 +212,4 @@ func (s Set[T]) Clone() Set[T] {
 // s2.SymmetricDifference(s1) = {a3, a4, a5}
 func (s Set[T]) SymmetricDifference(s2 Set[T]) Set[T] {
 	return s.Difference(s2).Union(s2.Difference(s))
-}
-
-// Clear empties the set.
-// It is preferable to replace the set with a newly constructed set,
-// but not all callers can do that (when there are other references to the map).
-// In some cases the set *won't* be fully cleared, e.g. a Set[float32] containing NaN
-// can't be cleared because NaN can't be removed.
-// For sets containing items of a type that is reflexive for ==,
-// this is optimized to a single call to runtime.mapclear().
-func (s Set[T]) Clear() Set[T] {
-	for key := range s {
-		delete(s, key)
-	}
-	return s
 }
