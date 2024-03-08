@@ -184,11 +184,10 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 			Checksum:         image.Spec.Checksum,
 		},
 	}
-	if image.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeDownload {
+	switch image.Spec.SourceType {
+	case harvesterv1.VirtualMachineImageSourceTypeDownload:
 		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeDownloadParameterURL] = image.Spec.URL
-	}
-
-	if image.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeExportVolume {
+	case harvesterv1.VirtualMachineImageSourceTypeExportVolume:
 		pvc, err := h.pvcCache.Get(image.Spec.PVCNamespace, image.Spec.PVCName)
 		if err != nil {
 			return fmt.Errorf("failed to get pvc %s/%s, error: %s", image.Spec.PVCName, image.Namespace, err.Error())
@@ -196,6 +195,8 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 
 		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeExportFromVolumeParameterVolumeName] = pvc.Spec.VolumeName
 		bi.Spec.SourceParameters[lhmanager.DataSourceTypeExportFromVolumeParameterExportType] = lhmanager.DataSourceTypeExportFromVolumeParameterExportTypeRAW
+	case harvesterv1.VirtualMachineImageSourceTypeRestore:
+		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeRestoreParameterBackupURL] = image.Spec.URL
 	}
 
 	_, err = h.backingImages.Create(bi)
