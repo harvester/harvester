@@ -27,7 +27,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	ctlharvesterappsv1 "github.com/harvester/harvester/pkg/generated/controllers/apps"
-	"github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
+	ctlcluster "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	cniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
@@ -106,7 +106,7 @@ type Management struct {
 	ControllerRevisionFactory *ctlharvesterappsv1.Factory
 	NetworkingFactory         *networking.Factory
 	UpgradeFactory            *upgrade.Factory
-	ClusterFactory            *cluster.Factory
+	ClusterFactory            *ctlcluster.Factory
 	NodeConfigFactory         *ctlnodeharvester.Factory
 
 	ClientSet  *kubernetes.Clientset
@@ -363,7 +363,7 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.RancherManagementFactory = rancher
 	management.starters = append(management.starters, rancher)
 
-	cluster, err := cluster.NewFactoryFromConfigWithOptions(restConfig, opts)
+	cluster, err := ctlcluster.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return nil, err
 	}
