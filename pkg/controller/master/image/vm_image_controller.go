@@ -21,7 +21,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
-	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/ref" //nolint
 	"github.com/harvester/harvester/pkg/util"
 )
 
