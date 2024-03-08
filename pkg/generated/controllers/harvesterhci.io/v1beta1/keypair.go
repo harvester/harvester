@@ -20,6 +20,7 @@ package v1beta1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -263,10 +264,14 @@ func (c *keyPairCache) GetByIndex(indexName, key string) (result []*v1beta1.KeyP
 	return result, nil
 }
 
+// KeyPairStatusHandler is executed for every added or modified KeyPair. Should return the new status to be updated
 type KeyPairStatusHandler func(obj *v1beta1.KeyPair, status v1beta1.KeyPairStatus) (v1beta1.KeyPairStatus, error)
 
+// KeyPairGeneratingHandler is the top-level handler that is executed for every KeyPair event. It extends KeyPairStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type KeyPairGeneratingHandler func(obj *v1beta1.KeyPair, status v1beta1.KeyPairStatus) ([]runtime.Object, v1beta1.KeyPairStatus, error)
 
+// RegisterKeyPairStatusHandler configures a KeyPairController to execute a KeyPairStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterKeyPairStatusHandler(ctx context.Context, controller KeyPairController, condition condition.Cond, name string, handler KeyPairStatusHandler) {
 	statusHandler := &keyPairStatusHandler{
 		client:    controller,
@@ -276,6 +281,8 @@ func RegisterKeyPairStatusHandler(ctx context.Context, controller KeyPairControl
 	controller.AddGenericHandler(ctx, name, FromKeyPairHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterKeyPairGeneratingHandler configures a KeyPairController to execute a KeyPairGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterKeyPairGeneratingHandler(ctx context.Context, controller KeyPairController, apply apply.Apply,
 	condition condition.Cond, name string, handler KeyPairGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &keyPairGeneratingHandler{
@@ -297,6 +304,7 @@ type keyPairStatusHandler struct {
 	handler   KeyPairStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *keyPairStatusHandler) sync(key string, obj *v1beta1.KeyPair) (*v1beta1.KeyPair, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +350,10 @@ type keyPairGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *keyPairGeneratingHandler) Remove(key string, obj *v1beta1.KeyPair) (*v1beta1.KeyPair, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +363,17 @@ func (a *keyPairGeneratingHandler) Remove(key string, obj *v1beta1.KeyPair) (*v1
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured KeyPairGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *keyPairGeneratingHandler) Handle(obj *v1beta1.KeyPair, status v1beta1.KeyPairStatus) (v1beta1.KeyPairStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +383,41 @@ func (a *keyPairGeneratingHandler) Handle(obj *v1beta1.KeyPair, status v1beta1.K
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *keyPairGeneratingHandler) isNewResourceVersion(obj *v1beta1.KeyPair) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *keyPairGeneratingHandler) storeResourceVersion(obj *v1beta1.KeyPair) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

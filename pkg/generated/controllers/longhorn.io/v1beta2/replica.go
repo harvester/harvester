@@ -20,6 +20,7 @@ package v1beta2
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -263,10 +264,14 @@ func (c *replicaCache) GetByIndex(indexName, key string) (result []*v1beta2.Repl
 	return result, nil
 }
 
+// ReplicaStatusHandler is executed for every added or modified Replica. Should return the new status to be updated
 type ReplicaStatusHandler func(obj *v1beta2.Replica, status v1beta2.ReplicaStatus) (v1beta2.ReplicaStatus, error)
 
+// ReplicaGeneratingHandler is the top-level handler that is executed for every Replica event. It extends ReplicaStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type ReplicaGeneratingHandler func(obj *v1beta2.Replica, status v1beta2.ReplicaStatus) ([]runtime.Object, v1beta2.ReplicaStatus, error)
 
+// RegisterReplicaStatusHandler configures a ReplicaController to execute a ReplicaStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterReplicaStatusHandler(ctx context.Context, controller ReplicaController, condition condition.Cond, name string, handler ReplicaStatusHandler) {
 	statusHandler := &replicaStatusHandler{
 		client:    controller,
@@ -276,6 +281,8 @@ func RegisterReplicaStatusHandler(ctx context.Context, controller ReplicaControl
 	controller.AddGenericHandler(ctx, name, FromReplicaHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterReplicaGeneratingHandler configures a ReplicaController to execute a ReplicaGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterReplicaGeneratingHandler(ctx context.Context, controller ReplicaController, apply apply.Apply,
 	condition condition.Cond, name string, handler ReplicaGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &replicaGeneratingHandler{
@@ -297,6 +304,7 @@ type replicaStatusHandler struct {
 	handler   ReplicaStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *replicaStatusHandler) sync(key string, obj *v1beta2.Replica) (*v1beta2.Replica, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +350,10 @@ type replicaGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *replicaGeneratingHandler) Remove(key string, obj *v1beta2.Replica) (*v1beta2.Replica, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +363,17 @@ func (a *replicaGeneratingHandler) Remove(key string, obj *v1beta2.Replica) (*v1
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured ReplicaGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *replicaGeneratingHandler) Handle(obj *v1beta2.Replica, status v1beta2.ReplicaStatus) (v1beta2.ReplicaStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +383,41 @@ func (a *replicaGeneratingHandler) Handle(obj *v1beta2.Replica, status v1beta2.R
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *replicaGeneratingHandler) isNewResourceVersion(obj *v1beta2.Replica) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *replicaGeneratingHandler) storeResourceVersion(obj *v1beta2.Replica) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }
