@@ -43,3 +43,7 @@ func (p *Proxy) VolumeUnmapMarkSnapChainRemovedSet(e *longhorn.Engine) error {
 	return p.grpcClient.VolumeUnmapMarkSnapChainRemovedSet(string(e.Spec.BackendStoreDriver), e.Name, e.Spec.VolumeName,
 		p.DirectToURL(e), e.Spec.UnmapMarkSnapChainRemovedEnabled)
 }
+
+func (p *Proxy) RemountReadOnlyVolume(e *longhorn.Engine) error {
+	return p.grpcClient.RemountReadOnlyVolume(e.Spec.VolumeName)
+}

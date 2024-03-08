@@ -49,6 +49,13 @@ import (
 )
 
 const (
+	KiB = 1024
+	MiB = 1024 * KiB
+	GiB = 1024 * MiB
+	TiB = 1024 * GiB
+	PiB = 1024 * TiB
+	EiB = 1024 * PiB
+
 	VolumeStackPrefix     = "volume-"
 	ControllerServiceName = "controller"
 	ReplicaServiceName    = "replica"
@@ -65,6 +72,9 @@ const (
 
 	SizeAlignment     = 2 * 1024 * 1024
 	MinimalVolumeSize = 10 * 1024 * 1024
+
+	MaxExt4VolumeSize = 16 * TiB
+	MaxXfsVolumeSize  = 8*EiB - 1
 
 	RandomIDLenth = 8
 
@@ -321,6 +331,20 @@ func TimestampWithinLimit(latest time.Time, ts string, limit time.Duration) bool
 	}
 	deadline := t.Add(limit)
 	return deadline.After(latest)
+}
+
+// TimestampAfterTimestamp returns true if timestamp1 is after timestamp2. It returns false otherwise and an error if
+// either timestamp cannot be parsed.
+func TimestampAfterTimestamp(timestamp1 string, timestamp2 string) (bool, error) {
+	time1, err := time.Parse(time.RFC3339, timestamp1)
+	if err != nil {
+		return false, errors.Wrapf(err, "cannot parse timestamp %v", timestamp1)
+	}
+	time2, err := time.Parse(time.RFC3339, timestamp2)
+	if err != nil {
+		return false, errors.Wrapf(err, "cannot parse timestamp %v", timestamp2)
+	}
+	return time1.After(time2), nil
 }
 
 func ValidateName(name string) bool {

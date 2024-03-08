@@ -168,7 +168,7 @@ func CreateDeltaBlockBackup(backupName string, config *DeltaBackupConfig) (isInc
 	}
 
 	config.Volume.CompressionMethod = volume.CompressionMethod
-	config.Volume.BackendStoreDriver = volume.BackendStoreDriver
+	config.Volume.DataEngine = volume.DataEngine
 
 	if err := deltaOps.OpenSnapshot(snapshot.Name, volume.Name); err != nil {
 		return false, err
@@ -553,7 +553,7 @@ func performBackup(bsDriver BackupStoreDriver, config *DeltaBackupConfig, delta 
 	volume.BackingImageChecksum = config.Volume.BackingImageChecksum
 	volume.CompressionMethod = config.Volume.CompressionMethod
 	volume.StorageClassName = config.Volume.StorageClassName
-	volume.BackendStoreDriver = config.Volume.BackendStoreDriver
+	volume.DataEngine = config.Volume.DataEngine
 
 	if err := saveVolume(bsDriver, volume); err != nil {
 		return progress.progress, "", err
@@ -607,7 +607,7 @@ func mergeSnapshotMap(deltaBackup, lastBackup *Backup) *Backup {
 }
 
 // RestoreDeltaBlockBackup restores a delta block backup for the given configuration
-func RestoreDeltaBlockBackup(config *DeltaRestoreConfig) error {
+func RestoreDeltaBlockBackup(ctx context.Context, config *DeltaRestoreConfig) error {
 	if config == nil {
 		return fmt.Errorf("invalid empty config for restore")
 	}
@@ -686,7 +686,8 @@ func RestoreDeltaBlockBackup(config *DeltaRestoreConfig) error {
 	if err := lock.Lock(); err != nil {
 		return err
 	}
-	go func() {
+
+	go func(ctx context.Context) {
 		var err error
 		currentProgress := 0
 
@@ -713,9 +714,6 @@ func RestoreDeltaBlockBackup(config *DeltaRestoreConfig) error {
 			}
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		blockChan, errChan := populateBlocksForFullRestore(bsDriver, backup)
 
 		errorChans := []<-chan error{errChan}
@@ -731,7 +729,7 @@ func RestoreDeltaBlockBackup(config *DeltaRestoreConfig) error {
 			return
 		}
 		currentProgress = PROGRESS_PERCENTAGE_BACKUP_TOTAL
-	}()
+	}(ctx)
 
 	return nil
 }
@@ -754,7 +752,7 @@ func restoreBlockToFile(bsDriver BackupStoreDriver, volumeName string, volDev *o
 	return err
 }
 
-func RestoreDeltaBlockBackupIncrementally(config *DeltaRestoreConfig) error {
+func RestoreDeltaBlockBackupIncrementally(ctx context.Context, config *DeltaRestoreConfig) error {
 	if config == nil {
 		return fmt.Errorf("invalid empty config for restore")
 	}
@@ -866,7 +864,7 @@ func RestoreDeltaBlockBackupIncrementally(config *DeltaRestoreConfig) error {
 			}
 		}
 
-		if err := performIncrementalRestore(bsDriver, config, srcVolumeName, volDevName, lastBackup, backup); err != nil {
+		if err := performIncrementalRestore(ctx, bsDriver, config, srcVolumeName, volDevName, lastBackup, backup); err != nil {
 			deltaOps.UpdateRestoreStatus(volDevName, 0, err)
 			return
 		}
@@ -998,11 +996,10 @@ func restoreBlocks(ctx context.Context, bsDriver BackupStoreDriver, deltaOps Del
 		for {
 			select {
 			case <-ctx.Done():
-				logrus.Infof("Closing goroutine for restoring blocks for volume %v", volumeName)
+				err = fmt.Errorf(types.ErrorMsgRestoreCancelled+" since server stop for volume %v", volumeName)
 				return
 			case <-deltaOps.GetStopChan():
-				logrus.Infof("Closing goroutine for restoring blocks for %v since received stop signal", volumeName)
-				err = fmt.Errorf("restoration is cancelled since received stop signal")
+				err = fmt.Errorf(types.ErrorMsgRestoreCancelled+" since received stop signal for volume %v", volumeName)
 				return
 			case block, open := <-in:
 				if !open {
@@ -1020,7 +1017,7 @@ func restoreBlocks(ctx context.Context, bsDriver BackupStoreDriver, deltaOps Del
 	return errChan
 }
 
-func performIncrementalRestore(bsDriver BackupStoreDriver, config *DeltaRestoreConfig,
+func performIncrementalRestore(ctx context.Context, bsDriver BackupStoreDriver, config *DeltaRestoreConfig,
 	srcVolumeName, volDevName string, lastBackup *Backup, backup *Backup) error {
 	var err error
 	concurrentLimit := config.ConcurrentLimit
@@ -1028,9 +1025,6 @@ func performIncrementalRestore(bsDriver BackupStoreDriver, config *DeltaRestoreC
 	progress := &progress{
 		totalBlockCounts: int64(len(backup.Blocks) + len(lastBackup.Blocks)),
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	blockChan, errChan := populateBlocksForIncrementalRestore(bsDriver, lastBackup, backup)
 
@@ -1057,6 +1051,17 @@ func DeleteBackupVolume(volumeName string, destURL string) error {
 	if err != nil {
 		return err
 	}
+
+	backupVolumeFolderExists, err := volumeFolderExists(bsDriver, volumeName)
+	if err != nil {
+		return err
+	}
+
+	// No need to lock and remove volume if it does not exist.
+	if !backupVolumeFolderExists {
+		return nil
+	}
+
 	lock, err := New(bsDriver, volumeName, DELETION_LOCK)
 	if err != nil {
 		return err

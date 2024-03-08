@@ -114,6 +114,9 @@ type InstanceProcessStatus struct {
 	Endpoint string `json:"endpoint"`
 	// +optional
 	ErrorMsg string `json:"errorMsg"`
+	//+optional
+	//+nullable
+	Conditions map[string]bool `json:"conditions"`
 	// +optional
 	Listen string `json:"listen"`
 	// +optional

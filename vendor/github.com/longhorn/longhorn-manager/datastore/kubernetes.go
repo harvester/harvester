@@ -213,20 +213,20 @@ func (s *DataStore) GetPDBRO(name string) (*policyv1.PodDisruptionBudget, error)
 	return s.podDisruptionBudgetLister.PodDisruptionBudgets(s.namespace).Get(name)
 }
 
-// ListPDBs gets a map of PDB in s.namespace
-func (s *DataStore) ListPDBs() (map[string]*policyv1.PodDisruptionBudget, error) {
-	itemMap := map[string]*policyv1.PodDisruptionBudget{}
-
-	list, err := s.podDisruptionBudgetLister.PodDisruptionBudgets(s.namespace).List(labels.Everything())
+// ListPDBsRO gets a map of PDB in s.namespace
+// This function returns direct reference to the internal cache objects and should not be mutated.
+// Consider using this function when you can guarantee read only access and don't want the overhead of deep copies
+func (s *DataStore) ListPDBsRO() (map[string]*policyv1.PodDisruptionBudget, error) {
+	pdbList, err := s.podDisruptionBudgetLister.PodDisruptionBudgets(s.namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
-	for _, itemRO := range list {
-		// Cannot use cached object from lister
-		itemMap[itemRO.Name] = itemRO.DeepCopy()
+	pdbMap := make(map[string]*policyv1.PodDisruptionBudget, len(pdbList))
+	for _, pdbRO := range pdbList {
+		pdbMap[pdbRO.Name] = pdbRO
 	}
-	return itemMap, nil
+	return pdbMap, nil
 }
 
 // CreatePod creates a Pod resource for the given pod object and namespace
@@ -313,18 +313,20 @@ func (s *DataStore) ListPodsRO(namespace string) ([]*corev1.Pod, error) {
 
 // GetPod returns a mutable Pod object for the given name and namespace
 func (s *DataStore) GetPod(name string) (*corev1.Pod, error) {
-	resultRO, err := s.podLister.Pods(s.namespace).Get(name)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
+	var pod *corev1.Pod
+	podRO, err := s.GetPodRO(s.namespace, name)
+	if podRO != nil {
+		pod = podRO.DeepCopy()
 	}
-	return resultRO.DeepCopy(), nil
+	return pod, err
 }
 
 func (s *DataStore) GetPodRO(namespace, name string) (*corev1.Pod, error) {
-	return s.podLister.Pods(namespace).Get(name)
+	pod, err := s.podLister.Pods(namespace).Get(name)
+	if err != nil && apierrors.IsNotFound(err) {
+		err = nil
+	}
+	return pod, err
 }
 
 // GetPodContainerLog dumps the log of a container in a Pod object for the given name and namespace.
@@ -421,6 +423,14 @@ func (s *DataStore) ListManagerPods() ([]*corev1.Pod, error) {
 	return s.ListPodsBySelector(selector)
 }
 
+func (s *DataStore) ListManagerPodsRO() ([]*corev1.Pod, error) {
+	selector, err := s.getManagerSelector()
+	if err != nil {
+		return nil, err
+	}
+	return s.ListPodsBySelectorRO(selector)
+}
+
 func getInstanceManagerComponentSelector() (labels.Selector, error) {
 	return metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels: types.GetInstanceManagerComponentLabel(),
@@ -501,9 +511,22 @@ func (s *DataStore) ListPodsBySelector(selector labels.Selector) ([]*corev1.Pod,
 		return nil, err
 	}
 
-	res := []*corev1.Pod{}
-	for _, item := range podList {
-		res = append(res, item.DeepCopy())
+	res := make([]*corev1.Pod, len(podList))
+	for idx, item := range podList {
+		res[idx] = item.DeepCopy()
+	}
+	return res, nil
+}
+
+func (s *DataStore) ListPodsBySelectorRO(selector labels.Selector) ([]*corev1.Pod, error) {
+	podList, err := s.podLister.Pods(s.namespace).List(selector)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]*corev1.Pod, len(podList))
+	for idx, item := range podList {
+		res[idx] = item
 	}
 	return res, nil
 }
@@ -515,15 +538,15 @@ func (s *DataStore) ListKubeNodesRO() ([]*corev1.Node, error) {
 	return s.kubeNodeLister.List(labels.Everything())
 }
 
-// GetKubernetesNode gets the Node from the index for the given name
-func (s *DataStore) GetKubernetesNode(name string) (*corev1.Node, error) {
+// GetKubernetesNodeRO gets the Node from the index for the given name
+func (s *DataStore) GetKubernetesNodeRO(name string) (*corev1.Node, error) {
 	return s.kubeNodeLister.Get(name)
 }
 
 // IsKubeNodeUnschedulable checks if the Kubernetes Node resource is
 // unschedulable
 func (s *DataStore) IsKubeNodeUnschedulable(nodeName string) (bool, error) {
-	kubeNode, err := s.GetKubernetesNode(nodeName)
+	kubeNode, err := s.GetKubernetesNodeRO(nodeName)
 	if err != nil {
 		return false, err
 	}
@@ -686,6 +709,11 @@ func (s *DataStore) GetSecret(namespace, name string) (resultRO *corev1.Secret, 
 // UpdateSecret updates the Secret resource with the given object and namespace
 func (s *DataStore) UpdateSecret(namespace string, secret *corev1.Secret) (*corev1.Secret, error) {
 	return s.kubeClient.CoreV1().Secrets(namespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
+}
+
+// DeleteSecret deletes the Secret for the given name and namespace
+func (s *DataStore) DeleteSecret(namespace, name string) error {
+	return s.kubeClient.CoreV1().Secrets(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
 // GetPriorityClass gets the PriorityClass from the index for the
@@ -851,7 +879,7 @@ func NewPVCManifest(size int64, pvName, ns, pvcName, storageClassName string, ac
 //	  	  "dns": {}
 //	    }]
 func (s *DataStore) GetStorageIPFromPod(pod *corev1.Pod) string {
-	storageNetwork, err := s.GetSetting(types.SettingNameStorageNetwork)
+	storageNetwork, err := s.GetSettingWithAutoFillingRO(types.SettingNameStorageNetwork)
 	if err != nil {
 		logrus.Warnf("Failed to get %v setting, use %v pod IP %v", types.SettingNameStorageNetwork, pod.Name, pod.Status.PodIP)
 		return pod.Status.PodIP

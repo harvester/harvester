@@ -104,9 +104,18 @@ func NewInstanceManagerClient(im *longhorn.InstanceManager) (*InstanceManagerCli
 
 	// TODO: Initialize the following gRPC clients are similar. This can be simplified via factory method.
 
-	initProcessManagerTLSClient := func(endpoint string) (*imclient.ProcessManagerClient, error) {
+	initProcessManagerTLSClient := func(endpoint string) (processManagerClient *imclient.ProcessManagerClient, err error) {
+		defer func() {
+			if err != nil && processManagerClient != nil {
+				_ = processManagerClient.Close()
+				processManagerClient = nil
+			}
+		}()
+
+		ctx, cancel := context.WithCancel(context.Background())
+
 		// check for tls cert file presence
-		pmClient, err := imclient.NewProcessManagerClientWithTLS(endpoint,
+		processManagerClient, err = imclient.NewProcessManagerClientWithTLS(ctx, cancel, endpoint,
 			filepath.Join(types.TLSDirectoryInContainer, types.TLSCAFile),
 			filepath.Join(types.TLSDirectoryInContainer, types.TLSCertFile),
 			filepath.Join(types.TLSDirectoryInContainer, types.TLSKeyFile),
@@ -115,16 +124,31 @@ func NewInstanceManagerClient(im *longhorn.InstanceManager) (*InstanceManagerCli
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to load Instance Manager Process Manager Service Client TLS files")
 		}
-		if _, err = pmClient.VersionGet(); err != nil {
-			return nil, errors.Wrap(err, "failed to check version of  Instance Manager Process Manager Service Client with TLS connection")
+
+		if err = processManagerClient.CheckConnection(); err != nil {
+			return processManagerClient, errors.Wrapf(err, "failed to check Instance Manager Process Manager Service Client TLS connection for %v IP %v",
+				im.Name, im.Status.IP)
 		}
 
-		return pmClient, nil
+		if _, err = processManagerClient.VersionGet(); err != nil {
+			return processManagerClient, errors.Wrap(err, "failed to check version of Instance Manager Process Manager Service Client with TLS connection")
+		}
+
+		return processManagerClient, nil
 	}
 
-	initInstanceServiceTLSClient := func(endpoint string) (*imclient.InstanceServiceClient, error) {
+	initInstanceServiceTLSClient := func(endpoint string) (instanceServiceClient *imclient.InstanceServiceClient, err error) {
+		defer func() {
+			if err != nil && instanceServiceClient != nil {
+				_ = instanceServiceClient.Close()
+				instanceServiceClient = nil
+			}
+		}()
+
+		ctx, cancel := context.WithCancel(context.Background())
+
 		// check for tls cert file presence
-		instanceClient, err := imclient.NewInstanceServiceClientWithTLS(endpoint,
+		instanceServiceClient, err = imclient.NewInstanceServiceClientWithTLS(ctx, cancel, endpoint,
 			filepath.Join(types.TLSDirectoryInContainer, types.TLSCAFile),
 			filepath.Join(types.TLSDirectoryInContainer, types.TLSCertFile),
 			filepath.Join(types.TLSDirectoryInContainer, types.TLSKeyFile),
@@ -133,53 +157,56 @@ func NewInstanceManagerClient(im *longhorn.InstanceManager) (*InstanceManagerCli
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to load Instance Manager Instance Service Client TLS files")
 		}
-		if _, err = instanceClient.VersionGet(); err != nil {
-			return nil, errors.Wrap(err, "failed to check version of Instance Manager Instance Service Client with TLS connection")
+
+		if err = instanceServiceClient.CheckConnection(); err != nil {
+			return instanceServiceClient, errors.Wrapf(err, "failed to check Instance Manager Instance Service Client TLS connection for %v IP %v",
+				im.Name, im.Status.IP)
 		}
 
-		return instanceClient, nil
-	}
-
-	initDiskServiceTLSClient := func(endpoint string) (*imclient.DiskServiceClient, error) {
-		// check for tls cert file presence
-		diskClient, err := imclient.NewDiskServiceClientWithTLS(endpoint,
-			filepath.Join(types.TLSDirectoryInContainer, types.TLSCAFile),
-			filepath.Join(types.TLSDirectoryInContainer, types.TLSCertFile),
-			filepath.Join(types.TLSDirectoryInContainer, types.TLSKeyFile),
-			"longhorn-backend.longhorn-system",
-		)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to load Instance Manager Disk Service Client TLS files")
-		}
-		if _, err = diskClient.VersionGet(); err != nil {
-			return nil, errors.Wrap(err, "failed to check version of  Instance Manager Disk Service Client with TLS connection")
+		if _, err = instanceServiceClient.VersionGet(); err != nil {
+			return instanceServiceClient, errors.Wrap(err, "failed to check version of Instance Manager Instance Service Client with TLS connection")
 		}
 
-		return diskClient, nil
+		return instanceServiceClient, nil
 	}
 
 	// Create a new process manager client
 	// HACK: TODO: fix me
+	var err error
+	var processManagerClient *imclient.ProcessManagerClient
 	endpoint := "tcp://" + imutil.GetURL(im.Status.IP, InstanceManagerProcessManagerServiceDefaultPort)
-	processManagerClient, err := initProcessManagerTLSClient(endpoint)
-	if err != nil {
-		// fallback to non tls client, there is no way to differentiate between im versions unless we get the version via the im client
-		// TODO: remove this im client fallback mechanism in a future version maybe 2.4 / 2.5 or the next time we update the api version
-		processManagerClient, err = imclient.NewProcessManagerClient(endpoint, nil)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to initialize Instance Manager Process Manager Service Client for %v, state: %v, IP: %v, TLS: %v",
-				im.Name, im.Status.CurrentState, im.Status.IP, false)
-		}
-
-		version, err := processManagerClient.VersionGet()
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get Version of Instance Manager Process Manager Service Client for %v, state: %v, IP: %v, TLS: %v",
-				im.Name, im.Status.CurrentState, im.Status.IP, false)
-		}
-		logrus.Tracef("Instance Manager Process Manager Service Client Version: %+v", version)
-	}
-
 	if im.Status.APIVersion < 4 {
+		processManagerClient, err = initProcessManagerTLSClient(endpoint)
+		defer func() {
+			if err != nil && processManagerClient != nil {
+				processManagerClient.Close()
+				processManagerClient = nil
+			}
+		}()
+		if err != nil {
+			logrus.WithError(err).Tracef("Falling back to non-tls client for Instance Manager Process Manager Service Client for %v IP %v",
+				im.Name, im.Status.IP)
+			// fallback to non tls client, there is no way to differentiate between im versions unless we get the version via the im client
+			// TODO: remove this im client fallback mechanism in a future version maybe 2.4 / 2.5 or the next time we update the api version
+			ctx, cancel := context.WithCancel(context.Background())
+			processManagerClient, err = imclient.NewProcessManagerClient(ctx, cancel, endpoint, nil)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to initialize Instance Manager Process Manager Service Client for %v IP %v",
+					im.Name, im.Status.IP)
+			}
+			if err = processManagerClient.CheckConnection(); err != nil {
+				return nil, errors.Wrapf(err, "failed to check Instance Manager Process Manager Service Client connection for %v IP %v",
+					im.Name, im.Status.IP)
+			}
+
+			version, err := processManagerClient.VersionGet()
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to check version of Instance Manager Process Manager Service Client for %v IP %v",
+					im.Name, im.Status.IP)
+			}
+			logrus.Tracef("Instance Manager Process Manager Service Client Version: %+v", version)
+		}
+
 		return &InstanceManagerClient{
 			ip:                       im.Status.IP,
 			apiMinVersion:            im.Status.APIMinVersion,
@@ -191,39 +218,50 @@ func NewInstanceManagerClient(im *longhorn.InstanceManager) (*InstanceManagerCli
 	// Create a new instance service  client
 	endpoint = "tcp://" + imutil.GetURL(im.Status.IP, InstanceManagerInstanceServiceDefaultPort)
 	instanceServiceClient, err := initInstanceServiceTLSClient(endpoint)
+	defer func() {
+		if err != nil && instanceServiceClient != nil {
+			instanceServiceClient.Close()
+			instanceServiceClient = nil
+		}
+	}()
 	if err != nil {
+		logrus.WithError(err).Tracef("Falling back to non-tls client for Instance Manager Instance Service Client for %v, IP %v",
+			im.Name, im.Status.IP)
 		// fallback to non tls client, there is no way to differentiate between im versions unless we get the version via the im client
 		// TODO: remove this im client fallback mechanism in a future version maybe 2.4 / 2.5 or the next time we update the api version
-		instanceServiceClient, err = imclient.NewInstanceServiceClient(endpoint, nil)
+		ctx, cancel := context.WithCancel(context.Background())
+		instanceServiceClient, err = imclient.NewInstanceServiceClient(ctx, cancel, endpoint, nil)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to initialize Instance Manager Instance Service Client for %v, state: %v, IP: %v, TLS: %v",
-				im.Name, im.Status.CurrentState, im.Status.IP, false)
+			return nil, errors.Wrapf(err, "failed to initialize Instance Manager Instance Service Client for %v IP %v",
+				im.Name, im.Status.IP)
+		}
+		if err = instanceServiceClient.CheckConnection(); err != nil {
+			return nil, errors.Wrapf(err, "failed to check Instance Manager Instance Service Client connection for %v IP %v",
+				im.Name, im.Status.IP)
 		}
 
 		version, err := instanceServiceClient.VersionGet()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get Version of Instance Manager Instance Service Client for %v, state: %v, IP: %v, TLS: %v",
-				im.Name, im.Status.CurrentState, im.Status.IP, false)
+			return nil, errors.Wrapf(err, "failed to check version of Instance Manager Instance Service Client for %v IP %v",
+				im.Name, im.Status.IP)
 		}
 		logrus.Tracef("Instance Manager Instance Service Client Version: %+v", version)
 	}
 
 	// Create a new disk service client
+	ctx, cancel := context.WithCancel(context.Background())
 	endpoint = "tcp://" + imutil.GetURL(im.Status.IP, InstanceManagerDiskServiceDefaultPort)
-	diskServiceClient, err := initDiskServiceTLSClient(endpoint)
+	diskServiceClient, err := imclient.NewDiskServiceClient(ctx, cancel, endpoint, nil)
 	if err != nil {
-		diskServiceClient, err = imclient.NewDiskServiceClient(endpoint, nil)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to initialize Instance Manager Disk Service Client for %v, state: %v, IP: %v, TLS: %v",
-				im.Name, im.Status.CurrentState, im.Status.IP, false)
-		}
-		version, err := diskServiceClient.VersionGet()
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get Version of Instance Manager Disk Service Client for %v, state: %v, IP: %v, TLS: %v",
-				im.Name, im.Status.CurrentState, im.Status.IP, false)
-		}
-		logrus.Tracef("Instance Manager Disk Service Client Version: %+v", version)
+		return nil, errors.Wrapf(err, "failed to initialize Instance Manager Disk Service Client for %v, state: %v, IP: %v, TLS: %v",
+			im.Name, im.Status.CurrentState, im.Status.IP, false)
 	}
+	version, err := diskServiceClient.VersionGet()
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get Version of Instance Manager Disk Service Client for %v, state: %v, IP: %v, TLS: %v",
+			im.Name, im.Status.CurrentState, im.Status.IP, false)
+	}
+	logrus.Tracef("Instance Manager Disk Service Client Version: %+v", version)
 
 	// TODO: consider evaluating im client version since we do the call anyway to validate the connection, i.e. fallback to non tls
 	// This way we don't need the per call compatibility check, ref: `CheckInstanceManagerCompatibility`
@@ -249,11 +287,12 @@ func parseInstance(p *imapi.Instance) *longhorn.InstanceProcess {
 			BackendStoreDriver: longhorn.BackendStoreDriverType(p.BackendStoreDriver),
 		},
 		Status: longhorn.InstanceProcessStatus{
-			Type:      getTypeForInstance(longhorn.InstanceType(p.Type), p.PortCount),
-			State:     longhorn.InstanceState(p.InstanceStatus.State),
-			ErrorMsg:  p.InstanceStatus.ErrorMsg,
-			PortStart: p.InstanceStatus.PortStart,
-			PortEnd:   p.InstanceStatus.PortEnd,
+			Type:       getTypeForInstance(longhorn.InstanceType(p.Type), p.PortCount),
+			State:      longhorn.InstanceState(p.InstanceStatus.State),
+			ErrorMsg:   p.InstanceStatus.ErrorMsg,
+			Conditions: p.InstanceStatus.Conditions,
+			PortStart:  p.InstanceStatus.PortStart,
+			PortEnd:    p.InstanceStatus.PortEnd,
 
 			// These fields are not used, maybe we can deprecate them later.
 			Listen:   "",
@@ -273,11 +312,12 @@ func parseProcess(p *imapi.Process) *longhorn.InstanceProcess {
 			BackendStoreDriver: longhorn.BackendStoreDriverTypeV1,
 		},
 		Status: longhorn.InstanceProcessStatus{
-			Type:      getTypeForProcess(p.PortCount),
-			State:     longhorn.InstanceState(p.ProcessStatus.State),
-			ErrorMsg:  p.ProcessStatus.ErrorMsg,
-			PortStart: p.ProcessStatus.PortStart,
-			PortEnd:   p.ProcessStatus.PortEnd,
+			Type:       getTypeForProcess(p.PortCount),
+			State:      longhorn.InstanceState(p.ProcessStatus.State),
+			ErrorMsg:   p.ProcessStatus.ErrorMsg,
+			Conditions: p.ProcessStatus.Conditions,
+			PortStart:  p.ProcessStatus.PortStart,
+			PortEnd:    p.ProcessStatus.PortEnd,
 		},
 	}
 }

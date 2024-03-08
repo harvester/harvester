@@ -57,9 +57,10 @@ const (
 	DataSourceTypeDownloadParameterURL = "url"
 	DataSourceTypeFileType             = "file-type"
 
-	DataSourceTypeExportFromVolumeParameterVolumeSize    = "volume-size"
-	DataSourceTypeExportFromVolumeParameterSnapshotName  = "snapshot-name"
-	DataSourceTypeExportFromVolumeParameterSenderAddress = "sender-address"
+	DataSourceTypeExportFromVolumeParameterVolumeSize                = "volume-size"
+	DataSourceTypeExportFromVolumeParameterSnapshotName              = "snapshot-name"
+	DataSourceTypeExportFromVolumeParameterSenderAddress             = "sender-address"
+	DataSourceTypeExportFromVolumeParameterFileSyncHTTPClientTimeout = "file-sync-http-client-timeout"
 
 	DataSourceTypeExportFromVolumeParameterExportTypeRAW   = "raw"
 	DataSourceTypeExportFromVolumeParameterExportTypeQCOW2 = "qcow2"

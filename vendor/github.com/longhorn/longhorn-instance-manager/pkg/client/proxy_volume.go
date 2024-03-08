@@ -206,3 +206,19 @@ func (c *ProxyClient) VolumeUnmapMarkSnapChainRemovedSet(backendStoreDriver, eng
 
 	return nil
 }
+
+func (c *ProxyClient) RemountReadOnlyVolume(volumeName string) (err error) {
+	if volumeName == "" {
+		return fmt.Errorf("failed to remount volume, volume name is empty")
+	}
+
+	req := &rpc.RemountVolumeRequest{
+		VolumeName: volumeName,
+	}
+
+	_, err = c.service.RemountReadOnlyVolume(getContextWithGRPCTimeout(c.ctx), req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
