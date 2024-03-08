@@ -20,6 +20,7 @@ package v1beta1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
@@ -263,10 +264,14 @@ func (c *clusterOutputCache) GetByIndex(indexName, key string) (result []*v1beta
 	return result, nil
 }
 
+// ClusterOutputStatusHandler is executed for every added or modified ClusterOutput. Should return the new status to be updated
 type ClusterOutputStatusHandler func(obj *v1beta1.ClusterOutput, status v1beta1.OutputStatus) (v1beta1.OutputStatus, error)
 
+// ClusterOutputGeneratingHandler is the top-level handler that is executed for every ClusterOutput event. It extends ClusterOutputStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type ClusterOutputGeneratingHandler func(obj *v1beta1.ClusterOutput, status v1beta1.OutputStatus) ([]runtime.Object, v1beta1.OutputStatus, error)
 
+// RegisterClusterOutputStatusHandler configures a ClusterOutputController to execute a ClusterOutputStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterClusterOutputStatusHandler(ctx context.Context, controller ClusterOutputController, condition condition.Cond, name string, handler ClusterOutputStatusHandler) {
 	statusHandler := &clusterOutputStatusHandler{
 		client:    controller,
@@ -276,6 +281,8 @@ func RegisterClusterOutputStatusHandler(ctx context.Context, controller ClusterO
 	controller.AddGenericHandler(ctx, name, FromClusterOutputHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterClusterOutputGeneratingHandler configures a ClusterOutputController to execute a ClusterOutputGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterClusterOutputGeneratingHandler(ctx context.Context, controller ClusterOutputController, apply apply.Apply,
 	condition condition.Cond, name string, handler ClusterOutputGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &clusterOutputGeneratingHandler{
@@ -297,6 +304,7 @@ type clusterOutputStatusHandler struct {
 	handler   ClusterOutputStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *clusterOutputStatusHandler) sync(key string, obj *v1beta1.ClusterOutput) (*v1beta1.ClusterOutput, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +350,10 @@ type clusterOutputGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *clusterOutputGeneratingHandler) Remove(key string, obj *v1beta1.ClusterOutput) (*v1beta1.ClusterOutput, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +363,17 @@ func (a *clusterOutputGeneratingHandler) Remove(key string, obj *v1beta1.Cluster
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured ClusterOutputGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *clusterOutputGeneratingHandler) Handle(obj *v1beta1.ClusterOutput, status v1beta1.OutputStatus) (v1beta1.OutputStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +383,41 @@ func (a *clusterOutputGeneratingHandler) Handle(obj *v1beta1.ClusterOutput, stat
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *clusterOutputGeneratingHandler) isNewResourceVersion(obj *v1beta1.ClusterOutput) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *clusterOutputGeneratingHandler) storeResourceVersion(obj *v1beta1.ClusterOutput) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }
