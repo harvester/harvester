@@ -12,8 +12,7 @@ import (
 
 type Enum struct {
 	DefaultMapper
-	field string
-	vals  map[string]string
+	vals map[string]string
 }
 
 func NewEnum(field string, vals ...string) schemas.Mapper {

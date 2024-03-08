@@ -32,6 +32,8 @@ service ProxyEngineService {
 	rpc SnapshotBackupStatus(EngineSnapshotBackupStatusRequest) returns (EngineSnapshotBackupStatusProxyResponse);
 	rpc BackupRestore(EngineBackupRestoreRequest) returns (EngineBackupRestoreProxyResponse);
 	rpc BackupRestoreStatus(ProxyEngineRequest) returns (EngineBackupRestoreStatusProxyResponse);
+	rpc CleanupBackupMountPoints(google.protobuf.Empty) returns (google.protobuf.Empty);
+
 
 	rpc ReplicaAdd(EngineReplicaAddRequest) returns (google.protobuf.Empty);
 	rpc ReplicaList(ProxyEngineRequest) returns (EngineReplicaListProxyResponse);
@@ -41,6 +43,7 @@ service ProxyEngineService {
 	rpc ReplicaModeUpdate(EngineReplicaModeUpdateRequest) returns (google.protobuf.Empty);
 
 	rpc MetricsGet(ProxyEngineRequest) returns (EngineMetricsGetProxyResponse);
+	rpc RemountReadOnlyVolume(RemountVolumeRequest) returns (google.protobuf.Empty);
 }
 
 message ProxyEngineRequest{
@@ -268,4 +271,8 @@ message EngineSnapshotHashStatusProxyResponse {
 
 message EngineMetricsGetProxyResponse {
 	ptypes.Metrics metrics = 1;
+}
+
+message RemountVolumeRequest {
+	string volume_name = 1;
 }

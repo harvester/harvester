@@ -11,6 +11,7 @@ import (
 var (
 	Imports = []string{
 		"context",
+		"sync",
 		"time",
 		"k8s.io/client-go/rest",
 		"github.com/rancher/lasso/pkg/client",

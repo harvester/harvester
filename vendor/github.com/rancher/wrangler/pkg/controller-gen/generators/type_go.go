@@ -313,10 +313,14 @@ func (c *{{.lowerName}}Cache) GetByIndex(indexName, key string) (result []*{{.ve
 }
 
 {{ if .hasStatus -}}
+// {{.type}}StatusHandler is executed for every added or modified {{.type}}. Should return the new status to be updated
 type {{.type}}StatusHandler func(obj *{{.version}}.{{.type}}, status {{.version}}.{{.statusType}}) ({{.version}}.{{.statusType}}, error)
 
+// {{.type}}GeneratingHandler is the top-level handler that is executed for every {{.type}} event. It extends {{.type}}StatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type {{.type}}GeneratingHandler func(obj *{{.version}}.{{.type}}, status {{.version}}.{{.statusType}}) ([]runtime.Object, {{.version}}.{{.statusType}}, error)
 
+// Register{{.type}}StatusHandler configures a {{.type}}Controller to execute a {{.type}}StatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func Register{{.type}}StatusHandler(ctx context.Context, controller {{.type}}Controller, condition condition.Cond, name string, handler {{.type}}StatusHandler) {
 	statusHandler := &{{.lowerName}}StatusHandler{
 		client:    controller,
@@ -326,6 +330,8 @@ func Register{{.type}}StatusHandler(ctx context.Context, controller {{.type}}Con
 	controller.AddGenericHandler(ctx, name, From{{.type}}HandlerToHandler(statusHandler.sync))
 }
 
+// Register{{.type}}GeneratingHandler configures a {{.type}}Controller to execute a {{.type}}GeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func Register{{.type}}GeneratingHandler(ctx context.Context, controller {{.type}}Controller, apply apply.Apply,
 	condition condition.Cond, name string, handler {{.type}}GeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &{{.lowerName}}GeneratingHandler{
@@ -347,6 +353,7 @@ type {{.lowerName}}StatusHandler struct {
 	handler   {{.type}}StatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *{{.lowerName}}StatusHandler) sync(key string, obj *{{.version}}.{{.type}}) (*{{.version}}.{{.type}}, error) {
 	if obj == nil {
 		return obj, nil
@@ -388,12 +395,14 @@ func (a *{{.lowerName}}StatusHandler) sync(key string, obj *{{.version}}.{{.type
 
 type {{.lowerName}}GeneratingHandler struct {
 	{{.type}}GeneratingHandler
-	apply apply.Apply
-	opts  generic.GeneratingHandlerOptions
-	gvk   schema.GroupVersionKind
-	name  string
+	apply      apply.Apply
+	opts       generic.GeneratingHandlerOptions
+	gvk        schema.GroupVersionKind
+	name       string
+	seen       sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *{{.lowerName}}GeneratingHandler) Remove(key string, obj *{{.version}}.{{.type}}) (*{{.version}}.{{.type}}, error) {
 	if obj != nil {
 		return obj, nil
@@ -403,12 +412,17 @@ func (a *{{.lowerName}}GeneratingHandler) Remove(key string, obj *{{.version}}.{
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured {{.type}}GeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *{{.lowerName}}GeneratingHandler) Handle(obj *{{.version}}.{{.type}}, status {{.version}}.{{.statusType}}) ({{.version}}.{{.statusType}}, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -418,11 +432,43 @@ func (a *{{.lowerName}}GeneratingHandler) Handle(obj *{{.version}}.{{.type}}, st
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+	    return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed. 
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *{{.lowerName}}GeneratingHandler) isNewResourceVersion(obj *{{.version}}.{{.type}}) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *{{.lowerName}}GeneratingHandler) storeResourceVersion(obj *{{.version}}.{{.type}}) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }
 {{- end }}
 `
