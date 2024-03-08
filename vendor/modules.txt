@@ -332,13 +332,7 @@ github.com/google/gnostic/compiler
 github.com/google/gnostic/extensions
 github.com/google/gnostic/jsonschema
 github.com/google/gnostic/openapiv2
-# github.com/google/gnostic-models v0.6.8
-## explicit; go 1.18
-github.com/google/gnostic-models/compiler
-github.com/google/gnostic-models/extensions
-github.com/google/gnostic-models/jsonschema
-github.com/google/gnostic-models/openapiv2
-github.com/google/gnostic-models/openapiv3
+github.com/google/gnostic/openapiv3
 # github.com/google/go-cmp v0.6.0
 ## explicit; go 1.13
 github.com/google/go-cmp/cmp
@@ -1895,15 +1889,15 @@ k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1
-# k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9
-## explicit; go 1.19
+# k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 => k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280
+## explicit; go 1.18
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/builder3/util
-k8s.io/kube-openapi/pkg/cached
 k8s.io/kube-openapi/pkg/common
 k8s.io/kube-openapi/pkg/common/restfuladapter
 k8s.io/kube-openapi/pkg/handler3
 k8s.io/kube-openapi/pkg/internal
+k8s.io/kube-openapi/pkg/internal/handler
 k8s.io/kube-openapi/pkg/internal/third_party/go-json-experiment/json
 k8s.io/kube-openapi/pkg/openapiconv
 k8s.io/kube-openapi/pkg/schemaconv
@@ -2339,6 +2333,7 @@ sigs.k8s.io/yaml
 # k8s.io/kms => k8s.io/kms v0.26.10
 # k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.26.10
 # k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.26.10
+# k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280
 # k8s.io/kube-proxy => k8s.io/kube-proxy v0.26.10
 # k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.26.10
 # k8s.io/kubectl => k8s.io/kubectl v0.26.10
