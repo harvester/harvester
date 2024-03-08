@@ -23,7 +23,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/google/gnostic-models/compiler"
+	"github.com/google/gnostic/compiler"
 )
 
 // Version returns the package name (and OpenAPI version).
@@ -8560,7 +8560,12 @@ func (m *Strings) ToRawInfo() *yaml.Node {
 	if m == nil {
 		return info
 	}
-	// &{Name:additionalProperties Type:NamedString StringEnumValues:[] MapType:string Repeated:true Pattern: Implicit:true Description:}
+	if m.AdditionalProperties != nil {
+		for _, item := range m.AdditionalProperties {
+			info.Content = append(info.Content, compiler.NewScalarNodeForString(item.Name))
+			info.Content = append(info.Content, compiler.NewScalarNodeForString(item.Value))
+		}
+	}
 	return info
 }
 
