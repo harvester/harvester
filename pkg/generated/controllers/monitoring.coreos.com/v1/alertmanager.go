@@ -20,6 +20,7 @@ package v1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -263,10 +264,14 @@ func (c *alertmanagerCache) GetByIndex(indexName, key string) (result []*v1.Aler
 	return result, nil
 }
 
+// AlertmanagerStatusHandler is executed for every added or modified Alertmanager. Should return the new status to be updated
 type AlertmanagerStatusHandler func(obj *v1.Alertmanager, status v1.AlertmanagerStatus) (v1.AlertmanagerStatus, error)
 
+// AlertmanagerGeneratingHandler is the top-level handler that is executed for every Alertmanager event. It extends AlertmanagerStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type AlertmanagerGeneratingHandler func(obj *v1.Alertmanager, status v1.AlertmanagerStatus) ([]runtime.Object, v1.AlertmanagerStatus, error)
 
+// RegisterAlertmanagerStatusHandler configures a AlertmanagerController to execute a AlertmanagerStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterAlertmanagerStatusHandler(ctx context.Context, controller AlertmanagerController, condition condition.Cond, name string, handler AlertmanagerStatusHandler) {
 	statusHandler := &alertmanagerStatusHandler{
 		client:    controller,
@@ -276,6 +281,8 @@ func RegisterAlertmanagerStatusHandler(ctx context.Context, controller Alertmana
 	controller.AddGenericHandler(ctx, name, FromAlertmanagerHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterAlertmanagerGeneratingHandler configures a AlertmanagerController to execute a AlertmanagerGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterAlertmanagerGeneratingHandler(ctx context.Context, controller AlertmanagerController, apply apply.Apply,
 	condition condition.Cond, name string, handler AlertmanagerGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &alertmanagerGeneratingHandler{
@@ -297,6 +304,7 @@ type alertmanagerStatusHandler struct {
 	handler   AlertmanagerStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *alertmanagerStatusHandler) sync(key string, obj *v1.Alertmanager) (*v1.Alertmanager, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +350,10 @@ type alertmanagerGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *alertmanagerGeneratingHandler) Remove(key string, obj *v1.Alertmanager) (*v1.Alertmanager, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +363,17 @@ func (a *alertmanagerGeneratingHandler) Remove(key string, obj *v1.Alertmanager)
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured AlertmanagerGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *alertmanagerGeneratingHandler) Handle(obj *v1.Alertmanager, status v1.AlertmanagerStatus) (v1.AlertmanagerStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +383,41 @@ func (a *alertmanagerGeneratingHandler) Handle(obj *v1.Alertmanager, status v1.A
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *alertmanagerGeneratingHandler) isNewResourceVersion(obj *v1.Alertmanager) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *alertmanagerGeneratingHandler) storeResourceVersion(obj *v1.Alertmanager) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }
