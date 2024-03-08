@@ -138,13 +138,13 @@ func getNamespace(name string) *corev1.Namespace {
 		},
 	}
 	if name == namespaceBothExist {
-		str, _ := serializeNamespaceResourceQuota(bothExist)
+		str, _ := serializeNamespaceResourceQuota(bothExist) //nolint
 		ns.Annotations = map[string]string{util.CattleAnnotationResourceQuota: str}
 	} else if name == namespaceCPUExist {
-		str, _ := serializeNamespaceResourceQuota(cpuExist)
+		str, _ := serializeNamespaceResourceQuota(cpuExist) //nolint
 		ns.Annotations = map[string]string{util.CattleAnnotationResourceQuota: str}
 	} else if name == namespaceMemoryExist {
-		str, _ := serializeNamespaceResourceQuota(memoryExist)
+		str, _ := serializeNamespaceResourceQuota(memoryExist) //nolint
 		ns.Annotations = map[string]string{util.CattleAnnotationResourceQuota: str}
 	}
 
