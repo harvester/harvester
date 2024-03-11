@@ -238,6 +238,22 @@ func prepareClusterFlow(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.ClusterFl
 						ContainerNames: []string{"upgrade"},
 					},
 				},
+				{
+					ClusterSelect: &loggingv1.ClusterSelect{
+						Labels: map[string]string{
+							"app": "fleet-controller",
+						},
+						Namespaces: []string{"cattle-fleet-system"},
+					},
+				},
+				{
+					ClusterSelect: &loggingv1.ClusterSelect{
+						Labels: map[string]string{
+							"app": "fleet-agent",
+						},
+						Namespaces: []string{"cattle-fleet-local-system"},
+					},
+				},
 			},
 			GlobalOutputRefs: []string{name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOutputComponent)},
 		},
