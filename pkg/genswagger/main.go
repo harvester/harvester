@@ -128,7 +128,7 @@ func clearNonArrayUniqueItems(swagger *spec3.OpenAPI) {
 	}
 }
 
-func findMatchingOperation(route *restful.Route, path *spec3.Path) (op *spec3.Operation, err error) {
+func findMatchingOperation(route restful.Route, path *spec3.Path) (op *spec3.Operation, err error) {
 	switch route.Method {
 	case "GET":
 		op = path.Get
@@ -232,7 +232,7 @@ func addValidationToAllParameters(swagger *spec3.OpenAPI, webServices []*restful
 				if path == nil {
 					log.Panicf("webServices path `%s` not found in generated *spec3.OpenAPI", route.Path)
 				}
-				op, err := findMatchingOperation(&route, path)
+				op, err := findMatchingOperation(route, path)
 				if err != nil {
 					return err
 				}
