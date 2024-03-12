@@ -22,7 +22,7 @@ dependencies:
   version: 0.4.2
 - name: harvester-load-balancer
   repository: https://charts.harvesterhci.io
-  version: 0.2.0
+  version: 0.2.5
 - name: whereabouts
   repository: file://dependency_charts/whereabouts
   version: 0.1.1
