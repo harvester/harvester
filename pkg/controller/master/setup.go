@@ -9,6 +9,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/master/addon"
 	"github.com/harvester/harvester/pkg/controller/master/backup"
+	"github.com/harvester/harvester/pkg/controller/master/event"
 	"github.com/harvester/harvester/pkg/controller/master/image"
 	"github.com/harvester/harvester/pkg/controller/master/keypair"
 	"github.com/harvester/harvester/pkg/controller/master/machine"
@@ -53,6 +54,7 @@ var registerFuncs = []registerFunc{
 	storagenetwork.Register,
 	nodedrain.Register,
 	mcmsettings.Register,
+	event.Register,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {
