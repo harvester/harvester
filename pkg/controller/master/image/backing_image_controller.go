@@ -6,6 +6,7 @@ import (
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/norman/condition"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -43,6 +44,11 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.Backin
 	toUpdate := vmImage.DeepCopy()
 	for _, status := range backingImage.Status.DiskFileStatusMap {
 		if status.State == lhv1beta2.BackingImageStateFailed {
+			if backingImage.Spec.Checksum != "" && backingImage.Status.Checksum != "" &&
+				backingImage.Spec.Checksum != backingImage.Status.Checksum {
+				logrus.Errorf("checksum mismatch detected for image '%s/%s', retrying is disabled to prevent further errors", toUpdate.Namespace, toUpdate.Name)
+				toUpdate.Spec.Retry = 0
+			}
 			toUpdate = handleFail(toUpdate, condition.Cond(harvesterv1beta1.ImageImported), fmt.Errorf(status.Message))
 			toUpdate.Status.Progress = status.Progress
 		} else if status.State == lhv1beta2.BackingImageStateReady || status.State == lhv1beta2.BackingImageStateReadyForTransfer {
