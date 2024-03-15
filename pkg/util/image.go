@@ -13,8 +13,14 @@ import (
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 )
 
+const backingimagePrefix = "vmi"
+
 func backingImageLegacyName(image *harvesterv1.VirtualMachineImage) string {
 	return fmt.Sprintf("%s-%s", image.Namespace, image.Name)
+}
+
+func backingImageName(image *harvesterv1.VirtualMachineImage) string {
+	return fmt.Sprintf("%s-%s", backingimagePrefix, image.UID)
 }
 
 func GetBackingImage(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (*v1beta2.BackingImage, error) {
@@ -27,7 +33,7 @@ func GetBackingImage(backingImageCache ctllhv1.BackingImageCache, image *harvest
 		return nil, err
 	}
 
-	rectifyName := lhutil.AutoCorrectName(backingImageLegacyName(image), lhdatastore.NameMaximumLength)
+	rectifyName := lhutil.AutoCorrectName(backingImageName(image), lhdatastore.NameMaximumLength)
 	return backingImageCache.Get(LonghornSystemNamespaceName, rectifyName)
 }
 
@@ -41,7 +47,7 @@ func GetBackingImageName(backingImageCache ctllhv1.BackingImageCache, image *har
 		return "", err
 	}
 
-	return lhutil.AutoCorrectName(backingImageLegacyName(image), lhdatastore.NameMaximumLength), nil
+	return lhutil.AutoCorrectName(backingImageName(image), lhdatastore.NameMaximumLength), nil
 }
 
 func GetBackingImageDataSourceName(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (string, error) {
