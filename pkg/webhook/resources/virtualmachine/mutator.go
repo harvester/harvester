@@ -55,7 +55,7 @@ func (m *vmMutator) Resource() types.Resource {
 	}
 }
 
-func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types.PatchOps, error) {
+func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
 	vm := newObj.(*kubevirtv1.VirtualMachine)
 
 	logrus.Debugf("create VM %s/%s", vm.Namespace, vm.Name)
@@ -78,7 +78,7 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 	return patchOps, nil
 }
 
-func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
+func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
 	newVM := newObj.(*kubevirtv1.VirtualMachine)
 	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 
@@ -173,6 +173,12 @@ func needUpdateResourceOvercommit(oldVM, newVM *kubevirtv1.VirtualMachine) bool 
 	if newReservedMemory != oldReservedMemory {
 		return true
 	}
+
+	// if host devices or GPUs are added or removed then resource update is needed
+	if len(newVM.Spec.Template.Spec.Domain.Devices.HostDevices) != len(oldVM.Spec.Template.Spec.Domain.Devices.HostDevices) || len(newVM.Spec.Template.Spec.Domain.Devices.GPUs) != len(oldVM.Spec.Template.Spec.Domain.Devices.GPUs) {
+		return true
+	}
+
 	return false
 }
 
@@ -198,31 +204,11 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 		}
 	}
 	if !mem.IsZero() {
-		// Truncate to MiB
-		newRequest := mem.Value() * int64(100) / int64(overcommit.Memory) / 1048576 * 1048576
-		quantity := resource.NewQuantity(newRequest, mem.Format)
-		if requestsMissing {
-			requestsToMutate[v1.ResourceMemory] = *quantity
-		} else {
-			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "%s"}`, quantity))
+		memPatch, err := generateMemoryPatch(vm, mem, overcommit, requestsMissing, requestsToMutate)
+		if err != nil {
+			return patchOps, err
 		}
-		// Reserve 100MiB (104857600 Bytes) for QEMU on guest memory
-		// Ref: https://github.com/harvester/harvester/issues/1234
-		// TODO: handle hugepage memory
-		reservedMemory := *resource.NewQuantity(104857600, resource.BinarySI)
-		if vm.Annotations != nil && vm.Annotations[util.AnnotationReservedMemory] != "" {
-			reservedMemory, err = resource.ParseQuantity(vm.Annotations[util.AnnotationReservedMemory])
-			if err != nil {
-				return patchOps, err
-			}
-		}
-		guestMemory := *mem
-		guestMemory.Sub(reservedMemory)
-		if vm.Spec.Template.Spec.Domain.Memory == nil {
-			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"%s"}}`, &guestMemory))
-		} else {
-			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, &guestMemory))
-		}
+		patchOps = append(patchOps, memPatch...)
 	}
 	if len(requestsToMutate) > 0 {
 		bytes, err := json.Marshal(requestsToMutate)
@@ -231,6 +217,48 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 		}
 		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": %s}`, string(bytes)))
 	}
+	return patchOps, nil
+}
+
+func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, overcommit *settings.Overcommit, requestsMissing bool, requestsToMutate v1.ResourceList) (types.PatchOps, error) {
+	// Truncate to MiB
+	var patchOps types.PatchOps
+	var err error
+	newRequest := mem.Value() * int64(100) / int64(overcommit.Memory) / 1048576 * 1048576
+	quantity := resource.NewQuantity(newRequest, mem.Format)
+
+	// Reserve 100MiB (104857600 Bytes) for QEMU on guest memory
+	// Ref: https://github.com/harvester/harvester/issues/1234
+	// TODO: handle hugepage memory
+	reservedMemory := *resource.NewQuantity(104857600, resource.BinarySI)
+	if vm.Annotations != nil && vm.Annotations[util.AnnotationReservedMemory] != "" {
+		reservedMemory, err = resource.ParseQuantity(vm.Annotations[util.AnnotationReservedMemory])
+		if err != nil {
+			return patchOps, err
+		}
+	}
+	guestMemory := *mem
+	guestMemory.Sub(reservedMemory)
+
+	// Needed to avoid issue due to overcommit when GPU or HostDevices are passed to a VM.
+	// Addresses issue: https://github.com/kubevirt/kubevirt/issues/10379
+	// This condition can be removed once a fix is available upstream
+	if hostDevicesPresent(vm) {
+		guestMemory.DeepCopyInto(quantity)
+	}
+
+	if requestsMissing {
+		requestsToMutate[v1.ResourceMemory] = *quantity
+	} else {
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "%s"}`, quantity))
+	}
+
+	if vm.Spec.Template.Spec.Domain.Memory == nil {
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"%s"}}`, &guestMemory))
+	} else {
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, &guestMemory))
+	}
+
 	return patchOps, nil
 }
 
@@ -413,4 +441,16 @@ func (m *vmMutator) patchTerminationGracePeriodSeconds(vm *kubevirtv1.VirtualMac
 
 	patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/terminationGracePeriodSeconds", "value": %s}`, value))
 	return patchOps, nil
+}
+
+func hostDevicesPresent(vm *kubevirtv1.VirtualMachine) bool {
+	if len(vm.Spec.Template.Spec.Domain.Devices.HostDevices) > 0 {
+		return true
+	}
+
+	if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
+		return true
+	}
+
+	return false
 }
