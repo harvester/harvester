@@ -315,11 +315,18 @@ func (h *vmImageHandler) handleRetry(image *harvesterv1.VirtualMachineImage) (*h
 func handleFail(image *harvesterv1.VirtualMachineImage, cond condition.Cond, err error) *harvesterv1.VirtualMachineImage {
 	image.Status.Failed++
 	image.Status.LastFailedTime = time.Now().Format(time.RFC3339)
+	errMsg := fmt.Sprintf("failed due to error: %s", err.Error())
+	if image.Status.Failed > 1 {
+		errMsg = fmt.Sprintf("retry attempted %d/%d %s", image.Status.Failed-1, image.Spec.Retry, errMsg)
+	}
 	if image.Status.Failed > image.Spec.Retry {
 		harvesterv1.ImageRetryLimitExceeded.True(image)
-		harvesterv1.ImageRetryLimitExceeded.Message(image, "VMImage has reached the specified retry limit")
+		harvesterv1.ImageRetryLimitExceeded.Message(image, errMsg)
 		cond.False(image)
-		cond.Message(image, err.Error())
+		cond.Message(image, errMsg)
+	} else {
+		harvesterv1.ImageRetryLimitExceeded.False(image)
+		harvesterv1.ImageRetryLimitExceeded.Message(image, errMsg)
 	}
 	return image
 }
