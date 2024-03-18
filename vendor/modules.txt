@@ -892,8 +892,8 @@ github.com/rancher/steve/pkg/stores/metrics
 github.com/rancher/steve/pkg/stores/partition
 github.com/rancher/steve/pkg/stores/proxy
 github.com/rancher/steve/pkg/summarycache
-# github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210727200656-10b094e30007
-## explicit; go 1.14
+# github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20230803010539-04a0b9ef5858
+## explicit; go 1.19
 github.com/rancher/system-upgrade-controller/pkg/apis/condition
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io
 github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1
