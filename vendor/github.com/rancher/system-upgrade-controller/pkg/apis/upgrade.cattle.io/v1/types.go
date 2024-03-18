@@ -15,6 +15,8 @@ import (
 var (
 	// PlanLatestResolved indicates that the latest version as per the spec has been determined.
 	PlanLatestResolved = condition.Cond("LatestResolved")
+	// PlanSpecValidated indicates that the plan spec has been validated.
+	PlanSpecValidated = condition.Cond("Validated")
 )
 
 // +genclient
@@ -31,9 +33,10 @@ type Plan struct {
 
 // PlanSpec represents the user-configurable details of a Plan.
 type PlanSpec struct {
-	Concurrency        int64                 `json:"concurrency,omitempty"`
-	NodeSelector       *metav1.LabelSelector `json:"nodeSelector,omitempty"`
-	ServiceAccountName string                `json:"serviceAccountName,omitempty"`
+	Concurrency           int64                 `json:"concurrency,omitempty"`
+	JobActiveDeadlineSecs int64                 `json:"jobActiveDeadlineSecs,omitempty"`
+	NodeSelector          *metav1.LabelSelector `json:"nodeSelector,omitempty"`
+	ServiceAccountName    string                `json:"serviceAccountName,omitempty"`
 
 	Channel string       `json:"channel,omitempty"`
 	Version string       `json:"version,omitempty"`
@@ -62,17 +65,26 @@ type ContainerSpec struct {
 	Args    []string               `json:"args,omitempty"`
 	Env     []corev1.EnvVar        `json:"envs,omitempty"`
 	EnvFrom []corev1.EnvFromSource `json:"envFrom,omitempty"`
+	Volumes []VolumeSpec           `json:"volumes,omitempty"`
+}
+
+type VolumeSpec struct {
+	Name        string `json:"name,omitempty"`
+	Source      string `json:"source,omitempty"`
+	Destination string `json:"destination,omitempty"`
 }
 
 // DrainSpec encapsulates `kubectl drain` parameters minus node/pod selectors.
 type DrainSpec struct {
-	Timeout                  *time.Duration `json:"timeout,omitempty"`
-	GracePeriod              *int32         `json:"gracePeriod,omitempty"`
-	DeleteLocalData          *bool          `json:"deleteLocalData,omitempty"`
-	IgnoreDaemonSets         *bool          `json:"ignoreDaemonSets,omitempty"`
-	Force                    bool           `json:"force,omitempty"`
-	DisableEviction          bool           `json:"disableEviction,omitempty"`
-	SkipWaitForDeleteTimeout int            `json:"skipWaitForDeleteTimeout,omitempty"`
+	Timeout                  *time.Duration        `json:"timeout,omitempty"`
+	GracePeriod              *int32                `json:"gracePeriod,omitempty"`
+	DeleteLocalData          *bool                 `json:"deleteLocalData,omitempty"`
+	DeleteEmptydirData       *bool                 `json:"deleteEmptydirData,omitempty"`
+	IgnoreDaemonSets         *bool                 `json:"ignoreDaemonSets,omitempty"`
+	Force                    bool                  `json:"force,omitempty"`
+	DisableEviction          bool                  `json:"disableEviction,omitempty"`
+	SkipWaitForDeleteTimeout int                   `json:"skipWaitForDeleteTimeout,omitempty"`
+	PodSelector              *metav1.LabelSelector `json:"podSelector,omitempty"`
 }
 
 // SecretSpec describes a secret to be mounted for prepare/upgrade containers.
