@@ -7,10 +7,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	"github.com/harvester/harvester/pkg/config"
-	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1alpha4"
+	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -26,7 +26,7 @@ type nodeRemoveHandler struct {
 // RemoveRegister registers a controller to remove machine when node is removed
 func RemoveRegister(ctx context.Context, management *config.Management, _ config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
-	machineClient := management.ClusterFactory.Cluster().V1alpha4().Machine()
+	machineClient := management.ClusterFactory.Cluster().V1beta1().Machine()
 	handler := &nodeRemoveHandler{
 		machineClient: machineClient,
 	}
