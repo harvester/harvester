@@ -84,7 +84,7 @@ require (
 	github.com/rancher/rancher v0.0.0-20230124173128-2207cfed1803
 	github.com/rancher/rancher/pkg/apis v0.0.0
 	github.com/rancher/steve v0.0.0-20221209194631-acf9d31ce0dd
-	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210727200656-10b094e30007
+	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20230803010539-04a0b9ef5858
 	github.com/rancher/wrangler v1.1.1
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.2
