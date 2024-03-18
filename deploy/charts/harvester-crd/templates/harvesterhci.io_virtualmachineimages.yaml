@@ -26,6 +26,9 @@ spec:
     - jsonPath: .status.size
       name: SIZE
       type: integer
+    - jsonPath: .status.virtualSize
+      name: VIRTUALSIZE
+      type: integer
     - jsonPath: .metadata.creationTimestamp
       name: AGE
       type: date
@@ -123,6 +126,9 @@ spec:
                 type: integer
               storageClassName:
                 type: string
+              virtualSize:
+                format: int64
+                type: integer
             type: object
         required:
         - spec
