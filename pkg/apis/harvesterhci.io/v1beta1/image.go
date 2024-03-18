@@ -17,6 +17,7 @@ var (
 // +kubebuilder:resource:shortName=vmimage;vmimages,scope=Namespaced
 // +kubebuilder:printcolumn:name="DISPLAY-NAME",type=string,JSONPath=`.spec.displayName`
 // +kubebuilder:printcolumn:name="SIZE",type=integer,JSONPath=`.status.size`
+// +kubebuilder:printcolumn:name="VIRTUALSIZE",type=integer,JSONPath=`.status.virtualSize`
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`
 
 type VirtualMachineImage struct {
@@ -79,6 +80,9 @@ type VirtualMachineImageStatus struct {
 
 	// +optional
 	Size int64 `json:"size,omitempty"`
+
+	// +optional
+	VirtualSize int64 `json:"virtualSize,omitempty"`
 
 	// +optional
 	StorageClassName string `json:"storageClassName,omitempty"`

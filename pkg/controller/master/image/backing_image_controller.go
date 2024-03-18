@@ -37,7 +37,26 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.Backin
 	} else if err != nil {
 		return nil, err
 	}
-	if !harvesterv1beta1.ImageInitialized.IsTrue(vmImage) || !harvesterv1beta1.ImageImported.IsUnknown(vmImage) {
+	// There are two states that we care about here:
+	// - ImageInitialized
+	// - ImageImported
+	// If ImageInitialized isn't yet true, it means there's no backing
+	// image or storage class, so we've got nothing to work with yet and
+	// should return immediately.
+	if !harvesterv1beta1.ImageInitialized.IsTrue(vmImage) {
+		return nil, nil
+	}
+	// If ImageImported is not unknown, it means the backing image has
+	// been imported, and we think we know everything about it, i.e. we've
+	// now been through a series of progress updates during image download,
+	// and those are finally done, so let's not worry about further updates.
+	// The problem with this logic is that when we add new fields (e.g.
+	// VirtualSize), existing images won't pick up those newly added fields
+	// if we return here immediately.  So, now there's an additional check
+	// for that new field.  Another, simpler, alternative would be to just
+	// drop the ImageImported.IsUnknown check entirely, and let the following
+	// loop run through on every OnChanged event.
+	if !harvesterv1beta1.ImageImported.IsUnknown(vmImage) && vmImage.Status.VirtualSize == backingImage.Status.VirtualSize {
 		return nil, nil
 	}
 	toUpdate := vmImage.DeepCopy()
@@ -46,11 +65,16 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.Backin
 			toUpdate = handleFail(toUpdate, condition.Cond(harvesterv1beta1.ImageImported), fmt.Errorf(status.Message))
 			toUpdate.Status.Progress = status.Progress
 		} else if status.State == lhv1beta2.BackingImageStateReady || status.State == lhv1beta2.BackingImageStateReadyForTransfer {
-			harvesterv1beta1.ImageImported.True(toUpdate)
-			harvesterv1beta1.ImageImported.Reason(toUpdate, "Imported")
-			harvesterv1beta1.ImageImported.Message(toUpdate, status.Message)
 			toUpdate.Status.Progress = status.Progress
 			toUpdate.Status.Size = backingImage.Status.Size
+			toUpdate.Status.VirtualSize = backingImage.Status.VirtualSize
+			if toUpdate.Status.VirtualSize > 0 {
+				// We can't set ImageImported to True until we know the VirtualSize,
+				// which may happen one update after the image becomes ready.
+				harvesterv1beta1.ImageImported.True(toUpdate)
+				harvesterv1beta1.ImageImported.Reason(toUpdate, "Imported")
+				harvesterv1beta1.ImageImported.Message(toUpdate, status.Message)
+			}
 		} else if status.Progress != toUpdate.Status.Progress {
 			harvesterv1beta1.ImageImported.Unknown(toUpdate)
 			harvesterv1beta1.ImageImported.Reason(toUpdate, "Importing")

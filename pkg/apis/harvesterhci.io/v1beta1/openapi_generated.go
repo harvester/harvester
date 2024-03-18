@@ -3967,6 +3967,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageStatus(ref common
 							Format: "int64",
 						},
 					},
+					"virtualSize": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
 					"storageClassName": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
