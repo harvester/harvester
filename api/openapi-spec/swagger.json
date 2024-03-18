@@ -8698,6 +8698,15 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.ContainerDiskInfo": {
+      "type": "object",
+      "properties": {
+        "checksum": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
     "kubevirt.io.api.core.v1.ContainerDiskSource": {
       "type": "object",
       "required": [
@@ -9391,6 +9400,15 @@
         }
       }
     },
+    "kubevirt.io.api.core.v1.InitrdInfo": {
+      "type": "object",
+      "properties": {
+        "checksum": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
     "kubevirt.io.api.core.v1.Input": {
       "type": "object",
       "required": [
@@ -9560,6 +9578,26 @@
         },
         "kernelPath": {
           "type": "string"
+        }
+      }
+    },
+    "kubevirt.io.api.core.v1.KernelBootStatus": {
+      "type": "object",
+      "properties": {
+        "initrdInfo": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.InitrdInfo"
+        },
+        "kernelInfo": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.KernelInfo"
+        }
+      }
+    },
+    "kubevirt.io.api.core.v1.KernelInfo": {
+      "type": "object",
+      "properties": {
+        "checksum": {
+          "type": "integer",
+          "format": "int64"
         }
       }
     },
@@ -10805,6 +10843,9 @@
             "$ref": "#/definitions/kubevirt.io.api.core.v1.VirtualMachineInstanceNetworkInterface"
           }
         },
+        "kernelBootStatus": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.KernelBootStatus"
+        },
         "launcherContainerImageVersion": {
           "type": "string"
         },
@@ -11167,6 +11208,9 @@
         "target"
       ],
       "properties": {
+        "containerDiskVolume": {
+          "$ref": "#/definitions/kubevirt.io.api.core.v1.ContainerDiskInfo"
+        },
         "hotplugVolume": {
           "$ref": "#/definitions/kubevirt.io.api.core.v1.HotplugVolumeStatus"
         },
