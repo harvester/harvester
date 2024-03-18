@@ -23,6 +23,8 @@ const (
 
 	// keep jobs for 7 days
 	defaultTTLSecondsAfterFinished = 604800
+	// Give up to an hour for slower hardware to preload images.
+	defaultPrepareDeadlineSeconds = 3600
 )
 
 func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {
@@ -159,8 +161,9 @@ func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
 			},
 		},
 		Spec: upgradev1.PlanSpec{
-			Concurrency: int64(1),
-			Version:     planVersion,
+			Concurrency:           int64(1),
+			JobActiveDeadlineSecs: defaultPrepareDeadlineSeconds,
+			Version:               planVersion,
 			NodeSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					harvesterManagedLabel: "true",
