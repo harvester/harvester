@@ -6,6 +6,12 @@ const (
 	// AnnotationTTLSecondsAfterFinished is used to store a fallback value for job.spec.ttlSecondsAfterFinished
 	AnnotationTTLSecondsAfterFinished = GroupName + `/ttl-seconds-after-finished`
 
+	// AnnotationIncludeInDigest is used to determine parts of the plan to include in the hash for upgrading
+	// The value should be a comma-delimited string corresponding to the sections of the plan.
+	// For example, a value of "spec.concurrency,spec.upgrade.envs" will include
+	// spec.concurrency and spec.upgrade.envs from the plan in the hash to track for upgrades.
+	AnnotationIncludeInDigest = GroupName + `/digest`
+
 	// LabelController is the name of the upgrade controller.
 	LabelController = GroupName + `/controller`
 
