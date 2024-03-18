@@ -71,6 +71,12 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.Backin
 			harvesterv1beta1.ImageImported.True(toUpdate)
 			harvesterv1beta1.ImageImported.Reason(toUpdate, "Imported")
 			harvesterv1beta1.ImageImported.Message(toUpdate, status.Message)
+			// Clear the ImageRetryLimitExceeded reason and message to prevent the error message
+			// from lingering in the Harvester dashboard after multiple image import retries
+			// have failed but eventually succeeded.
+			harvesterv1beta1.ImageRetryLimitExceeded.False(toUpdate)
+			harvesterv1beta1.ImageRetryLimitExceeded.Reason(toUpdate, "")
+			harvesterv1beta1.ImageRetryLimitExceeded.Message(toUpdate, "")
 			toUpdate.Status.Progress = status.Progress
 			toUpdate.Status.Size = backingImage.Status.Size
 			toUpdate.Status.VirtualSize = backingImage.Status.VirtualSize
