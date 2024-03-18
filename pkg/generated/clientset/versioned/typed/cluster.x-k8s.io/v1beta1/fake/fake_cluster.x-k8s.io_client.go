@@ -19,26 +19,26 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha4 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1alpha4"
+	v1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeClusterV1alpha4 struct {
+type FakeClusterV1beta1 struct {
 	*testing.Fake
 }
 
-func (c *FakeClusterV1alpha4) Clusters(namespace string) v1alpha4.ClusterInterface {
+func (c *FakeClusterV1beta1) Clusters(namespace string) v1beta1.ClusterInterface {
 	return &FakeClusters{c, namespace}
 }
 
-func (c *FakeClusterV1alpha4) Machines(namespace string) v1alpha4.MachineInterface {
+func (c *FakeClusterV1beta1) Machines(namespace string) v1beta1.MachineInterface {
 	return &FakeMachines{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeClusterV1alpha4) RESTClient() rest.Interface {
+func (c *FakeClusterV1beta1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }
