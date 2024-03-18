@@ -21,11 +21,11 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 	kubeletconfigv1 "k8s.io/kubelet/config/v1beta1"
 	kubeletstatsv1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
-	clusterv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
-	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1alpha4"
+	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -157,7 +157,7 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
 		return werror.NewInternalError(fmt.Sprintf("can't find %s/%s cluster, err: %+v", util.FleetLocalNamespaceName, util.LocalClusterName, err))
 	}
 
-	if cluster.Status.Phase != string(clusterv1alpha4.ClusterPhaseProvisioned) {
+	if cluster.Status.Phase != string(clusterv1.ClusterPhaseProvisioned) {
 		return werror.NewBadRequest(fmt.Sprintf("cluster %s/%s status is %s, please wait for it to be provisioned", util.FleetLocalNamespaceName, util.LocalClusterName, cluster.Status.Phase))
 	}
 
@@ -313,7 +313,7 @@ func (v *upgradeValidator) checkMachines() error {
 	}
 
 	for _, machine := range machines {
-		if machine.Status.GetTypedPhase() != clusterv1alpha4.MachinePhaseRunning {
+		if machine.Status.GetTypedPhase() != clusterv1.MachinePhaseRunning {
 			return werror.NewInternalError(fmt.Sprintf("machine %s/%s is not running", machine.Namespace, machine.Name))
 		}
 	}
@@ -396,7 +396,7 @@ func (v *upgradeValidator) Delete(_ *types.Request, oldObj runtime.Object) error
 		return werror.NewInternalError(fmt.Sprintf("can't find %s/%s cluster, err: %+v", util.FleetLocalNamespaceName, util.LocalClusterName, err))
 	}
 
-	if cluster.Status.Phase == string(clusterv1alpha4.ClusterPhaseProvisioning) {
+	if cluster.Status.Phase == string(clusterv1.ClusterPhaseProvisioning) {
 		return werror.NewBadRequest(fmt.Sprintf("cluster %s/%s status is provisioning, please wait for it to be provisioned", util.FleetLocalNamespaceName, util.LocalClusterName))
 	}
 
