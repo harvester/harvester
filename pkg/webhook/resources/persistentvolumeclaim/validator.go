@@ -10,23 +10,30 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
+	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewValidator(pvcCache v1.PersistentVolumeClaimCache, vmCache ctlkv1.VirtualMachineCache) types.Validator {
+func NewValidator(pvcCache v1.PersistentVolumeClaimCache,
+	vmCache ctlkv1.VirtualMachineCache,
+	imageCache ctlharvesterv1.VirtualMachineImageCache) types.Validator {
 	return &pvcValidator{
-		pvcCache: pvcCache,
-		vmCache:  vmCache,
+		pvcCache:   pvcCache,
+		vmCache:    vmCache,
+		imageCache: imageCache,
 	}
 }
 
 type pvcValidator struct {
 	types.DefaultValidator
-	pvcCache v1.PersistentVolumeClaimCache
-	vmCache  ctlkv1.VirtualMachineCache
+	pvcCache   v1.PersistentVolumeClaimCache
+	vmCache    ctlkv1.VirtualMachineCache
+	imageCache ctlharvesterv1.VirtualMachineImageCache
 }
 
 func (v *pvcValidator) Resource() types.Resource {
@@ -63,6 +70,20 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 	pvc, err := v.pvcCache.Get(oldPVC.Namespace, oldPVC.Name)
 	if err != nil {
 		return werror.NewInvalidError(err.Error(), "metadata.name")
+	}
+
+	images, err := v.imageCache.GetByIndex(indexeres.ImageByExportSourcePVCIndex,
+		fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name))
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	for _, image := range images {
+		if !harvesterv1beta1.ImageImported.IsTrue(image) {
+			message := fmt.Sprintf("can not delete volume %s which is exporting for image %s/%s",
+				pvc.Name, image.Namespace, image.Name)
+			return werror.NewInvalidError(message, "value")
+		}
 	}
 
 	annotationSchemaOwners, err := ref.GetSchemaOwnersFromAnnotation(pvc)
