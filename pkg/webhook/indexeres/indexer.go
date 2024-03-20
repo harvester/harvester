@@ -8,7 +8,7 @@ import (
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/indexeres"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 )
 
@@ -31,13 +31,16 @@ func RegisterIndexers(clients *clients.Clients) {
 	vmRestoreCache.AddIndexer(VMRestoreByVMBackupNamespaceAndName, vmRestoreByVMBackupNamespaceAndName)
 
 	podCache := clients.CoreFactory.Core().V1().Pod().Cache()
-	podCache.AddIndexer(indexeres.PodByVMNameIndex, indexeres.PodByVMName)
+	podCache.AddIndexer(indexeresutil.PodByVMNameIndex, indexeresutil.PodByVMName)
 
 	volumeCache := clients.LonghornFactory.Longhorn().V1beta2().Volume().Cache()
 	volumeCache.AddIndexer(VolumeByReplicaCountIndex, VolumeByReplicaCount)
 
 	vmImageInformer := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()
 	vmImageInformer.AddIndexer(ImageByExportSourcePVCIndex, imageByExportSourcePVC)
+
+	vmInformer := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
+	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
