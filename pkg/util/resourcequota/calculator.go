@@ -2,7 +2,6 @@ package resourcequota
 
 import (
 	"encoding/json"
-	"fmt"
 	"runtime"
 
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
@@ -16,8 +15,9 @@ import (
 
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/indexeres"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 )
 
 var resourceQuotaConversion = map[string]string{
@@ -207,7 +207,7 @@ func (c *Calculator) getRunningVMIMResources(rq *corev1.ResourceQuota) (cpu, mem
 }
 
 func (c *Calculator) getVMPods(namespace, vmName string) ([]*corev1.Pod, error) {
-	return c.podCache.GetByIndex(indexeres.PodByVMNameIndex, fmt.Sprintf("%s/%s", namespace, vmName))
+	return c.podCache.GetByIndex(indexeresutil.PodByVMNameIndex, ref.Construct(namespace, vmName))
 }
 
 func convertNamespaceResourceLimitToResourceList(limit *v3.ResourceQuotaLimit) (corev1.ResourceList, error) {

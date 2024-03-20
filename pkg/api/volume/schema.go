@@ -28,6 +28,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		snapshots:   scaled.SnapshotFactory.Snapshot().V1().VolumeSnapshot(),
 		volumes:     scaled.LonghornFactory.Longhorn().V1beta2().Volume(),
 		volumeCache: scaled.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
+		vmCache:     scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 	}
 
 	t := schema.Template{

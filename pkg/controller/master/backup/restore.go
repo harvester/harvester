@@ -35,7 +35,6 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -43,7 +42,6 @@ import (
 var (
 	restoreAnnotationsToDelete = []string{
 		"pv.kubernetes.io",
-		ref.AnnotationSchemaOwnerKeyName,
 	}
 )
 
