@@ -9,21 +9,18 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/steve/pkg/server"
 	corev1 "k8s.io/api/core/v1"
-	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 )
 
 const (
-	PVCByVMIndex                       = "harvesterhci.io/pvc-by-vm-index"
 	PVCByDataSourceVolumeSnapshotIndex = "harvesterhci.io/pvc-by-data-source-volume-snapshot"
 	VMByNetworkIndex                   = "vm.harvesterhci.io/vm-by-network"
 	PodByNodeNameIndex                 = "harvesterhci.io/pod-by-nodename"
 	PodByPVCIndex                      = "harvesterhci.io/pod-by-pvc"
-	PodByVMNameIndex                   = "harvesterhci.io/pod-by-vmname"
 	VolumeByNodeIndex                  = "harvesterhci.io/volume-by-node"
 	VMBackupBySourceVMUIDIndex         = "harvesterhci.io/vmbackup-by-source-vm-uid"
 	VMBackupBySourceVMNameIndex        = "harvesterhci.io/vmbackup-by-source-vm-name"
@@ -36,13 +33,12 @@ func Setup(ctx context.Context, _ *server.Server, _ *server.Controllers, _ confi
 	management := scaled.Management
 
 	pvcInformer := management.CoreFactory.Core().V1().PersistentVolumeClaim().Cache()
-	pvcInformer.AddIndexer(PVCByVMIndex, pvcByVM)
 	pvcInformer.AddIndexer(PVCByDataSourceVolumeSnapshotIndex, pvcByDataSourceVolumeSnapshot)
 
 	podInformer := management.CoreFactory.Core().V1().Pod().Cache()
 	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
 	podInformer.AddIndexer(PodByPVCIndex, PodByPVC)
-	podInformer.AddIndexer(PodByVMNameIndex, PodByVMName)
+	podInformer.AddIndexer(indexeresutil.PodByVMNameIndex, indexeresutil.PodByVMName)
 
 	volumeInformer := management.LonghornFactory.Longhorn().V1beta2().Volume().Cache()
 	volumeInformer.AddIndexer(VolumeByNodeIndex, VolumeByNodeName)
@@ -56,27 +52,10 @@ func Setup(ctx context.Context, _ *server.Server, _ *server.Controllers, _ confi
 
 	vmTemplateVersionInformer := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache()
 	vmTemplateVersionInformer.AddIndexer(VMTemplateVersionByImageIDIndex, VMTemplateVersionByImageID)
+
+	vmInformer := management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
+	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
 	return nil
-}
-
-func pvcByVM(obj *corev1.PersistentVolumeClaim) ([]string, error) {
-	annotationSchemaOwners, err := ref.GetSchemaOwnersFromAnnotation(obj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get schema owners from PVC %s's annotation: %w", obj.Name, err)
-	}
-	return annotationSchemaOwners.List(kubevirtv1.VirtualMachineGroupVersionKind.GroupKind()), nil
-}
-
-func VMByNetwork(obj *kubevirtv1.VirtualMachine) ([]string, error) {
-	networks := obj.Spec.Template.Spec.Networks
-	networkNameList := make([]string, 0, len(networks))
-	for _, network := range networks {
-		if network.NetworkSource.Multus == nil {
-			continue
-		}
-		networkNameList = append(networkNameList, network.NetworkSource.Multus.NetworkName)
-	}
-	return networkNameList, nil
 }
 
 func PodByNodeName(obj *corev1.Pod) ([]string, error) {
@@ -91,14 +70,6 @@ func PodByPVC(obj *corev1.Pod) ([]string, error) {
 		}
 	}
 	return pvcNames, nil
-}
-
-func PodByVMName(obj *corev1.Pod) ([]string, error) {
-	vmName, ok := obj.Labels[util.LabelVMName]
-	if !ok {
-		return []string{}, nil
-	}
-	return []string{fmt.Sprintf("%s/%s", obj.Namespace, vmName)}, nil
 }
 
 func pvcByDataSourceVolumeSnapshot(obj *corev1.PersistentVolumeClaim) ([]string, error) {
