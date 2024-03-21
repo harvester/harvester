@@ -25,7 +25,9 @@ const (
 
 	// keep jobs for 7 days
 	defaultTTLSecondsAfterFinished = 604800
-	imageCleanupScript             = `
+	// Give up to an hour for slower hardware to preload images.
+	defaultPrepareDeadlineSeconds = 3600
+	imageCleanupScript            = `
 #!/usr/bin/env sh
 set -e
 
@@ -262,8 +264,9 @@ func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
 			},
 		},
 		Spec: upgradev1.PlanSpec{
-			Concurrency: int64(1),
-			Version:     planVersion,
+			Concurrency:           int64(1),
+			JobActiveDeadlineSecs: defaultPrepareDeadlineSeconds,
+			Version:               planVersion,
 			NodeSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					harvesterManagedLabel: "true",
@@ -779,6 +782,16 @@ func upgradeReference(upgrade *harvesterv1.Upgrade) metav1.OwnerReference {
 		UID:        upgrade.UID,
 		APIVersion: upgrade.APIVersion,
 	}
+}
+
+// removeItemFromSlice removes one element at index i from the slice. By
+// removing the element, it simply copies the last element in the slice to the
+// slot at index i and returns the same slice but excluding the last element.
+// That is to say, the order of elements in the slice might change, depending
+// on what element is going to be removed.
+func removeItemFromSlice(slice []string, i int) []string {
+	slice[i] = slice[len(slice)-1]
+	return slice[:len(slice)-1]
 }
 
 func difference(setA, setB map[string]bool) []string {

@@ -101,4 +101,6 @@ const (
 	RancherInternalServerURLSetting          = "internal-server-url"
 	APIServerURLKey                          = "apiServerURL"
 	APIServerCAKey                           = "apiServerCA"
+
+	RKEControlPlaneRoleLabel = "rke.cattle.io/control-plane-role"
 )
