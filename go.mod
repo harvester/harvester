@@ -22,7 +22,7 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.26.13
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.26.13
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.26.13
-	k8s.io/code-generator => k8s.io/code-generator v0.26.13 // TODO: update -> v0.29.2; see https://github.com/kubernetes/code-generator/compare/v0.26.13...v0.29.2
+	k8s.io/code-generator => k8s.io/code-generator v0.26.13
 	k8s.io/component-base => k8s.io/component-base v0.26.13
 	k8s.io/component-helpers => k8s.io/component-helpers v0.26.13
 	k8s.io/controller-manager => k8s.io/controller-manager v0.26.13

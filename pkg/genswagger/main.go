@@ -63,6 +63,13 @@ var kindToTagMappings = map[string]string{
 	"NetworkAttachmentDefinition":     "Networks",
 }
 
+var kindToParamSourceName = map[int]string{
+	restful.PathParameterKind:   "path",
+	restful.QueryParameterKind:  "query",
+	restful.BodyParameterKind:   "body",
+	restful.HeaderParameterKind: "header",
+}
+
 // Generate OpenAPI spec definitions for Harvester Resource
 func main() {
 	flag.Parse()
@@ -155,13 +162,6 @@ func findMatchingOperation(route restful.Route, path *spec3.Path) (op *spec3.Ope
 		err = fmt.Errorf("webServices path `%s %s` is missing from generated *spec3.OpenAPI", route.Method, route.Path)
 	}
 	return
-}
-
-var kindToParamSourceName = map[int]string{
-	restful.PathParameterKind:   "path",
-	restful.QueryParameterKind:  "query",
-	restful.BodyParameterKind:   "body",
-	restful.HeaderParameterKind: "header",
 }
 
 // find the corresponding spec3.Parameter in the path parameters or the operation parameters
@@ -346,7 +346,6 @@ func createConfig(webServices []*restful.WebService) *common.OpenAPIV3Config {
 }
 
 func addSummaryForMethods(swagger *spec3.OpenAPI) {
-	// t := reflect.TypeOf(new(spec3.Operation))
 	for _, path := range swagger.Paths.Paths {
 		if path == nil {
 			continue
