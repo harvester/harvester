@@ -242,7 +242,7 @@ spec:
       runStrategy: RerunOnFailure
       template:
         spec:
-          evictionStrategy: LiveMigrate
+          evictionStrategy: LiveMigrateIfPossible
           domain:
             features:
               acpi:
@@ -317,7 +317,7 @@ spec:
       runStrategy: RerunOnFailure
       template:
         spec:
-          evictionStrategy: LiveMigrate
+          evictionStrategy: LiveMigrateIfPossible
           domain:
             features:
               acpi:
@@ -385,7 +385,7 @@ spec:
       runStrategy: RerunOnFailure
       template:
         spec:
-          evictionStrategy: LiveMigrate
+          evictionStrategy: LiveMigrateIfPossible
           domain:
             features:
               acpi:
@@ -463,7 +463,7 @@ spec:
       runStrategy: RerunOnFailure
       template:
         spec:
-          evictionStrategy: LiveMigrate
+          evictionStrategy: LiveMigrateIfPossible
           domain:
             features:
               acpi:
