@@ -3,7 +3,7 @@ package resourcequota
 import "fmt"
 
 const (
-	ErrInsufficientResourcesFMT = "%s insufficient resources"
+	ErrInsufficientResourcesFMT = "%s insufficient resources due to resource quota"
 )
 
 type InsufficientResourceError struct {
@@ -26,6 +26,10 @@ func cpuInsufficientResourceError() error {
 
 func memInsufficientResourceError() error {
 	return newInsufficientResourceError("memory")
+}
+
+func storageInsufficientResourceError() error {
+	return newInsufficientResourceError("storage")
 }
 
 func IsInsufficientResourceError(err error) bool {
