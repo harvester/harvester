@@ -154,7 +154,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 	vmName := r.getVMName()
 	vmRun := true
 	var bootOrder uint = 1
-	evictionStrategy := kubevirtv1.EvictionStrategyLiveMigrate
+	evictionStrategy := kubevirtv1.EvictionStrategyLiveMigrateIfPossible
 
 	disk0Claim := fmt.Sprintf("%s-disk-0", vmName)
 	volumeMode := corev1.PersistentVolumeBlock
