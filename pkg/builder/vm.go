@@ -160,7 +160,7 @@ func (v *VMBuilder) CPU(cores int) *VMBuilder {
 
 func (v *VMBuilder) EvictionStrategy(liveMigrate bool) *VMBuilder {
 	if liveMigrate {
-		evictionStrategy := kubevirtv1.EvictionStrategyLiveMigrate
+		evictionStrategy := kubevirtv1.EvictionStrategyLiveMigrateIfPossible
 		v.VirtualMachine.Spec.Template.Spec.EvictionStrategy = &evictionStrategy
 	}
 	return v
