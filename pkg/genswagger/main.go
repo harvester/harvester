@@ -116,11 +116,12 @@ func clearNonArrayUniqueItems(swagger *spec3.OpenAPI) {
 			}
 			// find all the schemas in the spec
 			for _, param := range op.Parameters {
-				if param != nil {
-					if schema := param.Schema; schema != nil {
-						if !schema.Type.Contains("array") {
-							schema.UniqueItems = false
-						}
+				if param == nil {
+					continue
+				}
+				if schema := param.Schema; schema != nil {
+					if !schema.Type.Contains("array") {
+						schema.UniqueItems = false
 					}
 				}
 			}
