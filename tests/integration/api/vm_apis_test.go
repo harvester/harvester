@@ -127,14 +127,23 @@ var _ = Describe("verify vm APIs", func() {
 
 			// edit
 			By("when edit virtual machine")
-			vm, err = builder.NewVMBuilder(testCreator).Update(vm).CPU(testVMUpdatedCPUCore).Memory(testVMUpdatedMemory).
-				PVCDisk(testVMCDRomDiskName, testVMCDRomBus, true, false, 2, testVMDiskSize, "", &builder.PersistentVolumeClaimOption{
-					VolumeMode: builder.PersistentVolumeModeFilesystem,
-					AccessMode: builder.PersistentVolumeAccessModeReadWriteOnce,
-				}).VM()
-			MustNotError(err)
-			respCode, respBody, err = helper.PutObject(vmURL, vm)
-			MustRespCodeIs(http.StatusOK, "put edit action", err, respCode, respBody)
+			MustFinallyBeTrue(func() bool {
+				// re-get, vm object may be outdated at this point
+				vm, err = vmController.Get(vmNamespace, vmName, metav1.GetOptions{})
+				MustNotError(err)
+				vm, err = builder.NewVMBuilder(testCreator).Update(vm).CPU(testVMUpdatedCPUCore).Memory(testVMUpdatedMemory).
+					PVCDisk(testVMCDRomDiskName, testVMCDRomBus, true, false, 2, testVMDiskSize, "", &builder.PersistentVolumeClaimOption{
+						VolumeMode: builder.PersistentVolumeModeFilesystem,
+						AccessMode: builder.PersistentVolumeAccessModeReadWriteOnce,
+					}).VM()
+				MustNotError(err)
+				respCode, _, err = helper.PutObject(vmURL, vm)
+				MustNotError(err)
+				// 409 may also occur
+				// e.g.: {...the object has been modified; please apply your changes to the latest version and try again","status":409,"type":"error"}
+				Expect(respCode).To(BeElementOf([]int{http.StatusOK, http.StatusConflict}))
+				return respCode == http.StatusOK
+			}, 10*time.Second, 3*time.Second)
 
 			By("then the virtual machine is changed")
 			AfterVMRunning(vmController, vmNamespace, vmName, func(vm *kubevirtv1.VirtualMachine) bool {
