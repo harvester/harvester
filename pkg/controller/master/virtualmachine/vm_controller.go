@@ -66,6 +66,7 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 		pvcAnno.Namespace = vm.Namespace
 		if pvc, err = h.pvcCache.Get(vm.Namespace, pvcAnno.Name); apierrors.IsNotFound(err) {
 			if _, err = h.pvcClient.Create(pvcAnno); err != nil {
+				h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
 				return nil, err
 			}
 			continue
