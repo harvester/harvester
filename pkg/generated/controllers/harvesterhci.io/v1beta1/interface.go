@@ -19,11 +19,12 @@ limitations under the License.
 package v1beta1
 
 import (
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 func init() {
@@ -34,6 +35,7 @@ type Interface interface {
 	Addon() AddonController
 	KeyPair() KeyPairController
 	Preference() PreferenceController
+	ScheduleVMBackup() ScheduleVMBackupController
 	Setting() SettingController
 	SupportBundle() SupportBundleController
 	Upgrade() UpgradeController
@@ -70,6 +72,9 @@ func (v *version) Preference() PreferenceController {
 
 func (v *version) Setting() SettingController {
 	return generic.NewNonNamespacedController[*v1beta1.Setting, *v1beta1.SettingList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Setting"}, "settings", v.controllerFactory)
+
+func (c *version) ScheduleVMBackup() ScheduleVMBackupController {
+	return NewScheduleVMBackupController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "ScheduleVMBackup"}, "schedulevmbackups", true, c.controllerFactory)
 }
 
 func (v *version) SupportBundle() SupportBundleController {

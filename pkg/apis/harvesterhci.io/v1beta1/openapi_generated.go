@@ -77,6 +77,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.PersistentVolumeClaimSourceSpec":                                  schema_pkg_apis_harvesterhciio_v1beta1_PersistentVolumeClaimSourceSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Preference":                                                       schema_pkg_apis_harvesterhciio_v1beta1_Preference(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.PreferenceList":                                                   schema_pkg_apis_harvesterhciio_v1beta1_PreferenceList(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ScheduleVMBackup":                                                 schema_pkg_apis_harvesterhciio_v1beta1_ScheduleVMBackup(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ScheduleVMBackupList":                                             schema_pkg_apis_harvesterhciio_v1beta1_ScheduleVMBackupList(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ScheduleVMBackupSpec":                                             schema_pkg_apis_harvesterhciio_v1beta1_ScheduleVMBackupSpec(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ScheduleVMBackupStatus":                                           schema_pkg_apis_harvesterhciio_v1beta1_ScheduleVMBackupStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SecretBackup":                                                     schema_pkg_apis_harvesterhciio_v1beta1_SecretBackup(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Setting":                                                          schema_pkg_apis_harvesterhciio_v1beta1_Setting(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SettingList":                                                      schema_pkg_apis_harvesterhciio_v1beta1_SettingList(ref),
@@ -93,6 +97,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.UpgradeLogStatus":                                                 schema_pkg_apis_harvesterhciio_v1beta1_UpgradeLogStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.UpgradeSpec":                                                      schema_pkg_apis_harvesterhciio_v1beta1_UpgradeSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.UpgradeStatus":                                                    schema_pkg_apis_harvesterhciio_v1beta1_UpgradeStatus(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VMBackupInfo":                                                     schema_pkg_apis_harvesterhciio_v1beta1_VMBackupInfo(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Version":                                                          schema_pkg_apis_harvesterhciio_v1beta1_Version(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VersionList":                                                      schema_pkg_apis_harvesterhciio_v1beta1_VersionList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VersionSpec":                                                      schema_pkg_apis_harvesterhciio_v1beta1_VersionSpec(ref),
@@ -118,6 +123,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineTemplateVersionSpec":                                schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineTemplateVersionSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineTemplateVersionStatus":                              schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineTemplateVersionStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VolumeBackup":                                                     schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackup(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VolumeBackupInfo":                                                 schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackupInfo(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VolumeRestore":                                                    schema_pkg_apis_harvesterhciio_v1beta1_VolumeRestore(ref),
 		"github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1.BandwidthEntry":                  schema_pkg_apis_k8scnicncfio_v1_BandwidthEntry(ref),
 		"github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1.DNS":                             schema_pkg_apis_k8scnicncfio_v1_DNS(ref),
@@ -2701,6 +2707,203 @@ func schema_pkg_apis_harvesterhciio_v1beta1_PreferenceList(ref common.ReferenceC
 	}
 }
 
+func schema_pkg_apis_harvesterhciio_v1beta1_ScheduleVMBackup(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ScheduleVMBackupSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ScheduleVMBackupStatus"),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ScheduleVMBackupSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ScheduleVMBackupStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_ScheduleVMBackupList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ScheduleVMBackupList is a list of ScheduleVMBackup resources",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ScheduleVMBackup"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ScheduleVMBackup", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_ScheduleVMBackupSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"cron": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"retain": {
+						SchemaProps: spec.SchemaProps{
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int32",
+						},
+					},
+					"maxFailure": {
+						SchemaProps: spec.SchemaProps{
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int32",
+						},
+					},
+					"resumeRequest": {
+						SchemaProps: spec.SchemaProps{
+							Default: false,
+							Type:    []string{"boolean"},
+							Format:  "",
+						},
+					},
+					"vmbackup": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineBackupSpec"),
+						},
+					},
+				},
+				Required: []string{"cron", "retain", "maxFailure", "vmbackup"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineBackupSpec"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_ScheduleVMBackupStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"vmbackupInfo": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VMBackupInfo"),
+									},
+								},
+							},
+						},
+					},
+					"failure": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"suspend": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"boolean"},
+							Format: "",
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VMBackupInfo"},
+	}
+}
+
 func schema_pkg_apis_harvesterhciio_v1beta1_SecretBackup(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -3400,6 +3603,50 @@ func schema_pkg_apis_harvesterhciio_v1beta1_UpgradeStatus(ref common.ReferenceCa
 		},
 		Dependencies: []string{
 			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.NodeUpgradeStatus"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_VMBackupInfo(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"volumeBackupInfo": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VolumeBackupInfo"),
+									},
+								},
+							},
+						},
+					},
+					"readyToUse": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"boolean"},
+							Format: "",
+						},
+					},
+					"error": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VolumeBackupInfo"},
 	}
 }
 
@@ -4682,6 +4929,37 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackup(ref common.ReferenceCal
 		},
 		Dependencies: []string{
 			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.PersistentVolumeClaimSourceSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_VolumeBackupInfo(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"readyToUse": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"boolean"},
+							Format: "",
+						},
+					},
+					"error": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error"},
 	}
 }
 

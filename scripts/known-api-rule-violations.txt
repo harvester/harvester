@@ -12,10 +12,13 @@ API rule violation: list_type_missing,github.com/harvester/harvester-network-con
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,AddonStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ErrorResponse,Errors
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,KeyPairStatus,Conditions
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ScheduleVMBackupStatus,Conditions
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ScheduleVMBackupStatus,VMBackupInfo
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,SettingStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,SupportBundleStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,UpgradeLogStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,UpgradeStatus,Conditions
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VMBackupInfo,VolumeBackupInfo
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VersionSpec,Tags
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,SecretBackups
@@ -106,6 +109,8 @@ API rule violation: names_match,github.com/harvester/harvester-network-controlle
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NodeNetworkStatus,NetworkInterfaces
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,Uplink,LinkAttrs
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,Uplink,NICs
+API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ScheduleVMBackupSpec,VMBackupSpec
+API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ScheduleVMBackupStatus,VMBackupInfo
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,SourceSpec
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageStatus,AppliedURL
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,VolumeRestores

@@ -31,6 +31,7 @@ type HarvesterhciV1beta1Interface interface {
 	AddonsGetter
 	KeyPairsGetter
 	PreferencesGetter
+	ScheduleVMBackupsGetter
 	SettingsGetter
 	SupportBundlesGetter
 	UpgradesGetter
@@ -58,6 +59,10 @@ func (c *HarvesterhciV1beta1Client) KeyPairs(namespace string) KeyPairInterface 
 
 func (c *HarvesterhciV1beta1Client) Preferences(namespace string) PreferenceInterface {
 	return newPreferences(c, namespace)
+}
+
+func (c *HarvesterhciV1beta1Client) ScheduleVMBackups(namespace string) ScheduleVMBackupInterface {
+	return newScheduleVMBackups(c, namespace)
 }
 
 func (c *HarvesterhciV1beta1Client) Settings() SettingInterface {
