@@ -1,6 +1,6 @@
 module github.com/harvester/harvester
 
-go 1.20
+go 1.21
 
 replace (
 	github.com/containerd/containerd => github.com/containerd/containerd v1.6.18
@@ -95,7 +95,6 @@ require (
 	github.com/urfave/cli v1.22.14
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.18.0
-	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/net v0.20.0
 	golang.org/x/sync v0.5.0
 	golang.org/x/text v0.14.0
