@@ -7,13 +7,14 @@ linters:
     - revive
     - gosec
     - prealloc
-run:
-  skip-files:
+issues:
+  exclude-files:
     - /zz_generated_
     - _generated
-  skip-dirs:
+  exclude-dirs:
     - generated
-  deadline: 5m
+run:
+  timeout: 5m
   tests: true
   build-tags:
     - test
