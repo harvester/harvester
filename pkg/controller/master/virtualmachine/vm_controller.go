@@ -201,11 +201,6 @@ func (h *VMController) cleanupPVCAndSnapshot(_ string, vm *kubevirtv1.VirtualMac
 // removePVCInRemovedPVCsAnnotation cleanup PVCs which users want to remove with the VM.
 func (h *VMController) removePVCInRemovedPVCsAnnotation(vm *kubevirtv1.VirtualMachine) error {
 	for _, pvcName := range getRemovedPVCs(vm) {
-		pvcName = strings.TrimSpace(pvcName)
-		if pvcName == "" {
-			continue
-		}
-
 		if err := h.pvcClient.Delete(vm.Namespace, pvcName, &metav1.DeleteOptions{}); err != nil {
 			if apierrors.IsNotFound(err) {
 				continue
@@ -264,7 +259,15 @@ func (h *VMController) removeVMBackupSnapshot(vm *kubevirtv1.VirtualMachine) err
 
 // getRemovedPVCs returns removed PVCs.
 func getRemovedPVCs(vm *kubevirtv1.VirtualMachine) []string {
-	return strings.Split(vm.Annotations[util.RemovedPVCsAnnotationKey], ",")
+	results := []string{}
+	for _, pvcName := range strings.Split(vm.Annotations[util.RemovedPVCsAnnotationKey], ",") {
+		pvcName = strings.TrimSpace(pvcName)
+		if pvcName == "" {
+			continue
+		}
+		results = append(results, pvcName)
+	}
+	return results
 }
 
 func (h *VMController) SetHaltIfInsufficientResourceQuota(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
