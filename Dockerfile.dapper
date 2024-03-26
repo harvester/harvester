@@ -44,7 +44,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     docker-ce=5:20.10.* \
     && rm -rf /var/lib/apt/lists/*
 ## install golangci
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.55.2
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.57.1
 
 ## install controller-gen
 RUN GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1
