@@ -88,7 +88,7 @@ func (s *AdmissionWebhookServer) ListenAndServe() error {
 
 func (s *AdmissionWebhookServer) listenAndServe(clients *clients.Clients, handler http.Handler, validationResources []types.Resource, mutationResources []types.Resource) error {
 	apply := clients.Apply.WithDynamicLookup()
-	clients.Core.Secret().OnChange(s.context, "secrets", func(key string, secret *corev1.Secret) (*corev1.Secret, error) {
+	clients.Core.Secret().OnChange(s.context, "secrets", func(_ string, secret *corev1.Secret) (*corev1.Secret, error) {
 		if secret == nil || secret.Name != caName || secret.Namespace != s.options.Namespace || len(secret.Data[corev1.TLSCertKey]) == 0 {
 			return nil, nil
 		}
