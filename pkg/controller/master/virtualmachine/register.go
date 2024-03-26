@@ -39,6 +39,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		snapshotClient = management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
 		vmimCache      = management.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
 		snapshotCache  = snapshotClient.Cache()
+		crClient       = management.ControllerRevisionFactory.Apps().V1().ControllerRevision()
+		crClientCache  = crClient.Cache()
 		recorder       = management.NewRecorder(vmControllerSetHaltIfInsufficientResourceQuotaControllerName, "", "")
 	)
 
@@ -86,6 +88,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmClient:  vmClient,
 		vmCache:   vmCache,
 		vmiClient: virtualMachineInstanceClient,
+		crClient:  crClient,
+		crCache:   crClientCache,
 	}
 	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
 

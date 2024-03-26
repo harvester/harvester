@@ -689,6 +689,10 @@ github.com/openshift/client-go/security/clientset/versioned/typed/security/v1
 # github.com/openshift/custom-resource-status v1.1.2
 ## explicit; go 1.12
 github.com/openshift/custom-resource-status/conditions/v1
+# github.com/openshift/library-go v0.0.0-20211220195323-eca2c467c492
+## explicit; go 1.17
+github.com/openshift/library-go/pkg/build/naming
+github.com/openshift/library-go/pkg/operator/resource/resourcemerge
 # github.com/pborman/uuid v1.2.1
 ## explicit
 github.com/pborman/uuid
@@ -1991,6 +1995,9 @@ kubevirt.io/client-go/precond
 kubevirt.io/client-go/subresources
 kubevirt.io/client-go/util
 kubevirt.io/client-go/version
+# kubevirt.io/containerized-data-importer v1.56.0
+## explicit; go 1.18
+kubevirt.io/containerized-data-importer/pkg/clone
 # kubevirt.io/containerized-data-importer-api v1.57.0-alpha1
 ## explicit; go 1.19
 kubevirt.io/containerized-data-importer-api/pkg/apis/core
@@ -2015,35 +2022,66 @@ kubevirt.io/kubevirt/pkg/downwardmetrics/vhostmd
 kubevirt.io/kubevirt/pkg/downwardmetrics/vhostmd/api
 kubevirt.io/kubevirt/pkg/ephemeral-disk
 kubevirt.io/kubevirt/pkg/ephemeral-disk-utils
+kubevirt.io/kubevirt/pkg/healthz
 kubevirt.io/kubevirt/pkg/hooks
 kubevirt.io/kubevirt/pkg/hooks/info
 kubevirt.io/kubevirt/pkg/hooks/v1alpha1
 kubevirt.io/kubevirt/pkg/hooks/v1alpha2
 kubevirt.io/kubevirt/pkg/host-disk
 kubevirt.io/kubevirt/pkg/instancetype
+kubevirt.io/kubevirt/pkg/monitoring/migration
+kubevirt.io/kubevirt/pkg/monitoring/migrationstats
+kubevirt.io/kubevirt/pkg/monitoring/perfscale
+kubevirt.io/kubevirt/pkg/monitoring/profiler
+kubevirt.io/kubevirt/pkg/monitoring/vmistats
+kubevirt.io/kubevirt/pkg/monitoring/vmstats
 kubevirt.io/kubevirt/pkg/network/istio
 kubevirt.io/kubevirt/pkg/network/namescheme
 kubevirt.io/kubevirt/pkg/network/sriov
 kubevirt.io/kubevirt/pkg/network/vmispec
 kubevirt.io/kubevirt/pkg/rest
 kubevirt.io/kubevirt/pkg/safepath
+kubevirt.io/kubevirt/pkg/service
 kubevirt.io/kubevirt/pkg/storage/backend-storage
+kubevirt.io/kubevirt/pkg/storage/export/export
 kubevirt.io/kubevirt/pkg/storage/reservation
+kubevirt.io/kubevirt/pkg/storage/snapshot
 kubevirt.io/kubevirt/pkg/storage/types
 kubevirt.io/kubevirt/pkg/testutils
 kubevirt.io/kubevirt/pkg/unsafepath
 kubevirt.io/kubevirt/pkg/util
+kubevirt.io/kubevirt/pkg/util/cluster
 kubevirt.io/kubevirt/pkg/util/hardware
+kubevirt.io/kubevirt/pkg/util/lookup
+kubevirt.io/kubevirt/pkg/util/migrations
 kubevirt.io/kubevirt/pkg/util/net/dns
 kubevirt.io/kubevirt/pkg/util/net/grpc
 kubevirt.io/kubevirt/pkg/util/nodes
+kubevirt.io/kubevirt/pkg/util/pdbs
+kubevirt.io/kubevirt/pkg/util/ratelimiter
+kubevirt.io/kubevirt/pkg/util/status
+kubevirt.io/kubevirt/pkg/util/tls
+kubevirt.io/kubevirt/pkg/util/trace
+kubevirt.io/kubevirt/pkg/virt-api/webhooks
 kubevirt.io/kubevirt/pkg/virt-config
+kubevirt.io/kubevirt/pkg/virt-controller/leaderelectionconfig
 kubevirt.io/kubevirt/pkg/virt-controller/services
+kubevirt.io/kubevirt/pkg/virt-controller/watch
+kubevirt.io/kubevirt/pkg/virt-controller/watch/clone
+kubevirt.io/kubevirt/pkg/virt-controller/watch/drain/disruptionbudget
+kubevirt.io/kubevirt/pkg/virt-controller/watch/drain/evacuation
 kubevirt.io/kubevirt/pkg/virt-controller/watch/topology
+kubevirt.io/kubevirt/pkg/virt-controller/watch/util
+kubevirt.io/kubevirt/pkg/virt-controller/watch/workload-updater
+kubevirt.io/kubevirt/pkg/virt-handler/node-labeller/util
 kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/api
+kubevirt.io/kubevirt/pkg/virt-operator/resource/apply
 kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/components
+kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/install
+kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/rbac
 kubevirt.io/kubevirt/pkg/virt-operator/util
 kubevirt.io/kubevirt/pkg/virtiofs
+kubevirt.io/kubevirt/tools/util
 # oras.land/oras-go v1.2.0
 ## explicit; go 1.17
 oras.land/oras-go/pkg/artifact

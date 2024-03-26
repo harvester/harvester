@@ -18,6 +18,7 @@ import (
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 	"github.com/sirupsen/logrus"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -155,6 +156,11 @@ func main() {
 					monitoringv1.Alertmanager{},
 				},
 				GenerateClients: true,
+			},
+			appsv1.GroupName: {
+				Types: []interface{}{
+					appsv1.ControllerRevision{},
+				},
 			},
 		},
 	})

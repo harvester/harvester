@@ -241,6 +241,7 @@ require (
 	github.com/opencontainers/selinux v1.10.2 // indirect
 	github.com/openshift/client-go v0.0.0 // indirect
 	github.com/openshift/custom-resource-status v1.1.2 // indirect
+	github.com/openshift/library-go v0.0.0-20211220195323-eca2c467c492 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
@@ -303,6 +304,7 @@ require (
 	k8s.io/kube-aggregator v0.26.3 // indirect
 	k8s.io/kubernetes v1.27.1 // indirect
 	k8s.io/mount-utils v0.27.1 // indirect
+	kubevirt.io/containerized-data-importer v1.56.0 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	oras.land/oras-go v1.2.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.1 // indirect
