@@ -14,7 +14,7 @@ const (
 func PodByVMName(obj *corev1.Pod) ([]string, error) {
 	vmName, ok := obj.Labels[util.LabelVMName]
 	if !ok {
-		return []string{}, nil
+		return nil, nil
 	}
 	return []string{ref.Construct(obj.Namespace, vmName)}, nil
 }
