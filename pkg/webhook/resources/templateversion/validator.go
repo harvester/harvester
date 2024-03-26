@@ -17,7 +17,7 @@ import (
 
 const (
 	fieldTemplateID      = "spec.templateId"
-	fieldKeyPairIds      = "spec.keyPairIds"
+	fieldKeyPairIDs      = "spec.keyPairIds"
 	fieldResourcesLimits = "spec.vm.spec.template.spec.domain.resources.limits"
 )
 
@@ -69,7 +69,7 @@ func (v *templateVersionValidator) Create(request *types.Request, newObj runtime
 			_, err := v.keypairs.Get(keyPairNs, keyPairName)
 			if err != nil {
 				message := fmt.Sprintf("KeyPairID %s is invalid, %v", v, err)
-				field := fmt.Sprintf("%s[%d]", fieldKeyPairIds, i)
+				field := fmt.Sprintf("%s[%d]", fieldKeyPairIDs, i)
 				return werror.NewInvalidError(message, field)
 			}
 		}

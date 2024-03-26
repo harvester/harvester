@@ -24,7 +24,7 @@ The detector accepts a node name and inferences the possible places the VMs on t
 If there is no place to go, it can optionally shut down the VMs.
 	`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		ctx := context.Context(context.Background())
 		options := vmlivemigratedetector.DetectorOptions{
 			KubeConfigPath: kubeConfigPath,
