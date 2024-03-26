@@ -7,6 +7,8 @@ import (
 	"github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	lhutil "github.com/longhorn/longhorn-manager/util"
+	ctlstoragev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -49,8 +51,41 @@ func GetBackingImageDataSourceName(backingImageCache ctllhv1.BackingImageCache, 
 	return GetBackingImageName(backingImageCache, image)
 }
 
-func GetImageStorageClassName(imageName string) string {
+func storageClassLegacyName(imageName string) string {
 	return fmt.Sprintf("longhorn-%s", imageName)
+}
+
+func GenerateStorageClassName(imageNamespace, imageName string) string {
+	return lhutil.AutoCorrectName(fmt.Sprintf("longhorn-%s-%s", imageNamespace, imageName), lhdatastore.NameMaximumLength)
+}
+
+func GetStorageClass(storageClassCache ctlstoragev1.StorageClassCache, image *harvesterv1.VirtualMachineImage) (*storagev1.StorageClass, error) {
+	// For backward compatibility, try to get the storage class with legacy name first.
+	// If it exists, return it directly.
+	// If not, return a new format based on the image namespace and name which can avoid name conflict.
+	sc, err := storageClassCache.Get(storageClassLegacyName(image.Name))
+	if err == nil {
+		return sc, nil
+	}
+
+	if !errors.IsNotFound(err) {
+		return nil, err
+	}
+
+	return storageClassCache.Get(GenerateStorageClassName(image.Namespace, image.Name))
+}
+
+func GetImageStorageClassName(storageClassCache ctlstoragev1.StorageClassCache, image *harvesterv1.VirtualMachineImage) (string, error) {
+	sc, err := GetStorageClass(storageClassCache, image)
+	if err == nil {
+		return sc.Name, nil
+	}
+
+	if !errors.IsNotFound(err) {
+		return "", err
+	}
+
+	return GenerateStorageClassName(image.Namespace, image.Name), nil
 }
 
 func GetImageStorageClassParameters(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (map[string]string, error) {
