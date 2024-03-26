@@ -20,7 +20,7 @@ var rootCmd = &cobra.Command{
 	Short:   "Harvester Upgrade Helpers",
 	Long:    "A collection of upgrade helpers for Harvester",
 	Version: AppVersion,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRun: func(_ *cobra.Command, _ []string) {
 		logrus.SetOutput(os.Stdout)
 		if logDebug {
 			logrus.SetLevel(logrus.DebugLevel)
