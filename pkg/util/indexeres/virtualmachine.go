@@ -12,7 +12,7 @@ const (
 )
 
 func VMByPVC(obj *kubevirtv1.VirtualMachine) ([]string, error) {
-	results := []string{}
+	var results []string
 	if obj == nil || obj.Spec.Template == nil {
 		return results, nil
 	}
