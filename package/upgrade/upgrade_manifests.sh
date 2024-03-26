@@ -1205,7 +1205,7 @@ upgrade_addon_rancher_monitoring()
 {
   echo "upgrade addon rancher_monitoring"
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.3.0, patch version is OK
+  # in v1.2.2, patch version is OK
   upgrade_addon_try_patch_version_only "rancher-monitoring" "cattle-monitoring-system" $REPO_MONITORING_CHART_VERSION
 }
 
@@ -1214,7 +1214,7 @@ upgrade_addon_rancher_logging()
 {
   echo "upgrade addon rancher_logging"
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.3.0, the fluentbit image needs to be patched
+  # in v1.2.2, the fluentbit image needs to be patched
   if [ "$REPO_LOGGING_CHART_VERSION" = "103.0.0+up3.17.10" ]; then
     upgrade_addon_rancher_logging_with_patch_fluentbit_image $REPO_LOGGING_CHART_VERSION
   else
