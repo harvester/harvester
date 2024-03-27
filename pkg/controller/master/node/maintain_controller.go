@@ -48,6 +48,7 @@ func MaintainRegister(ctx context.Context, management *config.Management, _ conf
 	}
 
 	nodes.OnChange(ctx, maintainNodeControllerName, maintainNodeHandler.OnNodeChanged)
+	nodes.OnRemove(ctx, maintainNodeControllerName, maintainNodeHandler.OnNodeRemoved)
 
 	return nil
 }
@@ -112,4 +113,35 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 	toUpdate := node.DeepCopy()
 	toUpdate.Annotations[MaintainStatusAnnotationKey] = MaintainStatusComplete
 	return h.nodes.Update(toUpdate)
+}
+
+// OnNodeRemoved Ensure that all "harvesterhci.io/maintain-force-shutdown-node-name"
+// annotations on VMs are removed that are referencing this node.
+func (h *maintainNodeHandler) OnNodeRemoved(_ string, node *corev1.Node) (*corev1.Node, error) {
+	if node == nil || node.DeletionTimestamp == nil || node.Annotations == nil {
+		return node, nil
+	}
+
+	if _, ok := node.Annotations[MaintainStatusAnnotationKey]; !ok {
+		return node, nil
+	}
+
+	vms, err := h.virtualMachineCache.List(corev1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return node, fmt.Errorf("failed to list VMs: %w", err)
+	}
+
+	for _, vm := range vms {
+		if vm.Annotations == nil || vm.Annotations[util.AnnotationMaintainForceShutdownNodeName] != node.Name {
+			continue
+		}
+		vmCopy := vm.DeepCopy()
+		delete(vmCopy.Annotations, util.AnnotationMaintainForceShutdownNodeName)
+		_, err = h.virtualMachineClient.Update(vmCopy)
+		if err != nil {
+			return node, err
+		}
+	}
+
+	return node, nil
 }
