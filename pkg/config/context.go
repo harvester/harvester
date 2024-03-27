@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	ctlharvesterappsv1 "github.com/harvester/harvester/pkg/generated/controllers/apps"
 	"github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
@@ -84,29 +85,29 @@ type Management struct {
 	Apply             apply.Apply
 	ControllerFactory controller.SharedControllerFactory
 
-	VirtFactory              *kubevirt.Factory
-	HarvesterFactory         *ctlharvesterv1.Factory
-	HarvesterCoreFactory     *ctlharvcorev1.Factory
-	HarvesterStorageFactory  *ctlharvstoragev1.Factory
-	LoggingFactory           *loggingv1.Factory
-	CoreFactory              *corev1.Factory
-	CniFactory               *cniv1.Factory
-	AppsFactory              *appsv1.Factory
-	BatchFactory             *batchv1.Factory
-	RbacFactory              *rbacv1.Factory
-	StorageFactory           *storagev1.Factory
-	SnapshotFactory          *snapshotv1.Factory
-	LonghornFactory          *longhornv1.Factory
-	ProvisioningFactory      *provisioningv1.Factory
-	CatalogFactory           *catalogv1.Factory
-	RancherManagementFactory *rancherv3.Factory
-	MonitoringFactory        *monitoringv1.Factory
-	HelmFactory              *helmv1.Factory
-
-	NetworkingFactory *networking.Factory
-	UpgradeFactory    *upgrade.Factory
-	ClusterFactory    *cluster.Factory
-	NodeConfigFactory *ctlnodeharvester.Factory
+	VirtFactory               *kubevirt.Factory
+	HarvesterFactory          *ctlharvesterv1.Factory
+	HarvesterCoreFactory      *ctlharvcorev1.Factory
+	HarvesterStorageFactory   *ctlharvstoragev1.Factory
+	LoggingFactory            *loggingv1.Factory
+	CoreFactory               *corev1.Factory
+	CniFactory                *cniv1.Factory
+	AppsFactory               *appsv1.Factory
+	BatchFactory              *batchv1.Factory
+	RbacFactory               *rbacv1.Factory
+	StorageFactory            *storagev1.Factory
+	SnapshotFactory           *snapshotv1.Factory
+	LonghornFactory           *longhornv1.Factory
+	ProvisioningFactory       *provisioningv1.Factory
+	CatalogFactory            *catalogv1.Factory
+	RancherManagementFactory  *rancherv3.Factory
+	MonitoringFactory         *monitoringv1.Factory
+	HelmFactory               *helmv1.Factory
+	ControllerRevisionFactory *ctlharvesterappsv1.Factory
+	NetworkingFactory         *networking.Factory
+	UpgradeFactory            *upgrade.Factory
+	ClusterFactory            *cluster.Factory
+	NodeConfigFactory         *ctlnodeharvester.Factory
 
 	ClientSet  *kubernetes.Clientset
 	RestConfig *rest.Config
@@ -395,6 +396,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	if err != nil {
 		return nil, err
 	}
+
+	controllerRevision, err := ctlharvesterappsv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.ControllerRevisionFactory = controllerRevision
+	management.starters = append(management.starters, controllerRevision)
 
 	return management, nil
 }
