@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	clusterv1ctl "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1alpha4"
+	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
@@ -27,7 +27,7 @@ type secretHandler struct {
 	upgradeCache  ctlharvesterv1.UpgradeCache
 	jobClient     jobV1.JobClient
 	jobCache      jobV1.JobCache
-	machineCache  clusterv1ctl.MachineCache
+	machineCache  ctlclusterv1.MachineCache
 }
 
 func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, error) {

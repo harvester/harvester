@@ -23,7 +23,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
+	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
@@ -190,14 +190,14 @@ func nadControllerInterfaceRefactor() {
 
 // capiWorkaround replaces the variable `SchemeGroupVersion` with `GroupVersion` in clusters.cluster.x-k8s.io client because
 // `SchemeGroupVersion` is not declared in the vendor package but wrangler uses it.
-// https://github.com/kubernetes-sigs/cluster-api/blob/56f9e9db7a9e9ca625ffe4bdc1e5e93a14d5e96c/api/v1alpha4/groupversion_info.go#L29
+// https://github.com/kubernetes-sigs/cluster-api/blob/56f9e9db7a9e9ca625ffe4bdc1e5e93a14d5e96c/api/v1beta1/groupversion_info.go#L29
 func capiWorkaround() {
-	absPath, _ := filepath.Abs("pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1alpha4/cluster.x-k8s.io_client.go")
+	absPath, _ := filepath.Abs("pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1/cluster.x-k8s.io_client.go")
 	input, err := ioutil.ReadFile(absPath)
 	if err != nil {
 		logrus.Fatalf("failed to read the clusters.cluster.x-k8s.io client file: %v", err)
 	}
-	output := bytes.Replace(input, []byte("v1alpha4.SchemeGroupVersion"), []byte("v1alpha4.GroupVersion"), -1)
+	output := bytes.Replace(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"), -1)
 
 	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
 		logrus.Fatalf("failed to update the clusters.cluster.x-k8s.io client file: %v", err)

@@ -3,11 +3,10 @@ package machine
 import (
 	"context"
 
-	clusterv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	"github.com/harvester/harvester/pkg/config"
-	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1alpha4"
+	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -23,7 +22,7 @@ type machineControlPlaneHandler struct {
 
 // machineControlPlaneHandler registers a controller to sync labels
 func ControlPlaneRegister(ctx context.Context, management *config.Management, _ config.Options) error {
-	machines := management.ClusterFactory.Cluster().V1alpha4().Machine()
+	machines := management.ClusterFactory.Cluster().V1beta1().Machine()
 	handler := &machineControlPlaneHandler{
 		machineClient: machines,
 	}
@@ -33,15 +32,15 @@ func ControlPlaneRegister(ctx context.Context, management *config.Management, _ 
 	return nil
 }
 
-func (h *machineControlPlaneHandler) OnMachineChanged(_ string, machine *clusterv1alpha4.Machine) (*clusterv1alpha4.Machine, error) {
+func (h *machineControlPlaneHandler) OnMachineChanged(_ string, machine *clusterv1.Machine) (*clusterv1.Machine, error) {
 	if machine == nil || machine.DeletionTimestamp != nil || machine.Labels == nil {
 		return machine, nil
 	}
 
 	if v1, ok := machine.Labels[util.RKEControlPlaneRoleLabel]; ok && v1 == "true" {
-		if v2, ok := machine.Labels[clusterv1beta1.MachineControlPlaneLabel]; !ok || v2 != "true" {
+		if v2, ok := machine.Labels[clusterv1.MachineControlPlaneLabel]; !ok || v2 != "true" {
 			machineCopy := machine.DeepCopy()
-			machineCopy.Labels[clusterv1beta1.MachineControlPlaneLabel] = "true"
+			machineCopy.Labels[clusterv1.MachineControlPlaneLabel] = "true"
 			return h.machineClient.Update(machineCopy)
 		}
 	}
