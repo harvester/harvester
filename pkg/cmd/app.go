@@ -65,7 +65,7 @@ func NewApp(name string, usage string, flags []cli.Flag, action Action) *App {
 	}
 
 	cliApp.Flags = append(cliApp.Flags, flags...)
-	cliApp.Action = func(c *cli.Context) error {
+	cliApp.Action = func(_ *cli.Context) error {
 		initProfiling(&options)
 		initLogs(&options)
 		return action(&options)

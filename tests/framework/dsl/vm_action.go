@@ -45,7 +45,7 @@ func AfterVMExist(controller ctlkubevirtv1.VirtualMachineController, namespace, 
 }
 
 func MustVMExist(controller ctlkubevirtv1.VirtualMachineController, namespace, name string) {
-	AfterVMExist(controller, namespace, name, func(vm *kubevirtv1.VirtualMachine) bool {
+	AfterVMExist(controller, namespace, name, func(_ *kubevirtv1.VirtualMachine) bool {
 		return true
 	})
 }
@@ -61,7 +61,7 @@ func AfterVMReady(controller ctlkubevirtv1.VirtualMachineController, namespace, 
 }
 
 func MustVMReady(controller ctlkubevirtv1.VirtualMachineController, namespace, name string) {
-	AfterVMReady(controller, namespace, name, func(vm *kubevirtv1.VirtualMachine) bool {
+	AfterVMReady(controller, namespace, name, func(_ *kubevirtv1.VirtualMachine) bool {
 		return true
 	})
 }
@@ -79,7 +79,7 @@ func AfterVMRunning(controller ctlkubevirtv1.VirtualMachineController, namespace
 }
 
 func MustVMRunning(controller ctlkubevirtv1.VirtualMachineController, namespace, name string) {
-	AfterVMRunning(controller, namespace, name, func(vm *kubevirtv1.VirtualMachine) bool {
+	AfterVMRunning(controller, namespace, name, func(_ *kubevirtv1.VirtualMachine) bool {
 		return true
 	})
 }
@@ -95,7 +95,7 @@ func AfterVMNotReady(controller ctlkubevirtv1.VirtualMachineController, namespac
 
 func HasNoneVMI(controller ctlkubevirtv1.VirtualMachineController, namespace, name string,
 	vmiController ctlkubevirtv1.VirtualMachineInstanceController) {
-	AfterVMNotReady(controller, namespace, name, func(vm *kubevirtv1.VirtualMachine) bool {
+	AfterVMNotReady(controller, namespace, name, func(_ *kubevirtv1.VirtualMachine) bool {
 		_, err := vmiController.Get(namespace, name, metav1.GetOptions{})
 		if err != nil && apierrors.IsNotFound(err) {
 			return true
@@ -106,7 +106,7 @@ func HasNoneVMI(controller ctlkubevirtv1.VirtualMachineController, namespace, na
 
 func HasNoneRunningVMI(controller ctlkubevirtv1.VirtualMachineController, namespace, name string,
 	vmiController ctlkubevirtv1.VirtualMachineInstanceController) {
-	AfterVMNotReady(controller, namespace, name, func(vm *kubevirtv1.VirtualMachine) bool {
+	AfterVMNotReady(controller, namespace, name, func(_ *kubevirtv1.VirtualMachine) bool {
 		var vmi, err = vmiController.Get(namespace, name, metav1.GetOptions{})
 		if err != nil && apierrors.IsNotFound(err) {
 			return true
@@ -121,7 +121,7 @@ func HasNoneRunningVMI(controller ctlkubevirtv1.VirtualMachineController, namesp
 func AfterVMIExist(controller ctlkubevirtv1.VirtualMachineController, namespace, name string,
 	vmiController ctlkubevirtv1.VirtualMachineInstanceController,
 	callback func(vmi *kubevirtv1.VirtualMachineInstance) bool) {
-	AfterVMReady(controller, namespace, name, func(vm *kubevirtv1.VirtualMachine) bool {
+	AfterVMReady(controller, namespace, name, func(_ *kubevirtv1.VirtualMachine) bool {
 		var vmi, err = vmiController.Get(namespace, name, metav1.GetOptions{})
 		if err != nil {
 			ginkgo.GinkgoT().Logf("failed to get virtual machine instance: %v", err)
@@ -169,7 +169,7 @@ func AfterVMIRestarted(controller ctlkubevirtv1.VirtualMachineController, namesp
 func MustVMIRestarted(controller ctlkubevirtv1.VirtualMachineController, namespace, name string,
 	vmiController ctlkubevirtv1.VirtualMachineInstanceController, vmiUID string) {
 	AfterVMIRestarted(controller, namespace, name, vmiController, vmiUID,
-		func(vmi *kubevirtv1.VirtualMachineInstance) bool {
+		func(_ *kubevirtv1.VirtualMachineInstance) bool {
 			return true
 		})
 }
