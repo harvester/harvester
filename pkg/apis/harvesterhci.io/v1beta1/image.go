@@ -16,6 +16,7 @@ const (
 	VirtualMachineImageSourceTypeDownload     = "download"
 	VirtualMachineImageSourceTypeUpload       = "upload"
 	VirtualMachineImageSourceTypeExportVolume = "export-from-volume"
+	VirtualMachineImageSourceTypeRestore      = "restore"
 )
 
 // +genclient
@@ -41,7 +42,7 @@ type VirtualMachineImageSpec struct {
 	DisplayName string `json:"displayName"`
 
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=download;upload;export-from-volume
+	// +kubebuilder:validation:Enum=download;upload;export-from-volume;restore
 	SourceType string `json:"sourceType"`
 
 	// +optional
