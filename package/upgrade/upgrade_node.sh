@@ -207,14 +207,6 @@ wait_evacuation_pdb_gone()
 }
 
 recover_rancher_system_agent() {
-  # only versions before v1.2.0 that upgrading to v1.2.0 need to recover the workaround
-  if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
-    detect_upgrade
-  fi
-  if [[ ! "${UPGRADE_PREVIOUS_VERSION%%-rc*}" < "v1.2.0" ]]; then
-    echo "Only versions before v1.2.0 need to recover this patch."
-    return
-  fi
   chroot "$HOST_DIR" /bin/bash -c "rm -rf /run/systemd/system/rancher-system-agent.service.d && systemctl daemon-reload && systemctl restart rancher-system-agent.service"
 }
 
