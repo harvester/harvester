@@ -106,7 +106,7 @@ func (h Handler) downloadImage(rw http.ResponseWriter, req *http.Request) error 
 		return fmt.Errorf("failed to get backing image name for VMImage %s/%s, error: %w", namespace, name, err)
 	}
 
-	targetFileName := vmImage.Spec.DisplayName
+	targetFileName := fmt.Sprintf("%s.gz", vmImage.Spec.DisplayName)
 	downloadURL := fmt.Sprintf("%s/backingimages/%s/download", util.LonghornDefaultManagerURL, biName)
 	downloadReq, err := http.NewRequestWithContext(req.Context(), http.MethodGet, downloadURL, nil)
 	if err != nil {
