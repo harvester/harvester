@@ -1238,7 +1238,7 @@ func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevir
 				AccessModes:      pvc.Spec.AccessModes,
 				Resources:        pvc.Spec.Resources,
 				VolumeMode:       pvc.Spec.VolumeMode,
-				StorageClassName: pointer.String(util.GetImageStorageClassName(vmImageName)),
+				StorageClassName: pointer.String(util.GenerateStorageClassName(vm.Namespace, vmImageName)),
 			},
 		})
 		sanitizedVM.Spec.Template.Spec.Volumes[index].PersistentVolumeClaim.ClaimName = pvcName
