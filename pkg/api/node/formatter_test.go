@@ -18,6 +18,7 @@ import (
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -297,8 +298,6 @@ var (
 		},
 	}
 
-	scheme = runtime.NewScheme()
-
 	vmWithCDROM = &kubevirtv1.VirtualMachineInstance{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cdrom-vm",
@@ -398,13 +397,13 @@ func Test_listUnhealthyVM(t *testing.T) {
 func Test_powerActionNotPossible(t *testing.T) {
 	assert := require.New(t)
 
-	err := harvesterv1beta1.AddToScheme(scheme)
+	err := harvesterv1beta1.AddToScheme(scheme.Scheme)
 	assert.NoError(err, "expected no error building scheme")
 
 	typedObjects := []runtime.Object{}
 	client := fake.NewSimpleClientset(typedObjects...)
 	k8sclientset := k8sfake.NewSimpleClientset(testNode)
-	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme)
+	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme)
 
 	h := ActionHandler{
 		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
@@ -422,13 +421,13 @@ func Test_powerActionNotPossible(t *testing.T) {
 func Test_powerActionPossible(t *testing.T) {
 	assert := require.New(t)
 
-	err := harvesterv1beta1.AddToScheme(scheme)
+	err := harvesterv1beta1.AddToScheme(scheme.Scheme)
 	assert.NoError(err, "expected no error building scheme")
 
 	typedObjects := []runtime.Object{seederAddon}
 	client := fake.NewSimpleClientset(typedObjects...)
 	k8sclientset := k8sfake.NewSimpleClientset(testNode)
-	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme, dynamicInventoryObj)
+	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, dynamicInventoryObj)
 
 	h := ActionHandler{
 		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
@@ -447,7 +446,7 @@ func Test_powerAction(t *testing.T) {
 
 	powerOperation := "shutdown"
 	k8sclientset := k8sfake.NewSimpleClientset(testNode)
-	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme, dynamicInventoryObj)
+	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, dynamicInventoryObj)
 	h := ActionHandler{
 		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
 		nodeClient:    fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
