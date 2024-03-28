@@ -222,11 +222,15 @@ func addPatchParams(builder *restful.RouteBuilder, ws *restful.WebService) *rest
 }
 
 func NameParam(ws *restful.WebService) *restful.Parameter {
-	return ws.PathParameter("name", "Name of the resource").Required(true)
+	return ws.PathParameter("name", "Name of the resource").
+		Required(true).
+		Pattern("[a-z0-9][a-z0-9\\-]*")
 }
 
 func NamespaceParam(ws *restful.WebService) *restful.Parameter {
-	return ws.PathParameter("namespace", "Object name and auth scope, such as for teams and projects").Required(true)
+	return ws.PathParameter("namespace", "Object name and auth scope, such as for teams and projects").
+		Required(true).
+		Pattern("[a-z0-9][a-z0-9\\-]*")
 }
 
 func labelSelectorParam(ws *restful.WebService) *restful.Parameter {
@@ -290,16 +294,16 @@ func GroupVersionBasePath(gvr schema.GroupVersion) string {
 
 func ResourceBasePath(resource string, namespaced bool) string {
 	if namespaced {
-		return fmt.Sprintf("/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/%s", resource)
+		return fmt.Sprintf("/namespaces/{namespace}/%s", resource)
 	}
 	return fmt.Sprintf("/%s", resource)
 }
 
 func ResourcePath(resource string, namespaced bool) string {
 	if namespaced {
-		return fmt.Sprintf("/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/%s/{name:[a-z0-9][a-z0-9\\-]*}", resource)
+		return fmt.Sprintf("/namespaces/{namespace}/%s/{name}", resource)
 	}
-	return fmt.Sprintf("/%s/{name:[a-z0-9][a-z0-9\\-]*}", resource)
+	return fmt.Sprintf("/%s/{name}", resource)
 }
 
 func Noop(*restful.Request, *restful.Response) {}

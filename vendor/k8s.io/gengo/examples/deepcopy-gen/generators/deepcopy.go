@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"k8s.io/gengo/args"
-	"k8s.io/gengo/examples/set-gen/sets"
 	"k8s.io/gengo/generator"
 	"k8s.io/gengo/namer"
 	"k8s.io/gengo/types"
@@ -131,7 +130,6 @@ func Packages(context *generator.Context, arguments *args.GeneratorArgs) generat
 		klog.Fatalf("Failed loading boilerplate: %v", err)
 	}
 
-	inputs := sets.NewString(context.Inputs...)
 	packages := generator.Packages{}
 	header := append([]byte(fmt.Sprintf("//go:build !%s\n// +build !%s\n\n", arguments.GeneratedBuildTag, arguments.GeneratedBuildTag)), boilerplate...)
 
@@ -147,7 +145,7 @@ func Packages(context *generator.Context, arguments *args.GeneratorArgs) generat
 		}
 	}
 
-	for i := range inputs {
+	for _, i := range context.Inputs {
 		klog.V(5).Infof("Considering pkg %q", i)
 		pkg := context.Universe[i]
 		if pkg == nil {
@@ -173,18 +171,24 @@ func Packages(context *generator.Context, arguments *args.GeneratorArgs) generat
 		pkgNeedsGeneration := (ptagValue == tagValuePackage)
 		if !pkgNeedsGeneration {
 			// If the pkg-scoped tag did not exist, scan all types for one that
-			// explicitly wants generation.
+			// explicitly wants generation. Ensure all types that want generation
+			// can be copied.
+			var uncopyable []string
 			for _, t := range pkg.Types {
 				klog.V(5).Infof("  considering type %q", t.Name.String())
 				ttag := extractEnabledTypeTag(t)
 				if ttag != nil && ttag.value == "true" {
 					klog.V(5).Infof("    tag=true")
 					if !copyableType(t) {
-						klog.Fatalf("Type %v requests deepcopy generation but is not copyable", t)
+						uncopyable = append(uncopyable, fmt.Sprintf("%v", t))
+					} else {
+						pkgNeedsGeneration = true
 					}
-					pkgNeedsGeneration = true
-					break
 				}
+			}
+			if len(uncopyable) > 0 {
+				klog.Fatalf("Types requested deepcopy generation but are not copyable: %s",
+					strings.Join(uncopyable, ", "))
 			}
 		}
 
