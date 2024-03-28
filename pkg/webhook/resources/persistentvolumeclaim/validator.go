@@ -13,7 +13,9 @@ import (
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/ref"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -31,9 +33,10 @@ func NewValidator(pvcCache v1.PersistentVolumeClaimCache,
 
 type pvcValidator struct {
 	types.DefaultValidator
-	pvcCache   v1.PersistentVolumeClaimCache
-	vmCache    ctlkv1.VirtualMachineCache
-	imageCache ctlharvesterv1.VirtualMachineImageCache
+	pvcCache    v1.PersistentVolumeClaimCache
+	vmCache     ctlkv1.VirtualMachineCache
+	imageCache  ctlharvesterv1.VirtualMachineImageCache
+	volumeCache ctllonghornv1.VolumeCache
 }
 
 func (v *pvcValidator) Resource() types.Resource {
@@ -44,20 +47,10 @@ func (v *pvcValidator) Resource() types.Resource {
 		APIVersion: corev1.SchemeGroupVersion.Version,
 		ObjectType: &corev1.PersistentVolumeClaim{},
 		OperationTypes: []admissionregv1.OperationType{
-			admissionregv1.Create,
 			admissionregv1.Delete,
 			admissionregv1.Update,
 		},
 	}
-}
-
-func (v *pvcValidator) Create(_ *types.Request, obj runtime.Object) error {
-	pvc := obj.(*corev1.PersistentVolumeClaim)
-	if _, err := ref.GetSchemaOwnersFromAnnotation(pvc); err != nil {
-		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
-
-	}
-	return nil
 }
 
 func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) error {
@@ -86,15 +79,16 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 		}
 	}
 
-	annotationSchemaOwners, err := ref.GetSchemaOwnersFromAnnotation(pvc)
+	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(oldPVC.Namespace, oldPVC.Name))
 	if err != nil {
-		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
+		return werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, oldPVC.Namespace, oldPVC.Name, err))
 	}
 
-	attachedList := annotationSchemaOwners.List(kubevirtv1.VirtualMachineGroupVersionKind.GroupKind())
-	if len(attachedList) != 0 {
-		message := fmt.Sprintf("can not delete the volume %s which is currently attached to VMs: %s", oldPVC.Name, strings.Join(attachedList, ", "))
-		return werror.NewInvalidError(message, "")
+	for _, vm := range vms {
+		if vm.DeletionTimestamp == nil {
+			message := fmt.Sprintf("can not delete the volume %s which is currently attached to VM: %s/%s", oldPVC.Name, vm.Namespace, vm.Name)
+			return werror.NewInvalidError(message, "")
+		}
 	}
 
 	if len(pvc.OwnerReferences) == 0 {
@@ -119,34 +113,21 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 	oldPVC := oldObj.(*corev1.PersistentVolumeClaim)
 	newPVC := newObj.(*corev1.PersistentVolumeClaim)
 
-	if _, err := ref.GetSchemaOwnersFromAnnotation(newPVC); err != nil {
-		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
-	}
-
 	newQuantity := newPVC.Spec.Resources.Requests.Storage()
 	oldQuantity := oldPVC.Spec.Resources.Requests.Storage()
 	if oldQuantity.Cmp(*newQuantity) == 0 {
 		return nil
 	}
 
-	// Validation for offline resizing
-	annotationSchemaOwners, err := ref.GetSchemaOwnersFromAnnotation(oldPVC)
+	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(newPVC.Namespace, newPVC.Name))
 	if err != nil {
-		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
+		return werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, newPVC.Namespace, newPVC.Name, err))
 	}
-
-	attachedList := annotationSchemaOwners.List(kubevirtv1.VirtualMachineGroupVersionKind.GroupKind())
-	for _, vmID := range attachedList {
-		ns, name := ref.Parse(vmID)
-		vm, err := v.vmCache.Get(ns, name)
-		if err != nil {
-			return fmt.Errorf("failed to get VM: %v", err)
-		}
+	for _, vm := range vms {
 		if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusProvisioning && vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
-			message := fmt.Sprintf("resizing is only supported for detached volumes. The volume is being used by VM %s. Please stop the VM first.", vmID)
+			message := fmt.Sprintf("resizing is only supported for detached volumes. The volume is being used by VM %s/%s. Please stop the VM first.", vm.Namespace, vm.Name)
 			return werror.NewInvalidError(message, "")
 		}
 	}
-
 	return nil
 }

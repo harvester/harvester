@@ -10,9 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-
-	"github.com/harvester/harvester/pkg/indexeres"
-	"github.com/harvester/harvester/pkg/ref"
 )
 
 type PersistentVolumeClaimClient func(string) v1.PersistentVolumeClaimInterface
@@ -63,20 +60,6 @@ func (c PersistentVolumeClaimCache) AddIndexer(_ string, _ ctlv1.PersistentVolum
 	panic("implement me")
 }
 
-func (c PersistentVolumeClaimCache) GetByIndex(indexName, key string) ([]*corev1.PersistentVolumeClaim, error) {
-	switch indexName {
-	case indexeres.PVCByVMIndex:
-		vmNamespace, _ := ref.Parse(key)
-		pvcList, err := c(vmNamespace).List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			return nil, err
-		}
-		var pvcs []*corev1.PersistentVolumeClaim
-		for i := range pvcList.Items {
-			pvcs = append(pvcs, &pvcList.Items[i])
-		}
-		return pvcs, nil
-	default:
-		return nil, nil
-	}
+func (c PersistentVolumeClaimCache) GetByIndex(_, _ string) ([]*corev1.PersistentVolumeClaim, error) {
+	panic("implement me")
 }
