@@ -26,6 +26,7 @@ message BackingImageSpec {
 	string uuid = 2;
 	int64 size = 3;
 	string checksum = 4;
+	int64 virtualSize = 5;
 }
 
 message BackingImageStatus {

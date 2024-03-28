@@ -54,9 +54,10 @@ func (c *BackingImageManagerClient) parseBackingImageFileInfo(bi *bimapi.Backing
 		return nil
 	}
 	return &longhorn.BackingImageFileInfo{
-		Name: bi.Name,
-		UUID: bi.UUID,
-		Size: bi.Size,
+		Name:        bi.Name,
+		UUID:        bi.UUID,
+		Size:        bi.Size,
+		VirtualSize: bi.VirtualSize,
 
 		State:                longhorn.BackingImageState(bi.Status.State),
 		CurrentChecksum:      bi.Status.CurrentChecksum,
