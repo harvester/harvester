@@ -40,9 +40,6 @@ resources:
     cpu: "100m"
     memory: "200Mi"
 
-nodeSelector:
-  beta.kubernetes.io/arch: amd64
-
 tolerations:
   - operator: Exists
     effect: NoSchedule
