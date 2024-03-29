@@ -49,3 +49,4 @@ rules:
   - create
   - patch
   - update
+  - get
