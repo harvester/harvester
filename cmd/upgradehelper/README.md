@@ -33,7 +33,7 @@ Flags:
   -h, --help                 help for vm-live-migrate-detector
       --kubeconfig string    Path to the kubeconfig file (default "/home/rancher/.kube/config")
       --kubecontext string   Context name
-      --shutdown             Do not shutdown non-migratable VMs
+      --shutdown             Shutdown non-migratable VMs
       --trace                set logging level to trace
   -v, --version              version for vm-live-migrate-detector
 ```

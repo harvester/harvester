@@ -1,6 +1,6 @@
 module github.com/harvester/harvester
 
-go 1.20
+go 1.21
 
 replace (
 	github.com/containerd/containerd => github.com/containerd/containerd v1.6.18
@@ -85,7 +85,7 @@ require (
 	github.com/rancher/rancher v0.0.0-20230124173128-2207cfed1803
 	github.com/rancher/rancher/pkg/apis v0.0.0
 	github.com/rancher/steve v0.0.0-20221209194631-acf9d31ce0dd
-	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20210727200656-10b094e30007
+	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20230803010539-04a0b9ef5858
 	github.com/rancher/wrangler v1.1.1
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.3
@@ -95,7 +95,6 @@ require (
 	github.com/urfave/cli v1.22.13
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.21.0
-	golang.org/x/exp v0.0.0-20230725012225-302865e7556b
 	golang.org/x/net v0.22.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/text v0.14.0
