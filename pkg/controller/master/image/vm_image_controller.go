@@ -26,13 +26,14 @@ import (
 )
 
 const (
-	checkBackingImageInterval = 1 * time.Second
+	checkInterval = 1 * time.Second
 )
 
 // vmImageHandler syncs status on vm image changes, and manage a storageclass & a backingimage per vm image
 type vmImageHandler struct {
 	httpClient        http.Client
 	storageClasses    ctlstoragev1.StorageClassClient
+	storageClassCache ctlstoragev1.StorageClassCache
 	images            ctlharvesterv1.VirtualMachineImageClient
 	imageController   ctlharvesterv1.VirtualMachineImageController
 	backingImages     ctllhv1.BackingImageClient
@@ -59,32 +60,48 @@ func (h *vmImageHandler) OnChanged(_ string, image *harvesterv1.VirtualMachineIm
 		return image, nil
 	}
 
-	needRetry := false
+	return h.processVMImage(image)
+}
+
+func (h *vmImageHandler) processVMImage(image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	bi, err := util.GetBackingImage(h.backingImageCache, image)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			logrus.Errorf("%v/%v failed to get backing image, err: %v", image.Namespace, image.Name, err)
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace": image.Namespace,
+				"name":      image.Name,
+			}).Error("failed to get backing image for vmimage")
 			return image, err
 		}
-		needRetry = true
-	} else if bi.DeletionTimestamp != nil {
-		h.imageController.EnqueueAfter(image.Namespace, image.Name, checkBackingImageInterval)
+		return h.handleRetry(image)
+	}
+
+	if bi.DeletionTimestamp != nil {
+		h.imageController.EnqueueAfter(image.Namespace, image.Name, checkInterval)
 		return image, nil
-	} else {
-		for _, status := range bi.Status.DiskFileStatusMap {
-			if status.State == lhv1beta2.BackingImageStateFailed {
-				needRetry = true
-				break
-			}
+	}
+
+	for _, status := range bi.Status.DiskFileStatusMap {
+		if status.State == lhv1beta2.BackingImageStateFailed {
+			return h.handleRetry(image)
 		}
 	}
 
-	if needRetry {
-		if image.Status.LastFailedTime == "" {
-			return h.initialize(image)
+	sc, scErr := h.storageClassCache.Get(util.GetImageStorageClassName(image.Name))
+	if scErr != nil {
+		if !errors.IsNotFound(scErr) {
+			logrus.WithError(scErr).WithFields(logrus.Fields{
+				"namespace": image.Namespace,
+				"name":      image.Name,
+			}).Error("failed to get storage class for vmimage")
+			return image, scErr
 		}
-
 		return h.handleRetry(image)
+	}
+
+	if sc != nil && sc.DeletionTimestamp != nil {
+		h.imageController.EnqueueAfter(image.Namespace, image.Name, checkInterval)
+		return image, nil
 	}
 
 	return image, nil
@@ -105,13 +122,17 @@ func (h *vmImageHandler) initialize(image *harvesterv1.VirtualMachineImage) (*ha
 		return image, err
 	}
 
-	image, err := h.checkImage(image)
+	toUpdate := image.DeepCopy()
+	toUpdate, err := h.checkImage(toUpdate)
 	if err != nil {
-		logrus.Errorf("failed to check image %s/%s, err: %v", image.Namespace, image.Name, err)
-		h.imageController.EnqueueAfter(image.Namespace, image.Name, 10*time.Second)
-		return h.images.Update(image)
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"namespace": toUpdate.Namespace,
+			"name":      toUpdate.Name,
+		}).Error("failed to check vmimage")
+		return h.images.Update(toUpdate)
 	}
-	return h.createBackingImageAndStorageClass(image)
+
+	return h.createBackingImageAndStorageClass(toUpdate)
 }
 
 func (h *vmImageHandler) checkImage(image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
@@ -119,37 +140,46 @@ func (h *vmImageHandler) checkImage(image *harvesterv1.VirtualMachineImage) (*ha
 		return image, nil
 	}
 
-	toUpdate := image.DeepCopy()
-	toUpdate.Status.AppliedURL = image.Spec.URL
+	image.Status.AppliedURL = image.Spec.URL
 	resp, err := h.httpClient.Head(image.Spec.URL)
 	if err != nil {
-		toUpdate = handleFail(toUpdate, condition.Cond(harvesterv1.ImageInitialized), err)
-		return toUpdate, err
+		image = handleFail(image, condition.Cond(harvesterv1.ImageInitialized), err)
+		return image, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
 		err = fmt.Errorf("got %d status code from %s", resp.StatusCode, image.Spec.URL)
-		toUpdate = handleFail(toUpdate, condition.Cond(harvesterv1.ImageInitialized), err)
-		return toUpdate, err
+		image = handleFail(image, condition.Cond(harvesterv1.ImageInitialized), err)
+		return image, err
 	}
 
 	if resp.ContentLength > 0 {
-		toUpdate.Status.Size = resp.ContentLength
+		image.Status.Size = resp.ContentLength
 	}
-	return toUpdate, nil
+	return image, nil
 }
 
 func (h *vmImageHandler) createBackingImageAndStorageClass(image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	if err := h.createBackingImage(image); err != nil && !errors.IsAlreadyExists(err) {
-		return nil, err
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"namespace": image.Namespace,
+			"name":      image.Name,
+		}).Error("failed to create backing image for vmimage")
+		toUpdate := handleFail(image, condition.Cond(harvesterv1.ImageInitialized), err)
+		return h.images.Update(toUpdate)
 	}
 	if err := h.createStorageClass(image); err != nil && !errors.IsAlreadyExists(err) {
-		return nil, err
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"namespace": image.Namespace,
+			"name":      image.Name,
+		}).Error("failed to create storage class for vmimage")
+		toUpdate := handleFail(image, condition.Cond(harvesterv1.ImageInitialized), err)
+		return h.images.Update(toUpdate)
 	}
 
 	toUpdate := image.DeepCopy()
-	toUpdate.Status.AppliedURL = toUpdate.Spec.URL
+	toUpdate.Status.AppliedURL = image.Spec.URL
 	toUpdate.Status.StorageClassName = util.GetImageStorageClassName(image.Name)
 	toUpdate.Status.Progress = 0
 
@@ -165,6 +195,10 @@ func (h *vmImageHandler) createBackingImageAndStorageClass(image *harvesterv1.Vi
 }
 
 func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineImage) error {
+	if cachedBI, _ := util.GetBackingImage(h.backingImageCache, image); cachedBI != nil && cachedBI.DeletionTimestamp != nil {
+		return fmt.Errorf("backing image %s is being deleted", cachedBI.Name)
+	}
+
 	biName, err := util.GetBackingImageName(h.backingImageCache, image)
 	if err != nil {
 		return err
@@ -203,6 +237,10 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 }
 
 func (h *vmImageHandler) createStorageClass(image *harvesterv1.VirtualMachineImage) error {
+	if cachedSC, _ := h.storageClassCache.Get(util.GetImageStorageClassName(image.Name)); cachedSC != nil && cachedSC.DeletionTimestamp != nil {
+		return fmt.Errorf("storage class %s is being deleted", cachedSC.Name)
+	}
+
 	reclaimPolicy := corev1.PersistentVolumeReclaimDelete
 	volumeBindingMode := storagev1.VolumeBindingImmediate
 
@@ -251,9 +289,16 @@ func (h *vmImageHandler) deleteBackingImageAndStorageClass(image *harvesterv1.Vi
 }
 
 func (h *vmImageHandler) handleRetry(image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
+	if image.Status.LastFailedTime == "" {
+		return h.initialize(image)
+	}
+
 	ts, err := time.Parse(time.RFC3339, image.Status.LastFailedTime)
 	if err != nil {
-		logrus.Errorf("failed to parse lastFailedTime %s in image %s/%s, err: %v", image.Status.LastFailedTime, image.Namespace, image.Name, err)
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"namespace": image.Namespace,
+			"name":      image.Name,
+		}).Errorf("failed to parse lastFailedTime %s for vmimage", image.Status.LastFailedTime)
 		toUpdate := image.DeepCopy()
 		toUpdate.Status.LastFailedTime = time.Now().Format(time.RFC3339)
 		return h.images.Update(toUpdate)
