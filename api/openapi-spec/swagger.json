@@ -10541,14 +10541,88 @@
       },
       "k8s.io.v1.ObjectMeta": {
         "type": "object",
-        "required": [
-          "name"
-        ],
         "properties": {
+          "annotations": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          "creationTimestamp": {
+            "default": {},
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/k8s.io.v1.Time"
+              }
+            ]
+          },
+          "deletionGracePeriodSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "deletionTimestamp": {
+            "$ref": "#/components/schemas/k8s.io.v1.Time"
+          },
+          "finalizers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "default": ""
+            },
+            "x-kubernetes-patch-strategy": "merge"
+          },
+          "generateName": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          "managedFields": {
+            "type": "array",
+            "items": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/k8s.io.v1.ManagedFieldsEntry"
+                }
+              ]
+            }
+          },
           "name": {
             "type": "string"
           },
           "namespace": {
+            "type": "string"
+          },
+          "ownerReferences": {
+            "type": "array",
+            "items": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/k8s.io.v1.OwnerReference"
+                }
+              ]
+            },
+            "x-kubernetes-patch-merge-key": "uid",
+            "x-kubernetes-patch-strategy": "merge"
+          },
+          "resourceVersion": {
+            "type": "string"
+          },
+          "selfLink": {
+            "type": "string"
+          },
+          "uid": {
             "type": "string"
           }
         }
