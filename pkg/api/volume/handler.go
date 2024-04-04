@@ -119,7 +119,13 @@ func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDis
 	}
 
 	if _, err := h.images.Create(vmImage); err != nil {
-		logrus.Errorf("failed to create image from volume %s", pvcName)
+		logrus.WithFields(logrus.Fields{
+			"namespace":  pvcNamespace,
+			"name":       pvcName,
+			"apiVersion": "v1",
+			"kind":       "PersistentVolumeClaim",
+			"err":        err,
+		}).Error("failed to create image from PVC")
 		return err
 	}
 
@@ -159,13 +165,25 @@ func (h *ActionHandler) cancelExpand(_ context.Context, pvcNamespace, pvcName st
 		pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
 		return pv
 	}); err != nil {
-		logrus.Errorf("failed to change reclaim policy of pv %s", pvName)
+		logrus.WithFields(logrus.Fields{
+			"name":       pvName,
+			"apiVersion": "v1",
+			"kind":       "PersistentVolume",
+			"policy":     corev1.PersistentVolumeReclaimRetain,
+			"err":        err,
+		}).Error("failed to change reclaim policy of PV")
 		return err
 	}
 
 	// delete pvc
 	if err = h.pvcs.Delete(pvcNamespace, pvcName, &metav1.DeleteOptions{}); err != nil {
-		logrus.Errorf("failed to delete pvc %s/%s", pvcNamespace, pvcName)
+		logrus.WithFields(logrus.Fields{
+			"name":       pvcName,
+			"namespace":  pvcNamespace,
+			"apiVersion": "v1",
+			"kind":       "PersistentVolumeClaim",
+			"err":        err,
+		}).Error("failed to delete PVC")
 		return err
 	}
 	if err = h.waitPVCDeleted(pvcNamespace, pvcName); err != nil {
@@ -177,7 +195,12 @@ func (h *ActionHandler) cancelExpand(_ context.Context, pvcNamespace, pvcName st
 		pv.Spec.ClaimRef = nil
 		return pv
 	}); err != nil {
-		logrus.Errorf("failed to remove claimRef from pv %s", pvName)
+		logrus.WithFields(logrus.Fields{
+			"name":       pvName,
+			"apiVersion": "v1",
+			"kind":       "PersistentVolume",
+			"err":        err,
+		}).Error("failed to remove claimRef from PV")
 		return err
 	}
 
@@ -187,7 +210,13 @@ func (h *ActionHandler) cancelExpand(_ context.Context, pvcNamespace, pvcName st
 	restorePVC.UID = ""
 	restorePVC.Spec.Resources.Requests[corev1.ResourceStorage] = *pvc.Status.Capacity.Storage()
 	if _, err = h.pvcs.Create(restorePVC); err != nil {
-		logrus.Errorf("failed to restore pvc %s/%s", pvcNamespace, pvcName)
+		logrus.WithFields(logrus.Fields{
+			"name":       pvcName,
+			"namespace":  pvcNamespace,
+			"apiVersion": "v1",
+			"kind":       "PersistentVolumeClaim",
+			"err":        err,
+		}).Error("failed to restore PVC")
 		return err
 	}
 
@@ -196,7 +225,13 @@ func (h *ActionHandler) cancelExpand(_ context.Context, pvcNamespace, pvcName st
 		pv.Spec.PersistentVolumeReclaimPolicy = pvReclaimPolicyBackup
 		return pv
 	}); err != nil {
-		logrus.Errorf("failed to restore reclaim policy of pv %s", pvName)
+		logrus.WithFields(logrus.Fields{
+			"name":       pvName,
+			"apiVersion": "v1",
+			"kind":       "PersistentVolume",
+			"policy":     pvReclaimPolicyBackup,
+			"err":        err,
+		}).Error("failed to restore reclaim policy of PV")
 		return err
 	}
 
@@ -262,7 +297,13 @@ func (h *ActionHandler) clone(_ context.Context, pvcNamespace, pvcName, newPVCNa
 	}
 
 	if _, err = h.pvcs.Create(newPVC); err != nil {
-		logrus.Errorf("failed to clone volume %s/%s", pvcNamespace, pvcName)
+		logrus.WithFields(logrus.Fields{
+			"name":       pvcName,
+			"namespace":  pvcNamespace,
+			"apiVersion": "v1",
+			"kind":       "PersistentVolumeClaim",
+			"err":        err,
+		}).Error("failed to clone volume")
 		return err
 	}
 
@@ -313,7 +354,13 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 	}
 
 	if _, err = h.snapshots.Create(snapshot); err != nil {
-		logrus.Errorf("failed to create volume snapshot from volume %s/%s", pvcNamespace, pvcName)
+		logrus.WithFields(logrus.Fields{
+			"name":       pvcName,
+			"namespace":  pvcNamespace,
+			"apiVersion": "v1",
+			"kind":       "PersistentVolumeClaim",
+			"err":        err,
+		}).Error("failed to create volume snapshot from PVC")
 		return err
 	}
 

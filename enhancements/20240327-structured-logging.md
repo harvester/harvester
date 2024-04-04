@@ -45,7 +45,7 @@ Second, all existing log messages should be converted to structured logging.
 Lastly, a CI check should be put in place to prevent new additions of
 unstructured logging, e.g. using the tool [Logcheck](https://github.com/kubernetes-sigs/logtools/tree/main/logcheck)
 
-### Loggin infrastructure
+### Logging infrastructure
 
 Harvester utilizes the Golang library Logrus to emit log messages. This library
 has builtin support for structured logging.
@@ -80,6 +80,8 @@ These are possible field names to use:
 | namespace | `.metadata.namespace` | K8s namespace of the subject of the message |
 | name | `.metadata.name` | Name of the K8s resource which is the subject of the message |
 | kind | `.kind` | Kind of the K8s resource which is subject of the log message |
+| err | n/a | String representation of a `builtin.error` value |
+| apiVersion | `.apiVersion` | K8s API-version and API-group information of the subject of the message |
 
 ### Migration Strategy
 
