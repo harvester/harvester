@@ -3876,10 +3876,11 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSpec(ref common.R
 					},
 					"sourceType": {
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
+							Description: "\n\nPossible enum values:\n - `\"download\"`\n - `\"export-from-volume\"`\n - `\"upload\"`",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+							Enum:        []interface{}{"download", "export-from-volume", "upload"}},
 					},
 					"pvcName": {
 						SchemaProps: spec.SchemaProps{
