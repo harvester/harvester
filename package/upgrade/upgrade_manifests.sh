@@ -1199,7 +1199,14 @@ upgrade_addon_rancher_monitoring()
 {
   echo "upgrade addon rancher_monitoring"
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.3.0, patch version is OK
+
+  # patch grafana dashboard configmap in this specific chart version
+  if [ "$REPO_MONITORING_CHART_VERSION" = "103.0.3+up45.31.1" ]; then
+    patch_grafana_dashboard_harvester_vm_detail
+    patch_grafana_dashboard_harvester_vm
+  fi
+
+  # in v1.3.1/v1.4.0, patch version is OK
   upgrade_addon_try_patch_version_only "rancher-monitoring" "cattle-monitoring-system" $REPO_MONITORING_CHART_VERSION
 }
 
