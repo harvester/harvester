@@ -5,6 +5,7 @@ A collection of useful helpers for Harvester upgrades.
 subcommands are listed below:
 
 - vm-live-migrate-detector
+- version-guard
 
 ## vm-live-migrate-detector
 
@@ -58,4 +59,24 @@ INFO[0000] Checking vms on node harvester-z5hd8...
 INFO[0000] default/test-vm
 INFO[0000] Non-migratable VM(s): [default/test-vm]
 INFO[0000] vm default/test-vm was administratively stopped
+```
+
+## version-guard
+
+A subcommand that checks whether the version can be upgraded to. The validating criteria includes:
+
+- Disallow any downgrade
+- Disallow upgrades from any formal release version lower than the minimal upgrade requirement of the targeting formal release version
+- Disallow upgrades from any dev version to any formal release version (if the strict mode is enabled)
+- Disallow upgrades from any dev version to any prerelease version (if the strict mode is enabled)
+- Allow upgrades from any lower prerelease version to any higher one within the same release version but not across different release versions
+
+Any other upgrade paths not explicitly mentioned above are allowed.
+
+### Usage
+
+```shell
+$ export KUBECONFIG=/tmp/kubeconfig
+
+$ upgrade-helper version-guard hvst-upgrade-gqbg5
 ```
