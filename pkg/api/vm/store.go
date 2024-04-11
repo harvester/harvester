@@ -9,6 +9,7 @@ import (
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/rancher/wrangler/pkg/slice"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -28,6 +29,9 @@ func (s *vmStore) Delete(request *types.APIRequest, schema *types.APISchema, id 
 	removedDisks := request.Query["removedDisks"]
 	vm, err := s.vmCache.Get(request.Namespace, request.Name)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return types.APIObject{}, apierror.NewAPIError(validation.NotFound, fmt.Sprintf("VirtualMachine %s/%s not found", request.Namespace, request.Name))
+		}
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to get vm %s/%s, %v", request.Namespace, request.Name, err))
 	}
 
