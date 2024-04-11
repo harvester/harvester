@@ -2,13 +2,12 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-)
 
-var (
-	AppVersion = "dev"
-	GitCommit  = "commit"
+	"github.com/harvester/harvester/cmd/upgradehelper/cmd"
+	_ "github.com/harvester/harvester/cmd/upgradehelper/cmd/versionguard"
+	_ "github.com/harvester/harvester/cmd/upgradehelper/cmd/vmlivemigratedetector"
 )
 
 func main() {
-	cobra.CheckErr(rootCmd.Execute())
+	cobra.CheckErr(cmd.RootCmd.Execute())
 }
