@@ -1302,6 +1302,77 @@ wait_for_deployment() {
   done
 }
 
+upgrade_rbac() {
+
+  # only versions before v1.2.2 that upgrading to v1.2.2 need this patch
+  if [[ ! "${UPGRADE_PREVIOUS_VERSION%%-rc*}" < "v1.2.2" ]]; then
+    echo "Only versions before v1.2.2 need this patch."
+    return
+  fi
+
+  full_names=$(upgrade-helper get-cloud-provider)
+  ret=$?
+  if [ -z "$full_names" ] || [ $ret != 0 ]; then
+    echo "No rolebinding harvesterhci.io:cloudprovider found or command failed, we can skip to patch rbac this moment."
+    return
+  fi
+
+  if kubectl get clusterrole harvesterhci.io:csi-driver 2> /dev/null; then
+    echo "ClusterRole harvesterhci.io:csi-driver already exists, skip to create it."
+  else
+    create_clusterrole_for_csi_driver
+  fi
+
+  # to handle multiple guest clusters
+  for item in $full_names
+  do
+    namespace=$(echo "$item" |awk -F '/' '{print $1}')
+    service_account=$(echo "$item" |awk -F '/' '{print $2}')
+
+    echo "Creating ClusterRoleBinding with ${namespace}/${service_account} ..."
+    cat <<EOF | kubectl create -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: $namespace-$service_account
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: harvesterhci.io:csi-driver
+subjects:
+- kind: ServiceAccount
+  name: $service_account
+  namespace: $namespace
+EOF
+
+  done
+
+}
+
+create_clusterrole_for_csi_driver() {
+  echo "Creating ClusterRole harvesterhci.io:csi-driver ..."
+
+  cat <<EOF | kubectl create -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: apiserver
+    app.kubernetes.io/name: harvester
+    app.kubernetes.io/part-of: harvester
+  name: harvesterhci.io:csi-driver
+rules:
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
+EOF
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1321,5 +1392,6 @@ upgrade_monitoring
 upgrade_logging_event_audit
 apply_extra_manifests
 upgrade_addons
+upgrade_rbac
 # wait fleet bundles upto 90 seconds
 wait_for_fleet_bundles 9
