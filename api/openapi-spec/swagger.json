@@ -230,17 +230,17 @@
         "operationId": "readNamespacedPersistentVolumeClaim",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -969,17 +969,17 @@
         "operationId": "readNamespacedKeyPair",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -1472,17 +1472,17 @@
         "operationId": "readNamespacedSupportBundle",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -1975,17 +1975,17 @@
         "operationId": "readNamespacedUpgrade",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -2478,17 +2478,17 @@
         "operationId": "readNamespacedVirtualMachineBackup",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -2981,17 +2981,17 @@
         "operationId": "readNamespacedVirtualMachineImage",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -3484,17 +3484,17 @@
         "operationId": "readNamespacedVirtualMachineRestore",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -3987,17 +3987,17 @@
         "operationId": "readNamespacedVirtualMachineTemplate",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -4490,17 +4490,17 @@
         "operationId": "readNamespacedVirtualMachineTemplateVersion",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -5819,17 +5819,17 @@
         "operationId": "readNamespacedNetworkAttachmentDefinition",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -6440,17 +6440,17 @@
         "operationId": "readNamespacedVirtualMachineInstanceMigration",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -6899,17 +6899,17 @@
       },
       "parameters": [
         {
-          "name": "exact",
+          "name": "action",
           "in": "query",
-          "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+          "description": "Which action you'd like to take. Options include \"export\".",
           "schema": {
-            "type": "boolean"
+            "type": "string"
           }
         },
         {
-          "name": "export",
+          "name": "exact",
           "in": "query",
-          "description": "Should this value be exported. Export strips fields that a user can not specify.",
+          "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
           "schema": {
             "type": "boolean"
           }
@@ -7161,17 +7161,17 @@
         "operationId": "readNamespacedVirtualMachine",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -8028,17 +8028,17 @@
         "operationId": "readNamespacedClusterNetwork",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }
@@ -8541,17 +8541,17 @@
         "operationId": "readNamespacedNodeNetwork",
         "parameters": [
           {
-            "name": "exact",
+            "name": "action",
             "in": "query",
-            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
+            "description": "Which action you'd like to take. Options include \"export\".",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "export",
+            "name": "exact",
             "in": "query",
-            "description": "Should this value be exported. Export strips fields that a user can not specify.",
+            "description": "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.",
             "schema": {
               "type": "boolean"
             }

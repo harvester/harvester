@@ -21,6 +21,8 @@ import (
 
 var defaultActions = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
 
+var actionParamPossibleValues = []string{"export"}
+
 func AggregatedWebServices() []*restful.WebService {
 	harvesterv1beta1API := NewGroupVersionWebService(v1beta1.SchemeGroupVersion)
 	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachinebackups", &v1beta1.VirtualMachineBackup{}, "VirtualMachineBackup", &v1beta1.VirtualMachineBackupList{})
@@ -195,7 +197,7 @@ func addGetParams(builder *restful.RouteBuilder, ws *restful.WebService) *restfu
 	return builder.Param(NameParam(ws)).
 		Param(NamespaceParam(ws)).
 		Param(exactParam(ws)).
-		Param(exportParam(ws))
+		Param(actionParam(ws))
 }
 
 func addGetNamespacedListParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
@@ -269,8 +271,10 @@ func exactParam(ws *restful.WebService) *restful.Parameter {
 	return ws.QueryParameter("exact", "Should the export be exact. Exact export maintains cluster-specific fields like 'Namespace'.").DataType("boolean")
 }
 
-func exportParam(ws *restful.WebService) *restful.Parameter {
-	return ws.QueryParameter("export", "Should this value be exported. Export strips fields that a user can not specify.").DataType("boolean")
+func actionParam(ws *restful.WebService) *restful.Parameter {
+	return ws.QueryParameter("action", "Which action you'd like to take. Options include \"export\".").
+		PossibleValues(actionParamPossibleValues)
+
 }
 
 func gracePeriodSecondsParam(ws *restful.WebService) *restful.Parameter {
