@@ -22,6 +22,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		backingImages:     backingImages,
 		backingImageCache: backingImages.Cache(),
 		storageClasses:    storageClasses,
+		storageClassCache: storageClasses.Cache(),
 		images:            images,
 		imageController:   images,
 		httpClient: http.Client{

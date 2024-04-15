@@ -33,6 +33,7 @@ const (
 type vmImageHandler struct {
 	httpClient        http.Client
 	storageClasses    ctlstoragev1.StorageClassClient
+	storageClassCache ctlstoragev1.StorageClassCache
 	images            ctlharvesterv1.VirtualMachineImageClient
 	imageController   ctlharvesterv1.VirtualMachineImageController
 	backingImages     ctllhv1.BackingImageClient
@@ -147,10 +148,14 @@ func (h *vmImageHandler) createBackingImageAndStorageClass(image *harvesterv1.Vi
 	if err := h.createStorageClass(image); err != nil && !errors.IsAlreadyExists(err) {
 		return nil, err
 	}
+	storageClassName, err := util.GetImageStorageClassName(h.storageClassCache, image)
+	if err != nil {
+		return nil, err
+	}
 
 	toUpdate := image.DeepCopy()
 	toUpdate.Status.AppliedURL = toUpdate.Spec.URL
-	toUpdate.Status.StorageClassName = util.GetImageStorageClassName(image.Name)
+	toUpdate.Status.StorageClassName = storageClassName
 	toUpdate.Status.Progress = 0
 
 	harvesterv1.ImageImported.Unknown(toUpdate)
@@ -211,9 +216,14 @@ func (h *vmImageHandler) createStorageClass(image *harvesterv1.VirtualMachineIma
 		return err
 	}
 
+	storageClassName, err := util.GetImageStorageClassName(h.storageClassCache, image)
+	if err != nil {
+		return err
+	}
+
 	sc := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: util.GetImageStorageClassName(image.Name),
+			Name: storageClassName,
 		},
 		Provisioner:          types.LonghornDriverName,
 		ReclaimPolicy:        &reclaimPolicy,
@@ -237,7 +247,11 @@ func (h *vmImageHandler) deleteBackingImage(image *harvesterv1.VirtualMachineIma
 }
 
 func (h *vmImageHandler) deleteStorageClass(image *harvesterv1.VirtualMachineImage) error {
-	return h.storageClasses.Delete(util.GetImageStorageClassName(image.Name), &metav1.DeleteOptions{})
+	storageClassName, err := util.GetImageStorageClassName(h.storageClassCache, image)
+	if err != nil {
+		return err
+	}
+	return h.storageClasses.Delete(storageClassName, &metav1.DeleteOptions{})
 }
 
 func (h *vmImageHandler) deleteBackingImageAndStorageClass(image *harvesterv1.VirtualMachineImage) error {
