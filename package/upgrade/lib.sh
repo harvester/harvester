@@ -581,3 +581,78 @@ EOF
   # wait status only when enabled and already AddonDeploySuccessful
   wait_for_addon_upgrade_deployment $name $namespace $enabled $curstatus
 }
+
+patch_grafana_dashboard_harvester_configmap() {
+  local cm=$1
+  local jsonname=$2
+  local originValuesfile=$3
+  local newValuesfile=$4
+  local changed=0
+
+  # if there are differences, diff returns 1, else 0
+  diff $originValuesfile $newValuesfile || changed=$?
+  if [[ $changed == 1 ]]; then
+    # add 4 spaces to each line
+    sed -i -e 's/^/    /' $newValuesfile
+    local newvalues=$(<$newValuesfile)
+    rm -f $newValuesfile
+    local patchfile="/tmp/configmappatch.yaml"
+
+cat > $patchfile <<EOF
+data:
+  $jsonname: |
+$newvalues
+EOF
+
+    kubectl patch configmap $cm -n cattle-dashboards --patch-file $patchfile --type merge || echo "patch configmap $cm failed"
+    rm -f $patchfile
+  else
+    # the configmap may have been updated or patched
+    echo "need not patch configmap $cm, it is up-to-date"
+  fi
+
+  rm -f $originValuesfile
+  rm -f $newValuesfile
+}
+
+patch_grafana_dashboard_harvester_vm_detail() {
+  local EXIT_CODE=0
+  local cm=harvester-vm-detail-dashboard
+  local originValuesfile="/tmp/a1.yaml"
+  local newValuesfile="/tmp/a2.yaml"
+  rm -f $originValuesfile
+  echo "patch_grafana_dashboard_harvester_vm_detail"
+  kubectl get configmap -n cattle-dashboards $cm -ojsonpath="{.data['harvester_vm_info_details\.json']}" > $originValuesfile || EXIT_CODE=$?
+  if [[ $EXIT_CODE -gt 0 ]]; then
+    echo "fail to get configmap $cm, do not try to patch it"
+    return 0
+  fi
+
+  cp $originValuesfile $newValuesfile
+  sed -i -e 's/kubevirt_vmi_vcpu_seconds{/kubevirt_vmi_vcpu_seconds_total{/g' $newValuesfile
+  sed -i -e 's/kubevirt_vmi_vcpu_seconds,/kubevirt_vmi_vcpu_seconds_total,/g' $newValuesfile
+  sed -i -e 's/kubevirt_vmi_storage_read_times_ms_total{/kubevirt_vmi_storage_read_times_seconds_total{/g' $newValuesfile
+  sed -i -e 's/kubevirt_vmi_storage_write_times_ms_total{/kubevirt_vmi_storage_write_times_seconds_total{/g' $newValuesfile
+  sed -i -e 's/"format": "ms"/"format": "s"/g' $newValuesfile
+
+  patch_grafana_dashboard_harvester_configmap $cm "harvester_vm_info_details.json" $originValuesfile $newValuesfile
+}
+
+patch_grafana_dashboard_harvester_vm() {
+  local EXIT_CODE=0
+  local cm=harvester-vm-dashboard
+  local originValuesfile="/tmp/a1.yaml"
+  local newValuesfile="/tmp/a2.yaml"
+  rm -f $originValuesfile
+  echo "patch_grafana_dashboard_harvester_vm"
+  kubectl get configmap -n cattle-dashboards $cm -ojsonpath="{.data['harvester_vm_dashboard\.json']}" > $originValuesfile || EXIT_CODE=$?
+  if [[ $EXIT_CODE -gt 0 ]]; then
+    echo "fail to get configmap $cm, do not try to patch it"
+    return 0
+  fi
+
+  cp $originValuesfile $newValuesfile
+  sed -i -e 's/kubevirt_vmi_vcpu_seconds\[/kubevirt_vmi_vcpu_seconds_total\[/g' $newValuesfile
+
+  patch_grafana_dashboard_harvester_configmap $cm "harvester_vm_dashboard.json" $originValuesfile $newValuesfile
+}
