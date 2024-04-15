@@ -514,13 +514,13 @@ wait_for_addon_upgrade_deployment() {
   fi
 }
 
-# upgrade rancher-logging with the patch of fluentbit image
-upgrade_addon_rancher_logging_with_patch_fluentbit_image()
+# upgrade rancher-logging with the patch of fluentbit image and eventrouter image
+upgrade_addon_rancher_logging_with_patch_fluentbit_eventrouter_image()
 {
   local name=rancher-logging
   local namespace=cattle-logging-system
   local newversion=$1
-  echo "try to patch addon $name in $namespace to $newversion, with patch of fluentbit image"
+  echo "try to patch addon $name in $namespace to $newversion, with patch of fluentbit image and eventrouter image"
 
   # check if addon is there
   local version=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.spec.version}' || true)
@@ -534,22 +534,37 @@ upgrade_addon_rancher_logging_with_patch_fluentbit_image()
   kubectl get addons.harvesterhci.io $name -n $namespace -ojsonpath="{.spec.valuesContent}" > $valuesfile
 
   local EXIT_CODE=0
+  local fallback="true"
+
   # yq shows `Error: no matches found` if it is not existing and returns 1
   echo "check fluentbit image tag 1.9.5"
   yq -e '(.images | select(.fluentbit.tag == "1.9.5"))' $valuesfile || EXIT_CODE=$?
-
   if [ $EXIT_CODE != 0 ]; then
-    # fluentbit image is not 1.9.5
-    echo "fluentbit image is not 1.9.5, fallback to the normal addon $name upgrade"
+    echo "fluentbit image is not 1.9.5, need not patch"
+  else
+    fallback="false"
+    # remove fluentbit related images tags
+    yq -e 'del(.images.fluentbit*)' -i $valuesfile
+  fi
+
+  EXIT_CODE=0
+  echo "check eventTailer image tag v0.1.1"
+  yq -e '(.eventTailer.workloadOverrides.containers[0] | select(.image == "rancher/harvester-eventrouter:v0.1.1"))' $valuesfile || EXIT_CODE=$?
+  if [ $EXIT_CODE != 0 ]; then
+    echo "eventrouter image tag is not v0.1.1, need not patch"
+  else
+    fallback="false"
+    # update eventrouter image tag
+    yq -e '.eventTailer.workloadOverrides.containers[0].image="rancher/harvester-eventrouter:v0.1.2"' -i $valuesfile
+  fi
+
+  if [[ $fallback = "true" ]]; then
+    echo "fallback to patch addon version only"
     rm -f $valuesfile
     upgrade_addon_try_patch_version_only $name $namespace $newversion
     return 0
   fi
 
-  echo "current valuesContent of the addon $name:"
-  cat $valuesfile
-  # remove fluentbit related images tags
-  yq -e 'del(.images.fluentbit*)' -i $valuesfile
   # add 4 spaces to each line
   sed -i -e 's/^/    /' $valuesfile
   local newvalues=$(<$valuesfile)
