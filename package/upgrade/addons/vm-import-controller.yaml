@@ -5,10 +5,18 @@ metadata:
   namespace: harvester-system
 spec:
   repo: http://harvester-cluster-repo.cattle-system.svc/charts
+<<<<<<< HEAD
   version: "0.1.5"
+=======
+  version: "0.1.8"
+>>>>>>> 579750c9 (update vm-import-controller to v0.1.8)
   chart: harvester-vm-import-controller
   enabled: false
   valuesContent: |
     image:
+<<<<<<< HEAD
       tag: v0.1.5
+=======
+      tag: v0.1.8
+>>>>>>> 579750c9 (update vm-import-controller to v0.1.8)
     fullnameOverride: harvester-vm-import-controller
