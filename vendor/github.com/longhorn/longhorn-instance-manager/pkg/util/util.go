@@ -138,15 +138,6 @@ func IsSPDKTgtReady(timeout time.Duration) bool {
 	return false
 }
 
-func IsMountPointReadOnly(mp mount.MountPoint) bool {
-	for _, opt := range mp.Opts {
-		if opt == "ro" {
-			return true
-		}
-	}
-	return false
-}
-
 func GetVolumeMountPointMap() (map[string]mount.MountPoint, error) {
 	volumeMountPointMap := make(map[string]mount.MountPoint)
 
