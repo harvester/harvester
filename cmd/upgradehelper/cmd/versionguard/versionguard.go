@@ -62,7 +62,7 @@ type versionGuard struct {
 }
 
 func init() {
-	versionGuardCmd.Flags().BoolVar(&strictMode, "strict", true, "The strict mode controls whether dev versions can be upgraded. If it is `true`, upgrading from dev versions is prohibited. Default to `true`.")
+	versionGuardCmd.Flags().BoolVar(&strictMode, "strict", true, "The strict mode controls whether dev versions can be upgraded. If it is `true`, upgrading from dev versions is prohibited. Note: upgrading to dev versions is always allowed. Default to `true`.")
 	versionGuardCmd.Flags().StringVar(&minUpgradableVersion, "min-upgradable-version", "", "Manually specify a minimum upgradable version. The value has precedence over the one in the upgrade object.")
 
 	cmd.RootCmd.AddCommand(versionGuardCmd)

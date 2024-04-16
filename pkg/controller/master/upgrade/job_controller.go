@@ -14,6 +14,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
 	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
@@ -276,7 +277,7 @@ func (h *jobHandler) syncManifestJob(job *batchv1.Job) (*batchv1.Job, error) {
 	return job, nil
 }
 
-func (h *jobHandler) setNodeWaitRebootLabel(node *v1.Node, repoInfo *RepoInfo) error {
+func (h *jobHandler) setNodeWaitRebootLabel(node *v1.Node, repoInfo *repoinfo.RepoInfo) error {
 	nodeUpdate := node.DeepCopy()
 	nodeUpdate.Annotations[harvesterNodePendingOSImage] = repoInfo.Release.OS
 	_, err := h.nodeClient.Update(nodeUpdate)
