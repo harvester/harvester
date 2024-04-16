@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+    app: longhorn-ui
+  name: longhorn-ui
+  namespace: {{ include "release_namespace" . }}
+spec:
+  replicas: {{ .Values.longhornUI.replicas }}
+  selector:
+    matchLabels:
+      app: longhorn-ui
+  template:
+    metadata:
+      labels: {{- include "longhorn.labels" . | nindent 8 }}
+        app: longhorn-ui
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - longhorn-ui
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: longhorn-ui
+        image: {{ template "registry_url" . }}{{ .Values.image.longhorn.ui.repository }}:{{ .Values.image.longhorn.ui.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        volumeMounts:
+        - name : nginx-cache
+          mountPath: /var/cache/nginx/
+        - name : nginx-config
+          mountPath: /var/config/nginx/
+        - name: var-run
+          mountPath: /var/run/
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+          - name: LONGHORN_MANAGER_IP
+            value: "http://longhorn-backend:9500"
+          - name: LONGHORN_UI_PORT
+            value: "8000"
+      volumes:
+      - emptyDir: {}
+        name: nginx-cache
+      - emptyDir: {}
+        name: nginx-config
+      - emptyDir: {}
+        name: var-run
+      {{- if .Values.privateRegistry.registrySecret }}
+      imagePullSecrets:
+      - name: {{ .Values.privateRegistry.registrySecret }}
+      {{- end }}
+      {{- if .Values.longhornUI.priorityClass }}
+      priorityClassName: {{ .Values.longhornUI.priorityClass | quote }}
+      {{- end }}
+      {{- if or .Values.longhornUI.tolerations .Values.global.cattle.windowsCluster.enabled }}
+      tolerations:
+        {{- if and .Values.global.cattle.windowsCluster.enabled .Values.global.cattle.windowsCluster.tolerations }}
+{{ toYaml .Values.global.cattle.windowsCluster.tolerations | indent 6 }}
+        {{- end }}
+        {{- if .Values.longhornUI.tolerations }}
+{{ toYaml .Values.longhornUI.tolerations | indent 6 }}
+        {{- end }}
+      {{- end }}
+      {{- if or .Values.longhornUI.nodeSelector .Values.global.cattle.windowsCluster.enabled }}
+      nodeSelector:
+        {{- if and .Values.global.cattle.windowsCluster.enabled .Values.global.cattle.windowsCluster.nodeSelector }}
+{{ toYaml .Values.global.cattle.windowsCluster.nodeSelector | indent 8 }}
+        {{- end }}
+        {{- if .Values.longhornUI.nodeSelector }}
+{{ toYaml .Values.longhornUI.nodeSelector | indent 8 }}
+        {{- end }}
+      {{- end }}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+    app: longhorn-ui
+    {{- if eq .Values.service.ui.type "Rancher-Proxy" }}
+    kubernetes.io/cluster-service: "true"
+    {{- end }}
+  name: longhorn-frontend
+  namespace: {{ include "release_namespace" . }}
+spec:
+  {{- if eq .Values.service.ui.type "Rancher-Proxy" }}
+  type: ClusterIP
+  {{- else }}
+  type: {{ .Values.service.ui.type }}
+  {{- end }}
+  {{- if and .Values.service.ui.loadBalancerIP (eq .Values.service.ui.type "LoadBalancer") }}
+  loadBalancerIP: {{ .Values.service.ui.loadBalancerIP }}
+  {{- end }}
+  {{- if and (eq .Values.service.ui.type "LoadBalancer") .Values.service.ui.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges: {{- toYaml .Values.service.ui.loadBalancerSourceRanges | nindent 4 }}
+  {{- end }}
+  selector:
+    app: longhorn-ui
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    {{- if .Values.service.ui.nodePort }}
+    nodePort: {{ .Values.service.ui.nodePort }}
+    {{- else }}
+    nodePort: null
+    {{- end }}
