@@ -27,25 +27,33 @@ type ReplicaSpec struct {
 	// +optional
 	// HealthyAt is set the first time a replica becomes read/write in an engine after creation or rebuild. HealthyAt
 	// indicates the time the last successful rebuild occurred. When HealthyAt is set, a replica is likely to have
-	// useful (though possibly stale) data. HealthyAt is cleared before a rebuild.
+	// useful (though possibly stale) data. HealthyAt is cleared before a rebuild. HealthyAt may be later than the
+	// corresponding entry in an engine's replicaTransitionTimeMap because it is set when the volume controller
+	// acknowledges the change.
 	HealthyAt string `json:"healthyAt"`
 	// +optional
 	// LastHealthyAt is set every time a replica becomes read/write in an engine. Unlike HealthyAt, LastHealthyAt is
 	// never cleared. LastHealthyAt is not a reliable indicator of the state of a replica's data. For example, a
 	// replica with LastHealthyAt set may be in the middle of a rebuild. However, because it is never cleared, it can be
-	// compared to LastFailedAt to help prevent dangerous replica deletion in some corner cases.
+	// compared to LastFailedAt to help prevent dangerous replica deletion in some corner cases. LastHealthyAt may be
+	// later than the corresponding entry in an engine's replicaTransitionTimeMap because it is set when the volume
+	// controller acknowledges the change.
 	LastHealthyAt string `json:"lastHealthyAt"`
 	// +optional
 	// FailedAt is set when a running replica fails or when a running engine is unable to use a replica for any reason.
 	// FailedAt indicates the time the failure occurred. When FailedAt is set, a replica is likely to have useful
 	// (though possibly stale) data. A replica with FailedAt set must be rebuilt from a non-failed replica (or it can
-	// be used in a salvage if all replicas are failed). FailedAt is cleared before a rebuild or salvage.
+	// be used in a salvage if all replicas are failed). FailedAt is cleared before a rebuild or salvage. FailedAt may
+	// be later than the corresponding entry in an engine's replicaTransitionTimeMap because it is set when the volume
+	// controller acknowledges the change.
 	FailedAt string `json:"failedAt"`
 	// +optional
 	// LastFailedAt is always set at the same time as FailedAt. Unlike FailedAt, LastFailedAt is never cleared.
 	// LastFailedAt is not a reliable indicator of the state of a replica's data. For example, a replica with
 	// LastFailedAt may already be healthy and in use again. However, because it is never cleared, it can be compared to
-	// LastHealthyAt to help prevent dangerous replica deletion in some corner cases.
+	// LastHealthyAt to help prevent dangerous replica deletion in some corner cases. LastFailedAt may be later than the
+	// corresponding entry in an engine's replicaTransitionTimeMap because it is set when the volume controller
+	// acknowledges the change.
 	LastFailedAt string `json:"lastFailedAt"`
 	// +optional
 	DiskID string `json:"diskID"`
