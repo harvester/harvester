@@ -16,10 +16,13 @@ import (
 	mime "kubevirt.io/kubevirt/pkg/rest"
 
 	networkv1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
+	voltypes "github.com/harvester/harvester/pkg/api/volume"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 var defaultActions = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
+var actionParamPossibleValues = []string{"export", "snapshot", "clone"}
+var resourcesWithPostActionParams = []string{"persistentvolumeclaims"}
 
 func AggregatedWebServices() []*restful.WebService {
 	harvesterv1beta1API := NewGroupVersionWebService(v1beta1.SchemeGroupVersion)
@@ -39,6 +42,7 @@ func AggregatedWebServices() []*restful.WebService {
 	// core
 	corev1API := NewGroupVersionWebService(corev1.SchemeGroupVersion)
 	AddGenericNamespacedResourceRoutes(corev1API, "persistentvolumeclaims", &corev1.PersistentVolumeClaim{}, "PersistentVolumeClaim", &corev1.PersistentVolumeClaimList{})
+	// AddGenericNamespacedResourceRoutes(corev1API, "copypersistentvolumeclaims", &voltypes.ExportVolumeInput{}, "PersistentVolumeClaim", &corev1.PersistentVolumeClaimList{})
 
 	// kubevirt
 	virtv1API := NewGroupVersionWebService(virtv1.SchemeGroupVersion)
@@ -127,6 +131,21 @@ func AddGenericResourceRoutes(ws *restful.WebService, resource string, objPointe
 				Returns(http.StatusAccepted, "Accepted", objExample).
 				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
 		))
+
+	}
+	test := &voltypes.ExportVolumeInput{}
+	if slice.ContainsString(resourcesWithPostActionParams, resource) {
+		ws.Route(addCopyParams(
+			ws.POST(ResourcePath(resource, namespaced)).
+				Produces(mime.MIME_JSON, mime.MIME_YAML).
+				Consumes(mime.MIME_JSON, mime.MIME_YAML).
+				Operation("copyNamespaced"+objKind).
+				To(Noop).Reads(test).
+				Doc("Copy a "+objKind+" object.").
+				Metadata("kind", objKind).
+				Returns(http.StatusOK, "OK", "").
+				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
+		))
 	}
 
 	if slice.ContainsString(actions, http.MethodPut) {
@@ -196,6 +215,12 @@ func addGetParams(builder *restful.RouteBuilder, ws *restful.WebService) *restfu
 		Param(NamespaceParam(ws)).
 		Param(exactParam(ws)).
 		Param(exportParam(ws))
+}
+
+func addCopyParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
+	return builder.Param(NameParam(ws)).
+		Param(NamespaceParam(ws)).
+		Param(actionParam(ws))
 }
 
 func addGetNamespacedListParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
@@ -271,6 +296,12 @@ func exactParam(ws *restful.WebService) *restful.Parameter {
 
 func exportParam(ws *restful.WebService) *restful.Parameter {
 	return ws.QueryParameter("export", "Should this value be exported. Export strips fields that a user can not specify.").DataType("boolean")
+}
+
+func actionParam(ws *restful.WebService) *restful.Parameter {
+	return ws.QueryParameter("action", "Action to take. Options include \"export\", \"snapshot\", or \"clone\".").
+		PossibleValues(actionParamPossibleValues).
+		Required(true)
 }
 
 func gracePeriodSecondsParam(ws *restful.WebService) *restful.Parameter {
