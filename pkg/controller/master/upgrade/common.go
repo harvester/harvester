@@ -13,6 +13,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/node"
+	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
 )
 
 const (
@@ -327,7 +328,7 @@ func preparePlan(upgrade *harvesterv1.Upgrade, concurrency int) *upgradev1.Plan 
 	}
 }
 
-func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *RepoInfo, nodeName string, jobType string) *batchv1.Job {
+func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nodeName string, jobType string) *batchv1.Job {
 	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
 	imageVersion := repoInfo.Release.Harvester
 	hostPathDirectory := corev1.HostPathDirectory
@@ -432,7 +433,7 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *RepoInfo, nodeName str
 	}
 }
 
-func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *RepoInfo) *batchv1.Job {
+func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo) *batchv1.Job {
 	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
 	imageVersion := repoInfo.Release.Harvester
 	return &batchv1.Job{
