@@ -32,12 +32,14 @@ func Check(upgrade *v1beta1.Upgrade, strictMode bool, minUpgradableVersionStr st
 			logrus.WithFields(logrus.Fields{
 				"namespace": upgrade.Namespace,
 				"name":      upgrade.Name,
-			}).Warn("failed to retrieve repo info")
+			}).Error("failed to retrieve repo info")
 			return err
 		}
 
 		minUpgradableVersion, err = version.NewHarvesterVersion(repoInfo.Release.MinUpgradableVersion)
-		if err != nil && !errors.Is(version.ErrInvalidVersion, err) {
+		// When the error is ErrInvalidVersion, let the nil minUpgradableVersion slip through the check since it's a
+		// valid scenario. It implies "upgrade with no restrictions."
+		if err != nil && !errors.Is(err, version.ErrInvalidVersion) {
 			return err
 		}
 	}
