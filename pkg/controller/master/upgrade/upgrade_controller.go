@@ -23,11 +23,13 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	upgradectlv1 "github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/upgradehelper/versionguard"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -245,7 +247,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			Factor:   1.0,
 			Jitter:   0.1,
 		}
-		var repoInfo *RepoInfo
+		var repoInfo *repoinfo.RepoInfo
 		if err := retry.OnError(backoff, util.IsRetriableNetworkError, func() error {
 			repoInfo, err = repo.getInfo()
 			if err != nil {
@@ -263,11 +265,10 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
 			return h.upgradeClient.Update(toUpdate)
 		}
+		toUpdate.Status.RepoInfo = repoInfoStr
 
-		isEligible, reason := upgradeEligibilityCheck(upgrade, repoInfo)
-
-		if !isEligible {
-			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, reason, "")
+		if err := upgradeEligibilityCheck(toUpdate); err != nil {
+			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
 			return h.upgradeClient.Update(toUpdate)
 		}
 
@@ -278,7 +279,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		}
 
 		toUpdate.Labels[upgradeStateLabel] = StatePreparingNodes
-		toUpdate.Status.RepoInfo = repoInfoStr
 		harvesterv1.NodesPrepared.CreateUnknownIfNotExists(toUpdate)
 		return h.upgradeClient.Update(toUpdate)
 	}
@@ -571,8 +571,8 @@ func ensureSingleUpgrade(namespace string, upgradeCache ctlharvesterv1.UpgradeCa
 	return onGoingUpgrades[0], nil
 }
 
-func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*RepoInfo, error) {
-	repoInfo := &RepoInfo{}
+func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*repoinfo.RepoInfo, error) {
+	repoInfo := &repoinfo.RepoInfo{}
 	if err := repoInfo.Load(upgrade.Status.RepoInfo); err != nil {
 		return nil, err
 	}
@@ -610,22 +610,17 @@ func isVersionUpgradable(currentVersion, minUpgradableVersion string) error {
 	return nil
 }
 
-func upgradeEligibilityCheck(upgrade *harvesterv1.Upgrade, repoInfo *RepoInfo) (bool, string) {
+func upgradeEligibilityCheck(upgrade *harvesterv1.Upgrade) error {
 	skipVersionCheckStr, ok := upgrade.Annotations[skipVersionCheckAnnotation]
 	if ok {
 		skipVersionCheck, err := strconv.ParseBool(skipVersionCheckStr)
 		if err == nil && skipVersionCheck {
 			logrus.Info("Skip minimum upgradable version check")
-			return true, ""
+			return nil
 		}
 	}
 
-	logrus.Info("Check minimum upgradable version")
-	if err := isVersionUpgradable(upgrade.Status.PreviousVersion, repoInfo.Release.MinUpgradableVersion); err != nil {
-		return false, err.Error()
-	}
-
-	return true, ""
+	return versionguard.Check(upgrade, true, "")
 }
 
 func (h *upgradeHandler) getReplicaReplenishmentValue() (int, error) {
