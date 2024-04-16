@@ -9,13 +9,13 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/longhorn/longhorn-manager/util"
+	lhtypes "github.com/longhorn/go-common-libs/types"
 )
 
 func GetDeviceTypeOf(mountPath string) (string, error) {
 	procMountPaths := []string{
 		"/proc/mounts",
-		filepath.Join(util.HostProcPath, "1", "mounts"),
+		filepath.Join(lhtypes.HostProcDirectory, "1", "mounts"),
 	}
 
 	var devicePath string

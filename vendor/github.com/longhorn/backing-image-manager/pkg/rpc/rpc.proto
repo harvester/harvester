@@ -4,7 +4,7 @@ package longhorn.backingimagemanager.pkg.rpc;
 
 import "google/protobuf/empty.proto";
 
-option go_package = "rpc";
+option go_package = "github.com/longhorn/backing-image-manager/pkg/rpc";
 
 service BackingImageManagerService {
 	rpc Delete(DeleteRequest) returns (google.protobuf.Empty) {}
@@ -24,6 +24,7 @@ message BackingImageSpec {
 	string uuid = 2;
 	int64 size = 3;
 	string checksum = 4;
+	int64 virtualSize = 5;
 }
 
 message BackingImageStatus {
