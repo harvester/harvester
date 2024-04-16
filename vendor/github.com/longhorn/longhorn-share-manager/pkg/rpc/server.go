@@ -1,25 +1,26 @@
 package smrpc
 
 import (
-	fmt "fmt"
-	"io/ioutil"
+	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
 
 	"k8s.io/mount-utils"
 
-	empty "github.com/golang/protobuf/ptypes/empty"
-	"golang.org/x/net/context"
 	grpccodes "google.golang.org/grpc/codes"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	grpcstatus "google.golang.org/grpc/status"
 
-	iscsiutil "github.com/longhorn/go-iscsi-helper/util"
+	lhns "github.com/longhorn/go-common-libs/ns"
+	lhtypes "github.com/longhorn/go-common-libs/types"
 
 	"github.com/longhorn/longhorn-share-manager/pkg/server"
 	"github.com/longhorn/longhorn-share-manager/pkg/server/nfs"
@@ -99,11 +100,17 @@ func (s *ShareManagerServer) FilesystemTrim(ctx context.Context, req *Filesystem
 		return &empty.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
 	}
 
-	if _, err := ioutil.ReadDir(mountPath); err != nil {
+	if _, err := os.ReadDir(mountPath); err != nil {
 		return &empty.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
 	}
 
-	_, err = iscsiutil.Execute("fstrim", []string{mountPath})
+	namespaces := []lhtypes.Namespace{lhtypes.NamespaceMnt, lhtypes.NamespaceNet}
+	nsexec, err := lhns.NewNamespaceExecutor(lhns.GetDefaultProcessName(), lhtypes.HostProcDirectory, namespaces)
+	if err != nil {
+		return &empty.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
+	}
+
+	_, err = nsexec.Execute(nil, lhtypes.BinaryFstrim, []string{mountPath}, lhtypes.ExecuteDefaultTimeout)
 	if err != nil {
 		return &empty.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
 	}

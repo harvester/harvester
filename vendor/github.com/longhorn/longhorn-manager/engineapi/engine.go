@@ -10,10 +10,11 @@ import (
 
 	"github.com/pkg/errors"
 
+	lhexec "github.com/longhorn/go-common-libs/exec"
+	lhtypes "github.com/longhorn/go-common-libs/types"
 	imutil "github.com/longhorn/longhorn-instance-manager/pkg/util"
 
 	"github.com/longhorn/longhorn-manager/types"
-	"github.com/longhorn/longhorn-manager/util"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
@@ -70,7 +71,7 @@ func (e *EngineBinary) ExecuteEngineBinary(args ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return util.Execute([]string{}, e.LonghornEngineBinary(), args...)
+	return lhexec.NewExecutor().Execute([]string{}, e.LonghornEngineBinary(), args, lhtypes.ExecuteDefaultTimeout)
 }
 
 func (e *EngineBinary) ExecuteEngineBinaryWithTimeout(timeout time.Duration, args ...string) (string, error) {
@@ -78,7 +79,7 @@ func (e *EngineBinary) ExecuteEngineBinaryWithTimeout(timeout time.Duration, arg
 	if err != nil {
 		return "", err
 	}
-	return util.ExecuteWithTimeout(timeout, []string{}, e.LonghornEngineBinary(), args...)
+	return lhexec.NewExecutor().Execute([]string{}, e.LonghornEngineBinary(), args, timeout)
 }
 
 func (e *EngineBinary) ExecuteEngineBinaryWithoutTimeout(envs []string, args ...string) (string, error) {
@@ -86,7 +87,7 @@ func (e *EngineBinary) ExecuteEngineBinaryWithoutTimeout(envs []string, args ...
 	if err != nil {
 		return "", err
 	}
-	return util.ExecuteWithoutTimeout(envs, e.LonghornEngineBinary(), args...)
+	return lhexec.NewExecutor().Execute(envs, e.LonghornEngineBinary(), args, lhtypes.ExecuteNoTimeout)
 }
 
 func parseReplica(s string) (*Replica, error) {
@@ -206,7 +207,7 @@ func (e *EngineBinary) VersionGet(engine *longhorn.Engine, clientOnly bool) (*En
 	} else {
 		cmdline = append([]string{"--url", e.cURL}, cmdline...)
 	}
-	output, err := util.Execute([]string{}, e.LonghornEngineBinary(), cmdline...)
+	output, err := lhexec.NewExecutor().Execute([]string{}, e.LonghornEngineBinary(), cmdline, lhtypes.ExecuteDefaultTimeout)
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot get volume version")
 	}

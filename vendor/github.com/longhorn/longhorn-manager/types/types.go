@@ -10,9 +10,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+
+	lhns "github.com/longhorn/go-common-libs/ns"
 
 	"github.com/longhorn/longhorn-manager/util"
 
@@ -858,7 +861,7 @@ func CreateDisksFromAnnotation(annotation string) (map[string]longhorn.DiskSpec,
 		if disk.Path == "" {
 			return nil, fmt.Errorf("invalid disk %+v", disk)
 		}
-		diskStat, err := util.GetDiskStat(disk.Path)
+		diskStat, err := lhns.GetDiskStat(disk.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -941,10 +944,10 @@ func UnmarshalToNodeTags(s string) ([]string, error) {
 }
 
 func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[string]longhorn.DiskSpec, error) {
-	if err := util.CreateDiskPathReplicaSubdirectory(dataPath); err != nil {
-		return nil, err
+	if _, err := lhns.CreateDirectory(filepath.Join(dataPath, util.ReplicaDirectory), time.Now()); err != nil {
+		return nil, errors.Wrapf(err, "failed to create replica subdirectory %v", dataPath)
 	}
-	diskStat, err := util.GetDiskStat(dataPath)
+	diskStat, err := lhns.GetDiskStat(dataPath)
 	if err != nil {
 		return nil, err
 	}
