@@ -1,7 +1,7 @@
 FROM quay.io/costoolkit/releases-teal:grub2-live-0.0.4-2 as grub2-mbr
 FROM quay.io/costoolkit/releases-teal:grub2-efi-image-live-0.0.4-2 as grub2-efi
 
-FROM golang:1.21.8-bookworm
+FROM golang:1.21-bookworm
 
 ARG DAPPER_HOST_ARCH
 ENV ARCH $DAPPER_HOST_ARCH
