@@ -2,53 +2,45 @@ package rest
 
 import (
 	"fmt"
-	"net/http"
-	"reflect"
 
-	restful "github.com/emicklei/go-restful/v3"
+	"github.com/emicklei/go-restful/v3"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
-	"github.com/rancher/wrangler/pkg/slice"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	virtv1 "kubevirt.io/api/core/v1"
-	mime "kubevirt.io/kubevirt/pkg/rest"
 
 	networkv1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
-var defaultActions = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
-
 func AggregatedWebServices() []*restful.WebService {
 	harvesterv1beta1API := NewGroupVersionWebService(v1beta1.SchemeGroupVersion)
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachinebackups", &v1beta1.VirtualMachineBackup{}, "VirtualMachineBackup", &v1beta1.VirtualMachineBackupList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachinerestores", &v1beta1.VirtualMachineRestore{}, "VirtualMachineRestore", &v1beta1.VirtualMachineRestoreList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachineimages", &v1beta1.VirtualMachineImage{}, "VirtualMachineImage", &v1beta1.VirtualMachineImageList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachinetemplates", &v1beta1.VirtualMachineTemplate{}, "VirtualMachineTemplate", &v1beta1.VirtualMachineTemplateList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "virtualmachinetemplateversions", &v1beta1.VirtualMachineTemplateVersion{}, "VirtualMachineTemplateVersion", &v1beta1.VirtualMachineTemplateVersionList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "keypairs", &v1beta1.KeyPair{}, "KeyPair", &v1beta1.KeyPairList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "upgrades", &v1beta1.Upgrade{}, "Upgrade", &v1beta1.UpgradeList{})
-	AddGenericNamespacedResourceRoutes(harvesterv1beta1API, "supportbundles", &v1beta1.SupportBundle{}, "SupportBundle", &v1beta1.SupportBundleList{})
+	NewGenericResource(harvesterv1beta1API, "virtualmachinebackups", &v1beta1.VirtualMachineBackup{}, "VirtualMachineBackup", &v1beta1.VirtualMachineBackupList{}, true, defaultActions)
+	NewGenericResource(harvesterv1beta1API, "virtualmachinerestores", &v1beta1.VirtualMachineRestore{}, "VirtualMachineRestore", &v1beta1.VirtualMachineRestoreList{}, true, defaultActions)
+	NewGenericResource(harvesterv1beta1API, "virtualmachineimages", &v1beta1.VirtualMachineImage{}, "VirtualMachineImage", &v1beta1.VirtualMachineImageList{}, true, defaultActions)
+	NewGenericResource(harvesterv1beta1API, "virtualmachinetemplates", &v1beta1.VirtualMachineTemplate{}, "VirtualMachineTemplate", &v1beta1.VirtualMachineTemplateList{}, true, defaultActions)
+	NewGenericResource(harvesterv1beta1API, "virtualmachinetemplateversions", &v1beta1.VirtualMachineTemplateVersion{}, "VirtualMachineTemplateVersion", &v1beta1.VirtualMachineTemplateVersionList{}, true, defaultActions)
+	NewGenericResource(harvesterv1beta1API, "keypairs", &v1beta1.KeyPair{}, "KeyPair", &v1beta1.KeyPairList{}, true, defaultActions)
+	NewGenericResource(harvesterv1beta1API, "upgrades", &v1beta1.Upgrade{}, "Upgrade", &v1beta1.UpgradeList{}, true, defaultActions)
+	NewGenericResource(harvesterv1beta1API, "supportbundles", &v1beta1.SupportBundle{}, "SupportBundle", &v1beta1.SupportBundleList{}, true, defaultActions)
 
 	harvesterNetworkv1beta1API := NewGroupVersionWebService(networkv1beta1.SchemeGroupVersion)
-	AddGenericNonNamespacedResourceRoutes(harvesterNetworkv1beta1API, "clusternetworks", &networkv1beta1.ClusterNetwork{}, "ClusterNetwork", &networkv1beta1.ClusterNetworkList{})
-	AddGenericNonNamespacedResourceRoutes(harvesterNetworkv1beta1API, "nodenetworks", &networkv1beta1.NodeNetwork{}, "NodeNetwork", &networkv1beta1.NodeNetworkList{})
+	NewGenericResource(harvesterNetworkv1beta1API, "clusternetworks", &networkv1beta1.ClusterNetwork{}, "ClusterNetwork", &networkv1beta1.ClusterNetworkList{}, false, defaultActions)
+	NewGenericResource(harvesterNetworkv1beta1API, "nodenetworks", &networkv1beta1.NodeNetwork{}, "NodeNetwork", &networkv1beta1.NodeNetworkList{}, false, defaultActions)
 
 	// core
 	corev1API := NewGroupVersionWebService(corev1.SchemeGroupVersion)
-	AddGenericNamespacedResourceRoutes(corev1API, "persistentvolumeclaims", &corev1.PersistentVolumeClaim{}, "PersistentVolumeClaim", &corev1.PersistentVolumeClaimList{})
+	NewGenericResource(corev1API, "persistentvolumeclaims", &corev1.PersistentVolumeClaim{}, "PersistentVolumeClaim", &corev1.PersistentVolumeClaimList{}, true, defaultActions)
 
 	// kubevirt
 	virtv1API := NewGroupVersionWebService(virtv1.SchemeGroupVersion)
-	AddGenericNamespacedResourceRoutes(virtv1API, "virtualmachineinstances", &virtv1.VirtualMachineInstance{}, "VirtualMachineInstance", &virtv1.VirtualMachineInstanceList{}, http.MethodGet)
-	AddGenericNamespacedResourceRoutes(virtv1API, "virtualmachines", &virtv1.VirtualMachine{}, "VirtualMachine", &virtv1.VirtualMachineList{})
-	AddGenericNamespacedResourceRoutes(virtv1API, "virtualmachineinstancemigrations", &virtv1.VirtualMachineInstanceMigration{}, "VirtualMachineInstanceMigration", &virtv1.VirtualMachineInstanceMigrationList{})
+	NewGenericResource(virtv1API, "virtualmachineinstances", &virtv1.VirtualMachineInstance{}, "VirtualMachineInstance", &virtv1.VirtualMachineInstanceList{}, true, defaultGetActions)
+	NewGenericResource(virtv1API, "virtualmachines", &virtv1.VirtualMachine{}, "VirtualMachine", &virtv1.VirtualMachineList{}, true, defaultActions)
+	NewGenericResource(virtv1API, "virtualmachineinstancemigrations", &virtv1.VirtualMachineInstanceMigration{}, "VirtualMachineInstanceMigration", &virtv1.VirtualMachineInstanceMigrationList{}, true, defaultActions)
 
 	// multus
 	cniv1API := NewGroupVersionWebService(cniv1.SchemeGroupVersion)
-	AddGenericNamespacedResourceRoutes(cniv1API, "network-attachment-definitions", &cniv1.NetworkAttachmentDefinition{}, "NetworkAttachmentDefinition", &cniv1.NetworkAttachmentDefinitionList{})
+	NewGenericResource(cniv1API, "network-attachment-definitions", &cniv1.NetworkAttachmentDefinition{}, "NetworkAttachmentDefinition", &cniv1.NetworkAttachmentDefinitionList{}, true, defaultActions)
 
 	return []*restful.WebService{harvesterv1beta1API, harvesterNetworkv1beta1API, corev1API, virtv1API, cniv1API}
 }
@@ -61,121 +53,6 @@ func NewGroupVersionWebService(gv schema.GroupVersion) *restful.WebService {
 	return ws
 }
 
-func AddGenericNonNamespacedResourceRoutes(ws *restful.WebService, resource string, objPointer runtime.Object, objKind string, objListPointer runtime.Object, actions ...string) {
-	AddGenericResourceRoutes(ws, resource, objPointer, objKind, objListPointer, false, actions...)
-}
-
-func AddGenericNamespacedResourceRoutes(ws *restful.WebService, resource string, objPointer runtime.Object, objKind string, objListPointer runtime.Object, actions ...string) {
-	AddGenericResourceRoutes(ws, resource, objPointer, objKind, objListPointer, true, actions...)
-}
-
-func AddGenericResourceRoutes(ws *restful.WebService, resource string, objPointer runtime.Object, objKind string, objListPointer runtime.Object, namespaced bool, actions ...string) {
-	if actions == nil {
-		actions = defaultActions
-	}
-
-	objExample := reflect.ValueOf(objPointer).Elem().Interface()
-	listExample := reflect.ValueOf(objListPointer).Elem().Interface()
-
-	if slice.ContainsString(actions, http.MethodGet) {
-		ws.Route(addGetParams(
-			ws.GET(ResourcePath(resource, namespaced)).
-				Produces(mime.MIME_JSON, mime.MIME_YAML, mime.MIME_JSON_STREAM).
-				Operation("readNamespaced"+objKind).
-				To(Noop).Writes(objExample).
-				Doc("Get a "+objKind+" object.").
-				Metadata("kind", objKind).
-				Returns(http.StatusOK, "OK", objExample).
-				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
-		))
-
-		ws.Route(addGetAllNamespacesListParams(
-			ws.GET(resource).
-				Produces(mime.MIME_JSON, mime.MIME_YAML, mime.MIME_JSON_STREAM).
-				Operation("list"+objKind+"ForAllNamespaces").
-				To(Noop).Writes(listExample).
-				Doc("Get a list of all "+objKind+" objects.").
-				Metadata("kind", objKind).
-				Returns(http.StatusOK, "OK", listExample).
-				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
-		))
-
-		ws.Route(addGetNamespacedListParams(
-			ws.GET(ResourceBasePath(resource, namespaced)).
-				Produces(mime.MIME_JSON, mime.MIME_YAML, mime.MIME_JSON_STREAM).
-				Operation("listNamespaced"+objKind).
-				Writes(listExample).
-				To(Noop).
-				Doc("Get a list of "+objKind+" objects in a namespace.").
-				Metadata("kind", objKind).
-				Returns(http.StatusOK, "OK", listExample).
-				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
-		))
-	}
-
-	if slice.ContainsString(actions, http.MethodPost) {
-		ws.Route(addPostParams(
-			ws.POST(ResourceBasePath(resource, namespaced)).
-				Produces(mime.MIME_JSON, mime.MIME_YAML).
-				Consumes(mime.MIME_JSON, mime.MIME_YAML).
-				Operation("createNamespaced"+objKind).
-				To(Noop).Reads(objExample).Writes(objExample).
-				Doc("Create a "+objKind+" object.").
-				Metadata("kind", objKind).
-				Returns(http.StatusOK, "OK", objExample).
-				Returns(http.StatusCreated, "Created", objExample).
-				Returns(http.StatusAccepted, "Accepted", objExample).
-				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
-		))
-	}
-
-	if slice.ContainsString(actions, http.MethodPut) {
-		ws.Route(addPutParams(
-			ws.PUT(ResourcePath(resource, namespaced)).
-				Produces(mime.MIME_JSON, mime.MIME_YAML).
-				Consumes(mime.MIME_JSON, mime.MIME_YAML).
-				Operation("replaceNamespaced"+objKind).
-				To(Noop).Reads(objExample).Writes(objExample).
-				Doc("Update a "+objKind+" object.").
-				Metadata("kind", objKind).
-				Returns(http.StatusOK, "OK", objExample).
-				Returns(http.StatusCreated, "Create", objExample).
-				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
-		))
-	}
-
-	if slice.ContainsString(actions, http.MethodPatch) {
-		ws.Route(addPatchParams(
-			ws.PATCH(ResourcePath(resource, namespaced)).
-				Consumes(mime.MIME_JSON_PATCH, mime.MIME_MERGE_PATCH).
-				Produces(mime.MIME_JSON).
-				Operation("patchNamespaced"+objKind).
-				To(Noop).
-				Writes(objExample).Reads(metav1.Patch{}).
-				Doc("Patch a "+objKind+" object.").
-				Metadata("kind", objKind).
-				Returns(http.StatusOK, "OK", objExample).
-				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
-		))
-	}
-
-	if slice.ContainsString(actions, http.MethodDelete) {
-		ws.Route(addDeleteParams(
-			ws.DELETE(ResourcePath(resource, namespaced)).
-				Produces(mime.MIME_JSON, mime.MIME_YAML).
-				Consumes(mime.MIME_JSON, mime.MIME_YAML).
-				Operation("deleteNamespaced"+objKind).
-				To(Noop).
-				Reads(metav1.DeleteOptions{}).Writes(metav1.Status{}).
-				Doc("Delete a "+objKind+" object.").
-				Metadata("kind", objKind).
-				Returns(http.StatusOK, "OK", objExample).
-				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
-		))
-	}
-
-}
-
 func addCollectionParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
 	return builder.Param(continueParam(ws)).
 		Param(fieldSelectorParam(ws)).
@@ -185,40 +62,6 @@ func addCollectionParams(builder *restful.RouteBuilder, ws *restful.WebService) 
 		Param(resourceVersionParam(ws)).
 		Param(timeoutSecondsParam(ws)).
 		Param(watchParam(ws))
-}
-
-func addGetAllNamespacesListParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
-	return addCollectionParams(builder, ws)
-}
-
-func addGetParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
-	return builder.Param(NameParam(ws)).
-		Param(NamespaceParam(ws)).
-		Param(exactParam(ws)).
-		Param(exportParam(ws))
-}
-
-func addGetNamespacedListParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
-	return addCollectionParams(builder.Param(NamespaceParam(ws)), ws)
-}
-
-func addPostParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
-	return builder.Param(NamespaceParam(ws))
-}
-
-func addPutParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
-	return builder.Param(NamespaceParam(ws)).Param(NameParam(ws))
-}
-
-func addDeleteParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
-	return builder.Param(NamespaceParam(ws)).Param(NameParam(ws)).
-		Param(gracePeriodSecondsParam(ws)).
-		Param(orphanDependentsParam(ws)).
-		Param(propagationPolicyParam(ws))
-}
-
-func addPatchParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
-	return builder.Param(NamespaceParam(ws)).Param(NameParam(ws))
 }
 
 func NameParam(ws *restful.WebService) *restful.Parameter {
