@@ -20,18 +20,16 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"strconv"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/labels"
-
 	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubectl/pkg/cmd/util/podcmd"
@@ -126,6 +124,8 @@ const (
 	VirtlogdOverhead            = "20Mi"  // The `ps` RSS for virtlogd
 	VirtqemudOverhead           = "35Mi"  // The `ps` RSS for virtqemud
 	QemuOverhead                = "30Mi"  // The `ps` RSS for qemu, minus the RAM of its (stressed) guest, minus the virtual page table
+	// Default: limits.memory = 2*requests.memory
+	DefaultMemoryLimitOverheadRatio = float64(2.0)
 )
 
 const customSELinuxType = "virt_launcher.process"
@@ -156,6 +156,10 @@ type templateService struct {
 	virtClient                 kubecli.KubevirtClient
 	clusterConfig              *virtconfig.ClusterConfig
 	launcherSubGid             int64
+	resourceQuotaStore         cache.Store
+	namespaceStore             cache.Store
+
+	sidecarCreators []SidecarCreatorFunc
 }
 
 func isFeatureStateEnabled(fs *v1.FeatureState) bool {
@@ -255,11 +259,8 @@ func (t *templateService) RenderLaunchManifestNoVm(vmi *v1.VirtualMachineInstanc
 }
 
 func (t *templateService) RenderMigrationManifest(vmi *v1.VirtualMachineInstance, pod *k8sv1.Pod) (*k8sv1.Pod, error) {
-	reproducibleImageIDs, err := containerdisk.ExtractImageIDsFromSourcePod(vmi, pod)
-	if err != nil {
-		return nil, fmt.Errorf("can not proceed with the migration when no reproducible image digest can be detected: %v", err)
-	}
-	podManifest, err := t.renderLaunchManifest(vmi, reproducibleImageIDs, false)
+	imageIDs := containerdisk.ExtractImageIDsFromSourcePod(vmi, pod)
+	podManifest, err := t.renderLaunchManifest(vmi, imageIDs, false)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +268,7 @@ func (t *templateService) RenderMigrationManifest(vmi *v1.VirtualMachineInstance
 	if namescheme.PodHasOrdinalInterfaceName(NonDefaultMultusNetworksIndexedByIfaceName(pod)) {
 		ordinalNameScheme := namescheme.CreateOrdinalNetworkNameScheme(vmi.Spec.Networks)
 		multusNetworksAnnotation, err := GenerateMultusCNIAnnotationFromNameScheme(
-			vmi.Namespace, vmi.Spec.Domain.Devices.Interfaces, vmi.Spec.Networks, ordinalNameScheme)
+			vmi.Namespace, vmi.Spec.Domain.Devices.Interfaces, vmi.Spec.Networks, ordinalNameScheme, t.clusterConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -353,10 +354,13 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 
 	ovmfPath := t.clusterConfig.GetOVMFPath(vmi.Spec.Architecture)
 
-	// Read requested hookSidecars from VMI meta
-	requestedHookSidecarList, err := hooks.UnmarshalHookSidecarList(vmi)
-	if err != nil {
-		return nil, err
+	var requestedHookSidecarList hooks.HookSidecarList
+	for _, sidecarCreator := range t.sidecarCreators {
+		sidecars, err := sidecarCreator(vmi, t.clusterConfig.GetConfig())
+		if err != nil {
+			return nil, err
+		}
+		requestedHookSidecarList = append(requestedHookSidecarList, sidecars...)
 	}
 
 	var command []string
@@ -464,6 +468,11 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 		containers = append(containers, virtiofsContainers...)
 	}
 
+	sconsolelogContainer := generateSerialConsoleLogContainer(vmi, t.launcherImage, t.clusterConfig, virtLauncherLogVerbosity)
+	if sconsolelogContainer != nil {
+		containers = append(containers, *sconsolelogContainer)
+	}
+
 	for i, requestedHookSidecar := range requestedHookSidecarList {
 		containers = append(
 			containers,
@@ -471,7 +480,7 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 				sidecarContainerName(i), vmi, sidecarResources(vmi, t.clusterConfig), requestedHookSidecar, userId).Render(requestedHookSidecar.Command))
 	}
 
-	podAnnotations, err := generatePodAnnotations(vmi)
+	podAnnotations, err := generatePodAnnotations(vmi, t.clusterConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -693,7 +702,7 @@ func (t *templateService) newVolumeRenderer(vmi *v1.VirtualMachineInstance, name
 		withVMIConfigVolumes(vmi.Spec.Domain.Devices.Disks, vmi.Spec.Volumes),
 		withVMIVolumes(t.persistentVolumeClaimStore, vmi.Spec.Volumes, vmi.Status.VolumeStatus),
 		withAccessCredentials(vmi.Spec.AccessCredentials),
-		withTPM(vmi),
+		withBackendStorage(vmi),
 	}
 	if len(requestedHookSidecarList) != 0 {
 		volumeOpts = append(volumeOpts, withSidecarVolumes(requestedHookSidecarList))
@@ -1039,6 +1048,7 @@ func (t *templateService) RenderExporterManifest(vmExport *exportv1.VirtualMachi
 						AllowPrivilegeEscalation: pointer.Bool(false),
 						Capabilities:             &k8sv1.Capabilities{Drop: []k8sv1.Capability{"ALL"}},
 					},
+					Resources: vmExportContainerResourceRequirements(t.clusterConfig),
 				},
 			},
 		},
@@ -1116,6 +1126,8 @@ func getNamespaceAndNetworkName(namespace string, fullNetworkName string) (strin
 	return precond.MustNotBeEmpty(namespace), fullNetworkName
 }
 
+type templateServiceOption func(*templateService)
+
 func NewTemplateService(launcherImage string,
 	launcherQemuTimeout int,
 	virtShareDir string,
@@ -1128,7 +1140,11 @@ func NewTemplateService(launcherImage string,
 	virtClient kubecli.KubevirtClient,
 	clusterConfig *virtconfig.ClusterConfig,
 	launcherSubGid int64,
-	exporterImage string) TemplateService {
+	exporterImage string,
+	resourceQuotaStore cache.Store,
+	namespaceStore cache.Store,
+	opts ...templateServiceOption,
+) TemplateService {
 
 	precond.MustNotBeEmpty(launcherImage)
 	log.Log.V(1).Infof("Exporter Image: %s", exporterImage)
@@ -1146,6 +1162,12 @@ func NewTemplateService(launcherImage string,
 		clusterConfig:              clusterConfig,
 		launcherSubGid:             launcherSubGid,
 		exporterImage:              exporterImage,
+		resourceQuotaStore:         resourceQuotaStore,
+		namespaceStore:             namespaceStore,
+	}
+
+	for _, opt := range opts {
+		opt(&svc)
 	}
 
 	return &svc
@@ -1243,7 +1265,7 @@ func generateContainerSecurityContext(selinuxType string, container *k8sv1.Conta
 	container.SecurityContext.SELinuxOptions.Level = "s0"
 }
 
-func generatePodAnnotations(vmi *v1.VirtualMachineInstance) (map[string]string, error) {
+func generatePodAnnotations(vmi *v1.VirtualMachineInstance, config *virtconfig.ClusterConfig) (map[string]string, error) {
 	annotationsSet := map[string]string{
 		v1.DomainAnnotation: vmi.GetObjectMeta().GetName(),
 	}
@@ -1257,7 +1279,7 @@ func generatePodAnnotations(vmi *v1.VirtualMachineInstance) (map[string]string, 
 		return iface.State != v1.InterfaceStateAbsent
 	})
 	nonAbsentNets := vmispec.FilterNetworksByInterfaces(vmi.Spec.Networks, nonAbsentIfaces)
-	multusAnnotation, err := GenerateMultusCNIAnnotation(vmi.Namespace, nonAbsentIfaces, nonAbsentNets)
+	multusAnnotation, err := GenerateMultusCNIAnnotation(vmi.Namespace, nonAbsentIfaces, nonAbsentNets, config)
 	if err != nil {
 		return nil, err
 	}
@@ -1324,7 +1346,12 @@ func checkForKeepLauncherAfterFailure(vmi *v1.VirtualMachineInstance) bool {
 	return keepLauncherAfterFailure
 }
 
-func requiresCPULimits(virtClient kubecli.KubevirtClient, labelSelector *metav1.LabelSelector, vmi *v1.VirtualMachineInstance) bool {
+func (t *templateService) doesVMIRequireAutoCPULimits(vmi *v1.VirtualMachineInstance) bool {
+	if t.doesVMIRequireAutoResourceLimits(vmi, k8sv1.ResourceCPU) {
+		return true
+	}
+
+	labelSelector := t.clusterConfig.GetConfig().AutoCPULimitNamespaceLabelSelector
 	_, limitSet := vmi.Spec.Domain.Resources.Limits[k8sv1.ResourceCPU]
 	if labelSelector == nil || limitSet {
 		return false
@@ -1334,13 +1361,28 @@ func requiresCPULimits(virtClient kubecli.KubevirtClient, labelSelector *metav1.
 		log.DefaultLogger().Reason(err).Warning("invalid CPULimitNamespaceLabelSelector set, assuming none")
 		return false
 	}
-	namespace, err := virtClient.CoreV1().Namespaces().Get(context.Background(), vmi.Namespace, metav1.GetOptions{})
-	if err != nil {
-		log.DefaultLogger().Reason(err).Warningf("failed to get namespace %s", vmi.Namespace)
+
+	if t.namespaceStore == nil {
+		log.DefaultLogger().Reason(err).Warning("empty namespace informer")
 		return false
 	}
 
-	if selector.Matches(labels.Set(namespace.Labels)) {
+	obj, exists, err := t.namespaceStore.GetByKey(vmi.Namespace)
+	if err != nil {
+		log.Log.Warning("Error retrieving namespace from informer")
+		return false
+	} else if !exists {
+		log.Log.Warningf("namespace %s does not exist.", vmi.Namespace)
+		return false
+	}
+
+	ns, ok := obj.(*k8sv1.Namespace)
+	if !ok {
+		log.Log.Errorf("couldn't cast object to Namespace: %+v", obj)
+		return false
+	}
+
+	if selector.Matches(labels.Set(ns.Labels)) {
 		return true
 	}
 
@@ -1349,14 +1391,15 @@ func requiresCPULimits(virtClient kubecli.KubevirtClient, labelSelector *metav1.
 
 func (t *templateService) VMIResourcePredicates(vmi *v1.VirtualMachineInstance, networkToResourceMap map[string]string) VMIResourcePredicates {
 	memoryOverhead := GetMemoryOverhead(vmi, t.clusterConfig.GetClusterCPUArch(), t.clusterConfig.GetConfig().AdditionalGuestMemoryOverheadRatio)
-	withCPULimits := requiresCPULimits(t.virtClient, t.clusterConfig.GetConfig().AutoCPULimitNamespaceLabelSelector, vmi)
+	withCPULimits := t.doesVMIRequireAutoCPULimits(vmi)
 	return VMIResourcePredicates{
 		vmi: vmi,
 		resourceRules: []VMIResourceRule{
-			NewVMIResourceRule(doesVMIRequireDedicatedCPU, WithCPUPinning(vmi.Spec.Domain.CPU)),
+			NewVMIResourceRule(doesVMIRequireDedicatedCPU, WithCPUPinning(vmi.Spec.Domain.CPU, vmi.Annotations)),
 			NewVMIResourceRule(not(doesVMIRequireDedicatedCPU), WithoutDedicatedCPU(vmi.Spec.Domain.CPU, t.clusterConfig.GetCPUAllocationRatio(), withCPULimits)),
 			NewVMIResourceRule(util.HasHugePages, WithHugePages(vmi.Spec.Domain.Memory, memoryOverhead)),
 			NewVMIResourceRule(not(util.HasHugePages), WithMemoryOverhead(vmi.Spec.Domain.Resources, memoryOverhead)),
+			NewVMIResourceRule(t.doesVMIRequireAutoMemoryLimits, WithAutoMemoryLimits(vmi.Namespace, t.namespaceStore)),
 			NewVMIResourceRule(func(*v1.VirtualMachineInstance) bool {
 				return len(networkToResourceMap) > 0
 			}, WithNetworkResources(networkToResourceMap)),
@@ -1366,6 +1409,29 @@ func (t *templateService) VMIResourcePredicates(vmi *v1.VirtualMachineInstance, 
 			NewVMIResourceRule(reservation.HasVMIPersistentReservation, WithPersistentReservation()),
 		},
 	}
+}
+
+func (t *templateService) doesVMIRequireAutoMemoryLimits(vmi *v1.VirtualMachineInstance) bool {
+	return t.doesVMIRequireAutoResourceLimits(vmi, k8sv1.ResourceMemory)
+}
+
+func (t *templateService) doesVMIRequireAutoResourceLimits(vmi *v1.VirtualMachineInstance, resource k8sv1.ResourceName) bool {
+	if !t.clusterConfig.AutoResourceLimitsEnabled() {
+		return false
+	}
+	if _, resourceLimitsExists := vmi.Spec.Domain.Resources.Limits[resource]; resourceLimitsExists {
+		return false
+	}
+
+	for _, obj := range t.resourceQuotaStore.List() {
+		if resourceQuota, ok := obj.(*k8sv1.ResourceQuota); ok {
+			if _, exists := resourceQuota.Spec.Hard["limits."+resource]; exists && resourceQuota.Namespace == vmi.Namespace {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (p VMIResourcePredicates) Apply() []ResourceRendererOption {

@@ -44,8 +44,8 @@ replace (
 	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.26.10
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.26.10
 
-	kubevirt.io/api => kubevirt.io/api v1.0.0
-	kubevirt.io/client-go => kubevirt.io/client-go v1.0.0
+	kubevirt.io/api => kubevirt.io/api v1.1.1
+	kubevirt.io/client-go => kubevirt.io/client-go v1.1.1
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2
 )
 
@@ -76,7 +76,7 @@ require (
 	github.com/onsi/gomega v1.27.6
 	github.com/openshift/api v0.0.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.63.0
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.64.1
 	github.com/rancher/apiserver v0.0.0-20230120214941-e88c32739dc7
 	github.com/rancher/dynamiclistener v0.3.6
 	github.com/rancher/fleet/pkg/apis v0.0.0-20230123175930-d296259590be
@@ -112,10 +112,10 @@ require (
 	k8s.io/kubectl v0.25.0
 	k8s.io/kubelet v0.26.10
 	k8s.io/utils v0.0.0-20240310230437-4693a0247e57
-	kubevirt.io/api v1.0.0
-	kubevirt.io/client-go v1.0.0
+	kubevirt.io/api v1.1.1
+	kubevirt.io/client-go v1.1.1
 	kubevirt.io/containerized-data-importer-api v1.57.0-alpha1
-	kubevirt.io/kubevirt v1.0.0
+	kubevirt.io/kubevirt v1.1.1
 	sigs.k8s.io/cluster-api v1.4.8
 	sigs.k8s.io/controller-runtime v0.14.7
 	sigs.k8s.io/kind v0.14.0
@@ -218,6 +218,7 @@ require (
 	github.com/longhorn/longhorn-instance-manager v1.5.5-0.20240326065406-8d925c0e7e1e // indirect
 	github.com/longhorn/longhorn-share-manager v1.5.5-0.20240319114127-58303a9ff61f // indirect
 	github.com/longhorn/longhorn-spdk-engine v0.0.0-20231005170812-e9b634e07e47 // indirect
+	github.com/machadovilaca/operator-observability v0.0.6 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
@@ -305,10 +306,9 @@ require (
 	k8s.io/component-base v0.28.2 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.110.1 // indirect
-	k8s.io/kube-aggregator v0.26.3 // indirect
+	k8s.io/kube-aggregator v0.26.4 // indirect
 	k8s.io/kubernetes v1.28.2 // indirect
 	k8s.io/mount-utils v0.29.3 // indirect
-	kubevirt.io/containerized-data-importer v1.56.0 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	oras.land/oras-go v1.2.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.2 // indirect

@@ -31,19 +31,22 @@ func (VirtualMachineClusterInstancetypeList) SwaggerDoc() map[string]string {
 func (VirtualMachineInstancetypeSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                "VirtualMachineInstancetypeSpec is a description of the VirtualMachineInstancetype or VirtualMachineClusterInstancetype.\n\nCPU and Memory are required attributes with both requiring that their Guest attribute is defined, ensuring a number of vCPUs and amount of RAM is always provided by each instancetype.",
+		"nodeSelector":    "NodeSelector is a selector which must be true for the vmi to fit on a node.\nSelector which must match a node's labels for the vmi to be scheduled on that node.\nMore info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/\n\nNodeSelector is the name of the custom node selector for the instancetype.\n+optional",
+		"schedulerName":   "If specified, the VMI will be dispatched by specified scheduler.\nIf not specified, the VMI will be dispatched by default scheduler.\n\nSchedulerName is the name of the custom K8s scheduler for the instancetype.\n+optional",
 		"cpu":             "Required CPU related attributes of the instancetype.",
 		"memory":          "Required Memory related attributes of the instancetype.",
 		"gpus":            "Optionally defines any GPU devices associated with the instancetype.\n\n+optional\n+listType=atomic",
 		"hostDevices":     "Optionally defines any HostDevices associated with the instancetype.\n\n+optional\n+listType=atomic",
 		"ioThreadsPolicy": "Optionally defines the IOThreadsPolicy to be used by the instancetype.\n\n+optional",
 		"launchSecurity":  "Optionally defines the LaunchSecurity to be used by the instancetype.\n\n+optional",
+		"annotations":     "Optionally defines the required Annotations to be used by the instance type and applied to the VirtualMachineInstance\n\n+optional",
 	}
 }
 
 func (CPUInstancetype) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                      "CPUInstancetype contains the CPU related configuration of a given VirtualMachineInstancetypeSpec.\n\nGuest is a required attribute and defines the number of vCPUs to be exposed to the guest by the instancetype.",
-		"guest":                 "Required number of vCPUs to expose to the guest.\n\nThe resulting CPU topology being derived from the optional PreferredCPUTopology attribute of CPUPreferences that itself defaults to PreferCores.",
+		"guest":                 "Required number of vCPUs to expose to the guest.\n\nThe resulting CPU topology being derived from the optional PreferredCPUTopology attribute of CPUPreferences that itself defaults to PreferSockets.",
 		"model":                 "Model specifies the CPU model inside the VMI.\nList of available models https://github.com/libvirt/libvirt/tree/master/src/cpu_map.\nIt is possible to specify special cases like \"host-passthrough\" to get the same CPU as the node\nand \"host-model\" to get CPU closest to the node one.\nDefaults to host-model.\n+optional",
 		"dedicatedCPUPlacement": "DedicatedCPUPlacement requests the scheduler to place the VirtualMachineInstance on a node\nwith enough dedicated pCPUs and pin the vCPUs to it.\n+optional",
 		"numa":                  "NUMA allows specifying settings for the guest NUMA topology\n+optional",
@@ -102,6 +105,8 @@ func (VirtualMachinePreferenceSpec) SwaggerDoc() map[string]string {
 		"preferredSubdomain":                     "Subdomain of the VirtualMachineInstance\n\n+optional",
 		"preferredTerminationGracePeriodSeconds": "Grace period observed after signalling a VirtualMachineInstance to stop after which the VirtualMachineInstance is force terminated.\n\n+optional",
 		"requirements":                           "Requirements defines the minium amount of instance type defined resources required by a set of preferences\n\n+optional",
+		"annotations":                            "Optionally defines preferred Annotations to be applied to the VirtualMachineInstance\n\n+optional",
+		"preferSpreadSocketToCoreRatio":          "PreferSpreadSocketToCoreRatio defines the ratio to spread vCPUs between cores and sockets, it defaults to 2.\n\n+optional",
 	}
 }
 

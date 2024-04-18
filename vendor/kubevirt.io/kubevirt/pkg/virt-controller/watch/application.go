@@ -27,6 +27,11 @@ import (
 	"path/filepath"
 	"time"
 
+	v1 "kubevirt.io/api/core/v1"
+
+	"kubevirt.io/kubevirt/pkg/hooks"
+
+	containerdisk "kubevirt.io/kubevirt/pkg/container-disk"
 	kvtls "kubevirt.io/kubevirt/pkg/util/tls"
 
 	"kubevirt.io/kubevirt/pkg/monitoring/migration"
@@ -40,7 +45,6 @@ import (
 
 	"github.com/emicklei/go-restful/v3"
 	vsv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	flag "github.com/spf13/pflag"
 	k8sv1 "k8s.io/api/core/v1"
@@ -69,11 +73,11 @@ import (
 	clientutil "kubevirt.io/client-go/util"
 
 	"kubevirt.io/kubevirt/pkg/certificates/bootstrap"
-	containerdisk "kubevirt.io/kubevirt/pkg/container-disk"
 	"kubevirt.io/kubevirt/pkg/controller"
 	clusterutil "kubevirt.io/kubevirt/pkg/util/cluster"
 
 	"kubevirt.io/kubevirt/pkg/monitoring/perfscale"
+	"kubevirt.io/kubevirt/pkg/monitoring/virt-controller/metrics"
 	vmiprom "kubevirt.io/kubevirt/pkg/monitoring/vmistats" // import for prometheus metrics
 	vmprom "kubevirt.io/kubevirt/pkg/monitoring/vmstats"
 	"kubevirt.io/kubevirt/pkg/service"
@@ -86,6 +90,8 @@ import (
 	"kubevirt.io/kubevirt/pkg/virt-controller/watch/drain/disruptionbudget"
 	"kubevirt.io/kubevirt/pkg/virt-controller/watch/drain/evacuation"
 	workloadupdater "kubevirt.io/kubevirt/pkg/virt-controller/watch/workload-updater"
+
+	"kubevirt.io/kubevirt/pkg/network/netbinding"
 )
 
 const (
@@ -119,20 +125,6 @@ var (
 	containerDiskDir = filepath.Join(util.VirtShareDir, "container-disks")
 	hotplugDiskDir   = filepath.Join(util.VirtShareDir, "hotplug-disks")
 
-	leaderGauge = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "kubevirt_virt_controller_leading",
-			Help: "Indication for an operating virt-controller.",
-		},
-	)
-
-	readyGauge = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "kubevirt_virt_controller_ready",
-			Help: "Indication for a virt-controller that is ready to take the lead.",
-		},
-	)
-
 	apiHealthVersion = new(healthz.KubeApiHealthzVersion)
 )
 
@@ -153,7 +145,8 @@ type VirtControllerApp struct {
 	vmiInformer   cache.SharedIndexInformer
 	vmiRecorder   record.EventRecorder
 
-	namespaceStore cache.Store
+	namespaceInformer cache.SharedIndexInformer
+	namespaceStore    cache.Store
 
 	kubeVirtInformer cache.SharedIndexInformer
 
@@ -176,6 +169,7 @@ type VirtControllerApp struct {
 	controllerRevisionInformer cache.SharedIndexInformer
 
 	dataVolumeInformer cache.SharedIndexInformer
+	dataSourceInformer cache.SharedIndexInformer
 	cdiInformer        cache.SharedIndexInformer
 	cdiConfigInformer  cache.SharedIndexInformer
 
@@ -273,13 +267,12 @@ func init() {
 	utilruntime.Must(poolv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(clonev1alpha1.AddToScheme(scheme.Scheme))
 
-	prometheus.MustRegister(leaderGauge)
-	prometheus.MustRegister(readyGauge)
+	metrics.SetupMetrics()
 }
 
 func Execute() {
 	var err error
-	var app VirtControllerApp = VirtControllerApp{}
+	var app = VirtControllerApp{}
 
 	app.LeaderElection = leaderelectionconfig.DefaultLeaderElectionConfiguration()
 
@@ -359,6 +352,7 @@ func Execute() {
 	app.kvPodInformer = app.informerFactory.KubeVirtPod()
 	app.nodeInformer = app.informerFactory.KubeVirtNode()
 	app.namespaceStore = app.informerFactory.Namespace().GetStore()
+	app.namespaceInformer = app.informerFactory.Namespace()
 	app.vmiCache = app.vmiInformer.GetStore()
 	app.vmiRecorder = app.newRecorder(k8sv1.NamespaceAll, "virtualmachine-controller")
 
@@ -392,6 +386,7 @@ func Execute() {
 		app.dataVolumeInformer = app.informerFactory.DataVolume()
 		app.cdiInformer = app.informerFactory.CDI()
 		app.cdiConfigInformer = app.informerFactory.CDIConfig()
+		app.dataSourceInformer = app.informerFactory.DataSource()
 		log.Log.Infof("CDI detected, DataVolume integration enabled")
 	} else {
 		// Add a dummy DataVolume informer in the event datavolume support
@@ -400,6 +395,7 @@ func Execute() {
 		app.dataVolumeInformer = app.informerFactory.DummyDataVolume()
 		app.cdiInformer = app.informerFactory.DummyCDI()
 		app.cdiConfigInformer = app.informerFactory.DummyCDIConfig()
+		app.dataSourceInformer = app.informerFactory.DummyDataSource()
 		log.Log.Infof("CDI not detected, DataVolume integration disabled")
 	}
 
@@ -458,11 +454,11 @@ func (vca *VirtControllerApp) configModificationCallback() {
 }
 
 // Update virt-controller rate limiter
-func (app *VirtControllerApp) shouldChangeRateLimiter() {
-	config := app.clusterConfig.GetConfig()
+func (vca *VirtControllerApp) shouldChangeRateLimiter() {
+	config := vca.clusterConfig.GetConfig()
 	qps := config.ControllerConfiguration.RestClient.RateLimiter.TokenBucketRateLimiter.QPS
 	burst := config.ControllerConfiguration.RestClient.RateLimiter.TokenBucketRateLimiter.Burst
-	app.reloadableRateLimiter.Set(flowcontrol.NewTokenBucketRateLimiter(qps, burst))
+	vca.reloadableRateLimiter.Set(flowcontrol.NewTokenBucketRateLimiter(qps, burst))
 	log.Log.V(2).Infof("setting rate limiter to %v QPS and %v Burst", qps, burst)
 }
 
@@ -501,9 +497,9 @@ func (vca *VirtControllerApp) Run() {
 		golog.Fatal(err)
 	}
 
-	readyGauge.Set(1)
+	metrics.SetVirtControllerReady()
 	vca.leaderElector.Run(vca.ctx)
-	readyGauge.Set(0)
+	metrics.SetVirtControllerNotReady()
 	panic("unreachable")
 }
 
@@ -564,9 +560,9 @@ func (vca *VirtControllerApp) onStartedLeading() func(ctx context.Context) {
 			}
 		}()
 
-		cache.WaitForCacheSync(stop, vca.persistentVolumeClaimInformer.HasSynced)
+		cache.WaitForCacheSync(stop, vca.persistentVolumeClaimInformer.HasSynced, vca.namespaceInformer.HasSynced, vca.resourceQuotaInformer.HasSynced)
 		close(vca.readyChan)
-		leaderGauge.Set(1)
+		metrics.SetVirtControllerLeading()
 	}
 }
 
@@ -584,9 +580,7 @@ func (vca *VirtControllerApp) initCommon() {
 		golog.Fatal(err)
 	}
 
-	if err := containerdisk.SetLocalDirectory(filepath.Join(vca.ephemeralDiskDir, "container-disk-data")); err != nil {
-		log.Log.Warningf("failed to create ephemeral disk dir: %v", err)
-	}
+	containerdisk.SetLocalDirectoryOnly(filepath.Join(vca.ephemeralDiskDir, "container-disk-data"))
 	vca.templateService = services.NewTemplateService(vca.launcherImage,
 		vca.launcherQemuTimeout,
 		vca.virtShareDir,
@@ -600,6 +594,16 @@ func (vca *VirtControllerApp) initCommon() {
 		vca.clusterConfig,
 		vca.launcherSubGid,
 		vca.exporterImage,
+		vca.resourceQuotaInformer.GetStore(),
+		vca.namespaceStore,
+		services.WithSidecarCreator(
+			func(vmi *v1.VirtualMachineInstance, _ *v1.KubeVirtConfiguration) (hooks.HookSidecarList, error) {
+				return hooks.UnmarshalHookSidecarList(vmi)
+			}),
+		services.WithSidecarCreator(
+			func(vmi *v1.VirtualMachineInstance, kvc *v1.KubeVirtConfiguration) (hooks.HookSidecarList, error) {
+				return netbinding.NetBindingPluginSidecarList(vmi, kvc, vca.vmiRecorder)
+			}),
 	)
 
 	topologyHinter := topology.NewTopologyHinter(vca.nodeInformer.GetStore(), vca.vmiInformer.GetStore(), vca.clusterConfig)
@@ -688,8 +692,11 @@ func (vca *VirtControllerApp) initVirtualMachines() {
 		vca.vmiInformer,
 		vca.vmInformer,
 		vca.dataVolumeInformer,
+		vca.dataSourceInformer,
+		vca.namespaceStore,
 		vca.persistentVolumeClaimInformer,
 		vca.controllerRevisionInformer,
+		vca.kvPodInformer,
 		instancetypeMethods,
 		recorder,
 		vca.clientSet,
