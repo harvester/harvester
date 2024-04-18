@@ -569,6 +569,9 @@ github.com/longhorn/longhorn-share-manager/pkg/volume
 ## explicit; go 1.17
 github.com/longhorn/longhorn-spdk-engine/pkg/types
 github.com/longhorn/longhorn-spdk-engine/proto/spdkrpc
+# github.com/machadovilaca/operator-observability v0.0.6
+## explicit; go 1.20
+github.com/machadovilaca/operator-observability/pkg/operatormetrics
 # github.com/mailru/easyjson v0.7.7
 ## explicit; go 1.12
 github.com/mailru/easyjson/buffer
@@ -729,7 +732,7 @@ github.com/pmezard/go-difflib/difflib
 # github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c
 ## explicit; go 1.14
 github.com/power-devops/perfstat
-# github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.63.0
+# github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.64.1
 ## explicit; go 1.17
 github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring
 github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1
@@ -1904,7 +1907,7 @@ k8s.io/klog/v2/internal/dbg
 k8s.io/klog/v2/internal/serialize
 k8s.io/klog/v2/internal/severity
 k8s.io/klog/v2/internal/sloghandler
-# k8s.io/kube-aggregator v0.26.3 => k8s.io/kube-aggregator v0.26.10
+# k8s.io/kube-aggregator v0.26.4 => k8s.io/kube-aggregator v0.26.10
 ## explicit; go 1.19
 k8s.io/kube-aggregator/pkg/apis/apiregistration
 k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
@@ -1973,7 +1976,7 @@ k8s.io/utils/ptr
 k8s.io/utils/set
 k8s.io/utils/strings/slices
 k8s.io/utils/trace
-# kubevirt.io/api v1.0.0 => kubevirt.io/api v1.0.0
+# kubevirt.io/api v1.1.1 => kubevirt.io/api v1.1.1
 ## explicit; go 1.17
 kubevirt.io/api/clone
 kubevirt.io/api/clone/v1alpha1
@@ -1991,7 +1994,7 @@ kubevirt.io/api/pool
 kubevirt.io/api/pool/v1alpha1
 kubevirt.io/api/snapshot
 kubevirt.io/api/snapshot/v1alpha1
-# kubevirt.io/client-go v1.0.0 => kubevirt.io/client-go v1.0.0
+# kubevirt.io/client-go v1.1.1 => kubevirt.io/client-go v1.1.1
 ## explicit; go 1.17
 kubevirt.io/client-go/generated/containerized-data-importer/clientset/versioned
 kubevirt.io/client-go/generated/containerized-data-importer/clientset/versioned/scheme
@@ -2022,9 +2025,6 @@ kubevirt.io/client-go/precond
 kubevirt.io/client-go/subresources
 kubevirt.io/client-go/util
 kubevirt.io/client-go/version
-# kubevirt.io/containerized-data-importer v1.56.0
-## explicit; go 1.18
-kubevirt.io/containerized-data-importer/pkg/clone
 # kubevirt.io/containerized-data-importer-api v1.57.0-alpha1
 ## explicit; go 1.19
 kubevirt.io/containerized-data-importer-api/pkg/apis/core
@@ -2034,7 +2034,7 @@ kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1
 # kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90
 ## explicit; go 1.17
 kubevirt.io/controller-lifecycle-operator-sdk/api
-# kubevirt.io/kubevirt v1.0.0
+# kubevirt.io/kubevirt v1.1.1
 ## explicit; go 1.19
 kubevirt.io/kubevirt/pkg/apimachinery/patch
 kubevirt.io/kubevirt/pkg/certificates/bootstrap
@@ -2060,10 +2060,12 @@ kubevirt.io/kubevirt/pkg/monitoring/migration
 kubevirt.io/kubevirt/pkg/monitoring/migrationstats
 kubevirt.io/kubevirt/pkg/monitoring/perfscale
 kubevirt.io/kubevirt/pkg/monitoring/profiler
+kubevirt.io/kubevirt/pkg/monitoring/virt-controller/metrics
 kubevirt.io/kubevirt/pkg/monitoring/vmistats
 kubevirt.io/kubevirt/pkg/monitoring/vmstats
 kubevirt.io/kubevirt/pkg/network/istio
 kubevirt.io/kubevirt/pkg/network/namescheme
+kubevirt.io/kubevirt/pkg/network/netbinding
 kubevirt.io/kubevirt/pkg/network/sriov
 kubevirt.io/kubevirt/pkg/network/vmispec
 kubevirt.io/kubevirt/pkg/rest
@@ -2368,6 +2370,6 @@ sigs.k8s.io/yaml
 # k8s.io/mount-utils => k8s.io/mount-utils v0.26.10
 # k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.26.10
 # k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.26.10
-# kubevirt.io/api => kubevirt.io/api v1.0.0
-# kubevirt.io/client-go => kubevirt.io/client-go v1.0.0
+# kubevirt.io/api => kubevirt.io/api v1.1.1
+# kubevirt.io/client-go => kubevirt.io/client-go v1.1.1
 # sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2

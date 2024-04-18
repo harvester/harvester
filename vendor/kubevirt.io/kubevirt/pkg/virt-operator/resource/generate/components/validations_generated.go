@@ -1062,8 +1062,26 @@ var CRDsValidation map[string]string = map[string]string{
                     can be hotplugged
                   format: int32
                   type: integer
+                maxGuest:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  description: MaxGuest defines the maximum amount memory that can
+                    be allocated to the guest using hotplug.
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                maxHotplugRatio:
+                  description: 'MaxHotplugRatio is the ratio used to define the max
+                    amount of a hotplug resource that can be made available to a VM
+                    when the specific Max* setting is not defined (MaxCpuSockets,
+                    MaxGuest) Example: VM is configured with 512Mi of guest memory,
+                    if MaxGuest is not defined and MaxHotplugRatio is 2 then MaxGuest
+                    = 1Gi defaults to 4'
+                  format: int32
+                  type: integer
               type: object
             machineType:
+              description: Deprecated. Use architectureConfiguration instead.
               type: string
             mediatedDevicesConfiguration:
               description: MediatedDevicesConfiguration holds information about MDEV
@@ -1203,6 +1221,28 @@ var CRDsValidation map[string]string = map[string]string{
             network:
               description: NetworkConfiguration holds network options
               properties:
+                binding:
+                  additionalProperties:
+                    properties:
+                      domainAttachmentType:
+                        description: 'DomainAttachmentType is a standard domain network
+                          attachment method kubevirt supports. Supported values: "tap".
+                          The standard domain attachment can be used instead or in
+                          addition to the sidecarImage. version: 1alphav1'
+                        type: string
+                      networkAttachmentDefinition:
+                        description: 'NetworkAttachmentDefinition references to a
+                          NetworkAttachmentDefinition CR object. Format: <name>, <namespace>/<name>.
+                          If namespace is not specified, VMI namespace is assumed.
+                          version: 1alphav1'
+                        type: string
+                      sidecarImage:
+                        description: 'SidecarImage references a container image that
+                          runs in the virt-launcher pod. The sidecar handles (libvirt)
+                          domain configuration and optional services. version: 1alphav1'
+                        type: string
+                    type: object
+                  type: object
                 defaultNetworkInterface:
                   type: string
                 permitBridgeInterfaceOnPodNetwork:
@@ -1252,13 +1292,39 @@ var CRDsValidation map[string]string = map[string]string{
                       resourceName:
                         description: The name of the resource that is representing
                           the device. Exposed by a device plugin and requested by
-                          VMs. Typically of the form vendor.com/product_nameThe name
-                          of the resource that is representing the device. Exposed
-                          by a device plugin and requested by VMs. Typically of the
-                          form vendor.com/product_name
+                          VMs. Typically of the form vendor.com/product_name
                         type: string
                     required:
                     - pciVendorSelector
+                    - resourceName
+                    type: object
+                  type: array
+                  x-kubernetes-list-type: atomic
+                usb:
+                  items:
+                    properties:
+                      externalResourceProvider:
+                        description: If true, KubeVirt will leave the allocation and
+                          monitoring to an external device plugin
+                        type: boolean
+                      resourceName:
+                        description: 'Identifies the list of USB host devices. e.g:
+                          kubevirt.io/storage, kubevirt.io/bootable-usb, etc'
+                        type: string
+                      selectors:
+                        items:
+                          properties:
+                            product:
+                              type: string
+                            vendor:
+                              type: string
+                          required:
+                          - product
+                          - vendor
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                    required:
                     - resourceName
                     type: object
                   type: array
@@ -1407,6 +1473,13 @@ var CRDsValidation map[string]string = map[string]string{
                     This will have effect only if AutoattachMemBalloon is not false
                     and the vmi is not requesting any high performance feature (dedicatedCPU/realtime/hugePages),
                     in which free page reporting is always disabled.
+                  type: object
+                disableSerialConsoleLog:
+                  description: DisableSerialConsoleLog disables logging the auto-attached
+                    default serial console. If not set, serial console logs will be
+                    written to a file and then streamed from a container named 'guest-console-log'.
+                    The value can be individually overridden for each VM, not relevant
+                    if AutoattachSerialConsole is disabled.
                   type: object
               type: object
             vmStateStorageClass:
@@ -4232,6 +4305,12 @@ var CRDsValidation map[string]string = map[string]string{
                 annotations on the underlying resource. Once applied to the InstancetypeMatcher
                 this field is removed.
               type: string
+            inferFromVolumeFailurePolicy:
+              description: 'InferFromVolumeFailurePolicy controls what should happen
+                on failure when inferring the instancetype. Allowed values are: "RejectInferFromVolumeFailure"
+                and "IgnoreInferFromVolumeFailure". If not specified, "RejectInferFromVolumeFailure"
+                is used by default.'
+              type: string
             kind:
               description: 'Kind specifies which instancetype resource is referenced.
                 Allowed values are: "VirtualMachineInstancetype" and "VirtualMachineClusterInstancetype".
@@ -4251,6 +4330,10 @@ var CRDsValidation map[string]string = map[string]string{
           description: LiveUpdateFeatures references a configuration of hotpluggable
             resources
           properties:
+            affinity:
+              description: Affinity allows live updating the virtual machines node
+                affinity
+              type: object
             cpu:
               description: LiveUpdateCPU holds hotplug configuration for the CPU resource.
                 Empty struct indicates that default will be used for maxSockets. Default
@@ -4263,6 +4346,19 @@ var CRDsValidation map[string]string = map[string]string{
                   format: int32
                   type: integer
               type: object
+            memory:
+              description: MemoryLiveUpdateConfiguration defines the live update memory
+                features for the VirtualMachine
+              properties:
+                maxGuest:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  description: MaxGuest defines the maximum amount memory that can
+                    be allocated for the VM.
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+              type: object
           type: object
         preference:
           description: PreferenceMatcher references a set of preference that is used
@@ -4273,6 +4369,12 @@ var CRDsValidation map[string]string = map[string]string{
                 be used to infer or discover the preference to be used through known
                 annotations on the underlying resource. Once applied to the PreferenceMatcher
                 this field is removed.
+              type: string
+            inferFromVolumeFailurePolicy:
+              description: 'InferFromVolumeFailurePolicy controls what should happen
+                on failure when preference the instancetype. Allowed values are: "RejectInferFromVolumeFailure"
+                and "IgnoreInferFromVolumeFailure". If not specified, "RejectInferFromVolumeFailure"
+                is used by default.'
               type: string
             kind:
               description: 'Kind specifies which preference resource is referenced.
@@ -4328,6 +4430,11 @@ var CRDsValidation map[string]string = map[string]string{
                                 description: ConfigDrivePropagation means that the
                                   ssh public keys are injected into the VM using metadata
                                   using the configDrive cloud-init provider
+                                type: object
+                              noCloud:
+                                description: NoCloudPropagation means that the ssh
+                                  public keys are injected into the VM using metadata
+                                  using the noCloud cloud-init provider
                                 type: object
                               qemuGuestAgent:
                                 description: QemuGuestAgentAccessCredentailPropagation
@@ -5516,9 +5623,9 @@ var CRDsValidation map[string]string = map[string]string{
                             Defaults to true.
                           type: boolean
                         autoattachSerialConsole:
-                          description: Whether to attach the default serial console
-                            or not. Serial console access will not be available if
-                            set to false. Defaults to true.
+                          description: Whether to attach the default virtio-serial
+                            console or not. Serial console access will not be available
+                            if set to false. Defaults to true.
                           type: boolean
                         autoattachVSOCK:
                           description: Whether to attach the VSOCK CID to the VM or
@@ -5621,6 +5728,10 @@ var CRDsValidation map[string]string = map[string]string{
                                     description: ReadOnly. Defaults to false.
                                     type: boolean
                                 type: object
+                              errorPolicy:
+                                description: If specified, it can change the default
+                                  error policy (stop) for the disk
+                                type: string
                               io:
                                 description: 'IO specifies which QEMU disk IO mode
                                   should be used. Supported values are: native, default,
@@ -5662,6 +5773,10 @@ var CRDsValidation map[string]string = map[string]string{
                             - name
                             type: object
                           type: array
+                        downwardMetrics:
+                          description: DownwardMetrics creates a virtio serials for
+                            exposing the downward metrics to the vmi.
+                          type: object
                         filesystems:
                           description: Filesystems describes filesystem which is connected
                             to the vmi.
@@ -5775,6 +5890,19 @@ var CRDsValidation map[string]string = map[string]string{
                                   to the device. This value is required to be unique
                                   across all devices and be between 1 and (16*1024-1).
                                 type: integer
+                              binding:
+                                description: 'Binding specifies the binding plugin
+                                  that will be used to connect the interface to the
+                                  guest. It provides an alternative to InterfaceBindingMethod.
+                                  version: 1alphav1'
+                                properties:
+                                  name:
+                                    description: 'Name references to the binding name
+                                      as denined in the kubevirt CR. version: 1alphav1'
+                                    type: string
+                                required:
+                                - name
+                                type: object
                               bootOrder:
                                 description: BootOrder is an integer value > 0, used
                                   to determine ordering of boot devices. Lower values
@@ -5908,6 +6036,13 @@ var CRDsValidation map[string]string = map[string]string{
                             - name
                             type: object
                           type: array
+                        logSerialConsole:
+                          description: Whether to log the auto-attached default serial
+                            console or not. Serial console logs will be collect to
+                            a file and then streamed from a named 'guest-console-log'.
+                            Not relevant if autoattachSerialConsole is disabled. Defaults
+                            to cluster wide setting on VirtualMachineOptions.
+                          type: boolean
                         networkInterfaceMultiqueue:
                           description: If specified, virtual network interfaces configured
                             with a virtio bus will also enable the vhost multiqueue
@@ -6208,6 +6343,10 @@ var CRDsValidation map[string]string = map[string]string{
                             efi:
                               description: If set, EFI will be used instead of BIOS.
                               properties:
+                                persistent:
+                                  description: If set to true, Persistent will persist
+                                    the EFI NVRAM across reboots. Defaults to false
+                                  type: boolean
                                 secureBoot:
                                   description: If set, SecureBoot will be enabled
                                     and the OVMF roms will be swapped for SecureBoot-enabled
@@ -6273,6 +6412,14 @@ var CRDsValidation map[string]string = map[string]string{
                         sev:
                           description: AMD Secure Encrypted Virtualization (SEV).
                           properties:
+                            attestation:
+                              description: If specified, run the attestation process
+                                for a vmi.
+                              type: object
+                            dhCert:
+                              description: Base64 encoded guest owner's Diffie-Hellman
+                                key.
+                              type: string
                             policy:
                               description: 'Guest policy flags as defined in AMD SEV
                                 API specification. Note: due to security reasons it
@@ -6284,6 +6431,9 @@ var CRDsValidation map[string]string = map[string]string{
                                   description: SEV-ES is required. Defaults to false.
                                   type: boolean
                               type: object
+                            session:
+                              description: Base64 encoded session blob.
+                              type: string
                           type: object
                       type: object
                     machine:
@@ -6317,6 +6467,16 @@ var CRDsValidation map[string]string = map[string]string{
                                 x86_64 architecture valid values are 1Gi and 2Mi.
                               type: string
                           type: object
+                        maxGuest:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: MaxGuest allows to specify the maximum amount
+                            of memory which is visible inside the Guest OS. The delta
+                            between MaxGuest and Guest is the amount of memory that
+                            can be hot(un)plugged.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
                       type: object
                     resources:
                       description: Resources describes the Compute Resources required
@@ -7361,42 +7521,6 @@ var CRDsValidation map[string]string = map[string]string{
             updated through an Update() before ObservedGeneration in Status.
           format: int64
           type: integer
-        interfaceRequests:
-          description: InterfaceRequests indicates a list of interfaces added to the
-            VMI template and hot-plugged on an active running VMI.
-          items:
-            properties:
-              addInterfaceOptions:
-                description: AddInterfaceOptions when set indicates a network interface
-                  should be added. The details within this field specify how to add
-                  the interface
-                properties:
-                  name:
-                    description: Name indicates the logical name of the interface.
-                    type: string
-                  networkAttachmentDefinitionName:
-                    description: 'NetworkAttachmentDefinitionName references a NetworkAttachmentDefinition
-                      CRD object. Format: <networkAttachmentDefinitionName>, <namespace>/<networkAttachmentDefinitionName>.
-                      If namespace is not specified, VMI namespace is assumed.'
-                    type: string
-                required:
-                - name
-                - networkAttachmentDefinitionName
-                type: object
-              removeInterfaceOptions:
-                description: RemoveInterfaceOptions when set indicates a network interface
-                  should be removed. The details within this field specify how to
-                  remove the interface
-                properties:
-                  name:
-                    description: Name indicates the logical name of the interface.
-                    type: string
-                required:
-                - name
-                type: object
-            type: object
-          type: array
-          x-kubernetes-list-type: atomic
         memoryDumpRequest:
           description: MemoryDumpRequest tracks memory dump request phase and info
             of getting a memory dump to the given pvc
@@ -7578,6 +7702,10 @@ var CRDsValidation map[string]string = map[string]string{
                             description: ReadOnly. Defaults to false.
                             type: boolean
                         type: object
+                      errorPolicy:
+                        description: If specified, it can change the default error
+                          policy (stop) for the disk
+                        type: string
                       io:
                         description: 'IO specifies which QEMU disk IO mode should
                           be used. Supported values are: native, default, threads.'
@@ -7745,11 +7873,15 @@ var CRDsValidation map[string]string = map[string]string{
     spec:
       properties:
         annotationFilters:
+          description: 'Example use: "!some/key*". For a detailed description, please
+            refer to https://kubevirt.io/user-guide/operations/clone_api/#label-annotation-filters.'
           items:
             type: string
           type: array
           x-kubernetes-list-type: atomic
         labelFilters:
+          description: 'Example use: "!some/key*". For a detailed description, please
+            refer to https://kubevirt.io/user-guide/operations/clone_api/#label-annotation-filters.'
           items:
             type: string
           type: array
@@ -7767,8 +7899,9 @@ var CRDsValidation map[string]string = map[string]string{
             If this field is not specified, a new serial will be generated automatically.
           type: string
         source:
-          description: TypedLocalObjectReference contains enough information to let
-            you locate the typed referenced object inside the same namespace.
+          description: 'Source is the object that would be cloned. Currently supported
+            source types are: VirtualMachine of kubevirt.io API group, VirtualMachineSnapshot
+            of snapshot.kubevirt.io API group'
           properties:
             apiGroup:
               description: APIGroup is the group for the resource being referenced.
@@ -7786,9 +7919,11 @@ var CRDsValidation map[string]string = map[string]string{
           - name
           type: object
         target:
-          description: If the target is not provided, a random name would be generated
-            for the target. The target's name can be viewed by inspecting status "TargetName"
-            field below.
+          description: 'Target is the outcome of the cloning process. Currently supported
+            source types are: - VirtualMachine of kubevirt.io API group - Empty (nil).
+            If the target is not provided, the target type would default to VirtualMachine
+            and a random name would be generated for the target. The target''s name
+            can be viewed by inspecting status "TargetName" field below.'
           properties:
             apiGroup:
               description: APIGroup is the group for the resource being referenced.
@@ -7876,6 +8011,12 @@ var CRDsValidation map[string]string = map[string]string{
     spec:
       description: Required spec describing the instancetype
       properties:
+        annotations:
+          additionalProperties:
+            type: string
+          description: Optionally defines the required Annotations to be used by the
+            instance type and applied to the VirtualMachineInstance
+          type: object
         cpu:
           description: Required CPU related attributes of the instancetype.
           properties:
@@ -7887,7 +8028,7 @@ var CRDsValidation map[string]string = map[string]string{
             guest:
               description: "Required number of vCPUs to expose to the guest. \n The
                 resulting CPU topology being derived from the optional PreferredCPUTopology
-                attribute of CPUPreferences that itself defaults to PreferCores."
+                attribute of CPUPreferences that itself defaults to PreferSockets."
               format: int32
               type: integer
             isolateEmulatorThread:
@@ -7992,6 +8133,12 @@ var CRDsValidation map[string]string = map[string]string{
             sev:
               description: AMD Secure Encrypted Virtualization (SEV).
               properties:
+                attestation:
+                  description: If specified, run the attestation process for a vmi.
+                  type: object
+                dhCert:
+                  description: Base64 encoded guest owner's Diffie-Hellman key.
+                  type: string
                 policy:
                   description: 'Guest policy flags as defined in AMD SEV API specification.
                     Note: due to security reasons it is not allowed to enable guest
@@ -8002,6 +8149,9 @@ var CRDsValidation map[string]string = map[string]string{
                       description: SEV-ES is required. Defaults to false.
                       type: boolean
                   type: object
+                session:
+                  description: Base64 encoded session blob.
+                  type: string
               type: object
           type: object
         memory:
@@ -8036,6 +8186,19 @@ var CRDsValidation map[string]string = map[string]string{
           required:
           - guest
           type: object
+        nodeSelector:
+          additionalProperties:
+            type: string
+          description: "NodeSelector is a selector which must be true for the vmi
+            to fit on a node. Selector which must match a node's labels for the vmi
+            to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+            \n NodeSelector is the name of the custom node selector for the instancetype."
+          type: object
+        schedulerName:
+          description: "If specified, the VMI will be dispatched by specified scheduler.
+            If not specified, the VMI will be dispatched by default scheduler. \n
+            SchedulerName is the name of the custom K8s scheduler for the instancetype."
+          type: string
       required:
       - cpu
       - memory
@@ -8063,6 +8226,12 @@ var CRDsValidation map[string]string = map[string]string{
     spec:
       description: Required spec describing the preferences
       properties:
+        annotations:
+          additionalProperties:
+            type: string
+          description: Optionally defines preferred Annotations to be applied to the
+            VirtualMachineInstance
+          type: object
         clock:
           description: Clock optionally defines preferences associated with the Clock
             attribute of a VirtualMachineInstance DomainSpec
@@ -8559,6 +8728,11 @@ var CRDsValidation map[string]string = map[string]string{
                 type to use.
               type: string
           type: object
+        preferSpreadSocketToCoreRatio:
+          description: PreferSpreadSocketToCoreRatio defines the ratio to spread vCPUs
+            between cores and sockets, it defaults to 2.
+          format: int32
+          type: integer
         preferredSubdomain:
           description: Subdomain of the VirtualMachineInstance
           type: string
@@ -8900,6 +9074,11 @@ var CRDsValidation map[string]string = map[string]string{
                       configDrive:
                         description: ConfigDrivePropagation means that the ssh public
                           keys are injected into the VM using metadata using the configDrive
+                          cloud-init provider
+                        type: object
+                      noCloud:
+                        description: NoCloudPropagation means that the ssh public
+                          keys are injected into the VM using metadata using the noCloud
                           cloud-init provider
                         type: object
                       qemuGuestAgent:
@@ -10003,9 +10182,9 @@ var CRDsValidation map[string]string = map[string]string{
                     to true.
                   type: boolean
                 autoattachSerialConsole:
-                  description: Whether to attach the default serial console or not.
-                    Serial console access will not be available if set to false. Defaults
-                    to true.
+                  description: Whether to attach the default virtio-serial console
+                    or not. Serial console access will not be available if set to
+                    false. Defaults to true.
                   type: boolean
                 autoattachVSOCK:
                   description: Whether to attach the VSOCK CID to the VM or not. VSOCK
@@ -10101,6 +10280,10 @@ var CRDsValidation map[string]string = map[string]string{
                             description: ReadOnly. Defaults to false.
                             type: boolean
                         type: object
+                      errorPolicy:
+                        description: If specified, it can change the default error
+                          policy (stop) for the disk
+                        type: string
                       io:
                         description: 'IO specifies which QEMU disk IO mode should
                           be used. Supported values are: native, default, threads.'
@@ -10139,6 +10322,10 @@ var CRDsValidation map[string]string = map[string]string{
                     - name
                     type: object
                   type: array
+                downwardMetrics:
+                  description: DownwardMetrics creates a virtio serials for exposing
+                    the downward metrics to the vmi.
+                  type: object
                 filesystems:
                   description: Filesystems describes filesystem which is connected
                     to the vmi.
@@ -10248,6 +10435,18 @@ var CRDsValidation map[string]string = map[string]string{
                           in PCI addresses assigned to the device. This value is required
                           to be unique across all devices and be between 1 and (16*1024-1).
                         type: integer
+                      binding:
+                        description: 'Binding specifies the binding plugin that will
+                          be used to connect the interface to the guest. It provides
+                          an alternative to InterfaceBindingMethod. version: 1alphav1'
+                        properties:
+                          name:
+                            description: 'Name references to the binding name as denined
+                              in the kubevirt CR. version: 1alphav1'
+                            type: string
+                        required:
+                        - name
+                        type: object
                       bootOrder:
                         description: BootOrder is an integer value > 0, used to determine
                           ordering of boot devices. Lower values take precedence.
@@ -10375,6 +10574,12 @@ var CRDsValidation map[string]string = map[string]string{
                     - name
                     type: object
                   type: array
+                logSerialConsole:
+                  description: Whether to log the auto-attached default serial console
+                    or not. Serial console logs will be collect to a file and then
+                    streamed from a named 'guest-console-log'. Not relevant if autoattachSerialConsole
+                    is disabled. Defaults to cluster wide setting on VirtualMachineOptions.
+                  type: boolean
                 networkInterfaceMultiqueue:
                   description: If specified, virtual network interfaces configured
                     with a virtio bus will also enable the vhost multiqueue feature
@@ -10649,6 +10854,10 @@ var CRDsValidation map[string]string = map[string]string{
                     efi:
                       description: If set, EFI will be used instead of BIOS.
                       properties:
+                        persistent:
+                          description: If set to true, Persistent will persist the
+                            EFI NVRAM across reboots. Defaults to false
+                          type: boolean
                         secureBoot:
                           description: If set, SecureBoot will be enabled and the
                             OVMF roms will be swapped for SecureBoot-enabled ones.
@@ -10709,6 +10918,13 @@ var CRDsValidation map[string]string = map[string]string{
                 sev:
                   description: AMD Secure Encrypted Virtualization (SEV).
                   properties:
+                    attestation:
+                      description: If specified, run the attestation process for a
+                        vmi.
+                      type: object
+                    dhCert:
+                      description: Base64 encoded guest owner's Diffie-Hellman key.
+                      type: string
                     policy:
                       description: 'Guest policy flags as defined in AMD SEV API specification.
                         Note: due to security reasons it is not allowed to enable
@@ -10719,6 +10935,9 @@ var CRDsValidation map[string]string = map[string]string{
                           description: SEV-ES is required. Defaults to false.
                           type: boolean
                       type: object
+                    session:
+                      description: Base64 encoded session blob.
+                      type: string
                   type: object
               type: object
             machine:
@@ -10750,6 +10969,15 @@ var CRDsValidation map[string]string = map[string]string{
                         architecture valid values are 1Gi and 2Mi.
                       type: string
                   type: object
+                maxGuest:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  description: MaxGuest allows to specify the maximum amount of memory
+                    which is visible inside the Guest OS. The delta between MaxGuest
+                    and Guest is the amount of memory that can be hot(un)plugged.
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
               type: object
             resources:
               description: Resources describes the Compute Resources required by this
@@ -11829,6 +12057,26 @@ var CRDsValidation map[string]string = map[string]string{
                 type: integer
             type: object
           type: array
+        kernelBootStatus:
+          description: KernelBootStatus contains info about the kernelBootContainer
+          properties:
+            initrdInfo:
+              description: InitrdInfo show info about the initrd file
+              properties:
+                checksum:
+                  description: Checksum is the checksum of the initrd file
+                  format: int32
+                  type: integer
+              type: object
+            kernelInfo:
+              description: KernelInfo show info about the kernel image
+              properties:
+                checksum:
+                  description: Checksum is the checksum of the kernel image
+                  format: int32
+                  type: integer
+              type: object
+          type: object
         launcherContainerImageVersion:
           description: LauncherContainerImageVersion indicates what container image
             is currently active for the vmi.
@@ -11841,6 +12089,35 @@ var CRDsValidation map[string]string = map[string]string{
             type:
               description: QEMU machine type is the actual chipset of the VirtualMachineInstance.
               type: string
+          type: object
+        memory:
+          description: Memory shows various informations about the VirtualMachine
+            memory.
+          properties:
+            guestAtBoot:
+              anyOf:
+              - type: integer
+              - type: string
+              description: GuestAtBoot specifies with how much memory the VirtualMachine
+                intiallly booted with.
+              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+              x-kubernetes-int-or-string: true
+            guestCurrent:
+              anyOf:
+              - type: integer
+              - type: string
+              description: GuestCurrent specifies how much memory is currently available
+                for the VirtualMachine.
+              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+              x-kubernetes-int-or-string: true
+            guestRequested:
+              anyOf:
+              - type: integer
+              - type: string
+              description: GuestRequested specifies how much memory was requested
+                (hotplug) for the VirtualMachine.
+              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+              x-kubernetes-int-or-string: true
           type: object
         migrationMethod:
           description: 'Represents the method using which the vmi can be migrated:
@@ -12071,6 +12348,16 @@ var CRDsValidation map[string]string = map[string]string{
             description: VolumeStatus represents information about the status of volumes
               attached to the VirtualMachineInstance.
             properties:
+              containerDiskVolume:
+                description: ContainerDiskVolume shows info about the containerdisk,
+                  if the volume is a containerdisk
+                properties:
+                  checksum:
+                    description: Checksum is the checksum of the rootdisk or kernel
+                      artifacts inside the containerdisk
+                    format: int32
+                    type: integer
+                type: object
               hotplugVolume:
                 description: If the volume is hotplug, this will contain the hotplug
                   status.
@@ -12654,9 +12941,9 @@ var CRDsValidation map[string]string = map[string]string{
                     to true.
                   type: boolean
                 autoattachSerialConsole:
-                  description: Whether to attach the default serial console or not.
-                    Serial console access will not be available if set to false. Defaults
-                    to true.
+                  description: Whether to attach the default virtio-serial console
+                    or not. Serial console access will not be available if set to
+                    false. Defaults to true.
                   type: boolean
                 autoattachVSOCK:
                   description: Whether to attach the VSOCK CID to the VM or not. VSOCK
@@ -12752,6 +13039,10 @@ var CRDsValidation map[string]string = map[string]string{
                             description: ReadOnly. Defaults to false.
                             type: boolean
                         type: object
+                      errorPolicy:
+                        description: If specified, it can change the default error
+                          policy (stop) for the disk
+                        type: string
                       io:
                         description: 'IO specifies which QEMU disk IO mode should
                           be used. Supported values are: native, default, threads.'
@@ -12790,6 +13081,10 @@ var CRDsValidation map[string]string = map[string]string{
                     - name
                     type: object
                   type: array
+                downwardMetrics:
+                  description: DownwardMetrics creates a virtio serials for exposing
+                    the downward metrics to the vmi.
+                  type: object
                 filesystems:
                   description: Filesystems describes filesystem which is connected
                     to the vmi.
@@ -12899,6 +13194,18 @@ var CRDsValidation map[string]string = map[string]string{
                           in PCI addresses assigned to the device. This value is required
                           to be unique across all devices and be between 1 and (16*1024-1).
                         type: integer
+                      binding:
+                        description: 'Binding specifies the binding plugin that will
+                          be used to connect the interface to the guest. It provides
+                          an alternative to InterfaceBindingMethod. version: 1alphav1'
+                        properties:
+                          name:
+                            description: 'Name references to the binding name as denined
+                              in the kubevirt CR. version: 1alphav1'
+                            type: string
+                        required:
+                        - name
+                        type: object
                       bootOrder:
                         description: BootOrder is an integer value > 0, used to determine
                           ordering of boot devices. Lower values take precedence.
@@ -13026,6 +13333,12 @@ var CRDsValidation map[string]string = map[string]string{
                     - name
                     type: object
                   type: array
+                logSerialConsole:
+                  description: Whether to log the auto-attached default serial console
+                    or not. Serial console logs will be collect to a file and then
+                    streamed from a named 'guest-console-log'. Not relevant if autoattachSerialConsole
+                    is disabled. Defaults to cluster wide setting on VirtualMachineOptions.
+                  type: boolean
                 networkInterfaceMultiqueue:
                   description: If specified, virtual network interfaces configured
                     with a virtio bus will also enable the vhost multiqueue feature
@@ -13300,6 +13613,10 @@ var CRDsValidation map[string]string = map[string]string{
                     efi:
                       description: If set, EFI will be used instead of BIOS.
                       properties:
+                        persistent:
+                          description: If set to true, Persistent will persist the
+                            EFI NVRAM across reboots. Defaults to false
+                          type: boolean
                         secureBoot:
                           description: If set, SecureBoot will be enabled and the
                             OVMF roms will be swapped for SecureBoot-enabled ones.
@@ -13360,6 +13677,13 @@ var CRDsValidation map[string]string = map[string]string{
                 sev:
                   description: AMD Secure Encrypted Virtualization (SEV).
                   properties:
+                    attestation:
+                      description: If specified, run the attestation process for a
+                        vmi.
+                      type: object
+                    dhCert:
+                      description: Base64 encoded guest owner's Diffie-Hellman key.
+                      type: string
                     policy:
                       description: 'Guest policy flags as defined in AMD SEV API specification.
                         Note: due to security reasons it is not allowed to enable
@@ -13370,6 +13694,9 @@ var CRDsValidation map[string]string = map[string]string{
                           description: SEV-ES is required. Defaults to false.
                           type: boolean
                       type: object
+                    session:
+                      description: Base64 encoded session blob.
+                      type: string
                   type: object
               type: object
             machine:
@@ -13401,6 +13728,15 @@ var CRDsValidation map[string]string = map[string]string{
                         architecture valid values are 1Gi and 2Mi.
                       type: string
                   type: object
+                maxGuest:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  description: MaxGuest allows to specify the maximum amount of memory
+                    which is visible inside the Guest OS. The delta between MaxGuest
+                    and Guest is the amount of memory that can be hot(un)plugged.
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
               type: object
             resources:
               description: Resources describes the Compute Resources required by this
@@ -13579,6 +13915,11 @@ var CRDsValidation map[string]string = map[string]string{
                                 description: ConfigDrivePropagation means that the
                                   ssh public keys are injected into the VM using metadata
                                   using the configDrive cloud-init provider
+                                type: object
+                              noCloud:
+                                description: NoCloudPropagation means that the ssh
+                                  public keys are injected into the VM using metadata
+                                  using the noCloud cloud-init provider
                                 type: object
                               qemuGuestAgent:
                                 description: QemuGuestAgentAccessCredentailPropagation
@@ -14767,9 +15108,9 @@ var CRDsValidation map[string]string = map[string]string{
                             Defaults to true.
                           type: boolean
                         autoattachSerialConsole:
-                          description: Whether to attach the default serial console
-                            or not. Serial console access will not be available if
-                            set to false. Defaults to true.
+                          description: Whether to attach the default virtio-serial
+                            console or not. Serial console access will not be available
+                            if set to false. Defaults to true.
                           type: boolean
                         autoattachVSOCK:
                           description: Whether to attach the VSOCK CID to the VM or
@@ -14872,6 +15213,10 @@ var CRDsValidation map[string]string = map[string]string{
                                     description: ReadOnly. Defaults to false.
                                     type: boolean
                                 type: object
+                              errorPolicy:
+                                description: If specified, it can change the default
+                                  error policy (stop) for the disk
+                                type: string
                               io:
                                 description: 'IO specifies which QEMU disk IO mode
                                   should be used. Supported values are: native, default,
@@ -14913,6 +15258,10 @@ var CRDsValidation map[string]string = map[string]string{
                             - name
                             type: object
                           type: array
+                        downwardMetrics:
+                          description: DownwardMetrics creates a virtio serials for
+                            exposing the downward metrics to the vmi.
+                          type: object
                         filesystems:
                           description: Filesystems describes filesystem which is connected
                             to the vmi.
@@ -15026,6 +15375,19 @@ var CRDsValidation map[string]string = map[string]string{
                                   to the device. This value is required to be unique
                                   across all devices and be between 1 and (16*1024-1).
                                 type: integer
+                              binding:
+                                description: 'Binding specifies the binding plugin
+                                  that will be used to connect the interface to the
+                                  guest. It provides an alternative to InterfaceBindingMethod.
+                                  version: 1alphav1'
+                                properties:
+                                  name:
+                                    description: 'Name references to the binding name
+                                      as denined in the kubevirt CR. version: 1alphav1'
+                                    type: string
+                                required:
+                                - name
+                                type: object
                               bootOrder:
                                 description: BootOrder is an integer value > 0, used
                                   to determine ordering of boot devices. Lower values
@@ -15159,6 +15521,13 @@ var CRDsValidation map[string]string = map[string]string{
                             - name
                             type: object
                           type: array
+                        logSerialConsole:
+                          description: Whether to log the auto-attached default serial
+                            console or not. Serial console logs will be collect to
+                            a file and then streamed from a named 'guest-console-log'.
+                            Not relevant if autoattachSerialConsole is disabled. Defaults
+                            to cluster wide setting on VirtualMachineOptions.
+                          type: boolean
                         networkInterfaceMultiqueue:
                           description: If specified, virtual network interfaces configured
                             with a virtio bus will also enable the vhost multiqueue
@@ -15459,6 +15828,10 @@ var CRDsValidation map[string]string = map[string]string{
                             efi:
                               description: If set, EFI will be used instead of BIOS.
                               properties:
+                                persistent:
+                                  description: If set to true, Persistent will persist
+                                    the EFI NVRAM across reboots. Defaults to false
+                                  type: boolean
                                 secureBoot:
                                   description: If set, SecureBoot will be enabled
                                     and the OVMF roms will be swapped for SecureBoot-enabled
@@ -15524,6 +15897,14 @@ var CRDsValidation map[string]string = map[string]string{
                         sev:
                           description: AMD Secure Encrypted Virtualization (SEV).
                           properties:
+                            attestation:
+                              description: If specified, run the attestation process
+                                for a vmi.
+                              type: object
+                            dhCert:
+                              description: Base64 encoded guest owner's Diffie-Hellman
+                                key.
+                              type: string
                             policy:
                               description: 'Guest policy flags as defined in AMD SEV
                                 API specification. Note: due to security reasons it
@@ -15535,6 +15916,9 @@ var CRDsValidation map[string]string = map[string]string{
                                   description: SEV-ES is required. Defaults to false.
                                   type: boolean
                               type: object
+                            session:
+                              description: Base64 encoded session blob.
+                              type: string
                           type: object
                       type: object
                     machine:
@@ -15568,6 +15952,16 @@ var CRDsValidation map[string]string = map[string]string{
                                 x86_64 architecture valid values are 1Gi and 2Mi.
                               type: string
                           type: object
+                        maxGuest:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: MaxGuest allows to specify the maximum amount
+                            of memory which is visible inside the Guest OS. The delta
+                            between MaxGuest and Guest is the amount of memory that
+                            can be hot(un)plugged.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
                       type: object
                     resources:
                       description: Resources describes the Compute Resources required
@@ -16638,6 +17032,12 @@ var CRDsValidation map[string]string = map[string]string{
     spec:
       description: Required spec describing the instancetype
       properties:
+        annotations:
+          additionalProperties:
+            type: string
+          description: Optionally defines the required Annotations to be used by the
+            instance type and applied to the VirtualMachineInstance
+          type: object
         cpu:
           description: Required CPU related attributes of the instancetype.
           properties:
@@ -16649,7 +17049,7 @@ var CRDsValidation map[string]string = map[string]string{
             guest:
               description: "Required number of vCPUs to expose to the guest. \n The
                 resulting CPU topology being derived from the optional PreferredCPUTopology
-                attribute of CPUPreferences that itself defaults to PreferCores."
+                attribute of CPUPreferences that itself defaults to PreferSockets."
               format: int32
               type: integer
             isolateEmulatorThread:
@@ -16754,6 +17154,12 @@ var CRDsValidation map[string]string = map[string]string{
             sev:
               description: AMD Secure Encrypted Virtualization (SEV).
               properties:
+                attestation:
+                  description: If specified, run the attestation process for a vmi.
+                  type: object
+                dhCert:
+                  description: Base64 encoded guest owner's Diffie-Hellman key.
+                  type: string
                 policy:
                   description: 'Guest policy flags as defined in AMD SEV API specification.
                     Note: due to security reasons it is not allowed to enable guest
@@ -16764,6 +17170,9 @@ var CRDsValidation map[string]string = map[string]string{
                       description: SEV-ES is required. Defaults to false.
                       type: boolean
                   type: object
+                session:
+                  description: Base64 encoded session blob.
+                  type: string
               type: object
           type: object
         memory:
@@ -16798,6 +17207,19 @@ var CRDsValidation map[string]string = map[string]string{
           required:
           - guest
           type: object
+        nodeSelector:
+          additionalProperties:
+            type: string
+          description: "NodeSelector is a selector which must be true for the vmi
+            to fit on a node. Selector which must match a node's labels for the vmi
+            to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+            \n NodeSelector is the name of the custom node selector for the instancetype."
+          type: object
+        schedulerName:
+          description: "If specified, the VMI will be dispatched by specified scheduler.
+            If not specified, the VMI will be dispatched by default scheduler. \n
+            SchedulerName is the name of the custom K8s scheduler for the instancetype."
+          type: string
       required:
       - cpu
       - memory
@@ -17615,6 +18037,13 @@ var CRDsValidation map[string]string = map[string]string{
                         used through known annotations on the underlying resource.
                         Once applied to the InstancetypeMatcher this field is removed.
                       type: string
+                    inferFromVolumeFailurePolicy:
+                      description: 'InferFromVolumeFailurePolicy controls what should
+                        happen on failure when inferring the instancetype. Allowed
+                        values are: "RejectInferFromVolumeFailure" and "IgnoreInferFromVolumeFailure".
+                        If not specified, "RejectInferFromVolumeFailure" is used by
+                        default.'
+                      type: string
                     kind:
                       description: 'Kind specifies which instancetype resource is
                         referenced. Allowed values are: "VirtualMachineInstancetype"
@@ -17636,6 +18065,10 @@ var CRDsValidation map[string]string = map[string]string{
                   description: LiveUpdateFeatures references a configuration of hotpluggable
                     resources
                   properties:
+                    affinity:
+                      description: Affinity allows live updating the virtual machines
+                        node affinity
+                      type: object
                     cpu:
                       description: LiveUpdateCPU holds hotplug configuration for the
                         CPU resource. Empty struct indicates that default will be
@@ -17648,6 +18081,19 @@ var CRDsValidation map[string]string = map[string]string{
                           format: int32
                           type: integer
                       type: object
+                    memory:
+                      description: MemoryLiveUpdateConfiguration defines the live
+                        update memory features for the VirtualMachine
+                      properties:
+                        maxGuest:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: MaxGuest defines the maximum amount memory
+                            that can be allocated for the VM.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                      type: object
                   type: object
                 preference:
                   description: PreferenceMatcher references a set of preference that
@@ -17658,6 +18104,13 @@ var CRDsValidation map[string]string = map[string]string{
                         should be used to infer or discover the preference to be used
                         through known annotations on the underlying resource. Once
                         applied to the PreferenceMatcher this field is removed.
+                      type: string
+                    inferFromVolumeFailurePolicy:
+                      description: 'InferFromVolumeFailurePolicy controls what should
+                        happen on failure when preference the instancetype. Allowed
+                        values are: "RejectInferFromVolumeFailure" and "IgnoreInferFromVolumeFailure".
+                        If not specified, "RejectInferFromVolumeFailure" is used by
+                        default.'
                       type: string
                     kind:
                       description: 'Kind specifies which preference resource is referenced.
@@ -17717,6 +18170,12 @@ var CRDsValidation map[string]string = map[string]string{
                                           that the ssh public keys are injected into
                                           the VM using metadata using the configDrive
                                           cloud-init provider
+                                        type: object
+                                      noCloud:
+                                        description: NoCloudPropagation means that
+                                          the ssh public keys are injected into the
+                                          VM using metadata using the noCloud cloud-init
+                                          provider
                                         type: object
                                       qemuGuestAgent:
                                         description: QemuGuestAgentAccessCredentailPropagation
@@ -19011,7 +19470,7 @@ var CRDsValidation map[string]string = map[string]string{
                                     Defaults to true.
                                   type: boolean
                                 autoattachSerialConsole:
-                                  description: Whether to attach the default serial
+                                  description: Whether to attach the default virtio-serial
                                     console or not. Serial console access will not
                                     be available if set to false. Defaults to true.
                                   type: boolean
@@ -19124,6 +19583,10 @@ var CRDsValidation map[string]string = map[string]string{
                                             description: ReadOnly. Defaults to false.
                                             type: boolean
                                         type: object
+                                      errorPolicy:
+                                        description: If specified, it can change the
+                                          default error policy (stop) for the disk
+                                        type: string
                                       io:
                                         description: 'IO specifies which QEMU disk
                                           IO mode should be used. Supported values
@@ -19168,6 +19631,10 @@ var CRDsValidation map[string]string = map[string]string{
                                     - name
                                     type: object
                                   type: array
+                                downwardMetrics:
+                                  description: DownwardMetrics creates a virtio serials
+                                    for exposing the downward metrics to the vmi.
+                                  type: object
                                 filesystems:
                                   description: Filesystems describes filesystem which
                                     is connected to the vmi.
@@ -19287,6 +19754,20 @@ var CRDsValidation map[string]string = map[string]string{
                                           value is required to be unique across all
                                           devices and be between 1 and (16*1024-1).
                                         type: integer
+                                      binding:
+                                        description: 'Binding specifies the binding
+                                          plugin that will be used to connect the
+                                          interface to the guest. It provides an alternative
+                                          to InterfaceBindingMethod. version: 1alphav1'
+                                        properties:
+                                          name:
+                                            description: 'Name references to the binding
+                                              name as denined in the kubevirt CR.
+                                              version: 1alphav1'
+                                            type: string
+                                        required:
+                                        - name
+                                        type: object
                                       bootOrder:
                                         description: BootOrder is an integer value
                                           > 0, used to determine ordering of boot
@@ -19432,6 +19913,14 @@ var CRDsValidation map[string]string = map[string]string{
                                     - name
                                     type: object
                                   type: array
+                                logSerialConsole:
+                                  description: Whether to log the auto-attached default
+                                    serial console or not. Serial console logs will
+                                    be collect to a file and then streamed from a
+                                    named 'guest-console-log'. Not relevant if autoattachSerialConsole
+                                    is disabled. Defaults to cluster wide setting
+                                    on VirtualMachineOptions.
+                                  type: boolean
                                 networkInterfaceMultiqueue:
                                   description: If specified, virtual network interfaces
                                     configured with a virtio bus will also enable
@@ -19747,6 +20236,11 @@ var CRDsValidation map[string]string = map[string]string{
                                       description: If set, EFI will be used instead
                                         of BIOS.
                                       properties:
+                                        persistent:
+                                          description: If set to true, Persistent
+                                            will persist the EFI NVRAM across reboots.
+                                            Defaults to false
+                                          type: boolean
                                         secureBoot:
                                           description: If set, SecureBoot will be
                                             enabled and the OVMF roms will be swapped
@@ -19815,6 +20309,14 @@ var CRDsValidation map[string]string = map[string]string{
                                   description: AMD Secure Encrypted Virtualization
                                     (SEV).
                                   properties:
+                                    attestation:
+                                      description: If specified, run the attestation
+                                        process for a vmi.
+                                      type: object
+                                    dhCert:
+                                      description: Base64 encoded guest owner's Diffie-Hellman
+                                        key.
+                                      type: string
                                     policy:
                                       description: 'Guest policy flags as defined
                                         in AMD SEV API specification. Note: due to
@@ -19827,6 +20329,9 @@ var CRDsValidation map[string]string = map[string]string{
                                             to false.
                                           type: boolean
                                       type: object
+                                    session:
+                                      description: Base64 encoded session blob.
+                                      type: string
                                   type: object
                               type: object
                             machine:
@@ -19863,6 +20368,16 @@ var CRDsValidation map[string]string = map[string]string{
                                         are 1Gi and 2Mi.
                                       type: string
                                   type: object
+                                maxGuest:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  description: MaxGuest allows to specify the maximum
+                                    amount of memory which is visible inside the Guest
+                                    OS. The delta between MaxGuest and Guest is the
+                                    amount of memory that can be hot(un)plugged.
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
                               type: object
                             resources:
                               description: Resources describes the Compute Resources
@@ -20997,6 +21512,12 @@ var CRDsValidation map[string]string = map[string]string{
     spec:
       description: Required spec describing the preferences
       properties:
+        annotations:
+          additionalProperties:
+            type: string
+          description: Optionally defines preferred Annotations to be applied to the
+            VirtualMachineInstance
+          type: object
         clock:
           description: Clock optionally defines preferences associated with the Clock
             attribute of a VirtualMachineInstance DomainSpec
@@ -21493,6 +22014,11 @@ var CRDsValidation map[string]string = map[string]string{
                 type to use.
               type: string
           type: object
+        preferSpreadSocketToCoreRatio:
+          description: PreferSpreadSocketToCoreRatio defines the ratio to spread vCPUs
+            between cores and sockets, it defaults to 2.
+          format: int32
+          type: integer
         preferredSubdomain:
           description: Subdomain of the VirtualMachineInstance
           type: string
@@ -22588,6 +23114,13 @@ var CRDsValidation map[string]string = map[string]string{
                             resource. Once applied to the InstancetypeMatcher this
                             field is removed.
                           type: string
+                        inferFromVolumeFailurePolicy:
+                          description: 'InferFromVolumeFailurePolicy controls what
+                            should happen on failure when inferring the instancetype.
+                            Allowed values are: "RejectInferFromVolumeFailure" and
+                            "IgnoreInferFromVolumeFailure". If not specified, "RejectInferFromVolumeFailure"
+                            is used by default.'
+                          type: string
                         kind:
                           description: 'Kind specifies which instancetype resource
                             is referenced. Allowed values are: "VirtualMachineInstancetype"
@@ -22610,6 +23143,10 @@ var CRDsValidation map[string]string = map[string]string{
                       description: LiveUpdateFeatures references a configuration of
                         hotpluggable resources
                       properties:
+                        affinity:
+                          description: Affinity allows live updating the virtual machines
+                            node affinity
+                          type: object
                         cpu:
                           description: LiveUpdateCPU holds hotplug configuration for
                             the CPU resource. Empty struct indicates that default
@@ -22623,6 +23160,19 @@ var CRDsValidation map[string]string = map[string]string{
                               format: int32
                               type: integer
                           type: object
+                        memory:
+                          description: MemoryLiveUpdateConfiguration defines the live
+                            update memory features for the VirtualMachine
+                          properties:
+                            maxGuest:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              description: MaxGuest defines the maximum amount memory
+                                that can be allocated for the VM.
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                          type: object
                       type: object
                     preference:
                       description: PreferenceMatcher references a set of preference
@@ -22634,6 +23184,13 @@ var CRDsValidation map[string]string = map[string]string{
                             to be used through known annotations on the underlying
                             resource. Once applied to the PreferenceMatcher this field
                             is removed.
+                          type: string
+                        inferFromVolumeFailurePolicy:
+                          description: 'InferFromVolumeFailurePolicy controls what
+                            should happen on failure when preference the instancetype.
+                            Allowed values are: "RejectInferFromVolumeFailure" and
+                            "IgnoreInferFromVolumeFailure". If not specified, "RejectInferFromVolumeFailure"
+                            is used by default.'
                           type: string
                         kind:
                           description: 'Kind specifies which preference resource is
@@ -22695,6 +23252,12 @@ var CRDsValidation map[string]string = map[string]string{
                                               that the ssh public keys are injected
                                               into the VM using metadata using the
                                               configDrive cloud-init provider
+                                            type: object
+                                          noCloud:
+                                            description: NoCloudPropagation means
+                                              that the ssh public keys are injected
+                                              into the VM using metadata using the
+                                              noCloud cloud-init provider
                                             type: object
                                           qemuGuestAgent:
                                             description: QemuGuestAgentAccessCredentailPropagation
@@ -24062,7 +24625,7 @@ var CRDsValidation map[string]string = map[string]string{
                                         interface. Defaults to true.
                                       type: boolean
                                     autoattachSerialConsole:
-                                      description: Whether to attach the default serial
+                                      description: Whether to attach the default virtio-serial
                                         console or not. Serial console access will
                                         not be available if set to false. Defaults
                                         to true.
@@ -24180,6 +24743,11 @@ var CRDsValidation map[string]string = map[string]string{
                                                   false.
                                                 type: boolean
                                             type: object
+                                          errorPolicy:
+                                            description: If specified, it can change
+                                              the default error policy (stop) for
+                                              the disk
+                                            type: string
                                           io:
                                             description: 'IO specifies which QEMU
                                               disk IO mode should be used. Supported
@@ -24227,6 +24795,11 @@ var CRDsValidation map[string]string = map[string]string{
                                         - name
                                         type: object
                                       type: array
+                                    downwardMetrics:
+                                      description: DownwardMetrics creates a virtio
+                                        serials for exposing the downward metrics
+                                        to the vmi.
+                                      type: object
                                     filesystems:
                                       description: Filesystems describes filesystem
                                         which is connected to the vmi.
@@ -24351,6 +24924,21 @@ var CRDsValidation map[string]string = map[string]string{
                                               be unique across all devices and be
                                               between 1 and (16*1024-1).
                                             type: integer
+                                          binding:
+                                            description: 'Binding specifies the binding
+                                              plugin that will be used to connect
+                                              the interface to the guest. It provides
+                                              an alternative to InterfaceBindingMethod.
+                                              version: 1alphav1'
+                                            properties:
+                                              name:
+                                                description: 'Name references to the
+                                                  binding name as denined in the kubevirt
+                                                  CR. version: 1alphav1'
+                                                type: string
+                                            required:
+                                            - name
+                                            type: object
                                           bootOrder:
                                             description: BootOrder is an integer value
                                               > 0, used to determine ordering of boot
@@ -24502,6 +25090,14 @@ var CRDsValidation map[string]string = map[string]string{
                                         - name
                                         type: object
                                       type: array
+                                    logSerialConsole:
+                                      description: Whether to log the auto-attached
+                                        default serial console or not. Serial console
+                                        logs will be collect to a file and then streamed
+                                        from a named 'guest-console-log'. Not relevant
+                                        if autoattachSerialConsole is disabled. Defaults
+                                        to cluster wide setting on VirtualMachineOptions.
+                                      type: boolean
                                     networkInterfaceMultiqueue:
                                       description: If specified, virtual network interfaces
                                         configured with a virtio bus will also enable
@@ -24826,6 +25422,11 @@ var CRDsValidation map[string]string = map[string]string{
                                           description: If set, EFI will be used instead
                                             of BIOS.
                                           properties:
+                                            persistent:
+                                              description: If set to true, Persistent
+                                                will persist the EFI NVRAM across
+                                                reboots. Defaults to false
+                                              type: boolean
                                             secureBoot:
                                               description: If set, SecureBoot will
                                                 be enabled and the OVMF roms will
@@ -24896,6 +25497,14 @@ var CRDsValidation map[string]string = map[string]string{
                                       description: AMD Secure Encrypted Virtualization
                                         (SEV).
                                       properties:
+                                        attestation:
+                                          description: If specified, run the attestation
+                                            process for a vmi.
+                                          type: object
+                                        dhCert:
+                                          description: Base64 encoded guest owner's
+                                            Diffie-Hellman key.
+                                          type: string
                                         policy:
                                           description: 'Guest policy flags as defined
                                             in AMD SEV API specification. Note: due
@@ -24909,6 +25518,9 @@ var CRDsValidation map[string]string = map[string]string{
                                                 to false.
                                               type: boolean
                                           type: object
+                                        session:
+                                          description: Base64 encoded session blob.
+                                          type: string
                                       type: object
                                   type: object
                                 machine:
@@ -24946,6 +25558,17 @@ var CRDsValidation map[string]string = map[string]string{
                                             are 1Gi and 2Mi.
                                           type: string
                                       type: object
+                                    maxGuest:
+                                      anyOf:
+                                      - type: integer
+                                      - type: string
+                                      description: MaxGuest allows to specify the
+                                        maximum amount of memory which is visible
+                                        inside the Guest OS. The delta between MaxGuest
+                                        and Guest is the amount of memory that can
+                                        be hot(un)plugged.
+                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                      x-kubernetes-int-or-string: true
                                   type: object
                                 resources:
                                   description: Resources describes the Compute Resources
@@ -26102,47 +26725,6 @@ var CRDsValidation map[string]string = map[string]string{
                         ObservedGeneration in Status.
                       format: int64
                       type: integer
-                    interfaceRequests:
-                      description: InterfaceRequests indicates a list of interfaces
-                        added to the VMI template and hot-plugged on an active running
-                        VMI.
-                      items:
-                        properties:
-                          addInterfaceOptions:
-                            description: AddInterfaceOptions when set indicates a
-                              network interface should be added. The details within
-                              this field specify how to add the interface
-                            properties:
-                              name:
-                                description: Name indicates the logical name of the
-                                  interface.
-                                type: string
-                              networkAttachmentDefinitionName:
-                                description: 'NetworkAttachmentDefinitionName references
-                                  a NetworkAttachmentDefinition CRD object. Format:
-                                  <networkAttachmentDefinitionName>, <namespace>/<networkAttachmentDefinitionName>.
-                                  If namespace is not specified, VMI namespace is
-                                  assumed.'
-                                type: string
-                            required:
-                            - name
-                            - networkAttachmentDefinitionName
-                            type: object
-                          removeInterfaceOptions:
-                            description: RemoveInterfaceOptions when set indicates
-                              a network interface should be removed. The details within
-                              this field specify how to remove the interface
-                            properties:
-                              name:
-                                description: Name indicates the logical name of the
-                                  interface.
-                                type: string
-                            required:
-                            - name
-                            type: object
-                        type: object
-                      type: array
-                      x-kubernetes-list-type: atomic
                     memoryDumpRequest:
                       description: MemoryDumpRequest tracks memory dump request phase
                         and info of getting a memory dump to the given pvc
@@ -26343,6 +26925,10 @@ var CRDsValidation map[string]string = map[string]string{
                                         description: ReadOnly. Defaults to false.
                                         type: boolean
                                     type: object
+                                  errorPolicy:
+                                    description: If specified, it can change the default
+                                      error policy (stop) for the disk
+                                    type: string
                                   io:
                                     description: 'IO specifies which QEMU disk IO
                                       mode should be used. Supported values are: native,

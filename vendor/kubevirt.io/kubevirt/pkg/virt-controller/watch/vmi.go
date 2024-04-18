@@ -516,11 +516,7 @@ func (c *VMIController) hasOwnerVM(vmi *virtv1.VirtualMachineInstance) bool {
 	}
 
 	ownerVM := obj.(*virtv1.VirtualMachine)
-	if controllerRef.UID == ownerVM.UID {
-		return true
-	}
-
-	return false
+	return controllerRef.UID == ownerVM.UID
 }
 
 func (c *VMIController) updateStatus(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod, dataVolumes []*cdiv1.DataVolume, syncErr syncError) error {
@@ -725,7 +721,11 @@ func (c *VMIController) updateStatus(vmi *virtv1.VirtualMachineInstance, pod *k8
 		}
 
 		if c.requireCPUHotplug(vmiCopy) {
-			c.syncCPUHotplug(vmiCopy)
+			c.syncHotplugCondition(vmiCopy, virtv1.VirtualMachineInstanceVCPUChange)
+		}
+
+		if c.requireMemoryHotplug(vmiCopy) {
+			c.syncMemoryHotplug(vmiCopy)
 		}
 
 	case vmi.IsScheduled():
@@ -1267,8 +1267,8 @@ func (c *VMIController) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod,
 			}
 		}
 
-		if vmiSpecIfaces, vmiSpecNets, dynamicIfacesExist := calculateDynamicInterfaces(vmi, pod); dynamicIfacesExist {
-			if err := c.handleDynamicInterfaceRequests(vmi.Namespace, vmiSpecIfaces, vmiSpecNets, pod); err != nil {
+		if vmiSpecIfaces, vmiSpecNets, dynamicIfacesExist := calculateInterfacesAndNetworksForMultusAnnotationUpdate(vmi); dynamicIfacesExist {
+			if err := c.updateMultusAnnotation(vmi.Namespace, vmiSpecIfaces, vmiSpecNets, pod); err != nil {
 				return &syncErrorImpl{
 					err:    fmt.Errorf("failed to hot{un}plug network interfaces for vmi [%s/%s]: %w", vmi.GetNamespace(), vmi.GetName(), err),
 					reason: FailedHotplugSyncReason,
@@ -1816,15 +1816,27 @@ func (c *VMIController) waitForFirstConsumerTemporaryPods(vmi *virtv1.VirtualMac
 }
 
 func (c *VMIController) needsHandleHotplug(hotplugVolumes []*virtv1.Volume, hotplugAttachmentPods []*k8sv1.Pod) bool {
-	// Determine if the ready volumes have changed compared to the current pod
-	for _, attachmentPod := range hotplugAttachmentPods {
-		if c.podVolumesMatchesReadyVolumes(attachmentPod, hotplugVolumes) {
-			log.DefaultLogger().Infof("Don't need to handle as we have a matching attachment pod")
-			return false
-		}
+	if len(hotplugAttachmentPods) > 1 {
 		return true
 	}
-	return len(hotplugVolumes) > 0
+	// Determine if the ready volumes have changed compared to the current pod
+	if len(hotplugAttachmentPods) == 1 && c.podVolumesMatchesReadyVolumes(hotplugAttachmentPods[0], hotplugVolumes) {
+		return false
+	}
+	return len(hotplugVolumes) > 0 || len(hotplugAttachmentPods) > 0
+}
+
+func (c *VMIController) getActiveAndOldAttachmentPods(readyHotplugVolumes []*virtv1.Volume, hotplugAttachmentPods []*k8sv1.Pod) (*k8sv1.Pod, []*k8sv1.Pod) {
+	var currentPod *k8sv1.Pod
+	oldPods := make([]*k8sv1.Pod, 0)
+	for _, attachmentPod := range hotplugAttachmentPods {
+		if !c.podVolumesMatchesReadyVolumes(attachmentPod, readyHotplugVolumes) {
+			oldPods = append(oldPods, attachmentPod)
+		} else {
+			currentPod = attachmentPod
+		}
+	}
+	return currentPod, oldPods
 }
 
 func (c *VMIController) handleHotplugVolumes(hotplugVolumes []*virtv1.Volume, hotplugAttachmentPods []*k8sv1.Pod, vmi *virtv1.VirtualMachineInstance, virtLauncherPod *k8sv1.Pod, dataVolumes []*cdiv1.DataVolume) syncError {
@@ -1855,29 +1867,25 @@ func (c *VMIController) handleHotplugVolumes(hotplugVolumes []*virtv1.Volume, ho
 		readyHotplugVolumes = append(readyHotplugVolumes, volume)
 	}
 	// Determine if the ready volumes have changed compared to the current pod
-	currentPod := make([]*k8sv1.Pod, 0)
-	oldPods := make([]*k8sv1.Pod, 0)
-	for _, attachmentPod := range hotplugAttachmentPods {
-		if !c.podVolumesMatchesReadyVolumes(attachmentPod, readyHotplugVolumes) {
-			oldPods = append(oldPods, attachmentPod)
-		} else {
-			currentPod = append(currentPod, attachmentPod)
-		}
-	}
+	currentPod, oldPods := c.getActiveAndOldAttachmentPods(readyHotplugVolumes, hotplugAttachmentPods)
 
-	if len(currentPod) == 0 && len(readyHotplugVolumes) > 0 {
+	if currentPod == nil && len(readyHotplugVolumes) > 0 {
 		// ready volumes have changed
 		// Create new attachment pod that holds all the ready volumes
 		if err := c.createAttachmentPod(vmi, virtLauncherPod, readyHotplugVolumes); err != nil {
 			return err
 		}
 	}
-	// Delete old attachment pod
-	for _, attachmentPod := range oldPods {
-		if err := c.deleteAttachmentPodForVolume(vmi, attachmentPod); err != nil {
-			return &syncErrorImpl{fmt.Errorf("Error deleting attachment pod %v", err), FailedDeletePodReason}
+
+	if len(readyHotplugVolumes) == 0 || (currentPod != nil && currentPod.Status.Phase == k8sv1.PodRunning) {
+		// Delete old attachment pod
+		for _, attachmentPod := range oldPods {
+			if err := c.deleteAttachmentPodForVolume(vmi, attachmentPod); err != nil {
+				return &syncErrorImpl{fmt.Errorf("Error deleting attachment pod %v", err), FailedDeletePodReason}
+			}
 		}
 	}
+
 	return nil
 }
 
@@ -2121,6 +2129,9 @@ func (c *VMIController) updateVolumeStatus(vmi *virtv1.VirtualMachineInstance, v
 	if err != nil {
 		return err
 	}
+
+	attachmentPod, _ := c.getActiveAndOldAttachmentPods(hotplugVolumes, attachmentPods)
+
 	newStatus := make([]virtv1.VolumeStatus, 0)
 	for i, volume := range vmi.Spec.Volumes {
 		status := virtv1.VolumeStatus{}
@@ -2142,19 +2153,22 @@ func (c *VMIController) updateVolumeStatus(vmi *virtv1.VirtualMachineInstance, v
 					ClaimName: volume.Name,
 				}
 			}
-			attachmentPod := c.findAttachmentPodByVolumeName(volume.Name, attachmentPods)
 			if attachmentPod == nil {
-				status.HotplugVolume.AttachPodName = ""
-				status.HotplugVolume.AttachPodUID = ""
-				// Pod is gone, or hasn't been created yet, check for the PVC associated with the volume to set phase and message
-				phase, reason, message := c.getVolumePhaseMessageReason(&vmi.Spec.Volumes[i], vmi.Namespace)
-				status.Phase = phase
-				status.Message = message
-				status.Reason = reason
+				if !c.volumeReady(status.Phase) {
+					status.HotplugVolume.AttachPodUID = ""
+					// Volume is not hotplugged in VM and Pod is gone, or hasn't been created yet, check for the PVC associated with the volume to set phase and message
+					phase, reason, message := c.getVolumePhaseMessageReason(&vmi.Spec.Volumes[i], vmi.Namespace)
+					status.Phase = phase
+					status.Message = message
+					status.Reason = reason
+				}
 			} else {
 				status.HotplugVolume.AttachPodName = attachmentPod.Name
 				if len(attachmentPod.Status.ContainerStatuses) == 1 && attachmentPod.Status.ContainerStatuses[0].Ready {
 					status.HotplugVolume.AttachPodUID = attachmentPod.UID
+				} else {
+					// Remove UID of old pod if a new one is available, but not yet ready
+					status.HotplugVolume.AttachPodUID = ""
 				}
 				if c.canMoveToAttachedPhase(status.Phase) {
 					status.Phase = virtv1.HotplugVolumeAttachedToNode
@@ -2215,6 +2229,10 @@ func (c *VMIController) updateVolumeStatus(vmi *virtv1.VirtualMachineInstance, v
 	return nil
 }
 
+func (c *VMIController) volumeReady(phase virtv1.VolumePhase) bool {
+	return phase == virtv1.VolumeReady
+}
+
 func (c *VMIController) getFilesystemOverhead(pvc *k8sv1.PersistentVolumeClaim) (cdiv1.Percent, error) {
 	// To avoid conflicts, we only allow having one CDI instance
 	if cdiInstances := len(c.cdiInformer.GetStore().List()); cdiInstances != 1 {
@@ -2239,8 +2257,7 @@ func (c *VMIController) getFilesystemOverhead(pvc *k8sv1.PersistentVolumeClaim) 
 }
 
 func (c *VMIController) canMoveToAttachedPhase(currentPhase virtv1.VolumePhase) bool {
-	return currentPhase == "" || currentPhase == virtv1.VolumeBound || currentPhase == virtv1.VolumePending ||
-		currentPhase == virtv1.HotplugVolumeAttachedToNode
+	return (currentPhase == "" || currentPhase == virtv1.VolumeBound || currentPhase == virtv1.VolumePending)
 }
 
 func (c *VMIController) findAttachmentPodByVolumeName(volumeName string, attachmentPods []*k8sv1.Pod) *k8sv1.Pod {
@@ -2270,22 +2287,24 @@ func (c *VMIController) getVolumePhaseMessageReason(volume *virtv1.Volume, names
 	return virtv1.VolumePending, PVCNotReadyReason, "PVC is in phase Lost"
 }
 
-func (c *VMIController) handleDynamicInterfaceRequests(namespace string, interfaces []virtv1.Interface, networks []virtv1.Network, pod *k8sv1.Pod) error {
+func (c *VMIController) updateMultusAnnotation(namespace string, interfaces []virtv1.Interface, networks []virtv1.Network, pod *k8sv1.Pod) error {
 	podAnnotations := pod.GetAnnotations()
 
 	indexedMultusStatusIfaces := services.NonDefaultMultusNetworksIndexedByIfaceName(pod)
 	networkToPodIfaceMap := namescheme.CreateNetworkNameSchemeByPodNetworkStatus(networks, indexedMultusStatusIfaces)
-	multusAnnotations, err := services.GenerateMultusCNIAnnotationFromNameScheme(namespace, interfaces, networks, networkToPodIfaceMap)
+	multusAnnotations, err := services.GenerateMultusCNIAnnotationFromNameScheme(namespace, interfaces, networks, networkToPodIfaceMap, c.clusterConfig)
 	if err != nil {
 		return err
 	}
+
+	currentMultusAnnotation := podAnnotations[networkv1.NetworkAttachmentAnnot]
 	log.Log.Object(pod).V(4).Infof(
 		"current multus annotation for pod: %s; updated multus annotation for pod with: %s",
-		podAnnotations[networkv1.NetworkAttachmentAnnot],
+		currentMultusAnnotation,
 		multusAnnotations,
 	)
 
-	if multusAnnotations != "" {
+	if multusAnnotations != currentMultusAnnotation {
 		newAnnotations := map[string]string{networkv1.NetworkAttachmentAnnot: multusAnnotations}
 		patchedPod, err := c.syncPodAnnotations(pod, newAnnotations)
 		if err != nil {
@@ -2331,15 +2350,15 @@ func generateInterfaceStatusPatchRequest(oldInterfaceStatus []byte, newInterface
 	}
 }
 
-func (c *VMIController) syncCPUHotplug(vmi *virtv1.VirtualMachineInstance) {
+func (c *VMIController) syncHotplugCondition(vmi *virtv1.VirtualMachineInstance, conditionType virtv1.VirtualMachineInstanceConditionType) {
 	vmiConditions := controller.NewVirtualMachineInstanceConditionManager()
 	condition := virtv1.VirtualMachineInstanceCondition{
-		Type:   virtv1.VirtualMachineInstanceVCPUChange,
+		Type:   conditionType,
 		Status: k8sv1.ConditionTrue,
 	}
 	if !vmiConditions.HasCondition(vmi, condition.Type) {
 		vmiConditions.UpdateCondition(vmi, &condition)
-		log.Log.Object(vmi).V(4).Infof("hot plug cpu vmi %s", vmi.Name)
+		log.Log.Object(vmi).V(4).Infof("adding hotplug condition %s", conditionType)
 	}
 
 }
@@ -2358,4 +2377,27 @@ func (c *VMIController) requireCPUHotplug(vmi *virtv1.VirtualMachineInstance) bo
 	}
 
 	return hardware.GetNumberOfVCPUs(vmi.Spec.Domain.CPU) != hardware.GetNumberOfVCPUs(cpuTopoLogyFromStatus)
+}
+
+func (c *VMIController) requireMemoryHotplug(vmi *virtv1.VirtualMachineInstance) bool {
+	if vmi.Status.Memory == nil ||
+		vmi.Spec.Domain.Memory == nil ||
+		vmi.Spec.Domain.Memory.Guest == nil ||
+		vmi.Spec.Domain.Memory.MaxGuest == nil {
+		return false
+	}
+
+	return vmi.Spec.Domain.Memory.Guest.Value() != vmi.Status.Memory.GuestRequested.Value()
+}
+
+func (c *VMIController) syncMemoryHotplug(vmi *virtv1.VirtualMachineInstance) {
+	c.syncHotplugCondition(vmi, virtv1.VirtualMachineInstanceMemoryChange)
+	// store additionalGuestMemoryOverheadRatio
+	overheadRatio := c.clusterConfig.GetConfig().AdditionalGuestMemoryOverheadRatio
+	if overheadRatio != nil {
+		if vmi.Labels == nil {
+			vmi.Labels = map[string]string{}
+		}
+		vmi.Labels[virtv1.MemoryHotplugOverheadRatioLabel] = *overheadRatio
+	}
 }
