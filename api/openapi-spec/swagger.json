@@ -9556,7 +9556,12 @@
           },
           "sourceType": {
             "type": "string",
-            "default": ""
+            "default": "",
+            "enum": [
+              "download",
+              "export-from-volume",
+              "upload"
+            ]
           },
           "storageClassParameters": {
             "type": "object",
