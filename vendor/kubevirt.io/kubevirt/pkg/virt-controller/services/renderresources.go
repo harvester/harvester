@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"k8s.io/client-go/tools/cache"
+
 	"kubevirt.io/client-go/log"
 
 	k8sv1 "k8s.io/api/core/v1"
@@ -188,7 +190,16 @@ func WithMemoryOverhead(guestResourceSpec v1.ResourceRequirements, memoryOverhea
 	}
 }
 
-func WithCPUPinning(cpu *v1.CPU) ResourceRendererOption {
+func WithAutoMemoryLimits(namespace string, namespaceStore cache.Store) ResourceRendererOption {
+	return func(renderer *ResourceRenderer) {
+		requestRatio := getMemoryLimitsRatio(namespace, namespaceStore)
+		memoryRequest := renderer.vmRequests[k8sv1.ResourceMemory]
+		value := int64(float64(memoryRequest.Value()) * requestRatio)
+		renderer.calculatedLimits[k8sv1.ResourceMemory] = *resource.NewQuantity(value, memoryRequest.Format)
+	}
+}
+
+func WithCPUPinning(cpu *v1.CPU, annotations map[string]string) ResourceRendererOption {
 	return func(renderer *ResourceRenderer) {
 		vcpus := hardware.GetNumberOfVCPUs(cpu)
 		if vcpus != 0 {
@@ -201,14 +212,22 @@ func WithCPUPinning(cpu *v1.CPU) ResourceRendererOption {
 			}
 		}
 
-		// allocate 1 more pcpu if IsolateEmulatorThread request
+		// allocate pcpus for emulatorThread if IsolateEmulatorThread is requested
 		if cpu.IsolateEmulatorThread {
-			emulatorThreadCPU := resource.NewQuantity(1, resource.BinarySI)
+			emulatorThreadCPUs := resource.NewQuantity(1, resource.BinarySI)
+
 			limits := renderer.calculatedLimits[k8sv1.ResourceCPU]
-			limits.Add(*emulatorThreadCPU)
+			_, emulatorThreadCompleteToEvenParityAnnotationExists := annotations[v1.EmulatorThreadCompleteToEvenParity]
+			if emulatorThreadCompleteToEvenParityAnnotationExists &&
+				limits.Value()%2 == 0 {
+				emulatorThreadCPUs = resource.NewQuantity(2, resource.BinarySI)
+			}
+
+			limits.Add(*emulatorThreadCPUs)
 			renderer.vmLimits[k8sv1.ResourceCPU] = limits
+
 			if cpuRequest, ok := renderer.vmRequests[k8sv1.ResourceCPU]; ok {
-				cpuRequest.Add(*emulatorThreadCPU)
+				cpuRequest.Add(*emulatorThreadCPUs)
 				renderer.vmRequests[k8sv1.ResourceCPU] = cpuRequest
 			}
 		}
@@ -382,7 +401,7 @@ func GetMemoryOverhead(vmi *v1.VirtualMachineInstance, cpuArch string, additiona
 	}
 
 	// Multiplying the ratio is expected to be the last calculation before returning overhead
-	if additionalOverheadRatio != nil {
+	if additionalOverheadRatio != nil && *additionalOverheadRatio != "" {
 		ratio, err := strconv.ParseFloat(*additionalOverheadRatio, 64)
 		if err != nil {
 			// This error should never happen as it's already validated by webhooks
@@ -391,6 +410,10 @@ func GetMemoryOverhead(vmi *v1.VirtualMachineInstance, cpuArch string, additiona
 		}
 
 		overhead = multiplyMemory(overhead, ratio)
+	}
+
+	if vmi.IsCPUDedicated() || vmi.WantsToHaveQOSGuaranteed() {
+		overhead.Add(resource.MustParse("100Mi"))
 	}
 
 	return overhead
@@ -496,6 +519,9 @@ func validatePermittedHostDevices(spec *v1.VirtualMachineInstanceSpec, config *v
 			supportedHostDevicesMap[dev.ResourceName] = true
 		}
 		for _, dev := range hostDevs.MediatedDevices {
+			supportedHostDevicesMap[dev.ResourceName] = true
+		}
+		for _, dev := range hostDevs.USB {
 			supportedHostDevicesMap[dev.ResourceName] = true
 		}
 		for _, hostDev := range spec.Domain.Devices.GPUs {
@@ -646,10 +672,81 @@ func hotplugContainerRequests(config *virtconfig.ClusterConfig) k8sv1.ResourceLi
 	}
 }
 
+func vmExportContainerResourceRequirements(config *virtconfig.ClusterConfig) k8sv1.ResourceRequirements {
+	return k8sv1.ResourceRequirements{
+		Limits:   vmExportContainerLimits(config),
+		Requests: vmExportContainerRequests(config),
+	}
+}
+
+func vmExportContainerLimits(config *virtconfig.ClusterConfig) k8sv1.ResourceList {
+	cpuQuantity := resource.MustParse("1")
+	if cpu := config.GetSupportContainerLimit(v1.VMExport, k8sv1.ResourceCPU); cpu != nil {
+		cpuQuantity = *cpu
+	}
+	memQuantity := resource.MustParse("1024Mi")
+	if mem := config.GetSupportContainerLimit(v1.VMExport, k8sv1.ResourceMemory); mem != nil {
+		memQuantity = *mem
+	}
+	return k8sv1.ResourceList{
+		k8sv1.ResourceCPU:    cpuQuantity,
+		k8sv1.ResourceMemory: memQuantity,
+	}
+}
+
+func vmExportContainerRequests(config *virtconfig.ClusterConfig) k8sv1.ResourceList {
+	cpuQuantity := resource.MustParse("100m")
+	if cpu := config.GetSupportContainerRequest(v1.VMExport, k8sv1.ResourceCPU); cpu != nil {
+		cpuQuantity = *cpu
+	}
+	memQuantity := resource.MustParse("200Mi")
+	if mem := config.GetSupportContainerRequest(v1.VMExport, k8sv1.ResourceMemory); mem != nil {
+		memQuantity = *mem
+	}
+	return k8sv1.ResourceList{
+		k8sv1.ResourceCPU:    cpuQuantity,
+		k8sv1.ResourceMemory: memQuantity,
+	}
+}
+
 func multiplyMemory(mem resource.Quantity, multiplication float64) resource.Quantity {
 	overheadAddition := float64(mem.ScaledValue(resource.Kilo)) * (multiplication - 1.0)
 	additionalOverhead := resource.NewScaledQuantity(int64(overheadAddition), resource.Kilo)
 
 	mem.Add(*additionalOverhead)
 	return mem
+}
+
+func getMemoryLimitsRatio(namespace string, namespaceStore cache.Store) float64 {
+	if namespaceStore == nil {
+		return DefaultMemoryLimitOverheadRatio
+	}
+
+	obj, exists, err := namespaceStore.GetByKey(namespace)
+	if err != nil {
+		log.Log.Warningf("Error retrieving namespace from informer. Using the default memory limits ratio. %s", err.Error())
+		return DefaultMemoryLimitOverheadRatio
+	} else if !exists {
+		log.Log.Warningf("namespace %s does not exist. Using the default memory limits ratio.", namespace)
+		return DefaultMemoryLimitOverheadRatio
+	}
+
+	ns, ok := obj.(*k8sv1.Namespace)
+	if !ok {
+		log.Log.Errorf("couldn't cast object to Namespace: %+v", obj)
+		return DefaultMemoryLimitOverheadRatio
+	}
+
+	value, ok := ns.GetLabels()[v1.AutoMemoryLimitsRatioLabel]
+	if !ok {
+		return DefaultMemoryLimitOverheadRatio
+	}
+
+	limitRatioValue, err := strconv.ParseFloat(value, 64)
+	if err != nil || limitRatioValue < 1.0 {
+		log.Log.Warningf("%s is an invalid value for %s label in namespace %s. Using the default one: %f", value, v1.AutoMemoryLimitsRatioLabel, namespace, DefaultMemoryLimitOverheadRatio)
+		return DefaultMemoryLimitOverheadRatio
+	}
+
+	return limitRatioValue
 }

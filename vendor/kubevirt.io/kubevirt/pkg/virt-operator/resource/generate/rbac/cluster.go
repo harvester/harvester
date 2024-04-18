@@ -16,12 +16,17 @@
  * Copyright 2018 Red Hat, Inc.
  *
  */
+
 package rbac
 
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"kubevirt.io/api/clone"
+	"kubevirt.io/api/export"
+	"kubevirt.io/api/pool"
+	"kubevirt.io/api/snapshot"
 
 	"kubevirt.io/api/instancetype"
 
@@ -31,16 +36,52 @@ import (
 )
 
 const (
-	GroupNameSubresources  = "subresources.kubevirt.io"
-	GroupNameSnapshot      = "snapshot.kubevirt.io"
-	GroupNameExport        = "export.kubevirt.io"
-	GroupNameClone         = "clone.kubevirt.io"
-	GroupNameInstancetype  = "instancetype.kubevirt.io"
-	GroupNamePool          = "pool.kubevirt.io"
-	NameDefault            = "kubevirt.io:default"
-	VMInstancesGuestOSInfo = "virtualmachineinstances/guestosinfo"
-	VMInstancesFileSysList = "virtualmachineinstances/filesystemlist"
-	VMInstancesUserList    = "virtualmachineinstances/userlist"
+	NameDefault = "kubevirt.io:default"
+
+	ApiVersion            = "version"
+	ApiGuestFs            = "guestfs"
+	ApiExpandVmSpec       = "expand-vm-spec"
+	ApiKubevirts          = "kubevirts"
+	ApiVM                 = "virtualmachines"
+	ApiVMInstances        = "virtualmachineinstances"
+	ApiVMIPresets         = "virtualmachineinstancepresets"
+	ApiVMIReplicasets     = "virtualmachineinstancereplicasets"
+	ApiVMIMigrations      = "virtualmachineinstancemigrations"
+	ApiVMSnapshots        = "virtualmachinesnapshots"
+	ApiVMSnapshotContents = "virtualmachinesnapshotcontents"
+	ApiVMRestores         = "virtualmachinerestores"
+	ApiVMExports          = "virtualmachineexports"
+	ApiVMClones           = "virtualmachineclones"
+	ApiVMPools            = "virtualmachinepools"
+
+	ApiVMExpandSpec   = "virtualmachines/expand-spec"
+	ApiVMPortForward  = "virtualmachines/portforward"
+	ApiVMStart        = "virtualmachines/start"
+	ApiVMStop         = "virtualmachines/stop"
+	ApiVMRestart      = "virtualmachines/restart"
+	ApiVMAddVolume    = "virtualmachines/addvolume"
+	ApiVMRemoveVolume = "virtualmachines/removevolume"
+	ApiVMMigrate      = "virtualmachines/migrate"
+	ApiVMMemoryDump   = "virtualmachines/memorydump"
+
+	ApiVMInstancesConsole                   = "virtualmachineinstances/console"
+	ApiVMInstancesVNC                       = "virtualmachineinstances/vnc"
+	ApiVMInstancesVNCScreenshot             = "virtualmachineinstances/vnc/screenshot"
+	ApiVMInstancesPortForward               = "virtualmachineinstances/portforward"
+	ApiVMInstancesPause                     = "virtualmachineinstances/pause"
+	ApiVMInstancesUnpause                   = "virtualmachineinstances/unpause"
+	ApiVMInstancesAddVolume                 = "virtualmachineinstances/addvolume"
+	ApiVMInstancesRemoveVolume              = "virtualmachineinstances/removevolume"
+	ApiVMInstancesFreeze                    = "virtualmachineinstances/freeze"
+	ApiVMInstancesUnfreeze                  = "virtualmachineinstances/unfreeze"
+	ApiVMInstancesSoftReboot                = "virtualmachineinstances/softreboot"
+	ApiVMInstancesGuestOSInfo               = "virtualmachineinstances/guestosinfo"
+	ApiVMInstancesFileSysList               = "virtualmachineinstances/filesystemlist"
+	ApiVMInstancesUserList                  = "virtualmachineinstances/userlist"
+	ApiVMInstancesSEVFetchCertChain         = "virtualmachineinstances/sev/fetchcertchain"
+	ApiVMInstancesSEVQueryLaunchMeasurement = "virtualmachineinstances/sev/querylaunchmeasurement"
+	ApiVMInstancesSEVSetupSession           = "virtualmachineinstances/sev/setupsession"
+	ApiVMInstancesSEVInjectLaunchSecret     = "virtualmachineinstances/sev/injectlaunchsecret"
 )
 
 func GetAllCluster() []runtime.Object {
@@ -50,6 +91,7 @@ func GetAllCluster() []runtime.Object {
 		newAdminClusterRole(),
 		newEditClusterRole(),
 		newViewClusterRole(),
+		newInstancetypeViewClusterRole(),
 	}
 }
 
@@ -72,11 +114,11 @@ func newDefaultClusterRole() *rbacv1.ClusterRole {
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"version",
-					"guestfs",
+					ApiVersion,
+					ApiGuestFs,
 				},
 				Verbs: []string{
 					"get", "list",
@@ -137,16 +179,18 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"virtualmachineinstances/console",
-					"virtualmachineinstances/vnc",
-					"virtualmachineinstances/vnc/screenshot",
-					"virtualmachineinstances/portforward",
-					VMInstancesGuestOSInfo,
-					VMInstancesFileSysList,
-					VMInstancesUserList,
+					ApiVMInstancesConsole,
+					ApiVMInstancesVNC,
+					ApiVMInstancesVNCScreenshot,
+					ApiVMInstancesPortForward,
+					ApiVMInstancesGuestOSInfo,
+					ApiVMInstancesFileSysList,
+					ApiVMInstancesUserList,
+					ApiVMInstancesSEVFetchCertChain,
+					ApiVMInstancesSEVQueryLaunchMeasurement,
 				},
 				Verbs: []string{
 					"get",
@@ -154,16 +198,18 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"virtualmachineinstances/pause",
-					"virtualmachineinstances/unpause",
-					"virtualmachineinstances/addvolume",
-					"virtualmachineinstances/removevolume",
-					"virtualmachineinstances/freeze",
-					"virtualmachineinstances/unfreeze",
-					"virtualmachineinstances/softreboot",
+					ApiVMInstancesPause,
+					ApiVMInstancesUnpause,
+					ApiVMInstancesAddVolume,
+					ApiVMInstancesRemoveVolume,
+					ApiVMInstancesFreeze,
+					ApiVMInstancesUnfreeze,
+					ApiVMInstancesSoftReboot,
+					ApiVMInstancesSEVSetupSession,
+					ApiVMInstancesSEVInjectLaunchSecret,
 				},
 				Verbs: []string{
 					"update",
@@ -171,11 +217,11 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"virtualmachines/expand-spec",
-					"virtualmachines/portforward",
+					ApiVMExpandSpec,
+					ApiVMPortForward,
 				},
 				Verbs: []string{
 					"get",
@@ -183,17 +229,16 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"virtualmachines/start",
-					"virtualmachines/stop",
-					"virtualmachines/restart",
-					"virtualmachines/addvolume",
-					"virtualmachines/removevolume",
-					"virtualmachines/migrate",
-					"virtualmachines/memorydump",
-					"virtualmachines/addinterface",
+					ApiVMStart,
+					ApiVMStop,
+					ApiVMRestart,
+					ApiVMAddVolume,
+					ApiVMRemoveVolume,
+					ApiVMMigrate,
+					ApiVMMemoryDump,
 				},
 				Verbs: []string{
 					"update",
@@ -201,10 +246,10 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"expand-vm-spec",
+					ApiExpandVmSpec,
 				},
 				Verbs: []string{
 					"update",
@@ -215,11 +260,11 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 					GroupName,
 				},
 				Resources: []string{
-					"virtualmachines",
-					"virtualmachineinstances",
-					"virtualmachineinstancepresets",
-					"virtualmachineinstancereplicasets",
-					"virtualmachineinstancemigrations",
+					ApiVM,
+					ApiVMInstances,
+					ApiVMIPresets,
+					ApiVMIReplicasets,
+					ApiVMIMigrations,
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch", "deletecollection",
@@ -227,12 +272,12 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSnapshot,
+					snapshot.GroupName,
 				},
 				Resources: []string{
-					"virtualmachinesnapshots",
-					"virtualmachinesnapshotcontents",
-					"virtualmachinerestores",
+					ApiVMSnapshots,
+					ApiVMSnapshotContents,
+					ApiVMRestores,
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch", "deletecollection",
@@ -240,10 +285,10 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameExport,
+					export.GroupName,
 				},
 				Resources: []string{
-					"virtualmachineexports",
+					ApiVMExports,
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch", "deletecollection",
@@ -251,10 +296,10 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameClone,
+					clone.GroupName,
 				},
 				Resources: []string{
-					"virtualmachineclones",
+					ApiVMClones,
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch", "deletecollection",
@@ -262,7 +307,7 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameInstancetype,
+					instancetype.GroupName,
 				},
 				Resources: []string{
 					instancetype.PluralResourceName,
@@ -276,10 +321,10 @@ func newAdminClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNamePool,
+					pool.GroupName,
 				},
 				Resources: []string{
-					"virtualmachinepools",
+					ApiVMPools,
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch", "deletecollection",
@@ -316,16 +361,18 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"virtualmachineinstances/console",
-					"virtualmachineinstances/vnc",
-					"virtualmachineinstances/vnc/screenshot",
-					"virtualmachineinstances/portforward",
-					VMInstancesGuestOSInfo,
-					VMInstancesFileSysList,
-					VMInstancesUserList,
+					ApiVMInstancesConsole,
+					ApiVMInstancesVNC,
+					ApiVMInstancesVNCScreenshot,
+					ApiVMInstancesPortForward,
+					ApiVMInstancesGuestOSInfo,
+					ApiVMInstancesFileSysList,
+					ApiVMInstancesUserList,
+					ApiVMInstancesSEVFetchCertChain,
+					ApiVMInstancesSEVQueryLaunchMeasurement,
 				},
 				Verbs: []string{
 					"get",
@@ -333,16 +380,18 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"virtualmachineinstances/pause",
-					"virtualmachineinstances/unpause",
-					"virtualmachineinstances/addvolume",
-					"virtualmachineinstances/removevolume",
-					"virtualmachineinstances/freeze",
-					"virtualmachineinstances/unfreeze",
-					"virtualmachineinstances/softreboot",
+					ApiVMInstancesPause,
+					ApiVMInstancesUnpause,
+					ApiVMInstancesAddVolume,
+					ApiVMInstancesRemoveVolume,
+					ApiVMInstancesFreeze,
+					ApiVMInstancesUnfreeze,
+					ApiVMInstancesSoftReboot,
+					ApiVMInstancesSEVSetupSession,
+					ApiVMInstancesSEVInjectLaunchSecret,
 				},
 				Verbs: []string{
 					"update",
@@ -350,11 +399,11 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"virtualmachines/expand-spec",
-					"virtualmachines/portforward",
+					ApiVMExpandSpec,
+					ApiVMPortForward,
 				},
 				Verbs: []string{
 					"get",
@@ -362,17 +411,16 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"virtualmachines/start",
-					"virtualmachines/stop",
-					"virtualmachines/restart",
-					"virtualmachines/addvolume",
-					"virtualmachines/removevolume",
-					"virtualmachines/migrate",
-					"virtualmachines/memorydump",
-					"virtualmachines/addinterface",
+					ApiVMStart,
+					ApiVMStop,
+					ApiVMRestart,
+					ApiVMAddVolume,
+					ApiVMRemoveVolume,
+					ApiVMMigrate,
+					ApiVMMemoryDump,
 				},
 				Verbs: []string{
 					"update",
@@ -380,10 +428,10 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"expand-vm-spec",
+					ApiExpandVmSpec,
 				},
 				Verbs: []string{
 					"update",
@@ -394,11 +442,11 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 					GroupName,
 				},
 				Resources: []string{
-					"virtualmachines",
-					"virtualmachineinstances",
-					"virtualmachineinstancepresets",
-					"virtualmachineinstancereplicasets",
-					"virtualmachineinstancemigrations",
+					ApiVM,
+					ApiVMInstances,
+					ApiVMIPresets,
+					ApiVMIReplicasets,
+					ApiVMIMigrations,
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch",
@@ -406,12 +454,12 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSnapshot,
+					snapshot.GroupName,
 				},
 				Resources: []string{
-					"virtualmachinesnapshots",
-					"virtualmachinesnapshotcontents",
-					"virtualmachinerestores",
+					ApiVMSnapshots,
+					ApiVMSnapshotContents,
+					ApiVMRestores,
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch",
@@ -419,10 +467,10 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameExport,
+					export.GroupName,
 				},
 				Resources: []string{
-					"virtualmachineexports",
+					ApiVMExports,
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch",
@@ -430,10 +478,10 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameClone,
+					clone.GroupName,
 				},
 				Resources: []string{
-					"virtualmachineclones",
+					ApiVMClones,
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch",
@@ -441,7 +489,7 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameInstancetype,
+					instancetype.GroupName,
 				},
 				Resources: []string{
 					instancetype.PluralResourceName,
@@ -455,10 +503,10 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNamePool,
+					pool.GroupName,
 				},
 				Resources: []string{
-					"virtualmachinepools",
+					ApiVMPools,
 				},
 				Verbs: []string{
 					"get", "delete", "create", "update", "patch", "list", "watch",
@@ -469,7 +517,7 @@ func newEditClusterRole() *rbacv1.ClusterRole {
 					GroupName,
 				},
 				Resources: []string{
-					"kubevirts",
+					ApiKubevirts,
 				},
 				Verbs: []string{
 					"get", "list",
@@ -506,13 +554,26 @@ func newViewClusterRole() *rbacv1.ClusterRole {
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					GroupName,
 				},
 				Resources: []string{
-					"virtualmachines/expand-spec",
-					VMInstancesGuestOSInfo,
-					VMInstancesFileSysList,
-					VMInstancesUserList,
+					ApiKubevirts,
+				},
+				Verbs: []string{
+					"get", "list",
+				},
+			},
+			{
+				APIGroups: []string{
+					virtv1.SubresourceGroupName,
+				},
+				Resources: []string{
+					ApiVMExpandSpec,
+					ApiVMInstancesGuestOSInfo,
+					ApiVMInstancesFileSysList,
+					ApiVMInstancesUserList,
+					ApiVMInstancesSEVFetchCertChain,
+					ApiVMInstancesSEVQueryLaunchMeasurement,
 				},
 				Verbs: []string{
 					"get",
@@ -520,10 +581,10 @@ func newViewClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSubresources,
+					virtv1.SubresourceGroupName,
 				},
 				Resources: []string{
-					"expand-vm-spec",
+					ApiExpandVmSpec,
 				},
 				Verbs: []string{
 					"update",
@@ -534,11 +595,11 @@ func newViewClusterRole() *rbacv1.ClusterRole {
 					GroupName,
 				},
 				Resources: []string{
-					"virtualmachines",
-					"virtualmachineinstances",
-					"virtualmachineinstancepresets",
-					"virtualmachineinstancereplicasets",
-					"virtualmachineinstancemigrations",
+					ApiVM,
+					ApiVMInstances,
+					ApiVMIPresets,
+					ApiVMIReplicasets,
+					ApiVMIMigrations,
 				},
 				Verbs: []string{
 					"get", "list", "watch",
@@ -546,12 +607,12 @@ func newViewClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameSnapshot,
+					snapshot.GroupName,
 				},
 				Resources: []string{
-					"virtualmachinesnapshots",
-					"virtualmachinesnapshotcontents",
-					"virtualmachinerestores",
+					ApiVMSnapshots,
+					ApiVMSnapshotContents,
+					ApiVMRestores,
 				},
 				Verbs: []string{
 					"get", "list", "watch",
@@ -559,10 +620,10 @@ func newViewClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameExport,
+					export.GroupName,
 				},
 				Resources: []string{
-					"virtualmachineexports",
+					ApiVMExports,
 				},
 				Verbs: []string{
 					"get", "list", "watch",
@@ -570,10 +631,10 @@ func newViewClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameClone,
+					clone.GroupName,
 				},
 				Resources: []string{
-					"virtualmachineclones",
+					ApiVMClones,
 				},
 				Verbs: []string{
 					"get", "list", "watch",
@@ -581,7 +642,7 @@ func newViewClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNameInstancetype,
+					instancetype.GroupName,
 				},
 				Resources: []string{
 					instancetype.PluralResourceName,
@@ -595,10 +656,10 @@ func newViewClusterRole() *rbacv1.ClusterRole {
 			},
 			{
 				APIGroups: []string{
-					GroupNamePool,
+					pool.GroupName,
 				},
 				Resources: []string{
-					"virtualmachinepools",
+					ApiVMPools,
 				},
 				Verbs: []string{
 					"get", "list", "watch",
@@ -610,6 +671,31 @@ func newViewClusterRole() *rbacv1.ClusterRole {
 				},
 				Resources: []string{
 					migrations.ResourceMigrationPolicies,
+				},
+				Verbs: []string{
+					"get", "list", "watch",
+				},
+			},
+		},
+	}
+}
+func newInstancetypeViewClusterRole() *rbacv1.ClusterRole {
+	return &rbacv1.ClusterRole{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: VersionNamev1,
+			Kind:       "ClusterRole",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "instancetype.kubevirt.io:view",
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{
+					instancetype.GroupName,
+				},
+				Resources: []string{
+					instancetype.ClusterPluralResourceName,
+					instancetype.ClusterPluralPreferenceResourceName,
 				},
 				Verbs: []string{
 					"get", "list", "watch",
