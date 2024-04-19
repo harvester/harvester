@@ -731,7 +731,7 @@ convert_logging_audit_to_addon() {
     return 0
   fi
 
-  local src_file=/usr/local/share/addons/logging_addon.yaml
+  local src_file=/usr/local/share/addons/rancher-logging.yaml
   if [ ! -f $src_file ]; then
     echo "there is no $src_file, cannot convert"
     return 0
@@ -846,7 +846,7 @@ convert_monitoring_to_addon() {
     return 0
   fi
 
-  local src_file=/usr/local/share/addons/monitoring_addon.yaml
+  local src_file=/usr/local/share/addons/rancher-monitoring.yaml
   if [ ! -f $src_file ]; then
     echo "there is no $src_file, cannot convert"
     return 0
