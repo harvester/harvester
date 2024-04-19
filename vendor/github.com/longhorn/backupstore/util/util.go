@@ -120,17 +120,50 @@ func CompressData(method string, data []byte) (io.ReadSeeker, error) {
 func DecompressAndVerify(method string, src io.Reader, checksum string) (io.Reader, error) {
 	r, err := newDecompressionReader(method, src)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create decompression reader")
 	}
 	defer r.Close()
 	block, err := io.ReadAll(r)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to read decompressed data")
 	}
 	if GetChecksum(block) != checksum {
 		return nil, fmt.Errorf("checksum verification failed for block")
 	}
 	return bytes.NewReader(block), nil
+}
+
+// DecompressAndVerifyWithFallback decompresses the given data and verifies the data integrity.
+// If the decompression fails, it will try to decompress with the fallback method.
+func DecompressAndVerifyWithFallback(decompression string, rc io.ReadCloser, checksum string) (io.Reader, error) {
+	r, err := DecompressAndVerify(decompression, rc, checksum)
+	if err == nil {
+		return r, nil
+	}
+	// Fall back to other decompression method if the current one fails
+	// The mitigation will be removed after identifying https://github.com/longhorn/longhorn/issues/7687
+	// Seek rc to offset 0
+	seeker, ok := rc.(io.Seeker)
+	if !ok {
+		return nil, errors.Wrapf(err, "failed to cast to io.Seeker for block %v", checksum)
+	}
+
+	_, errFallback := seeker.Seek(0, io.SeekStart)
+	if errFallback != nil {
+		// Merge the err1 and err2 and error out
+		return nil, errors.Wrapf(multierr.Append(err, errFallback), "failed to seek to offset 0 for block %v", checksum)
+	}
+
+	if strings.Contains(err.Error(), gzip.ErrHeader.Error()) {
+		r, errFallback = DecompressAndVerify("lz4", rc, checksum)
+	} else if strings.Contains(err.Error(), "lz4: bad magic number") {
+		r, errFallback = DecompressAndVerify("gzip", rc, checksum)
+	}
+	if errFallback != nil {
+		return nil, errors.Wrapf(multierr.Append(err, errFallback), "failed to decompress and verify block %v with fallback", checksum)
+	}
+
+	return r, err
 }
 
 func newCompressionWriter(method string, buffer io.Writer) (io.WriteCloser, error) {
