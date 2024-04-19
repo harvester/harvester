@@ -21,15 +21,15 @@
 
 // Package filesystem deals with the structure of the files on disk used to
 // store the metadata for fscrypt. Specifically, this package includes:
-//	- mountpoint management (mountpoint.go)
-//		- querying existing mounted filesystems
-//		- getting filesystems from a UUID
-//		- finding the filesystem for a specific path
-//	- metadata organization (filesystem.go)
-//		- setting up a mounted filesystem for use with fscrypt
-//		- adding/querying/deleting metadata
-//		- making links to other filesystems' metadata
-//		- following links to get data from other filesystems
+//  1. mountpoint management (mountpoint.go)
+//     - querying existing mounted filesystems
+//     - getting filesystems from a UUID
+//     - finding the filesystem for a specific path
+//  2. metadata organization (filesystem.go)
+//     - setting up a mounted filesystem for use with fscrypt
+//     - adding/querying/deleting metadata
+//     - making links to other filesystems' metadata
+//     - following links to get data from other filesystems
 package filesystem
 
 import (
@@ -195,6 +195,7 @@ func (err *ErrProtectorNotFound) Error() string {
 var SortDescriptorsByLastMtime = false
 
 // Mount contains information for a specific mounted filesystem.
+//
 //	Path           - Absolute path where the directory is mounted
 //	FilesystemType - Type of the mounted filesystem, e.g. "ext4"
 //	Device         - Device for filesystem (empty string if we cannot find one)
@@ -210,8 +211,9 @@ var SortDescriptorsByLastMtime = false
 // setup first. Specifically, the directories created look like:
 // <mountpoint>
 // └── .fscrypt
-//     ├── policies
-//     └── protectors
+//
+//	├── policies
+//	└── protectors
 //
 // These "policies" and "protectors" directories will contain files that are
 // the corresponding metadata structures for policies and protectors. The public
@@ -723,13 +725,13 @@ func (m *Mount) addMetadata(path string, md metadata.Metadata, owner *user.User)
 // considering that it could be a malicious file created to cause a
 // denial-of-service.  Specifically, the following checks are done:
 //
-// - It must be a regular file, not another type of file like a symlink or FIFO.
-//   (Symlinks aren't bad by themselves, but given that a malicious user could
-//   point one to absolutely anywhere, and there is no known use case for the
-//   metadata files themselves being symlinks, it seems best to disallow them.)
-// - It must have a reasonable size (<= maxMetadataFileSize).
-// - If trustedUser is non-nil, then the file must be owned by the given user
-//   or by root.
+//   - It must be a regular file, not another type of file like a symlink or FIFO.
+//     (Symlinks aren't bad by themselves, but given that a malicious user could
+//     point one to absolutely anywhere, and there is no known use case for the
+//     metadata files themselves being symlinks, it seems best to disallow them.)
+//   - It must have a reasonable size (<= maxMetadataFileSize).
+//   - If trustedUser is non-nil, then the file must be owned by the given user
+//     or by root.
 //
 // Take care to avoid TOCTOU (time-of-check-time-of-use) bugs when doing these
 // tests.  Notably, we must open the file before checking the file type, as the

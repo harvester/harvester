@@ -252,6 +252,10 @@ func CreateDeltaBlockBackup(backupName string, config *DeltaBackupConfig) (isInc
 		},
 	}
 
+	log = logrus.WithFields(logrus.Fields{
+		"compressionMethod": volume.CompressionMethod,
+	})
+
 	// keep lock alive for async go routine.
 	if err := lock.Lock(); err != nil {
 		deltaOps.CloseSnapshot(snapshot.Name, volume.Name)
@@ -264,6 +268,7 @@ func CreateDeltaBlockBackup(backupName string, config *DeltaBackupConfig) (isInc
 		deltaOps.UpdateBackupStatus(snapshot.Name, volume.Name, string(types.ProgressStateInProgress), 0, "", "")
 
 		log.Info("Performing delta block backup")
+
 		if progress, backup, err := performBackup(bsDriver, config, delta, deltaBackup, backupRequest.lastBackup); err != nil {
 			logrus.WithError(err).Errorf("Failed to perform backup for volume %v snapshot %v", volume.Name, snapshot.Name)
 			deltaOps.UpdateBackupStatus(snapshot.Name, volume.Name, string(types.ProgressStateInProgress), progress, "", err.Error())
@@ -738,18 +743,22 @@ func restoreBlockToFile(bsDriver BackupStoreDriver, volumeName string, volDev *o
 	blkFile := getBlockFilePath(volumeName, blk.BlockChecksum)
 	rc, err := bsDriver.Read(blkFile)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to read block %v with checksum %v", blkFile, blk.BlockChecksum)
 	}
 	defer rc.Close()
-	r, err := util.DecompressAndVerify(decompression, rc, blk.BlockChecksum)
+
+	r, err := util.DecompressAndVerifyWithFallback(decompression, rc, blk.BlockChecksum)
 	if err != nil {
-		return err
+		if r == nil {
+			return err
+		}
 	}
+
 	if _, err := volDev.Seek(blk.Offset, 0); err != nil {
-		return err
+		return errors.Wrapf(err, "failed to seek to offset %v for decompressed block %v", blk.Offset, blkFile)
 	}
 	_, err = io.CopyN(volDev, r, DEFAULT_BLOCK_SIZE)
-	return err
+	return errors.Wrapf(err, "failed to write decompressed block %v to volume %v", blkFile, volumeName)
 }
 
 func RestoreDeltaBlockBackupIncrementally(ctx context.Context, config *DeltaRestoreConfig) error {
