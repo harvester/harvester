@@ -67,8 +67,8 @@ require (
 	github.com/kube-logging/logging-operator/pkg/sdk v0.9.1
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
-	github.com/longhorn/backupstore v0.0.0-20240219094812-3a87ee02df77
-	github.com/longhorn/longhorn-manager v1.5.5-rc2
+	github.com/longhorn/backupstore v0.0.0-20240417071544-3bd377eeefeb
+	github.com/longhorn/longhorn-manager v1.5.5
 	github.com/mattn/go-isatty v0.0.17
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.5.0
@@ -80,7 +80,7 @@ require (
 	github.com/rancher/apiserver v0.0.0-20230120214941-e88c32739dc7
 	github.com/rancher/dynamiclistener v0.3.6
 	github.com/rancher/fleet/pkg/apis v0.0.0-20230123175930-d296259590be
-	github.com/rancher/lasso v0.0.0-20240123150939-7055397d6dfa
+	github.com/rancher/lasso v0.0.0-20240415182150-5993b260dd08
 	github.com/rancher/norman v0.0.0-20221205184727-32ef2e185b99
 	github.com/rancher/rancher v0.0.0-20230124173128-2207cfed1803
 	github.com/rancher/rancher/pkg/apis v0.0.0
@@ -90,12 +90,12 @@ require (
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.9.3
 	github.com/urfave/cli v1.22.14
 	go.uber.org/multierr v1.11.0
-	golang.org/x/crypto v0.18.0
-	golang.org/x/net v0.20.0
+	golang.org/x/crypto v0.19.0
+	golang.org/x/net v0.21.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/text v0.14.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -184,7 +184,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/btree v1.0.1 // indirect
-	github.com/google/fscrypt v0.3.4 // indirect
+	github.com/google/fscrypt v0.3.5 // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
@@ -210,13 +210,13 @@ require (
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.6 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
-	github.com/longhorn/backing-image-manager v1.5.5-rc1 // indirect
-	github.com/longhorn/go-common-libs v0.0.0-20240319112414-b75404dc7fbc // indirect
-	github.com/longhorn/go-iscsi-helper v0.0.0-20240308033847-bc3aab599425 // indirect
+	github.com/longhorn/backing-image-manager v1.5.5-rc2 // indirect
+	github.com/longhorn/go-common-libs v0.0.0-20240411093823-b8862efb8e03 // indirect
+	github.com/longhorn/go-iscsi-helper v0.0.0-20240329081212-26b6406b3b2b // indirect
 	github.com/longhorn/go-spdk-helper v0.0.0-20231113055029-9acddd184246 // indirect
-	github.com/longhorn/longhorn-engine v1.5.5-0.20240319113652-9cdc0f5750a7 // indirect
-	github.com/longhorn/longhorn-instance-manager v1.5.5-0.20240326065406-8d925c0e7e1e // indirect
-	github.com/longhorn/longhorn-share-manager v1.5.5-0.20240319114127-58303a9ff61f // indirect
+	github.com/longhorn/longhorn-engine v1.5.5-rc2.0.20240418040645-8f85db1d1393 // indirect
+	github.com/longhorn/longhorn-instance-manager v1.5.5-rc2.0.20240418040836-76e2cfc24682 // indirect
+	github.com/longhorn/longhorn-share-manager v1.5.5-rc2.0.20240418040725-83c6ad488883 // indirect
 	github.com/longhorn/longhorn-spdk-engine v0.0.0-20231005170812-e9b634e07e47 // indirect
 	github.com/machadovilaca/operator-observability v0.0.6 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -265,7 +265,7 @@ require (
 	github.com/rubenv/sql-migrate v1.1.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.24.2 // indirect
+	github.com/shirou/gopsutil/v3 v3.24.3 // indirect
 	github.com/slok/goresilience v0.2.0 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
@@ -288,27 +288,27 @@ require (
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	golang.org/x/mod v0.13.0 // indirect
-	golang.org/x/oauth2 v0.16.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/term v0.16.0 // indirect
+	golang.org/x/oauth2 v0.17.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/term v0.17.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.14.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20240123012728-ef4313101c80 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240123012728-ef4313101c80 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
-	google.golang.org/grpc v1.62.1 // indirect
+	google.golang.org/genproto v0.0.0-20240227224415-6ceb2ff114de // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240227224415-6ceb2ff114de // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de // indirect
+	google.golang.org/grpc v1.63.2 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/cli-runtime v0.28.2 // indirect
 	k8s.io/code-generator v0.26.10 // indirect
-	k8s.io/component-base v0.28.2 // indirect
+	k8s.io/component-base v0.28.5 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.110.1 // indirect
 	k8s.io/kube-aggregator v0.26.4 // indirect
-	k8s.io/kubernetes v1.28.2 // indirect
-	k8s.io/mount-utils v0.29.3 // indirect
+	k8s.io/kubernetes v1.28.5 // indirect
+	k8s.io/mount-utils v0.29.4 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	oras.land/oras-go v1.2.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.2 // indirect

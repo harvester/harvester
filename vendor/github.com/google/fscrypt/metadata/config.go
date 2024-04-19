@@ -21,9 +21,9 @@
 // Package metadata contains all of the on disk structures.
 // These structures are defined in metadata.proto. The package also
 // contains functions for manipulating these structures, specifically:
-//    * Reading and Writing the Config file to disk
-//    * Getting and Setting Policies for directories
-//    * Reasonable defaults for a Policy's EncryptionOptions
+//   - Reading and Writing the Config file to disk
+//   - Getting and Setting Policies for directories
+//   - Reasonable defaults for a Policy's EncryptionOptions
 package metadata
 
 import (
