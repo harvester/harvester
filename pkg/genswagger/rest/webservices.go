@@ -20,6 +20,7 @@ import (
 )
 
 var defaultActions = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
+var resourceTypesWithRemovedDisksQueryParam = []string{"virtualmachines"}
 
 func AggregatedWebServices() []*restful.WebService {
 	harvesterv1beta1API := NewGroupVersionWebService(v1beta1.SchemeGroupVersion)
@@ -170,7 +171,7 @@ func AddGenericResourceRoutes(ws *restful.WebService, resource string, objPointe
 				Doc("Delete a "+objKind+" object.").
 				Metadata("kind", objKind).
 				Returns(http.StatusOK, "OK", metav1.Status{}).
-				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
+				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws, resource,
 		))
 	}
 
@@ -210,11 +211,19 @@ func addPutParams(builder *restful.RouteBuilder, ws *restful.WebService) *restfu
 	return builder.Param(NamespaceParam(ws)).Param(NameParam(ws))
 }
 
-func addDeleteParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
-	return builder.Param(NamespaceParam(ws)).Param(NameParam(ws)).
+func addDeleteParams(builder *restful.RouteBuilder, ws *restful.WebService, resource string) *restful.RouteBuilder {
+	builder.Param(NamespaceParam(ws)).Param(NameParam(ws)).
 		Param(gracePeriodSecondsParam(ws)).
 		Param(orphanDependentsParam(ws)).
 		Param(propagationPolicyParam(ws))
+
+	for _, resourceType := range resourceTypesWithRemovedDisksQueryParam {
+		if resource == resourceType {
+			builder.Param(removedDisksParam(ws))
+		}
+	}
+
+	return builder
 }
 
 func addPatchParams(builder *restful.RouteBuilder, ws *restful.WebService) *restful.RouteBuilder {
@@ -283,6 +292,10 @@ func orphanDependentsParam(ws *restful.WebService) *restful.Parameter {
 
 func propagationPolicyParam(ws *restful.WebService) *restful.Parameter {
 	return ws.QueryParameter("propagationPolicy", "Whether and how garbage collection will be performed. Either this field or OrphanDependents may be set, but not both. The default policy is decided by the existing finalizer set in the metadata.finalizers and the resource-specific default policy. Acceptable values are: 'Orphan' - orphan the dependents; 'Background' - allow the garbage collector to delete the dependents in the background; 'Foreground' - a cascading policy that deletes all dependents in the foreground.")
+}
+
+func removedDisksParam(ws *restful.WebService) *restful.Parameter {
+	return ws.QueryParameter("removedDisks", "The disks that should be removed when deleting a virtual machine instance.")
 }
 
 func GroupVersionBasePath(gvr schema.GroupVersion) string {

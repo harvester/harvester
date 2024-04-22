@@ -7321,6 +7321,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "removedDisks",
+            "in": "query",
+            "description": "The disks that should be removed when deleting a virtual machine instance.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
