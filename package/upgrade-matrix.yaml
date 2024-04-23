@@ -1,6 +1,6 @@
 versions:
-  - name: v1.2.2-dev-20240329
-    minUpgradableVersion: v100.0.1
+  - name: v1.2.2-rc1
+    minUpgradableVersion: v1.2.1
   - name: v1.2.1
     minUpgradableVersion: v1.1.2
   - name: v1.2.0
