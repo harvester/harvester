@@ -1155,7 +1155,7 @@ spec:
   tolerations:
   - operator: "Exists"
   upgrade:
-    image: registry.suse.com/bci/bci-base:15.4
+    image: registry.suse.com/bci/bci-base:15.5
     command:
     - chroot
     - /host
