@@ -16,6 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/api/supportbundle"
 	"github.com/harvester/harvester/pkg/api/uiinfo"
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/server/subresource"
 	"github.com/harvester/harvester/pkg/server/ui"
 )
 
@@ -81,6 +82,12 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	m.Path("/v1/harvester/{type}/{namespace}/{name}").Queries("link", "{link}").Handler(h.K8sResource)
 	m.Path("/v1/harvester/{type}/{namespace}/{name}").Handler(h.K8sResource)
 	m.Path("/v1/harvester/{type}/{namespace}/{name}/{link}").Handler(h.K8sResource)
+
+	subHealthHandler := &subresource.HealthHandler{}
+	m.Path("/apis/subresources.harvester.io/v1").Handler(subHealthHandler)
+
+	subHandler := &subresource.Handler{}
+	m.Path("/apis/subresources.harvester.io/v1/namespaces/{namespace}/{resource}/{name}/{subresource}").Handler(subHandler)
 
 	vueUI := ui.Vue
 	m.Handle("/dashboard/", vueUI.IndexFile())

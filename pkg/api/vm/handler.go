@@ -38,6 +38,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/server/subresource"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
@@ -56,30 +57,31 @@ var (
 )
 
 type vmActionHandler struct {
-	namespace                 string
-	vms                       ctlkubevirtv1.VirtualMachineClient
-	vmis                      ctlkubevirtv1.VirtualMachineInstanceClient
-	vmCache                   ctlkubevirtv1.VirtualMachineCache
-	vmiCache                  ctlkubevirtv1.VirtualMachineInstanceCache
-	vmims                     ctlkubevirtv1.VirtualMachineInstanceMigrationClient
-	vmTemplateClient          ctlharvesterv1.VirtualMachineTemplateClient
-	vmTemplateVersionClient   ctlharvesterv1.VirtualMachineTemplateVersionClient
-	vmimCache                 ctlkubevirtv1.VirtualMachineInstanceMigrationCache
-	backups                   ctlharvesterv1.VirtualMachineBackupClient
-	backupCache               ctlharvesterv1.VirtualMachineBackupCache
-	restores                  ctlharvesterv1.VirtualMachineRestoreClient
-	settingCache              ctlharvesterv1.SettingCache
-	nadCache                  ctlcniv1.NetworkAttachmentDefinitionCache
-	nodeCache                 ctlcorev1.NodeCache
-	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
-	pvCache                   ctlcorev1.PersistentVolumeCache
-	secretClient              ctlcorev1.SecretClient
-	secretCache               ctlcorev1.SecretCache
-	virtSubresourceRestClient rest.Interface
-	virtRestClient            rest.Interface
-	vmImages                  ctlharvesterv1.VirtualMachineImageClient
-	vmImageCache              ctlharvesterv1.VirtualMachineImageCache
-	storageClassCache         ctlstoragev1.StorageClassCache
+	namespace                  string
+	vms                        ctlkubevirtv1.VirtualMachineClient
+	vmis                       ctlkubevirtv1.VirtualMachineInstanceClient
+	vmCache                    ctlkubevirtv1.VirtualMachineCache
+	vmiCache                   ctlkubevirtv1.VirtualMachineInstanceCache
+	vmims                      ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+	vmTemplateClient           ctlharvesterv1.VirtualMachineTemplateClient
+	vmTemplateVersionClient    ctlharvesterv1.VirtualMachineTemplateVersionClient
+	vmimCache                  ctlkubevirtv1.VirtualMachineInstanceMigrationCache
+	backups                    ctlharvesterv1.VirtualMachineBackupClient
+	backupCache                ctlharvesterv1.VirtualMachineBackupCache
+	restores                   ctlharvesterv1.VirtualMachineRestoreClient
+	settingCache               ctlharvesterv1.SettingCache
+	nadCache                   ctlcniv1.NetworkAttachmentDefinitionCache
+	nodeCache                  ctlcorev1.NodeCache
+	pvcCache                   ctlcorev1.PersistentVolumeClaimCache
+	pvCache                    ctlcorev1.PersistentVolumeCache
+	secretClient               ctlcorev1.SecretClient
+	secretCache                ctlcorev1.SecretCache
+	virtSubresourceRestClient  rest.Interface
+	virtRestClient             rest.Interface
+	harvesterSubresourceClient rest.Interface
+	vmImages                   ctlharvesterv1.VirtualMachineImageClient
+	vmImageCache               ctlharvesterv1.VirtualMachineImageCache
+	storageClassCache          ctlstoragev1.StorageClassCache
 }
 
 func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -95,11 +97,14 @@ func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) error {
-	vars := util.EncodeVars(mux.Vars(r))
-	action := vars["action"]
-	namespace := vars["namespace"]
-	name := vars["name"]
+func (h *vmActionHandler) Matched(resource string) bool {
+	return resource == vmResource
+}
+
+func (h *vmActionHandler) SubResourceHandler(rw http.ResponseWriter, r *http.Request, resource subresource.Resource) error {
+	action := resource.SubResource
+	namespace := resource.Namespace
+	name := resource.ObjectName
 
 	switch action {
 	case ejectCdRom:
@@ -231,6 +236,19 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
 	return nil
+}
+
+func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) error {
+	vars := util.EncodeVars(mux.Vars(r))
+
+	resource := subresource.Resource{
+		Name:        "virtualmachines",
+		ObjectName:  vars["name"],
+		Namespace:   vars["namespace"],
+		SubResource: vars["action"],
+	}
+
+	return h.SubResourceHandler(rw, r, resource)
 }
 
 func (h *vmActionHandler) ejectCdRom(ctx context.Context, name, namespace string, diskNames []string) error {
