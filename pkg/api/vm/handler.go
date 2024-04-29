@@ -57,31 +57,30 @@ var (
 )
 
 type vmActionHandler struct {
-	namespace                  string
-	vms                        ctlkubevirtv1.VirtualMachineClient
-	vmis                       ctlkubevirtv1.VirtualMachineInstanceClient
-	vmCache                    ctlkubevirtv1.VirtualMachineCache
-	vmiCache                   ctlkubevirtv1.VirtualMachineInstanceCache
-	vmims                      ctlkubevirtv1.VirtualMachineInstanceMigrationClient
-	vmTemplateClient           ctlharvesterv1.VirtualMachineTemplateClient
-	vmTemplateVersionClient    ctlharvesterv1.VirtualMachineTemplateVersionClient
-	vmimCache                  ctlkubevirtv1.VirtualMachineInstanceMigrationCache
-	backups                    ctlharvesterv1.VirtualMachineBackupClient
-	backupCache                ctlharvesterv1.VirtualMachineBackupCache
-	restores                   ctlharvesterv1.VirtualMachineRestoreClient
-	settingCache               ctlharvesterv1.SettingCache
-	nadCache                   ctlcniv1.NetworkAttachmentDefinitionCache
-	nodeCache                  ctlcorev1.NodeCache
-	pvcCache                   ctlcorev1.PersistentVolumeClaimCache
-	pvCache                    ctlcorev1.PersistentVolumeCache
-	secretClient               ctlcorev1.SecretClient
-	secretCache                ctlcorev1.SecretCache
-	virtSubresourceRestClient  rest.Interface
-	virtRestClient             rest.Interface
-	harvesterSubresourceClient rest.Interface
-	vmImages                   ctlharvesterv1.VirtualMachineImageClient
-	vmImageCache               ctlharvesterv1.VirtualMachineImageCache
-	storageClassCache          ctlstoragev1.StorageClassCache
+	namespace                 string
+	vms                       ctlkubevirtv1.VirtualMachineClient
+	vmis                      ctlkubevirtv1.VirtualMachineInstanceClient
+	vmCache                   ctlkubevirtv1.VirtualMachineCache
+	vmiCache                  ctlkubevirtv1.VirtualMachineInstanceCache
+	vmims                     ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+	vmTemplateClient          ctlharvesterv1.VirtualMachineTemplateClient
+	vmTemplateVersionClient   ctlharvesterv1.VirtualMachineTemplateVersionClient
+	vmimCache                 ctlkubevirtv1.VirtualMachineInstanceMigrationCache
+	backups                   ctlharvesterv1.VirtualMachineBackupClient
+	backupCache               ctlharvesterv1.VirtualMachineBackupCache
+	restores                  ctlharvesterv1.VirtualMachineRestoreClient
+	settingCache              ctlharvesterv1.SettingCache
+	nadCache                  ctlcniv1.NetworkAttachmentDefinitionCache
+	nodeCache                 ctlcorev1.NodeCache
+	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
+	pvCache                   ctlcorev1.PersistentVolumeCache
+	secretClient              ctlcorev1.SecretClient
+	secretCache               ctlcorev1.SecretCache
+	virtSubresourceRestClient rest.Interface
+	virtRestClient            rest.Interface
+	vmImages                  ctlharvesterv1.VirtualMachineImageClient
+	vmImageCache              ctlharvesterv1.VirtualMachineImageCache
+	storageClassCache         ctlstoragev1.StorageClassCache
 }
 
 func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
