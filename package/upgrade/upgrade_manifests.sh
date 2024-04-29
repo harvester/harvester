@@ -1303,7 +1303,7 @@ wait_for_deployment() {
 }
 
 fleet_agent_timestamp(){
-  wait_for_deployment cattle-fleet-local-system fleet-agent
+  wait_for_deployment cattle-fleet-local-system fleet-agent &> /dev/null
   time=$(kubectl get deploy -n cattle-fleet-local-system fleet-agent -o json | jq -r .metadata.creationTimestamp)
   date -u -d $time +'%s' 
 }
