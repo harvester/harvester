@@ -281,8 +281,10 @@ upgrade_rancher() {
   wait_rollout cattle-system deployment rancher-webhook
   echo "Wait for cluster settling down..."
   wait_capi_cluster fleet-local local $pre_generation
-  patch_fleet_cluster
   wait_for_deployment cattle-fleet-local-system fleet-agent
+  pre_patch_timestamp=$(fleet_agent_timestamp)
+  patch_fleet_cluster
+  wait_for_fleet_agent $pre_patch_timestamp
   wait_rollout cattle-fleet-local-system deployment fleet-agent
 }
 
@@ -1297,6 +1299,23 @@ wait_for_deployment() {
     echo "waiting for deployment $name to be created in namespace $namespace, sleeping for 10 seconds"
     sleep 10
     found=$(kubectl get deployment -n $namespace -o json | jq -r --arg DEPLOYMENT $name '.items[].metadata | select (.name == $DEPLOYMENT) | .name')
+  done
+}
+
+fleet_agent_timestamp(){
+  wait_for_deployment cattle-fleet-local-system fleet-agent
+  time=$(kubectl get deploy -n cattle-fleet-local-system fleet-agent -o json | jq -r .metadata.creationTimestamp)
+  date -u -d $time +'%s' 
+}
+
+wait_for_fleet_agent(){
+  local timestamp=$1
+  local newtimestamp=$(fleet_agent_timestamp)
+  while [ $timestamp -ge $newtimestamp ]
+  do
+    echo "waiting for fleet-agent creation timestamp to be updated"
+    sleep 10
+    newtimestamp=$(fleet_agent_timestamp)
   done
 }
 
