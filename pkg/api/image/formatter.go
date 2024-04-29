@@ -118,24 +118,6 @@ func (h Handler) do(rw http.ResponseWriter, req *http.Request) error {
 	return h.SubResourceHandler(rw, req, resource)
 }
 
-func (h Handler) doGet(link string, rw http.ResponseWriter, req *http.Request) error {
-	switch link {
-	case actionDownload:
-		return h.downloadImage(rw, req)
-	default:
-		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported GET action %s", link))
-	}
-}
-
-func (h Handler) doPost(action string, rw http.ResponseWriter, req *http.Request) error {
-	switch action {
-	case actionUpload:
-		return h.uploadImage(rw, req)
-	default:
-		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported POST action %s", action))
-	}
-}
-
 func (h Handler) downloadImage(rw http.ResponseWriter, req *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(req))
 	namespace := vars["namespace"]
