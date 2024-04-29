@@ -28,7 +28,7 @@ type ResourceHandler interface {
 
 var (
 	handlers        []ResourceHandler
-	apiPath         = "/apis/subresources.harvester.io/v1"
+	apiPath         = "/apis/subresources.harvesterhci.io/v1beta1"
 	healthCheckPath = apiPath
 	subResourcePath = apiPath + "/namespaces/{namespace}/{resource}/{name}/{subresource}"
 )
