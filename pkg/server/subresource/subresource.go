@@ -1,7 +1,6 @@
 package subresource
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -15,63 +14,64 @@ type Resource struct {
 	Namespace   string
 }
 
-type Handler struct{}
+type handler struct{}
 
-type HealthHandler struct{}
+type healthHandler struct{}
 
 type ResourceHandler interface {
-	Matched(resource string) bool
+	// IsMatchedResource checks if the resource, subresource and http method is matched
+	IsMatchedResource(resource Resource, method string) bool
+
+	// SubResourceHandler handles the request if `IsMatchedResource` is true.
 	SubResourceHandler(rw http.ResponseWriter, r *http.Request, resource Resource) error
 }
 
 var (
-	handlers []ResourceHandler
+	handlers        []ResourceHandler
+	apiPath         = "/apis/subresources.harvester.io/v1"
+	healthCheckPath = apiPath
+	subResourcePath = apiPath + "/{namespace}/{resource}/{name}/{subresource}"
 )
+
+func NewSubResourceHandler(mux *mux.Router) {
+	subHealthHandler := &healthHandler{}
+	mux.Path(healthCheckPath).Handler(subHealthHandler)
+
+	subHandler := &handler{}
+	mux.Path(subResourcePath).Handler(subHandler)
+}
 
 func RegisterSubResourceHandler(handler ResourceHandler) {
 	handlers = append(handlers, handler)
 }
 
-func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (h *handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 
-	namespace := vars["namespace"]
-	resource := vars["resource"]
-	name := vars["name"]
-	subresource := vars["subresource"]
-
-	fmt.Println("namespace: ", namespace)
-	fmt.Println("resource: ", resource)
-	fmt.Println("name: ", name)
-	fmt.Println("subresource: ", subresource)
-
 	var (
-		err   error
-		found bool
+		err      error
+		found    bool
+		resource = Resource{
+			Name:        vars["resource"],
+			ObjectName:  vars["name"],
+			SubResource: vars["subresource"],
+			Namespace:   vars["namespace"],
+		}
 	)
 
 	for _, handler := range handlers {
-		if handler.Matched(resource) {
-			fmt.Println("==== handler matched ====")
-			fmt.Println("namespace: ", namespace)
-			fmt.Println("resource: ", resource)
-			fmt.Println("name: ", name)
-			fmt.Println("subresource: ", subresource)
-			fmt.Println("==== handler matched ====")
-			err = handler.SubResourceHandler(rw, req, Resource{
-				Name:        name,
-				ObjectName:  name,
-				SubResource: subresource,
-				Namespace:   namespace,
-			})
-			found = true
-			break
+		if !handler.IsMatchedResource(resource, req.Method) {
+			continue
 		}
+
+		err = handler.SubResourceHandler(rw, req, resource)
+		found = true
+		break
 	}
 
 	if !found {
-		rw.WriteHeader(http.StatusNotFound)
-		_, _ = rw.Write([]byte("Not found subresource handler"))
+		rw.WriteHeader(http.StatusBadRequest)
+		_, _ = rw.Write([]byte("Invalid resource handler"))
 		return
 	}
 
@@ -88,6 +88,6 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h *HealthHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (h *healthHandler) ServeHTTP(rw http.ResponseWriter, _ *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }

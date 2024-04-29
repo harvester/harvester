@@ -22,12 +22,14 @@ import (
 	apisv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
+	"github.com/harvester/harvester/pkg/server/subresource"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
 	actionUpload   = "upload"
 	actionDownload = "download"
+	imagesResource = "virtualmachineimages"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -53,6 +55,33 @@ type Handler struct {
 	BackingImageCache           ctllhv1.BackingImageCache
 }
 
+func (h Handler) IsMatchedResource(resource subresource.Resource, method string) bool {
+	if resource.Name != imagesResource {
+		return false
+	}
+
+	if resource.SubResource == actionDownload && method == http.MethodGet {
+		return true
+	}
+
+	if resource.SubResource == actionUpload && method == http.MethodPost {
+		return true
+	}
+
+	return false
+}
+
+func (h Handler) SubResourceHandler(rw http.ResponseWriter, req *http.Request, resource subresource.Resource) error {
+	switch resource.SubResource {
+	case actionDownload:
+		return h.downloadImage(rw, req)
+	case actionUpload:
+		return h.uploadImage(rw, req)
+	default:
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported subresource %s", resource.SubResource))
+	}
+}
+
 func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err := h.do(rw, req); err != nil {
 		status := http.StatusInternalServerError
@@ -68,13 +97,25 @@ func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func (h Handler) do(rw http.ResponseWriter, req *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(req))
-	if req.Method == http.MethodGet {
-		return h.doGet(vars["link"], rw, req)
-	} else if req.Method == http.MethodPost {
-		return h.doPost(vars["action"], rw, req)
+
+	resource := subresource.Resource{
+		Name:       imagesResource,
+		ObjectName: vars["name"],
+		Namespace:  vars["namespace"],
 	}
 
-	return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
+	// Need to convert the link and action to subresource
+	if req.Method == http.MethodGet {
+		resource.SubResource = vars["link"]
+	} else if req.Method == http.MethodPost {
+		resource.SubResource = vars["action"]
+	}
+
+	if !h.IsMatchedResource(resource, req.Method) {
+		return apierror.NewAPIError(validation.InvalidAction, "Invalid resource handler")
+	}
+
+	return h.SubResourceHandler(rw, req, resource)
 }
 
 func (h Handler) doGet(link string, rw http.ResponseWriter, req *http.Request) error {

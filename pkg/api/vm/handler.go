@@ -84,7 +84,7 @@ type vmActionHandler struct {
 	storageClassCache          ctlstoragev1.StorageClassCache
 }
 
-func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err := h.doAction(rw, req); err != nil {
 		status := http.StatusInternalServerError
 		if e, ok := err.(*apierror.APIError); ok {
@@ -97,8 +97,8 @@ func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h *vmActionHandler) Matched(resource string) bool {
-	return resource == vmResource
+func (h *vmActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
+	return resource.Name == vmResource && method == http.MethodPost
 }
 
 func (h *vmActionHandler) SubResourceHandler(rw http.ResponseWriter, r *http.Request, resource subresource.Resource) error {
@@ -242,10 +242,14 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 	vars := util.EncodeVars(mux.Vars(r))
 
 	resource := subresource.Resource{
-		Name:        "virtualmachines",
+		Name:        vmResource,
 		ObjectName:  vars["name"],
 		Namespace:   vars["namespace"],
 		SubResource: vars["action"],
+	}
+
+	if !h.IsMatchedResource(resource, r.Method) {
+		return apierror.NewAPIError(validation.InvalidAction, "Invalid resource handler")
 	}
 
 	return h.SubResourceHandler(rw, r, resource)
