@@ -30,7 +30,7 @@ var (
 	handlers        []ResourceHandler
 	apiPath         = "/apis/subresources.harvester.io/v1"
 	healthCheckPath = apiPath
-	subResourcePath = apiPath + "/{namespace}/{resource}/{name}/{subresource}"
+	subResourcePath = apiPath + "/namespaces/{namespace}/{resource}/{name}/{subresource}"
 )
 
 func NewSubResourceHandler(mux *mux.Router) {
