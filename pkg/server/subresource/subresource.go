@@ -90,7 +90,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if !found {
-		err = apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported %s/%s resource/subresource", resource.Name, resource.SubResource))
+		err = apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported %s/%s", resource.Name, resource.SubResource))
 	}
 
 	if err != nil {
@@ -101,6 +101,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			status = http.StatusNotFound
 		}
 		rw.WriteHeader(status)
+		fmt.Println(err)
 		_, _ = rw.Write([]byte(err.Error()))
 		return
 	}

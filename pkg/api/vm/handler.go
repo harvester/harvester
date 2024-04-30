@@ -21,6 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -117,7 +118,7 @@ func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h *vmActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != subresource.VirtualMachines.Resource && method != http.MethodPost {
+	if resource.Name != subresource.VirtualMachines.Resource || method != http.MethodPost {
 		return false
 	}
 
@@ -159,10 +160,18 @@ func (h *vmActionHandler) SubResourceHandler(rw http.ResponseWriter, r *http.Req
 		return h.findMigratableNodes(rw, namespace, name)
 	case startVM, stopVM, restartVM:
 		if err := h.subresourceOperate(r.Context(), vmResource, namespace, name, action); err != nil {
+			if apierrors.IsNotFound(err) {
+				return apierror.NewAPIError(validation.NotFound, fmt.Sprintf("Virtual machine %s/%s not found", namespace, name))
+			}
+
 			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
 		}
 	case pauseVM, unpauseVM, softReboot:
 		if err := h.subresourceOperate(r.Context(), vmiResource, namespace, name, action); err != nil {
+			if apierrors.IsNotFound(err) {
+				return apierror.NewAPIError(validation.NotFound, fmt.Sprintf("Virtual machine %s/%s not found", namespace, name))
+			}
+
 			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
 		}
 	case backupVM:

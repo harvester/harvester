@@ -36,7 +36,7 @@ type ActionHandler struct {
 }
 
 func (h *ActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != subresource.VolumeSnapshots.Resource && method != http.MethodPost {
+	if resource.Name != subresource.VolumeSnapshots.Resource || method != http.MethodPost {
 		return false
 	}
 

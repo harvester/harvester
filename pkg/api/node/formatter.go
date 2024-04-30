@@ -114,7 +114,7 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h ActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != subresource.Node.Resource && method != http.MethodPost {
+	if resource.Name != subresource.Node.Resource || method != http.MethodPost {
 		return false
 	}
 
