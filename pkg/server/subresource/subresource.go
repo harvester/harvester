@@ -21,6 +21,9 @@ var (
 	VirtualMachines        = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "virtualmachines"}
 	PersistentVolumeClaims = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "persistentvolumeclaims"}
 	VolumeSnapshots        = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "snapshot.storage.k8s.io.volumesnapshot"}
+
+	namespacedSubResources    = []schema.GroupVersionResource{VirtualMachineImages, UpgradeLogs, VirtualMachines, PersistentVolumeClaims, VolumeSnapshots}
+	nonNamespacedSubResources = []schema.GroupVersionResource{Node}
 )
 
 type Resource struct {
@@ -31,12 +34,8 @@ type Resource struct {
 	Namespaced  bool
 }
 
-type handler struct{}
-
-type healthHandler struct{}
-
 type ResourceHandler interface {
-	// IsMatchedResource checks if the resource, subresource and http method is matched
+	// IsMatchedResource checks if the resource, subresource and http method are matched
 	IsMatchedResource(resource Resource, method string) bool
 
 	// SubResourceHandler handles the request if `IsMatchedResource` is true.
@@ -48,17 +47,37 @@ var (
 	healthCheckPath = fmt.Sprintf("/apis/%s/%s", apiService.Group, apiService.Version)
 )
 
+func injectResource(next http.Handler, resource string) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		mux.Vars(req)["resource"] = resource
+		next.ServeHTTP(rw, req)
+	})
+}
+
 func NewSubResourceHandler(mux *mux.Router) {
-	mux.Path(healthCheckPath).Handler(&healthHandler{})
-	mux.Path(fmt.Sprintf("/apis/%s/%s/namespaces/{namespace}/{resource}/{name}/{subresource}", apiService.Group, apiService.Version)).Handler(&handler{})
-	mux.Path(fmt.Sprintf("/apis/%s/%s/{resource}/{name}/{subresource}", apiService.Group, apiService.Version)).Handler(&handler{})
+	// force full matched routers instead of matching non-existed resource
+	for _, resource := range namespacedSubResources {
+		path := fmt.Sprintf("/apis/%s/%s/namespaces/{namespace}/%s/{name}/{subresource}", resource.Group, resource.Version, resource.Resource)
+		mux.Path(path).Handler(injectResource(http.HandlerFunc(serveSubResource), resource.Resource))
+	}
+
+	for _, resource := range nonNamespacedSubResources {
+		path := fmt.Sprintf("/apis/%s/%s/%s/{name}/{subresource}", resource.Group, resource.Version, resource.Resource)
+		mux.Path(path).Handler(injectResource(http.HandlerFunc(serveSubResource), resource.Resource))
+	}
+
+	mux.Path(healthCheckPath).Handler(http.HandlerFunc(healthCheck))
 }
 
 func RegisterSubResourceHandler(handler ResourceHandler) {
 	handlers = append(handlers, handler)
 }
 
-func (h *handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func healthCheck(rw http.ResponseWriter, _ *http.Request) {
+	rw.WriteHeader(http.StatusOK)
+}
+
+func serveSubResource(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 
 	var (
@@ -107,8 +126,4 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (h *healthHandler) ServeHTTP(rw http.ResponseWriter, _ *http.Request) {
-	rw.WriteHeader(http.StatusOK)
 }
