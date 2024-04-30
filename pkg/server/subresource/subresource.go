@@ -21,9 +21,6 @@ var (
 	VirtualMachines        = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "virtualmachines"}
 	PersistentVolumeClaims = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "persistentvolumeclaims"}
 	VolumeSnapshots        = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "snapshot.storage.k8s.io.volumesnapshot"}
-
-	namespacedSubResources    = []schema.GroupVersionResource{VirtualMachineImages, UpgradeLogs, VirtualMachines, PersistentVolumeClaims, VolumeSnapshots}
-	nonNamespacedSubResources = []schema.GroupVersionResource{Node}
 )
 
 type Resource struct {
@@ -52,23 +49,9 @@ var (
 )
 
 func NewSubResourceHandler(mux *mux.Router) {
-	var paths []string
-
-	for _, resource := range namespacedSubResources {
-		path := fmt.Sprintf("/apis/%s/%s/namespaces/{namespace}/%s/{name}/{subresource}", resource.Group, resource.Version, resource.Resource)
-		paths = append(paths, path)
-	}
-
-	for _, resource := range nonNamespacedSubResources {
-		path := fmt.Sprintf("/apis/%s/%s/%s/{name}/{subresource}", resource.Group, resource.Version, resource.Resource)
-		paths = append(paths, path)
-	}
-
-	for _, path := range paths {
-		mux.Path(path).Handler(&handler{})
-	}
-
 	mux.Path(healthCheckPath).Handler(&healthHandler{})
+	mux.Path(fmt.Sprintf("/apis/%s/%s/namespaces/{namespace}/{resource}/{name}/{subresource}", apiService.Group, apiService.Version)).Handler(&handler{})
+	mux.Path(fmt.Sprintf("/apis/%s/%s/{resource}/{name}/{subresource}", apiService.Group, apiService.Version)).Handler(&handler{})
 }
 
 func RegisterSubResourceHandler(handler ResourceHandler) {
