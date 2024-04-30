@@ -2,6 +2,7 @@ package version
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -10,6 +11,10 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
+)
+
+var (
+	SHA512Pattern = regexp.MustCompile(`^[a-f0-9]{128}$`)
 )
 
 const (
@@ -40,10 +45,10 @@ func (v *versionValidator) Resource() types.Resource {
 
 func (v *versionValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newVersion := newObj.(*v1beta1.Version)
-	return v.checkAnnotations(newVersion)
+	return checkVersion(newVersion)
 }
 
-func (v *versionValidator) checkAnnotations(version *v1beta1.Version) error {
+func checkAnnotations(version *v1beta1.Version) error {
 	if value, ok := version.Annotations[MinFreeDiskSpaceGBAnnotation]; ok {
 		_, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
@@ -55,5 +60,25 @@ func (v *versionValidator) checkAnnotations(version *v1beta1.Version) error {
 
 func (v *versionValidator) Update(_ *types.Request, _ runtime.Object, newObj runtime.Object) error {
 	newVersion := newObj.(*v1beta1.Version)
-	return v.checkAnnotations(newVersion)
+	return checkVersion(newVersion)
+}
+
+func checkVersion(version *v1beta1.Version) error {
+	if err := checkAnnotations(version); err != nil {
+		return err
+	}
+	if err := checkISOChecksum(version); err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkISOChecksum(version *v1beta1.Version) error {
+	isoChecksum := version.Spec.ISOChecksum
+	// if an isoChecksum is provided, it must be in the SHA-512 format
+	// since Longhorn backing images only accept hashes in that format
+	if isoChecksum != "" && !SHA512Pattern.MatchString(isoChecksum) {
+		return werror.NewBadRequest(fmt.Sprintf("invalid isoChecksum %s", isoChecksum))
+	}
+	return nil
 }
