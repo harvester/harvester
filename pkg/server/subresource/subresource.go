@@ -6,7 +6,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/apierror"
+	"github.com/rancher/wrangler/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -105,15 +107,15 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if !found {
-		rw.WriteHeader(http.StatusBadRequest)
-		_, _ = rw.Write([]byte("Invalid resource handler"))
-		return
+		err = apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported %s/%s resource/subresource", resource.Name, resource.SubResource))
 	}
 
 	if err != nil {
 		status := http.StatusInternalServerError
 		if e, ok := err.(*apierror.APIError); ok {
 			status = e.Code.Status
+		} else if apierrors.IsNotFound(err) {
+			status = http.StatusNotFound
 		}
 		rw.WriteHeader(status)
 		_, _ = rw.Write([]byte(err.Error()))
