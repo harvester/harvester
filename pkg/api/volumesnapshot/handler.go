@@ -49,7 +49,7 @@ func (h *ActionHandler) IsMatchedResource(resource subresource.Resource, method 
 	return false
 }
 
-func (h *ActionHandler) SubResourceHandler(rw http.ResponseWriter, r *http.Request, resource subresource.Resource) error {
+func (h *ActionHandler) SubResourceHandler(_ http.ResponseWriter, r *http.Request, resource subresource.Resource) error {
 	action := resource.SubResource
 	snapshotNamespace := resource.Namespace
 	snapshotName := resource.ObjectName
