@@ -27,6 +27,7 @@ import (
 )
 
 const (
+	upgradelogsResource          = "upgradelogs"
 	archiveSuffix                = ".zip"
 	defaultJobBackoffLimit int32 = 5
 	logPackagingScript           = `
@@ -74,8 +75,6 @@ echo "done"
 `
 )
 
-var upgradelogsResource = "upgradelogs"
-
 type Handler struct {
 	httpClient       *http.Client
 	jobClient        ctlbatchv1.JobClient
@@ -108,7 +107,7 @@ func (h Handler) SubResourceHandler(rw http.ResponseWriter, req *http.Request, r
 	case generateArchiveAction:
 		return h.generateArchive(rw, req)
 	default:
-		return nil
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported subresource %s", resource.SubResource))
 	}
 }
 
@@ -133,11 +132,13 @@ func (h Handler) doAction(rw http.ResponseWriter, req *http.Request) error {
 		Namespace:  vars["namespace"],
 	}
 
-	if req.Method == http.MethodGet {
+	// Need to convert the link and action to subresource
+	switch req.Method {
+	case http.MethodGet:
 		resource.SubResource = vars["link"]
-	} else if req.Method == http.MethodPost {
+	case http.MethodPost:
 		resource.SubResource = vars["action"]
-	} else {
+	default:
 		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
 	}
 

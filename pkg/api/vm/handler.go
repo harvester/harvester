@@ -54,6 +54,26 @@ var (
 	cloneVMAnnotationKeys = []string{
 		util.AnnotationReservedMemory,
 	}
+	subResources = []string{
+		startVM,
+		stopVM,
+		restartVM,
+		softReboot,
+		pauseVM,
+		unpauseVM,
+		ejectCdRom,
+		migrate,
+		abortMigration,
+		findMigratableNodes,
+		backupVM,
+		restoreVM,
+		createTemplate,
+		addVolume,
+		removeVolume,
+		cloneVM,
+		forceStopVM,
+		dismissInsufficientResourceQuota,
+	}
 )
 
 type vmActionHandler struct {
@@ -97,7 +117,17 @@ func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h *vmActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	return resource.Name == vmResource && method == http.MethodPost
+	if resource.Name != vmResource && method != http.MethodPost {
+		return false
+	}
+
+	for _, sub := range subResources {
+		if sub == resource.SubResource {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (h *vmActionHandler) SubResourceHandler(rw http.ResponseWriter, r *http.Request, resource subresource.Resource) error {
@@ -232,8 +262,9 @@ func (h *vmActionHandler) SubResourceHandler(rw http.ResponseWriter, r *http.Req
 	case dismissInsufficientResourceQuota:
 		return h.dismissInsufficientResourceQuota(name, namespace)
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported subresource %s", resource.SubResource))
 	}
+
 	return nil
 }
 
@@ -248,7 +279,7 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 	}
 
 	if !h.IsMatchedResource(resource, r.Method) {
-		return apierror.NewAPIError(validation.InvalidAction, "Invalid resource handler")
+		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
 
 	return h.SubResourceHandler(rw, r, resource)

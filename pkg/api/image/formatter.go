@@ -105,14 +105,17 @@ func (h Handler) do(rw http.ResponseWriter, req *http.Request) error {
 	}
 
 	// Need to convert the link and action to subresource
-	if req.Method == http.MethodGet {
+	switch req.Method {
+	case http.MethodGet:
 		resource.SubResource = vars["link"]
-	} else if req.Method == http.MethodPost {
+	case http.MethodPost:
 		resource.SubResource = vars["action"]
+	default:
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
 	}
 
 	if !h.IsMatchedResource(resource, req.Method) {
-		return apierror.NewAPIError(validation.InvalidAction, "Invalid resource handler")
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported %s action %s", req.Method, resource.SubResource))
 	}
 
 	return h.SubResourceHandler(rw, req, resource)

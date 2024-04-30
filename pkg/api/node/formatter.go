@@ -54,6 +54,16 @@ var (
 	seederGVR            = schema.GroupVersionResource{Group: "metal.harvesterhci.io", Version: "v1alpha1", Resource: "inventories"}
 	possiblePowerActions = []string{"shutdown", "poweron", "reboot"}
 	nodeResource         = "nodes"
+	subResources         = []string{
+		enableMaintenanceModeAction,
+		disableMaintenanceModeAction,
+		cordonAction,
+		uncordonAction,
+		listUnhealthyVM,
+		maintenancePossible,
+		powerActionPossible,
+		powerAction,
+	}
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -105,7 +115,17 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h ActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	return resource.Name == nodeResource && method == http.MethodPost
+	if resource.Name != nodeResource && method != http.MethodPost {
+		return false
+	}
+
+	for _, sub := range subResources {
+		if sub == resource.SubResource {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (h ActionHandler) SubResourceHandler(rw http.ResponseWriter, req *http.Request, resource subresource.Resource) error {
@@ -149,7 +169,7 @@ func (h ActionHandler) SubResourceHandler(rw http.ResponseWriter, req *http.Requ
 		}
 		return h.powerAction(toUpdate, input.Operation)
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported subresource %s", resource.SubResource))
 	}
 }
 
@@ -164,7 +184,7 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	}
 
 	if !h.IsMatchedResource(resource, req.Method) {
-		return apierror.NewAPIError(validation.InvalidAction, "Invalid resource handler")
+		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
 
 	return h.SubResourceHandler(rw, req, resource)
