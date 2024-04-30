@@ -30,6 +30,7 @@ import (
 	harvesterctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
+	"github.com/harvester/harvester/pkg/server/subresource"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
 )
@@ -52,6 +53,7 @@ const (
 var (
 	seederGVR            = schema.GroupVersionResource{Group: "metal.harvesterhci.io", Version: "v1alpha1", Resource: "inventories"}
 	possiblePowerActions = []string{"shutdown", "poweron", "reboot"}
+	nodeResource         = "nodes"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -102,15 +104,21 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
-	vars := util.EncodeVars(mux.Vars(req))
-	action := vars["action"]
-	name := vars["name"]
+func (h ActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
+	return resource.Name == nodeResource && method == http.MethodPost
+}
+
+func (h ActionHandler) SubResourceHandler(rw http.ResponseWriter, req *http.Request, resource subresource.Resource) error {
+	action := resource.SubResource
+	name := resource.ObjectName
+
 	node, err := h.nodeCache.Get(name)
 	if err != nil {
 		return err
 	}
+
 	toUpdate := node.DeepCopy()
+
 	switch action {
 	case enableMaintenanceModeAction:
 		var maintenanceInput MaintenanceModeInput
@@ -143,6 +151,23 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
+}
+
+func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
+	vars := util.EncodeVars(mux.Vars(req))
+
+	resource := subresource.Resource{
+		Name:        nodeResource,
+		ObjectName:  vars["name"],
+		Namespace:   "",
+		SubResource: vars["action"],
+	}
+
+	if !h.IsMatchedResource(resource, req.Method) {
+		return apierror.NewAPIError(validation.InvalidAction, "Invalid resource handler")
+	}
+
+	return h.SubResourceHandler(rw, req, resource)
 }
 
 func (h ActionHandler) cordonUncordonNode(node *corev1.Node, actionName string, cordon bool) error {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/apierror"
+	"github.com/sirupsen/logrus"
 )
 
 type Resource struct {
@@ -12,6 +13,7 @@ type Resource struct {
 	ObjectName  string
 	SubResource string
 	Namespace   string
+	Namespaced  bool
 }
 
 type handler struct{}
@@ -27,10 +29,11 @@ type ResourceHandler interface {
 }
 
 var (
-	handlers        []ResourceHandler
-	apiPath         = "/apis/subresources.harvesterhci.io/v1beta1"
-	healthCheckPath = apiPath
-	subResourcePath = apiPath + "/namespaces/{namespace}/{resource}/{name}/{subresource}"
+	handlers                  []ResourceHandler
+	apiPath                   = "/apis/subresources.harvesterhci.io/v1beta1"
+	healthCheckPath           = apiPath
+	namespacedSubResourcePath = apiPath + "/namespaces/{namespace}/{resource}/{name}/{subresource}"
+	subResourcePath           = apiPath + "/{resource}/{name}/{subresource}"
 )
 
 func NewSubResourceHandler(mux *mux.Router) {
@@ -38,6 +41,7 @@ func NewSubResourceHandler(mux *mux.Router) {
 	mux.Path(healthCheckPath).Handler(subHealthHandler)
 
 	subHandler := &handler{}
+	mux.Path(namespacedSubResourcePath).Handler(subHandler)
 	mux.Path(subResourcePath).Handler(subHandler)
 }
 
@@ -58,6 +62,13 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			Namespace:   vars["namespace"],
 		}
 	)
+
+	if vars["namespace"] != "" {
+		resource.Namespaced = true
+		resource.Namespace = vars["namespace"]
+	}
+
+	logrus.Debug("Resource: ", resource)
 
 	for _, handler := range handlers {
 		if !handler.IsMatchedResource(resource, req.Method) {

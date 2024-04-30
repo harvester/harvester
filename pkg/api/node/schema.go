@@ -11,6 +11,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/server/subresource"
 )
 
 type MaintenanceModeInput struct {
@@ -76,5 +77,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		},
 	}
 	server.SchemaFactory.AddTemplate(t)
+	subresource.RegisterSubResourceHandler(&nodeHandler)
 	return nil
 }
