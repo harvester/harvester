@@ -53,7 +53,6 @@ const (
 var (
 	seederGVR            = schema.GroupVersionResource{Group: "metal.harvesterhci.io", Version: "v1alpha1", Resource: "inventories"}
 	possiblePowerActions = []string{"shutdown", "poweron", "reboot"}
-	nodeResource         = "nodes"
 	subResources         = []string{
 		enableMaintenanceModeAction,
 		disableMaintenanceModeAction,
@@ -115,7 +114,7 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h ActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != nodeResource && method != http.MethodPost {
+	if resource.Name != subresource.Node.Resource && method != http.MethodPost {
 		return false
 	}
 
@@ -177,7 +176,7 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(req))
 
 	resource := subresource.Resource{
-		Name:        nodeResource,
+		Name:        subresource.Node.Resource,
 		ObjectName:  vars["name"],
 		Namespace:   "",
 		SubResource: vars["action"],

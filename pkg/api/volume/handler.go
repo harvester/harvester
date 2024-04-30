@@ -32,10 +32,6 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
-const (
-	pvcResource = "persistentvolumeclaims"
-)
-
 var (
 	subResources = []string{
 		actionExport,
@@ -57,7 +53,7 @@ type ActionHandler struct {
 }
 
 func (h *ActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != pvcResource && method != http.MethodPost {
+	if resource.Name != subresource.PersistentVolumeClaims.Resource && method != http.MethodPost {
 		return false
 	}
 
@@ -131,7 +127,7 @@ func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(r))
 
 	resource := subresource.Resource{
-		Name:        pvcResource,
+		Name:        subresource.PersistentVolumeClaims.Resource,
 		ObjectName:  vars["name"],
 		Namespace:   vars["namespace"],
 		SubResource: vars["action"],

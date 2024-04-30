@@ -1,11 +1,27 @@
 package subresource
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+var (
+	apiService = schema.GroupVersion{Group: "subresources.harvesterhci.io", Version: "v1beta1"}
+
+	VirtualMachineImages   = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "virtualmachineimages"}
+	UpgradeLogs            = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "upgradelogs"}
+	Node                   = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "nodes"}
+	VirtualMachines        = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "virtualmachines"}
+	PersistentVolumeClaims = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "persistentvolumeclaims"}
+	VolumeSnapshots        = schema.GroupVersionResource{Group: apiService.Group, Version: apiService.Version, Resource: "snapshot.storage.k8s.io.volumesnapshot"}
+
+	namespacedSubResources    = []schema.GroupVersionResource{VirtualMachineImages, UpgradeLogs, VirtualMachines, PersistentVolumeClaims, VolumeSnapshots}
+	nonNamespacedSubResources = []schema.GroupVersionResource{Node}
 )
 
 type Resource struct {
@@ -29,20 +45,28 @@ type ResourceHandler interface {
 }
 
 var (
-	handlers                  []ResourceHandler
-	apiPath                   = "/apis/subresources.harvesterhci.io/v1beta1"
-	healthCheckPath           = apiPath
-	namespacedSubResourcePath = apiPath + "/namespaces/{namespace}/{resource}/{name}/{subresource}"
-	subResourcePath           = apiPath + "/{resource}/{name}/{subresource}"
+	handlers        []ResourceHandler
+	healthCheckPath = fmt.Sprintf("/apis/%s/%s", apiService.Group, apiService.Version)
 )
 
 func NewSubResourceHandler(mux *mux.Router) {
-	subHealthHandler := &healthHandler{}
-	mux.Path(healthCheckPath).Handler(subHealthHandler)
+	var paths []string
 
-	subHandler := &handler{}
-	mux.Path(namespacedSubResourcePath).Handler(subHandler)
-	mux.Path(subResourcePath).Handler(subHandler)
+	for _, resource := range namespacedSubResources {
+		path := fmt.Sprintf("/apis/%s/%s/namespaces/{namespace}/%s/{name}/{subresource}", resource.Group, resource.Version, resource.Resource)
+		paths = append(paths, path)
+	}
+
+	for _, resource := range nonNamespacedSubResources {
+		path := fmt.Sprintf("/apis/%s/%s/%s/{name}/{subresource}", resource.Group, resource.Version, resource.Resource)
+		paths = append(paths, path)
+	}
+
+	for _, path := range paths {
+		mux.Path(path).Handler(&handler{})
+	}
+
+	mux.Path(healthCheckPath).Handler(&healthHandler{})
 }
 
 func RegisterSubResourceHandler(handler ResourceHandler) {

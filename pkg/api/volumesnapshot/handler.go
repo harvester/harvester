@@ -36,7 +36,7 @@ type ActionHandler struct {
 }
 
 func (h *ActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != volumesnapshotSchemaID && method != http.MethodPost {
+	if resource.Name != subresource.VolumeSnapshots.Resource && method != http.MethodPost {
 		return false
 	}
 
@@ -86,7 +86,7 @@ func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(r))
 
 	resource := subresource.Resource{
-		Name:        volumesnapshotSchemaID,
+		Name:        subresource.VolumeSnapshots.Resource,
 		ObjectName:  vars["name"],
 		Namespace:   vars["namespace"],
 		SubResource: vars["action"],

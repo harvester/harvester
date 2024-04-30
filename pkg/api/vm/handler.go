@@ -117,7 +117,7 @@ func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h *vmActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != vmResource && method != http.MethodPost {
+	if resource.Name != subresource.VirtualMachines.Resource && method != http.MethodPost {
 		return false
 	}
 
@@ -272,7 +272,7 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 	vars := util.EncodeVars(mux.Vars(r))
 
 	resource := subresource.Resource{
-		Name:        vmResource,
+		Name:        subresource.VirtualMachines.Resource,
 		ObjectName:  vars["name"],
 		Namespace:   vars["namespace"],
 		SubResource: vars["action"],

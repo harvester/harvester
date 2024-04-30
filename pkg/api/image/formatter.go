@@ -29,7 +29,6 @@ import (
 const (
 	actionUpload   = "upload"
 	actionDownload = "download"
-	imagesResource = "virtualmachineimages"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -56,7 +55,7 @@ type Handler struct {
 }
 
 func (h Handler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != imagesResource {
+	if resource.Name != subresource.VirtualMachineImages.Resource {
 		return false
 	}
 
@@ -99,7 +98,7 @@ func (h Handler) do(rw http.ResponseWriter, req *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(req))
 
 	resource := subresource.Resource{
-		Name:       imagesResource,
+		Name:       subresource.VirtualMachineImages.Resource,
 		ObjectName: vars["name"],
 		Namespace:  vars["namespace"],
 	}

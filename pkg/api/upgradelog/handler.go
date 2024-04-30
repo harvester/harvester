@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	upgradelogsResource          = "upgradelogs"
 	archiveSuffix                = ".zip"
 	defaultJobBackoffLimit int32 = 5
 	logPackagingScript           = `
@@ -85,7 +84,7 @@ type Handler struct {
 }
 
 func (h Handler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != upgradelogsResource {
+	if resource.Name != subresource.UpgradeLogs.Resource {
 		return false
 	}
 
@@ -127,7 +126,7 @@ func (h Handler) doAction(rw http.ResponseWriter, req *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(req))
 
 	resource := subresource.Resource{
-		Name:       upgradelogsResource,
+		Name:       subresource.UpgradeLogs.Resource,
 		ObjectName: vars["name"],
 		Namespace:  vars["namespace"],
 	}
