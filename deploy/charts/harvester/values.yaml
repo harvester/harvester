@@ -464,7 +464,7 @@ kube-vip:
   enabled: false
   image:
     repository: ghcr.io/kube-vip/kube-vip-iptables
-    tag: v0.8.0
+    tag: v0.6.0
   nodeSelector:
     node-role.kubernetes.io/control-plane: "true"
   # https://github.com/kube-vip/kube-vip/blob/main/pkg/kubevip/config_envvar.go
