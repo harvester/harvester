@@ -483,7 +483,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: v0.0.36
+    tag: v0.0.37
 
 generalJob:
   image:
