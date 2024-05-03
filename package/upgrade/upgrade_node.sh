@@ -124,14 +124,24 @@ preload_images()
   download_image_archives_from_repo "agent" $HOST_DIR/var/lib/rancher/agent/images
 }
 
+# return the running VM count
+# if `kubectl get vmi` failed, then return "failed to get" for troubleshooting
 get_running_vm_count()
 {
-  local count
+  local vmioutput=/tmp/vmioutput.yaml
+  rm -f "$vmioutput"
+  local EXIT_CODE=0
 
-  count=$(kubectl get vmi -A -l kubevirt.io/nodeName=$HARVESTER_UPGRADE_NODE_NAME -o yaml | yq e '.items[] | [select(.status.phase!="Succeeded")] | length' || true)
-  echo $count
+  kubectl get vmi -A -l kubevirt.io/nodeName=$HARVESTER_UPGRADE_NODE_NAME -o yaml > "$vmioutput" || EXIT_CODE=$?
+
+  if [[ "$EXIT_CODE" -eq 0 ]]; then
+    local count=$(yq e '.items |  map(select(.status.phase!="Succeeded")) | length' "$vmioutput")
+    echo "$count"
+  else
+    echo "failed to get"
+  fi
+  rm -f "$vmioutput"
 }
-
 
 wait_vms_out()
 {
@@ -139,16 +149,16 @@ wait_vms_out()
 
   until [ "$vm_count" = "0" ]
   do
-    echo "Waiting for VM live-migration or shutdown...($vm_count left)"
+    echo "Waiting for VM shutdown...(count: $vm_count)"
     sleep 5
     vm_count="$(get_running_vm_count)"
   done
+  echo "all VMs are down"
 }
 
 wait_vms_out_or_shutdown()
 {
   local vm_count
-  local max_retries=240
 
   while [ true ]; do
     vm_count="$(get_running_vm_count)"
@@ -157,9 +167,10 @@ wait_vms_out_or_shutdown()
       break
     fi
 
-    echo "Waiting for VM live-migration or shutdown...($vm_count left)"
+    echo "Waiting for VM live-migration or shutdown...(count: $vm_count)"
     sleep 5
   done
+  echo "all VMs on node $HARVESTER_UPGRADE_NODE_NAME have been live-migrated or shutdown"
 }
 
 shutdown_repo_vm()
