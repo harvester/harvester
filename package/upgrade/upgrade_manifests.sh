@@ -1297,8 +1297,13 @@ wait_for_deployment() {
 
 fleet_agent_timestamp(){
   wait_for_deployment cattle-fleet-local-system fleet-agent &> /dev/null
-  time=$(kubectl get deploy -n cattle-fleet-local-system fleet-agent -o json | jq -r .metadata.creationTimestamp)
-  date -u -d $time +'%s' 
+  local temptime=$(kubectl get deploy -n cattle-fleet-local-system fleet-agent -o json | jq -r .metadata.creationTimestamp)
+  if [ -z "$temptime" ]; then
+    # if kubectl happens to fail due to deployment is just deleted, echo 0 to continue
+    echo "0"
+  else
+    date -u -d $temptime +'%s'
+  fi
 }
 
 wait_for_fleet_agent(){
