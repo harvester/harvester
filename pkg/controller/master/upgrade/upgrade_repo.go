@@ -46,6 +46,10 @@ var (
 	// the end of an upgrade.
 	imageRetainList = []string{
 		"rancher/harvester-upgrade",
+		"longhornio/longhorn-engine",
+		"longhornio/longhorn-instance-manager",
+		"rancher/mirrored-banzaicloud-fluentd",
+		"rancher/mirrored-fluent-fluent-bit",
 	}
 )
 
