@@ -117,36 +117,7 @@ spec:
 
 ## Design
 
-Overall, we will have a central controller, daemon Pod located across all nodes, and new GUI pages for configuration.
-
-> This feature could also be independent Addon, it could be discussed.
-
-- `usb-controller` focuses on creating and updating resources, including `usbdevice, usbdeviceclaim, kubevirt, virtualmachine`.
-- `usb-agent` focuses on collecting USB devices and communicating with kubelet (device plugin).
-
-![](./20240304-usb-passthrough/01.png)
-
-### Implementation Overview
-
-### Component - `usb-controller`
-
-- Accept user's requirement to create `usbdeviceclaim` with `usbdevice`.
-- Update `kubevirt` resource.
-- Use Lease to make sure only one controller running.
-
-Regarding `virtualmachine` CR, the harvester will update it when creating/editing virtual machine like pci device does.
-
-
-### Component - `usb-agent`
-
-- Collect all USB devices in the all nodes, and create `usbdevice`.
-- Handle custom external device plugin with kubelet socket and `usbdeviceclaim`.
-
-#### Sub-Component - Device Plugin
-
-In original device plugin of KubeVirt, it doesn't support to choose one of two identical USB devices. It will randomly pick one. In USB storage case in User Story 2, we prefer to choose one of them. So, we need to use external device plugin to fulfill that case.
-
-In order to achieve this, it will combine `usbdeviceclaim` to tell kubelet which USB device should be used. It's similar with PCI device plugin.
+Overall, we will implement this feature in the harvester/pcidevices. So, the architecture will be similar. 
 
 ### GUI
 
