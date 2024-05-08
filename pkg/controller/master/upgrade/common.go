@@ -769,6 +769,16 @@ func upgradeReference(upgrade *harvesterv1.Upgrade) metav1.OwnerReference {
 	}
 }
 
+// removeItemFromSlice removes one element at index i from the slice. By
+// removing the element, it simply copies the last element in the slice to the
+// slot at index i and returns the same slice but excluding the last element.
+// That is to say, the order of elements in the slice might change, depending
+// on what element is going to be removed.
+func removeItemFromSlice(slice []string, i int) []string {
+	slice[i] = slice[len(slice)-1]
+	return slice[:len(slice)-1]
+}
+
 func difference(setA, setB map[string]bool) []string {
 	var diff []string
 	for key := range setA {
