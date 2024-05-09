@@ -413,12 +413,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/k8s.io.v1.PersistentVolumeClaim"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/k8s.io.v1.PersistentVolumeClaim"
                 }
               }
             }
@@ -1152,12 +1152,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.KeyPair"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.KeyPair"
                 }
               }
             }
@@ -1655,12 +1655,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.SupportBundle"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.SupportBundle"
                 }
               }
             }
@@ -2158,12 +2158,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.Upgrade"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.Upgrade"
                 }
               }
             }
@@ -2661,12 +2661,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineBackup"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineBackup"
                 }
               }
             }
@@ -3164,12 +3164,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineImage"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineImage"
                 }
               }
             }
@@ -3667,12 +3667,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineRestore"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineRestore"
                 }
               }
             }
@@ -4170,12 +4170,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineTemplate"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineTemplate"
                 }
               }
             }
@@ -4673,12 +4673,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineTemplateVersion"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineTemplateVersion"
                 }
               }
             }
@@ -6002,12 +6002,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/k8s.cni.cncf.io.v1.NetworkAttachmentDefinition"
                 }
               }
             }
@@ -6623,12 +6623,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceMigration"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceMigration"
                 }
               }
             }
@@ -7344,12 +7344,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachine"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachine"
                 }
               }
             }
@@ -8211,12 +8211,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/network.harvesterhci.io.v1beta1.ClusterNetwork"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/network.harvesterhci.io.v1beta1.ClusterNetwork"
                 }
               }
             }
@@ -8724,12 +8724,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/network.harvesterhci.io.v1beta1.NodeNetwork"
                 }
               },
               "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/k8s.io.v1.Status"
+                  "$ref": "#/components/schemas/network.harvesterhci.io.v1beta1.NodeNetwork"
                 }
               }
             }
@@ -11047,91 +11047,6 @@
                 }
               ]
             }
-          }
-        }
-      },
-      "k8s.io.v1.Status": {
-        "type": "object",
-        "required": [
-          "apiVersion",
-          "kind"
-        ],
-        "properties": {
-          "apiVersion": {
-            "type": "string"
-          },
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "details": {
-            "$ref": "#/components/schemas/k8s.io.v1.StatusDetails"
-          },
-          "kind": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "metadata": {
-            "default": {},
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/k8s.io.v1.ListMeta"
-              }
-            ]
-          },
-          "reason": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        }
-      },
-      "k8s.io.v1.StatusCause": {
-        "type": "object",
-        "properties": {
-          "field": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "reason": {
-            "type": "string"
-          }
-        }
-      },
-      "k8s.io.v1.StatusDetails": {
-        "type": "object",
-        "properties": {
-          "causes": {
-            "type": "array",
-            "items": {
-              "default": {},
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/k8s.io.v1.StatusCause"
-                }
-              ]
-            }
-          },
-          "group": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "retryAfterSeconds": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "uid": {
-            "type": "string"
           }
         }
       },

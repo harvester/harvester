@@ -169,7 +169,7 @@ func AddGenericResourceRoutes(ws *restful.WebService, resource string, objPointe
 				Reads(metav1.DeleteOptions{}).Writes(metav1.Status{}).
 				Doc("Delete a "+objKind+" object.").
 				Metadata("kind", objKind).
-				Returns(http.StatusOK, "OK", metav1.Status{}).
+				Returns(http.StatusOK, "OK", objExample).
 				Returns(http.StatusUnauthorized, "Unauthorized", ""), ws,
 		))
 	}
