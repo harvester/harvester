@@ -73,17 +73,19 @@ There will be a Daemon to collect all USB devices on all nodes, it's provided to
 Considering the same vendor/product case, we should add bus as suffix to avoid misunderstanding. It's `001/002` in this case.
 
 ```yaml
-apiVersion: harvesterhci.io/v1beta1
+apiVersion: devices.harvesterhci.io/v1beta1
 kind: USBDevice
 metadata:
-  name: 06cb-0126-001002
+  labels:
+    nodename: jacknode
+  name: jacknode-0951-1666-002005
 status:
-  nodeName: "node1"
-  productID: "0126"
-  resourceName: kubevirt.io/06cb-0126-001002
-  bus: "001/002"
-  vendorID: "06cb"
-  description: "xxx"
+  description: DataTraveler 100 G3/G4/SE9 G2/50 Kyson (Kingston Technology)
+  devicePath: /dev/bus/usb/002/005
+  nodeName: jacknode
+  productID: "1666"
+  resourceName: kubevirt.io/jacknode-0951-1666-002005
+  vendorID: "0951"
 ```
 
 #### `usbdeviceclaim`
@@ -91,10 +93,12 @@ status:
 When users decide which USB devices they want to use, users will click `Enable` button to create `usbdeviceclaim`. After `usbdeviceclaim` is created, controller will update `spec.configuration.permittedHostDevices.usb` in `kubevirt` resource.
 
 ```yaml
-apiVersion: harvesterhci.io/v1beta1
+apiVersion: devices.harvesterhci.io/v1beta1
 kind: USBDeviceClaim
 metadata:
-  name: 06cb-0126-001002
+  name: jacknode-0951-1666-002005
+  labels:
+    nodename: jacknode
 status:
   claimBy: admin
 ```
@@ -108,12 +112,24 @@ spec:
   configuration:
     permittedHostDevices:
       usb:
-      - resourceName: kubevirt.io/0951-1666-002002
+      - resourceName: kubevirt.io/jacknode-0951-1666-002005
         externalResourceProvider: true
         selectors:
         - product: "1666"
           vendor: "0951"
 ```
+
+#### `virtualmachine`
+
+In the `virtualmachine` resource, we will add `devices > hostDevices` field to specify which USB device the virtual machine will use.
+
+```yaml
+devices:
+  hostDevices:
+    - deviceName: kubevirt.io/jacknode-0951-1666-002005
+      name: jacknode-0951-1666-002005
+```
+
 
 ## Design
 
@@ -128,6 +144,8 @@ It's quite similar with PCI devices, it also needs to show the matrix (node/usb)
 Unlike the PCI device, we could add or remove USB device easily, so it needs a refresh button to detect all USB device in the USB device page. Here I used PCI device page to represent idea. That button will be upper right corner of this page.
 
 ![](./20240304-usb-passthrough/02.png)
+
+Regarding the resource and API path in harvester, it should be `devices.harvesterhci.io.pcidevices` and `v1/harvester/devices.harvesterhci.io.pcidevices`. 
 
 ### Test plan
 
