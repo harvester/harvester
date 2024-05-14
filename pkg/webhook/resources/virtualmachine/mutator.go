@@ -174,12 +174,7 @@ func needUpdateResourceOvercommit(oldVM, newVM *kubevirtv1.VirtualMachine) bool 
 		return true
 	}
 
-	// if host devices or GPUs are added or removed then resource update is needed
-	if len(newVM.Spec.Template.Spec.Domain.Devices.HostDevices) != len(oldVM.Spec.Template.Spec.Domain.Devices.HostDevices) || len(newVM.Spec.Template.Spec.Domain.Devices.GPUs) != len(oldVM.Spec.Template.Spec.Domain.Devices.GPUs) {
-		return true
-	}
-
-	return false
+	return hostDevicesOvercommitNeeded(oldVM, newVM)
 }
 
 func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]string, error) {
@@ -241,7 +236,7 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 	guestMemory.Sub(reservedMemory)
 
 	// Needed to avoid issue due to overcommit when GPU or HostDevices are passed to a VM.
-	// Addresses issue: https://github.com/kubevirt/kubevirt/issues/10379
+	// Addresses issue: `https://github.com/kubevirt/kubevirt/issues/10379`
 	// This condition can be removed once a fix is available upstream
 	if hostDevicesPresent(vm) {
 		guestMemory.DeepCopyInto(quantity)
@@ -452,5 +447,21 @@ func hostDevicesPresent(vm *kubevirtv1.VirtualMachine) bool {
 		return true
 	}
 
+	return false
+}
+
+func hostDevicesOvercommitNeeded(oldVM, newVM *kubevirtv1.VirtualMachine) bool {
+	// if host devices or GPUs are added or removed then resource update is needed
+	if len(newVM.Spec.Template.Spec.Domain.Devices.HostDevices) != len(oldVM.Spec.Template.Spec.Domain.Devices.HostDevices) || len(newVM.Spec.Template.Spec.Domain.Devices.GPUs) != len(oldVM.Spec.Template.Spec.Domain.Devices.GPUs) {
+		return true
+	}
+
+	// during upgrade path VMs with host devices are turned off. Post upgrade the memory needs to be patched
+	// to ensure devices with hostDevices/GPUs can be booted
+	if len(newVM.Spec.Template.Spec.Domain.Devices.HostDevices) > 0 || len(newVM.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
+		if newVM.Spec.Template.Spec.Domain.Memory != nil && (newVM.Spec.Template.Spec.Domain.Memory.Guest.Value() != newVM.Spec.Template.Spec.Domain.Resources.Requests.Memory().Value()) {
+			return true
+		}
+	}
 	return false
 }
