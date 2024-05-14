@@ -51,6 +51,7 @@ var (
 	StorageNetwork                         = NewSetting(StorageNetworkName, "")
 	DefaultVMTerminationGracePeriodSeconds = NewSetting(DefaultVMTerminationGracePeriodSecondsSettingName, "120")
 	AutoRotateRKE2CertsSet                 = NewSetting(AutoRotateRKE2CertsSettingName, InitAutoRotateRKE2Certs())
+	PatchHarvesterServicesInResourceQuota  = NewSetting(PatchHarvesterServicesInResourceQuotaSettingName, "false")
 
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
@@ -85,6 +86,7 @@ const (
 	SupportBundleExpirationSettingName                = "support-bundle-expiration"
 	NTPServersSettingName                             = "ntp-servers"
 	AutoRotateRKE2CertsSettingName                    = "auto-rotate-rke2-certs"
+	PatchHarvesterServicesInResourceQuotaSettingName  = "patch-harvester-services-in-resource-quota"
 )
 
 func init() {

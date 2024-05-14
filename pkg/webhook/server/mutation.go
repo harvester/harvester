@@ -10,6 +10,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/resources/pod"
+	"github.com/harvester/harvester/pkg/webhook/resources/resourcequota"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
@@ -26,6 +27,9 @@ func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, 
 		templateversion.NewMutator(),
 		virtualmachine.NewMutator(settingCache, nadCache),
 		virtualmachineimage.NewMutator(storageClassCache),
+		resourcequota.NewMutator(
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
+			clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()),
 	}
 
 	router := webhook.NewRouter()
