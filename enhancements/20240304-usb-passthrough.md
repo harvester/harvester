@@ -20,9 +20,7 @@ https://github.com/harvester/harvester/issues/1710
 ### Goals
 
 - Allow virtual machine to use node's USB device without PCI Passthrough.
-- Users can select one USB device from two identical USB device instead of picked by KubeVirt.
-
-> These two goals could be separated two different target because the second one aim to fix random picked from two identical USB device.
+- Users can select one USB device from two identical USB device instead of randomly picked by KubeVirt's device plugin.
 
 ## Proposal
 
