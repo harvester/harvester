@@ -753,6 +753,10 @@ func (h *Handler) createVolumeSnapshotContent(
 
 func (h *Handler) setStatusError(vmBackup *harvesterv1.VirtualMachineBackup, err error) error {
 	vmBackupCpy := vmBackup.DeepCopy()
+	if vmBackupCpy.Status == nil {
+		vmBackupCpy.Status = &harvesterv1.VirtualMachineBackupStatus{}
+	}
+
 	vmBackupCpy.Status.Error = &harvesterv1.Error{
 		Time:    currentTime(),
 		Message: pointer.StringPtr(err.Error()),
