@@ -9,7 +9,9 @@ Users can pass through USB devices which are attached on the nodes to virtual ma
 In other words, let's say USB controller has two ports called A and B.
 
 - With PCI Passthrough situation (pass USB controller), VM can read A/B, and node can't read one of them.
-- With USB Passthrough situation (only pass A), VM can read A, and node can read B.
+  ![](./20240304-usb-passthrough/diff-01.png)
+- With USB Passthrough situation (only pass B), VM can read B, and node can read A.
+  ![](./20240304-usb-passthrough/diff-02.png)
 
 ### Related Issues
 
