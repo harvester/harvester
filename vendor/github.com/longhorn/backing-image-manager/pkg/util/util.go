@@ -1,7 +1,6 @@
 package util
 
 import (
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -15,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -152,6 +150,7 @@ type SyncingFileConfig struct {
 	FilePath         string `json:"name"`
 	UUID             string `json:"uuid"`
 	Size             int64  `json:"size"`
+	VirtualSize      int64  `json:"virtualSize"`
 	ExpectedChecksum string `json:"expectedChecksum"`
 	CurrentChecksum  string `json:"currentChecksum"`
 	ModificationTime string `json:"modificationTime"`
@@ -232,48 +231,60 @@ func ExecuteWithTimeout(timeout time.Duration, envs []string, binary string, arg
 	return output.String(), nil
 }
 
-func DetectFileFormat(filePath string) (string, error) {
+type QemuImgInfo struct {
+	// For qcow2 files, VirtualSize may be larger than the physical
+	// image size on disk.  For raw files, `qemu-img info` will report
+	// VirtualSize as being the same as the physical file size.
+	VirtualSize int64  `json:"virtual-size"`
+	Format      string `json:"format"`
+}
+
+func GetQemuImgInfo(filePath string) (imgInfo QemuImgInfo, err error) {
 
 	/* Example command outputs
-	   $ qemu-img info parrot.raw
-	   image: parrot.raw
-	   file format: raw
-	   virtual size: 32M (33554432 bytes)
-	   disk size: 2.2M
+	   $ qemu-img info --output=json SLE-Micro.x86_64-5.5.0-Default-qcow-GM.qcow2
+	   {
+	       "virtual-size": 21474836480,
+	       "filename": "SLE-Micro.x86_64-5.5.0-Default-qcow-GM.qcow2",
+	       "cluster-size": 65536,
+	       "format": "qcow2",
+	       "actual-size": 1001656320,
+	       "format-specific": {
+	           "type": "qcow2",
+	           "data": {
+	               "compat": "1.1",
+	               "compression-type": "zlib",
+	               "lazy-refcounts": false,
+	               "refcount-bits": 16,
+	               "corrupt": false,
+	               "extended-l2": false
+	           }
+	       },
+	       "dirty-flag": false
+	   }
 
-	   $ qemu-img info parrot.qcow2
-	   image: parrot.qcow2
-	   file format: qcow2
-	   virtual size: 32M (33554432 bytes)
-	   disk size: 2.3M
-	   cluster_size: 65536
-	   Format specific information:
-	       compat: 1.1
-	       lazy refcounts: false
-	       refcount bits: 16
-	       corrupt: false
+	   $ qemu-img info --output=json SLE-15-SP5-Full-x86_64-GM-Media1.iso
+	   {
+	       "virtual-size": 14548992000,
+	       "filename": "SLE-15-SP5-Full-x86_64-GM-Media1.iso",
+	       "format": "raw",
+	       "actual-size": 14548996096,
+	       "dirty-flag": false
+	   }
 	*/
 
-	output, err := Execute([]string{}, QemuImgBinary, "info", filePath)
+	output, err := Execute([]string{}, QemuImgBinary, "info", "--output=json", filePath)
 	if err != nil {
-		return "", err
+		return
 	}
-
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "file format: ") {
-			return strings.TrimPrefix(line, "file format: "), nil
-		}
-	}
-
-	return "", fmt.Errorf("cannot find the file format in the output %s", output)
+	err = json.Unmarshal([]byte(output), &imgInfo)
+	return
 }
 
 func ConvertFromRawToQcow2(filePath string) error {
-	if format, err := DetectFileFormat(filePath); err != nil {
+	if imgInfo, err := GetQemuImgInfo(filePath); err != nil {
 		return err
-	} else if format == "qcow2" {
+	} else if imgInfo.Format == "qcow2" {
 		return nil
 	}
 

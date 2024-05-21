@@ -10,6 +10,7 @@ import (
 
 	"github.com/longhorn/backupstore"
 	"github.com/longhorn/backupstore/util"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -127,7 +128,9 @@ func (f *FileSystemOperator) List(path string) ([]string, error) {
 func (f *FileSystemOperator) Upload(src, dst string) error {
 	tmpDst := dst + ".tmp" + "." + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	if f.FileExists(tmpDst) {
-		f.Remove(tmpDst)
+		if err := f.Remove(tmpDst); err != nil {
+			logrus.WithError(err).Warnf("Failed to remove tmp file %s", tmpDst)
+		}
 	}
 	if err := f.preparePath(dst); err != nil {
 		return err

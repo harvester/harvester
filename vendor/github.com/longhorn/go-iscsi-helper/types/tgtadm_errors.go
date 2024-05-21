@@ -1,6 +1,6 @@
 package types
 
-// erros are from tgt/usr/tgtadm_error.h and tgt/usr/tgtadm.c
+// errors are from tgt/usr/tgtadm_error.h and tgt/usr/tgtadm.c
 const (
 	TgtadmSuccess              = "success"
 	TgtadmUnknown              = "unknown error"

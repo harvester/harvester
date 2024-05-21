@@ -74,7 +74,7 @@ func NewServer(endpoint string, tlsConfig *tls.Config, opts ...grpc.ServerOption
 }
 
 // ServerTLS prepares the TLS configuration needed for a server with given
-// encoded certficate and private key.
+// encoded certificate and private key.
 func ServerTLS(caCert, cert, key []byte, peerName string) (*tls.Config, error) {
 	certPool := x509.NewCertPool()
 	if ok := certPool.AppendCertsFromPEM(caCert); !ok {

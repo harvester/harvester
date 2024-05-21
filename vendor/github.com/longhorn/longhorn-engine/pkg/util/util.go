@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -30,6 +31,8 @@ var (
 
 const (
 	BlockSizeLinux = 512
+
+	randomIDLenth = 8
 )
 
 func ParseAddresses(name string) (string, string, string, int, error) {
@@ -283,4 +286,12 @@ func GetAddresses(volumeName, address string, dataServerProtocol types.DataServe
 	default:
 		return "", "", "", -1, fmt.Errorf("unsupported protocol: %v", dataServerProtocol)
 	}
+}
+
+func UUID() string {
+	return uuid.New().String()
+}
+
+func RandomID() string {
+	return UUID()[:randomIDLenth]
 }

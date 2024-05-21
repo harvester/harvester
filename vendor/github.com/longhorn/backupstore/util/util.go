@@ -23,7 +23,6 @@ import (
 	lz4 "github.com/pierrec/lz4/v4"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"go.uber.org/multierr"
 	"golang.org/x/sys/unix"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -120,12 +119,12 @@ func CompressData(method string, data []byte) (io.ReadSeeker, error) {
 func DecompressAndVerify(method string, src io.Reader, checksum string) (io.Reader, error) {
 	r, err := newDecompressionReader(method, src)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create decompression reader")
 	}
 	defer r.Close()
 	block, err := io.ReadAll(r)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to read decompressed data")
 	}
 	if GetChecksum(block) != checksum {
 		return nil, fmt.Errorf("checksum verification failed for block")
@@ -300,7 +299,7 @@ func EnsureMountPoint(Kind, mountPoint string, mounter mount.Interface, log logr
 		}
 	}()
 
-	notMounted, err := mount.IsNotMountPoint(mounter, mountPoint)
+	isMoundPoint, err := mounter.IsMountPoint(mountPoint)
 	if err == fs.ErrNotExist {
 		return false, nil
 	}
@@ -319,10 +318,10 @@ func EnsureMountPoint(Kind, mountPoint string, mounter mount.Interface, log logr
 		if mntErr := cleanupMount(mountPoint, mounter, log); mntErr != nil {
 			return true, errors.Wrapf(mntErr, "failed to clean up corrupted mount point %v", mountPoint)
 		}
-		notMounted = true
+		isMoundPoint = false
 	}
 
-	if notMounted {
+	if !isMoundPoint {
 		return false, nil
 	}
 
@@ -367,36 +366,30 @@ func MountWithTimeout(mounter mount.Interface, source string, target string, fst
 
 // CleanUpMountPoints tries to clean up all existing mount points for existing backup stores
 func CleanUpMountPoints(mounter mount.Interface, log logrus.FieldLogger) error {
-	var errs error
-
-	filepath.Walk(MountDir, func(path string, info os.FileInfo, err error) error {
+	return filepath.Walk(MountDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			errs = multierr.Append(errs, errors.Wrapf(err, "failed to get file info of %v", path))
-			return nil
+			return errors.Wrapf(err, "failed to get file info of %v", path)
 		}
 
 		if !info.IsDir() {
 			return nil
 		}
 
-		notMounted, err := mount.IsNotMountPoint(mounter, path)
+		isMountPoint, err := mounter.IsMountPoint(path)
 		if err != nil {
-			errs = multierr.Append(errs, errors.Wrapf(err, "failed to check if %s is not mounted", path))
-			return nil
+			return errors.Wrapf(err, "failed to check if %s is not mounted", path)
 		}
 
-		if notMounted {
+		if !isMountPoint {
 			return nil
 		}
 
 		if err := cleanupMount(path, mounter, log); err != nil {
-			errs = multierr.Append(errs, errors.Wrapf(err, "failed to clean up mount point %v", path))
+			return errors.Wrapf(err, "failed to clean up mount point %v", path)
 		}
 
 		return nil
 	})
-
-	return errs
 }
 
 func CheckBackupType(backupTarget string) (string, error) {

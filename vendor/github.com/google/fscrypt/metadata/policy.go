@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/user"
 	"strconv"
+	"syscall"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -83,6 +84,15 @@ func (err *ErrDirectoryNotOwned) Error() string {
 
 	Encryption can only be enabled on a directory you own, even if you have
 	write access to the directory.`, err.Path, owner)
+}
+
+// ErrLockedRegularFile indicates that the path is a locked regular file.
+type ErrLockedRegularFile struct {
+	Path string
+}
+
+func (err *ErrLockedRegularFile) Error() string {
+	return fmt.Sprintf("cannot operate on locked regular file %q", err.Path)
 }
 
 // ErrNotEncrypted indicates that the path is not encrypted.
@@ -164,6 +174,9 @@ func buildV2PolicyData(policy *unix.FscryptPolicyV2) *PolicyData {
 func GetPolicy(path string) (*PolicyData, error) {
 	file, err := os.Open(path)
 	if err != nil {
+		if err.(*os.PathError).Err == syscall.ENOKEY {
+			return nil, &ErrLockedRegularFile{path}
+		}
 		return nil, err
 	}
 	defer file.Close()

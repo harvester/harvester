@@ -158,6 +158,11 @@ type EngineStatus struct {
 	// +nullable
 	ReplicaModeMap map[string]ReplicaMode `json:"replicaModeMap"`
 	// +optional
+	// ReplicaTransitionTimeMap records the time a replica in ReplicaModeMap transitions from one mode to another (or
+	// from not being in the ReplicaModeMap to being in it). This information is sometimes required by other controllers
+	// (e.g. the volume controller uses it to determine the correct value for replica.Spec.lastHealthyAt).
+	ReplicaTransitionTimeMap map[string]string `json:"replicaTransitionTimeMap"`
+	// +optional
 	Endpoint string `json:"endpoint"`
 	// +optional
 	LastRestoredBackup string `json:"lastRestoredBackup"`

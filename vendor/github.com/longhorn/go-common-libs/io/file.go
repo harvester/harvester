@@ -233,6 +233,7 @@ func GetDiskStat(path string) (diskStat types.DiskStat, err error) {
 		DiskID:           fsidFormatted,
 		Path:             path,
 		Type:             usage.Fstype,
+		Driver:           types.DiskDriverNone,
 		FreeBlocks:       int64(statfs.Bfree),
 		TotalBlocks:      int64(statfs.Blocks),
 		BlockSize:        statfs.Bsize,
