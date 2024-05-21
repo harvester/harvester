@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
@@ -19,6 +20,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/settings"
+	supportBundleUtil "github.com/harvester/harvester/pkg/util/supportbundle"
 )
 
 const (
@@ -43,8 +45,20 @@ func (m *Manager) getManagerName(sb *harvesterv1.SupportBundle) string {
 }
 
 func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy corev1.PullPolicy) error {
-	deployName := m.getManagerName(sb)
+
+	var (
+		nodeTimeout time.Duration
+		deployName  string
+	)
+
+	deployName = m.getManagerName(sb)
 	logrus.Debugf("creating deployment %s with image %s", deployName, image)
+
+	if expiration := settings.SupportBundleNodeTimeout.GetInt(); expiration == 0 {
+		nodeTimeout = time.Duration(supportBundleUtil.SupportBundleNodeTimeoutDefault) * time.Minute
+	} else {
+		nodeTimeout = time.Duration(expiration) * time.Minute
+	}
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -133,6 +147,10 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy
 								{
 									Name:  "SUPPORT_BUNDLE_TAINT_TOLERATION",
 									Value: AdditionalTaintToleration,
+								},
+								{
+									Name:  "SUPPORT_BUNDLE_NODE_TIMEOUT",
+									Value: nodeTimeout.String(),
 								},
 							},
 							Ports: []corev1.ContainerPort{

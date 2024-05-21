@@ -170,6 +170,54 @@ func Test_validateSupportBundleExpiration(t *testing.T) {
 	}
 }
 
+func Test_validateSupportBundleNodeTimeout(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        *v1beta1.Setting
+		expectedErr bool
+	}{
+		{
+			name: "invalid int",
+			args: &v1beta1.Setting{
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeTimeoutName},
+				Value:      "not int",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "negative int",
+			args: &v1beta1.Setting{
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeTimeoutName},
+				Value:      "-1",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "empty input",
+			args: &v1beta1.Setting{
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeTimeoutName},
+				Value:      "",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "positive int",
+			args: &v1beta1.Setting{
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeTimeoutName},
+				Value:      "10",
+			},
+			expectedErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSupportBundleNodeTimeout(tt.args)
+			assert.Equal(t, tt.expectedErr, err != nil)
+		})
+	}
+}
+
 func Test_validateSSLProtocols(t *testing.T) {
 	tests := []struct {
 		name        string
