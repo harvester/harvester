@@ -20,6 +20,7 @@ package v1beta1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -263,10 +264,14 @@ func (c *upgradeCache) GetByIndex(indexName, key string) (result []*v1beta1.Upgr
 	return result, nil
 }
 
+// UpgradeStatusHandler is executed for every added or modified Upgrade. Should return the new status to be updated
 type UpgradeStatusHandler func(obj *v1beta1.Upgrade, status v1beta1.UpgradeStatus) (v1beta1.UpgradeStatus, error)
 
+// UpgradeGeneratingHandler is the top-level handler that is executed for every Upgrade event. It extends UpgradeStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type UpgradeGeneratingHandler func(obj *v1beta1.Upgrade, status v1beta1.UpgradeStatus) ([]runtime.Object, v1beta1.UpgradeStatus, error)
 
+// RegisterUpgradeStatusHandler configures a UpgradeController to execute a UpgradeStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterUpgradeStatusHandler(ctx context.Context, controller UpgradeController, condition condition.Cond, name string, handler UpgradeStatusHandler) {
 	statusHandler := &upgradeStatusHandler{
 		client:    controller,
@@ -276,6 +281,8 @@ func RegisterUpgradeStatusHandler(ctx context.Context, controller UpgradeControl
 	controller.AddGenericHandler(ctx, name, FromUpgradeHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterUpgradeGeneratingHandler configures a UpgradeController to execute a UpgradeGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterUpgradeGeneratingHandler(ctx context.Context, controller UpgradeController, apply apply.Apply,
 	condition condition.Cond, name string, handler UpgradeGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &upgradeGeneratingHandler{
@@ -297,6 +304,7 @@ type upgradeStatusHandler struct {
 	handler   UpgradeStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *upgradeStatusHandler) sync(key string, obj *v1beta1.Upgrade) (*v1beta1.Upgrade, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +350,10 @@ type upgradeGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *upgradeGeneratingHandler) Remove(key string, obj *v1beta1.Upgrade) (*v1beta1.Upgrade, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +363,17 @@ func (a *upgradeGeneratingHandler) Remove(key string, obj *v1beta1.Upgrade) (*v1
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured UpgradeGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *upgradeGeneratingHandler) Handle(obj *v1beta1.Upgrade, status v1beta1.UpgradeStatus) (v1beta1.UpgradeStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +383,41 @@ func (a *upgradeGeneratingHandler) Handle(obj *v1beta1.Upgrade, status v1beta1.U
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *upgradeGeneratingHandler) isNewResourceVersion(obj *v1beta1.Upgrade) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *upgradeGeneratingHandler) storeResourceVersion(obj *v1beta1.Upgrade) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }
