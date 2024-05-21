@@ -5,6 +5,7 @@ FROM golang:1.21-bookworm
 
 ARG DAPPER_HOST_ARCH
 ENV ARCH $DAPPER_HOST_ARCH
+ENV GOTOOLCHAIN=auto
 
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     xz-utils \
