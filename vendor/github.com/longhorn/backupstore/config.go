@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -139,6 +140,27 @@ func volumeExists(driver BackupStoreDriver, volumeName string) bool {
 	return driver.FileExists(getVolumeFilePath(volumeName))
 }
 
+// volumeFolderExists checks if volume folder exists on backupstore
+// by listing all the backup volume name based on the folders on the backupstore
+// since s3 does not support checking folder exist.
+func volumeFolderExists(driver BackupStoreDriver, volumeName string) (bool, error) {
+	jobQueues := workerpool.New(runtime.NumCPU() * 16)
+	defer jobQueues.StopWait()
+
+	volumeNames, err := getVolumeNames(jobQueues, driver)
+	if err != nil {
+		return false, err
+	}
+
+	for _, name := range volumeNames {
+		if volumeName == name {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func getVolumePath(volumeName string) string {
 	checksum := util.GetChecksum([]byte(volumeName))
 	volumeLayer1 := checksum[0:VOLUME_SEPARATE_LAYER1]
@@ -198,7 +220,6 @@ func getVolumeNames(jobQueues *workerpool.WorkerPool, driver BackupStoreDriver) 
 				Payload: lv2Paths,
 				Err:     nil,
 			}
-			return
 		})
 	}
 
@@ -236,7 +257,6 @@ func getVolumeNames(jobQueues *workerpool.WorkerPool, driver BackupStoreDriver) 
 					Payload: volumeNames,
 					Err:     nil,
 				}
-				return
 			})
 		}
 	}

@@ -28,10 +28,6 @@ import (
 	"k8s.io/gengo/types"
 )
 
-var (
-	t = true
-)
-
 func Run(opts cgargs.Options) {
 	customArgs := &cgargs.CustomArgs{
 		Options:      opts,

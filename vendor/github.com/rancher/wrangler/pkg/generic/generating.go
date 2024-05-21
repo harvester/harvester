@@ -10,6 +10,8 @@ type GeneratingHandlerOptions struct {
 	AllowClusterScoped  bool
 	NoOwnerReference    bool
 	DynamicLookup       bool
+	// UniqueApplyForResourceVersion will skip calling apply if the resource version didn't change from the previous execution
+	UniqueApplyForResourceVersion bool
 }
 
 func ConfigureApplyForObject(apply apply.Apply, obj metav1.Object, opts *GeneratingHandlerOptions) apply.Apply {

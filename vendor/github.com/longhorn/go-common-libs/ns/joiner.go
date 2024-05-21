@@ -75,7 +75,7 @@ func (joiners *Joiners) Join() (err error) {
 func (joiners *Joiners) Reset() (err error) {
 	for _, joiner := range *joiners {
 		logrus.Tracef("Resetting namespace: %+v", joiner)
-		joiner = &Joiner{}
+		joiner = &Joiner{} // nolint:ineffassign
 	}
 	return nil
 }

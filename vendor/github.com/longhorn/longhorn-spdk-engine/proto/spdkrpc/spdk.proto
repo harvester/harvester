@@ -50,6 +50,11 @@ service SPDKService {
     rpc DiskDelete(DiskDeleteRequest) returns (google.protobuf.Empty);
     rpc DiskGet(DiskGetRequest) returns (Disk);
 
+    rpc LogSetLevel(LogSetLevelRequest) returns (google.protobuf.Empty);
+    rpc LogSetFlags(LogSetFlagsRequest) returns (google.protobuf.Empty);
+    rpc LogGetLevel(google.protobuf.Empty) returns (LogGetLevelResponse);
+    rpc LogGetFlags(google.protobuf.Empty) returns (LogGetFlagsResponse);
+
     rpc VersionDetailGet(google.protobuf.Empty) returns(VersionDetailGetReply);
 }
 
@@ -61,6 +66,7 @@ message Lvol {
     string parent = 5;
     map<string, bool> children = 6;
     string creation_time = 7;
+    bool user_created = 8;
 }
 
 message Replica {
@@ -210,6 +216,7 @@ message EngineReplicaDeleteRequest {
 message SnapshotRequest {
     string name = 1;
     string snapshot_name = 2;
+    bool user_created = 3;
 }
 
 message SnapshotResponse {
@@ -350,4 +357,20 @@ message DiskGetRequest {
 message DiskDeleteRequest {
     string disk_name = 1;
     string disk_uuid = 2;
+}
+
+message LogSetLevelRequest {
+	string level = 1;
+}
+
+message LogSetFlagsRequest {
+	string flags = 1;
+}
+
+message LogGetLevelResponse {
+	string level = 1;
+}
+
+message LogGetFlagsResponse {
+	string flags = 1;
 }

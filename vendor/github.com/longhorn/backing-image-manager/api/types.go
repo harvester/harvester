@@ -13,6 +13,7 @@ type BackingImage struct {
 	Name             string `json:"name"`
 	UUID             string `json:"uuid"`
 	Size             int64  `json:"size"`
+	VirtualSize      int64  `json:"virtualSize"`
 	ExpectedChecksum string `json:"expectedChecksum"`
 
 	Status BackingImageStatus `json:"status"`
@@ -32,6 +33,7 @@ func RPCToBackingImage(obj *rpc.BackingImageResponse) *BackingImage {
 		Name:             obj.Spec.Name,
 		UUID:             obj.Spec.Uuid,
 		Size:             obj.Spec.Size,
+		VirtualSize:      obj.Spec.VirtualSize,
 		ExpectedChecksum: obj.Spec.Checksum,
 
 		Status: BackingImageStatus{
@@ -112,6 +114,7 @@ type FileInfo struct {
 	FilePath         string `json:"filePath"`
 	UUID             string `json:"uuid"`
 	Size             int64  `json:"size"`
+	VirtualSize      int64  `json:"virtualSize"`
 	State            string `json:"state"`
 	Progress         int    `json:"progress"`
 	ProcessedSize    int64  `json:"processedSize"`

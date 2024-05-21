@@ -352,6 +352,10 @@ func (e *EngineBinary) MetricsGet(*longhorn.Engine) (*Metrics, error) {
 	return nil, fmt.Errorf(ErrNotImplement)
 }
 
+func (e *EngineBinary) RemountReadOnlyVolume(*longhorn.Engine) error {
+	return fmt.Errorf(ErrNotImplement)
+}
+
 // addFlags always adds required flags to args. In addition, if the engine version is high enough, it adds additional
 // engine identity validation flags.
 func (e *EngineBinary) addFlags(args []string) ([]string, error) {
