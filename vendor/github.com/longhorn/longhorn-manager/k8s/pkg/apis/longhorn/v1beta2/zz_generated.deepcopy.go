@@ -1184,6 +1184,13 @@ func (in *EngineStatus) DeepCopyInto(out *EngineStatus) {
 			(*out)[key] = val
 		}
 	}
+	if in.ReplicaTransitionTimeMap != nil {
+		in, out := &in.ReplicaTransitionTimeMap, &out.ReplicaTransitionTimeMap
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.BackupStatus != nil {
 		in, out := &in.BackupStatus, &out.BackupStatus
 		*out = make(map[string]*EngineBackupStatus, len(*in))

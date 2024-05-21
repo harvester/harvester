@@ -40,7 +40,7 @@ func LockFile(path string) (result *os.File, err error) {
 // FileLock is a struct responsible for locking a file.
 type FileLock struct {
 	FilePath string        // The path of the file to lock.
-	File     *os.File      // The file handle aquired after successful lock.
+	File     *os.File      // The file handle acquired after successful lock.
 	Timeout  time.Duration // The maximum time to wait for lock acquisition.
 
 	done  chan struct{} // A channel for signaling lock release.

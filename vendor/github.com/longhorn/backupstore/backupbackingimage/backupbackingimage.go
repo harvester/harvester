@@ -95,10 +95,14 @@ func CreateBackingImageBackup(config *BackupConfig, backupBackingImage *BackupBa
 		return err
 	}
 
-	defer lock.Unlock()
 	if err := lock.Lock(); err != nil {
 		return err
 	}
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			log.WithError(unlockErr).Warn("Failed to unlock backup backing image")
+		}
+	}()
 
 	exists, err := addBackingImageConfigInBackupStore(bsDriver, backupBackingImage)
 	if err != nil {
@@ -123,7 +127,11 @@ func CreateBackingImageBackup(config *BackupConfig, backupBackingImage *BackupBa
 
 	go func() {
 		defer backupOperation.CloseFile()
-		defer lock.Unlock()
+		defer func() {
+			if unlockErr := lock.Unlock(); unlockErr != nil {
+				log.WithError(unlockErr).Warn("Failed to unlock backup backing image")
+			}
+		}()
 
 		backupOperation.UpdateBackupProgress(string(common.ProgressStateInProgress), 0, "", "")
 
@@ -322,10 +330,14 @@ func RestoreBackingImageBackup(config *RestoreConfig, restoreOperation RestoreOp
 		return err
 	}
 
-	defer lock.Unlock()
 	if err := lock.Lock(); err != nil {
 		return err
 	}
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			logrus.WithError(unlockErr).Warn("Failed to unlock restore backing image")
+		}
+	}()
 
 	backupBackingImage, err := loadBackingImageConfigInBackupStore(bsDriver, backingImageName)
 	if err != nil {
@@ -356,8 +368,16 @@ func RestoreBackingImageBackup(config *RestoreConfig, restoreOperation RestoreOp
 	}
 
 	go func() {
-		defer backingImageFile.Close()
-		defer lock.Unlock()
+		defer func() {
+			if closeErr := backingImageFile.Close(); closeErr != nil {
+				logrus.WithError(closeErr).Warn("Failed to close backing image file")
+			}
+		}()
+		defer func() {
+			if unlockErr := lock.Unlock(); unlockErr != nil {
+				logrus.WithError(unlockErr).Warn("Failed to unlock restore")
+			}
+		}()
 
 		progress := &common.Progress{
 			TotalBlockCounts: int64(len(backupBackingImage.Blocks)),
@@ -416,7 +436,7 @@ func checkBackingImageFile(backingImageFilePath string, backupBackingImage *Back
 	// We want to truncate regular files, but not device
 	if stat.Mode()&os.ModeType == 0 {
 		if err := backingImageFile.Truncate(backupBackingImage.Size); err != nil {
-			errors.Wrapf(err, "failed to truncate backing image")
+			err = errors.Wrapf(err, "failed to truncate backing image")
 			return nil, err
 		}
 	}
@@ -477,12 +497,7 @@ func restoreBlock(bsDriver backupstore.BackupStoreDriver, backingImageFile *os.F
 
 func restoreBlockToFile(bsDriver backupstore.BackupStoreDriver, backingImageFile *os.File, decompression string, blk common.BlockMapping) error {
 	blkFile := getBackingImageBlockFilePath(blk.BlockChecksum)
-	rc, err := bsDriver.Read(blkFile)
-	if err != nil {
-		return err
-	}
-	defer rc.Close()
-	r, err := util.DecompressAndVerify(decompression, rc, blk.BlockChecksum)
+	r, err := backupstore.DecompressAndVerifyWithFallback(bsDriver, blkFile, decompression, blk.BlockChecksum)
 	if err != nil {
 		return err
 	}
@@ -517,7 +532,11 @@ func RemoveBackingImageBackup(backupURL string) (err error) {
 	if err := lock.Lock(); err != nil {
 		return err
 	}
-	defer lock.Unlock()
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			logrus.WithError(unlockErr).Warn("Failed to unlock restore")
+		}
+	}()
 
 	// If we fail to load the backup we still want to proceed with the deletion of the backup file
 	backupBackingImage, err := loadBackingImageConfigInBackupStore(bsDriver, backingImageName)

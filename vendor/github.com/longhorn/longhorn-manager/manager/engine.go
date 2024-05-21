@@ -18,6 +18,9 @@ import (
 
 const (
 	BackupStatusQueryInterval = 2 * time.Second
+
+	// minSyncBackupTargetIntervalSec interval in seconds to synchronize backup target to avoid frequent sync
+	minSyncBackupTargetIntervalSec = 10
 )
 
 func (m *VolumeManager) ListSnapshotInfos(volumeName string) (map[string]*longhorn.SnapshotInfo, error) {
@@ -328,6 +331,19 @@ func (m *VolumeManager) ListBackupTargetsSorted() ([]*longhorn.BackupTarget, err
 	return backupTargets, nil
 }
 
+func (m *VolumeManager) GetBackupTarget(backupTargetName string) (*longhorn.BackupTarget, error) {
+	return m.ds.GetBackupTarget(backupTargetName)
+}
+
+func (m *VolumeManager) SyncBackupTarget(backupTarget *longhorn.BackupTarget) (*longhorn.BackupTarget, error) {
+	now := metav1.Time{Time: time.Now().UTC()}
+	if now.Sub(backupTarget.Spec.SyncRequestedAt.Time).Seconds() < minSyncBackupTargetIntervalSec {
+		return nil, errors.Errorf("cannot synchronize backup target '%v' in %v seconds", backupTarget.Name, minSyncBackupTargetIntervalSec)
+	}
+	backupTarget.Spec.SyncRequestedAt = metav1.Time{Time: time.Now().UTC()}
+	return m.ds.UpdateBackupTarget(backupTarget)
+}
+
 func (m *VolumeManager) ListBackupVolumes() (map[string]*longhorn.BackupVolume, error) {
 	return m.ds.ListBackupVolumes()
 }
@@ -361,6 +377,15 @@ func (m *VolumeManager) GetBackupVolume(volumeName string) (*longhorn.BackupVolu
 	}
 
 	return backupVolume, err
+}
+
+func (m *VolumeManager) SyncBackupVolume(backupVolume *longhorn.BackupVolume) (*longhorn.BackupVolume, error) {
+	now := metav1.Time{Time: time.Now().UTC()}
+	if now.Sub(backupVolume.Spec.SyncRequestedAt.Time).Seconds() < minSyncBackupTargetIntervalSec {
+		return nil, errors.Errorf("failed to synchronize backup volume '%v' in %v seconds", backupVolume.Name, minSyncBackupTargetIntervalSec)
+	}
+	backupVolume.Spec.SyncRequestedAt = metav1.Time{Time: time.Now().UTC()}
+	return m.ds.UpdateBackupVolume(backupVolume)
 }
 
 func (m *VolumeManager) DeleteBackupVolume(volumeName string) error {

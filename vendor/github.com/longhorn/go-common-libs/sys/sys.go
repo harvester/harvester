@@ -56,13 +56,13 @@ func GetOSDistro(osReleaseContent string) (string, error) {
 
 // GetSystemBlockDeviceInfo returns the block device info for the system.
 func GetSystemBlockDeviceInfo() (map[string]types.BlockDeviceInfo, error) {
-	return getSystemBlockDeviceInfo(os.ReadDir, os.ReadFile)
+	return getSystemBlockDeviceInfo(types.SysClassBlockDirectory, os.ReadDir, os.ReadFile)
 }
 
 // getSystemBlockDeviceInfo returns the block device info for the system.
 // It injects the readDirFn and readFileFn for testing.
-func getSystemBlockDeviceInfo(readDirFn func(string) ([]os.DirEntry, error), readFileFn func(string) ([]byte, error)) (map[string]types.BlockDeviceInfo, error) {
-	devices, err := readDirFn(types.SysClassBlockDirectory)
+func getSystemBlockDeviceInfo(sysClassBlockDirectory string, readDirFn func(string) ([]os.DirEntry, error), readFileFn func(string) ([]byte, error)) (map[string]types.BlockDeviceInfo, error) {
+	devices, err := readDirFn(sysClassBlockDirectory)
 	if err != nil {
 		return nil, err
 	}
@@ -82,12 +82,12 @@ func getSystemBlockDeviceInfo(readDirFn func(string) ([]os.DirEntry, error), rea
 	deviceInfo := make(map[string]types.BlockDeviceInfo, len(devices))
 	for _, device := range devices {
 		deviceName := device.Name()
-		devicePath := filepath.Join(types.SysClassBlockDirectory, deviceName, "dev")
+		devicePath := filepath.Join(sysClassBlockDirectory, deviceName, "dev")
 
 		if _, err := os.Stat(devicePath); os.IsNotExist(err) {
 			// If the device path does not exist, check if the device path exists in the "device" directory.
 			// Some devices such as "nvme0cn1" created from SPDK do not have "dev" file under their sys/class/block directory.
-			alternativeDevicePath := filepath.Join(types.SysClassBlockDirectory, deviceName, "device", "dev")
+			alternativeDevicePath := filepath.Join(sysClassBlockDirectory, deviceName, "device", "dev")
 			if _, altErr := os.Stat(alternativeDevicePath); os.IsNotExist(altErr) {
 				errs := fmt.Errorf("primary error: %w; alternative error: %w", err, altErr)
 				logrus.WithFields(logrus.Fields{

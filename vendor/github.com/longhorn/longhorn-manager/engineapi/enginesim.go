@@ -190,7 +190,7 @@ func (e *EngineSimulator) SnapshotPurgeStatus(*longhorn.Engine) (map[string]*lon
 	return nil, fmt.Errorf(ErrNotImplement)
 }
 
-func (e *EngineSimulator) SnapshotBackup(engine *longhorn.Engine, backupName, snapName, backupTarget,
+func (e *EngineSimulator) SnapshotBackup(engine *longhorn.Engine, snapshotName, backupName, backupTarget,
 	backingImageName, backingImageChecksum, compressionMethod string, concurrentLimit int, storageClassName string,
 	labels, credential map[string]string) (string, string, error) {
 	return "", "", fmt.Errorf(ErrNotImplement)
@@ -274,5 +274,9 @@ func (e *EngineSimulator) MetricsGet(*longhorn.Engine) (*Metrics, error) {
 }
 
 func (e *EngineSimulator) CleanupBackupMountPoints() error {
+	return fmt.Errorf(ErrNotImplement)
+}
+
+func (e *EngineSimulator) RemountReadOnlyVolume(*longhorn.Engine) error {
 	return fmt.Errorf(ErrNotImplement)
 }
