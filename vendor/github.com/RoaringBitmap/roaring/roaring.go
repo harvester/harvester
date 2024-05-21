@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	"github.com/RoaringBitmap/roaring/internal"
+	"github.com/bits-and-blooms/bitset"
 )
 
 // Bitmap represents a compressed bitmap where you can add integers.
@@ -53,17 +54,186 @@ func (rb *Bitmap) ToBytes() ([]byte, error) {
 	return rb.highlowcontainer.toBytes()
 }
 
+const wordSize = uint64(64)
+const log2WordSize = uint64(6)
+const capacity = ^uint64(0)
+const bitmapContainerSize = (1 << 16) / 64 // bitmap size in words
+
+// DenseSize returns the size of the bitmap when stored as a dense bitmap.
+func (rb *Bitmap) DenseSize() uint64 {
+	if rb.highlowcontainer.size() == 0 {
+		return 0
+	}
+
+	maximum := 1 + uint64(rb.Maximum())
+	if maximum > (capacity - wordSize + 1) {
+		return uint64(capacity >> log2WordSize)
+	}
+
+	return uint64((maximum + (wordSize - 1)) >> log2WordSize)
+}
+
+// ToDense returns a slice of uint64s representing the bitmap as a dense bitmap.
+// Useful to convert a roaring bitmap to a format that can be used by other libraries
+// like https://github.com/bits-and-blooms/bitset or https://github.com/kelindar/bitmap
+func (rb *Bitmap) ToDense() []uint64 {
+	sz := rb.DenseSize()
+	if sz == 0 {
+		return nil
+	}
+
+	bitmap := make([]uint64, sz)
+	rb.WriteDenseTo(bitmap)
+	return bitmap
+}
+
+// FromDense creates a bitmap from a slice of uint64s representing the bitmap as a dense bitmap.
+// Useful to convert bitmaps from libraries like https://github.com/bits-and-blooms/bitset or
+// https://github.com/kelindar/bitmap into roaring bitmaps fast and with convenience.
+//
+// This function will not create any run containers, only array and bitmap containers. It's up to
+// the caller to call RunOptimize if they want to further compress the runs of consecutive values.
+//
+// When doCopy is true, the bitmap is copied into a new slice for each bitmap container.
+// This is useful when the bitmap is going to be modified after this function returns or if it's
+// undesirable to hold references to large bitmaps which the GC would not be able to collect.
+// One copy can still happen even when doCopy is false if the bitmap length is not divisible
+// by bitmapContainerSize.
+//
+// See also FromBitSet.
+func FromDense(bitmap []uint64, doCopy bool) *Bitmap {
+	sz := (len(bitmap) + bitmapContainerSize - 1) / bitmapContainerSize // round up
+	rb := &Bitmap{
+		highlowcontainer: roaringArray{
+			containers:      make([]container, 0, sz),
+			keys:            make([]uint16, 0, sz),
+			needCopyOnWrite: make([]bool, 0, sz),
+		},
+	}
+	rb.FromDense(bitmap, doCopy)
+	return rb
+}
+
+// FromDense unmarshalls from a slice of uint64s representing the bitmap as a dense bitmap.
+// Useful to convert bitmaps from libraries like https://github.com/bits-and-blooms/bitset or
+// https://github.com/kelindar/bitmap into roaring bitmaps fast and with convenience.
+// Callers are responsible for ensuring that the bitmap is empty before calling this function.
+//
+// This function will not create any run containers, only array and bitmap containers. It is up to
+// the caller to call RunOptimize if they want to further compress the runs of consecutive values.
+//
+// When doCopy is true, the bitmap is copied into a new slice for each bitmap container.
+// This is useful when the bitmap is going to be modified after this function returns or if it's
+// undesirable to hold references to large bitmaps which the GC would not be able to collect.
+// One copy can still happen even when doCopy is false if the bitmap length is not divisible
+// by bitmapContainerSize.
+//
+// See FromBitSet.
+func (rb *Bitmap) FromDense(bitmap []uint64, doCopy bool) {
+	if len(bitmap) == 0 {
+		return
+	}
+
+	var k uint16
+	const size = bitmapContainerSize
+
+	for len(bitmap) > 0 {
+		hi := size
+		if len(bitmap) < size {
+			hi = len(bitmap)
+		}
+
+		words := bitmap[:hi]
+		count := int(popcntSlice(words))
+
+		switch {
+		case count > arrayDefaultMaxSize:
+			c := &bitmapContainer{cardinality: count, bitmap: words}
+			cow := true
+
+			if doCopy || len(words) < size {
+				c.bitmap = make([]uint64, size)
+				copy(c.bitmap, words)
+				cow = false
+			}
+
+			rb.highlowcontainer.appendContainer(k, c, cow)
+
+		case count > 0:
+			c := &arrayContainer{content: make([]uint16, count)}
+			var pos, base int
+			for _, w := range words {
+				for w != 0 {
+					t := w & -w
+					c.content[pos] = uint16(base + int(popcount(t-1)))
+					pos++
+					w ^= t
+				}
+				base += 64
+			}
+			rb.highlowcontainer.appendContainer(k, c, false)
+		}
+
+		bitmap = bitmap[hi:]
+		k++
+	}
+}
+
+// WriteDenseTo writes to a slice of uint64s representing the bitmap as a dense bitmap.
+// Callers are responsible for allocating enough space in the bitmap using DenseSize.
+// Useful to convert a roaring bitmap to a format that can be used by other libraries
+// like https://github.com/bits-and-blooms/bitset or https://github.com/kelindar/bitmap
+func (rb *Bitmap) WriteDenseTo(bitmap []uint64) {
+	for i, ct := range rb.highlowcontainer.containers {
+		hb := uint32(rb.highlowcontainer.keys[i]) << 16
+
+		switch c := ct.(type) {
+		case *arrayContainer:
+			for _, x := range c.content {
+				n := int(hb | uint32(x))
+				bitmap[n>>log2WordSize] |= uint64(1) << uint(x%64)
+			}
+
+		case *bitmapContainer:
+			copy(bitmap[int(hb)>>log2WordSize:], c.bitmap)
+
+		case *runContainer16:
+			for j := range c.iv {
+				start := uint32(c.iv[j].start)
+				end := start + uint32(c.iv[j].length) + 1
+				lo := int(hb|start) >> log2WordSize
+				hi := int(hb|(end-1)) >> log2WordSize
+
+				if lo == hi {
+					bitmap[lo] |= (^uint64(0) << uint(start%64)) &
+						(^uint64(0) >> (uint(-end) % 64))
+					continue
+				}
+
+				bitmap[lo] |= ^uint64(0) << uint(start%64)
+				for n := lo + 1; n < hi; n++ {
+					bitmap[n] = ^uint64(0)
+				}
+				bitmap[hi] |= ^uint64(0) >> (uint(-end) % 64)
+			}
+		default:
+			panic("unsupported container type")
+		}
+	}
+}
+
 // Checksum computes a hash (currently FNV-1a) for a bitmap that is suitable for
 // using bitmaps as elements in hash sets or as keys in hash maps, as well as
 // generally quicker comparisons.
 // The implementation is biased towards efficiency in little endian machines, so
 // expect some extra CPU cycles and memory to be used if your machine is big endian.
-// Likewise, don't use this to verify integrity unless you're certain you'll load
-// the bitmap on a machine with the same endianess used to create it.
+// Likewise, do not use this to verify integrity unless you are certain you will load
+// the bitmap on a machine with the same endianess used to create it. (Thankfully
+// very few people use big endian machines these days.)
 func (rb *Bitmap) Checksum() uint64 {
 	const (
 		offset = 14695981039346656037
-		prime = 1099511628211
+		prime  = 1099511628211
 	)
 
 	var bytes []byte
@@ -106,6 +276,20 @@ func (rb *Bitmap) Checksum() uint64 {
 	return hash
 }
 
+// FromUnsafeBytes reads a serialized version of this bitmap from the byte buffer without copy.
+// It is the caller's responsibility to ensure that the input data is not modified and remains valid for the entire lifetime of this bitmap.
+// This method avoids small allocations but holds references to the input data buffer. It is GC-friendly, but it may consume more memory eventually.
+// The containers in the resulting bitmap are immutable containers tied to the provided byte array and they rely on
+// copy-on-write which means that modifying them creates copies. Thus FromUnsafeBytes is more likely to be appropriate for read-only use cases,
+// when the resulting bitmap can be considered immutable.
+//
+// See also the FromBuffer function.
+// See https://github.com/RoaringBitmap/roaring/pull/395 for more details.
+func (rb *Bitmap) FromUnsafeBytes(data []byte, cookieHeader ...byte) (p int64, err error) {
+	stream := internal.NewByteBuffer(data)
+	return rb.ReadFrom(stream)
+}
+
 // ReadFrom reads a serialized version of this bitmap from stream.
 // The format is compatible with other RoaringBitmap
 // implementations (Java, C) and is documented here:
@@ -114,12 +298,18 @@ func (rb *Bitmap) Checksum() uint64 {
 // So add cookieHeader to accept the 4-byte data that has been read in roaring64.ReadFrom.
 // It is not necessary to pass cookieHeader when call roaring.ReadFrom to read the roaring32 data directly.
 func (rb *Bitmap) ReadFrom(reader io.Reader, cookieHeader ...byte) (p int64, err error) {
-	stream := internal.ByteInputAdapterPool.Get().(*internal.ByteInputAdapter)
-	stream.Reset(reader)
+	stream, ok := reader.(internal.ByteInput)
+	if !ok {
+		byteInputAdapter := internal.ByteInputAdapterPool.Get().(*internal.ByteInputAdapter)
+		byteInputAdapter.Reset(reader)
+		stream = byteInputAdapter
+	}
 
 	p, err = rb.highlowcontainer.readFrom(stream, cookieHeader...)
-	internal.ByteInputAdapterPool.Put(stream)
 
+	if !ok {
+		internal.ByteInputAdapterPool.Put(stream.(*internal.ByteInputAdapter))
+	}
 	return
 }
 
@@ -139,12 +329,17 @@ func (rb *Bitmap) ReadFrom(reader io.Reader, cookieHeader ...byte) (p int64, err
 // You should *not* change the copy-on-write status of the resulting
 // bitmaps (SetCopyOnWrite).
 //
+// Thus FromBuffer is more likely to be appropriate for read-only use cases,
+// when the resulting bitmap can be considered immutable.
+//
 // If buf becomes unavailable, then a bitmap created with
 // FromBuffer would be effectively broken. Furthermore, any
 // bitmap derived from this bitmap (e.g., via Or, And) might
 // also be broken. Thus, before making buf unavailable, you should
 // call CloneCopyOnWriteContainers on all such bitmaps.
 //
+// See also the FromUnsafeBytes function which can have better performance
+// in some cases.
 func (rb *Bitmap) FromBuffer(buf []byte) (p int64, err error) {
 	stream := internal.ByteBufferPool.Get().(*internal.ByteBuffer)
 	stream.Reset(buf)
@@ -194,6 +389,16 @@ func (rb *Bitmap) Clear() {
 	rb.highlowcontainer.clear()
 }
 
+// ToBitSet copies the content of the RoaringBitmap into a bitset.BitSet instance
+func (rb *Bitmap) ToBitSet() *bitset.BitSet {
+	return bitset.From(rb.ToDense())
+}
+
+// FromBitSet creates a new RoaringBitmap from a bitset.BitSet instance
+func FromBitSet(bitset *bitset.BitSet) *Bitmap {
+	return FromDense(bitset.Bytes(), false)
+}
+
 // ToArray creates a new slice containing all of the integers stored in the Bitmap in sorted order
 func (rb *Bitmap) ToArray() []uint32 {
 	array := make([]uint32, rb.GetCardinality())
@@ -233,7 +438,7 @@ func BoundSerializedSizeInBytes(cardinality uint64, universeSize uint64) uint64 
 	contnbr := (universeSize + uint64(65535)) / uint64(65536)
 	if contnbr > cardinality {
 		contnbr = cardinality
-		// we can't have more containers than we have values
+		// we cannot have more containers than we have values
 	}
 	headermax := 8*contnbr + 4
 	if 4 > (contnbr+7)/8 {
@@ -276,9 +481,9 @@ type intIterator struct {
 	// This way, instead of making up-to 64k allocations per full iteration
 	// we get a single allocation and simply reinitialize the appropriate
 	// iterator and point to it in the generic `iter` member on each key bound.
-	shortIter        shortIterator
-	runIter          runIterator16
-	bitmapIter       bitmapContainerShortIterator
+	shortIter  shortIterator
+	runIter    runIterator16
+	bitmapIter bitmapContainerShortIterator
 }
 
 // HasNext returns true if there are more integers to iterate over
@@ -341,14 +546,13 @@ func (ii *intIterator) AdvanceIfNeeded(minval uint32) {
 // IntIterator is meant to allow you to iterate through the values of a bitmap, see Initialize(a *Bitmap)
 type IntIterator = intIterator
 
-
 // Initialize configures the existing iterator so that it can iterate through the values of
 // the provided bitmap.
 // The iteration results are undefined if the bitmap is modified (e.g., with Add or Remove).
-func (p *intIterator) Initialize(a *Bitmap) {
-	p.pos = 0
-	p.highlowcontainer = &a.highlowcontainer
-	p.init()
+func (ii *intIterator) Initialize(a *Bitmap) {
+	ii.pos = 0
+	ii.highlowcontainer = &a.highlowcontainer
+	ii.init()
 }
 
 type intReverseIterator struct {
@@ -357,9 +561,9 @@ type intReverseIterator struct {
 	iter             shortIterable
 	highlowcontainer *roaringArray
 
-	shortIter        reverseIterator
-	runIter          runReverseIterator16
-	bitmapIter       reverseBitmapContainerShortIterator
+	shortIter  reverseIterator
+	runIter    runReverseIterator16
+	bitmapIter reverseBitmapContainerShortIterator
 }
 
 // HasNext returns true if there are more integers to iterate over
@@ -414,10 +618,10 @@ type IntReverseIterator = intReverseIterator
 // Initialize configures the existing iterator so that it can iterate through the values of
 // the provided bitmap.
 // The iteration results are undefined if the bitmap is modified (e.g., with Add or Remove).
-func (p *intReverseIterator) Initialize(a *Bitmap) {
-	p.highlowcontainer = &a.highlowcontainer
-	p.pos = a.highlowcontainer.size() - 1
-	p.init()
+func (ii *intReverseIterator) Initialize(a *Bitmap) {
+	ii.highlowcontainer = &a.highlowcontainer
+	ii.pos = a.highlowcontainer.size() - 1
+	ii.init()
 }
 
 // ManyIntIterable allows you to iterate over the values in a Bitmap
@@ -434,9 +638,9 @@ type manyIntIterator struct {
 	iter             manyIterable
 	highlowcontainer *roaringArray
 
-	shortIter        shortIterator
-	runIter          runIterator16
-	bitmapIter       bitmapContainerManyIterator
+	shortIter  shortIterator
+	runIter    runIterator16
+	bitmapIter bitmapContainerManyIterator
 }
 
 func (ii *manyIntIterator) init() {
@@ -495,17 +699,16 @@ func (ii *manyIntIterator) NextMany64(hs64 uint64, buf []uint64) int {
 	return n
 }
 
-
 // ManyIntIterator is meant to allow you to iterate through the values of a bitmap, see Initialize(a *Bitmap)
 type ManyIntIterator = manyIntIterator
 
 // Initialize configures the existing iterator so that it can iterate through the values of
 // the provided bitmap.
 // The iteration results are undefined if the bitmap is modified (e.g., with Add or Remove).
-func (p *manyIntIterator) Initialize(a *Bitmap) {
-	p.pos = 0
-	p.highlowcontainer = &a.highlowcontainer
-	p.init()
+func (ii *manyIntIterator) Initialize(a *Bitmap) {
+	ii.pos = 0
+	ii.highlowcontainer = &a.highlowcontainer
+	ii.init()
 }
 
 // String creates a string representation of the Bitmap
@@ -569,7 +772,7 @@ func (rb *Bitmap) Iterate(cb func(x uint32) bool) {
 // Iterator creates a new IntPeekable to iterate over the integers contained in the bitmap, in sorted order;
 // the iterator becomes invalid if the bitmap is modified (e.g., with Add or Remove).
 func (rb *Bitmap) Iterator() IntPeekable {
-    p := new(intIterator)
+	p := new(intIterator)
 	p.Initialize(rb)
 	return p
 }
@@ -847,7 +1050,7 @@ func (rb *Bitmap) Select(x uint32) (uint32, error) {
 			return uint32(key)<<16 + uint32(c.selectInt(uint16(remaining))), nil
 		}
 	}
-	return 0, fmt.Errorf("can't find %dth integer in a bitmap with only %d items", x, rb.GetCardinality())
+	return 0, fmt.Errorf("cannot find %dth integer in a bitmap with only %d items", x, rb.GetCardinality())
 }
 
 // And computes the intersection between two bitmaps and stores the result in the current bitmap

@@ -53,3 +53,7 @@ func (p *Proxy) VolumeSnapshotMaxSizeSet(e *longhorn.Engine) error {
 	return p.grpcClient.VolumeSnapshotMaxSizeSet(string(e.Spec.DataEngine), e.Name, e.Spec.VolumeName,
 		p.DirectToURL(e), e.Spec.SnapshotMaxSize)
 }
+
+func (p *Proxy) RemountReadOnlyVolume(e *longhorn.Engine) error {
+	return p.grpcClient.RemountReadOnlyVolume(e.Spec.VolumeName)
+}
