@@ -167,7 +167,7 @@ func parseBackupVolumeNamesList(output string) ([]string, error) {
 }
 
 // BackupVolumeNameList returns a list of backup volume names
-func (btc *BackupTargetClient) BackupVolumeNameList(destURL string, credential map[string]string) ([]string, error) {
+func (btc *BackupTargetClient) BackupVolumeNameList() ([]string, error) {
 	output, err := btc.ExecuteEngineBinary("backup", "ls", "--volume-only", btc.URL)
 	if err != nil {
 		if types.ErrorIsNotFound(err) {

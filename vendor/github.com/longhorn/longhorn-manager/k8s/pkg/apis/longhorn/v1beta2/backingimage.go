@@ -56,6 +56,9 @@ type BackingImageStatus struct {
 	UUID string `json:"uuid"`
 	// +optional
 	Size int64 `json:"size"`
+	// Virtual size of image, which may be larger than physical size. Will be zero until known (e.g. while a backing image is uploading)
+	// +optional
+	VirtualSize int64 `json:"virtualSize"`
 	// +optional
 	Checksum string `json:"checksum"`
 	// +optional
@@ -74,6 +77,7 @@ type BackingImageStatus struct {
 // +kubebuilder:printcolumn:name="UUID",type=string,JSONPath=`.status.uuid`,description="The system generated UUID"
 // +kubebuilder:printcolumn:name="SourceType",type=string,JSONPath=`.spec.sourceType`,description="The source of the backing image file data"
 // +kubebuilder:printcolumn:name="Size",type=string,JSONPath=`.status.size`,description="The backing image file size in each disk"
+// +kubebuilder:printcolumn:name="VirtualSize",type=string,JSONPath=`.status.virtualSize`,description="The virtual size of the image (may be larger than file size)"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // BackingImage is where Longhorn stores backing image object.

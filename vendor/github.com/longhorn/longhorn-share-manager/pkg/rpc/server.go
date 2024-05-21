@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -20,7 +19,7 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	lhns "github.com/longhorn/go-common-libs/ns"
+	lhexec "github.com/longhorn/go-common-libs/exec"
 	lhtypes "github.com/longhorn/go-common-libs/types"
 
 	"github.com/longhorn/longhorn-share-manager/pkg/server"
@@ -105,13 +104,8 @@ func (s *ShareManagerServer) FilesystemTrim(ctx context.Context, req *Filesystem
 		return &emptypb.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
 	}
 
-	namespaces := []lhtypes.Namespace{lhtypes.NamespaceMnt, lhtypes.NamespaceNet}
-	nsexec, err := lhns.NewNamespaceExecutor(lhns.GetDefaultProcessName(), lhtypes.HostProcDirectory, namespaces)
-	if err != nil {
-		return &empty.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
-	}
-
-	_, err = nsexec.Execute(lhtypes.BinaryFstrim, []string{mountPath}, lhtypes.ExecuteDefaultTimeout)
+	execute := lhexec.NewExecutor().Execute
+	_, err = execute([]string{}, lhtypes.BinaryFstrim, []string{mountPath}, lhtypes.ExecuteDefaultTimeout)
 	if err != nil {
 		return &emptypb.Empty{}, grpcstatus.Error(grpccodes.Internal, err.Error())
 	}

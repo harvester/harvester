@@ -46,7 +46,7 @@ func NewNamespaceExecutor(processName, procDirectory string, namespaces []types.
 }
 
 // prepareCommandArgs prepares the nsenter command arguments.
-func (nsexec *Executor) prepareCommandArgs(binary string, args []string) []string {
+func (nsexec *Executor) prepareCommandArgs(binary string, args, envs []string) []string {
 	cmdArgs := []string{}
 	for _, ns := range nsexec.namespaces {
 		nsPath := filepath.Join(nsexec.nsDirectory, ns.String())
@@ -59,24 +59,29 @@ func (nsexec *Executor) prepareCommandArgs(binary string, args []string) []strin
 			cmdArgs = append(cmdArgs, "--net="+nsPath)
 		}
 	}
+	if len(envs) > 0 {
+		cmdArgs = append(cmdArgs, "env", "-i")
+		cmdArgs = append(cmdArgs, envs...)
+	}
+
 	cmdArgs = append(cmdArgs, binary)
 	return append(cmdArgs, args...)
 }
 
 // Execute executes the command in the namespace. If NsDirectory is empty,
 // it will execute the command in the current namespace.
-func (nsexec *Executor) Execute(binary string, args []string, timeout time.Duration) (string, error) {
-	return nsexec.executor.Execute(nil, types.NsBinary, nsexec.prepareCommandArgs(binary, args), timeout)
+func (nsexec *Executor) Execute(envs []string, binary string, args []string, timeout time.Duration) (string, error) {
+	return nsexec.executor.Execute(nil, types.NsBinary, nsexec.prepareCommandArgs(binary, args, envs), timeout)
 }
 
 // ExecuteWithStdin executes the command in the namespace with stdin.
 // If NsDirectory is empty, it will execute the command in the current namespace.
-func (nsexec *Executor) ExecuteWithStdin(binary string, args []string, stdinString string, timeout time.Duration) (string, error) {
-	return nsexec.executor.ExecuteWithStdin(types.NsBinary, nsexec.prepareCommandArgs(binary, args), stdinString, timeout)
+func (nsexec *Executor) ExecuteWithStdin(envs []string, binary string, args []string, stdinString string, timeout time.Duration) (string, error) {
+	return nsexec.executor.ExecuteWithStdin(types.NsBinary, nsexec.prepareCommandArgs(binary, args, envs), stdinString, timeout)
 }
 
 // ExecuteWithStdinPipe executes the command in the namespace with stdin pipe.
 // If NsDirectory is empty, it will execute the command in the current namespace.
-func (nsexec *Executor) ExecuteWithStdinPipe(binary string, args []string, stdinString string, timeout time.Duration) (string, error) {
-	return nsexec.executor.ExecuteWithStdinPipe(types.NsBinary, nsexec.prepareCommandArgs(binary, args), stdinString, timeout)
+func (nsexec *Executor) ExecuteWithStdinPipe(envs []string, binary string, args []string, stdinString string, timeout time.Duration) (string, error) {
+	return nsexec.executor.ExecuteWithStdinPipe(types.NsBinary, nsexec.prepareCommandArgs(binary, args, envs), stdinString, timeout)
 }

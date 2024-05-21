@@ -44,7 +44,5 @@ const (
 )
 
 const (
-	GlobalMountPathPattern = "/host/var/lib/kubelet/plugins/kubernetes.io/csi/driver.longhorn.io/*/globalmount"
-
 	EngineConditionFilesystemReadOnly = "FilesystemReadOnly"
 )

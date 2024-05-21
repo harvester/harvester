@@ -65,5 +65,5 @@ func (nsexec *Executor) CryptsetupWithPassphrase(passphrase string, args []strin
 	// For Talos Linux, cryptsetup comes pre-installed in the host namespace
 	// (ref: https://github.com/siderolabs/pkgs/blob/release-1.4/reproducibility/pkg.yaml#L10)
 	// for the [Disk Encryption](https://www.talos.dev/v1.4/talos-guides/configuration/disk-encryption/).
-	return nsexec.ExecuteWithStdin(types.BinaryCryptsetup, args, passphrase, timeout)
+	return nsexec.ExecuteWithStdin(nil, types.BinaryCryptsetup, args, passphrase, timeout)
 }

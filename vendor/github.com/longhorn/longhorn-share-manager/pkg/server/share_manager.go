@@ -15,6 +15,8 @@ import (
 	"github.com/longhorn/longhorn-share-manager/pkg/server/nfs"
 	"github.com/longhorn/longhorn-share-manager/pkg/types"
 	"github.com/longhorn/longhorn-share-manager/pkg/volume"
+
+	commonUtils "github.com/longhorn/go-common-libs/utils"
 )
 
 const waitBetweenChecks = time.Second * 5
@@ -246,7 +248,7 @@ func (m *ShareManager) hasHealthyVolume() error {
 	mounter := mount.New("")
 	mountPoints, _ := mounter.List()
 	for _, mp := range mountPoints {
-		if mp.Path == mountPath && isMountPointReadOnly(mp) {
+		if mp.Path == mountPath && commonUtils.IsMountPointReadOnly(mp) {
 			return fmt.Errorf(ReadOnlyErr, mountPath)
 		}
 	}
@@ -278,13 +280,4 @@ func (m *ShareManager) ShareIsExported() bool {
 
 func (m *ShareManager) Shutdown() {
 	m.shutdown()
-}
-
-func isMountPointReadOnly(mp mount.MountPoint) bool {
-	for _, opt := range mp.Opts {
-		if opt == "ro" {
-			return true
-		}
-	}
-	return false
 }

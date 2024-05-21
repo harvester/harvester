@@ -261,6 +261,20 @@ func TimestampWithinLimit(latest time.Time, ts string, limit time.Duration) bool
 	return deadline.After(latest)
 }
 
+// TimestampAfterTimestamp returns true if timestamp1 is after timestamp2. It returns false otherwise and an error if
+// either timestamp cannot be parsed.
+func TimestampAfterTimestamp(timestamp1 string, timestamp2 string) (bool, error) {
+	time1, err := time.Parse(time.RFC3339, timestamp1)
+	if err != nil {
+		return false, errors.Wrapf(err, "cannot parse timestamp %v", timestamp1)
+	}
+	time2, err := time.Parse(time.RFC3339, timestamp2)
+	if err != nil {
+		return false, errors.Wrapf(err, "cannot parse timestamp %v", timestamp2)
+	}
+	return time1.After(time2), nil
+}
+
 func ValidateString(name string) bool {
 	validName := regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]+$`)
 	return validName.MatchString(name)
@@ -720,7 +734,7 @@ func TrimFilesystem(volumeName string, encryptedDevice bool) error {
 		return err
 	}
 
-	_, err = nsexec.Execute(lhtypes.BinaryFstrim, []string{validMountpoint}, lhtypes.ExecuteDefaultTimeout)
+	_, err = nsexec.Execute([]string{}, lhtypes.BinaryFstrim, []string{validMountpoint}, lhtypes.ExecuteDefaultTimeout)
 	if err != nil {
 		return errors.Wrapf(err, "cannot find volume %v mount info on host", volumeName)
 	}
