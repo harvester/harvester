@@ -76,6 +76,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.SupportBundleImageName:                            validateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateSupportBundleTimeout,
 	settings.SupportBundleExpirationSettingName:                validateSupportBundleExpiration,
+	settings.SupportBundleNodeTimeoutName:                      validateSupportBundleNodeTimeout,
 	settings.OvercommitConfigSettingName:                       validateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:                         validateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:                        validateSSLCertificates,
@@ -544,6 +545,21 @@ func validateUpdateSupportBundleTimeout(_ *v1beta1.Setting, newSetting *v1beta1.
 }
 
 func validateSupportBundleExpiration(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	i, err := strconv.Atoi(setting.Value)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+	if i < 0 {
+		return werror.NewInvalidError("expiration can't be negative", "value")
+	}
+	return nil
+}
+
+func validateSupportBundleNodeTimeout(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
 	}
