@@ -338,8 +338,7 @@ func (o *desiredSet) process(debugID string, set labels.Selector, gvk schema.Gro
 	}
 }
 
-func (o *desiredSet) list(namespaced bool, informer cache.SharedIndexInformer, client dynamic.NamespaceableResourceInterface,
-	selector labels.Selector, desiredObjects objectset.ObjectByKey) (map[objectset.ObjectKey]runtime.Object, error) {
+func (o *desiredSet) list(namespaced bool, informer cache.SharedIndexInformer, client dynamic.NamespaceableResourceInterface, selector labels.Selector, desiredObjects objectset.ObjectByKey) (map[objectset.ObjectKey]runtime.Object, error) {
 	var (
 		errs []error
 		objs = objectset.ObjectByKey{}
@@ -388,12 +387,17 @@ func (o *desiredSet) list(namespaced bool, informer cache.SharedIndexInformer, c
 		namespace = o.listerNamespace
 	}
 
-	err := cache.ListAllByNamespace(informer.GetIndexer(), namespace, selector, func(obj interface{}) {
+	// Special case for listing only by hash using indexers
+	indexer := informer.GetIndexer()
+	if hash, ok := getIndexableHash(indexer, selector); ok {
+		return listByHash(indexer, hash, namespace)
+	}
+
+	if err := cache.ListAllByNamespace(indexer, namespace, selector, func(obj interface{}) {
 		if err := addObjectToMap(objs, obj); err != nil {
 			errs = append(errs, err)
 		}
-	})
-	if err != nil {
+	}); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -493,4 +497,46 @@ func multiNamespaceList(ctx context.Context, namespaces []string, baseClient dyn
 	}
 
 	return wg.Wait()
+}
+
+// getIndexableHash detects if provided selector can be replaced by using the hash index, if configured, in which case returns the hash value
+func getIndexableHash(indexer cache.Indexer, selector labels.Selector) (string, bool) {
+	// Check if indexer was added
+	if indexer == nil || indexer.GetIndexers()[byHash] == nil {
+		return "", false
+	}
+
+	// Check specific case of listing with exact hash label selector
+	if req, selectable := selector.Requirements(); len(req) != 1 || !selectable {
+		return "", false
+	}
+
+	return selector.RequiresExactMatch(LabelHash)
+}
+
+// inNamespace checks whether a given object is a Kubernetes object and is part of the provided namespace
+func inNamespace(namespace string, obj interface{}) bool {
+	metadata, err := meta.Accessor(obj)
+	return err == nil && metadata.GetNamespace() == namespace
+}
+
+// listByHash use a pre-configured indexer to list objects of a certain type by their hash label
+func listByHash(indexer cache.Indexer, hash string, namespace string) (map[objectset.ObjectKey]runtime.Object, error) {
+	var (
+		errs []error
+		objs = objectset.ObjectByKey{}
+	)
+	res, err := indexer.ByIndex(byHash, hash)
+	if err != nil {
+		return nil, err
+	}
+	for _, obj := range res {
+		if namespace != "" && !inNamespace(namespace, obj) {
+			continue
+		}
+		if err := addObjectToMap(objs, obj); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return objs, merr.NewErrors(errs...)
 }

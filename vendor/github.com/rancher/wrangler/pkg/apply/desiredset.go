@@ -2,16 +2,23 @@ package apply
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/rancher/wrangler/pkg/apply/injectors"
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/merr"
 	"github.com/rancher/wrangler/pkg/objectset"
+	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/cache"
 )
+
+// Indexer name added for cached types
+const byHash = "wrangler.byObjectSetHash"
 
 type patchKey struct {
 	schema.GroupVersionKind
@@ -160,11 +167,38 @@ func (o desiredSet) WithCacheTypes(igs ...InformerGetter) Apply {
 	}
 
 	for _, ig := range igs {
-		pruneTypes[ig.GroupVersionKind()] = ig.Informer()
+		informer := ig.Informer()
+		if err := addIndexerByHash(informer.GetIndexer()); err != nil {
+			// Ignore repeatedly adding the same indexer for different types
+			if !errors.Is(err, indexerAlreadyExistsErr) {
+				logrus.Warnf("Problem adding hash indexer to informer [%s]: %v", ig.GroupVersionKind().Kind, err)
+			}
+		}
+		pruneTypes[ig.GroupVersionKind()] = informer
 	}
 
 	o.pruneTypes = pruneTypes
 	return o
+}
+
+// addIndexerByHash an Informer to index objects by the hash annotation value
+func addIndexerByHash(indexer cache.Indexer) error {
+	if _, alreadyAdded := indexer.GetIndexers()[byHash]; alreadyAdded {
+		return fmt.Errorf("adding indexer %q: %w", byHash, indexerAlreadyExistsErr)
+	}
+	return indexer.AddIndexers(map[string]cache.IndexFunc{
+		byHash: func(obj interface{}) ([]string, error) {
+			metadata, err := meta.Accessor(obj)
+			if err != nil {
+				return nil, err
+			}
+			labels := metadata.GetLabels()
+			if labels == nil || labels[LabelHash] == "" {
+				return nil, nil
+			}
+			return []string{labels[LabelHash]}, nil
+		},
+	})
 }
 
 func (o desiredSet) WithPatcher(gvk schema.GroupVersionKind, patcher Patcher) Apply {

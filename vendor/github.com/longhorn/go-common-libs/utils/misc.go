@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -67,7 +68,7 @@ func RandomID(randomIDLenth int) string {
 		randomIDLenth = types.RandomIDDefaultLength
 	}
 
-	uuid := UUID()
+	uuid := strings.Replace(UUID(), "-", "", -1)
 
 	if len(uuid) > randomIDLenth {
 		uuid = uuid[:randomIDLenth]
