@@ -12,12 +12,6 @@ var (
 	ImageRetryLimitExceeded condition.Cond = "RetryLimitExceeded"
 )
 
-const (
-	VirtualMachineImageSourceTypeDownload     = "download"
-	VirtualMachineImageSourceTypeUpload       = "upload"
-	VirtualMachineImageSourceTypeExportVolume = "export-from-volume"
-)
-
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:shortName=vmimage;vmimages,scope=Namespaced
@@ -42,7 +36,7 @@ type VirtualMachineImageSpec struct {
 
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=download;upload;export-from-volume
-	SourceType string `json:"sourceType"`
+	SourceType VirtualMachineImageSourceType `json:"sourceType"`
 
 	// +optional
 	PVCName string `json:"pvcName"`
@@ -66,6 +60,15 @@ type VirtualMachineImageSpec struct {
 	// +kubebuilder:validation:Optional
 	Retry int `json:"retry" default:"3"`
 }
+
+// +enum
+type VirtualMachineImageSourceType string
+
+const (
+	VirtualMachineImageSourceTypeDownload     VirtualMachineImageSourceType = "download"
+	VirtualMachineImageSourceTypeUpload       VirtualMachineImageSourceType = "upload"
+	VirtualMachineImageSourceTypeExportVolume VirtualMachineImageSourceType = "export-from-volume"
+)
 
 type VirtualMachineImageStatus struct {
 	// +optional
