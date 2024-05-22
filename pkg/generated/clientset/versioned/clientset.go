@@ -23,7 +23,7 @@ import (
 	"net/http"
 
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
-	clusterv1alpha4 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1alpha4"
+	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
@@ -43,7 +43,7 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	CatalogV1() catalogv1.CatalogV1Interface
-	ClusterV1alpha4() clusterv1alpha4.ClusterV1alpha4Interface
+	ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface
 	HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
 	KubevirtV1() kubevirtv1.KubevirtV1Interface
@@ -61,7 +61,7 @@ type Interface interface {
 type Clientset struct {
 	*discovery.DiscoveryClient
 	catalogV1           *catalogv1.CatalogV1Client
-	clusterV1alpha4     *clusterv1alpha4.ClusterV1alpha4Client
+	clusterV1beta1      *clusterv1beta1.ClusterV1beta1Client
 	harvesterhciV1beta1 *harvesterhciv1beta1.HarvesterhciV1beta1Client
 	k8sCniCncfIoV1      *k8scnicncfiov1.K8sCniCncfIoV1Client
 	kubevirtV1          *kubevirtv1.KubevirtV1Client
@@ -80,9 +80,9 @@ func (c *Clientset) CatalogV1() catalogv1.CatalogV1Interface {
 	return c.catalogV1
 }
 
-// ClusterV1alpha4 retrieves the ClusterV1alpha4Client
-func (c *Clientset) ClusterV1alpha4() clusterv1alpha4.ClusterV1alpha4Interface {
-	return c.clusterV1alpha4
+// ClusterV1beta1 retrieves the ClusterV1beta1Client
+func (c *Clientset) ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface {
+	return c.clusterV1beta1
 }
 
 // HarvesterhciV1beta1 retrieves the HarvesterhciV1beta1Client
@@ -188,7 +188,7 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
-	cs.clusterV1alpha4, err = clusterv1alpha4.NewForConfigAndClient(&configShallowCopy, httpClient)
+	cs.clusterV1beta1, err = clusterv1beta1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.catalogV1 = catalogv1.New(c)
-	cs.clusterV1alpha4 = clusterv1alpha4.New(c)
+	cs.clusterV1beta1 = clusterv1beta1.New(c)
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.New(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
 	cs.kubevirtV1 = kubevirtv1.New(c)

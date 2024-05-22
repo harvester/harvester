@@ -22,8 +22,8 @@ import (
 	clientset "github.com/harvester/harvester/pkg/generated/clientset/versioned"
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
 	fakecatalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1/fake"
-	clusterv1alpha4 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1alpha4"
-	fakeclusterv1alpha4 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1alpha4/fake"
+	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
+	fakeclusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1/fake"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	fakeharvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1/fake"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
@@ -108,9 +108,9 @@ func (c *Clientset) CatalogV1() catalogv1.CatalogV1Interface {
 	return &fakecatalogv1.FakeCatalogV1{Fake: &c.Fake}
 }
 
-// ClusterV1alpha4 retrieves the ClusterV1alpha4Client
-func (c *Clientset) ClusterV1alpha4() clusterv1alpha4.ClusterV1alpha4Interface {
-	return &fakeclusterv1alpha4.FakeClusterV1alpha4{Fake: &c.Fake}
+// ClusterV1beta1 retrieves the ClusterV1beta1Client
+func (c *Clientset) ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface {
+	return &fakeclusterv1beta1.FakeClusterV1beta1{Fake: &c.Fake}
 }
 
 // HarvesterhciV1beta1 retrieves the HarvesterhciV1beta1Client
