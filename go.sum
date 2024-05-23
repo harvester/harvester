@@ -1545,8 +1545,8 @@ github.com/longhorn/longhorn-engine v1.6.2-rc1.0.20240515040411-60b91848106e h1:
 github.com/longhorn/longhorn-engine v1.6.2-rc1.0.20240515040411-60b91848106e/go.mod h1:7RY35aj5piIStG95F3BDJUvC5wd62x9HBRItFS5YXac=
 github.com/longhorn/longhorn-instance-manager v1.6.2-rc1.0.20240515042854-30145b3edbb8 h1:ljy54JFqn6Vh9uktra87bg5EBKeTxvpcXx4/pmiJcFI=
 github.com/longhorn/longhorn-instance-manager v1.6.2-rc1.0.20240515042854-30145b3edbb8/go.mod h1:0X+/d2BVtfJZi7z3gmF54FkpL6bdbGJiPAOPM7UTGxQ=
-github.com/longhorn/longhorn-manager v1.6.2-rc2 h1:+7oqLyLX9QdWcMl3gQvvtFmPi2M4LcFYg/Jrqhl2iZU=
-github.com/longhorn/longhorn-manager v1.6.2-rc2/go.mod h1:kvwZ6cFvs4PWJNOikPWWC5YiTBJnZq/TbUw2gYnD1ek=
+github.com/longhorn/longhorn-manager v1.6.2 h1:CKrC4b80QnvITpbrxEUGWEcozgiENCMgxS/LEarsKQA=
+github.com/longhorn/longhorn-manager v1.6.2/go.mod h1:kvwZ6cFvs4PWJNOikPWWC5YiTBJnZq/TbUw2gYnD1ek=
 github.com/longhorn/longhorn-share-manager v1.6.2-rc1.0.20240511041927-4803edf0aa61 h1:S14iGz7jG1Fnh+7MQWWQwUnDh/6TN02ITRYgO2afV2M=
 github.com/longhorn/longhorn-share-manager v1.6.2-rc1.0.20240511041927-4803edf0aa61/go.mod h1:VySRdyxiXjGeyq5wPytmb1on+A2B1iW5gE//+gxWc7k=
 github.com/longhorn/longhorn-spdk-engine v0.0.0-20240308142500-8ac41e985506 h1:Qv28GXw+wkdpAdz0ss7yXHeVX6+dVirTeET3NJdEqj8=
