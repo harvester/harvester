@@ -7798,9 +7798,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "List Namespaced Cluster Networks",
-        "description": "Get a list of ClusterNetwork objects in a namespace.",
-        "operationId": "listNamespacedClusterNetwork",
+        "summary": "List Cluster Networks",
+        "description": "Get a list of all ClusterNetwork objects.",
+        "operationId": "listClusterNetwork",
         "parameters": [
           {
             "name": "continue",
@@ -7840,16 +7840,6 @@
             "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
             "schema": {
               "type": "integer"
-            }
-          },
-          {
-            "name": "namespace",
-            "in": "path",
-            "description": "Object name and auth scope, such as for teams and projects",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "[a-z0-9][a-z0-9\\-]*"
             }
           },
           {
@@ -7924,21 +7914,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "Create a Namespaced Cluster Network",
+        "summary": "Create a Cluster Network",
         "description": "Create a ClusterNetwork object.",
-        "operationId": "createNamespacedClusterNetwork",
-        "parameters": [
-          {
-            "name": "namespace",
-            "in": "path",
-            "description": "Object name and auth scope, such as for teams and projects",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "[a-z0-9][a-z0-9\\-]*"
-            }
-          }
-        ],
+        "operationId": "createClusterNetwork",
         "requestBody": {
           "content": {
             "application/json": {
@@ -8023,9 +8001,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "Read a Namespaced Cluster Network",
+        "summary": "Read a Cluster Network",
         "description": "Get a ClusterNetwork object.",
-        "operationId": "readNamespacedClusterNetwork",
+        "operationId": "readClusterNetwork",
         "parameters": [
           {
             "name": "exact",
@@ -8091,9 +8069,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "Replace a Namespaced Cluster Network",
+        "summary": "Replace a Cluster Network",
         "description": "Update a ClusterNetwork object.",
-        "operationId": "replaceNamespacedClusterNetwork",
+        "operationId": "replaceClusterNetwork",
         "requestBody": {
           "content": {
             "application/json": {
@@ -8161,9 +8139,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "Delete a Namespaced Cluster Network",
+        "summary": "Delete a Cluster Network",
         "description": "Delete a ClusterNetwork object.",
-        "operationId": "deleteNamespacedClusterNetwork",
+        "operationId": "deleteClusterNetwork",
         "parameters": [
           {
             "name": "gracePeriodSeconds",
@@ -8242,9 +8220,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "Patch a Namespaced Cluster Network",
+        "summary": "Patch a Cluster Network",
         "description": "Patch a ClusterNetwork object.",
-        "operationId": "patchNamespacedClusterNetwork",
+        "operationId": "patchClusterNetwork",
         "requestBody": {
           "content": {
             "application/json-patch+json": {
@@ -8293,16 +8271,6 @@
             "type": "string",
             "pattern": "[a-z0-9][a-z0-9\\-]*"
           }
-        },
-        {
-          "name": "namespace",
-          "in": "path",
-          "description": "Object name and auth scope, such as for teams and projects",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "pattern": "[a-z0-9][a-z0-9\\-]*"
-          }
         }
       ]
     },
@@ -8311,9 +8279,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "List Namespaced Node Networks",
-        "description": "Get a list of NodeNetwork objects in a namespace.",
-        "operationId": "listNamespacedNodeNetwork",
+        "summary": "List Node Networks",
+        "description": "Get a list of all NodeNetwork objects.",
+        "operationId": "listNodeNetwork",
         "parameters": [
           {
             "name": "continue",
@@ -8353,16 +8321,6 @@
             "description": "limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.\n\nThe server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.",
             "schema": {
               "type": "integer"
-            }
-          },
-          {
-            "name": "namespace",
-            "in": "path",
-            "description": "Object name and auth scope, such as for teams and projects",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "[a-z0-9][a-z0-9\\-]*"
             }
           },
           {
@@ -8437,21 +8395,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "Create a Namespaced Node Network",
+        "summary": "Create a Node Network",
         "description": "Create a NodeNetwork object.",
-        "operationId": "createNamespacedNodeNetwork",
-        "parameters": [
-          {
-            "name": "namespace",
-            "in": "path",
-            "description": "Object name and auth scope, such as for teams and projects",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "[a-z0-9][a-z0-9\\-]*"
-            }
-          }
-        ],
+        "operationId": "createNodeNetwork",
         "requestBody": {
           "content": {
             "application/json": {
@@ -8536,9 +8482,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "Read a Namespaced Node Network",
+        "summary": "Read a Node Network",
         "description": "Get a NodeNetwork object.",
-        "operationId": "readNamespacedNodeNetwork",
+        "operationId": "readNodeNetwork",
         "parameters": [
           {
             "name": "exact",
@@ -8604,9 +8550,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "Replace a Namespaced Node Network",
+        "summary": "Replace a Node Network",
         "description": "Update a NodeNetwork object.",
-        "operationId": "replaceNamespacedNodeNetwork",
+        "operationId": "replaceNodeNetwork",
         "requestBody": {
           "content": {
             "application/json": {
@@ -8674,9 +8620,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "Delete a Namespaced Node Network",
+        "summary": "Delete a Node Network",
         "description": "Delete a NodeNetwork object.",
-        "operationId": "deleteNamespacedNodeNetwork",
+        "operationId": "deleteNodeNetwork",
         "parameters": [
           {
             "name": "gracePeriodSeconds",
@@ -8755,9 +8701,9 @@
         "tags": [
           "Networks"
         ],
-        "summary": "Patch a Namespaced Node Network",
+        "summary": "Patch a Node Network",
         "description": "Patch a NodeNetwork object.",
-        "operationId": "patchNamespacedNodeNetwork",
+        "operationId": "patchNodeNetwork",
         "requestBody": {
           "content": {
             "application/json-patch+json": {
@@ -8801,16 +8747,6 @@
           "name": "name",
           "in": "path",
           "description": "Name of the resource",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "pattern": "[a-z0-9][a-z0-9\\-]*"
-          }
-        },
-        {
-          "name": "namespace",
-          "in": "path",
-          "description": "Object name and auth scope, such as for teams and projects",
           "required": true,
           "schema": {
             "type": "string",
