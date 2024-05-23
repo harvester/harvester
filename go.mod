@@ -70,7 +70,7 @@ require (
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20240509144945-3bce6e69af15
-	github.com/longhorn/longhorn-manager v1.6.2-rc2
+	github.com/longhorn/longhorn-manager v1.6.2
 	github.com/mattn/go-isatty v0.0.17
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.5.0
