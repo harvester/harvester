@@ -20,269 +20,47 @@ package v1beta2
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type BackupHandler func(string, *v1beta2.Backup) (*v1beta2.Backup, error)
-
+// BackupController interface for managing Backup resources.
 type BackupController interface {
-	generic.ControllerMeta
-	BackupClient
-
-	OnChange(ctx context.Context, name string, sync BackupHandler)
-	OnRemove(ctx context.Context, name string, sync BackupHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() BackupCache
+	generic.ControllerInterface[*v1beta2.Backup, *v1beta2.BackupList]
 }
 
+// BackupClient interface for managing Backup resources in Kubernetes.
 type BackupClient interface {
-	Create(*v1beta2.Backup) (*v1beta2.Backup, error)
-	Update(*v1beta2.Backup) (*v1beta2.Backup, error)
-	UpdateStatus(*v1beta2.Backup) (*v1beta2.Backup, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1beta2.Backup, error)
-	List(namespace string, opts metav1.ListOptions) (*v1beta2.BackupList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta2.Backup, err error)
+	generic.ClientInterface[*v1beta2.Backup, *v1beta2.BackupList]
 }
 
+// BackupCache interface for retrieving Backup resources in memory.
 type BackupCache interface {
-	Get(namespace, name string) (*v1beta2.Backup, error)
-	List(namespace string, selector labels.Selector) ([]*v1beta2.Backup, error)
-
-	AddIndexer(indexName string, indexer BackupIndexer)
-	GetByIndex(indexName, key string) ([]*v1beta2.Backup, error)
+	generic.CacheInterface[*v1beta2.Backup]
 }
 
-type BackupIndexer func(obj *v1beta2.Backup) ([]string, error)
-
-type backupController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewBackupController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) BackupController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &backupController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromBackupHandlerToHandler(sync BackupHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1beta2.Backup
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1beta2.Backup))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *backupController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1beta2.Backup))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateBackupDeepCopyOnChange(client BackupClient, obj *v1beta2.Backup, handler func(obj *v1beta2.Backup) (*v1beta2.Backup, error)) (*v1beta2.Backup, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *backupController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *backupController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *backupController) OnChange(ctx context.Context, name string, sync BackupHandler) {
-	c.AddGenericHandler(ctx, name, FromBackupHandlerToHandler(sync))
-}
-
-func (c *backupController) OnRemove(ctx context.Context, name string, sync BackupHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromBackupHandlerToHandler(sync)))
-}
-
-func (c *backupController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *backupController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *backupController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *backupController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *backupController) Cache() BackupCache {
-	return &backupCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *backupController) Create(obj *v1beta2.Backup) (*v1beta2.Backup, error) {
-	result := &v1beta2.Backup{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *backupController) Update(obj *v1beta2.Backup) (*v1beta2.Backup, error) {
-	result := &v1beta2.Backup{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *backupController) UpdateStatus(obj *v1beta2.Backup) (*v1beta2.Backup, error) {
-	result := &v1beta2.Backup{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *backupController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *backupController) Get(namespace, name string, options metav1.GetOptions) (*v1beta2.Backup, error) {
-	result := &v1beta2.Backup{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *backupController) List(namespace string, opts metav1.ListOptions) (*v1beta2.BackupList, error) {
-	result := &v1beta2.BackupList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *backupController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *backupController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1beta2.Backup, error) {
-	result := &v1beta2.Backup{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type backupCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *backupCache) Get(namespace, name string) (*v1beta2.Backup, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1beta2.Backup), nil
-}
-
-func (c *backupCache) List(namespace string, selector labels.Selector) (ret []*v1beta2.Backup, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.Backup))
-	})
-
-	return ret, err
-}
-
-func (c *backupCache) AddIndexer(indexName string, indexer BackupIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1beta2.Backup))
-		},
-	}))
-}
-
-func (c *backupCache) GetByIndex(indexName, key string) (result []*v1beta2.Backup, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1beta2.Backup, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1beta2.Backup))
-	}
-	return result, nil
-}
-
-// BackupStatusHandler is executed for every added or modified Backup. Should return the new status to be updated
 type BackupStatusHandler func(obj *v1beta2.Backup, status v1beta2.BackupStatus) (v1beta2.BackupStatus, error)
 
-// BackupGeneratingHandler is the top-level handler that is executed for every Backup event. It extends BackupStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type BackupGeneratingHandler func(obj *v1beta2.Backup, status v1beta2.BackupStatus) ([]runtime.Object, v1beta2.BackupStatus, error)
 
-// RegisterBackupStatusHandler configures a BackupController to execute a BackupStatusHandler for every events observed.
-// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterBackupStatusHandler(ctx context.Context, controller BackupController, condition condition.Cond, name string, handler BackupStatusHandler) {
 	statusHandler := &backupStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromBackupHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
-// RegisterBackupGeneratingHandler configures a BackupController to execute a BackupGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
-// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterBackupGeneratingHandler(ctx context.Context, controller BackupController, apply apply.Apply,
 	condition condition.Cond, name string, handler BackupGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &backupGeneratingHandler{
@@ -304,7 +82,6 @@ type backupStatusHandler struct {
 	handler   BackupStatusHandler
 }
 
-// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *backupStatusHandler) sync(key string, obj *v1beta2.Backup) (*v1beta2.Backup, error) {
 	if obj == nil {
 		return obj, nil
@@ -350,10 +127,8 @@ type backupGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
-	seen  sync.Map
 }
 
-// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *backupGeneratingHandler) Remove(key string, obj *v1beta2.Backup) (*v1beta2.Backup, error) {
 	if obj != nil {
 		return obj, nil
@@ -363,17 +138,12 @@ func (a *backupGeneratingHandler) Remove(key string, obj *v1beta2.Backup) (*v1be
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
-	if a.opts.UniqueApplyForResourceVersion {
-		a.seen.Delete(key)
-	}
-
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
-// Handle executes the configured BackupGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *backupGeneratingHandler) Handle(obj *v1beta2.Backup, status v1beta2.BackupStatus) (v1beta2.BackupStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -383,41 +153,9 @@ func (a *backupGeneratingHandler) Handle(obj *v1beta2.Backup, status v1beta2.Bac
 	if err != nil {
 		return newStatus, err
 	}
-	if !a.isNewResourceVersion(obj) {
-		return newStatus, nil
-	}
 
-	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
-	if err != nil {
-		return newStatus, err
-	}
-	a.storeResourceVersion(obj)
-	return newStatus, nil
-}
-
-// isNewResourceVersion detects if a specific resource version was already successfully processed.
-// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *backupGeneratingHandler) isNewResourceVersion(obj *v1beta2.Backup) bool {
-	if !a.opts.UniqueApplyForResourceVersion {
-		return true
-	}
-
-	// Apply once per resource version
-	key := obj.Namespace + "/" + obj.Name
-	previous, ok := a.seen.Load(key)
-	return !ok || previous != obj.ResourceVersion
-}
-
-// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
-// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *backupGeneratingHandler) storeResourceVersion(obj *v1beta2.Backup) {
-	if !a.opts.UniqueApplyForResourceVersion {
-		return
-	}
-
-	key := obj.Namespace + "/" + obj.Name
-	a.seen.Store(key, obj.ResourceVersion)
 }

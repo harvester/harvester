@@ -1,11 +1,9 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
     {}
-  creationTimestamp: null
   name: virtualmachinebackups.harvesterhci.io
 spec:
   group: harvesterhci.io
@@ -76,6 +74,7 @@ spec:
                 - kind
                 - name
                 type: object
+                x-kubernetes-map-type: atomic
               type:
                 default: backup
                 enum:
@@ -285,6 +284,7 @@ spec:
                                       - kind
                                       - name
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     dataSourceRef:
                                       description: 'dataSourceRef specifies the object
                                         from which to populate the volume with data,
@@ -308,19 +308,18 @@ spec:
                                         There are three important differences between
                                         dataSource and dataSourceRef: * While dataSource
                                         only allows two specific types of objects,
-                                        dataSourceRef   allows any non-core object,
+                                        dataSourceRef allows any non-core object,
                                         as well as PersistentVolumeClaim objects.
                                         * While dataSource ignores disallowed values
-                                        (dropping them), dataSourceRef   preserves
-                                        all values, and generates an error if a disallowed
-                                        value is   specified. * While dataSource only
+                                        (dropping them), dataSourceRef preserves all
+                                        values, and generates an error if a disallowed
+                                        value is specified. * While dataSource only
                                         allows local objects, dataSourceRef allows
-                                        objects   in any namespaces. (Beta) Using
-                                        this field requires the AnyVolumeDataSource
-                                        feature gate to be enabled. (Alpha) Using
-                                        the namespace field of dataSourceRef requires
-                                        the CrossNamespaceVolumeDataSource feature
-                                        gate to be enabled.'
+                                        objects in any namespaces. (Beta) Using this
+                                        field requires the AnyVolumeDataSource feature
+                                        gate to be enabled. (Alpha) Using the namespace
+                                        field of dataSourceRef requires the CrossNamespaceVolumeDataSource
+                                        feature gate to be enabled.'
                                       properties:
                                         apiGroup:
                                           description: APIGroup is the group for the
@@ -465,6 +464,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     storageClassName:
                                       description: 'storageClassName is the name of
                                         the StorageClass required by the claim. More
@@ -756,6 +756,7 @@ spec:
                                       - kind
                                       - name
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     dataSourceRef:
                                       description: 'Specifies the object from which
                                         to populate the volume with data, if a non-empty
@@ -923,6 +924,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     storageClassName:
                                       description: 'Name of the StorageClass required
                                         by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
@@ -1316,6 +1318,7 @@ spec:
                                                     type: object
                                                   type: array
                                               type: object
+                                              x-kubernetes-map-type: atomic
                                             weight:
                                               description: Weight associated with
                                                 matching the corresponding nodeSelectorTerm,
@@ -1435,10 +1438,12 @@ spec:
                                                     type: object
                                                   type: array
                                               type: object
+                                              x-kubernetes-map-type: atomic
                                             type: array
                                         required:
                                         - nodeSelectorTerms
                                         type: object
+                                        x-kubernetes-map-type: atomic
                                     type: object
                                   podAffinity:
                                     description: Describes pod affinity scheduling
@@ -1536,6 +1541,7 @@ spec:
                                                         are ANDed.
                                                       type: object
                                                   type: object
+                                                  x-kubernetes-map-type: atomic
                                                 namespaceSelector:
                                                   description: A label query over
                                                     the set of namespaces that the
@@ -1608,6 +1614,7 @@ spec:
                                                         are ANDed.
                                                       type: object
                                                   type: object
+                                                  x-kubernetes-map-type: atomic
                                                 namespaces:
                                                   description: namespaces specifies
                                                     a static list of namespace names
@@ -1732,6 +1739,7 @@ spec:
                                                     are ANDed.
                                                   type: object
                                               type: object
+                                              x-kubernetes-map-type: atomic
                                             namespaceSelector:
                                               description: A label query over the
                                                 set of namespaces that the term applies
@@ -1799,6 +1807,7 @@ spec:
                                                     are ANDed.
                                                   type: object
                                               type: object
+                                              x-kubernetes-map-type: atomic
                                             namespaces:
                                               description: namespaces specifies a
                                                 static list of namespace names that
@@ -1924,6 +1933,7 @@ spec:
                                                         are ANDed.
                                                       type: object
                                                   type: object
+                                                  x-kubernetes-map-type: atomic
                                                 namespaceSelector:
                                                   description: A label query over
                                                     the set of namespaces that the
@@ -1996,6 +2006,7 @@ spec:
                                                         are ANDed.
                                                       type: object
                                                   type: object
+                                                  x-kubernetes-map-type: atomic
                                                 namespaces:
                                                   description: namespaces specifies
                                                     a static list of namespace names
@@ -2120,6 +2131,7 @@ spec:
                                                     are ANDed.
                                                   type: object
                                               type: object
+                                              x-kubernetes-map-type: atomic
                                             namespaceSelector:
                                               description: A label query over the
                                                 set of namespaces that the term applies
@@ -2187,6 +2199,7 @@ spec:
                                                     are ANDed.
                                                   type: object
                                               type: object
+                                              x-kubernetes-map-type: atomic
                                             namespaces:
                                               description: namespaces specifies a
                                                 static list of namespace names that
@@ -4043,6 +4056,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     matchLabelKeys:
                                       description: MatchLabelKeys is a set of pod
                                         label keys to select the pods over which spreading
@@ -4165,9 +4179,9 @@ spec:
                                         the spread constraint. - DoNotSchedule (default)
                                         tells the scheduler not to schedule it. -
                                         ScheduleAnyway tells the scheduler to schedule
-                                        the pod in any location,   but giving higher
+                                        the pod in any location, but giving higher
                                         precedence to topologies that would help reduce
-                                        the   skew. A constraint is considered "Unsatisfiable"
+                                        the skew. A constraint is considered "Unsatisfiable"
                                         for an incoming pod if and only if every possible
                                         node assignment for that pod would violate
                                         "MaxSkew" on some topology. For example, in
@@ -4227,6 +4241,7 @@ spec:
                                                 kind, uid?'
                                               type: string
                                           type: object
+                                          x-kubernetes-map-type: atomic
                                         secretRef:
                                           description: UserDataSecretRef references
                                             a k8s secret that contains config drive
@@ -4239,6 +4254,7 @@ spec:
                                                 kind, uid?'
                                               type: string
                                           type: object
+                                          x-kubernetes-map-type: atomic
                                         userData:
                                           description: UserData contains config drive
                                             inline cloud-init userdata.
@@ -4276,6 +4292,7 @@ spec:
                                                 kind, uid?'
                                               type: string
                                           type: object
+                                          x-kubernetes-map-type: atomic
                                         secretRef:
                                           description: UserDataSecretRef references
                                             a k8s secret that contains NoCloud userdata.
@@ -4287,6 +4304,7 @@ spec:
                                                 kind, uid?'
                                               type: string
                                           type: object
+                                          x-kubernetes-map-type: atomic
                                         userData:
                                           description: UserData contains NoCloud inline
                                             cloud-init userdata.
@@ -4320,6 +4338,7 @@ spec:
                                             (cloud-init) or "OEMDRV" (kickstart).
                                           type: string
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     containerDisk:
                                       description: 'ContainerDisk references a docker
                                         image, embedding a qcow or raw disk. More
@@ -4399,6 +4418,7 @@ spec:
                                                 required:
                                                 - fieldPath
                                                 type: object
+                                                x-kubernetes-map-type: atomic
                                               mode:
                                                 description: 'Optional: mode bits
                                                   used to set permissions on this
@@ -4452,6 +4472,7 @@ spec:
                                                 required:
                                                 - resource
                                                 type: object
+                                                x-kubernetes-map-type: atomic
                                             required:
                                             - path
                                             type: object
@@ -4638,6 +4659,7 @@ spec:
                                                 kind, uid?'
                                               type: string
                                           type: object
+                                          x-kubernetes-map-type: atomic
                                         secret:
                                           description: Secret references a k8s Secret
                                             that contains Sysprep answer file named
@@ -4651,6 +4673,7 @@ spec:
                                                 kind, uid?'
                                               type: string
                                           type: object
+                                          x-kubernetes-map-type: atomic
                                       type: object
                                   required:
                                   - name
@@ -4742,6 +4765,7 @@ spec:
                               - kind
                               - name
                               type: object
+                              x-kubernetes-map-type: atomic
                             dataSourceRef:
                               description: 'dataSourceRef specifies the object from
                                 which to populate the volume with data, if a non-empty
@@ -4761,13 +4785,13 @@ spec:
                                 isn''t set to the same value and must be empty. There
                                 are three important differences between dataSource
                                 and dataSourceRef: * While dataSource only allows
-                                two specific types of objects, dataSourceRef   allows
+                                two specific types of objects, dataSourceRef allows
                                 any non-core object, as well as PersistentVolumeClaim
                                 objects. * While dataSource ignores disallowed values
-                                (dropping them), dataSourceRef   preserves all values,
-                                and generates an error if a disallowed value is   specified.
+                                (dropping them), dataSourceRef preserves all values,
+                                and generates an error if a disallowed value is specified.
                                 * While dataSource only allows local objects, dataSourceRef
-                                allows objects   in any namespaces. (Beta) Using this
+                                allows objects in any namespaces. (Beta) Using this
                                 field requires the AnyVolumeDataSource feature gate
                                 to be enabled. (Alpha) Using the namespace field of
                                 dataSourceRef requires the CrossNamespaceVolumeDataSource
@@ -4904,6 +4928,7 @@ spec:
                                     requirements are ANDed.
                                   type: object
                               type: object
+                              x-kubernetes-map-type: atomic
                             storageClassName:
                               description: 'storageClassName is the name of the StorageClass
                                 required by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
@@ -4941,9 +4966,3 @@ spec:
     served: true
     storage: true
     subresources: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []

@@ -20,269 +20,47 @@ package v1beta1
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type VirtualMachineImageHandler func(string, *v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error)
-
+// VirtualMachineImageController interface for managing VirtualMachineImage resources.
 type VirtualMachineImageController interface {
-	generic.ControllerMeta
-	VirtualMachineImageClient
-
-	OnChange(ctx context.Context, name string, sync VirtualMachineImageHandler)
-	OnRemove(ctx context.Context, name string, sync VirtualMachineImageHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() VirtualMachineImageCache
+	generic.ControllerInterface[*v1beta1.VirtualMachineImage, *v1beta1.VirtualMachineImageList]
 }
 
+// VirtualMachineImageClient interface for managing VirtualMachineImage resources in Kubernetes.
 type VirtualMachineImageClient interface {
-	Create(*v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error)
-	Update(*v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error)
-	UpdateStatus(*v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1beta1.VirtualMachineImage, error)
-	List(namespace string, opts metav1.ListOptions) (*v1beta1.VirtualMachineImageList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta1.VirtualMachineImage, err error)
+	generic.ClientInterface[*v1beta1.VirtualMachineImage, *v1beta1.VirtualMachineImageList]
 }
 
+// VirtualMachineImageCache interface for retrieving VirtualMachineImage resources in memory.
 type VirtualMachineImageCache interface {
-	Get(namespace, name string) (*v1beta1.VirtualMachineImage, error)
-	List(namespace string, selector labels.Selector) ([]*v1beta1.VirtualMachineImage, error)
-
-	AddIndexer(indexName string, indexer VirtualMachineImageIndexer)
-	GetByIndex(indexName, key string) ([]*v1beta1.VirtualMachineImage, error)
+	generic.CacheInterface[*v1beta1.VirtualMachineImage]
 }
 
-type VirtualMachineImageIndexer func(obj *v1beta1.VirtualMachineImage) ([]string, error)
-
-type virtualMachineImageController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewVirtualMachineImageController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) VirtualMachineImageController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &virtualMachineImageController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromVirtualMachineImageHandlerToHandler(sync VirtualMachineImageHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1beta1.VirtualMachineImage
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1beta1.VirtualMachineImage))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *virtualMachineImageController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1beta1.VirtualMachineImage))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateVirtualMachineImageDeepCopyOnChange(client VirtualMachineImageClient, obj *v1beta1.VirtualMachineImage, handler func(obj *v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error)) (*v1beta1.VirtualMachineImage, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *virtualMachineImageController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *virtualMachineImageController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *virtualMachineImageController) OnChange(ctx context.Context, name string, sync VirtualMachineImageHandler) {
-	c.AddGenericHandler(ctx, name, FromVirtualMachineImageHandlerToHandler(sync))
-}
-
-func (c *virtualMachineImageController) OnRemove(ctx context.Context, name string, sync VirtualMachineImageHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromVirtualMachineImageHandlerToHandler(sync)))
-}
-
-func (c *virtualMachineImageController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *virtualMachineImageController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *virtualMachineImageController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *virtualMachineImageController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *virtualMachineImageController) Cache() VirtualMachineImageCache {
-	return &virtualMachineImageCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *virtualMachineImageController) Create(obj *v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error) {
-	result := &v1beta1.VirtualMachineImage{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *virtualMachineImageController) Update(obj *v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error) {
-	result := &v1beta1.VirtualMachineImage{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *virtualMachineImageController) UpdateStatus(obj *v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error) {
-	result := &v1beta1.VirtualMachineImage{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *virtualMachineImageController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *virtualMachineImageController) Get(namespace, name string, options metav1.GetOptions) (*v1beta1.VirtualMachineImage, error) {
-	result := &v1beta1.VirtualMachineImage{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *virtualMachineImageController) List(namespace string, opts metav1.ListOptions) (*v1beta1.VirtualMachineImageList, error) {
-	result := &v1beta1.VirtualMachineImageList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *virtualMachineImageController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *virtualMachineImageController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1beta1.VirtualMachineImage, error) {
-	result := &v1beta1.VirtualMachineImage{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type virtualMachineImageCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *virtualMachineImageCache) Get(namespace, name string) (*v1beta1.VirtualMachineImage, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1beta1.VirtualMachineImage), nil
-}
-
-func (c *virtualMachineImageCache) List(namespace string, selector labels.Selector) (ret []*v1beta1.VirtualMachineImage, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.VirtualMachineImage))
-	})
-
-	return ret, err
-}
-
-func (c *virtualMachineImageCache) AddIndexer(indexName string, indexer VirtualMachineImageIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1beta1.VirtualMachineImage))
-		},
-	}))
-}
-
-func (c *virtualMachineImageCache) GetByIndex(indexName, key string) (result []*v1beta1.VirtualMachineImage, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1beta1.VirtualMachineImage, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1beta1.VirtualMachineImage))
-	}
-	return result, nil
-}
-
-// VirtualMachineImageStatusHandler is executed for every added or modified VirtualMachineImage. Should return the new status to be updated
 type VirtualMachineImageStatusHandler func(obj *v1beta1.VirtualMachineImage, status v1beta1.VirtualMachineImageStatus) (v1beta1.VirtualMachineImageStatus, error)
 
-// VirtualMachineImageGeneratingHandler is the top-level handler that is executed for every VirtualMachineImage event. It extends VirtualMachineImageStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type VirtualMachineImageGeneratingHandler func(obj *v1beta1.VirtualMachineImage, status v1beta1.VirtualMachineImageStatus) ([]runtime.Object, v1beta1.VirtualMachineImageStatus, error)
 
-// RegisterVirtualMachineImageStatusHandler configures a VirtualMachineImageController to execute a VirtualMachineImageStatusHandler for every events observed.
-// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterVirtualMachineImageStatusHandler(ctx context.Context, controller VirtualMachineImageController, condition condition.Cond, name string, handler VirtualMachineImageStatusHandler) {
 	statusHandler := &virtualMachineImageStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromVirtualMachineImageHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
-// RegisterVirtualMachineImageGeneratingHandler configures a VirtualMachineImageController to execute a VirtualMachineImageGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
-// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterVirtualMachineImageGeneratingHandler(ctx context.Context, controller VirtualMachineImageController, apply apply.Apply,
 	condition condition.Cond, name string, handler VirtualMachineImageGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &virtualMachineImageGeneratingHandler{
@@ -304,7 +82,6 @@ type virtualMachineImageStatusHandler struct {
 	handler   VirtualMachineImageStatusHandler
 }
 
-// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *virtualMachineImageStatusHandler) sync(key string, obj *v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error) {
 	if obj == nil {
 		return obj, nil
@@ -350,10 +127,8 @@ type virtualMachineImageGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
-	seen  sync.Map
 }
 
-// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *virtualMachineImageGeneratingHandler) Remove(key string, obj *v1beta1.VirtualMachineImage) (*v1beta1.VirtualMachineImage, error) {
 	if obj != nil {
 		return obj, nil
@@ -363,17 +138,12 @@ func (a *virtualMachineImageGeneratingHandler) Remove(key string, obj *v1beta1.V
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
-	if a.opts.UniqueApplyForResourceVersion {
-		a.seen.Delete(key)
-	}
-
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
-// Handle executes the configured VirtualMachineImageGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *virtualMachineImageGeneratingHandler) Handle(obj *v1beta1.VirtualMachineImage, status v1beta1.VirtualMachineImageStatus) (v1beta1.VirtualMachineImageStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -383,41 +153,9 @@ func (a *virtualMachineImageGeneratingHandler) Handle(obj *v1beta1.VirtualMachin
 	if err != nil {
 		return newStatus, err
 	}
-	if !a.isNewResourceVersion(obj) {
-		return newStatus, nil
-	}
 
-	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
-	if err != nil {
-		return newStatus, err
-	}
-	a.storeResourceVersion(obj)
-	return newStatus, nil
-}
-
-// isNewResourceVersion detects if a specific resource version was already successfully processed.
-// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *virtualMachineImageGeneratingHandler) isNewResourceVersion(obj *v1beta1.VirtualMachineImage) bool {
-	if !a.opts.UniqueApplyForResourceVersion {
-		return true
-	}
-
-	// Apply once per resource version
-	key := obj.Namespace + "/" + obj.Name
-	previous, ok := a.seen.Load(key)
-	return !ok || previous != obj.ResourceVersion
-}
-
-// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
-// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *virtualMachineImageGeneratingHandler) storeResourceVersion(obj *v1beta1.VirtualMachineImage) {
-	if !a.opts.UniqueApplyForResourceVersion {
-		return
-	}
-
-	key := obj.Namespace + "/" + obj.Name
-	a.seen.Store(key, obj.ResourceVersion)
 }
