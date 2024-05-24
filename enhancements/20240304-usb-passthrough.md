@@ -70,7 +70,7 @@ Two resources will be updated.
 
 There will be a Daemon to collect all USB devices on all nodes, it's provided to users know how many USB devices they could use.
 
-Considering the same vendor/product case, we should add bus as suffix to avoid misunderstanding. It's `001/002` in this case.
+Considering the same vendor/product case, we should add bus as suffix to avoid misunderstanding. It's `002/004` in this case.
 
 ```yaml
 apiVersion: devices.harvesterhci.io/v1beta1
@@ -78,13 +78,15 @@ kind: USBDevice
 metadata:
   labels:
     nodename: jacknode
-  name: jacknode-0951-1666-002005
+  name: jacknode-0951-1666-002004
 status:
   description: DataTraveler 100 G3/G4/SE9 G2/50 Kyson (Kingston Technology)
-  devicePath: /dev/bus/usb/002/005
+  devicePath: /dev/bus/usb/002/004
+  enabled: false
   nodeName: jacknode
+  pciAddress: "0000:02:01.0"
   productID: "1666"
-  resourceName: kubevirt.io/jacknode-0951-1666-002005
+  resourceName: kubevirt.io/jacknode-0951-1666-002004
   vendorID: "0951"
 ```
 
@@ -92,15 +94,23 @@ status:
 
 When users decide which USB devices they want to use, users will click `Enable` button to create `usbdeviceclaim`. After `usbdeviceclaim` is created, controller will update `spec.configuration.permittedHostDevices.usb` in `kubevirt` resource.
 
+We use `pciAddress` filed to prevent users from enabling the specified PCI device.
+
 ```yaml
 apiVersion: devices.harvesterhci.io/v1beta1
 kind: USBDeviceClaim
 metadata:
-  name: jacknode-0951-1666-002005
-  labels:
-    nodename: jacknode
+  name: jacknode-0951-1666-002004
+  ownerReferences:
+    - apiVersion: devices.harvesterhci.io/v1beta1
+      kind: USBDevice
+      name: jacknode-0951-1666-002004
+      uid: b584d7d0-0820-445e-bc90-4ffbfe82d63b
+spec: {}
 status:
-  claimBy: admin
+  claimedBy: ""
+  nodeName: jacknode
+  pciAddress: "0000:02:01.0"
 ```
 
 #### `kubevirt`
