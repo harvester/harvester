@@ -90,10 +90,12 @@ func (f *groupInterfaceGo) Init(c *generator.Context, w io.Writer) error {
 			"versionUpper": namer.IC(f.gv.Version),
 			"groupUpper":   upperLowercase(f.gv.Group),
 		}
-
-		sw.Do("func (c *version) {{.type}}() {{.type}}Controller {\n", m)
-		sw.Do("return New{{.type}}Controller(schema.GroupVersionKind{Group:\"{{.group}}\",Version:\"{{.version}}\",Kind:\"{{.type}}\"}	, \"{{.pluralLower}}\", {{.namespaced}}, c.controllerFactory)\n", m)
-		sw.Do("}\n", m)
+		body := `
+		func (v *version) {{.type}}() {{.type}}Controller {
+			return generic.New{{ if not .namespaced}}NonNamespaced{{end}}Controller[*{{.version}}.{{.type}}, *{{.version}}.{{.type}}List](schema.GroupVersionKind{Group: "{{.group}}", Version: "{{.version}}", Kind: "{{.type}}"}, "{{.pluralLower}}", {{ if .namespaced}}true, {{end}}v.controllerFactory)
+		}
+		`
+		sw.Do(body, m)
 	}
 
 	return sw.Error()

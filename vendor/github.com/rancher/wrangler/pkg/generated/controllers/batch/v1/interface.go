@@ -20,6 +20,7 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/schemes"
 	v1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -43,6 +44,6 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) Job() JobController {
-	return NewJobController(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}, "jobs", true, c.controllerFactory)
+func (v *version) Job() JobController {
+	return generic.NewController[*v1.Job, *v1.JobList](schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}, "jobs", true, v.controllerFactory)
 }

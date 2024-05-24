@@ -31,6 +31,10 @@ var (
 	}
 )
 
+// MaxHelmReleaseNameLen is the maximum length of a Helm release name.
+// See https://github.com/helm/helm/blob/293b50c65d4d56187cd4e2f390f0ada46b4c4737/pkg/chartutil/validate_name.go#L54-L61
+const MaxHelmReleaseNameLen = 53
+
 type BundleState string
 
 // +genclient
@@ -58,12 +62,25 @@ type BundleNamespaceMapping struct {
 type BundleSpec struct {
 	BundleDeploymentOptions
 
-	Paused             bool                      `json:"paused,omitempty"`
-	RolloutStrategy    *RolloutStrategy          `json:"rolloutStrategy,omitempty"`
-	Resources          []BundleResource          `json:"resources,omitempty"`
-	Targets            []BundleTarget            `json:"targets,omitempty"`
+	// Paused if set to true, will stop any BundleDeployments from being updated. It will be marked as out of sync.
+	Paused bool `json:"paused,omitempty"`
+
+	// RolloutStrategy controls the rollout of bundles, by defining
+	// partitions, canaries and percentages for cluster availability.
+	RolloutStrategy *RolloutStrategy `json:"rolloutStrategy,omitempty"`
+
+	// Resources contains the resources that were read from the bundle's
+	// path. This includes the content of downloaded helm charts.
+	Resources []BundleResource `json:"resources,omitempty"`
+
+	// Targets refer to the clusters which will be deployed to.
+	Targets []BundleTarget `json:"targets,omitempty"`
+
+	// TargetRestrictions restrict which clusters the bundle will be deployed to.
 	TargetRestrictions []BundleTargetRestriction `json:"targetRestrictions,omitempty"`
-	DependsOn          []BundleRef               `json:"dependsOn,omitempty"`
+
+	// DependsOn refers to the bundles which must be ready before this bundle can be deployed.
+	DependsOn []BundleRef `json:"dependsOn,omitempty"`
 }
 
 type BundleRef struct {
@@ -108,6 +125,7 @@ type BundleTarget struct {
 	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
 	ClusterGroup         string                `json:"clusterGroup,omitempty"`
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
+	DoNotDeploy          bool                  `json:"doNotDeploy,omitempty"`
 }
 
 type BundleSummary struct {
@@ -149,8 +167,11 @@ type BundleStatus struct {
 	MaxNew                   int               `json:"maxNew,omitempty"`
 	PartitionStatus          []PartitionStatus `json:"partitions,omitempty"`
 	Display                  BundleDisplay     `json:"display,omitempty"`
-	ResourceKey              []ResourceKey     `json:"resourceKey,omitempty"`
-	ObservedGeneration       int64             `json:"observedGeneration"`
+	// ResourceKey lists resources, which will likely be deployed. The
+	// actual list of resources on a cluster might differ, depending on the
+	// helm chart, value templating, etc..
+	ResourceKey        []ResourceKey `json:"resourceKey,omitempty"`
+	ObservedGeneration int64         `json:"observedGeneration"`
 }
 
 type ResourceKey struct {
@@ -185,14 +206,50 @@ type BundleDeployment struct {
 }
 
 type BundleDeploymentOptions struct {
-	DefaultNamespace    string            `json:"defaultNamespace,omitempty"`
-	TargetNamespace     string            `json:"namespace,omitempty"`
-	Kustomize           *KustomizeOptions `json:"kustomize,omitempty"`
-	Helm                *HelmOptions      `json:"helm,omitempty"`
-	ServiceAccount      string            `json:"serviceAccount,omitempty"`
-	ForceSyncGeneration int64             `json:"forceSyncGeneration,omitempty"`
-	YAML                *YAMLOptions      `json:"yaml,omitempty"`
-	Diff                *DiffOptions      `json:"diff,omitempty"`
+	// DefaultNamespace is the namespace to use for resources that do not
+	// specify a namespace. This field is not used to enforce or lock down
+	// the deployment to a specific namespace.
+	DefaultNamespace string `json:"defaultNamespace,omitempty"`
+
+	// TargetNamespace if present will assign all resource to this
+	// namespace and if any cluster scoped resource exists the deployment
+	// will fail.
+	TargetNamespace string `json:"namespace,omitempty"`
+
+	// Kustomize options for the deployment, like the dir containing the
+	// kustomization.yaml file.
+	Kustomize *KustomizeOptions `json:"kustomize,omitempty"`
+
+	// Helm options for the deployment, like the chart name, repo and values.
+	Helm *HelmOptions `json:"helm,omitempty"`
+
+	// ServiceAccount which will be used to perform this deployment.
+	ServiceAccount string `json:"serviceAccount,omitempty"`
+
+	// ForceSyncGeneration is used to force a redeployment
+	ForceSyncGeneration int64 `json:"forceSyncGeneration,omitempty"`
+
+	// YAML options, if using raw YAML these are names that map to
+	// overlays/{name} that will be used to replace or patch a resource.
+	YAML *YAMLOptions `json:"yaml,omitempty"`
+
+	// Diff can be used to ignore the modified state of objects which are amended at runtime.
+	Diff *DiffOptions `json:"diff,omitempty"`
+
+	// KeepResources can be used to keep the deployed resources when removing the bundle
+	KeepResources bool `json:"keepResources,omitempty"`
+
+	//IgnoreOptions can be used to ignore fields when monitoring the bundle.
+	IgnoreOptions `json:"ignore,omitempty"`
+
+	// CorrectDrift specifies how drift correction should work.
+	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
+
+	// NamespaceLabels are labels that will be appended to the namespace created by Fleet.
+	NamespaceLabels *map[string]string `json:"namespaceLabels,omitempty"`
+
+	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
+	NamespaceAnnotations *map[string]string `json:"namespaceAnnotations,omitempty"`
 }
 
 type DiffOptions struct {
@@ -223,20 +280,58 @@ type KustomizeOptions struct {
 }
 
 type HelmOptions struct {
-	Chart          string       `json:"chart,omitempty"`
-	Repo           string       `json:"repo,omitempty"`
-	ReleaseName    string       `json:"releaseName,omitempty"`
-	Version        string       `json:"version,omitempty"`
-	TimeoutSeconds int          `json:"timeoutSeconds,omitempty"`
-	Values         *GenericMap  `json:"values,omitempty"`
-	ValuesFrom     []ValuesFrom `json:"valuesFrom,omitempty"`
-	Force          bool         `json:"force,omitempty"`
-	TakeOwnership  bool         `json:"takeOwnership,omitempty"`
-	MaxHistory     int          `json:"maxHistory,omitempty"`
-	ValuesFiles    []string     `json:"valuesFiles,omitempty"`
+	// Chart can refer to any go-getter URL or OCI registry based helm
+	// chart URL. The chart will be downloaded.
+	Chart string `json:"chart,omitempty"`
+
+	// Repo is the name of the HTTPS helm repo to download the chart from.
+	Repo string `json:"repo,omitempty"`
+
+	// ReleaseName sets a custom release name to deploy the chart as. If
+	// not specified a release name will be generated by combining the
+	// invoking GitRepo.name + GitRepo.path.
+	ReleaseName string `json:"releaseName,omitempty"`
+
+	// Version of the chart to download
+	Version string `json:"version,omitempty"`
+
+	// TimeoutSeconds is the time to wait for Helm operations.
+	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
+
+	// Values passed to Helm. It is possible to specify the keys and values
+	// as go template strings.
+	Values *GenericMap `json:"values,omitempty"`
+
+	// ValuesFrom loads the values from configmaps and secrets.
+	ValuesFrom []ValuesFrom `json:"valuesFrom,omitempty"`
+
+	// Force allows to override immutable resources. This could be dangerous.
+	Force bool `json:"force,omitempty"`
+
+	// TakeOwnership makes helm skip the check for its own annotations
+	TakeOwnership bool `json:"takeOwnership,omitempty"`
+
+	// MaxHistory limits the maximum number of revisions saved per release by Helm.
+	MaxHistory int `json:"maxHistory,omitempty"`
+
+	// ValuesFiles is a list of files to load values from.
+	ValuesFiles []string `json:"valuesFiles,omitempty"`
+
+	// WaitForJobs if set and timeoutSeconds provided, will wait until all
+	// Jobs have been completed before marking the GitRepo as ready. It
+	// will wait for as long as timeoutSeconds
+	WaitForJobs bool `json:"waitForJobs,omitempty"`
 
 	// Atomic sets the --atomic flag when Helm is performing an upgrade
 	Atomic bool `json:"atomic,omitempty"`
+
+	// DisablePreProcess disables template processing in values
+	DisablePreProcess bool `json:"disablePreProcess,omitempty"`
+}
+
+// IgnoreOptions defines conditions to be ignored when monitoring the Bundle.
+type IgnoreOptions struct {
+	Conditions []map[string]string `json:"conditions,omitempty"`
 }
 
 // Define helm values that can come from configmap, secret or external. Credit: https://github.com/fluxcd/helm-operator/blob/0cfea875b5d44bea995abe7324819432070dfbdc/pkg/apis/helm.fluxcd.io/v1/types_helmrelease.go#L439
@@ -270,11 +365,21 @@ type LocalObjectReference struct {
 }
 
 type BundleDeploymentSpec struct {
+	Paused             bool                    `json:"paused,omitempty"`
 	StagedOptions      BundleDeploymentOptions `json:"stagedOptions,omitempty"`
 	StagedDeploymentID string                  `json:"stagedDeploymentID,omitempty"`
 	Options            BundleDeploymentOptions `json:"options,omitempty"`
 	DeploymentID       string                  `json:"deploymentID,omitempty"`
 	DependsOn          []BundleRef             `json:"dependsOn,omitempty"`
+	CorrectDrift       CorrectDrift            `json:"correctDrift,omitempty"`
+}
+
+type BundleDeploymentResource struct {
+	Kind       string      `json:"kind,omitempty"`
+	APIVersion string      `json:"apiVersion,omitempty"`
+	Namespace  string      `json:"namespace,omitempty"`
+	Name       string      `json:"name,omitempty"`
+	CreatedAt  metav1.Time `json:"createdAt,omitempty"`
 }
 
 type BundleDeploymentStatus struct {
@@ -287,6 +392,9 @@ type BundleDeploymentStatus struct {
 	ModifiedStatus      []ModifiedStatus                    `json:"modifiedStatus,omitempty"`
 	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
 	SyncGeneration      *int64                              `json:"syncGeneration,omitempty"`
+	// Resources lists the metadata of resources that were deployed
+	// according to the helm release history.
+	Resources []BundleDeploymentResource `json:"resources,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {

@@ -20,6 +20,7 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/schemes"
 	v1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -45,12 +46,14 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) DaemonSet() DaemonSetController {
-	return NewDaemonSetController(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "DaemonSet"}, "daemonsets", true, c.controllerFactory)
+func (v *version) DaemonSet() DaemonSetController {
+	return generic.NewController[*v1.DaemonSet, *v1.DaemonSetList](schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "DaemonSet"}, "daemonsets", true, v.controllerFactory)
 }
-func (c *version) Deployment() DeploymentController {
-	return NewDeploymentController(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, "deployments", true, c.controllerFactory)
+
+func (v *version) Deployment() DeploymentController {
+	return generic.NewController[*v1.Deployment, *v1.DeploymentList](schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, "deployments", true, v.controllerFactory)
 }
-func (c *version) StatefulSet() StatefulSetController {
-	return NewStatefulSetController(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}, "statefulsets", true, c.controllerFactory)
+
+func (v *version) StatefulSet() StatefulSetController {
+	return generic.NewController[*v1.StatefulSet, *v1.StatefulSetList](schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}, "statefulsets", true, v.controllerFactory)
 }

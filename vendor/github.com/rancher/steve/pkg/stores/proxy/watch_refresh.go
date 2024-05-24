@@ -9,11 +9,13 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/request"
 )
 
+// WatchRefresh implements types.Store with awareness of changes to the requester's access.
 type WatchRefresh struct {
 	types.Store
 	asl accesscontrol.AccessSetLookup
 }
 
+// Watch performs a watch request which halts if the user's access level changes.
 func (w *WatchRefresh) Watch(apiOp *types.APIRequest, schema *types.APISchema, wr types.WatchRequest) (chan types.APIEvent, error) {
 	user, ok := request.UserFrom(apiOp.Context())
 	if !ok {

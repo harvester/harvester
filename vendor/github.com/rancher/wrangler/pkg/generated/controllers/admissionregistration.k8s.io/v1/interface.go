@@ -20,6 +20,7 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/schemes"
 	v1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -44,9 +45,10 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) MutatingWebhookConfiguration() MutatingWebhookConfigurationController {
-	return NewMutatingWebhookConfigurationController(schema.GroupVersionKind{Group: "admissionregistration.k8s.io", Version: "v1", Kind: "MutatingWebhookConfiguration"}, "mutatingwebhookconfigurations", false, c.controllerFactory)
+func (v *version) MutatingWebhookConfiguration() MutatingWebhookConfigurationController {
+	return generic.NewNonNamespacedController[*v1.MutatingWebhookConfiguration, *v1.MutatingWebhookConfigurationList](schema.GroupVersionKind{Group: "admissionregistration.k8s.io", Version: "v1", Kind: "MutatingWebhookConfiguration"}, "mutatingwebhookconfigurations", v.controllerFactory)
 }
-func (c *version) ValidatingWebhookConfiguration() ValidatingWebhookConfigurationController {
-	return NewValidatingWebhookConfigurationController(schema.GroupVersionKind{Group: "admissionregistration.k8s.io", Version: "v1", Kind: "ValidatingWebhookConfiguration"}, "validatingwebhookconfigurations", false, c.controllerFactory)
+
+func (v *version) ValidatingWebhookConfiguration() ValidatingWebhookConfigurationController {
+	return generic.NewNonNamespacedController[*v1.ValidatingWebhookConfiguration, *v1.ValidatingWebhookConfigurationList](schema.GroupVersionKind{Group: "admissionregistration.k8s.io", Version: "v1", Kind: "ValidatingWebhookConfiguration"}, "validatingwebhookconfigurations", v.controllerFactory)
 }

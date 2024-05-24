@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/meta"
 
 	"github.com/rancher/wrangler/pkg/generic"
@@ -69,7 +70,7 @@ func watch(ctx context.Context, name string, enq Enqueuer, resolve Resolver, con
 		return nil
 	}
 
-	controller.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	addResourceEventHandler(ctx, controller.Informer(), cache.ResourceEventHandlerFuncs{
 		DeleteFunc: func(obj interface{}) {
 			ro, ok := obj.(runtime.Object)
 			if !ok {
@@ -100,4 +101,24 @@ type wrapper struct {
 
 func (w *wrapper) Enqueue(namespace, name string) {
 	w.ClusterScopedEnqueuer.Enqueue(name)
+}
+
+// informerRegisterer is a subset of the cache.SharedIndexInformer, so it's easier to replace in tests
+type informerRegisterer interface {
+	AddEventHandler(funcs cache.ResourceEventHandler) (cache.ResourceEventHandlerRegistration, error)
+	RemoveEventHandler(cache.ResourceEventHandlerRegistration) error
+}
+
+func addResourceEventHandler(ctx context.Context, informer informerRegisterer, handler cache.ResourceEventHandler) {
+	handlerReg, err := informer.AddEventHandler(handler)
+	if err != nil {
+		logrus.WithError(err).Error("failed to add ResourceEventHandler")
+		return
+	}
+	go func() {
+		<-ctx.Done()
+		if err := informer.RemoveEventHandler(handlerReg); err != nil {
+			logrus.WithError(err).Warn("failed to remove ResourceEventHandler")
+		}
+	}()
 }

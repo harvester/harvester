@@ -11,12 +11,10 @@ import (
 var (
 	Imports = []string{
 		"context",
-		"sync",
 		"time",
 		"k8s.io/client-go/rest",
-		"github.com/rancher/lasso/pkg/client",
-		"github.com/rancher/lasso/pkg/controller",
 		"github.com/rancher/wrangler/pkg/apply",
+		"github.com/rancher/lasso/pkg/controller",
 		"github.com/rancher/wrangler/pkg/condition",
 		"github.com/rancher/wrangler/pkg/schemes",
 		"github.com/rancher/wrangler/pkg/generic",
@@ -28,9 +26,7 @@ var (
 		"k8s.io/apimachinery/pkg/runtime",
 		"k8s.io/apimachinery/pkg/runtime/schema",
 		"k8s.io/apimachinery/pkg/types",
-		"utilruntime \"k8s.io/apimachinery/pkg/util/runtime\"",
 		"k8s.io/apimachinery/pkg/watch",
-		"k8s.io/client-go/tools/cache",
 	}
 )
 

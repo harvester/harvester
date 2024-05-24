@@ -1,3 +1,4 @@
+// Package yaml handles the unmarshaling of YAML objects to strusts
 package yaml
 
 import (
@@ -6,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 
 	"github.com/ghodss/yaml"
@@ -26,13 +28,62 @@ var (
 	}
 )
 
+const buffSize = 4096
+
+// Unmarshal decodes YAML bytes into document (as defined by
+// the YAML spec) then converting it to JSON via
+// "k8s.io/apimachinery/pkg/util/yaml".YAMLToJSON and then decoding the json in the the v interface{}
 func Unmarshal(data []byte, v interface{}) error {
 	return yamlDecoder.NewYAMLToJSONDecoder(bytes.NewBuffer(data)).Decode(v)
 }
 
+// UnmarshalWithJSONDecoder expects a reader of raw YAML.
+// It converts the document or documents to JSON,
+// then decodes the JSON bytes into a slice of values of type T.
+// Type T must be a pointer, or the function will panic.
+func UnmarshalWithJSONDecoder[T any](yamlReader io.Reader) ([]T, error) {
+	// verify the object is a pointer
+	var obj T
+	objPtrType := reflect.TypeOf(obj)
+	if objPtrType.Kind() != reflect.Pointer {
+		panic(fmt.Sprintf("Object T must be a pointer not %v", objPtrType))
+	}
+	objType := objPtrType.Elem()
+	var result []T
+
+	// create a reader that reads one YAML document at a time.
+	reader := yamlDecoder.NewYAMLReader(bufio.NewReaderSize(yamlReader, buffSize))
+	for {
+		// get raw yaml for a single document
+		rawYAML, err := reader.Read()
+		if errors.Is(err, io.EOF) {
+			// finished reading
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read yaml: %w", err)
+		}
+		// convert YAML to JSON
+		rawJSON, err := yamlDecoder.ToJSON(rawYAML)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert YAML to JSON: %w", err)
+		}
+		// unmarshal JSON to the provided object
+		newObj := reflect.New(objType).Interface().(T)
+		err = json.Unmarshal(rawJSON, newObj)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal converted JSON: %w", err)
+		}
+		result = append(result, newObj)
+	}
+	return result, nil
+}
+
+// ToObjects takes a reader of yaml bytes and returns a list of unstructured.Unstructured runtime.Objects that are read.
+// If one of the objects read is an unstructured.UnstructuredList then the list is flattened to individual objects.
 func ToObjects(in io.Reader) ([]runtime.Object, error) {
 	var result []runtime.Object
-	reader := yamlDecoder.NewYAMLReader(bufio.NewReaderSize(in, 4096))
+	reader := yamlDecoder.NewYAMLReader(bufio.NewReaderSize(in, buffSize))
 	for {
 		raw, err := reader.Read()
 		if err == io.EOF {

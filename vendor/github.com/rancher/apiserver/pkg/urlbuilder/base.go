@@ -2,16 +2,17 @@ package urlbuilder
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 )
 
 func ParseRequestURL(r *http.Request) string {
-	scheme := GetScheme(r)
-	host := GetHost(r, scheme)
-	return fmt.Sprintf("%s://%s%s%s", scheme, host, r.Header.Get(PrefixHeader), r.URL.Path)
+	var parsedURL url.URL
+	parsedURL.Scheme = GetScheme(r)
+	parsedURL.Host = GetHost(r, parsedURL.Scheme)
+	parsedURL = *parsedURL.JoinPath(r.Header.Get(PrefixHeader), r.URL.Path)
+	return parsedURL.String()
 }
 
 func GetHost(r *http.Request, scheme string) string {

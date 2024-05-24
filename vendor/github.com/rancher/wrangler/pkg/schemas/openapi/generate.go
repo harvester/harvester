@@ -140,6 +140,8 @@ func typeToProps(typeName string, schemas *types.Schemas, inflight map[string]bo
 	case "string":
 		jsp.Type = t
 		jsp.Nullable = true
+	case "intOrString":
+		jsp.XIntOrString = true
 	default:
 		jsp.Type = t
 	}
@@ -201,9 +203,8 @@ func typeAndSchema(typeName string, schemas *types.Schemas) (string, string, *ty
 	}
 
 	switch typeName {
-	// TODO: in v1 set the x- header for this
 	case "intOrString":
-		return "string", "", nil, nil
+		return "intOrString", "", nil, nil
 	case "int":
 		return "integer", "", nil, nil
 	case "float":

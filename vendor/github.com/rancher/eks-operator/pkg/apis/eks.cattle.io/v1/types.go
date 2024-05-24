@@ -43,6 +43,7 @@ type EKSClusterConfigSpec struct {
 	KmsKey                 *string           `json:"kmsKey" norman:"noupdate,pointer"`
 	PublicAccess           *bool             `json:"publicAccess"`
 	PrivateAccess          *bool             `json:"privateAccess"`
+	EBSCSIDriver           *bool             `json:"ebsCSIDriver"`
 	PublicAccessSources    []string          `json:"publicAccessSources"`
 	LoggingTypes           []string          `json:"loggingTypes"`
 	Subnets                []string          `json:"subnets" norman:"noupdate"`
@@ -62,6 +63,7 @@ type EKSClusterConfigStatus struct {
 	// describes how the above network fields were provided. Valid values are provided and generated
 	NetworkFieldsSource string `json:"networkFieldsSource"`
 	FailureMessage      string `json:"failureMessage"`
+	GeneratedNodeRole   string `json:"generatedNodeRole"`
 }
 
 type NodeGroup struct {
@@ -83,6 +85,7 @@ type NodeGroup struct {
 	LaunchTemplate       *LaunchTemplate    `json:"launchTemplate"`
 	RequestSpotInstances *bool              `json:"requestSpotInstances"`
 	SpotInstanceTypes    []*string          `json:"spotInstanceTypes"`
+	NodeRole             *string            `json:"nodeRole" norman:"pointer"`
 }
 
 type LaunchTemplate struct {
