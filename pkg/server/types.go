@@ -15,6 +15,7 @@ import (
 	"github.com/rancher/dynamiclistener"
 	"github.com/rancher/dynamiclistener/server"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/rancher/pkg/auth"
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/aggregation"
 	steveauth "github.com/rancher/steve/pkg/auth"
@@ -50,6 +51,7 @@ type HarvesterServer struct {
 	ClientSet     *kubernetes.Clientset
 	ASL           accesscontrol.AccessSetLookup
 
+	authServer     *auth.Server
 	steve          *steveserver.Server
 	controllers    *steveserver.Controllers
 	startHooks     []StartHook
@@ -181,7 +183,12 @@ func (s *HarvesterServer) ListenAndServe(listenerCfg *dynamiclistener.Config, op
 	s.steve.StartAggregation(s.Context)
 	s.startAggregation(opts)
 
-	if err := server.ListenAndServe(s.Context, opts.HTTPSListenPort, opts.HTTPListenPort, s.Handler, listenOpts); err != nil {
+	if err := server.ListenAndServe(
+		s.Context,
+		opts.HTTPSListenPort,
+		opts.HTTPListenPort,
+		s.Handler,
+		listenOpts); err != nil {
 		return err
 	}
 
@@ -248,8 +255,13 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 	s.steve.APIServer.Parser = dynamicURLBuilderParse
 	apiroot.Register(s.steve.BaseSchemas, []string{"v1", "v1/harvester"}, "proxy:/apis")
 
-	authMiddleware := steveauth.ToMiddleware(steveauth.AuthenticatorFunc(steveauth.AlwaysAdmin))
-	s.Handler = authMiddleware(s.steve)
+	authServer, err := auth.NewServer(s.Context, s.RESTConfig)
+	if err != nil {
+		return err
+	}
+	s.authServer = authServer
+
+	s.Handler = authServer.Authenticator(s.steve)
 
 	s.startHooks = []StartHook{
 		indexeres.Setup,
@@ -273,6 +285,10 @@ func (s *HarvesterServer) start(options config.Options) error {
 	}
 
 	if err := s.controllers.Start(s.Context); err != nil {
+		return err
+	}
+
+	if err := s.authServer.Start(s.Context, false); err != nil {
 		return err
 	}
 
