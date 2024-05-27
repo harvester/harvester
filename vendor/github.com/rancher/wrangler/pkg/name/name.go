@@ -36,6 +36,10 @@ func suffix(str, end string) bool {
 	return strings.HasSuffix(str, end)
 }
 
+// Limit the length of a string to count characters. If the string's length is
+// greater or equal to count, it will be truncated and a hash will be appended
+// to the end.
+// Warning: runtime error for count <= 5: https://go.dev/play/p/UAbpZIOvIYo
 func Limit(s string, count int) string {
 	if len(s) < count {
 		return s

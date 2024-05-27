@@ -145,7 +145,7 @@ func setup(ctx context.Context, server *Server) error {
 	summaryCache := summarycache.New(sf, ccache)
 	summaryCache.Start(ctx)
 
-	for _, template := range resources.DefaultSchemaTemplates(cf, server.BaseSchemas, summaryCache, asl, server.controllers.K8s.Discovery()) {
+	for _, template := range resources.DefaultSchemaTemplates(cf, server.BaseSchemas, summaryCache, asl, server.controllers.K8s.Discovery(), server.controllers.Core.Namespace().Cache()) {
 		sf.AddTemplate(template)
 	}
 
@@ -200,6 +200,9 @@ func (c *Server) ListenAndServe(ctx context.Context, httpsPort, httpPort int, op
 
 	c.StartAggregation(ctx)
 
+	if len(opts.TLSListenerConfig.SANs) == 0 {
+		opts.TLSListenerConfig.SANs = []string{"127.0.0.1"}
+	}
 	if err := server.ListenAndServe(ctx, httpsPort, httpPort, c, opts); err != nil {
 		return err
 	}

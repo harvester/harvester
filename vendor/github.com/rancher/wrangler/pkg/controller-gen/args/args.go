@@ -40,8 +40,4 @@ type Group struct {
 	GenerateInformers bool
 	// The package name of the API types
 	PackageName string
-	// Use existing clientset, informer, listers
-	ClientSetPackage string
-	ListersPackage   string
-	InformersPackage string
 }

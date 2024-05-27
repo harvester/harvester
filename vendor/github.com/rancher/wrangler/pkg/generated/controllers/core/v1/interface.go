@@ -20,6 +20,7 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/schemes"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -53,36 +54,46 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) ConfigMap() ConfigMapController {
-	return NewConfigMapController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "configmaps", true, c.controllerFactory)
+func (v *version) ConfigMap() ConfigMapController {
+	return generic.NewController[*v1.ConfigMap, *v1.ConfigMapList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "configmaps", true, v.controllerFactory)
 }
-func (c *version) Endpoints() EndpointsController {
-	return NewEndpointsController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Endpoints"}, "endpoints", true, c.controllerFactory)
+
+func (v *version) Endpoints() EndpointsController {
+	return generic.NewController[*v1.Endpoints, *v1.EndpointsList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Endpoints"}, "endpoints", true, v.controllerFactory)
 }
-func (c *version) Event() EventController {
-	return NewEventController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Event"}, "events", true, c.controllerFactory)
+
+func (v *version) Event() EventController {
+	return generic.NewController[*v1.Event, *v1.EventList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Event"}, "events", true, v.controllerFactory)
 }
-func (c *version) Namespace() NamespaceController {
-	return NewNamespaceController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Namespace"}, "namespaces", false, c.controllerFactory)
+
+func (v *version) Namespace() NamespaceController {
+	return generic.NewNonNamespacedController[*v1.Namespace, *v1.NamespaceList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Namespace"}, "namespaces", v.controllerFactory)
 }
-func (c *version) Node() NodeController {
-	return NewNodeController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"}, "nodes", false, c.controllerFactory)
+
+func (v *version) Node() NodeController {
+	return generic.NewNonNamespacedController[*v1.Node, *v1.NodeList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"}, "nodes", v.controllerFactory)
 }
-func (c *version) PersistentVolume() PersistentVolumeController {
-	return NewPersistentVolumeController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolume"}, "persistentvolumes", false, c.controllerFactory)
+
+func (v *version) PersistentVolume() PersistentVolumeController {
+	return generic.NewNonNamespacedController[*v1.PersistentVolume, *v1.PersistentVolumeList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolume"}, "persistentvolumes", v.controllerFactory)
 }
-func (c *version) PersistentVolumeClaim() PersistentVolumeClaimController {
-	return NewPersistentVolumeClaimController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolumeClaim"}, "persistentvolumeclaims", true, c.controllerFactory)
+
+func (v *version) PersistentVolumeClaim() PersistentVolumeClaimController {
+	return generic.NewController[*v1.PersistentVolumeClaim, *v1.PersistentVolumeClaimList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolumeClaim"}, "persistentvolumeclaims", true, v.controllerFactory)
 }
-func (c *version) Pod() PodController {
-	return NewPodController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}, "pods", true, c.controllerFactory)
+
+func (v *version) Pod() PodController {
+	return generic.NewController[*v1.Pod, *v1.PodList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}, "pods", true, v.controllerFactory)
 }
-func (c *version) Secret() SecretController {
-	return NewSecretController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"}, "secrets", true, c.controllerFactory)
+
+func (v *version) Secret() SecretController {
+	return generic.NewController[*v1.Secret, *v1.SecretList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"}, "secrets", true, v.controllerFactory)
 }
-func (c *version) Service() ServiceController {
-	return NewServiceController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Service"}, "services", true, c.controllerFactory)
+
+func (v *version) Service() ServiceController {
+	return generic.NewController[*v1.Service, *v1.ServiceList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Service"}, "services", true, v.controllerFactory)
 }
-func (c *version) ServiceAccount() ServiceAccountController {
-	return NewServiceAccountController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ServiceAccount"}, "serviceaccounts", true, c.controllerFactory)
+
+func (v *version) ServiceAccount() ServiceAccountController {
+	return generic.NewController[*v1.ServiceAccount, *v1.ServiceAccountList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ServiceAccount"}, "serviceaccounts", true, v.controllerFactory)
 }

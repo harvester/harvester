@@ -40,9 +40,8 @@ var (
 		LabelName,
 		LabelNamespace,
 	}
-	rls                     = map[string]flowcontrol.RateLimiter{}
-	rlsLock                 sync.Mutex
-	indexerAlreadyExistsErr = errors.New("an indexer with the same already exists")
+	rls     = map[string]flowcontrol.RateLimiter{}
+	rlsLock sync.Mutex
 )
 
 func (o *desiredSet) getRateLimit(labelHash string) flowcontrol.RateLimiter {

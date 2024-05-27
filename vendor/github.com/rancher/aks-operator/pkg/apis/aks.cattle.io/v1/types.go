@@ -48,6 +48,8 @@ type AKSClusterConfigSpec struct {
 	NetworkServiceCIDR          *string           `json:"serviceCidr" norman:"pointer"`
 	NetworkDockerBridgeCIDR     *string           `json:"dockerBridgeCidr" norman:"pointer"`
 	NetworkPodCIDR              *string           `json:"podCidr" norman:"pointer"`
+	NodeResourceGroup           *string           `json:"nodeResourceGroup,omitempty" norman:"pointer"`
+	OutboundType                *string           `json:"outboundType" norman:"pointer"`
 	LoadBalancerSKU             *string           `json:"loadBalancerSku" norman:"pointer"`
 	NetworkPolicy               *string           `json:"networkPolicy" norman:"pointer"`
 	LinuxAdminUsername          *string           `json:"linuxAdminUsername,omitempty" norman:"pointer"`
@@ -57,11 +59,14 @@ type AKSClusterConfigSpec struct {
 	Tags                        map[string]string `json:"tags"`
 	NodePools                   []AKSNodePool     `json:"nodePools"`
 	PrivateCluster              *bool             `json:"privateCluster"`
+	PrivateDNSZone              *string           `json:"privateDnsZone" norman:"pointer"`
 	AuthorizedIPRanges          *[]string         `json:"authorizedIpRanges" norman:"pointer"`
 	HTTPApplicationRouting      *bool             `json:"httpApplicationRouting"`
 	Monitoring                  *bool             `json:"monitoring"`
 	LogAnalyticsWorkspaceGroup  *string           `json:"logAnalyticsWorkspaceGroup" norman:"pointer"`
 	LogAnalyticsWorkspaceName   *string           `json:"logAnalyticsWorkspaceName" norman:"pointer"`
+	ManagedIdentity             *bool             `json:"managedIdentity" norman:"pointer"`
+	UserAssignedIdentity        *string           `json:"userAssignedIdentity" norman:"pointer"`
 }
 
 type AKSClusterConfigStatus struct {
@@ -71,17 +76,21 @@ type AKSClusterConfigStatus struct {
 }
 
 type AKSNodePool struct {
-	Name                *string   `json:"name,omitempty" norman:"pointer"`
-	Count               *int32    `json:"count,omitempty"`
-	MaxPods             *int32    `json:"maxPods,omitempty"`
-	VMSize              string    `json:"vmSize,omitempty"`
-	OsDiskSizeGB        *int32    `json:"osDiskSizeGB,omitempty"`
-	OsDiskType          string    `json:"osDiskType,omitempty"`
-	Mode                string    `json:"mode,omitempty"`
-	OsType              string    `json:"osType,omitempty"`
-	OrchestratorVersion *string   `json:"orchestratorVersion,omitempty" norman:"pointer"`
-	AvailabilityZones   *[]string `json:"availabilityZones,omitempty" norman:"pointer"`
-	MaxCount            *int32    `json:"maxCount,omitempty"`
-	MinCount            *int32    `json:"minCount,omitempty"`
-	EnableAutoScaling   *bool     `json:"enableAutoScaling,omitempty"`
+	Name                *string            `json:"name,omitempty" norman:"pointer"`
+	Count               *int32             `json:"count,omitempty"`
+	MaxPods             *int32             `json:"maxPods,omitempty"`
+	VMSize              string             `json:"vmSize,omitempty"`
+	OsDiskSizeGB        *int32             `json:"osDiskSizeGB,omitempty"`
+	OsDiskType          string             `json:"osDiskType,omitempty"`
+	Mode                string             `json:"mode,omitempty"`
+	OsType              string             `json:"osType,omitempty"`
+	OrchestratorVersion *string            `json:"orchestratorVersion,omitempty" norman:"pointer"`
+	AvailabilityZones   *[]string          `json:"availabilityZones,omitempty" norman:"pointer"`
+	MaxSurge            *string            `json:"maxSurge,omitempty"`
+	MaxCount            *int32             `json:"maxCount,omitempty"`
+	MinCount            *int32             `json:"minCount,omitempty"`
+	EnableAutoScaling   *bool              `json:"enableAutoScaling,omitempty"`
+	VnetSubnetID        *string            `json:"vnetSubnetID,omitempty" norman:"pointer"`
+	NodeLabels          map[string]*string `json:"nodeLabels,omitempty"`
+	NodeTaints          *[]string          `json:"nodeTaints,omitempty"`
 }

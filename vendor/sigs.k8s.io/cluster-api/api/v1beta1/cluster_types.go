@@ -34,6 +34,9 @@ const (
 	// ClusterFinalizer is the finalizer used by the cluster controller to
 	// cleanup the cluster resources when a Cluster is being deleted.
 	ClusterFinalizer = "cluster.cluster.x-k8s.io"
+
+	// ClusterKind represents the Kind of Cluster.
+	ClusterKind = "Cluster"
 )
 
 // ANCHOR: ClusterSpec

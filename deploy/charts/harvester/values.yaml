@@ -246,7 +246,7 @@ service:
     ## this port will be closed if set to 0.
     ## defaults to "0".
     ##
-    httpPort: 0
+    httpPort: 8080
 
     ## Specify the session affinity,
     ## defaults to "ClientIP".

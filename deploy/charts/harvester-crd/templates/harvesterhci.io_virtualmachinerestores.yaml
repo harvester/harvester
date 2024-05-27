@@ -1,11 +1,9 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
     {}
-  creationTimestamp: null
   name: virtualmachinerestores.harvesterhci.io
 spec:
   group: harvesterhci.io
@@ -84,6 +82,7 @@ spec:
                 - kind
                 - name
                 type: object
+                x-kubernetes-map-type: atomic
               virtualMachineBackupName:
                 type: string
               virtualMachineBackupNamespace:
@@ -190,6 +189,7 @@ spec:
                               - kind
                               - name
                               type: object
+                              x-kubernetes-map-type: atomic
                             dataSourceRef:
                               description: 'dataSourceRef specifies the object from
                                 which to populate the volume with data, if a non-empty
@@ -209,13 +209,13 @@ spec:
                                 isn''t set to the same value and must be empty. There
                                 are three important differences between dataSource
                                 and dataSourceRef: * While dataSource only allows
-                                two specific types of objects, dataSourceRef   allows
+                                two specific types of objects, dataSourceRef allows
                                 any non-core object, as well as PersistentVolumeClaim
                                 objects. * While dataSource ignores disallowed values
-                                (dropping them), dataSourceRef   preserves all values,
-                                and generates an error if a disallowed value is   specified.
+                                (dropping them), dataSourceRef preserves all values,
+                                and generates an error if a disallowed value is specified.
                                 * While dataSource only allows local objects, dataSourceRef
-                                allows objects   in any namespaces. (Beta) Using this
+                                allows objects in any namespaces. (Beta) Using this
                                 field requires the AnyVolumeDataSource feature gate
                                 to be enabled. (Alpha) Using the namespace field of
                                 dataSourceRef requires the CrossNamespaceVolumeDataSource
@@ -352,6 +352,7 @@ spec:
                                     requirements are ANDed.
                                   type: object
                               type: object
+                              x-kubernetes-map-type: atomic
                             storageClassName:
                               description: 'storageClassName is the name of the StorageClass
                                 required by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
@@ -391,9 +392,3 @@ spec:
     served: true
     storage: true
     subresources: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []

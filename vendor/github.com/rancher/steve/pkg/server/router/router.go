@@ -22,7 +22,7 @@ func Routes(h Handlers) http.Handler {
 	m.StrictSlash(true)
 	m.Use(urlbuilder.RedirectRewrite)
 
-	m.Path("/").Handler(h.APIRoot).HeadersRegexp("Accepts", ".*json.*")
+	m.Path("/").Handler(h.APIRoot).HeadersRegexp("Accept", ".*json.*")
 	m.Path("/{name:v1}").Handler(h.APIRoot)
 
 	m.Path("/v1/{type}").Handler(h.K8sResource)

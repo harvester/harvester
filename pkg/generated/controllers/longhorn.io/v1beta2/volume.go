@@ -20,269 +20,47 @@ package v1beta2
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type VolumeHandler func(string, *v1beta2.Volume) (*v1beta2.Volume, error)
-
+// VolumeController interface for managing Volume resources.
 type VolumeController interface {
-	generic.ControllerMeta
-	VolumeClient
-
-	OnChange(ctx context.Context, name string, sync VolumeHandler)
-	OnRemove(ctx context.Context, name string, sync VolumeHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() VolumeCache
+	generic.ControllerInterface[*v1beta2.Volume, *v1beta2.VolumeList]
 }
 
+// VolumeClient interface for managing Volume resources in Kubernetes.
 type VolumeClient interface {
-	Create(*v1beta2.Volume) (*v1beta2.Volume, error)
-	Update(*v1beta2.Volume) (*v1beta2.Volume, error)
-	UpdateStatus(*v1beta2.Volume) (*v1beta2.Volume, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1beta2.Volume, error)
-	List(namespace string, opts metav1.ListOptions) (*v1beta2.VolumeList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta2.Volume, err error)
+	generic.ClientInterface[*v1beta2.Volume, *v1beta2.VolumeList]
 }
 
+// VolumeCache interface for retrieving Volume resources in memory.
 type VolumeCache interface {
-	Get(namespace, name string) (*v1beta2.Volume, error)
-	List(namespace string, selector labels.Selector) ([]*v1beta2.Volume, error)
-
-	AddIndexer(indexName string, indexer VolumeIndexer)
-	GetByIndex(indexName, key string) ([]*v1beta2.Volume, error)
+	generic.CacheInterface[*v1beta2.Volume]
 }
 
-type VolumeIndexer func(obj *v1beta2.Volume) ([]string, error)
-
-type volumeController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewVolumeController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) VolumeController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &volumeController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromVolumeHandlerToHandler(sync VolumeHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1beta2.Volume
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1beta2.Volume))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *volumeController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1beta2.Volume))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateVolumeDeepCopyOnChange(client VolumeClient, obj *v1beta2.Volume, handler func(obj *v1beta2.Volume) (*v1beta2.Volume, error)) (*v1beta2.Volume, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *volumeController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *volumeController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *volumeController) OnChange(ctx context.Context, name string, sync VolumeHandler) {
-	c.AddGenericHandler(ctx, name, FromVolumeHandlerToHandler(sync))
-}
-
-func (c *volumeController) OnRemove(ctx context.Context, name string, sync VolumeHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromVolumeHandlerToHandler(sync)))
-}
-
-func (c *volumeController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *volumeController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *volumeController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *volumeController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *volumeController) Cache() VolumeCache {
-	return &volumeCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *volumeController) Create(obj *v1beta2.Volume) (*v1beta2.Volume, error) {
-	result := &v1beta2.Volume{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *volumeController) Update(obj *v1beta2.Volume) (*v1beta2.Volume, error) {
-	result := &v1beta2.Volume{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *volumeController) UpdateStatus(obj *v1beta2.Volume) (*v1beta2.Volume, error) {
-	result := &v1beta2.Volume{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *volumeController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *volumeController) Get(namespace, name string, options metav1.GetOptions) (*v1beta2.Volume, error) {
-	result := &v1beta2.Volume{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *volumeController) List(namespace string, opts metav1.ListOptions) (*v1beta2.VolumeList, error) {
-	result := &v1beta2.VolumeList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *volumeController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *volumeController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1beta2.Volume, error) {
-	result := &v1beta2.Volume{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type volumeCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *volumeCache) Get(namespace, name string) (*v1beta2.Volume, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1beta2.Volume), nil
-}
-
-func (c *volumeCache) List(namespace string, selector labels.Selector) (ret []*v1beta2.Volume, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.Volume))
-	})
-
-	return ret, err
-}
-
-func (c *volumeCache) AddIndexer(indexName string, indexer VolumeIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1beta2.Volume))
-		},
-	}))
-}
-
-func (c *volumeCache) GetByIndex(indexName, key string) (result []*v1beta2.Volume, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1beta2.Volume, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1beta2.Volume))
-	}
-	return result, nil
-}
-
-// VolumeStatusHandler is executed for every added or modified Volume. Should return the new status to be updated
 type VolumeStatusHandler func(obj *v1beta2.Volume, status v1beta2.VolumeStatus) (v1beta2.VolumeStatus, error)
 
-// VolumeGeneratingHandler is the top-level handler that is executed for every Volume event. It extends VolumeStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type VolumeGeneratingHandler func(obj *v1beta2.Volume, status v1beta2.VolumeStatus) ([]runtime.Object, v1beta2.VolumeStatus, error)
 
-// RegisterVolumeStatusHandler configures a VolumeController to execute a VolumeStatusHandler for every events observed.
-// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterVolumeStatusHandler(ctx context.Context, controller VolumeController, condition condition.Cond, name string, handler VolumeStatusHandler) {
 	statusHandler := &volumeStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromVolumeHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
-// RegisterVolumeGeneratingHandler configures a VolumeController to execute a VolumeGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
-// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterVolumeGeneratingHandler(ctx context.Context, controller VolumeController, apply apply.Apply,
 	condition condition.Cond, name string, handler VolumeGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &volumeGeneratingHandler{
@@ -304,7 +82,6 @@ type volumeStatusHandler struct {
 	handler   VolumeStatusHandler
 }
 
-// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *volumeStatusHandler) sync(key string, obj *v1beta2.Volume) (*v1beta2.Volume, error) {
 	if obj == nil {
 		return obj, nil
@@ -350,10 +127,8 @@ type volumeGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
-	seen  sync.Map
 }
 
-// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *volumeGeneratingHandler) Remove(key string, obj *v1beta2.Volume) (*v1beta2.Volume, error) {
 	if obj != nil {
 		return obj, nil
@@ -363,17 +138,12 @@ func (a *volumeGeneratingHandler) Remove(key string, obj *v1beta2.Volume) (*v1be
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
-	if a.opts.UniqueApplyForResourceVersion {
-		a.seen.Delete(key)
-	}
-
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
-// Handle executes the configured VolumeGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *volumeGeneratingHandler) Handle(obj *v1beta2.Volume, status v1beta2.VolumeStatus) (v1beta2.VolumeStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -383,41 +153,9 @@ func (a *volumeGeneratingHandler) Handle(obj *v1beta2.Volume, status v1beta2.Vol
 	if err != nil {
 		return newStatus, err
 	}
-	if !a.isNewResourceVersion(obj) {
-		return newStatus, nil
-	}
 
-	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
-	if err != nil {
-		return newStatus, err
-	}
-	a.storeResourceVersion(obj)
-	return newStatus, nil
-}
-
-// isNewResourceVersion detects if a specific resource version was already successfully processed.
-// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *volumeGeneratingHandler) isNewResourceVersion(obj *v1beta2.Volume) bool {
-	if !a.opts.UniqueApplyForResourceVersion {
-		return true
-	}
-
-	// Apply once per resource version
-	key := obj.Namespace + "/" + obj.Name
-	previous, ok := a.seen.Load(key)
-	return !ok || previous != obj.ResourceVersion
-}
-
-// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
-// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *volumeGeneratingHandler) storeResourceVersion(obj *v1beta2.Volume) {
-	if !a.opts.UniqueApplyForResourceVersion {
-		return
-	}
-
-	key := obj.Namespace + "/" + obj.Name
-	a.seen.Store(key, obj.ResourceVersion)
 }

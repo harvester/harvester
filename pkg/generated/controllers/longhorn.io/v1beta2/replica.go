@@ -20,269 +20,47 @@ package v1beta2
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type ReplicaHandler func(string, *v1beta2.Replica) (*v1beta2.Replica, error)
-
+// ReplicaController interface for managing Replica resources.
 type ReplicaController interface {
-	generic.ControllerMeta
-	ReplicaClient
-
-	OnChange(ctx context.Context, name string, sync ReplicaHandler)
-	OnRemove(ctx context.Context, name string, sync ReplicaHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() ReplicaCache
+	generic.ControllerInterface[*v1beta2.Replica, *v1beta2.ReplicaList]
 }
 
+// ReplicaClient interface for managing Replica resources in Kubernetes.
 type ReplicaClient interface {
-	Create(*v1beta2.Replica) (*v1beta2.Replica, error)
-	Update(*v1beta2.Replica) (*v1beta2.Replica, error)
-	UpdateStatus(*v1beta2.Replica) (*v1beta2.Replica, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1beta2.Replica, error)
-	List(namespace string, opts metav1.ListOptions) (*v1beta2.ReplicaList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta2.Replica, err error)
+	generic.ClientInterface[*v1beta2.Replica, *v1beta2.ReplicaList]
 }
 
+// ReplicaCache interface for retrieving Replica resources in memory.
 type ReplicaCache interface {
-	Get(namespace, name string) (*v1beta2.Replica, error)
-	List(namespace string, selector labels.Selector) ([]*v1beta2.Replica, error)
-
-	AddIndexer(indexName string, indexer ReplicaIndexer)
-	GetByIndex(indexName, key string) ([]*v1beta2.Replica, error)
+	generic.CacheInterface[*v1beta2.Replica]
 }
 
-type ReplicaIndexer func(obj *v1beta2.Replica) ([]string, error)
-
-type replicaController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewReplicaController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) ReplicaController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &replicaController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromReplicaHandlerToHandler(sync ReplicaHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1beta2.Replica
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1beta2.Replica))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *replicaController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1beta2.Replica))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateReplicaDeepCopyOnChange(client ReplicaClient, obj *v1beta2.Replica, handler func(obj *v1beta2.Replica) (*v1beta2.Replica, error)) (*v1beta2.Replica, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *replicaController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *replicaController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *replicaController) OnChange(ctx context.Context, name string, sync ReplicaHandler) {
-	c.AddGenericHandler(ctx, name, FromReplicaHandlerToHandler(sync))
-}
-
-func (c *replicaController) OnRemove(ctx context.Context, name string, sync ReplicaHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromReplicaHandlerToHandler(sync)))
-}
-
-func (c *replicaController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *replicaController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *replicaController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *replicaController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *replicaController) Cache() ReplicaCache {
-	return &replicaCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *replicaController) Create(obj *v1beta2.Replica) (*v1beta2.Replica, error) {
-	result := &v1beta2.Replica{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *replicaController) Update(obj *v1beta2.Replica) (*v1beta2.Replica, error) {
-	result := &v1beta2.Replica{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *replicaController) UpdateStatus(obj *v1beta2.Replica) (*v1beta2.Replica, error) {
-	result := &v1beta2.Replica{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *replicaController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *replicaController) Get(namespace, name string, options metav1.GetOptions) (*v1beta2.Replica, error) {
-	result := &v1beta2.Replica{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *replicaController) List(namespace string, opts metav1.ListOptions) (*v1beta2.ReplicaList, error) {
-	result := &v1beta2.ReplicaList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *replicaController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *replicaController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1beta2.Replica, error) {
-	result := &v1beta2.Replica{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type replicaCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *replicaCache) Get(namespace, name string) (*v1beta2.Replica, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1beta2.Replica), nil
-}
-
-func (c *replicaCache) List(namespace string, selector labels.Selector) (ret []*v1beta2.Replica, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.Replica))
-	})
-
-	return ret, err
-}
-
-func (c *replicaCache) AddIndexer(indexName string, indexer ReplicaIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1beta2.Replica))
-		},
-	}))
-}
-
-func (c *replicaCache) GetByIndex(indexName, key string) (result []*v1beta2.Replica, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1beta2.Replica, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1beta2.Replica))
-	}
-	return result, nil
-}
-
-// ReplicaStatusHandler is executed for every added or modified Replica. Should return the new status to be updated
 type ReplicaStatusHandler func(obj *v1beta2.Replica, status v1beta2.ReplicaStatus) (v1beta2.ReplicaStatus, error)
 
-// ReplicaGeneratingHandler is the top-level handler that is executed for every Replica event. It extends ReplicaStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type ReplicaGeneratingHandler func(obj *v1beta2.Replica, status v1beta2.ReplicaStatus) ([]runtime.Object, v1beta2.ReplicaStatus, error)
 
-// RegisterReplicaStatusHandler configures a ReplicaController to execute a ReplicaStatusHandler for every events observed.
-// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterReplicaStatusHandler(ctx context.Context, controller ReplicaController, condition condition.Cond, name string, handler ReplicaStatusHandler) {
 	statusHandler := &replicaStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromReplicaHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
-// RegisterReplicaGeneratingHandler configures a ReplicaController to execute a ReplicaGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
-// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterReplicaGeneratingHandler(ctx context.Context, controller ReplicaController, apply apply.Apply,
 	condition condition.Cond, name string, handler ReplicaGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &replicaGeneratingHandler{
@@ -304,7 +82,6 @@ type replicaStatusHandler struct {
 	handler   ReplicaStatusHandler
 }
 
-// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *replicaStatusHandler) sync(key string, obj *v1beta2.Replica) (*v1beta2.Replica, error) {
 	if obj == nil {
 		return obj, nil
@@ -350,10 +127,8 @@ type replicaGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
-	seen  sync.Map
 }
 
-// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *replicaGeneratingHandler) Remove(key string, obj *v1beta2.Replica) (*v1beta2.Replica, error) {
 	if obj != nil {
 		return obj, nil
@@ -363,17 +138,12 @@ func (a *replicaGeneratingHandler) Remove(key string, obj *v1beta2.Replica) (*v1
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
-	if a.opts.UniqueApplyForResourceVersion {
-		a.seen.Delete(key)
-	}
-
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
-// Handle executes the configured ReplicaGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *replicaGeneratingHandler) Handle(obj *v1beta2.Replica, status v1beta2.ReplicaStatus) (v1beta2.ReplicaStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -383,41 +153,9 @@ func (a *replicaGeneratingHandler) Handle(obj *v1beta2.Replica, status v1beta2.R
 	if err != nil {
 		return newStatus, err
 	}
-	if !a.isNewResourceVersion(obj) {
-		return newStatus, nil
-	}
 
-	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
-	if err != nil {
-		return newStatus, err
-	}
-	a.storeResourceVersion(obj)
-	return newStatus, nil
-}
-
-// isNewResourceVersion detects if a specific resource version was already successfully processed.
-// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *replicaGeneratingHandler) isNewResourceVersion(obj *v1beta2.Replica) bool {
-	if !a.opts.UniqueApplyForResourceVersion {
-		return true
-	}
-
-	// Apply once per resource version
-	key := obj.Namespace + "/" + obj.Name
-	previous, ok := a.seen.Load(key)
-	return !ok || previous != obj.ResourceVersion
-}
-
-// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
-// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *replicaGeneratingHandler) storeResourceVersion(obj *v1beta2.Replica) {
-	if !a.opts.UniqueApplyForResourceVersion {
-		return
-	}
-
-	key := obj.Namespace + "/" + obj.Name
-	a.seen.Store(key, obj.ResourceVersion)
 }

@@ -17,7 +17,9 @@ func ObjectInCluster(cluster string, obj interface{}) bool {
 	// Check if the object implements the interface, this is best case and
 	// what objects should strive to be
 	if o, ok := obj.(ObjectClusterName); ok {
-		return o.ObjClusterName() == cluster
+		clusterName := o.ObjClusterName()
+		debugLogsClusterExtraction(clusterName, obj)
+		return clusterName == cluster
 	}
 
 	// For types outside of rancher, attempt to check the anno, then use the namespace
@@ -91,6 +93,7 @@ func ObjectInCluster(cluster string, obj interface{}) bool {
 		}
 	}
 
+	debugLogsClusterExtraction(clusterName, obj)
 	return clusterName == cluster
 }
 
@@ -115,4 +118,14 @@ func getFieldValue(v reflect.Value, name ...string) reflect.Value {
 		return field
 	}
 	return getFieldValue(field, name[1:]...)
+}
+
+func debugLogsClusterExtraction(clusterName string, obj interface{}) {
+	if clusterName != "" {
+		return
+	}
+	ns := getValue(obj, "Namespace")
+	name := getValue(obj, "Name")
+	kind := getValue(obj, "Kind")
+	logrus.Debugf("unable to extract cluster that the object [%s:%s] of kind [%s] belongs to", ns, name, kind)
 }

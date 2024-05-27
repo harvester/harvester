@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -179,40 +179,6 @@ func NewCatalogTemplateVersion(namespace, name string, obj CatalogTemplateVersio
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// CisBenchmarkVersionList is a list of CisBenchmarkVersion resources
-type CisBenchmarkVersionList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-
-	Items []CisBenchmarkVersion `json:"items"`
-}
-
-func NewCisBenchmarkVersion(namespace, name string, obj CisBenchmarkVersion) *CisBenchmarkVersion {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("CisBenchmarkVersion").ToAPIVersionAndKind()
-	obj.Name = name
-	obj.Namespace = namespace
-	return &obj
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// CisConfigList is a list of CisConfig resources
-type CisConfigList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-
-	Items []CisConfig `json:"items"`
-}
-
-func NewCisConfig(namespace, name string, obj CisConfig) *CisConfig {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("CisConfig").ToAPIVersionAndKind()
-	obj.Name = name
-	obj.Namespace = namespace
-	return &obj
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // CloudCredentialList is a list of CloudCredential resources
 type CloudCredentialList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -359,23 +325,6 @@ type ClusterRoleTemplateBindingList struct {
 
 func NewClusterRoleTemplateBinding(namespace, name string, obj ClusterRoleTemplateBinding) *ClusterRoleTemplateBinding {
 	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterRoleTemplateBinding").ToAPIVersionAndKind()
-	obj.Name = name
-	obj.Namespace = namespace
-	return &obj
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// ClusterScanList is a list of ClusterScan resources
-type ClusterScanList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-
-	Items []ClusterScan `json:"items"`
-}
-
-func NewClusterScan(namespace, name string, obj ClusterScan) *ClusterScan {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterScan").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj
@@ -869,6 +818,23 @@ type OpenLdapProviderList struct {
 
 func NewOpenLdapProvider(namespace, name string, obj OpenLdapProvider) *OpenLdapProvider {
 	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("OpenLdapProvider").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// PodSecurityAdmissionConfigurationTemplateList is a list of PodSecurityAdmissionConfigurationTemplate resources
+type PodSecurityAdmissionConfigurationTemplateList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []PodSecurityAdmissionConfigurationTemplate `json:"items"`
+}
+
+func NewPodSecurityAdmissionConfigurationTemplate(namespace, name string, obj PodSecurityAdmissionConfigurationTemplate) *PodSecurityAdmissionConfigurationTemplate {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("PodSecurityAdmissionConfigurationTemplate").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj

@@ -10,6 +10,7 @@ import (
 )
 
 // +genclient
+// +kubebuilder:skipversion
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type App struct {
@@ -50,12 +51,11 @@ func (a *AppSpec) ObjClusterName() string {
 }
 
 var (
-	AppConditionInstalled                  condition.Cond = "Installed"
-	AppConditionMigrated                   condition.Cond = "Migrated"
-	AppConditionDeployed                   condition.Cond = "Deployed"
-	AppConditionForceUpgrade               condition.Cond = "ForceUpgrade"
-	AppConditionUserTriggeredAction        condition.Cond = "UserTriggeredAction"
-	IstioConditionMetricExpressionDeployed condition.Cond = "MetricExpressionDeployed"
+	AppConditionInstalled           condition.Cond = "Installed"
+	AppConditionMigrated            condition.Cond = "Migrated"
+	AppConditionDeployed            condition.Cond = "Deployed"
+	AppConditionForceUpgrade        condition.Cond = "ForceUpgrade"
+	AppConditionUserTriggeredAction condition.Cond = "UserTriggeredAction"
 )
 
 type AppStatus struct {
@@ -82,6 +82,7 @@ type AppCondition struct {
 }
 
 // +genclient
+// +kubebuilder:skipversion
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type AppRevision struct {

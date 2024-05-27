@@ -20,6 +20,7 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	v1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -43,6 +44,6 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) APIService() APIServiceController {
-	return NewAPIServiceController(schema.GroupVersionKind{Group: "apiregistration.k8s.io", Version: "v1", Kind: "APIService"}, "apiservices", false, c.controllerFactory)
+func (v *version) APIService() APIServiceController {
+	return generic.NewNonNamespacedController[*v1.APIService, *v1.APIServiceList](schema.GroupVersionKind{Group: "apiregistration.k8s.io", Version: "v1", Kind: "APIService"}, "apiservices", v.controllerFactory)
 }

@@ -20,6 +20,7 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/schemes"
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -46,15 +47,18 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) ClusterRole() ClusterRoleController {
-	return NewClusterRoleController(schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "ClusterRole"}, "clusterroles", false, c.controllerFactory)
+func (v *version) ClusterRole() ClusterRoleController {
+	return generic.NewNonNamespacedController[*v1.ClusterRole, *v1.ClusterRoleList](schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "ClusterRole"}, "clusterroles", v.controllerFactory)
 }
-func (c *version) ClusterRoleBinding() ClusterRoleBindingController {
-	return NewClusterRoleBindingController(schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "ClusterRoleBinding"}, "clusterrolebindings", false, c.controllerFactory)
+
+func (v *version) ClusterRoleBinding() ClusterRoleBindingController {
+	return generic.NewNonNamespacedController[*v1.ClusterRoleBinding, *v1.ClusterRoleBindingList](schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "ClusterRoleBinding"}, "clusterrolebindings", v.controllerFactory)
 }
-func (c *version) Role() RoleController {
-	return NewRoleController(schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "Role"}, "roles", true, c.controllerFactory)
+
+func (v *version) Role() RoleController {
+	return generic.NewController[*v1.Role, *v1.RoleList](schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "Role"}, "roles", true, v.controllerFactory)
 }
-func (c *version) RoleBinding() RoleBindingController {
-	return NewRoleBindingController(schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "RoleBinding"}, "rolebindings", true, c.controllerFactory)
+
+func (v *version) RoleBinding() RoleBindingController {
+	return generic.NewController[*v1.RoleBinding, *v1.RoleBindingList](schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "RoleBinding"}, "rolebindings", true, v.controllerFactory)
 }

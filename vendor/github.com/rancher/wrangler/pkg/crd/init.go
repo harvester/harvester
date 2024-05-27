@@ -42,6 +42,8 @@ type Factory struct {
 	apply     apply.Apply
 }
 
+// CRD defines information about a CRD that can be used to create a CustomResourceDefinition runtime.Object
+// Deprecated: Rancher does not plan to continue support for dynamically defined CRDs
 type CRD struct {
 	GVK          schema.GroupVersionKind
 	PluralName   string
@@ -229,7 +231,7 @@ func (c CRD) ToCustomResourceDefinition() (runtime.Object, error) {
 		singular = strings.ToLower(c.GVK.Kind)
 	}
 
-	name := strings.ToLower(plural + "." + c.GVK.Group)
+	name := c.Name()
 
 	crd := apiextv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
@@ -359,6 +361,31 @@ func (c CRD) ToCustomResourceDefinitionV1Beta1() (*apiextv1beta1.CustomResourceD
 		Kind:    CRDKind,
 	})
 	return v1beta1CRD, nil
+}
+
+// Name resolves the Name for the given CRD.
+func (c *CRD) Name() string {
+	if meta, ok := c.Override.(metav1.Object); ok && c.Override != nil {
+		return meta.GetName()
+	}
+	kind := c.GVK.Kind
+	if c.SchemaObject != nil && kind == "" {
+		t := getType(c.SchemaObject)
+		kind = t.Name()
+	}
+
+	group := c.GVK.Group
+	if c.SchemaObject != nil && group == "" {
+		t := getType(c.SchemaObject)
+		group = filepath.Base(filepath.Dir(t.PkgPath()))
+	}
+
+	plural := c.PluralName
+	if plural == "" {
+		plural = strings.ToLower(name.GuessPluralName(kind))
+	}
+
+	return strings.ToLower(plural + "." + group)
 }
 
 func NamespacedType(name string) CRD {

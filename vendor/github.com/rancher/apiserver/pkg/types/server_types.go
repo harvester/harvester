@@ -17,6 +17,7 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/request"
 )
 
+//go:generate mockgen -destination=../fakes/mock_server_types.go -package=fakes . ResponseWriter,AccessControl
 type RawResource struct {
 	ID          string            `json:"id,omitempty" yaml:"id,omitempty"`
 	Type        string            `json:"type,omitempty" yaml:"type,omitempty"`

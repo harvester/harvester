@@ -46,6 +46,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	nodes := scaled.CoreFactory.Core().V1().Node()
 	pvcs := scaled.CoreFactory.Core().V1().PersistentVolumeClaim()
 	pvs := scaled.CoreFactory.Core().V1().PersistentVolume()
+	namespaces := scaled.CoreFactory.Core().V1().Namespace()
 	secrets := scaled.CoreFactory.Core().V1().Secret()
 	vmt := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
 	vmtv := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
@@ -98,7 +99,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 
 	vmStore := &vmStore{
-		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
+		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup, namespaces.Cache()),
 		vms:      scaled.VirtFactory.Kubevirt().V1().VirtualMachine(),
 		vmCache:  scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 		pvcs:     scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),

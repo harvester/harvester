@@ -11,12 +11,6 @@ import (
 	"strings"
 )
 
-type wrapWriter struct {
-	gzipResponseWriter
-
-	code int
-}
-
 type gzipResponseWriter struct {
 	io.Writer
 	http.ResponseWriter
@@ -53,7 +47,7 @@ func Gzip(handler http.Handler) http.Handler {
 		}
 		gz := gzip.NewWriter(w)
 
-		gzw := &wrapWriter{gzipResponseWriter{Writer: gz, ResponseWriter: w}, http.StatusOK}
+		gzw := &gzipResponseWriter{Writer: gz, ResponseWriter: w}
 		defer gzw.Close(gz)
 
 		// Content encoding will be set once Write or WriteHeader is called, to avoid gzipping empty messages
