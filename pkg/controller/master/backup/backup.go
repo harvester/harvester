@@ -75,8 +75,8 @@ func RegisterBackup(ctx context.Context, management *config.Management, _ config
 	storageClasses := management.StorageFactory.Storage().V1().StorageClass()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
-	volumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 	lhbackups := management.LonghornFactory.Longhorn().V1beta2().Backup()
+	volumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 	snapshots := management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
 	snapshotContents := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotContent()
 	snapshotClass := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotClass()
@@ -102,9 +102,8 @@ func RegisterBackup(ctx context.Context, management *config.Management, _ config
 		vmsCache:                  vms.Cache(),
 		vmis:                      vmis,
 		vmisCache:                 vmis.Cache(),
-		volumeCache:               volumes.Cache(),
-		volumes:                   volumes,
 		lhbackupCache:             lhbackups.Cache(),
+		volumeCache:               volumes.Cache(),
 		snapshots:                 snapshots,
 		snapshotCache:             snapshots.Cache(),
 		snapshotContents:          snapshotContents,
@@ -133,9 +132,8 @@ type Handler struct {
 	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
 	secretCache               ctlcorev1.SecretCache
 	storageClassCache         ctlstoragev1.StorageClassCache
-	volumeCache               ctllonghornv2.VolumeCache
-	volumes                   ctllonghornv2.VolumeClient
 	lhbackupCache             ctllonghornv2.BackupCache
+	volumeCache               ctllonghornv2.VolumeCache
 	snapshots                 ctlsnapshotv1.VolumeSnapshotClient
 	snapshotCache             ctlsnapshotv1.VolumeSnapshotCache
 	snapshotContents          ctlsnapshotv1.VolumeSnapshotContentClient
@@ -169,13 +167,6 @@ func (h *Handler) OnBackupChange(_ string, vmBackup *harvesterv1.VirtualMachineB
 			return nil, h.setStatusError(vmBackup, err)
 		}
 
-		// check if the VM is running, if not make sure the volumes are mounted to the host
-		if !sourceVM.Status.Ready || !sourceVM.Status.Created {
-			// mount volumes after creating VolumeSnapshots, so detaching volumes controller doesn't detach the volumes
-			if err := h.mountLonghornVolumes(sourceVM); err != nil {
-				return nil, h.setStatusError(vmBackup, err)
-			}
-		}
 		return nil, nil
 	}
 

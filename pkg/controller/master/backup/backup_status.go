@@ -7,16 +7,12 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	longhorntypes "github.com/longhorn/longhorn-manager/types"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
-	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/util"
 )
 
 func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) error {
@@ -103,47 +99,6 @@ func (h *Handler) resolveVolSnapshotRef(namespace string, controllerRef *metav1.
 		return nil
 	}
 	return backup
-}
-
-// mountLonghornVolumes helps to mount the volumes to host if it is detached
-func (h *Handler) mountLonghornVolumes(vm *kubevirtv1.VirtualMachine) error {
-	for _, vol := range vm.Spec.Template.Spec.Volumes {
-		if vol.PersistentVolumeClaim == nil {
-			continue
-		}
-		name := vol.PersistentVolumeClaim.ClaimName
-
-		pvc, err := h.pvcCache.Get(vm.Namespace, name)
-		if err != nil {
-			return fmt.Errorf("failed to get pvc %s/%s, error: %s", name, vm.Namespace, err.Error())
-		}
-
-		sc, err := h.storageClassCache.Get(*pvc.Spec.StorageClassName)
-		if err != nil {
-			return err
-		}
-		if sc.Provisioner != longhorntypes.LonghornDriverName {
-			continue
-		}
-
-		volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
-		if err != nil {
-			return fmt.Errorf("failed to get volume %s/%s, error: %s", name, vm.Namespace, err.Error())
-		}
-
-		volCpy := volume.DeepCopy()
-		if volume.Status.State == lhv1beta2.VolumeStateDetached || volume.Status.State == lhv1beta2.VolumeStateDetaching {
-			volCpy.Spec.NodeID = volume.Status.OwnerID
-		}
-
-		if !reflect.DeepEqual(volCpy, volume) {
-			logrus.Infof("mount detached volume %s to the node %s", volCpy.Name, volCpy.Spec.NodeID)
-			if _, err = h.volumes.Update(volCpy); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 func getVolumeSnapshotContentName(volumeBackup harvesterv1.VolumeBackup) string {

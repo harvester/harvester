@@ -13,8 +13,6 @@ import (
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/sirupsen/logrus"
@@ -343,11 +341,6 @@ func (h *RestoreHandler) reconcileResources(
 	// reconcile restoring volumes and create new PVC from CSI volumeSnapshot if not exist
 	isVolumesReady, err := h.reconcileVolumeRestores(vmRestore, backup)
 	if err != nil {
-		return nil, false, err
-	}
-
-	// mount volumes after creating PVCs, so detaching volumes controller doesn't detach the volumes
-	if err := h.mountLonghornVolumes(backup); err != nil {
 		return nil, false, err
 	}
 
@@ -908,44 +901,4 @@ func (h *RestoreHandler) constructVolumeSnapshotContentName(restoreNamespace, re
 	// VolumeSnapshotContent is cluster-scoped resource,
 	// so adding restoreNamespace to its name to prevent conflict in different namespace with same restore name and backup
 	return name.SafeConcatName("restore", restoreNamespace, restoreName, volumeBackupName)
-}
-
-// mountLonghornVolumes helps to mount the volumes to host if it is detached
-func (h *RestoreHandler) mountLonghornVolumes(backup *harvesterv1.VirtualMachineBackup) error {
-	// we only need to mount LH Volumes for snapshot type.
-	if backup.Spec.Type == harvesterv1.Backup {
-		return nil
-	}
-
-	for _, vb := range backup.Status.VolumeBackups {
-		pvcNamespace := vb.PersistentVolumeClaim.ObjectMeta.Namespace
-		pvcName := vb.PersistentVolumeClaim.ObjectMeta.Name
-
-		pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
-		if err != nil {
-			return fmt.Errorf("failed to get pvc %s/%s, error: %s", pvcNamespace, pvcName, err.Error())
-		}
-
-		if provisioner := util.GetProvisionedPVCProvisioner(pvc); provisioner != longhorntypes.LonghornDriverName {
-			continue
-		}
-
-		volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
-		if err != nil {
-			return fmt.Errorf("failed to get volume %s/%s, error: %s", util.LonghornSystemNamespaceName, pvc.Spec.VolumeName, err.Error())
-		}
-
-		volCpy := volume.DeepCopy()
-		if volume.Status.State == lhv1beta2.VolumeStateDetached || volume.Status.State == lhv1beta2.VolumeStateDetaching {
-			volCpy.Spec.NodeID = volume.Status.OwnerID
-		}
-
-		if !reflect.DeepEqual(volCpy, volume) {
-			logrus.Infof("mount detached volume %s to the node %s", volCpy.Name, volCpy.Spec.NodeID)
-			if _, err = h.volumes.Update(volCpy); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
