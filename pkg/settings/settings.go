@@ -86,6 +86,7 @@ const (
 	SupportBundleExpirationSettingName                = "support-bundle-expiration"
 	NTPServersSettingName                             = "ntp-servers"
 	AutoRotateRKE2CertsSettingName                    = "auto-rotate-rke2-certs"
+	KubeconfigTTLSettingName                          = "kubeconfig-default-token-ttl-minutes"
 	SupportBundleNodeCollectionTimeoutName            = "support-bundle-node-collection-timeout"
 )
 
