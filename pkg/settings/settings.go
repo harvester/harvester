@@ -38,9 +38,9 @@ var (
 	SSLParameters                          = NewSetting(SSLParametersName, "{}")
 	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
 	SupportBundleNamespaces                = NewSetting("support-bundle-namespaces", "")
-	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")                                                   // Unit is minute. 0 means disable timeout.
-	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, supportBundleUtil.SupportBundleExpirationDefaultStr) // Unit is minute.
-	SupportBundleNodeTimeout               = NewSetting(SupportBundleNodeTimeoutName, supportBundleUtil.SupportBundleNodeTimeoutDefaultStr)      // Unit is minute.
+	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")                                                                  // Unit is minute. 0 means disable timeout.
+	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, supportBundleUtil.SupportBundleExpirationDefaultStr)                // Unit is minute.
+	SupportBundleNodeCollectionTimeout     = NewSetting(SupportBundleNodeCollectionTimeoutName, supportBundleUtil.SupportBundleNodeCollectionTimeoutDefaultStr) // Unit is minute.
 	DefaultStorageClass                    = NewSetting("default-storage-class", "longhorn")
 	HTTPProxy                              = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet                  = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
@@ -86,7 +86,7 @@ const (
 	SupportBundleExpirationSettingName                = "support-bundle-expiration"
 	NTPServersSettingName                             = "ntp-servers"
 	AutoRotateRKE2CertsSettingName                    = "auto-rotate-rke2-certs"
-	SupportBundleNodeTimeoutName                      = "support-bundle-node-timeout"
+	SupportBundleNodeCollectionTimeoutName            = "support-bundle-node-collection-timeout"
 )
 
 func init() {

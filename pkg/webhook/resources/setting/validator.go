@@ -76,7 +76,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.SupportBundleImageName:                            validateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateSupportBundleTimeout,
 	settings.SupportBundleExpirationSettingName:                validateSupportBundleExpiration,
-	settings.SupportBundleNodeTimeoutName:                      validateSupportBundleNodeTimeout,
+	settings.SupportBundleNodeCollectionTimeoutName:            validateSupportBundleNodeCollectionTimeout,
 	settings.OvercommitConfigSettingName:                       validateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:                         validateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:                        validateSSLCertificates,
@@ -559,7 +559,7 @@ func validateSupportBundleExpiration(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateSupportBundleNodeTimeout(setting *v1beta1.Setting) error {
+func validateSupportBundleNodeCollectionTimeout(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
 	}
