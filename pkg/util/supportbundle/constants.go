@@ -5,7 +5,7 @@ const (
 	SupportBundleExpirationDefault    = 30
 	SupportBundleExpirationDefaultStr = "30"
 
-	// SupportBundleNodeTimeoutDefault and SupportBundleNodeTimeoutDefaultStr these two value should be changed together.
-	SupportBundleNodeTimeoutDefault    = 30
-	SupportBundleNodeTimeoutDefaultStr = "30"
+	// SupportBundleNodeCollectionTimeoutDefault and SupportBundleNodeCollectionTimeoutDefaultStr these two value should be changed together.
+	SupportBundleNodeCollectionTimeoutDefault    = 30
+	SupportBundleNodeCollectionTimeoutDefaultStr = "30"
 )

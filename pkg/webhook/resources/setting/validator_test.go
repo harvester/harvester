@@ -170,7 +170,7 @@ func Test_validateSupportBundleExpiration(t *testing.T) {
 	}
 }
 
-func Test_validateSupportBundleNodeTimeout(t *testing.T) {
+func Test_validateSupportBundleNodeCollectionTimeout(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        *v1beta1.Setting
@@ -179,7 +179,7 @@ func Test_validateSupportBundleNodeTimeout(t *testing.T) {
 		{
 			name: "invalid int",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeTimeoutName},
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
 				Value:      "not int",
 			},
 			expectedErr: true,
@@ -187,7 +187,7 @@ func Test_validateSupportBundleNodeTimeout(t *testing.T) {
 		{
 			name: "negative int",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeTimeoutName},
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
 				Value:      "-1",
 			},
 			expectedErr: true,
@@ -195,7 +195,7 @@ func Test_validateSupportBundleNodeTimeout(t *testing.T) {
 		{
 			name: "empty input",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeTimeoutName},
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
 				Value:      "",
 			},
 			expectedErr: false,
@@ -203,7 +203,7 @@ func Test_validateSupportBundleNodeTimeout(t *testing.T) {
 		{
 			name: "positive int",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeTimeoutName},
+				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
 				Value:      "10",
 			},
 			expectedErr: false,
@@ -212,7 +212,7 @@ func Test_validateSupportBundleNodeTimeout(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateSupportBundleNodeTimeout(tt.args)
+			err := validateSupportBundleNodeCollectionTimeout(tt.args)
 			assert.Equal(t, tt.expectedErr, err != nil)
 		})
 	}
