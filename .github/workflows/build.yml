@@ -14,7 +14,7 @@ jobs:
     runs-on: runs-on,runner=4cpu-linux-${{ matrix.arch }},hdd=50,run-id=${{ github.run_id }}
     strategy:
       matrix:
-        arch: [x64, arm64]
+        arch: [x64]
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/heads/') || startsWith(github.ref, 'refs/tags/') }}
     strategy:
       matrix:
-        arch: [x64, arm64]
+        arch: [x64]
     permissions:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
@@ -212,57 +212,45 @@ jobs:
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       run: |
         docker pull --platform linux/amd64 rancher/harvester:${{ env.branch }}-head-amd64
-        docker pull --platform linux/arm64 rancher/harvester:${{ env.branch }}-head-arm64
         docker buildx imagetools create -t rancher/harvester:${{ env.branch }}-head \
-          rancher/harvester:${{ env.branch }}-head-amd64 \
-          rancher/harvester:${{ env.branch }}-head-arm64
+          rancher/harvester:${{ env.branch }}-head-amd64
 
     - name: docker-pull-harvester-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
       run: |
         docker pull --platform linux/amd64 rancher/harvester:${{ github.ref_name }}-amd64
-        docker pull --platform linux/arm64 rancher/harvester:${{ github.ref_name }}-arm64
         docker buildx imagetools create -t rancher/harvester:${{ github.ref_name }} \
-          rancher/harvester:${{ github.ref_name }}-amd64 \
-          rancher/harvester:${{ github.ref_name }}-arm64
+          rancher/harvester:${{ github.ref_name }}-amd64
 
     # rancher/harvester-webhook image
     - name: docker-pull-harvester-webhook
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       run: |
         docker pull --platform linux/amd64 rancher/harvester-webhook:${{ env.branch }}-head-amd64
-        docker pull --platform linux/arm64 rancher/harvester-webhook:${{ env.branch }}-head-arm64
         docker buildx imagetools create -t rancher/harvester-webhook:${{ env.branch }}-head \
-          rancher/harvester-webhook:${{ env.branch }}-head-amd64 \
-          rancher/harvester-webhook:${{ env.branch }}-head-arm64
+          rancher/harvester-webhook:${{ env.branch }}-head-amd64
 
     - name: docker-pull-harvester-webhook-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
       run: |
         docker pull --platform linux/amd64 rancher/harvester-webhook:${{ github.ref_name }}-amd64
-        docker pull --platform linux/arm64 rancher/harvester-webhook:${{ github.ref_name }}-arm64
         docker buildx imagetools create -t rancher/harvester-webhook:${{ github.ref_name }} \
-          rancher/harvester-webhook:${{ github.ref_name }}-amd64 \
-          rancher/harvester-webhook:${{ github.ref_name }}-arm64
+          rancher/harvester-webhook:${{ github.ref_name }}-amd64
 
     # rancher/harvester-upgrade image
     - name: docker-pull-harvester-upgrade
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       run: |
         docker pull --platform linux/amd64 rancher/harvester-upgrade:${{ env.branch }}-head-amd64
-        docker pull --platform linux/arm64 rancher/harvester-upgrade:${{ env.branch }}-head-arm64
         docker buildx imagetools create -t rancher/harvester-upgrade:${{ env.branch }}-head \
-          rancher/harvester-upgrade:${{ env.branch }}-head-amd64 \
-          rancher/harvester-upgrade:${{ env.branch }}-head-arm64
+          rancher/harvester-upgrade:${{ env.branch }}-head-amd64
 
     - name: docker-pull-harvester-upgrade-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
       run: |
         docker pull --platform linux/amd64 rancher/harvester-upgrade:${{ github.ref_name }}-amd64
-        docker pull --platform linux/arm64 rancher/harvester-upgrade:${{ github.ref_name }}-arm64
         docker buildx imagetools create -t rancher/harvester-upgrade:${{ github.ref_name }} \
-          rancher/harvester-upgrade:${{ github.ref_name }}-amd64 \
-          rancher/harvester-upgrade:${{ github.ref_name }}-arm64
+          rancher/harvester-upgrade:${{ github.ref_name }}-amd64
 
   build-iso:
     name: Build ISO
@@ -271,7 +259,7 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/heads/') || startsWith(github.ref, 'refs/tags/') }}
     strategy:
       matrix:
-        arch: [x64, arm64]
+        arch: [x64]
     permissions:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
@@ -419,16 +407,12 @@ jobs:
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       run: |
         docker pull --platform linux/amd64 rancher/harvester-cluster-repo:${{ env.branch }}-head-amd64
-        docker pull --platform linux/arm64 rancher/harvester-cluster-repo:${{ env.branch }}-head-arm64
         docker buildx imagetools create -t rancher/harvester-cluster-repo:${{ env.branch }}-head \
-          rancher/harvester-cluster-repo:${{ env.branch }}-head-amd64 \
-          rancher/harvester-cluster-repo:${{ env.branch }}-head-arm64
+          rancher/harvester-cluster-repo:${{ env.branch }}-head-amd64
 
     - name: docker-pull-harvester-cluster-repo-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
       run: |
         docker pull --platform linux/amd64 rancher/harvester-cluster-repo:${{ github.ref_name }}-amd64
-        docker pull --platform linux/arm64 rancher/harvester-cluster-repo:${{ github.ref_name }}-arm64
         docker buildx imagetools create -t rancher/harvester-cluster-repo:${{ github.ref_name }} \
-          rancher/harvester-cluster-repo:${{ github.ref_name }}-amd64 \
-          rancher/harvester-cluster-repo:${{ github.ref_name }}-arm64
+          rancher/harvester-cluster-repo:${{ github.ref_name }}-amd64
