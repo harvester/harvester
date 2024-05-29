@@ -54,8 +54,8 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy
 	deployName = m.getManagerName(sb)
 	logrus.Debugf("creating deployment %s with image %s", deployName, image)
 
-	if expiration := settings.SupportBundleNodeTimeout.GetInt(); expiration == 0 {
-		nodeTimeout = time.Duration(supportBundleUtil.SupportBundleNodeTimeoutDefault) * time.Minute
+	if expiration := settings.SupportBundleNodeCollectionTimeout.GetInt(); expiration == 0 {
+		nodeTimeout = time.Duration(supportBundleUtil.SupportBundleNodeCollectionTimeoutDefault) * time.Minute
 	} else {
 		nodeTimeout = time.Duration(expiration) * time.Minute
 	}
