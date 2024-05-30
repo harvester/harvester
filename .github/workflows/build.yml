@@ -272,6 +272,15 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    - name: Declare branch
+      run: |
+        echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
+        if [ "${{ matrix.arch }}" == "x64" ]; then
+          echo "arch=amd64" >> "$GITHUB_ENV"
+        else
+          echo "arch=arm64" >> "$GITHUB_ENV"
+        fi
+
     - name: build-iso
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       run: |
@@ -301,15 +310,6 @@ jobs:
       with:
         username: ${{ env.DOCKER_USERNAME }}
         password: ${{ env.DOCKER_PASSWORD }}
-
-    - name: Declare branch
-      run: |
-        echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
-        if [ "${{ matrix.arch }}" == "x64" ]; then
-          echo "arch=amd64" >> "$GITHUB_ENV"
-        else
-          echo "arch=arm64" >> "$GITHUB_ENV"
-        fi
 
     # rancher/harvester-cluster-repo image
     - name: docker-publish-harvester-cluster-repo
