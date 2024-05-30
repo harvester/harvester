@@ -179,7 +179,7 @@ func Test_validateSupportBundleNodeCollectionTimeout(t *testing.T) {
 		{
 			name: "invalid int",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
 				Value:      "not int",
 			},
 			expectedErr: true,
@@ -187,7 +187,7 @@ func Test_validateSupportBundleNodeCollectionTimeout(t *testing.T) {
 		{
 			name: "negative int",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
 				Value:      "-1",
 			},
 			expectedErr: true,
@@ -195,7 +195,7 @@ func Test_validateSupportBundleNodeCollectionTimeout(t *testing.T) {
 		{
 			name: "empty input",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
 				Value:      "",
 			},
 			expectedErr: false,
@@ -203,7 +203,7 @@ func Test_validateSupportBundleNodeCollectionTimeout(t *testing.T) {
 		{
 			name: "positive int",
 			args: &v1beta1.Setting{
-				ObjectMeta: v1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
 				Value:      "10",
 			},
 			expectedErr: false,
