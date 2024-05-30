@@ -342,6 +342,7 @@ jobs:
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       with:
         path: dist/artifacts
+        parent: false
         destination: releases.rancher.com/harvester/${{ env.branch }}
         predefinedAcl: publicRead
         headers: |-
@@ -352,6 +353,7 @@ jobs:
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
       with:
         path: dist/artifacts
+        parent: false
         destination: releases.rancher.com/harvester/${{ github.ref_name }}
         predefinedAcl: publicRead
         headers: |-
