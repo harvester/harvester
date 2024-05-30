@@ -36,6 +36,9 @@ const (
 	// Add to rancher-monitoring addon to record grafana pv name
 	AnnotationGrafanaPVName = prefix + "/grafana-pv-name"
 
+	// AnnotationTriggerUpdateTime is used to trigger the update of the resource
+	AnnotationTriggerUpdateTime = prefix + "/trigger-update-time"
+
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
 

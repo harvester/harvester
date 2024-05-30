@@ -87,6 +87,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateDefaultVMTerminationGracePeriodSeconds,
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
+	settings.PatchHarvesterServicesInResourceQuotaSettingName:  validatePatchHarvesterServicesInResourceQuota,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -104,6 +105,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateUpdateDefaultVMTerminationGracePeriodSeconds,
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
+	settings.PatchHarvesterServicesInResourceQuotaSettingName:  validateUpdatePatchHarvesterServicesInResourceQuota,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -1016,4 +1018,20 @@ func validateAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
 
 func validateUpdateAutoRotateRKE2Certs(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateAutoRotateRKE2Certs(newSetting)
+}
+
+func validatePatchHarvesterServicesInResourceQuota(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	if setting.Value != "true" && setting.Value != "false" {
+		return werror.NewInvalidError("value should be true or false", "value")
+	}
+
+	return nil
+}
+
+func validateUpdatePatchHarvesterServicesInResourceQuota(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validatePatchHarvesterServicesInResourceQuota(newSetting)
 }

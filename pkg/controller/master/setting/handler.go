@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io/v1"
@@ -43,35 +44,36 @@ var (
 )
 
 type Handler struct {
-	namespace            string
-	httpClient           http.Client
-	apply                apply.Apply
-	clusterCache         provisioningv1.ClusterCache
-	clusters             provisioningv1.ClusterClient
-	settings             v1beta1.SettingClient
-	settingCache         v1beta1.SettingCache
-	settingController    v1beta1.SettingController
-	secrets              ctlcorev1.SecretClient
-	secretCache          ctlcorev1.SecretCache
-	deployments          v1.DeploymentClient
-	deploymentCache      v1.DeploymentCache
-	ingresses            networkingv1.IngressClient
-	ingressCache         networkingv1.IngressCache
-	longhornSettings     ctllhv1.SettingClient
-	longhornSettingCache ctllhv1.SettingCache
-	configmaps           ctlcorev1.ConfigMapClient
-	configmapCache       ctlcorev1.ConfigMapCache
-	serviceCache         ctlcorev1.ServiceCache
-	apps                 catalogv1.AppClient
-	managedCharts        ctlmgmtv3.ManagedChartClient
-	managedChartCache    ctlmgmtv3.ManagedChartCache
-	helmChartConfigs     ctlhelmv1.HelmChartConfigClient
-	helmChartConfigCache ctlhelmv1.HelmChartConfigCache
-	nodeClient           ctlcorev1.NodeClient
-	nodeCache            ctlcorev1.NodeCache
-	nodeConfigs          ctlnodev1.NodeConfigClient
-	nodeConfigsCache     ctlnodev1.NodeConfigCache
-	rkeControlPlaneCache ctlrkev1.RKEControlPlaneCache
+	namespace               string
+	httpClient              http.Client
+	apply                   apply.Apply
+	clusterCache            provisioningv1.ClusterCache
+	clusters                provisioningv1.ClusterClient
+	settings                v1beta1.SettingClient
+	settingCache            v1beta1.SettingCache
+	settingController       v1beta1.SettingController
+	secrets                 ctlcorev1.SecretClient
+	secretCache             ctlcorev1.SecretCache
+	deployments             v1.DeploymentClient
+	deploymentCache         v1.DeploymentCache
+	ingresses               networkingv1.IngressClient
+	ingressCache            networkingv1.IngressCache
+	longhornSettings        ctllhv1.SettingClient
+	longhornSettingCache    ctllhv1.SettingCache
+	configmaps              ctlcorev1.ConfigMapClient
+	configmapCache          ctlcorev1.ConfigMapCache
+	serviceCache            ctlcorev1.ServiceCache
+	apps                    catalogv1.AppClient
+	managedCharts           ctlmgmtv3.ManagedChartClient
+	managedChartCache       ctlmgmtv3.ManagedChartCache
+	helmChartConfigs        ctlhelmv1.HelmChartConfigClient
+	helmChartConfigCache    ctlhelmv1.HelmChartConfigCache
+	nodeClient              ctlcorev1.NodeClient
+	nodeCache               ctlcorev1.NodeCache
+	nodeConfigs             ctlnodev1.NodeConfigClient
+	nodeConfigsCache        ctlnodev1.NodeConfigCache
+	rkeControlPlaneCache    ctlrkev1.RKEControlPlaneCache
+	resourceQuotaController ctlharvcorev1.ResourceQuotaController
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
