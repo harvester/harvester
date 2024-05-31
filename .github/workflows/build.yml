@@ -8,6 +8,8 @@ on:
     tags:
     - v*
   pull_request:
+  schedule:
+    - cron: "10 0,12 * * *"
 jobs:
   build-binaries:
     name: Build binaries
