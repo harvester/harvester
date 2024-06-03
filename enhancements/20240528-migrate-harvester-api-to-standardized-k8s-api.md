@@ -145,6 +145,92 @@ In order to implement this proposal, we need to take the following steps:
 
 It's basically done because we've had the action business logic in the controller, we just need to create a new interface to fulfill two different API sources, which one is from steve and the other is from subresource api.
 
+### Complete API List need migration
+
+
+#### Caution 
+
+Although we use CRD from other projects, e.g. KubeVirt,  but we have our own logic before calling other project APIs. For example:
+
+Before we start VM, we do some pre-check here.
+
+https://github.com/harvester/harvester/blob/11adde7ee31f06beba85ed85709f357e8d076950/pkg/api/vm/handler.go#L280-L289
+
+However, we didn't do something else when stop/restart vm, but I think it's better that we control the whole flow on our side, just in case. And it makes the API more consistent.
+
+#### API List
+
+In general, we have those APIs need to be migrated:
+
+1. `/v1/harvester/kubevirt.io.virtualmachines/:namespace/:name`
+2. `/v1/harvester/persistentvolumeclaims/:namespace/:name`
+3. `/v1/harvester/snapshot.storage.k8s.io.volumesnapshots/:namespace/:name`
+4. `/v1/harvester/harvesterhci.io.upgradelog/:namespace/:name`
+5. `/v1/harvester/nodes/:name`
+6. `/v1/harvester/harvesterhci.io.keypair/:namespace/:name`
+7. `/v1/harvester/harvesterhci.io.virtualmachineimages/:namespace/:name`
+
+Each one has different actions:
+
+- `/v1/harvester/kubevirt.io.virtualmachines/:namespace/:name`
+  - POST, `?action=start`
+  - POST, `?action=stop`
+  - POST, `?action=restart`
+  - POST, `?action=softreboot`
+  - POST, `?action=pause`
+  - POST, `?action=unpause`
+  - POST, `?action=ejectCdRom`
+  - POST, `?action=migrate`
+  - POST, `?action=abortMigration`
+  - POST, `?action=findMigratableNodes`
+  - POST, `?action=backup`
+  - POST, `?action=restore`
+  - POST, `?action=createTemplate`
+  - POST, `?action=addVolume`
+  - POST, `?action=removeVolume`
+  - POST, `?action=clone`
+  - POST, `?action=forceStop`
+  - POST, `?action=dismissInsufficientResourceQuota`
+- `/v1/harvester/persistentvolumeclaims/:namespace/:name`
+  - POST, `?action=export`
+  - POST, `?action=cancelExpand`
+  - POST, `?action=clone`
+  - POST, `?action=snapshot`
+- `/v1/harvester/snapshot.storage.k8s.io.volumesnapshots/:namespace/:name`
+  - POST, `?action=restore`
+- `/v1/harvester/harvesterhci.io.upgradelog/:namespace/:name`
+  - GET, `?link=download`
+  - POST, `?action=generate`
+- `/v1/harvester/nodes/:name`
+  - POST, `?action=enableMaintenanceMode`
+  - POST, `?action=disableMaintenanceMode`
+  - POST, `?action=cordon`
+  - POST, `?action=uncordon`
+  - POST, `?action=listUnhealthyVM`
+  - POST, `?action=maintenancePossible`
+  - POST, `?action=powerAction`
+  - POST, `?action=powerActionPossible`
+- `/v1/harvester/harvesterhci.io.keypair/:namespace/:name`
+  - POST, `?action=keygen`
+- `/v1/harvester/harvesterhci.io.virtualmachineimages/:namespace/:name`
+  - POST, `?action=upload`
+  - GET, `?link=download`
+
+After migration, the new APIs will be like this:
+
+1. `/apis/subresources.harvesterhci.io/v1beta1/namespaces/:namespace/kubevirt.io.virtualmachines/:name/:subresource`
+2. `/apis/subresources.harvesterhci.io/v1beta1/namespaces/:namespace/persistentvolumeclaims/:name/:subresource`
+3. `/apis/subresources.harvesterhci.io/v1beta1/namespaces/:namespace/snapshot.storage.k8s.io.volumesnapshots/:name/:subresource`
+4. `/apis/subresources.harvesterhci.io/v1beta1/namespaces/:namespace/harvesterhci.io.upgradelog/:name/:subresource`
+5. `/apis/subresources.harvesterhci.io/v1beta1/nodes/:name/:subresource`
+6. `/apis/subresources.harvesterhci.io/v1beta1/namespaces/:namespace/harvesterhci.io.keypair/:name/:subresource`
+7. `/apis/subresources.harvesterhci.io/v1beta1/namespaces/:namespace/harvesterhci.io.virtualmachineimages/:name/:subresource`
+
+But, each subresource might contain different HTTP method. It depends on the behavior is idempotent or not. 
+- If it's idempotent, use `PUT` method.
+- If it's not idempotent, use `POST` or more matched HTTP method.
+- For list API, should use `GET` method. For example, `findMigratableNodes` action, it should be `GET` cause it doesn't change anything.
+
 ### Test Plan
 
 Should test old and new APIs path formats, both should work as expected.
