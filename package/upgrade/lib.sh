@@ -204,12 +204,14 @@ import_image_archives_from_repo() {
       archive_url="$UPGRADE_REPO_BUNDLE_ROOT/$archive"
       image_list_file="${tmp_image_archives}/$(basename $list)"
 
-      # Check if images already exist
-      curl -sfL $image_list_url | sort > $image_list_file
-      missing=$($CTR -n k8s.io images ls -q | grep -v ^sha256 | sort | comm -23 $image_list_file -)
-      if [ -z "$missing" ]; then
-        echo "Images in $image_list_file already present in the system. Skip preloading."
-        continue
+      if [ "$FORCE_PRELOAD_IMPORT" != "true" ]; then
+        # Check if images already exist
+        curl -sfL $image_list_url | sort > $image_list_file
+        missing=$($CTR -n k8s.io images ls -q | grep -v ^sha256 | sort | comm -23 $image_list_file -)
+        if [ -z "$missing" ]; then
+          echo "Images in $image_list_file already present in the system. Skip preloading."
+          continue
+        fi
       fi
 
       curl -fL $archive_url | zstdcat | $CTR -n k8s.io images import --no-unpack -
@@ -249,6 +251,7 @@ detect_upgrade()
 
   UPGRADE_PREVIOUS_VERSION=$(echo "$upgrade_obj" | yq e .status.previousVersion -)
   SKIP_VERSION_CHECK=$(echo "$upgrade_obj" | yq e '.metadata.annotations."harvesterhci.io/skip-version-check"' -)
+  FORCE_PRELOAD_IMPORT=$(echo "$upgrade_obj" | yq e '.metadata.annotations."harvesterhci.io/force-preload-import"' -)
 }
 
 # refer https://github.com/harvester/harvester/issues/3098

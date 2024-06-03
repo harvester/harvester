@@ -40,6 +40,7 @@ import (
 const (
 	upgradeStateLabel                         = "harvesterhci.io/upgradeState"
 	skipWebhookAnnotation                     = "harvesterhci.io/skipWebhook"
+	forcePreloadImportAnnotation              = "harvesterhci.io/force-preload-import"
 	rkeInternalIPAnnotation                   = "rke2.io/internal-ip"
 	managedChartNamespace                     = "fleet-local"
 	defaultMinFreeDiskSpace            uint64 = 30 * 1024 * 1024 * 1024 // 30GB
@@ -133,6 +134,10 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 		return werror.NewConflict(msg)
 	}
 
+	if err := checkForcePreloadImportAnnotation(newUpgrade); err != nil {
+		return werror.NewBadRequest(err.Error())
+	}
+
 	if newUpgrade.Annotations != nil {
 		if skipWebhook, ok := newUpgrade.Annotations[skipWebhookAnnotation]; ok && strings.ToLower(skipWebhook) == "true" {
 			return nil
@@ -140,6 +145,13 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 	}
 
 	return v.checkResources(version)
+}
+
+func checkForcePreloadImportAnnotation(upgrade *v1beta1.Upgrade) error {
+	if upgrade.Annotations == nil || upgrade.Annotations[forcePreloadImportAnnotation] == "true" || upgrade.Annotations[forcePreloadImportAnnotation] == "false" {
+		return nil
+	}
+	return fmt.Errorf("annotation %s should be either 'true' or 'false'", forcePreloadImportAnnotation)
 }
 
 func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
