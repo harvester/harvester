@@ -5,7 +5,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -50,21 +49,4 @@ func IsVMStopped(
 	}
 
 	return false, nil
-}
-
-// ListByInstanceLabels gets a list of VMs whose instance labels match the
-// specified labels.
-func ListByInstanceLabels(namespace string, selector labels.Selector, cache ctlkubevirtv1.VirtualMachineCache) ([]*kubevirtv1.VirtualMachine, error) {
-	vmList, err := cache.List(namespace, labels.Everything())
-	if err != nil {
-		return nil, err
-	}
-	vmMatchList := make([]*kubevirtv1.VirtualMachine, 0, len(vmList))
-	for _, vm := range vmList {
-		if !selector.Matches(labels.Set(vm.Spec.Template.ObjectMeta.Labels)) {
-			continue
-		}
-		vmMatchList = append(vmMatchList, vm)
-	}
-	return vmMatchList, nil
 }

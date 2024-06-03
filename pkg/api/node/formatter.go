@@ -34,7 +34,6 @@ import (
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
-	"github.com/harvester/harvester/pkg/util/virtualmachine"
 )
 
 const (
@@ -208,7 +207,7 @@ func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
 		return err
 	}
 	selector := labels.Set{util.LabelMaintainForceShutdownStrategy: "RestartOnDisable"}.AsSelector()
-	vmList, err := virtualmachine.ListByInstanceLabels(node.Namespace, selector, h.virtualMachineCache)
+	vmList, err := h.virtualMachineCache.List(node.Namespace, selector)
 	if err != nil {
 		return fmt.Errorf("failed to list VMs with labels %s: %w", selector.String(), err)
 	}

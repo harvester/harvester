@@ -13,7 +13,6 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	v1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
-	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
@@ -75,7 +74,7 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 	// maintenance mode and that should be restarted when the node has
 	// successfully switched into maintenance mode.
 	selector := labels.Set{util.LabelMaintainForceShutdownStrategy: "RestartOnEnable"}.AsSelector()
-	vmList, err := virtualmachine.ListByInstanceLabels(node.Namespace, selector, h.virtualMachineCache)
+	vmList, err := h.virtualMachineCache.List(node.Namespace, selector)
 	if err != nil {
 		return node, fmt.Errorf("failed to list VMs with labels %s: %w", selector.String(), err)
 	}
