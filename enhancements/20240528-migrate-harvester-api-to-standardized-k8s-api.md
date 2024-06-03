@@ -230,6 +230,8 @@ But, each subresource might contain different HTTP method. It depends on the beh
 - If it's not idempotent, use `POST` or more matched HTTP method.
 - For list API, should use `GET` method. For example, `findMigratableNodes` action, it should be `GET` cause it doesn't change anything.
 
+We should also check which action is not used anymore, and remove it on new APIs. 
+
 #### Related Documentation Issue
 
 Currently, we didn't have any documentation for the action APIs, we only have k8s resource API instead.
@@ -244,7 +246,7 @@ Please check [api list](#api-list), and we need to test old and new APIs.
 There are two ways to test it:
 
 1. Test Entry Point
-   - The server shouldn't return 404 not found error for old and new APIs.
+   - The server shouldn't return 404 not found error for old and new endpoints.
 2. Test Functionality
    - The server should correctly handle the request.
 
@@ -258,12 +260,12 @@ However, it's an effort to maintain two different APIs, so eventually we need to
 
 1. (v1.4.0) Introduce the new APIs, and still support old APIs. Here, we could also introduce the new feature flag of setting resource to enable/disable old APIs. By default, it should be enabled at this moment. 
 2. (v1.5.0) Encourage the users to use the new APIs, and internal services/tools should use the new APIs.
-3. (v1.6.0)Old APIs are disabled by default, and we could turn it on by feature flag of setting resource.
+3. (v1.6.0) Old APIs are disabled by default, and we could turn it on by feature flag of setting resource.
 4. (v1.7.0) After a period of time, we could remove the old APIs and feature flag. Only keep new APIs.
 
 Those releases are just for reference, we could adjust it based on the progress of the migration.
 
-> Thanks @m-ildefons for the suggestion.
+> Thanks @m-ildefons for the milestone suggestion.
 
 In v1.4.0 harvester, we should accomplish first step at least.
 
@@ -271,8 +273,23 @@ About the second step, we need to request each project owner to check whether th
 
 For the third step and the last step, it depends on the progress of the second step. So, we will keep tracking it in the future release.
 
-***NOTE: if we have new action APIs, we should add them into both APIs at the same time ***
+***NOTE: if we have new action APIs, we should add them into both APIs at the same time.***
 
 ## Note
 
 Because kube api server will proxying request to the harvester api server, it may increase latency and pressure of kube api server if there are some huge usages with our subresource APIs.
+
+## Overall TODO
+
+- [ ] Check which action is not used anymore, remove it on new APIs.
+- [ ] Create new APIs for each action, check [api list](#api-list).
+  - [ ] Define the `APIService`
+  - [ ] New interface to fulfill two different API sources
+- [ ] Feature flag to enabled/disable old APIs
+- [ ] Internal services/tools convert old APIs to new APIs
+  - [ ] QA Tools
+  - [ ] Harvester Dashboard
+  - [ ] Other internal services
+- [ ] Release note to encourage users to use new APIs
+- [ ] Document for new APIs
+- [ ] Document for old APIs (Tracked in other issue)
