@@ -239,7 +239,16 @@ There is already an issue [[Doc] Add document for action APIs](https://github.co
 
 ### Test Plan
 
-Should test old and new APIs path formats, both should work as expected.
+Please check [api list](#api-list), and we need to test old and new APIs. 
+
+There are two ways to test it:
+
+1. Test Entry Point
+   - The server shouldn't return 404 not found error for old and new APIs.
+2. Test Functionality
+   - The server should correctly handle the request.
+
+For first one, just make sure the endpoint is accessible. For the second one, we could copy existing test cases and modify the request path to new APIs. But, it might increase the time of testing, so we might pick some important APIs to test first. If time is enough, we could test it all.
 
 ### Upgrade strategy
 
