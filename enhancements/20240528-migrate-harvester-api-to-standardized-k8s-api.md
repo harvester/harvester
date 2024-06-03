@@ -231,6 +231,12 @@ But, each subresource might contain different HTTP method. It depends on the beh
 - If it's not idempotent, use `POST` or more matched HTTP method.
 - For list API, should use `GET` method. For example, `findMigratableNodes` action, it should be `GET` cause it doesn't change anything.
 
+#### Related Documentation Issue
+
+Currently, we didn't have any document for the action APIs, there is already an issue for tracking this. After migration, we also need to document the new APIs.
+
+[[Doc] Add document for action APIs · Issue #5627 · harvester/harvester](https://github.com/harvester/harvester/issues/5627)
+
 ### Test Plan
 
 Should test old and new APIs path formats, both should work as expected.
