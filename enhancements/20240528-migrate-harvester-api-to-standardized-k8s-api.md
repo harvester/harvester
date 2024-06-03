@@ -256,19 +256,22 @@ We won't remove old APIs format immediately, we will support both old and new AP
 
 However, it's an effort to maintain two different APIs, so eventually we need to remove old one. So, the road map will be:
 
-1. Introduce the new APIs, and still support old APIs. Here, we could also introduce the new feature flag of setting resource to enable/disable old APIs. By default, it should be enabled at this moment. 
-2. Encourage the users to use the new APIs, and internal services/tools should use the new APIs.
-3. Old APIs are disabled by default, and we could turn it on by feature flag of setting resource.
-4. After a period of time, we could remove the old APIs and feature flag. Remain only new APIs.
+1. (v1.4.0) Introduce the new APIs, and still support old APIs. Here, we could also introduce the new feature flag of setting resource to enable/disable old APIs. By default, it should be enabled at this moment. 
+2. (v1.5.0) Encourage the users to use the new APIs, and internal services/tools should use the new APIs.
+3. (v1.6.0)Old APIs are disabled by default, and we could turn it on by feature flag of setting resource.
+4. (v1.7.0) After a period of time, we could remove the old APIs and feature flag. Only keep new APIs.
 
-***NOTE: we should add it into both APIs at the same time if we have new action APIs.***
+Those releases are just for reference, we could adjust it based on the progress of the migration.
 
-In v1.4 harvester, we should accomplish first step. 
+> Thanks @m-ildefons for the suggestion.
+
+In v1.4.0 harvester, we should accomplish first step at least.
 
 About the second step, we need to request each project owner to check whether they are using the old APIs or not. Then, open a new issue to track the progress. For the external users, because we didn't have any metrics to track all usages, so we can only note this in our release note. They could also use feature flag to test their application which is being used old APIs or not.
 
 For the third step and the last step, it depends on the progress of the second step. So, we will keep tracking it in the future release.
 
+***NOTE: if we have new action APIs, we should add them into both APIs at the same time ***
 
 ## Note
 
