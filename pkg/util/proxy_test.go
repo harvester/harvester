@@ -27,6 +27,11 @@ func Test_AddBuiltInNoProxy(t *testing.T) {
 			input:  "10.0.0.0/8,127.0.0.1",
 			output: "10.0.0.0/8,127.0.0.1,localhost,0.0.0.0,longhorn-system,cattle-system,cattle-system.svc,harvester-system,.svc,.cluster.local",
 		},
+		{
+			name:   "overlapped items, with whitespace",
+			input:  " 10.0.0.0/8  ,  127.0.0.1 ",
+			output: "10.0.0.0/8,127.0.0.1,localhost,0.0.0.0,longhorn-system,cattle-system,cattle-system.svc,harvester-system,.svc,.cluster.local",
+		},
 	}
 
 	for _, testCase := range testCases {
