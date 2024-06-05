@@ -8,9 +8,9 @@ import (
 )
 
 func (h *Handler) syncKubeconfigTTL(setting *harvesterv1.Setting) error {
-	rancherKubeconfigTTLSetting, err := h.rancherSettingsCache.Get(harvSettings.KubeconfigTTLSettingName)
+	rancherKubeconfigTTLSetting, err := h.rancherSettingsCache.Get(harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName)
 	if err != nil {
-		return fmt.Errorf("error fetching setting %s: %v", harvSettings.KubeconfigTTLSettingName, err)
+		return fmt.Errorf("error fetching setting %s: %v", harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName, err)
 	}
 
 	// if a custom ttl is set in harvester

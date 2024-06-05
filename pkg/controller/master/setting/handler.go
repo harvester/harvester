@@ -36,7 +36,7 @@ var (
 	// bootstrapSettings are the setting that syncs on bootstrap
 	bootstrapSettings = []string{
 		settings.SSLCertificatesSettingName,
-		settings.KubeconfigTTLSettingName,
+		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
 	}
 	skipHashCheckSettings = []string{
 		settings.AutoRotateRKE2CertsSettingName,
