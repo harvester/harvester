@@ -514,13 +514,12 @@ wait_for_addon_upgrade_deployment() {
   fi
 }
 
-# upgrade rancher-logging with the patch of fluentbit image
-upgrade_addon_rancher_logging_with_patch_fluentbit_image()
+upgrade_addon_rancher_logging_with_patch_fluentbit_eventrouter_image()
 {
   local name=rancher-logging
   local namespace=cattle-logging-system
   local newversion=$1
-  echo "try to patch addon $name in $namespace to $newversion, with patch of fluentbit image"
+  echo "try to patch addon $name in $namespace to $newversion, with patch of fluentbit and eventrouter image"
 
   # check if addon is there
   local version=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.spec.version}' || true)
@@ -534,13 +533,36 @@ upgrade_addon_rancher_logging_with_patch_fluentbit_image()
   kubectl get addons.harvesterhci.io $name -n $namespace -ojsonpath="{.spec.valuesContent}" > $valuesfile
 
   local EXIT_CODE=0
+  local fixfluent=false
   # yq shows `Error: no matches found` if it is not existing and returns 1
   echo "check fluentbit image tag 1.9.5"
   yq -e '(.images | select(.fluentbit.tag == "1.9.5"))' $valuesfile || EXIT_CODE=$?
-
   if [ $EXIT_CODE != 0 ]; then
     # fluentbit image is not 1.9.5
-    echo "fluentbit image is not 1.9.5, fallback to the normal addon $name upgrade"
+    echo "fluentbit image is not 1.9.5, need not patch"
+  else
+    fixfluent=true
+  fi
+
+  echo "check eventrouter image tag"
+  EXIT_CODE=0
+  local fixeventrouter=false
+  local tag=""
+  tag=$(yq -e '.eventTailer.workloadOverrides.containers[0].image' $valuesfile) || EXIT_CODE=$?
+
+  if [ $EXIT_CODE != 0 ]; then
+    echo "eventrouter is not found, need not patch"
+  else
+    if [[ "rancher/harvester-eventrouter:v0.2.0" > $tag ]]; then
+      echo "eventrouter image is $tag, will patch to v0.2.0"
+      fixeventrouter=true
+    else
+      echo "eventrouter image is updated, need not patch"
+    fi
+  fi
+
+  if [[ $fixeventrouter == false ]] && [[ $fixfluent == false ]]; then
+    echo "fluentbit, eventrouter image is updated/not found, fallback to the normal addon $name upgrade"
     rm -f $valuesfile
     upgrade_addon_try_patch_version_only $name $namespace $newversion
     return 0
@@ -548,8 +570,16 @@ upgrade_addon_rancher_logging_with_patch_fluentbit_image()
 
   echo "current valuesContent of the addon $name:"
   cat $valuesfile
-  # remove fluentbit related images tags
-  yq -e 'del(.images.fluentbit*)' -i $valuesfile
+
+  if [[ $fixfluent == true ]]; then
+    # remove fluentbit related images tags
+    yq -e 'del(.images.fluentbit*)' -i $valuesfile
+  fi
+
+  if [[ $fixeventrouter == true ]]; then
+    yq -e '.eventTailer.workloadOverrides.containers[0].image = "rancher/harvester-eventrouter:v0.2.0"' -i $valuesfile
+  fi
+
   # add 4 spaces to each line
   sed -i -e 's/^/    /' $valuesfile
   local newvalues=$(<$valuesfile)
