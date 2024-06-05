@@ -489,7 +489,7 @@ func Test_validateKubeconfigTTLSetting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateSupportBundleNodeCollectionTimeout(tt.args)
+			err := validateKubeConfigTTLSetting(tt.args)
 			assert.Equal(t, tt.expectedErr, err != nil)
 		})
 	}
