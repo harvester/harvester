@@ -1,0 +1,20 @@
+linters:
+  disable-all: true
+  enable:
+    - goimports
+    - gofmt
+    - misspell
+    - revive
+    - gosec
+    - prealloc
+issues:
+  exclude-files:
+    - /zz_generated_
+    - _generated
+  exclude-dirs:
+    - generated
+run:
+  timeout: 5m
+  tests: true
+  build-tags:
+    - test

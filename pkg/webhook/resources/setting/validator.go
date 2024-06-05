@@ -10,10 +10,14 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
+	gocommon "github.com/harvester/go-common"
 	"github.com/longhorn/backupstore"
+	corev1 "k8s.io/api/core/v1"
+
 	// Although we don't use following drivers directly, we need to import them to register drivers.
 	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
 	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
@@ -71,7 +75,6 @@ var FQDNMatchPatternRegexString = `^([-a-zA-Z0-9_*]+[.]?)+$`
 type validateSettingFunc func(setting *v1beta1.Setting) error
 
 var validateSettingFuncs = map[string]validateSettingFunc{
-	settings.HTTPProxySettingName:                              validateHTTPProxy,
 	settings.VMForceResetPolicySettingName:                     validateVMForceResetPolicy,
 	settings.SupportBundleImageName:                            validateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateSupportBundleTimeout,
@@ -90,7 +93,6 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
 
 var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
-	settings.HTTPProxySettingName:                              validateUpdateHTTPProxy,
 	settings.VMForceResetPolicySettingName:                     validateUpdateVMForceResetPolicy,
 	settings.SupportBundleImageName:                            validateUpdateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateUpdateSupportBundleTimeout,
@@ -111,6 +113,7 @@ var validateSettingDeleteFuncs = make(map[string]validateSettingDeleteFunc)
 
 func NewValidator(
 	settingCache ctlv1beta1.SettingCache,
+	nodeCache ctlcorev1.NodeCache,
 	vmBackupCache ctlv1beta1.VirtualMachineBackupCache,
 	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
 	vmRestoreCache ctlv1beta1.VirtualMachineRestoreCache,
@@ -122,6 +125,7 @@ func NewValidator(
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
+		nodeCache:          nodeCache,
 		vmBackupCache:      vmBackupCache,
 		snapshotClassCache: snapshotClassCache,
 		vmRestoreCache:     vmRestoreCache,
@@ -131,6 +135,7 @@ func NewValidator(
 		lhVolumeCache:      lhVolumeCache,
 		pvcCache:           pvcCache,
 	}
+
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
 	validateSettingFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateVolumeSnapshotClass
 	validateSettingUpdateFuncs[settings.BackupTargetSettingName] = validator.validateUpdateBackupTarget
@@ -139,6 +144,10 @@ func NewValidator(
 	validateSettingFuncs[settings.StorageNetworkName] = validator.validateStorageNetwork
 	validateSettingUpdateFuncs[settings.StorageNetworkName] = validator.validateUpdateStorageNetwork
 	validateSettingDeleteFuncs[settings.StorageNetworkName] = validator.validateDeleteStorageNetwork
+
+	validateSettingFuncs[settings.HTTPProxySettingName] = validator.validateHTTPProxy
+	validateSettingUpdateFuncs[settings.HTTPProxySettingName] = validator.validateUpdateHTTPProxy
+
 	return validator
 }
 
@@ -146,6 +155,7 @@ type settingValidator struct {
 	types.DefaultValidator
 
 	settingCache       ctlv1beta1.SettingCache
+	nodeCache          ctlcorev1.NodeCache
 	vmBackupCache      ctlv1beta1.VirtualMachineBackupCache
 	snapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache
 	vmRestoreCache     ctlv1beta1.VirtualMachineRestoreCache
@@ -214,19 +224,83 @@ func validateDeleteSetting(oldObj runtime.Object) error {
 	return nil
 }
 
-func validateHTTPProxy(setting *v1beta1.Setting) error {
+func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
 	}
-	if err := json.Unmarshal([]byte(setting.Value), &util.HTTPProxyConfig{}); err != nil {
+
+	httpProxyConfig := &util.HTTPProxyConfig{}
+	if err := json.Unmarshal([]byte(setting.Value), httpProxyConfig); err != nil {
 		message := fmt.Sprintf("failed to unmarshal the setting value, %v", err)
 		return werror.NewInvalidError(message, "value")
 	}
+
+	// Make sure the node's IP addresses is set in 'noProxy'. These IP
+	// addresses can be specified individually or via CIDR address.
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "")
+	}
+	err = validateNoProxy(httpProxyConfig.NoProxy, nodes)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func validateUpdateHTTPProxy(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	return validateHTTPProxy(newSetting)
+func (v *settingValidator) validateUpdateHTTPProxy(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return v.validateHTTPProxy(newSetting)
+}
+
+// validateNoProxy Make sure the node's IP addresses is set in 'noProxy'.
+// These IP addresses can be specified individually or via CIDR address.
+// The function returns a `AdmitError` error if the node's IP addresses
+// are not set in 'noProxy', otherwise `nil`.
+func validateNoProxy(noProxy string, nodes []*corev1.Node) error {
+	foundMap := make(map[string]bool)
+	// 1. Get the list of node IP addresses.
+	var nodeIPs []net.IP
+	for _, node := range nodes {
+		for _, nodeAddress := range node.Status.Addresses {
+			if nodeAddress.Type == corev1.NodeInternalIP {
+				nodeIP := net.ParseIP(nodeAddress.Address)
+				if nodeIP != nil {
+					nodeIPs = append(nodeIPs, nodeIP)
+					foundMap[nodeIP.String()] = false
+				}
+			}
+		}
+	}
+	// 2. Check if the node's IP addresses are set in 'noProxy'.
+	noProxyParts := gocommon.SliceMapFunc(strings.Split(noProxy, ","),
+		func(v string, _ int) string { return strings.TrimSpace(v) })
+	for _, part := range noProxyParts {
+		_, ipNet, err := net.ParseCIDR(part)
+		if ipNet != nil && err == nil {
+			for _, nodeIP := range nodeIPs {
+				if ipNet.Contains(nodeIP) {
+					foundMap[nodeIP.String()] = true
+				}
+			}
+		} else {
+			ip := net.ParseIP(part)
+			if ip != nil {
+				if slices.ContainsFunc(nodeIPs, func(v net.IP) bool { return v.Equal(ip) }) {
+					foundMap[ip.String()] = true
+				}
+			}
+		}
+	}
+	if slices.Index(gocommon.MapValues(foundMap), false) != -1 {
+		missedNodes := gocommon.MapFilterFunc(foundMap, func(v bool, _ string) bool { return v == false })
+		missedIPs := gocommon.MapKeys(missedNodes)
+		slices.Sort(missedIPs)
+		msg := fmt.Sprintf("noProxy should contain the node's IP addresses or CIDR. The node(s) %s are not covered.", strings.Join(missedIPs, ", "))
+		return werror.NewInvalidError(msg, "value")
+	}
+
+	return nil
 }
 
 func validateOvercommitConfig(setting *v1beta1.Setting) error {
