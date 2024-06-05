@@ -97,6 +97,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.SupportBundleImageName:                            validateUpdateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateUpdateSupportBundleTimeout,
 	settings.SupportBundleExpirationSettingName:                validateUpdateSupportBundle,
+	settings.SupportBundleNodeCollectionTimeoutName:            validateUpdateSupportBundleNodeCollectionTimeout,
 	settings.OvercommitConfigSettingName:                       validateUpdateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:                         validateUpdateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:                        validateUpdateSSLCertificates,
@@ -633,6 +634,10 @@ func validateSupportBundleExpiration(setting *v1beta1.Setting) error {
 	return nil
 }
 
+func validateUpdateSupportBundleNodeCollectionTimeout(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateSupportBundleNodeCollectionTimeout(newSetting)
+}
+
 func validateSupportBundleNodeCollectionTimeout(setting *v1beta1.Setting) error {
 	if setting.Value == "" {
 		return nil
@@ -643,7 +648,7 @@ func validateSupportBundleNodeCollectionTimeout(setting *v1beta1.Setting) error 
 		return werror.NewInvalidError(err.Error(), "value")
 	}
 	if i < 0 {
-		return werror.NewInvalidError("expiration can't be negative", "value")
+		return werror.NewInvalidError("node collection timeout can't be negative", "value")
 	}
 	return nil
 }
