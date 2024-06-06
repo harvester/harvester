@@ -1210,9 +1210,9 @@ upgrade_addon_rancher_logging()
 {
   echo "upgrade addon rancher_logging"
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.3.0, the fluentbit image needs to be patched
+  # in v1.3.1, the fluentbit & eventrouter image need to be patched
   if [ "$REPO_LOGGING_CHART_VERSION" = "103.0.0+up3.17.10" ]; then
-    upgrade_addon_rancher_logging_with_patch_fluentbit_image $REPO_LOGGING_CHART_VERSION
+    upgrade_addon_rancher_logging_with_patch_fluentbit_eventrouter_image $REPO_LOGGING_CHART_VERSION
   else
     upgrade_addon_try_patch_version_only "rancher-logging" "cattle-logging-system" $REPO_LOGGING_CHART_VERSION
   fi
