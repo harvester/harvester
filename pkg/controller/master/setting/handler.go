@@ -35,6 +35,7 @@ var (
 	// bootstrapSettings are the setting that syncs on bootstrap
 	bootstrapSettings = []string{
 		settings.SSLCertificatesSettingName,
+		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
 	}
 )
 
@@ -65,6 +66,8 @@ type Handler struct {
 	nodeCache            ctlcorev1.NodeCache
 	nodeConfigs          ctlnodev1.NodeConfigClient
 	nodeConfigsCache     ctlnodev1.NodeConfigCache
+	rancherSettings      ctlmgmtv3.SettingClient
+	rancherSettingsCache ctlmgmtv3.SettingCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
