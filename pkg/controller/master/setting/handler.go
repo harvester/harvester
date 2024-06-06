@@ -36,6 +36,7 @@ var (
 	// bootstrapSettings are the setting that syncs on bootstrap
 	bootstrapSettings = []string{
 		settings.SSLCertificatesSettingName,
+		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
 	}
 	skipHashCheckSettings = []string{
 		settings.AutoRotateRKE2CertsSettingName,
@@ -72,6 +73,8 @@ type Handler struct {
 	nodeConfigs          ctlnodev1.NodeConfigClient
 	nodeConfigsCache     ctlnodev1.NodeConfigCache
 	rkeControlPlaneCache ctlrkev1.RKEControlPlaneCache
+	rancherSettings      ctlmgmtv3.SettingClient
+	rancherSettingsCache ctlmgmtv3.SettingCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

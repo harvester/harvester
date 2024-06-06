@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/harvester/harvester/pkg/config"
+	harvSettings "github.com/harvester/harvester/pkg/settings"
 )
 
 const (
@@ -28,6 +29,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	nodeConfigs := management.NodeConfigFactory.Node().V1beta1().NodeConfig()
 	node := management.CoreFactory.Core().V1().Node()
 	rkeControlPlane := management.RKEFactory.Rke().V1().RKEControlPlane()
+	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -57,6 +59,9 @@ func Register(ctx context.Context, management *config.Management, options config
 		nodeClient:           node,
 		nodeCache:            node.Cache(),
 		rkeControlPlaneCache: rkeControlPlane.Cache(),
+		rancherSettings:      rancherSettings,
+		rancherSettingsCache: rancherSettings.Cache(),
+
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -81,6 +86,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		"containerd-registry":       controller.syncContainerdRegistry,
 		"ntp-servers":               controller.syncNTPServer,
 		"auto-rotate-rke2-certs":    controller.syncAutoRotateRKE2Certs,
+		harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName: controller.syncKubeconfigTTL,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
 	}
