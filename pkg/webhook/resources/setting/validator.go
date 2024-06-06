@@ -88,6 +88,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateDefaultVMTerminationGracePeriodSeconds,
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
+	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -106,6 +107,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateUpdateDefaultVMTerminationGracePeriodSeconds,
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
+	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -1037,4 +1039,24 @@ func validateAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
 
 func validateUpdateAutoRotateRKE2Certs(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateAutoRotateRKE2Certs(newSetting)
+}
+
+func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
+	if newSetting.Value == "" {
+		return nil
+	}
+
+	num, err := strconv.Atoi(newSetting.Value)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	if num < 0 {
+		return werror.NewInvalidError("kubeconfig-default-token-ttl-minutes cannot be negative", "value")
+	}
+	return nil
+}
+
+func validateUpdateKubeConfigTTLSetting(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateKubeConfigTTLSetting(newSetting)
 }
