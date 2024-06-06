@@ -446,3 +446,51 @@ func Test_validateNoProxy_2(t *testing.T) {
 		})
 	}
 }
+
+func Test_validateKubeconfigTTLSetting(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        *v1beta1.Setting
+		expectedErr bool
+	}{
+		{
+			name: "invalid int",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
+				Value:      "not int",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "negative int",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
+				Value:      "-1",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "empty input",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
+				Value:      "",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "positive int",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
+				Value:      "10",
+			},
+			expectedErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateKubeConfigTTLSetting(tt.args)
+			assert.Equal(t, tt.expectedErr, err != nil)
+		})
+	}
+}
