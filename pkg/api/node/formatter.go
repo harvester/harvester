@@ -268,41 +268,16 @@ func (h ActionHandler) retryMaintenanceModeUpdate(nodeName string, updateFunc ma
 
 func (h ActionHandler) listUnhealthyVM(rw http.ResponseWriter, node *corev1.Node) error {
 	ndc := nodedrain.ActionHelper(h.nodeCache, h.virtualMachineInstanceCache, h.longhornVolumeCache, h.longhornReplicaCache)
-
-	var respObj ListUnhealthyVM
-
-	nonMigrtableVMList, err := ndc.FindAndListNonMigratableVM(node)
+	nonMigrtableVMList, err := ndc.FindNonMigratableVMS(node)
 	if err != nil {
 		return err
 	}
-
-	if len(nonMigrtableVMList) > 0 {
-		respObj.Message = "Please detach CDROM or ContainerDisk from following VMs:"
-		respObj.VMs = nonMigrtableVMList
-		rw.WriteHeader(http.StatusOK)
-		return json.NewEncoder(rw).Encode(&respObj)
-	}
-
-	vmWithPCIDevicesList, err := ndc.FindAndListVMWithPCIDevices(node)
-	if err != nil {
-		return err
-	}
-
-	if len(vmWithPCIDevicesList) > 0 {
-		respObj.Message = "Following VMs have PCIDevices attached and are non-migratable. Please power these off:"
-		respObj.VMs = vmWithPCIDevicesList
-		rw.WriteHeader(http.StatusOK)
-		return json.NewEncoder(rw).Encode(&respObj)
-	}
-
-	vmList, err := ndc.FindAndListVM(node)
-	if err != nil {
-		return err
-	}
-
-	if len(vmList) > 0 {
-		respObj.Message = "Following unhealthy VMs will be impacted by the node drain:"
-		respObj.VMs = vmList
+	respObj := make([]ListUnhealthyVM, 0, len(nonMigrtableVMList))
+	for condition, vms := range nonMigrtableVMList {
+		respObj = append(respObj, ListUnhealthyVM{
+			Message: fmt.Sprintf("The following VMs cannot be migrated due to %s condition", condition),
+			VMs:     vms,
+		})
 	}
 
 	rw.WriteHeader(http.StatusOK)

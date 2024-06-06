@@ -3,6 +3,8 @@ package nodedrain
 import (
 	"context"
 	"fmt"
+	goslices "slices"
+	"strings"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -11,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/rest"
+	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	"k8s.io/utils/strings/slices"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -24,10 +27,13 @@ import (
 )
 
 const (
-	nodeDrainController  = "node-drain-controller"
-	defaultWorkloadType  = "VirtualMachineInstance"
-	defaultSingleCPCount = 1
-	defaultHACPCount     = 3
+	nodeDrainController                 = "node-drain-controller"
+	defaultWorkloadType                 = "VirtualMachineInstance"
+	defaultSingleCPCount                = 1
+	defaultHACPCount                    = 3
+	LastHealthyReplicaKey               = "LastHealthyReplica"
+	ContainerDiskOrCDRomKey             = "CDRomOrContainerDiskPresent"
+	NodeSchedulingRequirementsNotMetKey = "NodeSchedulingRequirementsNotMet"
 )
 
 // ControllerHandler to drain nodes.
@@ -137,24 +143,24 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		// Shutdown ALL VMs on that node forcibly? This is activated by a
 		// checkbox in the maintenance mode dialog in the UI.
 		if forced {
-			vmiList, err := ndc.listVMI(node)
+			shutdownVMs, err := ndc.FindNonMigratableVMS(node)
 			if err != nil {
-				return node, fmt.Errorf("error listing VMIs in scope for forced shutdown: %v", err)
-			}
-			shutdownVMs = append(shutdownVMs, vmiList...)
-		}
-
-		for _, v := range shutdownVMs {
-			// fetch VMI again in case its changed
-			err := ndc.findAndStopVM(v)
-			if err != nil {
-				return node, err
+				return node, fmt.Errorf("error listing VMIs in scope for shutdown: %v", err)
 			}
 
-			logrus.WithFields(logrus.Fields{
-				"namespace":           v.Namespace,
-				"virtualmachine_name": v.Name,
-			}).Info("force stopping VM")
+			for _, v := range getUniqueVMSfromConditionMap(shutdownVMs) {
+				// fetch VMI again in case its changed
+				err := ndc.findAndStopVM(v)
+				if err != nil {
+					return node, err
+				}
+
+				ns, name := splitNamespacedName(v)
+				logrus.WithFields(logrus.Fields{
+					"namespace":           ns,
+					"virtualmachine_name": name,
+				}).Info("force stopping VM")
+			}
 		}
 
 		// run node drain
@@ -173,15 +179,11 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 }
 
 // findAndStopVM is a wrapper function to identify the owner VM for a VMI, and patch the run strategy
-func (ndc *ControllerHandler) findAndStopVM(vmi *kubevirtv1.VirtualMachineInstance) error {
-
-	vm, err := findVM(vmi)
+func (ndc *ControllerHandler) findAndStopVM(vmiName string) error {
+	ns, name := splitNamespacedName(vmiName)
+	vmObj, err := ndc.virtualMachineCache.Get(ns, name)
 	if err != nil {
-		return err
-	}
-	vmObj, err := ndc.virtualMachineCache.Get(vmi.Namespace, vm)
-	if err != nil {
-		return fmt.Errorf("error looking up vm %s in namespace %s in vm cache: %v", vmi.Name, vmi.Namespace, err)
+		return fmt.Errorf("error fetching vm during findAndStopVM: %v", err)
 	}
 
 	desiredRunStrategy := kubevirtv1.RunStrategyHalted
@@ -294,8 +296,9 @@ func (ndc *ControllerHandler) listVolumeNames(node *corev1.Node) ([]*lhv1beta2.V
 	return volList, nil
 }
 
-// findAndListVM is called by action handler to leverage caches to find unhealthy VM's impacted by the migration
-func (ndc *ControllerHandler) FindAndListVM(node *corev1.Node) ([]string, error) {
+// FindNonMigratableVMS is called by action handler to leverage caches to find unhealthy VM's impacted by the migration
+func (ndc *ControllerHandler) FindNonMigratableVMS(node *corev1.Node) (map[string][]string, error) {
+	result := make(map[string][]string)
 	shutdownVMs, err := ndc.listVMI(node)
 	if err != nil {
 		return nil, fmt.Errorf("error listing VMI: %v", err)
@@ -308,12 +311,12 @@ func (ndc *ControllerHandler) FindAndListVM(node *corev1.Node) ([]string, error)
 		}
 		impactedVMDetails = append(impactedVMDetails, fmt.Sprintf("%s/%s", v.Namespace, vmName))
 	}
-	return impactedVMDetails, nil
-}
 
-// FindAndListNonMigratableVM is called by action handler to leverage caches to find VM's which may have a cdrom or container disk
-// attached to vmi
-func (ndc *ControllerHandler) FindAndListNonMigratableVM(node *corev1.Node) ([]string, error) {
+	if len(impactedVMDetails) > 0 {
+		result[LastHealthyReplicaKey] = impactedVMDetails
+	}
+
+	// list all VMI's currently scheduled on this node
 	labelsMap := map[string]string{
 		kubevirtv1.NodeNameLabel: node.Name,
 	}
@@ -324,10 +327,34 @@ func (ndc *ControllerHandler) FindAndListNonMigratableVM(node *corev1.Node) ([]s
 		return nil, fmt.Errorf("error listing VMI: %v", err)
 	}
 
+	cdromOrContainerDiskVMs, err := findVMSwithCDROMOrContainerDisk(vmiList)
+	if len(cdromOrContainerDiskVMs) > 0 {
+		result[ContainerDiskOrCDRomKey] = cdromOrContainerDiskVMs
+	}
+
+	for k, v := range IdentifyNonMigratableVMS(vmiList) {
+		result[k] = v
+	}
+
+	unschedulableVMs, err := ndc.CheckVMISchedulingRequirements(node, vmiList)
+	if err != nil {
+		return nil, fmt.Errorf("error while checking vmi scheduling requirements: %v", err)
+	}
+
+	if len(unschedulableVMs) > 0 {
+		result[NodeSchedulingRequirementsNotMetKey] = unschedulableVMs
+	}
+
+	return result, nil
+}
+
+// findVMSwithCDROMOrContainerDisk is called by action handler to leverage caches to find VM's which may have a cdrom or container disk
+// attached to vmi
+func findVMSwithCDROMOrContainerDisk(vmiList []*kubevirtv1.VirtualMachineInstance) ([]string, error) {
 	var impactedVMI []string
 	for _, vmi := range vmiList {
 		if vmContainsCDRomOrContainerDisk(vmi) {
-			impactedVMI = append(impactedVMI, fmt.Sprintf("%s/%s", vmi.Namespace, vmi.Name))
+			impactedVMI = append(impactedVMI, namespacedVMName(vmi))
 		}
 	}
 	return impactedVMI, nil
@@ -358,24 +385,82 @@ func vmContainsCDRomOrContainerDisk(vmi *kubevirtv1.VirtualMachineInstance) bool
 	return false
 }
 
-func (ndc *ControllerHandler) FindAndListVMWithPCIDevices(node *corev1.Node) ([]string, error) {
-	labelsMap := map[string]string{
-		kubevirtv1.NodeNameLabel: node.Name,
-	}
-	labelSelector := labels.SelectorFromSet(labelsMap)
-
-	vmiList, err := ndc.virtualMachineInstanceCache.List(corev1.NamespaceAll, labelSelector)
-	if err != nil {
-		return nil, fmt.Errorf("error listing VMI: %v", err)
-	}
-
-	var impactedVMI []string
+// IdentifyNonMigratableVMS finds VMI's with kubevirtv1.VirtualMachineInstanceIsMigratable condition
+// set to false
+func IdentifyNonMigratableVMS(vmiList []*kubevirtv1.VirtualMachineInstance) map[string][]string {
+	nonMigratableVM := make(map[string][]string)
 	for _, vmi := range vmiList {
-		if len(vmi.Spec.Domain.Devices.HostDevices) != 0 {
-			impactedVMI = append(impactedVMI, fmt.Sprintf("%s/%s", vmi.Namespace, vmi.Name))
+		for _, condition := range vmi.Status.Conditions {
+			if condition.Type == kubevirtv1.VirtualMachineInstanceIsMigratable && condition.Status == corev1.ConditionFalse {
+				result := nonMigratableVM[condition.Reason]
+				result = append(result, namespacedVMName(vmi))
+				nonMigratableVM[condition.Reason] = result
+			}
 		}
 	}
-	return impactedVMI, nil
+	return nonMigratableVM
+}
+
+func namespacedVMName(vmi *kubevirtv1.VirtualMachineInstance) string {
+	return fmt.Sprintf("%s/%s", vmi.Namespace, vmi.Name)
+}
+
+func splitNamespacedName(namespacedName string) (string, string) {
+	vmDetails := strings.Split(namespacedName, "/")
+	return vmDetails[0], vmDetails[1]
+}
+
+// CheckVMISchedulingRequirements checks if the VMI can be scheduled on another node
+// the function will check additional nodes that
+// * are able to satisfy the NodeSelectors terms specified in RequiredDuringSchedulingIgnoredDuringExecution
+// * and node is ready
+func (ndc *ControllerHandler) CheckVMISchedulingRequirements(originalNode *corev1.Node, vmiList []*kubevirtv1.VirtualMachineInstance) ([]string, error) {
+	var impactedVMS []string
+	nodeList, err := ndc.nodeCache.List(labels.Everything())
+	if err != nil {
+		return nil, fmt.Errorf("error listing nodes from nodeCache: %v", err)
+	}
+	for _, vmi := range vmiList {
+		var possibleNodes []string
+		if vmi.Spec.Affinity != nil && vmi.Spec.Affinity.NodeAffinity != nil && vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+			nodeAffinitySelector, err := nodeaffinity.NewNodeSelector(vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
+			if err != nil {
+				return nil, fmt.Errorf("error generating nodeAffinitySelector from node scheduling requirements: %v", err)
+			}
+			// identify if nodeAffinity can be met by other nodes and node is ready
+			for _, v := range nodeList {
+				if nodeAffinitySelector.Match(v) && v.Name != originalNode.Name && isNodeReady(v) {
+					possibleNodes = append(possibleNodes, v.Name)
+				}
+			}
+			// no valid node found that could meet the requirements
+			if len(possibleNodes) == 0 {
+				impactedVMS = append(impactedVMS, namespacedVMName(vmi))
+			}
+		}
+	}
+	return impactedVMS, nil
+}
+
+func isNodeReady(node *corev1.Node) bool {
+	if node.Spec.Unschedulable {
+		return false
+	}
+
+	for _, v := range node.Status.Conditions {
+		if v.Type == corev1.NodeReady && v.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func getUniqueVMSfromConditionMap(vms map[string][]string) []string {
+	var vmList []string
+	for _, v := range vms {
+		vmList = append(vmList, v...)
+	}
+	return goslices.Compact(vmList)
 }
 
 // listVMILabelMaintainModeStrategy gets a list of VMs that are labeled
