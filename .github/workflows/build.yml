@@ -296,6 +296,7 @@ jobs:
       env:
         REPO: rancher
         DRONE_BRANCH: ${{ github.ref_name }}
+        DRONE_TAG: ${{ github.ref_name }}
 
     - name: Read Secrets
       uses: rancher-eio/read-vault-secrets@main
