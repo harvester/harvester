@@ -227,10 +227,10 @@ After migration, the new APIs will be like this:
 
 But, each subresource might contain different HTTP method. It depends on the behavior is idempotent or not. 
 - If it's idempotent, use `PUT` method.
-- If it's not idempotent, use `POST` or more matched HTTP method.
+- If it's not idempotent, use `POST` or more matched HTTP method. **However, there shouldn't be `POST` or more matched HTTP method because most APIs aim to handle existing resource instead of creating new one.**
 - For list API, should use `GET` method. For example, `findMigratableNodes` action, it should be `GET` cause it doesn't change anything.
 
-We should also check which action is not used anymore, and remove it on new APIs. 
+In short words, **there should be only `GET` or `PUT` method for subresource APIs**. And We should also check which action is not used anymore, and remove it on new APIs. 
 
 #### Related Documentation Issue
 
