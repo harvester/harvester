@@ -30,7 +30,7 @@ import (
 
 // A list of labels that are always automatically synchronized with the
 // VMI in addition to the instance labels.
-var syncLabelsToVmi = []string{util.LabelMaintainForceShutdownStrategy}
+var syncLabelsToVmi = []string{util.LabelMaintainModeStrategy}
 
 type VMController struct {
 	pvcClient      v1.PersistentVolumeClaimClient

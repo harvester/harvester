@@ -206,7 +206,7 @@ func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
 	if err != nil {
 		return err
 	}
-	selector := labels.Set{util.LabelMaintainForceShutdownStrategy: "RestartOnDisable"}.AsSelector()
+	selector := labels.Set{util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterDisable}.AsSelector()
 	vmList, err := h.virtualMachineCache.List(node.Namespace, selector)
 	if err != nil {
 		return fmt.Errorf("failed to list VMs with labels %s: %w", selector.String(), err)
@@ -214,7 +214,7 @@ func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
 	for _, vm := range vmList {
 		// Make sure that this VM was shut down as part of the maintenance
 		// mode of the given node.
-		if vm.Annotations[util.AnnotationMaintainForceShutdownNodeName] != nodeName {
+		if vm.Annotations[util.AnnotationMaintainModeStrategyNodeName] != nodeName {
 			continue
 		}
 
@@ -231,7 +231,7 @@ func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
 		// Remove the annotation that was previously set when the node
 		// went into maintenance mode.
 		vmCopy := vm.DeepCopy()
-		delete(vmCopy.Annotations, util.AnnotationMaintainForceShutdownNodeName)
+		delete(vmCopy.Annotations, util.AnnotationMaintainModeStrategyNodeName)
 		_, err = h.virtualMachineClient.Update(vmCopy)
 		if err != nil {
 			return err

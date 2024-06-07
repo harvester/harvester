@@ -58,7 +58,7 @@ func defaultDrainHelper(ctx context.Context, cfg *rest.Config) (*drain.Helper, e
 		Out:                 logger.Writer(),
 		ErrOut:              logger.Writer(),
 		Timeout:             defaultTimeOut,
-		AdditionalFilters:   []drain.PodFilter{maintainForceShutdownFilter},
+		AdditionalFilters:   []drain.PodFilter{maintainModeStrategyFilter},
 	}, nil
 }
 
@@ -143,16 +143,16 @@ func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 	return nil
 }
 
-func maintainForceShutdownFilter(pod corev1.Pod) drain.PodDeleteStatus {
+func maintainModeStrategyFilter(pod corev1.Pod) drain.PodDeleteStatus {
 	// Ignore VMs that should not be migrated in maintenance mode. These
 	// VMs are forcibly shut down when maintenance mode is activated.
-	_, ok := pod.Labels[util.LabelMaintainForceShutdownStrategy]
-	if ok {
+	value, ok := pod.Labels[util.LabelMaintainModeStrategy]
+	if ok && value != util.MaintainModeStrategyMigrate {
 		logrus.WithFields(logrus.Fields{
 			"namespace": pod.Namespace,
 			"pod_name":  pod.Name,
 		}).Infof("migration of pod owned by VM %s is skipped because of the label %s",
-			pod.Labels[util.LabelVMName], util.LabelMaintainForceShutdownStrategy)
+			pod.Labels[util.LabelVMName], util.LabelMaintainModeStrategy)
 		return drain.MakePodDeleteStatusSkip()
 	}
 	return drain.MakePodDeleteStatusOkay()

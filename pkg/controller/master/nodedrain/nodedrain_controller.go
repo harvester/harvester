@@ -98,7 +98,7 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 
 		// Get the list of VMs that are labeled to forcibly shut down before
 		// maintenance mode.
-		shutdownVMs, err := ndc.listVMILabelMaintainForceShutdownStrategy(node)
+		shutdownVMs, err := ndc.listVMILabelMaintainModeStrategy(node)
 		if err != nil {
 			return node, fmt.Errorf("error in the listing of VMIs that are to be administratively stopped before migration: %w", err)
 		}
@@ -106,13 +106,15 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		// the node has been switched into maintenance mode or when it is
 		// disabled again.
 		// Forcing a shutdown of all VMs via the UI setting overwrites the
-		// individual settings of 'harvesterhci.io/maintain-force-shutdown-strategy'.
+		// individual settings of 'harvesterhci.io/maintain-mode-strategy'.
 		// These VMs are not restarted in that case.
 		if !forced {
 			for _, vmi := range shutdownVMs {
 				// Do not annotate VMs that are not restarted.
-				maintainForceShutdownStrategy := vmi.Labels[util.LabelMaintainForceShutdownStrategy]
-				if !slices.Contains([]string{"RestartOnEnable", "RestartOnDisable"}, maintainForceShutdownStrategy) {
+				if !slices.Contains([]string{
+					util.MaintainModeStrategyShutdownAndRestartAfterEnable,
+					util.MaintainModeStrategyShutdownAndRestartAfterDisable},
+					vmi.Labels[util.LabelMaintainModeStrategy]) {
 					continue
 				}
 				vmName, err := findVM(vmi)
@@ -124,7 +126,7 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 					return node, fmt.Errorf("error looking up VM %s/%s: %w", vmi.Namespace, vmName, err)
 				}
 				vmCopy := vm.DeepCopy()
-				vmCopy.Annotations[util.AnnotationMaintainForceShutdownNodeName] = node.Name
+				vmCopy.Annotations[util.AnnotationMaintainModeStrategyNodeName] = node.Name
 				_, err = ndc.virtualMachineClient.Update(vmCopy)
 				if err != nil {
 					return node, err
@@ -376,11 +378,15 @@ func (ndc *ControllerHandler) FindAndListVMWithPCIDevices(node *corev1.Node) ([]
 	return impactedVMI, nil
 }
 
-// listVMILabelMaintainForceShutdownStrategy gets a list of VMs that are
-// labeled with 'harvesterhci.io/maintain-force-shutdown-strategy' to
-// forcibly shut down before maintenance mode.
-func (ndc *ControllerHandler) listVMILabelMaintainForceShutdownStrategy(node *corev1.Node) ([]*kubevirtv1.VirtualMachineInstance, error) {
-	req, err := labels.NewRequirement(util.LabelMaintainForceShutdownStrategy, selection.Exists, nil)
+// listVMILabelMaintainModeStrategy gets a list of VMs that are labeled
+// with 'harvesterhci.io/maintain-mode-strategy' to forcibly shut down
+// before maintenance mode.
+func (ndc *ControllerHandler) listVMILabelMaintainModeStrategy(node *corev1.Node) ([]*kubevirtv1.VirtualMachineInstance, error) {
+	req, err := labels.NewRequirement(util.LabelMaintainModeStrategy, selection.In, []string{
+		util.MaintainModeStrategyShutdownAndRestartAfterEnable,
+		util.MaintainModeStrategyShutdownAndRestartAfterDisable,
+		util.MaintainModeStrategyShutdown,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create selector to list VMIs that are to be administratively stopped before migration: %w", err)
 	}

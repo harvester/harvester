@@ -123,24 +123,37 @@ func Test_meetsWorkerRequirement(t *testing.T) {
 	assert.NoError(err, "expected no error while place worker node in drain")
 }
 
-func Test_maintainForceShutdownFilter_Skip(t *testing.T) {
+func Test_maintainModeStrategyFilter_Skip(t *testing.T) {
 	assert := require.New(t)
-	status := maintainForceShutdownFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name:      "foo",
 		Namespace: "xyz",
 		Labels: map[string]string{
-			util.LabelMaintainForceShutdownStrategy: "StayOff",
+			util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdown,
 		},
 	}})
 	assert.False(status.Delete)
 	assert.Equal(status.Reason, drain.PodDeleteStatusTypeSkip)
 }
 
-func Test_maintainForceShutdownFilter_Okay(t *testing.T) {
+func Test_maintainModeStrategyFilter_Okay_1(t *testing.T) {
 	assert := require.New(t)
-	status := maintainForceShutdownFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name:      "foo",
 		Namespace: "xyz",
+	}})
+	assert.True(status.Delete)
+	assert.Equal(status.Reason, drain.PodDeleteStatusTypeOkay)
+}
+
+func Test_maintainModeStrategyFilter_Okay_2(t *testing.T) {
+	assert := require.New(t)
+	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "foo",
+		Namespace: "xyz",
+		Labels: map[string]string{
+			util.LabelMaintainModeStrategy: util.MaintainModeStrategyMigrate,
+		},
 	}})
 	assert.True(status.Delete)
 	assert.Equal(status.Reason, drain.PodDeleteStatusTypeOkay)
