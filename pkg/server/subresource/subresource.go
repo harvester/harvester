@@ -77,6 +77,16 @@ func healthCheck(rw http.ResponseWriter, _ *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }
 
+// Execute processes the request from old API schema
+func Execute(handler ResourceHandler, rw http.ResponseWriter, r *http.Request, resource Resource) error {
+	if !handler.IsMatchedResource(resource, r.Method) {
+		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+	}
+
+	return handler.SubResourceHandler(rw, r, resource)
+}
+
+// serveSubResource processes the request from new API schema
 func serveSubResource(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 

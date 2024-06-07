@@ -31,6 +31,13 @@ const (
 	actionDownload = "download"
 )
 
+var (
+	subResourceMethod = map[string]string{
+		actionUpload:   http.MethodPut,
+		actionDownload: http.MethodPut,
+	}
+)
+
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
 	resource.Actions = make(map[string]string, 1)
 	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
@@ -54,17 +61,13 @@ type Handler struct {
 	BackingImageCache           ctllhv1.BackingImageCache
 }
 
-func (h Handler) IsMatchedResource(resource subresource.Resource, method string) bool {
+func (h Handler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
 	if resource.Name != subresource.VirtualMachineImages.Resource {
 		return false
 	}
 
-	if resource.SubResource == actionDownload && method == http.MethodGet {
-		return true
-	}
-
-	if resource.SubResource == actionUpload && method == http.MethodPost {
-		return true
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
 	}
 
 	return false
@@ -113,11 +116,7 @@ func (h Handler) do(rw http.ResponseWriter, req *http.Request) error {
 		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
 	}
 
-	if !h.IsMatchedResource(resource, req.Method) {
-		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported %s action %s", req.Method, resource.SubResource))
-	}
-
-	return h.SubResourceHandler(rw, req, resource)
+	return subresource.Execute(h, rw, req, resource)
 }
 
 func (h Handler) downloadImage(rw http.ResponseWriter, req *http.Request) error {

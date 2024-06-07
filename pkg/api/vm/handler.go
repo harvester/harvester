@@ -55,25 +55,26 @@ var (
 	cloneVMAnnotationKeys = []string{
 		util.AnnotationReservedMemory,
 	}
-	subResources = []string{
-		startVM,
-		stopVM,
-		restartVM,
-		softReboot,
-		pauseVM,
-		unpauseVM,
-		ejectCdRom,
-		migrate,
-		abortMigration,
-		findMigratableNodes,
-		backupVM,
-		restoreVM,
-		createTemplate,
-		addVolume,
-		removeVolume,
-		cloneVM,
-		forceStopVM,
-		dismissInsufficientResourceQuota,
+	subResourceMethod = map[string]string{
+		findMigratableNodes: http.MethodGet,
+
+		startVM:                          http.MethodPut,
+		stopVM:                           http.MethodPut,
+		restartVM:                        http.MethodPut,
+		softReboot:                       http.MethodPut,
+		pauseVM:                          http.MethodPut,
+		unpauseVM:                        http.MethodPut,
+		ejectCdRom:                       http.MethodPut,
+		migrate:                          http.MethodPut,
+		abortMigration:                   http.MethodPut,
+		backupVM:                         http.MethodPut,
+		restoreVM:                        http.MethodPut,
+		createTemplate:                   http.MethodPut,
+		addVolume:                        http.MethodPut,
+		removeVolume:                     http.MethodPut,
+		cloneVM:                          http.MethodPut,
+		forceStopVM:                      http.MethodPut,
+		dismissInsufficientResourceQuota: http.MethodPut,
 	}
 )
 
@@ -117,17 +118,14 @@ func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h *vmActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != subresource.VirtualMachines.Resource || method != http.MethodPost {
+func (h *vmActionHandler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
+	if resource.Name != subresource.VirtualMachines.Resource {
 		return false
 	}
 
-	for _, sub := range subResources {
-		if sub == resource.SubResource {
-			return true
-		}
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
 	}
-
 	return false
 }
 
@@ -287,11 +285,7 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		SubResource: vars["action"],
 	}
 
-	if !h.IsMatchedResource(resource, r.Method) {
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
-	}
-
-	return h.SubResourceHandler(rw, r, resource)
+	return subresource.Execute(h, rw, r, resource)
 }
 
 func (h *vmActionHandler) ejectCdRom(ctx context.Context, name, namespace string, diskNames []string) error {

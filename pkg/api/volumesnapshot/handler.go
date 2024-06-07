@@ -23,7 +23,9 @@ import (
 )
 
 var (
-	subResources = []string{actionRestore}
+	subResourceMethod = map[string]string{
+		actionRestore: http.MethodPut,
+	}
 )
 
 type ActionHandler struct {
@@ -35,15 +37,13 @@ type ActionHandler struct {
 	storageClassCache ctlstoragev1.StorageClassCache
 }
 
-func (h *ActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != subresource.VolumeSnapshots.Resource || method != http.MethodPost {
+func (h *ActionHandler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
+	if resource.Name != subresource.VolumeSnapshots.Resource {
 		return false
 	}
 
-	for _, sub := range subResources {
-		if sub == resource.SubResource {
-			return true
-		}
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
 	}
 
 	return false
@@ -92,11 +92,7 @@ func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 		SubResource: vars["action"],
 	}
 
-	if !h.IsMatchedResource(resource, r.Method) {
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
-	}
-
-	return h.SubResourceHandler(rw, r, resource)
+	return subresource.Execute(h, rw, r, resource)
 }
 
 func (h *ActionHandler) restore(_ context.Context, snapshotNamespace, snapshotName, newPVCName, storageClassName string) error {

@@ -83,17 +83,20 @@ type Handler struct {
 	upgradeLogClient ctlharvesterv1.UpgradeLogClient
 }
 
-func (h Handler) IsMatchedResource(resource subresource.Resource, method string) bool {
+var (
+	subResourceMethod = map[string]string{
+		downloadArchiveLink:   http.MethodGet,
+		generateArchiveAction: http.MethodPut,
+	}
+)
+
+func (h Handler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
 	if resource.Name != subresource.UpgradeLogs.Resource {
 		return false
 	}
 
-	if resource.SubResource == downloadArchiveLink && method == http.MethodGet {
-		return true
-	}
-
-	if resource.SubResource == generateArchiveAction && method == http.MethodPost {
-		return true
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
 	}
 
 	return false
@@ -141,11 +144,7 @@ func (h Handler) doAction(rw http.ResponseWriter, req *http.Request) error {
 		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
 	}
 
-	if !h.IsMatchedResource(resource, req.Method) {
-		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported %s action %s", req.Method, resource.SubResource))
-	}
-
-	return h.SubResourceHandler(rw, req, resource)
+	return subresource.Execute(h, rw, req, resource)
 }
 
 func (h Handler) downloadArchive(rw http.ResponseWriter, req *http.Request) error {

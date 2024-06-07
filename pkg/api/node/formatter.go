@@ -53,15 +53,15 @@ const (
 var (
 	seederGVR            = schema.GroupVersionResource{Group: "metal.harvesterhci.io", Version: "v1alpha1", Resource: "inventories"}
 	possiblePowerActions = []string{"shutdown", "poweron", "reboot"}
-	subResources         = []string{
-		enableMaintenanceModeAction,
-		disableMaintenanceModeAction,
-		cordonAction,
-		uncordonAction,
-		listUnhealthyVM,
-		maintenancePossible,
-		powerActionPossible,
-		powerAction,
+	subResourceMethod    = map[string]string{
+		enableMaintenanceModeAction:  http.MethodPut,
+		disableMaintenanceModeAction: http.MethodPut,
+		cordonAction:                 http.MethodPut,
+		uncordonAction:               http.MethodPut,
+		listUnhealthyVM:              http.MethodGet,
+		maintenancePossible:          http.MethodPut,
+		powerActionPossible:          http.MethodPut,
+		powerAction:                  http.MethodPut,
 	}
 )
 
@@ -113,15 +113,13 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h ActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != subresource.Node.Resource || method != http.MethodPost {
+func (h ActionHandler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
+	if resource.Name != subresource.Node.Resource {
 		return false
 	}
 
-	for _, sub := range subResources {
-		if sub == resource.SubResource {
-			return true
-		}
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
 	}
 
 	return false
@@ -182,11 +180,7 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 		SubResource: vars["action"],
 	}
 
-	if !h.IsMatchedResource(resource, req.Method) {
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
-	}
-
-	return h.SubResourceHandler(rw, req, resource)
+	return subresource.Execute(h, rw, req, resource)
 }
 
 func (h ActionHandler) cordonUncordonNode(node *corev1.Node, actionName string, cordon bool) error {

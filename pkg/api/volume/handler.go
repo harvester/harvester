@@ -33,11 +33,11 @@ import (
 )
 
 var (
-	subResources = []string{
-		actionExport,
-		actionCancelExpand,
-		actionClone,
-		actionSnapshot,
+	subResourceMethod = map[string]string{
+		actionExport:       http.MethodPut,
+		actionCancelExpand: http.MethodPut,
+		actionClone:        http.MethodPut,
+		actionSnapshot:     http.MethodPut,
 	}
 )
 
@@ -52,15 +52,13 @@ type ActionHandler struct {
 	volumeCache ctllhv1.VolumeCache
 }
 
-func (h *ActionHandler) IsMatchedResource(resource subresource.Resource, method string) bool {
-	if resource.Name != subresource.PersistentVolumeClaims.Resource || method != http.MethodPost {
+func (h *ActionHandler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
+	if resource.Name != subresource.PersistentVolumeClaims.Resource {
 		return false
 	}
 
-	for _, sub := range subResources {
-		if sub == resource.SubResource {
-			return true
-		}
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
 	}
 
 	return false
@@ -133,11 +131,7 @@ func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
 		SubResource: vars["action"],
 	}
 
-	if !h.IsMatchedResource(resource, r.Method) {
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
-	}
-
-	return h.SubResourceHandler(rw, r, resource)
+	return subresource.Execute(h, rw, r, resource)
 }
 
 func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) error {
