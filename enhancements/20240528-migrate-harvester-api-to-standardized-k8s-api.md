@@ -144,6 +144,52 @@ In order to implement this proposal, we need to take the following steps:
 
 It's basically done because we've had the action business logic in the controller, we just need to create a new interface to fulfill two different API sources, which one is from steve and the other is from subresource api.
 
+
+#### APIs For GUI
+
+Currently the GUI gets the `actions` and `links` to construct the GUI actions which current vm can do. It varies by current vm status. For example, when we fetch `virtualmachines` resource, it gives us this:
+
+```
+"data": [
+  {
+      "id": "default/nfs",
+      "type": "kubevirt.io.virtualmachine",
+      "links": {
+          "remove": "https://192.168.1.122/k8s/clusters/c-m-87f5m4xz/v1/harvester/kubevirt.io.virtualmachines/default/nfs",
+          "self": "https://192.168.1.122/k8s/clusters/c-m-87f5m4xz/v1/harvester/kubevirt.io.virtualmachines/default/nfs",
+          "update": "https://192.168.1.122/k8s/clusters/c-m-87f5m4xz/v1/harvester/kubevirt.io.virtualmachines/default/nfs",
+          "view": "https://192.168.1.122/k8s/clusters/c-m-87f5m4xz/apis/kubevirt.io/v1/namespaces/default/virtualmachines/nfs"
+      },
+      "actions": {
+          "addVolume": "https://192.168.1.122/k8s/clusters/c-m-87f5m4xz/v1/harvester/kubevirt.io.virtualmachines/default/nfs?action=addVolume",
+          "clone": "https://192.168.1.122/k8s/clusters/c-m-87f5m4xz/v1/harvester/kubevirt.io.virtualmachines/default/nfs?action=clone",
+          "removeVolume": "https://192.168.1.122/k8s/clusters/c-m-87f5m4xz/v1/harvester/kubevirt.io.virtualmachines/default/nfs?action=removeVolume",
+          "restart": "https://192.168.1.122/k8s/clusters/c-m-87f5m4xz/v1/harvester/kubevirt.io.virtualmachines/default/nfs?action=restart",
+          "start": "https://192.168.1.122/k8s/clusters/c-m-87f5m4xz/v1/harvester/kubevirt.io.virtualmachines/default/nfs?action=start"
+      },
+  ..... // other data
+```
+
+Those action links are constructed here, it's highly coupling with rancher/steve. 
+
+https://github.com/harvester/harvester/blob/709ae2a39f3b634e3b27da0f9a02fa33d20ff3fe/pkg/api/vm/formatter.go#L44-L119
+
+If we remove old APIs directly, the GUI isn't able to use. So, we need to customize those actions. For example, we need to use `resource.Actions` instead of using `resource.AddAction`.
+
+```go
+// Current
+resource.AddAction(request, "start")
+// It produces the map like this: 
+// "start": https://192.168.1.122/.../v1/harvester/kubevirt.io.virtualmachines/{namespace}/{name}?action=start
+
+
+// New
+resource.Actions["start"] = fmt.Sprintf("%s/%s", link, "start")
+// It produces the map like this: 
+// "start": https://192.168.1.122/.../v1/harvester/kubevirt.io.virtualmachines/{namespace}/{name}/start
+```
+
+
 ### Complete API List need migration
 
 
@@ -260,7 +306,7 @@ However, it's an effort to maintain two different APIs, so eventually we need to
 
 1. (v1.4.0) Introduce the new APIs, and still support old APIs. Here, we could also introduce the new feature flag of setting resource to enable/disable old APIs. By default, it should be enabled at this moment. 
 2. (v1.5.0) Encourage the users to use the new APIs, and internal services/tools should use the new APIs.
-3. (v1.6.0) Old APIs are disabled by default, and we could turn it on by feature flag of setting resource.
+3. (v1.6.0) Old APIs are disabled by default, and we could turn it on by feature flag of setting resource. When old APIs are disabled, we will provide new actions API link to GUI, more detail in [APIs For GUI ](#apis-for-gui)
 4. (v1.7.0) After a period of time, we could remove the old APIs and feature flag. Only keep new APIs.
 
 Those releases are just for reference, we could adjust it based on the progress of the migration.
@@ -285,6 +331,7 @@ Because kube api server will proxying request to the harvester api server, it ma
 - [ ] Create new APIs for each action, check [api list](#api-list).
   - [ ] Define the `APIService`
   - [ ] New interface to fulfill two different API sources
+  - [ ] Customize the actions link for GUI
 - [ ] Feature flag to enabled/disable old APIs
 - [ ] Internal services/tools convert old APIs to new APIs
   - [ ] QA Tools
