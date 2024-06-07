@@ -17,9 +17,25 @@ jobs:
     strategy:
       matrix:
         arch: [x64, arm64]
+    permissions:
+      contents: read
+      id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Read Secrets
+      uses: rancher-eio/read-vault-secrets@main
+      with:
+        secrets: |
+          secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
+          secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ env.DOCKER_USERNAME }}
+        password: ${{ env.DOCKER_PASSWORD }}
 
     # Build binaries
     - name: Run make ci
@@ -295,6 +311,12 @@ jobs:
           echo "arch=arm64" >> "$GITHUB_ENV"
         fi
 
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ env.DOCKER_USERNAME }}
+        password: ${{ env.DOCKER_PASSWORD }}
+
     - name: build-iso
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       run: |
@@ -319,12 +341,6 @@ jobs:
           secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
           secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
           secret/data/github/repo/${{ github.repository }}/google-auth/harvester/credentials token | GOOGLE_AUTH ;
-
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ env.DOCKER_USERNAME }}
-        password: ${{ env.DOCKER_PASSWORD }}
 
     # rancher/harvester-cluster-repo image
     - name: docker-publish-harvester-cluster-repo
