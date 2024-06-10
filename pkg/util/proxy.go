@@ -3,6 +3,7 @@ package util
 import (
 	"strings"
 
+	gocommon "github.com/harvester/go-common"
 	"github.com/rancher/wrangler/pkg/slice"
 )
 
@@ -26,7 +27,8 @@ type HTTPProxyConfig struct {
 }
 
 func AddBuiltInNoProxy(noProxy string) string {
-	noProxySlice := strings.Split(noProxy, ",")
+	noProxySlice := gocommon.SliceMapFunc(strings.Split(noProxy, ","),
+		func(v string, _ int) string { return strings.TrimSpace(v) })
 	for _, item := range builtInNoProxy {
 		if !slice.ContainsString(noProxySlice, item) {
 			noProxySlice = append(noProxySlice, item)
