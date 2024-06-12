@@ -261,7 +261,7 @@ jobs:
       matrix:
         arch: [x64]
     permissions:
-      contents: read
+      contents: write # for github prerelease action
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
     - name: Checkout code
