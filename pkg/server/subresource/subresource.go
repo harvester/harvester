@@ -35,7 +35,8 @@ type Resource struct {
 }
 
 type ResourceHandler interface {
-	// IsMatchedResource checks if the resource, subresource and http method are matched
+	// IsMatchedResource checks if the path, resource, subresource and http method are matched.
+	// This only check new API schema, old API schema have verified the path and method in rancher/steve.
 	IsMatchedResource(resource Resource, method string) bool
 
 	// SubResourceHandler handles the request if `IsMatchedResource` is true.
@@ -77,12 +78,9 @@ func healthCheck(rw http.ResponseWriter, _ *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }
 
-// Execute processes the request from old API schema
+// Execute processes the request from old API schema.
+// Old API have verified the path and method, so we can directly call the handler.
 func Execute(handler ResourceHandler, rw http.ResponseWriter, r *http.Request, resource Resource) error {
-	if !handler.IsMatchedResource(resource, r.Method) {
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
-	}
-
 	return handler.SubResourceHandler(rw, r, resource)
 }
 
