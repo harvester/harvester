@@ -189,6 +189,8 @@ resource.Actions["start"] = fmt.Sprintf("%s/%s", link, "start")
 // "start": https://192.168.1.122/.../v1/harvester/kubevirt.io.virtualmachines/{namespace}/{name}/start
 ```
 
+However, we plan to change the HTTP method to suitable one, which might be from `POST` to `PUT` or from `POST` to `GET`. There will be some effort for GUI because GUI need to support two different API schema, even different HTTP method.
+
 
 ### Complete API List need migration
 
@@ -340,3 +342,7 @@ Because kube api server will proxying request to the harvester api server, it ma
 - [ ] Release note to encourage users to use new APIs
 - [ ] Document for new APIs
 - [ ] Document for old APIs (Tracked in other issue)
+
+## Open Discussion
+
+Since we highly couple with rancher/steve, it might not be a good option to change the way how we use rancher/steve. So, I'm thinking we could just only support new API schema instead of migration.
