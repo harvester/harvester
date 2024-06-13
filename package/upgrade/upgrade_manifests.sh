@@ -825,24 +825,6 @@ reuse_vlan_cn() {
   kubectl get clusternetwork vlan -o yaml | yq '.metadata.finalizers = []' | kubectl apply -f -
 }
 
-sync_containerd_registry_to_rancher() {
-  echo "Sync containerd-registry setting to Rancher"
-
-  # Check if .spec.rkeConfig.registries is not null or empty.
-  # If the field is not null or empty, then the registries have
-  # already previously been synced to Rancher and there's no work
-  # to do here.
-  local num_registries_keys=$(kubectl get --namespace=fleet-local clusters.provisioning.cattle.io local -o yaml | yq '.spec.rkeConfig.registries | length')
-  if [[ $num_registries_keys -gt 0 ]]; then
-    echo "Rancher registries already set"
-    return
-  fi
-
-  # Otherwise, write an annotation to the setting to trigger the
-  # controller which will sync the settings up to Rancher.
-  kubectl annotate --overwrite=true setting.harvesterhci.io containerd-registry "harvesterhci.io/upgrade-patched=$REPO_HARVESTER_VERSION"
-}
-
 # rancher v2.8.1 introduced a new field fleetWorkspaceName in the cluster.provisioning CRD.
 # for new installs this is already patched by rancherd during bootstrap of cluster however rancherd logic is not
 # re-run in the upgrade path as a result this needs to be handled out of band
@@ -916,7 +898,6 @@ upgrade_harvester_cluster_repo
 upgrade_network
 ensure_ingress_class_name
 upgrade_harvester
-sync_containerd_registry_to_rancher
 wait_longhorn_upgrade
 reuse_vlan_cn
 upgrade_monitoring
