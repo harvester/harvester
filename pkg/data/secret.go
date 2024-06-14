@@ -34,6 +34,15 @@ func createSecrets(mgmt *config.Management) error {
 				util.ContainerdRegistryFileName: []byte(""),
 			},
 		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: util.CattleSystemNamespaceName,
+				Name:      util.RotateRKE2CertsSecretName,
+			},
+			Data: map[string][]byte{
+				util.RotateRKE2CertsLastTimestampName: []byte(""),
+			},
+		},
 	}
 	for i := range defaultSecrets {
 		defaultSecret := defaultSecrets[i]

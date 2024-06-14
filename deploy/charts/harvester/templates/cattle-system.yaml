@@ -84,3 +84,75 @@ spec:
     image: {{ .Values.generalJob.image.repository }}:{{ .Values.generalJob.image.tag }}
     command: ["chroot", "/host"]
     args: ["sh", "/run/system-upgrade/secrets/scripts/update_registries.sh"]
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: harvester-rotate-rke2-server-certs
+  namespace: cattle-system
+spec:
+  concurrency: 1
+  nodeSelector:
+    matchLabels:
+      harvesterhci.io/managed: "true"
+      # currently, we allow etcd only, but not control-plane only node,
+      # so we can use this label to filter server nodes
+      node-role.kubernetes.io/etcd: "true"
+  tolerations:
+  - effect: NoExecute
+    operator: Exists
+  serviceAccountName: system-upgrade-controller
+  # we don't need data from secret, just need to trigger the job
+  secrets:
+    - name: harvester-rotate-rke2-certs
+      path: /harvester-rotate-rke2-certs
+  version: v1.0.0
+  upgrade:
+    image: {{ .Values.generalJob.image.repository }}:{{ .Values.generalJob.image.tag }}
+    command: ["/bin/sh", "-c"]
+    args:
+      - echo "Stop RKE2 server ...";
+        chroot /host systemctl stop rke2-server;
+        echo "Rotate certificates ...";
+        chroot /host /opt/rke2/bin/rke2 certificate rotate;
+        echo "Start RKE2 server ...";
+        chroot /host systemctl start rke2-server;
+        echo "Done";
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: harvester-rotate-rke2-agent-certs
+  namespace: cattle-system
+spec:
+  concurrency: 1
+  nodeSelector:
+    matchLabels:
+      harvesterhci.io/managed: "true"
+    matchExpressions:
+      - key: node-role.kubernetes.io/etcd
+        operator: NotIn
+        values:
+          - "true"
+      - key: node-role.kubernetes.io/control-plane
+        operator: NotIn
+        values:
+          - "true"
+  tolerations:
+  - effect: NoExecute
+    operator: Exists
+  serviceAccountName: system-upgrade-controller
+  # we don't need data from secret, just need to trigger the job
+  secrets:
+    - name: harvester-rotate-rke2-certs
+      path: /harvester-rotate-rke2-certs
+  version: v1.0.0
+  upgrade:
+    image: {{ .Values.generalJob.image.repository }}:{{ .Values.generalJob.image.tag }}
+    command: ["/bin/sh", "-c"]
+    args:
+      # Agent certificates are renewed every time the agent starts.
+      # ref: https://docs.rke2.io/advanced#certificate-rotation
+      - echo "Restart RKE2 agent to trigger certificate rotation ...";
+        chroot /host systemctl restart rke2-agent;
+        echo "Done";

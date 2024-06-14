@@ -7,10 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
-	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -79,6 +78,9 @@ func (h *Handler) syncAutoRotateRKE2Certs(setting *harvesterv1.Setting) error {
 			return err
 		}
 
+		logrus.WithField(
+			"reconcileAfter", reconcileDuration,
+		).Info("Rotate RKE2 certificate")
 		h.settingController.EnqueueAfter(setting.Name, reconcileDuration)
 		return nil
 	}
@@ -137,77 +139,25 @@ func (h *Handler) getEarliestExpiringCert(addr string) (*x509.Certificate, error
 }
 
 func (h *Handler) rotateRKE2Certs(setting *harvesterv1.Setting) (time.Duration, error) {
-	cluster, err := h.clusterCache.Get(util.FleetLocalNamespaceName, util.LocalClusterName)
+	secret, err := h.secretCache.Get(util.CattleSystemNamespaceName, util.RotateRKE2CertsSecretName)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"cluster.namespace": util.FleetLocalNamespaceName,
-			"cluster.name":      util.LocalClusterName,
-		}).WithError(err).Error("clusterCache.Get")
-		return time.Duration(0), err
-	}
-
-	rkeControlPlane, err := h.rkeControlPlaneCache.Get(util.FleetLocalNamespaceName, util.LocalClusterName)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"rkeControlPlane.namespace": util.FleetLocalNamespaceName,
-			"rkeControlPlane.name":      util.LocalClusterName,
-		}).WithError(err).Error("rkeControlPlaneCache.Get")
-		return time.Duration(0), err
-	}
-
-	isRKEControlPlaneReady := false
-	for _, cond := range rkeControlPlane.Status.Conditions {
-		if cond.Type == "Ready" && cond.Status == v1.ConditionTrue {
-			isRKEControlPlaneReady = true
-			break
+		if !apierrors.IsNotFound(err) {
+			return time.Duration(0), err
 		}
+		secret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: util.CattleSystemNamespaceName,
+				Name:      util.RotateRKE2CertsSecretName,
+			},
+			Data: map[string][]byte{
+				util.RotateRKE2CertsLastTimestampName: []byte(time.Now().Format(time.RFC3339)),
+			},
+		}
+		_, err = h.secrets.Create(secret)
+		return defaultReconcilAutoRotateRKE2CertsSettingDuration, err
 	}
-
-	quickReconcilDuration := time.Second * 30
-	if !isRKEControlPlaneReady {
-		logrus.WithFields(logrus.Fields{
-			"name":                      setting.Name,
-			"rkeControlPlane.namespace": util.FleetLocalNamespaceName,
-			"rkeControlPlane.name":      util.LocalClusterName,
-			"reconcileAfter":            quickReconcilDuration,
-		}).Info("rkecontrolplane is not ready, reconcile setting again")
-		return quickReconcilDuration, nil
-	}
-
-	clusterCopy := cluster.DeepCopy()
-	if clusterCopy.Spec.RKEConfig == nil {
-		clusterCopy.Spec.RKEConfig = &provisioningv1.RKEConfig{}
-	}
-	if clusterCopy.Spec.RKEConfig.RotateCertificates == nil {
-		clusterCopy.Spec.RKEConfig.RotateCertificates = &rkev1.RotateCertificates{}
-	}
-
-	clusterRotateCertificatesGeneration := clusterCopy.Spec.RKEConfig.RotateCertificates.Generation
-	rkeControlPlaneRotateCertificatesGeneration := int64(0)
-	if rkeControlPlane.Spec.RotateCertificates != nil {
-		rkeControlPlaneRotateCertificatesGeneration = rkeControlPlane.Spec.RotateCertificates.Generation
-	}
-	if clusterRotateCertificatesGeneration != rkeControlPlaneRotateCertificatesGeneration ||
-		rkeControlPlaneRotateCertificatesGeneration != rkeControlPlane.Status.CertificateRotationGeneration {
-		logrus.WithFields(logrus.Fields{
-			"name":              setting.Name,
-			"cluster.namespace": util.FleetLocalNamespaceName,
-			"cluster.name":      util.LocalClusterName,
-			"reconcileAfter":    quickReconcilDuration,
-		}).Info("rotateCertificates.Generation is not synced between cluster and rkeControlPlane, reconcile setting again")
-		return quickReconcilDuration, nil
-	}
-
-	clusterCopy.Spec.RKEConfig.RotateCertificates.Generation++
-	if _, err := h.clusters.Update(clusterCopy); err != nil {
-		logrus.WithFields(logrus.Fields{
-			"namespace": util.FleetLocalNamespaceName,
-			"name":      util.LocalClusterName,
-		}).WithError(err).Error("clusters.Update")
-		return time.Duration(0), err
-	}
-
-	// if users don't udpate the setting, the controller can't be triggered
-	// so we still need to enqueue the setting again to check certs after rotate
-	return defaultReconcilAutoRotateRKE2CertsSettingDuration, nil
+	secretCopy := secret.DeepCopy()
+	secretCopy.Data[util.RotateRKE2CertsLastTimestampName] = []byte(time.Now().Format(time.RFC3339))
+	_, err = h.secrets.Update(secretCopy)
+	return defaultReconcilAutoRotateRKE2CertsSettingDuration, err
 }
