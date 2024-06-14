@@ -1,6 +1,6 @@
 Harvester
 ========
-[![Build Status](https://drone-publish.rancher.io/api/badges/harvester/harvester/status.svg)](https://drone-publish.rancher.io/harvester/harvester)
+[![Build Status](https://github.com/harvester/harvester/actions/workflows/build.yml/badge.svg)](https://github.com/harvester/harvester/actions/workflows/build.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/harvester/harvester)](https://goreportcard.com/report/github.com/harvester/harvester)
 [![Releases](https://img.shields.io/github/release/harvester/harvester.svg)](https://github.com/harvester/harvester/releases)
 [![Slack](https://img.shields.io/badge/slack-join-brightgreen)](https://slack.rancher.io/)
@@ -88,13 +88,15 @@ During the installation, you can either choose to **create a new Harvester clust
 > - __\<version\>*__ means the release branch is under active support and will have periodic follow-up patch releases.
 > - __Latest__ release means the version is the latest release of the newest release branch.
 > - __Stable__ release means the version is stable and has been widely adopted by users.
+> - __EOL__ means that the software has reached the end of its useful life and no further code-level maintenance will be provided. You may continue to use the software within the terms of the licensing agreement.
 
 https://github.com/harvester/harvester/releases
 
 | Release   | Version | Type           | Release Note (Changelog)                                         | Upgrade Note                                                |
 |-----------|---------|----------------|------------------------------------------------------------------|-------------------------------------------------------------|
-| **1.2***  | 1.2.0   | Latest         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.2.0) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-1-2-to-v1-2-0) |
-| **1.1***  | 1.1.2   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.1.2) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-1-to-v1-1-2) |
+| **1.3***  | 1.3.1   | Latest         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.3.1) | [🔗](https://docs.harvesterhci.io/v1.3/upgrade/v1-2-2-to-v1-3-1) |
+| **1.2***  | 1.2.2   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.2.2) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-2-1-to-v1-2-2) |
+| **1.1***  | 1.1.3   | EOL | [🔗](https://github.com/harvester/harvester/releases/tag/v1.1.3) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-1-to-v1-1-2) |
 
 ## Documentation
 
