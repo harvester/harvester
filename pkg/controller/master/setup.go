@@ -33,7 +33,6 @@ var registerFuncs = []registerFunc{
 	image.Register,
 	keypair.Register,
 	migration.Register,
-	node.PromoteRegister,
 	node.MaintainRegister,
 	node.DownRegister,
 	node.RemoveRegister,

@@ -46,7 +46,9 @@ const (
 	CPUManagerJobTimeoutInSec       int64  = CPUManagerWaitLabelTimeoutInSec * 2
 	CPUManagerJobTTLInSec           int32  = 86400 * 7 // 7 day
 
-	CPUManagerJobPrefix string = "update-cpu-manager"
+	CPUManagerJobPrefix     string = "update-cpu-manager"
+	helperConfigMapName            = "harvester-helpers"
+	releaseAppHarvesterName        = "harvester"
 )
 
 type CPUManagerPolicy string
@@ -103,7 +105,7 @@ func (h *cpuManagerNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*cor
 	}
 
 	// do nothing if the node is in witness role
-	if _, found := node.Labels[HarvesterWitnessNodeLabelKey]; found {
+	if _, found := node.Labels[util.HarvesterWitnessNodeLabelKey]; found {
 		return node, nil
 	}
 

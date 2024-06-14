@@ -248,7 +248,7 @@ func TestValidateCPUManagerOperation(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        "node1",
 				Annotations: map[string]string{util.AnnotationCPUManagerUpdateStatus: `{"status": "requested", "policy": "static"}`},
-				Labels:      map[string]string{ctlnode.HarvesterWitnessNodeLabelKey: "true"},
+				Labels:      map[string]string{util.HarvesterWitnessNodeLabelKey: "true"},
 			},
 		}))
 
@@ -432,7 +432,7 @@ func TestCheckMasterNodeJobs(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node-0",
 			Labels: map[string]string{
-				ctlnode.KubeMasterNodeLabelKey: "true",
+				util.KubeMasterNodeLabelKey: "true",
 			},
 		},
 	}
@@ -440,7 +440,7 @@ func TestCheckMasterNodeJobs(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node-1",
 			Labels: map[string]string{
-				ctlnode.KubeMasterNodeLabelKey: "true",
+				util.KubeMasterNodeLabelKey: "true",
 			},
 		},
 	}

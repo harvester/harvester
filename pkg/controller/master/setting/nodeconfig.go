@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	harvSettings "github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -93,7 +92,7 @@ func (h *Handler) nodeOnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 	}
 	enableV2DataEngine := enableV2DataEngineSetting.Value == "true"
 	// Don't enable for witness nodes
-	if _, found := node.Labels[ctlnode.HarvesterWitnessNodeLabelKey]; found {
+	if _, found := node.Labels[util.HarvesterWitnessNodeLabelKey]; found {
 		enableV2DataEngine = false
 	}
 	// Don't enable if explicitly disabled for this node

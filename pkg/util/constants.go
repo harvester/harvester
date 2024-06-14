@@ -161,4 +161,12 @@ const (
 	// copied from helm pkg/action/validate.go
 	HelmReleaseNameAnnotation      = "meta.helm.sh/release-name"
 	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
+
+	KubeNodeRoleLabelPrefix      = "node-role.kubernetes.io/"
+	KubeMasterNodeLabelKey       = KubeNodeRoleLabelPrefix + "master"
+	KubeControlPlaneNodeLabelKey = KubeNodeRoleLabelPrefix + "control-plane"
+	KubeEtcdNodeLabelKey         = KubeNodeRoleLabelPrefix + "etcd"
+
+	HarvesterNodeRoleLabelPrefix = "node-role.harvesterhci.io/"
+	HarvesterWitnessNodeLabelKey = HarvesterNodeRoleLabelPrefix + "witness"
 )

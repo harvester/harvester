@@ -12,8 +12,8 @@ import (
 	"k8s.io/utils/pointer"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -206,12 +206,12 @@ func prepareCleanupPlan(upgrade *harvesterv1.Upgrade, imageList []string) *upgra
 					Effect:   corev1.TaintEffectNoSchedule,
 				},
 				{
-					Key:      node.KubeControlPlaneNodeLabelKey,
+					Key:      util.KubeControlPlaneNodeLabelKey,
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoExecute,
 				},
 				{
-					Key:      node.KubeEtcdNodeLabelKey,
+					Key:      util.KubeEtcdNodeLabelKey,
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoExecute,
 				},
@@ -285,12 +285,12 @@ func preparePlan(upgrade *harvesterv1.Upgrade, concurrency int) *upgradev1.Plan 
 					Effect:   corev1.TaintEffectNoSchedule,
 				},
 				{
-					Key:      node.KubeControlPlaneNodeLabelKey,
+					Key:      util.KubeControlPlaneNodeLabelKey,
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoExecute,
 				},
 				{
-					Key:      node.KubeEtcdNodeLabelKey,
+					Key:      util.KubeEtcdNodeLabelKey,
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoExecute,
 				},
@@ -488,12 +488,12 @@ func getDefaultTolerations() []corev1.Toleration {
 			Effect:   corev1.TaintEffectNoSchedule,
 		},
 		{
-			Key:      node.KubeControlPlaneNodeLabelKey,
+			Key:      util.KubeControlPlaneNodeLabelKey,
 			Operator: corev1.TolerationOpExists,
 			Effect:   corev1.TaintEffectNoExecute,
 		},
 		{
-			Key:      node.KubeEtcdNodeLabelKey,
+			Key:      util.KubeEtcdNodeLabelKey,
 			Operator: corev1.TolerationOpExists,
 			Effect:   corev1.TaintEffectNoExecute,
 		},
@@ -760,7 +760,7 @@ func newNodeBuilder(name string) *nodeBuilder {
 }
 
 func (n *nodeBuilder) ControlPlane() *nodeBuilder {
-	n.WithLabel(node.KubeControlPlaneNodeLabelKey, "true")
+	n.WithLabel(util.KubeControlPlaneNodeLabelKey, "true")
 	return n
 }
 
