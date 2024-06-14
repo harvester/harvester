@@ -174,22 +174,18 @@ Those action links are constructed here, it's highly coupling with rancher/steve
 
 https://github.com/harvester/harvester/blob/709ae2a39f3b634e3b27da0f9a02fa33d20ff3fe/pkg/api/vm/formatter.go#L44-L119
 
-If we remove old APIs directly, the GUI isn't able to use. So, we need to customize those actions. For example, we need to use `resource.Actions` instead of using `resource.AddAction`.
+Those action APIs are `POST` only method. The rancher/steve validates HTTP method is `POST` or not here:
 
-```go
-// Current
-resource.AddAction(request, "start")
-// It produces the map like this: 
-// "start": https://192.168.1.122/.../v1/harvester/kubevirt.io.virtualmachines/{namespace}/{name}?action=start
+https://github.com/rancher/apiserver/blob/8c448886365e4a1d60447361f8fceffc41af6d68/pkg/server/validate.go#L22-L24
 
+However, if we plan to change the HTTP method to suitable one, which might be from `POST` to `PUT` or from `POST` to `GET`. There will be **huge efforts** for GUI because GUI need to support two different API schema, even different HTTP method.
 
-// New
-resource.Actions["start"] = fmt.Sprintf("%s/%s", link, "start")
-// It produces the map like this: 
-// "start": https://192.168.1.122/.../v1/harvester/kubevirt.io.virtualmachines/{namespace}/{name}/start
-```
+So, there are two options for this:
 
-However, we plan to change the HTTP method to suitable one, which might be from `POST` to `PUT` or from `POST` to `GET`. There will be some effort for GUI because GUI need to support two different API schema, even different HTTP method.
+1. Don't change HTTP method, keep both same.
+2. Only change new API schema HTTP method, keep old API original.
+
+Migration will be easier with first decision than second one. Since in second one, we need to create a way to sync endpoint and HTTP method between GUI and backend.
 
 
 ### Complete API List need migration
@@ -278,7 +274,7 @@ But, each subresource might contain different HTTP method. It depends on the beh
 - If it's not idempotent, use `POST` or more matched HTTP method. **However, there shouldn't be `POST` or more matched HTTP method because most APIs aim to handle existing resource instead of creating new one.**
 - For list API, should use `GET` method. For example, `findMigratableNodes` action, it should be `GET` cause it doesn't change anything.
 
-In short words, **there should be only `GET` or `PUT` method for subresource APIs**. And We should also check which action is not used anymore, and remove it on new APIs. 
+In short words, **there should be only `GET` or `PUT` method for subresource APIs**. And We should also check which action is not used anymore, and remove it on new APIs. But, it depends on the decision of [APIs For GUI](#apis-for-gui).
 
 #### Related Documentation Issue
 
