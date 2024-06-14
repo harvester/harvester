@@ -88,7 +88,7 @@ During the installation, you can either choose to **create a new Harvester clust
 > - __\<version\>*__ means the release branch is under active support and will have periodic follow-up patch releases.
 > - __Latest__ release means the version is the latest release of the newest release branch.
 > - __Stable__ release means the version is stable and has been widely adopted by users.
-> - __EOL__ release means the version is end of its life.
+> - __EOL__ means that the software has reached the end of its useful life and no further code-level maintenance will be provided. You may continue to use the software within the terms of the licensing agreement.
 
 https://github.com/harvester/harvester/releases
 
