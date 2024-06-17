@@ -39,6 +39,8 @@ const (
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
 
+	NodeCPUManagerPoliciesSecretName = "node-cpu-manager-policies"
+
 	BackupTargetSecretName              = "harvester-backup-target-secret"
 	InternalTLSSecretName               = "tls-rancher-internal"
 	Rke2IngressNginxAppName             = "rke2-ingress-nginx"

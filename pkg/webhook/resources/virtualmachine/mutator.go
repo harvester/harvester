@@ -179,12 +179,20 @@ func needUpdateResourceOvercommit(oldVM, newVM *kubevirtv1.VirtualMachine) bool 
 
 func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]string, error) {
 	var patchOps types.PatchOps
+	isDedicatedCPU := vm.Spec.Template.Spec.Domain.CPU != nil && vm.Spec.Template.Spec.Domain.CPU.DedicatedCPUPlacement
+	// do not apply overcommitted resource since dedicated CPU requires guaranteed QoS (resource limit and request should be the same)
+	// more info, please check https://github.com/kubevirt/kubevirt/blob/8fe1d71accd7d6f5837de514d6b9ddc782c5dd41/pkg/virt-api/webhooks/validating-webhook/admitters/vmi-create-admitter.go#L619
+	if isDedicatedCPU {
+		return patchOps, nil
+	}
+
 	limits := vm.Spec.Template.Spec.Domain.Resources.Limits
 	cpu := limits.Cpu()
 	mem := limits.Memory()
 	requestsMissing := len(vm.Spec.Template.Spec.Domain.Resources.Requests) == 0
 	requestsToMutate := v1.ResourceList{}
 	overcommit, err := m.getOvercommit()
+
 	if err != nil || overcommit == nil {
 		return patchOps, err
 	}

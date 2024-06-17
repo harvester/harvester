@@ -72,6 +72,7 @@ var BeEquivalentTo = gomega.BeEquivalentTo
 var BeElementOf = gomega.BeElementOf
 var Consistently = gomega.Consistently
 var BeTrue = gomega.BeTrue
+var HavePrefix = gomega.HavePrefix
 
 // Declarations for DSL
 var MustNotError = dsl.MustNotError

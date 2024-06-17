@@ -5,6 +5,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 source $SCRIPT_DIR/lib.sh
 UPGRADE_TMP_DIR=$HOST_DIR/usr/local/upgrade_tmp
 STATE_DIR=$HOST_DIR/run/initramfs/cos-state
+MAX_PODS=200
 
 cleanup_incomplete_state_file() {
   STATE_FILE=${STATE_DIR}/state.yaml
@@ -490,8 +491,69 @@ EOF
 set_max_pods() {
 cat > /host/etc/rancher/rke2/config.yaml.d/99-max-pods.yaml <<EOF
 kubelet-arg:
-- "max-pods=200"
+- "max-pods=$MAX_PODS"
 EOF
+}
+
+set_system_reserved_resource() {
+  local cores=$(chroot /host nproc)
+  local reserverdCPU=$(calculateCPUReservedInMilliCPU $cores $MAX_PODS)
+  local systemReserverConfig="/host/etc/rancher/rke2/config.yaml.d/99-z00-harvester-system-reserved.yaml"
+  if [ ! -e $systemReserverConfig ]; then
+    cat > $systemReserverConfig << EOF
+kubelet-arg+:
+- "system-reserved=cpu=${reserverdCPU}m"
+EOF
+  fi
+}
+
+set_cpu_manager_policy() {
+  local cpuManagerPolicyConfig="/host/etc/rancher/rke2/config.yaml.d/99-z01-harvester-cpu-manager.yaml"
+  if [ ! -e $cpuManagerPolicyConfig ]; then
+    cat > $cpuManagerPolicyConfig << EOF
+kubelet-arg+:
+- "cpu-manager-policy=none"
+EOF
+  fi
+}
+
+calculateCPUReservedInMilliCPU() {
+  local cores=$1
+  local maxPods=$2
+
+  # This shouldn't happen
+  if (( $cores <= 0 || $maxPods <= 0 )); then
+    echo 0
+    return
+  fi
+
+  local reserved=0
+
+  # 6% of the first core (60 milliCPU)
+  reserved=$(( $reserved + 6 * 1000 / 100 ))
+
+  # 1% of the next core (up to 2 cores) (10 milliCPU)
+  if (( cores > 1 )); then
+    reserved=$(( $reserved + 1 * 1000 / 100 ))
+  fi
+
+  # 0.5% of the next 2 cores (up to 4 cores) (5 milliCPU)
+  if (( cores > 2 )); then
+    reserved=$(( $reserved + 2 * 500 / 100 ))
+  fi
+
+  # 0.25% of any cores above 4 cores (2.5 milliCPU per core)
+  if (( cores > 4 )); then
+    reserved=$(( $reserved + (cores - 4) * 250 / 100 ))
+  fi
+
+  # If the maximum number of Pods per node is beyond the default of 110,
+  # reserve an extra 400 mCPU in addition to the preceding reservations.
+  if (( maxPods > 110 )); then
+    reserved=$(( $reserved + 400 ))
+  fi
+
+  echo $reserved
 }
 
 upgrade_os() {
@@ -576,8 +638,12 @@ command_post_drain() {
   wait_repo
   detect_repo
 
-  # update max-pods to 200 #
+  # update max-pods to 200
   set_max_pods
+  # add system reserved resource config
+  set_system_reserved_resource
+  # add cpu manager policy config
+  set_cpu_manager_policy
   # A post-drain signal from Rancher doesn't mean RKE2 agent/server is already patched and restarted
   # Let's wait until the RKE2 settled.
   wait_rke2_upgrade
@@ -616,8 +682,12 @@ command_single_node_upgrade() {
   # wait all fleet bundles in limited time
   wait_for_fleet_bundles
 
-  # update max-pods to 200 #
+  # update max-pods to 200
   set_max_pods
+  # add system reserved resource config
+  set_system_reserved_resource
+  # add cpu manager policy config
+  set_cpu_manager_policy
   # Upgarde RKE2
   upgrade_rke2
 
