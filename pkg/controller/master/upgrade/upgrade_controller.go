@@ -65,6 +65,7 @@ const (
 
 	imageCleanupPlanCompletedAnnotation = "harvesterhci.io/image-cleanup-plan-completed"
 	skipVersionCheckAnnotation          = "harvesterhci.io/skip-version-check"
+	skipImagePreloadAnnotation          = "harvesterhci.io/skip-image-preload"
 )
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades
@@ -269,6 +270,27 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		if !isEligible {
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, reason, "")
 			return h.upgradeClient.Update(toUpdate)
+		}
+
+		skipImagePreloadStr, ok := upgrade.Annotations[skipImagePreloadAnnotation]
+		if ok {
+			skipImagePreload, err := strconv.ParseBool(skipImagePreloadStr)
+			if err == nil && skipImagePreload {
+				logrus.Info("Skip image preloading")
+
+				nodes, err := h.nodeCache.List(labels.Everything())
+				if err != nil {
+					return upgrade, err
+				}
+				for _, node := range nodes {
+					setNodeUpgradeStatus(toUpdate, node.Name, nodeStateImagesPreloaded, "", "")
+				}
+
+				toUpdate.Labels[upgradeStateLabel] = StatePreparingNodes
+				toUpdate.Status.RepoInfo = repoInfoStr
+				setNodesPreparedCondition(toUpdate, corev1.ConditionTrue, "", "")
+				return h.upgradeClient.Update(toUpdate)
+			}
 		}
 
 		logrus.Debug("Start preparing nodes for upgrade")
