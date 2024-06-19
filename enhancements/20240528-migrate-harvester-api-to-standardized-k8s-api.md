@@ -183,7 +183,7 @@ However, if we plan to change the HTTP method to suitable one, which might be fr
 So, there are two options for this:
 
 1. Don't change HTTP method, keep both same.
-2. Only change new API schema HTTP method, keep old API original.
+2. Don't migrate, create new API schema with new HTTP method and still keep old API original.
 
 Migration will be easier with first decision than second one. Since in second one, we need to create a way to sync endpoint and HTTP method between GUI and backend.
 
