@@ -164,6 +164,9 @@ func (m *Manager) getCollectNamespaces() string {
 		"local",
 		"longhorn-system",
 		"cattle-logging-system",
+		// namespace for CAPI system components
+		// https://github.com/rancher/rancher/blob/4ac81b66b0f971548be78f2d1c72ecb906171a0b/pkg/controllers/dashboard/systemcharts/controller.go#L176
+		"cattle-provisioning-capi-system",
 	}
 
 	extraNamespaces := settings.SupportBundleNamespaces.Get()
