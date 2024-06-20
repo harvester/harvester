@@ -48,11 +48,12 @@ import (
 )
 
 const (
-	backupControllerName         = "harvester-vm-backup-controller"
-	snapshotControllerName       = "volume-snapshot-controller"
-	longhornBackupControllerName = "longhorn-backup-controller"
-	pvcControllerName            = "harvester-pvc-controller"
-	vmBackupKindName             = "VirtualMachineBackup"
+	backupControllerName          = "harvester-vm-backup-controller"
+	snapshotControllerName        = "volume-snapshot-controller"
+	longhornBackupControllerName  = "longhorn-backup-controller"
+	cleanupSnapshotControllerName = "longhorn-backup-controller.cleanup-snapshot"
+	pvcControllerName             = "harvester-pvc-controller"
+	vmBackupKindName              = "VirtualMachineBackup"
 
 	volumeSnapshotCreateEvent = "VolumeSnapshotCreated"
 
@@ -75,6 +76,7 @@ func RegisterBackup(ctx context.Context, management *config.Management, _ config
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	lhbackups := management.LonghornFactory.Longhorn().V1beta2().Backup()
+	lhsnapshots := management.LonghornFactory.Longhorn().V1beta2().Snapshot()
 	volumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 	snapshots := management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
 	snapshotContents := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotContent()
@@ -102,6 +104,7 @@ func RegisterBackup(ctx context.Context, management *config.Management, _ config
 		vmis:                      vmis,
 		vmisCache:                 vmis.Cache(),
 		lhbackupCache:             lhbackups.Cache(),
+		lhsnapshots:               lhsnapshots,
 		volumeCache:               volumes.Cache(),
 		snapshots:                 snapshots,
 		snapshotCache:             snapshots.Cache(),
@@ -116,6 +119,7 @@ func RegisterBackup(ctx context.Context, management *config.Management, _ config
 	vmBackups.OnRemove(ctx, backupControllerName, vmBackupController.OnBackupRemove)
 	snapshots.OnChange(ctx, snapshotControllerName, vmBackupController.updateVolumeSnapshotChanged)
 	lhbackups.OnChange(ctx, longhornBackupControllerName, vmBackupController.OnLHBackupChanged)
+	lhbackups.OnRemove(ctx, cleanupSnapshotControllerName, vmBackupController.OnLHBackupRemoved)
 	return nil
 }
 
@@ -132,6 +136,7 @@ type Handler struct {
 	secretCache               ctlcorev1.SecretCache
 	storageClassCache         ctlstoragev1.StorageClassCache
 	lhbackupCache             ctllonghornv2.BackupCache
+	lhsnapshots               ctllonghornv2.SnapshotClient
 	volumeCache               ctllonghornv2.VolumeCache
 	snapshots                 ctlsnapshotv1.VolumeSnapshotClient
 	snapshotCache             ctlsnapshotv1.VolumeSnapshotCache
