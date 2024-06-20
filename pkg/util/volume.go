@@ -3,7 +3,9 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
+	lhutil "github.com/longhorn/longhorn-manager/util"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -45,4 +47,26 @@ func LoadCSIDriverConfig(settingCache ctlharvesterv1.SettingCache) (map[string]s
 		return nil, fmt.Errorf("can't parse %s setting, err: %w", settings.CSIDriverConfigSettingName, err)
 	}
 	return csiDriverConfig, nil
+}
+
+// GetSnapshotMaxCountAndSize returns snapshot max count and size from PVC annotations.
+// If there is no snapshot max count annotation, return default value 250.
+// If there is no snapshot max size annotation, return default value 0.
+func GetSnapshotMaxCountAndSize(pvc *corev1.PersistentVolumeClaim) (snapshotMaxCount int, snapshotMaxSize int64, err error) {
+	if snapshotMaxCountString, ok := pvc.Annotations[AnnotationSnapshotMaxCount]; ok {
+		snapshotMaxCount, err = strconv.Atoi(snapshotMaxCountString)
+		if err != nil {
+			return 0, 0, fmt.Errorf("snapshot max count should be a number, err: %w", err)
+		}
+	} else {
+		snapshotMaxCount = settings.DefaultSnapshotMaxCount.GetInt()
+	}
+
+	if snapshotMaxSizeString, ok := pvc.Annotations[AnnotationSnapshotMaxSize]; ok {
+		snapshotMaxSize, err = lhutil.ConvertSize(snapshotMaxSizeString)
+		if err != nil {
+			return snapshotMaxCount, 0, fmt.Errorf("snapshot max size is not a valid resource quantity")
+		}
+	}
+	return snapshotMaxCount, snapshotMaxSize, nil
 }

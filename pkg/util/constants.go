@@ -19,6 +19,8 @@ const (
 	LabelImageDisplayName          = prefix + "/imageDisplayName"
 	LabelSetting                   = prefix + "/setting"
 	LabelVMName                    = prefix + "/vmName"
+	AnnotationSnapshotMaxCount     = prefix + "/snapshotMaxCount"
+	AnnotationSnapshotMaxSize      = prefix + "/snapshotMaxSize"
 
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
