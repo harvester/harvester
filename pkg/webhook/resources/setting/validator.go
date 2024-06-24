@@ -89,6 +89,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
+	settings.ImagePreloadStrategySettingName:                   validateImagePreloadStrategy,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -108,6 +109,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
+	settings.ImagePreloadStrategySettingName:                   validateUpdateImagePreloadStrategy,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -1260,4 +1262,21 @@ func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
 
 func validateUpdateKubeConfigTTLSetting(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateKubeConfigTTLSetting(newSetting)
+}
+
+func validateImagePreloadStrategy(newSetting *v1beta1.Setting) error {
+	if newSetting.Value == "" {
+		return nil
+	}
+
+	switch newSetting.Value {
+	case settings.SkipImagePreload, settings.SequentialImagePreload, settings.ParallelImagePreload:
+		return nil
+	default:
+		return werror.NewInvalidError("Invalid image preload strategy", "value")
+	}
+}
+
+func validateUpdateImagePreloadStrategy(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateImagePreloadStrategy(newSetting)
 }
