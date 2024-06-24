@@ -108,7 +108,7 @@ metadata:
       uid: b584d7d0-0820-445e-bc90-4ffbfe82d63b
 spec: {}
 status:
-  claimedBy: ""
+  userName: ""
   nodeName: jacknode
   pciAddress: "0000:02:01.0"
 ```
