@@ -151,7 +151,7 @@ It's quite similar with PCI devices, it also needs to show the matrix (node/usb)
 
 ![example PCI Devices matrix](20220722-pci-passthrough/vm-pci-matrix.png)
 
-Unlike the PCI device, we could add or remove USB device easily, so it needs a refresh button to detect all USB device in the USB device page. Here I used PCI device page to represent idea. That button will be upper right corner of this page.
+Like the PCI device, we'll detect usb devices period and show them on new page.
 
 ![](./20240304-usb-passthrough/02.png)
 
