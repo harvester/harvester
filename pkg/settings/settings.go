@@ -57,6 +57,7 @@ var (
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
 	NTPServers             = NewSetting(NTPServersSettingName, "")
 	WhiteListedSettings    = []string{"server-version", "default-storage-class", "harvester-csi-ccm-versions", "default-vm-termination-grace-period-seconds"}
+	ImagePreloadStrategy   = NewSetting(ImagePreloadStrategySettingName, SequentialImagePreload) // options are skip, sequential, and parallel
 )
 
 const (
@@ -88,6 +89,7 @@ const (
 	AutoRotateRKE2CertsSettingName                    = "auto-rotate-rke2-certs"
 	KubeconfigDefaultTokenTTLMinutesSettingName       = "kubeconfig-default-token-ttl-minutes"
 	SupportBundleNodeCollectionTimeoutName            = "support-bundle-node-collection-timeout"
+	ImagePreloadStrategySettingName                   = "image-preload-strategy"
 )
 
 func init() {
@@ -324,3 +326,9 @@ func GetCSIDriverInfo(provisioner string) (*CSIDriverInfo, error) {
 	}
 	return csiDriverInfo, nil
 }
+
+const (
+	SkipImagePreload       string = "skip"
+	SequentialImagePreload string = "sequential"
+	ParallelImagePreload   string = "parallel"
+)
