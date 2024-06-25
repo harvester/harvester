@@ -337,7 +337,7 @@ spec:
         - name: httpd
           image: rancher/harvester-cluster-repo:$REPO_OS_VERSION
 EOF
-  kubectl patch deployment harvester-cluster-repo -n cattle-system --patch-file ./cluster_repo.yaml --type merge
+  kubectl patch deployment harvester-cluster-repo -n cattle-system --patch-file ./cluster_repo.yaml --type strategic
 
   until kubectl -n cattle-system rollout status -w deployment/harvester-cluster-repo; do
     echo "Waiting for harvester-cluster-repo deployment ready..."
