@@ -1,6 +1,6 @@
-# USB Passthrough
+# USB Host Passthrough
 
-USB Passthrough allows virtual machine to have access to node's USB devices without PCI Passthrough.
+USB Host Passthrough allows virtual machine to have access to node's USB devices without PCI Passthrough.
 
 ## Summary
 
@@ -10,7 +10,7 @@ In other words, let's say USB controller has two ports called A and B.
 
 - With PCI Passthrough situation (pass USB controller), VM can read A/B, and node can't read one of them.
   ![](./20240304-usb-passthrough/diff-01.png)
-- With USB Passthrough situation (only pass B), VM can read B, and node can read A.
+- With USB Host Passthrough situation (only pass B), VM can read B, and node can read A.
   ![](./20240304-usb-passthrough/diff-02.png)
 
 ### Related Issues
@@ -19,10 +19,17 @@ https://github.com/harvester/harvester/issues/1710
 
 ## Motivation
 
+KubeVirt treats USB devices as resource. That means if there are two identical USB devices, KubeVirt recognize them as **one** resource.
+
+Let's say, we ask KubeVirt for a resource "abc", the KubeVirt said "I have abc, and have two of them." If we end up getting only one, KubeVirt will randomly delegate one of them to us since it's resource concept, such as cpu and memory in our POD spec. For KubeVirt, multiple USB devices with same vendor and product ID are recognized as one resource.
+
+Another reason for creating our own device plugin is we'd like to treat each USB device as a resource. Then, it can fulfill the User Story 2. 
+
+
 ### Goals
 
 - Allow virtual machine to use node's USB device without PCI Passthrough.
-- Users can select one USB device from two identical USB device instead of randomly picked by KubeVirt's device plugin.
+- Users can select one USB device from two identical USB device instead of randomly picked by KubeVirt.
 
 ## Proposal
 
@@ -30,7 +37,7 @@ https://github.com/harvester/harvester/issues/1710
 
 #### Story 1 - One USB storage device
 
-Bob wants to use USB Passthrough feature to enable virtual machine to read USB storage device which are attached on the node.
+Bob wants to use USB Host Passthrough feature to enable virtual machine to read USB storage device which are attached on the node.
 
 After enabling the Addon, there are many USB devices on `USB Devices` page. Bob clicks one of them and enable it. Then, Bob starts to create the new virtual machine, and there is one setting called `USB Devices` in the virtual machine creating page.
 
@@ -155,7 +162,12 @@ Like the PCI device, we'll detect usb devices period and show them on new page.
 
 ![](./20240304-usb-passthrough/02.png)
 
-Regarding the resource and API path in harvester, it should be `devices.harvesterhci.io.pcidevices` and `v1/harvester/devices.harvesterhci.io.pcidevices`. 
+Regarding the resource and API path in harvester, it should be `devices.harvesterhci.io.pcidevices` and `v1/harvester/devices.harvesterhci.io.pcidevices`.
+
+### Limitation
+
+1. Don't support live migration since USB device is bound to the specified node.
+2. Don't support hot plug, please see [reference](https://github.com/kubevirt/kubevirt/issues/11979).
 
 ### Test plan
 
