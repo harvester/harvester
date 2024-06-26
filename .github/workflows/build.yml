@@ -21,6 +21,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # Check apparmor
+    - name: Check apparmor
+      run: |
+        ls /etc/apparmor.d/
+        sudo aa-status || true
+
     # Build binaries
     - name: Run make ci
       if: ${{ matrix.arch == 'x64' }}
