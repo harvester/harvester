@@ -57,6 +57,18 @@ func (h *vmImageHandler) OnChanged(_ string, image *harvesterv1.VirtualMachineIm
 			return h.images.Update(toUpdate)
 		}
 
+		// sync virtualSize (handles the case for existing images that were
+		// imported before this field was added, because adding the field to
+		// the CRD triggers vmImageHandler.OnChanged)
+		if image.Status.VirtualSize == 0 {
+			bi, err := util.GetBackingImage(h.backingImageCache, image)
+			if err == nil {
+				toUpdate := image.DeepCopy()
+				toUpdate.Status.VirtualSize = bi.Status.VirtualSize
+				return h.images.Update(toUpdate)
+			}
+		}
+
 		return image, nil
 	}
 
