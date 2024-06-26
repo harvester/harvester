@@ -57,6 +57,37 @@ func (h *vmImageHandler) OnChanged(_ string, image *harvesterv1.VirtualMachineIm
 			return h.images.Update(toUpdate)
 		}
 
+		// sync virtualSize (handles the case for existing images that were
+		// imported before this field was added, because adding the field to
+		// the CRD triggers vmImageHandler.OnChanged)
+		if image.Status.VirtualSize == 0 {
+			toUpdate := image.DeepCopy()
+			bi, err := util.GetBackingImage(h.backingImageCache, toUpdate)
+			if err != nil {
+				// If for some reason we're unable to get the backing image,
+				// we set the BackingImageMissing condition on the image,
+				// including the error message, so it can be seen via
+				// `kubectl describe`.  The image is not marked failed or
+				// anything, in case this is some sort of transient error.
+				// In the unlikely event that we do hit this case, and whatever
+				// error was present is later fixed, the user can re-trigger
+				// this code by making a temporary change to the image (e.g.
+				// add/change the image description).  Once set, the
+				// BackingImageMissing condition is never automatically removed,
+				// but can be deleted manually with `kubectl edit`.
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"namespace": toUpdate.Namespace,
+					"name":      toUpdate.Name,
+				}).Error("failed to get backing image for vmimage")
+				harvesterv1.BackingImageMissing.True(toUpdate)
+				harvesterv1.BackingImageMissing.Message(toUpdate,
+					fmt.Sprintf("Failed to get backing image: %s", err.Error()))
+			} else {
+				toUpdate.Status.VirtualSize = bi.Status.VirtualSize
+			}
+			return h.images.Update(toUpdate)
+		}
+
 		return image, nil
 	}
 

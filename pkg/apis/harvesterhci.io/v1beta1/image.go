@@ -10,6 +10,7 @@ var (
 	ImageInitialized        condition.Cond = "Initialized"
 	ImageImported           condition.Cond = "Imported"
 	ImageRetryLimitExceeded condition.Cond = "RetryLimitExceeded"
+	BackingImageMissing     condition.Cond = "BackingImageMissing"
 )
 
 // +genclient
