@@ -54,3 +54,23 @@ func SliceMapFunc[S ~[]E, E any](s S, f func(E, int) E) S {
 	}
 	return r
 }
+
+// SliceFindDuplicates takes a slice of comparable elements and returns a new slice containing
+// only the elements that appear more than once in the input slice. Since a map is used
+// internally to track duplicates, the order of the elements in the output slice is not guaranteed.
+func SliceFindDuplicates[S ~[]E, E comparable](s S) S {
+	elementCount := make(map[E]int)
+	duplicates := []E{}
+
+	for _, element := range s {
+		elementCount[element]++
+	}
+
+	for element, count := range elementCount {
+		if count > 1 {
+			duplicates = append(duplicates, element)
+		}
+	}
+
+	return duplicates
+}

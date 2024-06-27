@@ -52,7 +52,7 @@ replace (
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.2.0
+	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/cisco-open/operator-tools v0.29.0
 	github.com/containernetworking/cni v1.1.2
 	github.com/docker/go-units v0.5.0
@@ -61,7 +61,7 @@ require (
 	github.com/gobuffalo/flect v1.0.2
 	github.com/gorilla/mux v1.8.1
 	github.com/guonaihong/gout v0.1.3
-	github.com/harvester/go-common v0.0.0-20240521103542-378ddb186c5b
+	github.com/harvester/go-common v0.0.0-20240627083535-c1208a490f89
 	github.com/harvester/harvester-network-controller v0.3.1
 	github.com/harvester/node-manager v0.1.5-0.20230614075852-de2da3ef3aca
 	github.com/iancoleman/strcase v0.2.0
