@@ -650,8 +650,9 @@ github.com/Masterminds/goutils v1.1.0/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy86
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/semver v1.5.0/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
-github.com/Masterminds/semver/v3 v3.2.0 h1:3MEsd0SM6jqZojhjLWWeBY+Kcjy9i6MQAeY7YgDP83g=
 github.com/Masterminds/semver/v3 v3.2.0/go.mod h1:qvl/7zhW3nngYb5+80sSMF+FG2BjYrf8m9wsX0PNOMQ=
+github.com/Masterminds/semver/v3 v3.2.1 h1:RN9w6+7QoMeJVGyfmbcgs28Br8cvmnucEXnY0rYXWg0=
+github.com/Masterminds/semver/v3 v3.2.1/go.mod h1:qvl/7zhW3nngYb5+80sSMF+FG2BjYrf8m9wsX0PNOMQ=
 github.com/Masterminds/sprig v2.22.0+incompatible/go.mod h1:y6hNFY5UBTIWBxnzTeuNhlNS5hqE0NB0E6fgfo2Br3o=
 github.com/Masterminds/sprig/v3 v3.2.3 h1:eL2fZNezLomi0uOLqjQoN6BfsDD+fyLtgbJMAj9n6YA=
 github.com/Masterminds/sprig/v3 v3.2.3/go.mod h1:rXcFaZ2zZbLRJv/xSysmlgIM1u11eBaRMhvYXJNkGuM=
@@ -1351,8 +1352,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.3 h1:lLT7ZLSzGLI08vc9cpd+tYmNWjd
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.3/go.mod h1:o//XUCC/F+yRGJoPO/VU0GSB0f8Nhgmxx0VIRUvaC0w=
 github.com/guonaihong/gout v0.1.3 h1:BIiV6nnsA+R6dIB1P33uhCM8+TVAG3zHrXGZad7hDc8=
 github.com/guonaihong/gout v0.1.3/go.mod h1:vXvv5Kxr70eM5wrp4F0+t9lnLWmq+YPW2GByll2f/EA=
-github.com/harvester/go-common v0.0.0-20240521103542-378ddb186c5b h1:OqYlpgFf9LOsY19LmWKbhOpfgBvMS/usoWJLJNLdZUc=
-github.com/harvester/go-common v0.0.0-20240521103542-378ddb186c5b/go.mod h1:oCkj2nrrwgIOEfi4JZfaR2lO7xFfNcdRSykT0bEZDz8=
+github.com/harvester/go-common v0.0.0-20240627083535-c1208a490f89 h1:wqQaZqxxOQrc8qa5V6zOyF8GGYum40ohO30v2RndPPw=
+github.com/harvester/go-common v0.0.0-20240627083535-c1208a490f89/go.mod h1:70bhzIm0iXpR1J8hr5jg2jzAvNkM4f2ZsU1R4Sbx9X4=
 github.com/harvester/harvester-network-controller v0.3.1 h1:WJ90eqq0HNNPE/kB1X+fsV1MZ8Lrt0s5UaOCzUotBwQ=
 github.com/harvester/harvester-network-controller v0.3.1/go.mod h1:XL6+c9WvqcEVV/Gki+wU5tZBqZGrOm1719pZdaiuG7g=
 github.com/harvester/node-manager v0.1.5-0.20230614075852-de2da3ef3aca h1:ySmceYltYR2wmeAvifoXtHQOK/N6v7z7Rkaq/6IPJ5A=
