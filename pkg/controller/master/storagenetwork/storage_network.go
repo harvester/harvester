@@ -37,6 +37,8 @@ const (
 	NadStorageNetworkAnnotation     = StorageNetworkAnnotation + "/net-attach-def"
 	OldNadStorageNetworkAnnotation  = StorageNetworkAnnotation + "/old-net-attach-def"
 
+	HashStorageNetworkLabel = HashStorageNetworkAnnotation
+
 	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
 	StorageNetworkNetAttachDefNamespace = "harvester-system"
 
@@ -264,12 +266,12 @@ func (h *Handler) setNadAnnotations(setting *harvesterv1.Setting, newNad string)
 	return setting
 }
 
-func (h *Handler) createNad(setting *harvesterv1.Setting) (string, error) {
+func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
 	var config Config
 	bridgeConfig := NewBridgeConfig()
 
 	if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
-		return "", fmt.Errorf("parsing value error %v", err)
+		return nil, fmt.Errorf("parsing value error %v", err)
 	}
 
 	bridgeConfig.Bridge = config.ClusterNetwork + BridgeSuffix
@@ -286,7 +288,7 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (string, error) {
 
 	nadConfig, err := json.Marshal(bridgeConfig)
 	if err != nil {
-		return "", fmt.Errorf("output json error %v", err)
+		return nil, fmt.Errorf("output json error %v", err)
 	}
 
 	nad := nadv1.NetworkAttachmentDefinition{
@@ -298,34 +300,62 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (string, error) {
 	nad.Annotations = map[string]string{
 		StorageNetworkAnnotation: "true",
 	}
+	nad.Labels = map[string]string{
+		HashStorageNetworkLabel: h.sha1(setting.Value),
+	}
 	nad.Spec.Config = string(nadConfig)
 
 	// create nad
 	var nadResult *nadv1.NetworkAttachmentDefinition
 	if nadResult, err = h.networkAttachmentDefinitions.Create(&nad); err != nil {
-		return "", fmt.Errorf("create net-attach-def failed %v", err)
+		return nil, fmt.Errorf("create net-attach-def failed %v", err)
 	}
 
-	return fmt.Sprintf("%s/%s", nadResult.Namespace, nadResult.Name), nil
+	return nadResult, nil
+}
+
+func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
+	nads, err := h.networkAttachmentDefinitions.List(StorageNetworkNetAttachDefNamespace, metav1.ListOptions{
+		LabelSelector: labels.Set{
+			HashStorageNetworkLabel: h.sha1(setting.Value),
+		}.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(nads.Items) == 0 {
+		return h.createNad(setting)
+	}
+
+	if len(nads.Items) > 1 {
+		logrus.WithFields(logrus.Fields{
+			"num_of_nad":          len(nads.Items),
+			"storage_network_nad": nads.Items[0].Name,
+		}).Info("storage network: found more than one match nad")
+	}
+
+	return &nads.Items[0], nil
 }
 
 func (h *Handler) checkValueIsChanged(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	var updatedSetting *harvesterv1.Setting
 	var err error
-	nadName := ""
+	nadAnnotation := ""
 
 	if h.checkIsSameHashValue(setting) {
 		return setting, nil
 	}
 
 	if setting.Value != "" {
-		nadName, err = h.createNad(setting)
+		nad, err := h.findOrCreateNad(setting)
 		if err != nil {
 			return setting, err
 		}
+		nadAnnotation = fmt.Sprintf("%s/%s", nad.Namespace, nad.Name)
 	}
 
-	setting = h.setNadAnnotations(setting, nadName)
+	setting = h.setNadAnnotations(setting, nadAnnotation)
 	setting = h.setHashAnnotations(setting)
 
 	if updatedSetting, err = h.setConfiguredCondition(setting, false, ReasonInProgress, "create NAD"); err != nil {
