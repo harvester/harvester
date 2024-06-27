@@ -494,3 +494,79 @@ func Test_validateKubeconfigTTLSetting(t *testing.T) {
 		})
 	}
 }
+
+func Test_validateNTPServers(t *testing.T) {
+	testCases := []struct {
+		name        string
+		args        *v1beta1.Setting
+		expectedErr string
+	}{
+		{
+			name: "valid empty ntp servers",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Value:      "",
+			},
+			expectedErr: "",
+		},
+		{
+			name: "valid ntp servers",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Value:      `{"ntpServers":["0.suse.pool.ntp.org", "1.suse.pool.ntp.org"]}`,
+			},
+			expectedErr: "",
+		},
+		{
+			name: "invalid ntp servers json string",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Value:      `foobar`,
+			},
+			expectedErr: "failed to parse NTP settings: invalid character 'o' in literal false (expecting 'a')",
+		},
+		{
+			name: "invalid ntp servers start with http",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Value:      `{"ntpServers":["http://1.suse.pool.ntp.org"]}`,
+			},
+			expectedErr: "ntp server http://1.suse.pool.ntp.org should not start with http:// or https:// .",
+		},
+		{
+			name: "invalid ntp servers start with https",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Value:      `{"ntpServers":["https://1.suse.pool.ntp.org"]}`,
+			},
+			expectedErr: "ntp server https://1.suse.pool.ntp.org should not start with http:// or https:// .",
+		},
+		{
+			name: "invalid ntp servers not match FQDN",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Value:      `{"ntpServers":["$.suse.pool.ntp.org"]}`,
+			},
+			expectedErr: "invalid NTP server: $.suse.pool.ntp.org",
+		},
+		{
+			name: "duplicate ntp servers",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Value:      `{"ntpServers":["0.suse.pool.ntp.org", "0.suse.pool.ntp.org", "1.suse.pool.ntp.org"]}`,
+			},
+			expectedErr: "duplicate NTP server: [0.suse.pool.ntp.org]",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := validateNTPServers(testCase.args)
+			if len(testCase.expectedErr) > 0 {
+				assert.Equal(t, testCase.expectedErr, err.Error())
+			} else {
+				assert.Nil(t, err)
+			}
+		})
+	}
+}
