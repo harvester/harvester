@@ -162,7 +162,7 @@ Like the PCI device, we'll detect usb devices period and show them on new page.
 
 ![](./20240304-usb-passthrough/02.png)
 
-Regarding the resource and API path in harvester, it should be `devices.harvesterhci.io.pcidevices` and `v1/harvester/devices.harvesterhci.io.pcidevices`.
+Regarding the resource and API path in harvester, it should be `usbdevices.devices.harvesterhci.io` and `usbdeviceclaims.devices.harvesterhci.io`.
 
 ### Limitation
 
