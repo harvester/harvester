@@ -52,7 +52,7 @@ replace (
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.2.0
+	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/cisco-open/operator-tools v0.29.0
 	github.com/containernetworking/cni v1.1.2
 	github.com/docker/go-units v0.5.0
@@ -322,3 +322,5 @@ require (
 	sigs.k8s.io/kustomize/api v0.12.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 )
+
+replace github.com/harvester/go-common => github.com/starbops/go-common v0.0.0-20240614024155-61f133a4572b

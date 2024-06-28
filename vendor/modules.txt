@@ -15,7 +15,7 @@ github.com/MakeNowJust/heredoc
 # github.com/Masterminds/goutils v1.1.1
 ## explicit
 github.com/Masterminds/goutils
-# github.com/Masterminds/semver/v3 v3.2.0
+# github.com/Masterminds/semver/v3 v3.2.1
 ## explicit; go 1.18
 github.com/Masterminds/semver/v3
 # github.com/Masterminds/sprig/v3 v3.2.3
@@ -397,9 +397,10 @@ github.com/guonaihong/gout/encode
 github.com/guonaihong/gout/export
 github.com/guonaihong/gout/filter
 github.com/guonaihong/gout/interface
-# github.com/harvester/go-common v0.0.0-20240521103542-378ddb186c5b
+# github.com/harvester/go-common v0.0.0-20240521103542-378ddb186c5b => github.com/starbops/go-common v0.0.0-20240614024155-61f133a4572b
 ## explicit; go 1.21
 github.com/harvester/go-common
+github.com/harvester/go-common/version
 # github.com/harvester/harvester-network-controller v0.3.1
 ## explicit; go 1.18
 github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io
@@ -2381,3 +2382,4 @@ sigs.k8s.io/yaml/goyaml.v2
 # kubevirt.io/api => kubevirt.io/api v1.1.1
 # kubevirt.io/client-go => kubevirt.io/client-go v1.1.1
 # sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2
+# github.com/harvester/go-common => github.com/starbops/go-common v0.0.0-20240614024155-61f133a4572b
