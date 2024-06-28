@@ -2,7 +2,7 @@
 
 This is the title of the enhancement. Keep it simple and descriptive.
 
-The file name should be lowercased and spaces/punctuation should be replaced with `-`.
+The file name should be lowercase and spaces/punctuation should be replaced with `-`.
 
 ## Summary
 
@@ -58,4 +58,4 @@ Anything that requires if user want to upgrade to this enhancement
 
 ## Note [optional]
 
-Additional nodes.
+Additional notes.
