@@ -5,6 +5,7 @@ import (
 
 	"github.com/rancher/steve/pkg/server"
 
+	"github.com/harvester/harvester/pkg/api/cluster"
 	"github.com/harvester/harvester/pkg/api/image"
 	"github.com/harvester/harvester/pkg/api/keypair"
 	"github.com/harvester/harvester/pkg/api/node"
@@ -37,5 +38,6 @@ func Setup(ctx context.Context, server *server.Server, _ *server.Controllers, op
 		node.RegisterSchema,
 		upgradelog.RegisterSchema,
 		volume.RegisterSchema,
-		volumesnapshot.RegisterSchema)
+		volumesnapshot.RegisterSchema,
+		cluster.RegisterSchema)
 }
