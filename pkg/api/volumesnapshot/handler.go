@@ -18,7 +18,14 @@ import (
 
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
+	"github.com/harvester/harvester/pkg/server/subresource"
 	"github.com/harvester/harvester/pkg/util"
+)
+
+var (
+	subResourceMethod = map[string]string{
+		actionRestore: http.MethodPut,
+	}
 )
 
 type ActionHandler struct {
@@ -30,24 +37,22 @@ type ActionHandler struct {
 	storageClassCache ctlstoragev1.StorageClassCache
 }
 
-func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if err := h.do(rw, req); err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
-			status = e.Code.Status
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
-		return
+func (h *ActionHandler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
+	if resource.Name != subresource.VolumeSnapshots.Resource {
+		return false
 	}
-	rw.WriteHeader(http.StatusNoContent)
+
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
+	}
+
+	return false
 }
 
-func (h *ActionHandler) do(_ http.ResponseWriter, r *http.Request) error {
-	vars := util.EncodeVars(mux.Vars(r))
-	action := vars["action"]
-	snapshotName := vars["name"]
-	snapshotNamespace := vars["namespace"]
+func (h *ActionHandler) SubResourceHandler(_ http.ResponseWriter, r *http.Request, resource subresource.Resource) error {
+	action := resource.SubResource
+	snapshotNamespace := resource.Namespace
+	snapshotName := resource.ObjectName
 
 	switch action {
 	case actionRestore:
@@ -60,8 +65,34 @@ func (h *ActionHandler) do(_ http.ResponseWriter, r *http.Request) error {
 		}
 		return h.restore(r.Context(), snapshotNamespace, snapshotName, input.Name, input.StorageClassName)
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported subresource %s", resource.SubResource))
 	}
+}
+
+func (h *ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if err := h.do(rw, req); err != nil {
+		status := http.StatusInternalServerError
+		if e, ok := err.(*apierror.APIError); ok {
+			status = e.Code.Status
+		}
+		rw.WriteHeader(status)
+		_, _ = rw.Write([]byte(err.Error()))
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
+	vars := util.EncodeVars(mux.Vars(r))
+
+	resource := subresource.Resource{
+		Name:        subresource.VolumeSnapshots.Resource,
+		ObjectName:  vars["name"],
+		Namespace:   vars["namespace"],
+		SubResource: vars["action"],
+	}
+
+	return subresource.Execute(h, rw, r, resource)
 }
 
 func (h *ActionHandler) restore(_ context.Context, snapshotNamespace, snapshotName, newPVCName, storageClassName string) error {

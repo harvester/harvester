@@ -21,6 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -38,6 +39,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/server/subresource"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
@@ -52,6 +54,27 @@ const (
 var (
 	cloneVMAnnotationKeys = []string{
 		util.AnnotationReservedMemory,
+	}
+	subResourceMethod = map[string]string{
+		findMigratableNodes: http.MethodGet,
+
+		startVM:                          http.MethodPut,
+		stopVM:                           http.MethodPut,
+		restartVM:                        http.MethodPut,
+		softReboot:                       http.MethodPut,
+		pauseVM:                          http.MethodPut,
+		unpauseVM:                        http.MethodPut,
+		ejectCdRom:                       http.MethodPut,
+		migrate:                          http.MethodPut,
+		abortMigration:                   http.MethodPut,
+		backupVM:                         http.MethodPut,
+		restoreVM:                        http.MethodPut,
+		createTemplate:                   http.MethodPut,
+		addVolume:                        http.MethodPut,
+		removeVolume:                     http.MethodPut,
+		cloneVM:                          http.MethodPut,
+		forceStopVM:                      http.MethodPut,
+		dismissInsufficientResourceQuota: http.MethodPut,
 	}
 )
 
@@ -82,7 +105,7 @@ type vmActionHandler struct {
 	storageClassCache         ctlstoragev1.StorageClassCache
 }
 
-func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (h *vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err := h.doAction(rw, req); err != nil {
 		status := http.StatusInternalServerError
 		if e, ok := err.(*apierror.APIError); ok {
@@ -95,11 +118,21 @@ func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) error {
-	vars := util.EncodeVars(mux.Vars(r))
-	action := vars["action"]
-	namespace := vars["namespace"]
-	name := vars["name"]
+func (h *vmActionHandler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
+	if resource.Name != subresource.VirtualMachines.Resource {
+		return false
+	}
+
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
+	}
+	return false
+}
+
+func (h *vmActionHandler) SubResourceHandler(rw http.ResponseWriter, r *http.Request, resource subresource.Resource) error {
+	action := resource.SubResource
+	namespace := resource.Namespace
+	name := resource.ObjectName
 
 	switch action {
 	case ejectCdRom:
@@ -125,10 +158,18 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		return h.findMigratableNodes(rw, namespace, name)
 	case startVM, stopVM, restartVM:
 		if err := h.subresourceOperate(r.Context(), vmResource, namespace, name, action); err != nil {
+			if apierrors.IsNotFound(err) {
+				return apierror.NewAPIError(validation.NotFound, fmt.Sprintf("Virtual machine %s/%s not found", namespace, name))
+			}
+
 			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
 		}
 	case pauseVM, unpauseVM, softReboot:
 		if err := h.subresourceOperate(r.Context(), vmiResource, namespace, name, action); err != nil {
+			if apierrors.IsNotFound(err) {
+				return apierror.NewAPIError(validation.NotFound, fmt.Sprintf("Virtual machine %s/%s not found", namespace, name))
+			}
+
 			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
 		}
 	case backupVM:
@@ -228,9 +269,23 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 	case dismissInsufficientResourceQuota:
 		return h.dismissInsufficientResourceQuota(name, namespace)
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported subresource %s", resource.SubResource))
 	}
+
 	return nil
+}
+
+func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) error {
+	vars := util.EncodeVars(mux.Vars(r))
+
+	resource := subresource.Resource{
+		Name:        subresource.VirtualMachines.Resource,
+		ObjectName:  vars["name"],
+		Namespace:   vars["namespace"],
+		SubResource: vars["action"],
+	}
+
+	return subresource.Execute(h, rw, r, resource)
 }
 
 func (h *vmActionHandler) ejectCdRom(ctx context.Context, name, namespace string, diskNames []string) error {

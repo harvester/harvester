@@ -30,6 +30,7 @@ import (
 	harvesterctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
+	"github.com/harvester/harvester/pkg/server/subresource"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
 )
@@ -52,6 +53,16 @@ const (
 var (
 	seederGVR            = schema.GroupVersionResource{Group: "metal.harvesterhci.io", Version: "v1alpha1", Resource: "inventories"}
 	possiblePowerActions = []string{"shutdown", "poweron", "reboot"}
+	subResourceMethod    = map[string]string{
+		enableMaintenanceModeAction:  http.MethodPut,
+		disableMaintenanceModeAction: http.MethodPut,
+		cordonAction:                 http.MethodPut,
+		uncordonAction:               http.MethodPut,
+		listUnhealthyVM:              http.MethodGet,
+		maintenancePossible:          http.MethodPut,
+		powerActionPossible:          http.MethodPut,
+		powerAction:                  http.MethodPut,
+	}
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -102,15 +113,29 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
-	vars := util.EncodeVars(mux.Vars(req))
-	action := vars["action"]
-	name := vars["name"]
+func (h ActionHandler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
+	if resource.Name != subresource.Node.Resource {
+		return false
+	}
+
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
+	}
+
+	return false
+}
+
+func (h ActionHandler) SubResourceHandler(rw http.ResponseWriter, req *http.Request, resource subresource.Resource) error {
+	action := resource.SubResource
+	name := resource.ObjectName
+
 	node, err := h.nodeCache.Get(name)
 	if err != nil {
 		return err
 	}
+
 	toUpdate := node.DeepCopy()
+
 	switch action {
 	case enableMaintenanceModeAction:
 		var maintenanceInput MaintenanceModeInput
@@ -141,8 +166,21 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 		}
 		return h.powerAction(toUpdate, input.Operation)
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported subresource %s", resource.SubResource))
 	}
+}
+
+func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
+	vars := util.EncodeVars(mux.Vars(req))
+
+	resource := subresource.Resource{
+		Name:        subresource.Node.Resource,
+		ObjectName:  vars["name"],
+		Namespace:   "",
+		SubResource: vars["action"],
+	}
+
+	return subresource.Execute(h, rw, req, resource)
 }
 
 func (h ActionHandler) cordonUncordonNode(node *corev1.Node, actionName string, cordon bool) error {

@@ -27,8 +27,18 @@ import (
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/server/subresource"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+)
+
+var (
+	subResourceMethod = map[string]string{
+		actionExport:       http.MethodPut,
+		actionCancelExpand: http.MethodPut,
+		actionClone:        http.MethodPut,
+		actionSnapshot:     http.MethodPut,
+	}
 )
 
 type ActionHandler struct {
@@ -42,24 +52,22 @@ type ActionHandler struct {
 	volumeCache ctllhv1.VolumeCache
 }
 
-func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if err := h.do(rw, req); err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
-			status = e.Code.Status
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
-		return
+func (h *ActionHandler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
+	if resource.Name != subresource.PersistentVolumeClaims.Resource {
+		return false
 	}
-	rw.WriteHeader(http.StatusNoContent)
+
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
+	}
+
+	return false
 }
 
-func (h *ActionHandler) do(_ http.ResponseWriter, r *http.Request) error {
-	vars := util.EncodeVars(mux.Vars(r))
-	action := vars["action"]
-	pvcName := vars["name"]
-	pvcNamespace := vars["namespace"]
+func (h *ActionHandler) SubResourceHandler(_ http.ResponseWriter, r *http.Request, resource subresource.Resource) error {
+	action := resource.SubResource
+	pvcNamespace := resource.Namespace
+	pvcName := resource.ObjectName
 
 	switch action {
 	case actionExport:
@@ -95,8 +103,35 @@ func (h *ActionHandler) do(_ http.ResponseWriter, r *http.Request) error {
 		}
 		return h.snapshot(r.Context(), pvcNamespace, pvcName, input.Name)
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported subresource %s", resource.SubResource))
 	}
+}
+
+func (h *ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if err := h.do(rw, req); err != nil {
+		status := http.StatusInternalServerError
+		if e, ok := err.(*apierror.APIError); ok {
+			status = e.Code.Status
+		}
+		rw.WriteHeader(status)
+		_, _ = rw.Write([]byte(err.Error()))
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ActionHandler) do(rw http.ResponseWriter, r *http.Request) error {
+	vars := util.EncodeVars(mux.Vars(r))
+
+	resource := subresource.Resource{
+		Name:        subresource.PersistentVolumeClaims.Resource,
+		ObjectName:  vars["name"],
+		Namespace:   vars["namespace"],
+		SubResource: vars["action"],
+	}
+
+	return subresource.Execute(h, rw, r, resource)
 }
 
 func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) error {

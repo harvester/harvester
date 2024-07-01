@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/wrangler/pkg/schemas"
 
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/server/subresource"
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
@@ -50,5 +51,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		},
 	}
 	server.SchemaFactory.AddTemplate(t)
+
+	subresource.RegisterSubResourceHandler(&imgHandler)
+
 	return nil
 }

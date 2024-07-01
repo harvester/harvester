@@ -14,6 +14,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	virtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/server/subresource"
 )
 
 const (
@@ -58,6 +59,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	copyConfig.APIPath = "/apis"
 	copyConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 	virtSubresourceClient, err := rest.RESTClientFor(copyConfig)
+
 	if err != nil {
 		return err
 	}
@@ -170,5 +172,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 
 	server.SchemaFactory.AddTemplate(t)
+
+	subresource.RegisterSubResourceHandler(&actionHandler)
+
 	return nil
 }

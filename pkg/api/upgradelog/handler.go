@@ -22,6 +22,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlupgradelog "github.com/harvester/harvester/pkg/controller/master/upgradelog"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/server/subresource"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -82,6 +83,36 @@ type Handler struct {
 	upgradeLogClient ctlharvesterv1.UpgradeLogClient
 }
 
+var (
+	subResourceMethod = map[string]string{
+		downloadArchiveLink:   http.MethodGet,
+		generateArchiveAction: http.MethodPut,
+	}
+)
+
+func (h Handler) IsMatchedResource(resource subresource.Resource, httpMethod string) bool {
+	if resource.Name != subresource.UpgradeLogs.Resource {
+		return false
+	}
+
+	if method, ok := subResourceMethod[resource.SubResource]; ok {
+		return method == httpMethod
+	}
+
+	return false
+}
+
+func (h Handler) SubResourceHandler(rw http.ResponseWriter, req *http.Request, resource subresource.Resource) error {
+	switch resource.SubResource {
+	case downloadArchiveLink:
+		return h.downloadArchive(rw, req)
+	case generateArchiveAction:
+		return h.generateArchive(rw, req)
+	default:
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported subresource %s", resource.SubResource))
+	}
+}
+
 func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err := h.doAction(rw, req); err != nil {
 		status := http.StatusInternalServerError
@@ -97,31 +128,23 @@ func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func (h Handler) doAction(rw http.ResponseWriter, req *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(req))
 
-	if req.Method == http.MethodGet {
-		return h.doGet(vars["link"], rw, req)
-	} else if req.Method == http.MethodPost {
-		return h.doPost(vars["action"], rw, req)
+	resource := subresource.Resource{
+		Name:       subresource.UpgradeLogs.Resource,
+		ObjectName: vars["name"],
+		Namespace:  vars["namespace"],
 	}
 
-	return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
-}
-
-func (h Handler) doGet(link string, rw http.ResponseWriter, req *http.Request) error {
-	switch link {
-	case downloadArchiveLink:
-		return h.downloadArchive(rw, req)
+	// Need to convert the link and action to subresource
+	switch req.Method {
+	case http.MethodGet:
+		resource.SubResource = vars["link"]
+	case http.MethodPost:
+		resource.SubResource = vars["action"]
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported GET action %s", link))
+		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
 	}
-}
 
-func (h Handler) doPost(action string, rw http.ResponseWriter, req *http.Request) error {
-	switch action {
-	case generateArchiveAction:
-		return h.generateArchive(rw, req)
-	default:
-		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported POST action %s", action))
-	}
+	return subresource.Execute(h, rw, req, resource)
 }
 
 func (h Handler) downloadArchive(rw http.ResponseWriter, req *http.Request) error {
