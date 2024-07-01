@@ -89,6 +89,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
+	settings.DefaultSnapshotMaxCountSettingName:                validateDefaultSnapshotMaxCount,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -108,6 +109,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
+	settings.DefaultSnapshotMaxCountSettingName:                validateUpdateDefaultSnapshotMaxCount,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -1059,4 +1061,25 @@ func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
 
 func validateUpdateKubeConfigTTLSetting(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateKubeConfigTTLSetting(newSetting)
+}
+
+func validateDefaultSnapshotMaxCount(setting *v1beta1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	num, err := strconv.ParseInt(setting.Value, 10, 64)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	if num < 2 || num > 250 {
+		return werror.NewInvalidError("snapshot max count should be between 2 and 250", "value")
+	}
+
+	return nil
+}
+
+func validateUpdateDefaultSnapshotMaxCount(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateDefaultSnapshotMaxCount(newSetting)
 }

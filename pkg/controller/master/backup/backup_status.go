@@ -7,6 +7,7 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -189,4 +190,45 @@ func (h *Handler) OnLHBackupChanged(_ string, lhBackup *lhv1beta2.Backup) (*lhv1
 		h.vmBackupController.Enqueue(vmBackup.Namespace, vmBackup.Name)
 	}
 	return nil, nil
+}
+
+// OnLHBackupRemoved automatically removes Snapshots
+// This controller can be removed after Longhorn resolves https://github.com/longhorn/longhorn/issues/8365
+func (h *Handler) OnLHBackupRemoved(_ string, lhBackup *lhv1beta2.Backup) (*lhv1beta2.Backup, error) {
+	if lhBackup == nil || lhBackup.DeletionTimestamp == nil || lhBackup.Status.SnapshotName == "" {
+		return nil, nil
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"namespace": lhBackup.Namespace,
+		"name":      lhBackup.Status.SnapshotName,
+	}).Info("Trying to get lh snapshot")
+	snapshot, err := h.lhsnapshots.Get(lhBackup.Namespace, lhBackup.Status.SnapshotName, metav1.GetOptions{})
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace": lhBackup.Namespace,
+				"snapshot":  lhBackup.Status.SnapshotName,
+				"backup":    lhBackup.Name,
+			}).Error("Failed to get longhorn snapshot")
+			return nil, err
+		}
+		return nil, nil
+	}
+	logrus.WithFields(logrus.Fields{
+		"namespace": lhBackup.Namespace,
+		"name":      lhBackup.Status.SnapshotName,
+	}).Info("Trying to delete lh snapshot")
+	if snapshot.DeletionTimestamp == nil {
+		if err = h.lhsnapshots.Delete(snapshot.Namespace, snapshot.Name, &metav1.DeleteOptions{}); err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace": lhBackup.Namespace,
+				"snapshot":  lhBackup.Status.SnapshotName,
+				"backup":    lhBackup.Name,
+			}).Error("Failed to delete longhorn snapshot")
+			return nil, err
+		}
+	}
+
+	return lhBackup, nil
 }

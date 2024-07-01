@@ -110,6 +110,7 @@ func main() {
 					longhornv1.Backup{},
 					longhornv1.Replica{},
 					longhornv1.Engine{},
+					longhornv1.Snapshot{},
 				},
 				GenerateClients: true,
 			},

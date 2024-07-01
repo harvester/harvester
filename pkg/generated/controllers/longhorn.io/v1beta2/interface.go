@@ -36,6 +36,7 @@ type Interface interface {
 	Engine() EngineController
 	Replica() ReplicaController
 	Setting() SettingController
+	Snapshot() SnapshotController
 	Volume() VolumeController
 }
 
@@ -66,6 +67,9 @@ func (c *version) Replica() ReplicaController {
 }
 func (c *version) Setting() SettingController {
 	return NewSettingController(schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Setting"}, "settings", true, c.controllerFactory)
+}
+func (c *version) Snapshot() SnapshotController {
+	return NewSnapshotController(schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Snapshot"}, "snapshots", true, c.controllerFactory)
 }
 func (c *version) Volume() VolumeController {
 	return NewVolumeController(schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Volume"}, "volumes", true, c.controllerFactory)

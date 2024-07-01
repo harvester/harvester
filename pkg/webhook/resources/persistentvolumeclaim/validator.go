@@ -14,6 +14,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -57,7 +58,7 @@ func (v *pvcValidator) Create(_ *types.Request, obj runtime.Object) error {
 		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
 
 	}
-	return nil
+	return validateAnnotation(pvc)
 }
 
 func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) error {
@@ -123,6 +124,10 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
 	}
 
+	if err := validateAnnotation(newPVC); err != nil {
+		return err
+	}
+
 	newQuantity := newPVC.Spec.Resources.Requests.Storage()
 	oldQuantity := oldPVC.Spec.Resources.Requests.Storage()
 	if oldQuantity.Cmp(*newQuantity) == 0 {
@@ -148,5 +153,26 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 		}
 	}
 
+	return nil
+}
+
+func validateAnnotation(pvc *corev1.PersistentVolumeClaim) error {
+	if pvc == nil || pvc.Annotations == nil {
+		return nil
+	}
+
+	snapshotMaxCount, snapshotMaxSize, err := util.GetSnapshotMaxCountAndSize(pvc)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), "annotations")
+	}
+
+	if snapshotMaxCount < 2 || snapshotMaxCount > 250 {
+		return werror.NewInvalidError("snapshot max count should be between 2 and 250", fmt.Sprintf("annotations[%s]", util.AnnotationSnapshotMaxCount))
+	}
+
+	pvcSize := pvc.Spec.Resources.Requests.Storage()
+	if snapshotMaxSize != 0 && snapshotMaxSize <= pvcSize.Value()*2 {
+		return werror.NewInvalidError("snapshot max size should be greater than pvc size * 2", fmt.Sprintf("annotations[%s]", util.AnnotationSnapshotMaxSize))
+	}
 	return nil
 }

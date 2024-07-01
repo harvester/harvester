@@ -3,15 +3,20 @@ package virtualmachinebackup
 import (
 	"fmt"
 
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
+	lhutil "github.com/longhorn/longhorn-manager/util"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
@@ -29,22 +34,25 @@ func NewValidator(
 	setting ctlharvesterv1.SettingCache,
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
+	engineCache ctllhv1.EngineCache,
 ) types.Validator {
 	return &virtualMachineBackupValidator{
-		vms:        vms,
-		setting:    setting,
-		vmrestores: vmrestores,
-		pvcCache:   pvcCache,
+		vms:         vms,
+		setting:     setting,
+		vmrestores:  vmrestores,
+		pvcCache:    pvcCache,
+		engineCache: engineCache,
 	}
 }
 
 type virtualMachineBackupValidator struct {
 	types.DefaultValidator
 
-	vms        ctlkubevirtv1.VirtualMachineCache
-	setting    ctlharvesterv1.SettingCache
-	vmrestores ctlharvesterv1.VirtualMachineRestoreCache
-	pvcCache   ctlcorev1.PersistentVolumeClaimCache
+	vms         ctlkubevirtv1.VirtualMachineCache
+	setting     ctlharvesterv1.SettingCache
+	vmrestores  ctlharvesterv1.VirtualMachineRestoreCache
+	pvcCache    ctlcorev1.PersistentVolumeClaimCache
+	engineCache ctllhv1.EngineCache
 }
 
 func (v *virtualMachineBackupValidator) Resource() types.Resource {
@@ -78,6 +86,10 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 			return werror.NewInvalidError(err.Error(), fieldSourceName)
 		}
 		if err = v.checkBackupVolumeSnapshotClass(vm, newVMBackup); err != nil {
+			return werror.NewInvalidError(err.Error(), fieldSourceName)
+		}
+
+		if err = v.checkRemainingSnapshotCountAndSize(vm); err != nil {
 			return werror.NewInvalidError(err.Error(), fieldSourceName)
 		}
 	}
@@ -173,6 +185,73 @@ func (v *virtualMachineBackupValidator) Delete(_ *types.Request, obj runtime.Obj
 					return fmt.Errorf("vmrestore %s/%s is in progress", vmRestore.Namespace, vmRestore.Name)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// checkRemainingSnapshotCountAndSize checks if there is snapshot limitation and
+// whether new snapshot fits in the limitation.
+func (v *virtualMachineBackupValidator) checkRemainingSnapshotCountAndSize(vm *kubevirtv1.VirtualMachine) error {
+	if vm == nil {
+		return nil
+	}
+
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		}
+
+		pvcNamespace := vm.Namespace
+		pvcName := volume.PersistentVolumeClaim.ClaimName
+
+		pvc, err := v.pvcCache.Get(pvcNamespace, pvcName)
+		if err != nil {
+			return fmt.Errorf("failed to get PVC %s/%s, err: %w", pvcNamespace, pvcName, err)
+		}
+
+		if util.GetProvisionedPVCProvisioner(pvc) != longhorntypes.LonghornDriverName {
+			continue
+		}
+
+		snapshotMaxCount, snapshotMaxSize, err := util.GetSnapshotMaxCountAndSize(pvc)
+		if err != nil {
+			return fmt.Errorf("failed to get snapshot max count and size from PVC %s/%s, err: %w", pvcNamespace, pvcName, err)
+		}
+
+		volumeName := pvc.Spec.VolumeName
+		engines, err := v.engineCache.List(util.LonghornSystemNamespaceName, labels.Set{longhorntypes.LonghornLabelVolume: volumeName}.AsSelector())
+		if err != nil {
+			return fmt.Errorf("failed to list engines for volume %s/%s, err: %w", util.LonghornSystemNamespaceName, volumeName, err)
+		}
+		if len(engines) != 1 {
+			return fmt.Errorf("engine count for volume %s/%s is not 1, please waiting for volume migration finished", util.LonghornSystemNamespaceName, volumeName)
+		}
+
+		var (
+			totalSnapshotCount int
+			totalSnapshotSize  int64
+		)
+		engine := engines[0]
+		for _, snapshot := range engine.Status.Snapshots {
+			totalSnapshotCount++
+			snapshotSize, err := lhutil.ConvertSize(snapshot.Size)
+			if err != nil {
+				// this should be LH internal error, we should not block the backup
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"engine":   engine.Name,
+					"snapshot": snapshot.Name,
+					"size":     snapshot.Size,
+				}).Error("failed to convert size")
+				continue
+			}
+			totalSnapshotSize += snapshotSize
+		}
+		if totalSnapshotCount > snapshotMaxCount {
+			return fmt.Errorf("total snapshot count %d exceeds the limit %d for volume %s/%s, please remove some Longhorn snapshots", totalSnapshotCount, snapshotMaxCount, util.LonghornSystemNamespaceName, volumeName)
+		}
+		if snapshotMaxSize != 0 && totalSnapshotSize > snapshotMaxSize {
+			return fmt.Errorf("total snapshot size %d exceeds the limit %d for volume %s/%s, please remove some Longhorn snapshots", totalSnapshotSize, snapshotMaxSize, util.LonghornSystemNamespaceName, volumeName)
 		}
 	}
 	return nil
