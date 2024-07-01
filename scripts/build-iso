@@ -7,9 +7,9 @@ cd $(dirname $0)/..
 
 echo "Start building ISO image"
 
-HARVESTER_INSTALLER_VERSION=master
+HARVESTER_INSTALLER_VERSION=add-cpu-pinning-conf
 
-git clone --branch ${HARVESTER_INSTALLER_VERSION} --single-branch --depth 1 https://github.com/harvester/harvester-installer.git ../harvester-installer
+git clone --branch ${HARVESTER_INSTALLER_VERSION} --single-branch --depth 1 https://github.com/brandboat/harvester-installer.git ../harvester-installer
 
 cd ../harvester-installer/scripts
 

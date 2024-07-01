@@ -1,0 +1,64 @@
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: harvester-cpu-manager-policy
+  namespace: cattle-system
+spec:
+  concurrency: 1
+  nodeSelector:
+    matchLabels:
+      harvesterhci.io/managed: "true"
+  tolerations:
+    - effect: NoExecute
+      operator: Exists
+  version: v1.1.0
+  serviceAccountName: system-upgrade-controller
+  secrets:
+    - name: node-cpu-manager-policies
+      path: /data
+  upgrade:
+    image: {{ .Values.generalJob.image.repository }}:{{ .Values.generalJob.image.tag }}
+    command: ["bash", "-c"]
+    args:
+      - >
+        echo "Start update cpu-manager-policy option...";
+
+        KUBELET_CONFIG_FILE="/host/etc/rancher/rke2/config.yaml.d/99-z01-harvester-cpu-manager.yaml";
+        CPU_MANAGER_STATE_FILE="/host/var/lib/kubelet/cpu_manager_state";
+        JSON_FILE="/data/node-cpu-manager-policies";
+        JSON_CONTENT=$(cat $JSON_FILE);
+        echo "cpu-manager-policy:";
+        echo "$(chroot /host jq . <<< ${JSON_CONTENT})";
+
+        NODE_NAME=$(cat /host/etc/hostname);
+        NODE_POLICY=$(chroot /host jq -r --arg node_name "${NODE_NAME}" '.configs[] | select(.name == $node_name) | .policy' <<< "${JSON_CONTENT}");
+
+        if [ -z "$NODE_POLICY" ]; then
+          echo "Node ${NODE_NAME} not found in the JSON configuration. No changes made."
+          exit 0
+        fi
+
+        CURRENT_POLICY=$(grep -oP '(?<=cpu-manager-policy=)\w+' "$KUBELET_CONFIG_FILE");
+
+        if [ "$CURRENT_POLICY" == "$NODE_POLICY" ]; then
+          echo "CPU manager policy for $NODE_NAME is already $NODE_POLICY. No changes made."
+          exit 0
+        fi
+
+        sed -i "s/cpu-manager-policy=$CURRENT_POLICY/cpu-manager-policy=$NODE_POLICY/" "$KUBELET_CONFIG_FILE";
+        echo "Updated CPU manager policy for $NODE_NAME to $NODE_POLICY in $KUBELET_CONFIG_FILE.";
+
+        rm -f "$CPU_MANAGER_STATE_FILE";
+        echo "Removed $CPU_MANAGER_STATE_FILE.";
+
+        if chroot /host systemctl is-active --quiet rke2-server; then
+          echo "Restarting rke2-server."
+          chroot /host systemctl restart rke2-server
+          echo "Restarted rke2-server."
+        elif chroot /host systemctl is-active --quiet rke2-agent; then
+          echo "Restarting rke2-agent."
+          chroot /host systemctl restart rke2-agent
+          echo "Restarted rke2-agent."
+        else
+          echo "Neither rke2-server nor rke2-agent are running. No services restarted."
+        fi

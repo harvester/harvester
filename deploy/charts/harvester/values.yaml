@@ -61,7 +61,7 @@ kubevirt:
     configuration:
       ## Specify kubevirt feature gates
       developerConfiguration:
-        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU"]
+        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU", "CPUManager"]
 
       ## Specify the network configuration of VirtualMachineInstance.
       ##

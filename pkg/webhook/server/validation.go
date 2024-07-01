@@ -17,6 +17,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/namespace"
 	"github.com/harvester/harvester/pkg/webhook/resources/node"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
+	"github.com/harvester/harvester/pkg/webhook/resources/secret"
 	"github.com/harvester/harvester/pkg/webhook/resources/setting"
 	"github.com/harvester/harvester/pkg/webhook/resources/storageclass"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
@@ -118,6 +119,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		namespace.NewValidator(clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()),
 		addon.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache()),
 		version.NewValidator(),
+		secret.NewValidator(),
 	}
 
 	router := webhook.NewRouter()
