@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -19,16 +18,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
-	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 )
 
 type ActionHandler struct {
@@ -40,6 +40,7 @@ type ActionHandler struct {
 	snapshots   ctlsnapshotv1.VolumeSnapshotClient
 	volumes     ctllhv1.VolumeClient
 	volumeCache ctllhv1.VolumeCache
+	vmCache     ctlkubevirtv1.VirtualMachineCache
 }
 
 func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -139,15 +140,12 @@ func (h *ActionHandler) cancelExpand(_ context.Context, pvcNamespace, pvcName st
 		return err
 	}
 
-	// make sure the volume is not attached to any VMs
-	// otherwise, the harvester webhook will reject the pvc deletion below.
-	annotationSchemaOwners, err := ref.GetSchemaOwnersFromAnnotation(pvc)
+	vms, err := h.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(pvcNamespace, pvcName))
 	if err != nil {
-		return fmt.Errorf("failed to get schema owners from annotation: %v", err)
+		return fmt.Errorf("failed to get VMs by index: %s, PVC: %s/%s, err: %v", indexeresutil.VMByPVCIndex, pvcNamespace, pvcName, err)
 	}
-
-	if attachedList := annotationSchemaOwners.List(kubevirtv1.Kind(kubevirtv1.VirtualMachineGroupVersionKind.Kind)); len(attachedList) != 0 {
-		return fmt.Errorf("can not operate the volume %s which is currently attached to VMs: %s", pvc.Name, strings.Join(attachedList, ", "))
+	if len(vms) != 0 {
+		return fmt.Errorf("can not operate the volume %s which is currently attached to VM: %s/%s", pvc.Name, vms[0].Namespace, vms[0].Name)
 	}
 
 	// get pv

@@ -9,16 +9,21 @@ import (
 
 const (
 	vmControllerCreatePVCsFromAnnotationControllerName           = "VMController.CreatePVCsFromAnnotation"
-	vmiControllerUnsetOwnerOfPVCsControllerName                  = "VMIController.UnsetOwnerOfPVCs"
 	vmiControllerReconcileFromHostLabelsControllerName           = "VMIController.ReconcileFromHostLabels"
 	vmControllerSetDefaultManagementNetworkMac                   = "VMController.SetDefaultManagementNetworkMacAddress"
 	vmControllerStoreRunStrategyControllerName                   = "VMController.StoreRunStrategyToAnnotation"
 	vmControllerSyncLabelsToVmi                                  = "VMController.SyncLabelsToVmi"
-	vmControllerManagePVCOwnerControllerName                     = "VMController.ManageOwnerOfPVCs"
 	vmControllerSetHaltIfInsufficientResourceQuotaControllerName = "VMController.SetHaltIfInsufficientResourceQuota"
+	vmControllerRemoveDeprecatedFinalizerControllerName          = "VMController.RemoveDeprecatedFinalizer"
+	vmiControllerRemoveDeprecatedFinalizerControllerName         = "VMIController.RemoveDeprecatedFinalizer"
 	vmiControllerSetHaltIfOccurExceededQuotaControllerName       = "VMIController.StopVMIfExceededQuota"
-	harvesterUnsetOwnerOfPVCsFinalizer                           = "harvesterhci.io/VMController.UnsetOwnerOfPVCs"
-	oldWranglerFinalizer                                         = "wrangler.cattle.io/VMController.UnsetOwnerOfPVCs"
+
+	vmControllerCleanupPVCAndSnapshotFinalizerName = "VMController.CleanupPVCAndSnapshot"
+	// this finalizer is special one which was added by our controller, not wrangler.
+	// https://github.com/harvester/harvester/blob/78b0f20abb118b5d0fba564e18867b90a1d3c0ee/pkg/controller/master/virtualmachine/vm_controller.go#L97-L101
+	deprecatedHarvesterUnsetOwnerOfPVCsFinalizer = "harvesterhci.io/VMController.UnsetOwnerOfPVCs"
+	deprecatedVMUnsetOwnerOfPVCsFinalizer        = "VMController.UnsetOwnerOfPVCs"
+	deprecatedVMIUnsetOwnerOfPVCsFinalizer       = "VMIController.UnsetOwnerOfPVCs"
 )
 
 func Register(ctx context.Context, management *config.Management, _ config.Options) error {
@@ -62,10 +67,11 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	}
 	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	virtualMachineClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
-	virtualMachineClient.OnChange(ctx, vmControllerManagePVCOwnerControllerName, vmCtrl.ManageOwnerOfPVCs)
 	virtualMachineClient.OnChange(ctx, vmControllerStoreRunStrategyControllerName, vmCtrl.StoreRunStrategy)
 	virtualMachineClient.OnChange(ctx, vmControllerSyncLabelsToVmi, vmCtrl.SyncLabelsToVmi)
 	virtualMachineClient.OnChange(ctx, vmControllerSetHaltIfInsufficientResourceQuotaControllerName, vmCtrl.SetHaltIfInsufficientResourceQuota)
+	virtualMachineClient.OnChange(ctx, vmControllerRemoveDeprecatedFinalizerControllerName, vmCtrl.removeDeprecatedFinalizer)
+	virtualMachineClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
 
 	// registers the vmi controller
 	var virtualMachineCache = virtualMachineClient.Cache()
@@ -76,12 +82,11 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		vmiClient:           virtualMachineInstanceClient,
 		nodeCache:           nodeCache,
 		pvcClient:           pvcClient,
-		pvcCache:            pvcCache,
 		recorder:            recorder,
 	}
-	virtualMachineInstanceClient.OnRemove(ctx, vmiControllerUnsetOwnerOfPVCsControllerName, vmiCtrl.UnsetOwnerOfPVCs)
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerReconcileFromHostLabelsControllerName, vmiCtrl.ReconcileFromHostLabels)
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerSetHaltIfOccurExceededQuotaControllerName, vmiCtrl.StopVMIfExceededQuota)
+	virtualMachineInstanceClient.OnChange(ctx, vmiControllerRemoveDeprecatedFinalizerControllerName, vmiCtrl.removeDeprecatedFinalizer)
 
 	// register the vm network controller upon the VMI changes
 	var vmNetworkCtl = &VMNetworkController{
