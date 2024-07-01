@@ -70,7 +70,8 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.Backin
 			toUpdate.Status.VirtualSize = backingImage.Status.VirtualSize
 			if toUpdate.Status.VirtualSize > 0 {
 				// We can't set ImageImported to True until we know the VirtualSize,
-				// which may happen one update after the image becomes ready.
+				// which will happen only after stats.State == lhv1beta2.BackingImageStateReady
+				// (it's not there yet for lhv1beta2.BackingImageStateReadyForTransfer)
 				harvesterv1beta1.ImageImported.True(toUpdate)
 				harvesterv1beta1.ImageImported.Reason(toUpdate, "Imported")
 				harvesterv1beta1.ImageImported.Message(toUpdate, status.Message)
