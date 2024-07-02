@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strings"
 
 	nodev1 "github.com/harvester/node-manager/pkg/apis/node.harvesterhci.io/v1beta1"
 	"github.com/sirupsen/logrus"
@@ -32,7 +31,7 @@ func (h *Handler) syncNTPServer(setting *harvesterv1.Setting) error {
 		return err
 	}
 
-	parsedNTPServers := util.ReGenerateNTPServers(ntpSettings, []string{})
+	parsedNTPServers := util.ReGenerateNTPServers(ntpSettings)
 	for _, node := range nodes.Items {
 		nodeName := node.Name
 
@@ -44,19 +43,16 @@ func (h *Handler) syncNTPServer(setting *harvesterv1.Setting) error {
 			}
 
 			newNodeConfig := generateNodeConfig(nodeName, parsedNTPServers)
-			_, err := h.nodeConfigs.Create(newNodeConfig)
-			if err != nil {
+			if _, err := h.nodeConfigs.Create(newNodeConfig); err != nil {
 				logrus.Errorf("Create node config with nodeName %s failure: %v", nodeName, err)
 				return err
 			}
 		} else {
 			logrus.Debugf("Nodeconfig content: %+v", nodeConfig)
-			ntpServers := util.ReGenerateNTPServers(ntpSettings, strings.Split(nodeConfig.Spec.NTPConfig.NTPServers, " "))
 			nodeConfigCpy := nodeConfig.DeepCopy()
-			updateNodeConfig(nodeConfigCpy, ntpServers)
+			updateNodeConfig(nodeConfigCpy, parsedNTPServers)
 			if !reflect.DeepEqual(nodeConfig, nodeConfigCpy) {
-				_, err := h.nodeConfigs.Update(nodeConfigCpy)
-				if err != nil {
+				if _, err := h.nodeConfigs.Update(nodeConfigCpy); err != nil {
 					logrus.Errorf("Update node config with nodeName %s failure: %v", nodeName, err)
 					return err
 				}

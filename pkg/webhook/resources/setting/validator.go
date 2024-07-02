@@ -520,7 +520,7 @@ func validateNTPServers(setting *v1beta1.Setting) error {
 		return fmt.Errorf("failed to parse NTP settings: %v", err)
 	}
 	if ntpSettings.NTPServers == nil {
-		return fmt.Errorf("NTP servers can't be empty")
+		return fmt.Errorf("NTP servers can't be nil")
 	}
 	logrus.Infof("ntpSettings: %+v", ntpSettings)
 
@@ -536,7 +536,7 @@ func validateNTPServers(setting *v1beta1.Setting) error {
 		logrus.Errorf(errMsg)
 		return fmt.Errorf(errMsg)
 	}
-	startWithHTTP, err := regexp.Compile("^http?://.*")
+	startWithHTTP, err := regexp.Compile("^https?://.*")
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to compile startWithHttp regexp: %v", err)
 		logrus.Errorf(errMsg)
@@ -555,6 +555,14 @@ func validateNTPServers(setting *v1beta1.Setting) error {
 			return fmt.Errorf(errMsg)
 		}
 	}
+
+	duplicates := gocommon.SliceFindDuplicates(ntpSettings.NTPServers)
+	if len(duplicates) > 0 {
+		errMsg := fmt.Sprintf("duplicate NTP server: %v", duplicates)
+		logrus.Errorf(errMsg)
+		return fmt.Errorf(errMsg)
+	}
+
 	logrus.Infof("NTP servers validation passed")
 
 	return nil
