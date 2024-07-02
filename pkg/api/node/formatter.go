@@ -21,14 +21,16 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
 	harvesterctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	kubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
@@ -83,9 +85,12 @@ type ActionHandler struct {
 	nodeClient                  ctlcorev1.NodeClient
 	longhornVolumeCache         ctllhv1.VolumeCache
 	longhornReplicaCache        ctllhv1.ReplicaCache
-	virtualMachineInstanceCache kubevirtv1.VirtualMachineInstanceCache
+	virtualMachineClient        ctlkubevirtv1.VirtualMachineClient
+	virtualMachineCache         ctlkubevirtv1.VirtualMachineCache
+	virtualMachineInstanceCache ctlkubevirtv1.VirtualMachineInstanceCache
 	addonCache                  harvesterctlv1beta1.AddonCache
 	dynamicClient               dynamic.Interface
+	virtSubresourceRestClient   rest.Interface
 	ctx                         context.Context
 }
 
@@ -189,7 +194,51 @@ func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
 		delete(node.Annotations, ctlnode.MaintainStatusAnnotationKey)
 	}
 
-	return h.retryMaintenanceModeUpdate(nodeName, disableMaintaenanceModeFunc, "disable")
+	err := h.retryMaintenanceModeUpdate(nodeName, disableMaintaenanceModeFunc, "disable")
+	if err != nil {
+		return err
+	}
+
+	// Restart those VMs that have been labeled to be shut down before
+	// maintenance mode and that should be restarted when the maintenance
+	// mode has been disabled again.
+	node, err := h.nodeCache.Get(nodeName)
+	if err != nil {
+		return err
+	}
+	selector := labels.Set{util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterDisable}.AsSelector()
+	vmList, err := h.virtualMachineCache.List(node.Namespace, selector)
+	if err != nil {
+		return fmt.Errorf("failed to list VMs with labels %s: %w", selector.String(), err)
+	}
+	for _, vm := range vmList {
+		// Make sure that this VM was shut down as part of the maintenance
+		// mode of the given node.
+		if vm.Annotations[util.AnnotationMaintainModeStrategyNodeName] != nodeName {
+			continue
+		}
+
+		logrus.WithFields(logrus.Fields{
+			"namespace":           vm.Namespace,
+			"virtualmachine_name": vm.Name,
+		}).Info("restarting the VM that was shut down in maintenance mode")
+
+		err := h.virtSubresourceRestClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("start").Name(vm.Name).Do(h.ctx).Error()
+		if err != nil {
+			return fmt.Errorf("failed to start VM %s/%s: %w", vm.Namespace, vm.Name, err)
+		}
+
+		// Remove the annotation that was previously set when the node
+		// went into maintenance mode.
+		vmCopy := vm.DeepCopy()
+		delete(vmCopy.Annotations, util.AnnotationMaintainModeStrategyNodeName)
+		_, err = h.virtualMachineClient.Update(vmCopy)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (h ActionHandler) retryMaintenanceModeUpdate(nodeName string, updateFunc maintenanceModeUpdateFunc, actionName string) error {

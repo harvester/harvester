@@ -1,12 +1,18 @@
 package virtualmachineinstance
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
 func Test_GetNonLiveMigratableVMIs(t *testing.T) {
@@ -449,5 +455,90 @@ func Test_GetNonLiveMigratableVMIs(t *testing.T) {
 		vmis, err := GetAllNonLiveMigratableVMINames(tc.vmis, tc.nodes)
 		assert.Equal(t, tc.err, err, tc.name)
 		assert.Equal(t, tc.output, vmis, tc.name)
+	}
+}
+
+func Test_ListByNode(t *testing.T) {
+	clientSet := fake.NewSimpleClientset()
+	vmiCache := fakeclients.VirtualMachineInstanceCache(clientSet.KubevirtV1().VirtualMachineInstances)
+	vmis := []*kubevirtv1.VirtualMachineInstance{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "test01",
+				Labels: labels.Set{
+					kubevirtv1.NodeNameLabel: "node1",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "test02",
+				Labels: labels.Set{
+					kubevirtv1.NodeNameLabel: "node2",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "test03",
+				Labels: labels.Set{
+					kubevirtv1.NodeNameLabel: "node1",
+					"foo":                    "bar",
+				},
+			},
+		},
+	}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "node1",
+			Namespace: "default",
+		},
+	}
+
+	for _, vmi := range vmis {
+		if _, err := clientSet.KubevirtV1().VirtualMachineInstances("default").Create(context.TODO(), vmi, metav1.CreateOptions{}); vmi != nil && err != nil {
+			assert.Nil(t, err, "failed to create fake vmi", vmi.Name)
+		}
+	}
+
+	req1, err := labels.NewRequirement("foo", selection.In, []string{"bar", "baz"})
+	if err != nil {
+		assert.Nil(t, err, "failed to create requirement")
+	}
+
+	req2, err := labels.NewRequirement("foo", selection.Exists, nil)
+	if err != nil {
+		assert.Nil(t, err, "failed to create requirement")
+	}
+
+	var testCases = []struct {
+		selector      labels.Selector
+		expectedCount int
+	}{
+		{
+			selector:      labels.Everything(),
+			expectedCount: 2,
+		},
+		{
+			selector:      labels.Set{"foo": "bar"}.AsSelector(),
+			expectedCount: 1,
+		},
+		{
+			selector:      labels.NewSelector().Add(*req1),
+			expectedCount: 1,
+		},
+		{
+			selector:      labels.NewSelector().Add(*req2),
+			expectedCount: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		res, err := ListByNode(node, tc.selector, vmiCache)
+		assert.Len(t, res, tc.expectedCount)
+		assert.NoError(t, err)
 	}
 }
