@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
 	"github.com/rancher/steve/pkg/server/router"
@@ -104,7 +105,7 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 
 	m.NotFoundHandler = router.Routes(h)
 
-	return m
+	return handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(m)
 }
 
 func parseRancherServerURL(endpoint string) (string, string, error) {
