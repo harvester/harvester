@@ -1,8 +1,10 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
@@ -39,6 +41,7 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	m.UseEncodedPath()
 	m.StrictSlash(true)
 	m.Use(urlbuilder.RedirectRewrite)
+	m.Use(recoveryMiddleware)
 
 	m.Path("/").HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		http.Redirect(rw, req, "/dashboard/", http.StatusFound)
@@ -58,6 +61,11 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	btHealthyHandler := backuptarget.NewHealthyHandler(r.scaled)
 	m.Path("/v1/harvester/backuptarget/healthz").Methods("GET").Handler(btHealthyHandler)
 	// --- END of preposition routes ---
+
+	// This is for manually testing the recovery handler below
+	m.HandleFunc("/v1/harvester/dont-panic", func(_ http.ResponseWriter, _ *http.Request) {
+		panic("Do you know where your towel is?")
+	})
 
 	// adds collection action support
 	m.Path("/v1/{type}").Queries("action", "{action}").Handler(h.K8sResource)
@@ -105,6 +113,22 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	m.NotFoundHandler = router.Routes(h)
 
 	return m
+}
+
+func recoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(fmt.Sprint(err)))
+				logrus.WithFields(logrus.Fields{
+					"err":   err,
+					"stack": string(debug.Stack()),
+				}).Error("Recovered panic in Routes")
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
 
 func parseRancherServerURL(endpoint string) (string, string, error) {
