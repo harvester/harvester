@@ -148,6 +148,9 @@ jobs:
           ARCH=${{ env.arch }}
           VERSION=${{ github.ref_name }}
 
+    - name: generate addon manifests
+      run: make generate-addons
+      
     # rancher/harvester-upgrade image
     - name: docker-publish-harvester-upgrade
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
