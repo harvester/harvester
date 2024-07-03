@@ -12,3 +12,4 @@ api.test
 package/harvester
 package/harvester-webhook
 package/upgrade/upgrade-helper
+package/upgrade/addons
