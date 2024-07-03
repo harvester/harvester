@@ -36,6 +36,9 @@ var (
 	bootstrapSettings = []string{
 		settings.SSLCertificatesSettingName,
 		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
+		// The Longhorn storage over-provisioning percentage is set to 100, whereas Harvester uses 200.
+		// This needs to be synchronized when Harvester starts.
+		settings.OvercommitConfigSettingName,
 	}
 )
 
