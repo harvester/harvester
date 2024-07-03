@@ -14,7 +14,13 @@ import (
 
 func (h *Handler) syncOvercommitConfig(setting *harvesterv1.Setting) error {
 	overcommit := &settings.Overcommit{}
-	if err := json.Unmarshal([]byte(setting.Value), overcommit); err != nil {
+	var value string
+	if setting.Value != "" {
+		value = setting.Value
+	} else {
+		value = setting.Default
+	}
+	if err := json.Unmarshal([]byte(value), overcommit); err != nil {
 		return fmt.Errorf("Invalid JSON `%s`: %s", setting.Value, err.Error())
 	}
 
