@@ -30,8 +30,14 @@ This HEP does not cover:
 Enabling CPU pinning for KubeVirt requires setting the kubelet argument `--cpu-manager-policy` to [static](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#static-policy).
 However, this change affects the way CPU resources are utilized by all pods that meet the condition as follows, not just VMs. 
 - Both requests and limits must be configured in pods (Guaranteed QoS) and their values must be the same integer.
+And that means if a node use static cpu manager policy, there will have two scenarios, one is pods that meet the criteria as above, and the other one is not.
+For the former, CPUs inside the pods are not isolated and are all shared with each other, and the later will have isolated CPUs in each pod.
+Note that if a node use none cpu manager policy, all CPUs in the pods are not isolated and could be shared with each other.
 
-So we cannot set `--cpu-manager-policy` to static on all nodes initially. Instead, we allow users to decide which nodes they want to set `--cpu-manager-policy=static`.Subsequently, when creating VMs, they can deploy the VM desired CPU pinning to the corresponding nodes with `--cpu-manager-policy=static` enabled.
+To address this, the proposal is to allow users to set the CPU manager policy for each node individually, rather than forcing all nodes to use the same policy. This flexibility is crucial because switching the CPU manager policy from static to none causes CPUs in Guaranteed QoS pods to lose isolation. To prevent issues, an error should be thrown if any VMs with CPU pinning enabled exist on a node where the user wants to switch from static to none. The user must then either migrate these VMs to another node or stop them. Forcing a uniform policy across all nodes would be problematic, as turning the CPU manager policy to none would require migrating all CPU pinned VMs to other nodes. If no nodes are using the static policy, migration is impossible, leaving users with no option but to stop all VMs, which is inconvenient and reduces availability.
+
+So we cannot set `--cpu-manager-policy` to static on all nodes initially. Instead, we allow users to decide which nodes they want to set `--cpu-manager-policy=static`.
+To enable CPU pinning, we also need to specify `dedicatedCpuPlacement=true` to VirtualMachine CR, this will add 1-1 CPU mapping to libvirt xml.
 
 ### User Stories
 
@@ -158,7 +164,8 @@ To implement this proposal, there are several steps need to be taken.
   policy only reserved cpus when both cpu requests and limits values must be the same integer.
 
 In step1, we have to set up the reserved resource due to the k8s cpu manager requirement.
-We can utilize the formula as follows to set `system-reserved` CPU resources during install harvester node. This is inspired by [GKE CPU reservations](https://cloud.google.com/kubernetes-engine/docs/concepts/plan-node-sizes).
+And we should ensure kube-reserved and system-reserved are both defined as rke2 is using static pods and we should ensure they do not get impacted in anyway.
+Here we utilize the formula as follows to set `system-reserved` and `kube-reserved` CPU resources during install harvester node and upgrade path. This is inspired by [GKE CPU reservations](https://cloud.google.com/kubernetes-engine/docs/concepts/plan-node-sizes).
 
 ```text
 6% of the first core +
@@ -170,11 +177,12 @@ if the maximum number of Pods per node beyond the default of 110 (Currently harv
 reserves an extra 400 mCPU in addition to the preceding reservations.
 ```
 
-After calculating the cpu reserved resources, add the following content to `/etc/rancher/rke2/config.yaml/d/99-z00-harvester-system-reserved.yaml` during harvester installation.
+After calculating the cpu reserved resources, add the following content to `/etc/rancher/rke2/config.yaml/d/99-z00-harvester-reserved-resources.yaml` during harvester installation.
 
 ```yaml
 kubelet-arg+:
 - "system-reserved=cpu=490m"
+- "kube-reserved=cpu=490m"
 ```
 
 and add another config `/etc/rancher/rke2/config.yaml/d/99-z01-harvester-cpu-manager.yaml` which includes the cpu-manager-policy setting.
@@ -186,7 +194,7 @@ kubelet-arg+:
 
 > [!NOTE]
 > After upgrading harvester to a newer version, a new file `99-max-pods.yaml` shows up which override all the kubelet-args, that's why I have to 
-> create another two files `/etc/rancher/rke2/config.yaml/d/99-z00-harvester-system-reserved.yaml`, `/etc/rancher/rke2/config.yaml/d/99-z01-harvester-cpu-manager.yaml`
+> create another two files `/etc/rancher/rke2/config.yaml/d/99-z00-harvester-reserved-resources.yaml`, `/etc/rancher/rke2/config.yaml/d/99-z01-harvester-cpu-manager.yaml`
 > instead of adding these configs to `90-harvester-server.yaml` or `90-harvester-worker.yaml`. Another benefit is that if we want to modify cpu manager policy setting,
 > we only need to update one file `99-z01-harvester-cpu-manager.yaml`.
 
@@ -212,18 +220,20 @@ Take action disableCPUManager as example, the steps are:
 2. Check if there is any vm that enable cpu pinning, if yes, return error, if no go to next step.
   - Changing the CPU manager policy to 'none' will cause CPUs to no longer be isolated in those VMs. Therefore, an error is returned if any VM on the node has CPU pinning enabled.
 3. Check if the node do have `harvesterhci.io/cpu-manager-policy-update-status` annotation, if yes, check if the status in it is running or requested, if yes, means the update is ongoing, return error. if no go to next step.
-4. Add annotation to the node
-```
-harvesterhci.io/cpu-manager-policy-update-status='{"status":"requested","policy":"none"}'
-```
-5. CPUManagerNodeController#OnChange
+4. Check if the current node is in master role, if yes and there is other master node is updating the cpu manager policy, throw error. If no, go to next step.
+  - During the updating policy process, we need to restart rke2-server if the node is in master role, and if all rke2-servers are offline, which means the whole cluster are unavailable, and we should avoid this kind of scenario.
+5. Add annotation to the node
+  ```yaml
+  harvesterhci.io/cpu-manager-policy-update-status='{"status":"requested","policy":"none"}'
+  ```
+6. CPUManagerNodeController#OnChange
   - check the harvesterhci.io/cpu-manager-policy-update-status status is requested, if yes, submit
     k8s job to the node to update cpu manager policy and update the status in annotation to running.
   - the k8s job do the following things
     - update `cpu-manager-policy=none` in `/etc/rancher/rke2/config.yaml.d/99-z01-harvester-cpu-manager.yaml`
     - remove /var/lib/kubelet/cpu_manager_state.
     - if the node is worker, restart rke2-agent, if not, restart rke2-server.
-6. CPUManagerJobController#OnChange
+7. CPUManagerJobController#OnChange
   - If job complete, update the annotation status to complete
     ```yaml
     harvesterhci.io/cpu-manager-policy-update-status='{"status":"complete","policy":"none"}'
@@ -275,6 +285,9 @@ spec:
 ```
 2. verify cpu pinning functions works after upgrade from a version that doesn't have cpu pinning implementation to one that has cpu pinning (under one node and multiple harvester nodes)
 3. check vm live migration works if cpu pinning is enabled, note that this should be tested under two+ harvester nodes, and at least two nodes swithc cpu-manager-policy to `static`, otherwise vm live migration won't work due to insufficient resources.
+
+### Notes
+- Users should also be able to set the CPU manager policy for nodes and enable VM CPU pinning through Terraform.
 
 ## Discussion
 - In [Story 2: Set cpu-manager-policy from static to none](#Story-2-Set-cpu-manager-policy-from-static-to-none), after changing cpu manager policy from none to static and then change it back to none. All existing pods still use the same cpu sets as settings in static policy. Currently, I'm not sure if this will affect the pod performance or not.
