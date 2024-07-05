@@ -284,7 +284,7 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	nodeNumber := len(nodeList)
 	canBeManagementNodeCount := nodeNumber
 	for _, node := range nodeList {
-		isManagement := isManagementRole(node)
+		isManagement := IsManagementRole(node)
 
 		if isManagement {
 			managementNumber++
@@ -432,9 +432,9 @@ func isHarvesterNode(node *corev1.Node) bool {
 	return ok
 }
 
-// isManagementRole determine whether it's an management node based on the node's label.
+// IsManagementRole determine whether it's an management node based on the node's label.
 // Management Role included: master, control-plane, etcd
-func isManagementRole(node *corev1.Node) bool {
+func IsManagementRole(node *corev1.Node) bool {
 	if value, ok := node.Labels[KubeMasterNodeLabelKey]; ok {
 		return value == "true"
 	}

@@ -145,3 +145,94 @@ data:
       sleep 2
     done
     `}}
+  cpu-manager.sh: |-
+    function cleanup_cpu_manager_state() {
+      if [ -f "$CPU_MANAGER_STATE_FILE" ]; then
+        mv "$CPU_MANAGER_STATE_FILE" "${CPU_MANAGER_STATE_FILE}.old"
+        echo "File $CPU_MANAGER_STATE_FILE has been renamed to ${CPU_MANAGER_STATE_FILE}.old"
+      else
+        echo "File $CPU_MANAGER_STATE_FILE does not exist."
+      fi
+    }
+
+    function manage_service() {
+      local service=$1
+
+      echo "Stopping ${service}."
+      if ! chroot $HOST_DIR systemctl stop $service; then
+        echo "Error: failed to stop ${service}."
+        exit 1
+      fi
+      echo "Stopped ${service}."
+
+      cleanup_cpu_manager_state
+
+      echo "Starting ${service}."
+      if ! chroot $HOST_DIR systemctl start $service; then
+        echo "Error: failed to start ${service}."
+        exit 1
+      fi
+      echo "Started ${service}."
+    }
+
+    function wait_for_label() {
+      local node_name=$1
+      local expect_label_value=$2
+      local interval=5
+      local elapsed=0
+
+      while [ $elapsed -lt $WAIT_LABEL_TIMEOUT ]; do
+        if ! labels=$($KUBECTL get node "$node_name" --show-labels); then
+          echo "Error: failed to get labels in $node_name"
+          exit 1
+        fi
+        if echo "$labels" | grep -q "cpumanager=$expect_label_value"; then
+          echo "End update cpu-manager-policy"
+          exit 0
+        fi
+        echo "Value in label cpumanager is not $expect_label_value, wait ${interval}s..."
+        sleep $interval
+        elapsed=$((elapsed + interval))
+      done
+      echo "Error: timeout, elapsed ${elapsed}s"
+      exit 1
+    }
+
+    echo "Start update cpu-manager-policy option..."
+    KUBECTL="$HOST_DIR/$(readlink $HOST_DIR/var/lib/rancher/rke2/bin)/kubectl"
+    CPU_MANAGER_CONFIG_FILE="$HOST_DIR/etc/rancher/rke2/config.yaml.d/99-z01-harvester-cpu-manager.yaml"
+    STATIC_POLICY="static"
+    NONE_POLICY="none"
+    CPU_MANAGER_STATE_FILE="$HOST_DIR/var/lib/kubelet/cpu_manager_state"
+    NODE_NAME="$1"
+    NODE_POLICY="$2"
+    EXIT_CODE=0
+
+    if [ "$NODE_POLICY" != "$STATIC_POLICY" ] && [ "$NODE_POLICY" != "$NONE_POLICY" ]; then
+      echo "Error: invalid cpu-manager-policy $NODE_POLICY"
+      exit 1
+    fi
+
+    if ! $KUBECTL get node "$NODE_NAME" --show-labels | grep -q "cpumanager="; then
+      echo "Error: There is no label cpumanager in node $NODE_NAME."
+      exit 1
+    fi
+
+    printf 'kubelet-arg+:\n- "cpu-manager-policy=%s"' "$NODE_POLICY" > $CPU_MANAGER_CONFIG_FILE
+
+    if chroot $HOST_DIR systemctl is-active --quiet rke2-server; then
+      manage_service "rke2-server"
+    elif chroot $HOST_DIR systemctl is-active --quiet rke2-agent; then
+      manage_service "rke2-agent"
+    else
+      echo "Error: Neither rke2-server nor rke2-agent are running."
+      exit 1
+    fi
+
+    if [ "$NODE_POLICY" = "$STATIC_POLICY" ]; then
+      EXPECT_LABEL_VALUE="true"
+    else
+      EXPECT_LABEL_VALUE="false"
+    fi
+
+    wait_for_label "$NODE_NAME" "$EXPECT_LABEL_VALUE"

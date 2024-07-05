@@ -120,4 +120,8 @@ const (
 	VirtualHostedStyle = "VIRTUAL_HOSTED_STYLE"
 
 	DefaultResourceQuotaName = "default-resource-quota"
+
+	AnnotationCPUManagerUpdateStatus = prefix + "/cpu-manager-update-status"
+	LabelCPUManagerUpdateNode        = prefix + "/cpu-manager-update-node"
+	LabelCPUManagerUpdatePolicy      = prefix + "/cpu-manager-update-policy"
 )
