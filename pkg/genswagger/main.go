@@ -34,7 +34,7 @@ const (
 	defTimeValue = ""
 )
 
-var outputFile = flag.String("output", "api/openapi-spec/swagger.json", "Output file.") // TODO: rename to openapi.json
+var outputFile = flag.String("output", "api/openapi-spec/swagger.json", "Output file.")
 
 var vowels = map[rune]bool{
 	'a': true,
