@@ -932,11 +932,7 @@ func (in *VirtualMachineBackup) DeepCopyInto(out *VirtualMachineBackup) {
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	in.Spec.DeepCopyInto(&out.Spec)
-	if in.Status != nil {
-		in, out := &in.Status, &out.Status
-		*out = new(VirtualMachineBackupStatus)
-		(*in).DeepCopyInto(*out)
-	}
+	in.Status.DeepCopyInto(&out.Status)
 	return
 }
 
@@ -1190,11 +1186,7 @@ func (in *VirtualMachineRestore) DeepCopyInto(out *VirtualMachineRestore) {
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	in.Spec.DeepCopyInto(&out.Spec)
-	if in.Status != nil {
-		in, out := &in.Status, &out.Status
-		*out = new(VirtualMachineRestoreStatus)
-		(*in).DeepCopyInto(*out)
-	}
+	in.Status.DeepCopyInto(&out.Status)
 	return
 }
 
