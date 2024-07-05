@@ -3,12 +3,43 @@ package fakeclients
 import (
 	"context"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	batchv1type "k8s.io/client-go/kubernetes/typed/batch/v1"
 )
+
+type JobCache func(string) batchv1type.JobInterface
+
+func (c JobCache) Get(_, _ string) (*batchv1.Job, error) {
+	panic("implement me")
+}
+
+func (c JobCache) List(namespace string, selector labels.Selector) ([]*batchv1.Job, error) {
+	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*batchv1.Job, 0, len(list.Items))
+	for _, job := range list.Items {
+		obj := job
+		result = append(result, &obj)
+	}
+	return result, err
+}
+
+func (c JobCache) AddIndexer(_ string, _ generic.Indexer[*batchv1.Job]) {
+	panic("implement me")
+}
+
+func (c JobCache) GetByIndex(_, _ string) ([]*batchv1.Job, error) {
+	panic("implement me")
+}
 
 type JobClient func(string) batchv1type.JobInterface
 
