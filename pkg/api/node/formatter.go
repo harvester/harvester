@@ -12,12 +12,12 @@ import (
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/norman/httperror"
+	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/rancher/wrangler/v3/pkg/slice"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -49,6 +49,8 @@ const (
 	seederAddonName              = "harvester-seeder"
 	defaultAddonNamespace        = "harvester-system"
 	nodeReady                    = "inventoryNodeReady"
+	enableCPUManager             = "enableCPUManager"
+	disableCPUManager            = "disableCPUManager"
 )
 
 var (
@@ -61,6 +63,8 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 	resource.AddAction(request, listUnhealthyVM)
 	resource.AddAction(request, maintenancePossible)
 	resource.AddAction(request, powerActionPossible)
+	resource.AddAction(request, enableCPUManager)
+	resource.AddAction(request, disableCPUManager)
 
 	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
 		return
@@ -81,6 +85,7 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 }
 
 type ActionHandler struct {
+	jobCache                    ctlbatchv1.JobCache
 	nodeCache                   ctlcorev1.NodeCache
 	nodeClient                  ctlcorev1.NodeClient
 	longhornVolumeCache         ctllhv1.VolumeCache
@@ -99,6 +104,8 @@ func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		status := http.StatusInternalServerError
 		if e, ok := err.(*apierror.APIError); ok {
 			status = e.Code.Status
+		} else if statusError, ok := err.(*apierrors.StatusError); ok {
+			status = int(statusError.ErrStatus.Code)
 		}
 		rw.WriteHeader(status)
 		_, _ = rw.Write([]byte(err.Error()))
@@ -145,9 +152,44 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 			return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
 		}
 		return h.powerAction(toUpdate, input.Operation)
+	case enableCPUManager:
+		return h.enableCPUManager(toUpdate)
+	case disableCPUManager:
+		return h.disableCPUManager(toUpdate)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
+}
+
+func (h ActionHandler) enableCPUManager(node *corev1.Node) error {
+	return h.requestCPUManager(node, ctlnode.CPUManagerStaticPolicy)
+}
+
+func (h ActionHandler) disableCPUManager(node *corev1.Node) error {
+	return h.requestCPUManager(node, ctlnode.CPUManagerNonePolicy)
+}
+
+func (h ActionHandler) requestCPUManager(node *corev1.Node, policy ctlnode.CPUManagerPolicy) error {
+	newNode := node.DeepCopy()
+	if newNode.Annotations == nil {
+		newNode.Annotations = make(map[string]string)
+	}
+
+	updateStatus := &ctlnode.CPUManagerUpdateStatus{
+		Status: ctlnode.CPUManagerRequestedStatus,
+		Policy: policy,
+	}
+
+	bytes, err := json.Marshal(updateStatus)
+	if err != nil {
+		return err
+	}
+	newNode.Annotations[util.AnnotationCPUManagerUpdateStatus] = string(bytes)
+	if _, err = h.nodeClient.Update(newNode); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (h ActionHandler) cordonUncordonNode(node *corev1.Node, actionName string, cordon bool) error {
@@ -254,7 +296,7 @@ func (h ActionHandler) retryMaintenanceModeUpdate(nodeName string, updateFunc ma
 			return nil
 		}
 		_, err = h.nodeClient.Update(toUpdate)
-		if err == nil || !errors.IsConflict(err) {
+		if err == nil || !apierrors.IsConflict(err) {
 			return err
 		}
 		// after last try, do not sleep, return asap.

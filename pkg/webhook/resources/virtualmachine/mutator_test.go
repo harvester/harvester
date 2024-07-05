@@ -163,6 +163,49 @@ func TestPatchResourceOvercommit(t *testing.T) {
 	}
 }
 
+func TestPatchResourceOvercommitWithDedicatedCPUPlacement(t *testing.T) {
+	vm := &kubevirtv1.VirtualMachine{
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Resources: kubevirtv1.ResourceRequirements{
+							Limits: map[v1.ResourceName]resource.Quantity{
+								v1.ResourceCPU:    *resource.NewQuantity(int64(8), resource.DecimalSI),
+								v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 30)), resource.BinarySI), // 1Gi
+							},
+						},
+						CPU: &kubevirtv1.CPU{
+							Cores:                 8,
+							Sockets:               1,
+							DedicatedCPUPlacement: true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	setting := &harvesterv1.Setting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "overcommit-config",
+		},
+		Default: `{"cpu":200,"memory":400,"storage":800}`,
+	}
+	clientset := fake.NewSimpleClientset()
+	clientset.Tracker().Add(setting)
+	mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+	actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+	assert.Nil(t, err)
+	assert.Equal(t,
+		[]string{
+			"{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/memory\", \"value\": {\"guest\":\"924Mi\"}}",
+			"{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/resources/requests\", \"value\": {\"cpu\":\"8\",\"memory\":\"1Gi\"}}"},
+		actual)
+}
+
 func TestPatchAffinity(t *testing.T) {
 	vm1 := &kubevirtv1.VirtualMachine{
 		Spec: kubevirtv1.VirtualMachineSpec{
