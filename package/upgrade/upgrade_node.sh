@@ -5,6 +5,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 source $SCRIPT_DIR/lib.sh
 UPGRADE_TMP_DIR=$HOST_DIR/usr/local/upgrade_tmp
 STATE_DIR=$HOST_DIR/run/initramfs/cos-state
+MAX_PODS=200
 
 cleanup_incomplete_state_file() {
   STATE_FILE=${STATE_DIR}/state.yaml
@@ -490,8 +491,78 @@ EOF
 set_max_pods() {
 cat > /host/etc/rancher/rke2/config.yaml.d/99-max-pods.yaml <<EOF
 kubelet-arg:
-- "max-pods=200"
+- "max-pods=$MAX_PODS"
 EOF
+}
+
+# system-reserved/kube-reserved is required if we want to set cpu-manager-policy to static
+set_reserved_resource() {
+  local cores=$(chroot $HOST_DIR nproc)
+  local reserverdCPU=$(calculateCPUReservedInMilliCPU $cores $MAX_PODS)
+  # make system:kube cpu reservation ration 2:3
+  local systemReservedCPU=$((reservedCPU * 2 * 2 / 5))
+  local kubeReservedCPU=$((reservedCPU * 2 * 3 / 5))
+  local systemReserverConfig="$HOST_DIR/etc/rancher/rke2/config.yaml.d/99-z00-harvester-reserved-resources.yaml"
+  if [ ! -e $systemReserverConfig ]; then
+    cat > $systemReserverConfig << EOF
+kubelet-arg+:
+- "system-reserved=cpu=${systemReservedCPU}m"
+- "kube-reserved=cpu=${kubeReservedCPU}m"
+EOF
+  fi
+}
+
+# Delete the cpu_manager_state file during the initramfs stage. During a reboot, this state file is always reverted
+# because it was originally created during the system installation, becoming part of the root filesystem. As a result,
+# the policy in cpu_manager_state file is "none" (default policy) after reboot. If we've already set the cpu-manager-policy
+# to "static" before reboot, this mismatch can prevent kubelet from starting, and make the entire node unavailable.
+set_oem_cleanup_kubelet() {
+  cat > $HOST_DIR/oem/91_cleanup_kubelet.yaml << EOF
+name: Cleanup Kubelet
+stages:
+    initramfs:
+        - commands:
+            - rm -f /var/lib/kubelet/cpu_manager_state
+EOF
+}
+
+calculateCPUReservedInMilliCPU() {
+  local cores=$1
+  local maxPods=$2
+
+  # This shouldn't happen
+  if (( $cores <= 0 || $maxPods <= 0 )); then
+    echo 0
+    return
+  fi
+
+  local reserved=0
+
+  # 6% of the first core (60 milliCPU)
+  reserved=$(( $reserved + 6 * 1000 / 100 ))
+
+  # 1% of the next core (up to 2 cores) (10 milliCPU)
+  if (( cores > 1 )); then
+    reserved=$(( $reserved + 1 * 1000 / 100 ))
+  fi
+
+  # 0.5% of the next 2 cores (up to 4 cores) (5 milliCPU)
+  if (( cores > 2 )); then
+    reserved=$(( $reserved + 2 * 500 / 100 ))
+  fi
+
+  # 0.25% of any cores above 4 cores (2.5 milliCPU per core)
+  if (( cores > 4 )); then
+    reserved=$(( $reserved + (cores - 4) * 250 / 100 ))
+  fi
+
+  # If the maximum number of Pods per node is beyond the default of 110,
+  # reserve an extra 400 mCPU in addition to the preceding reservations.
+  if (( maxPods > 110 )); then
+    reserved=$(( $reserved + 400 ))
+  fi
+
+  echo $reserved
 }
 
 upgrade_os() {
@@ -576,8 +647,10 @@ command_post_drain() {
   wait_repo
   detect_repo
 
-  # update max-pods to 200 #
+  # update max-pods to 200
   set_max_pods
+  set_reserved_resource
+  set_oem_cleanup_kubelet
   # A post-drain signal from Rancher doesn't mean RKE2 agent/server is already patched and restarted
   # Let's wait until the RKE2 settled.
   wait_rke2_upgrade
@@ -616,8 +689,10 @@ command_single_node_upgrade() {
   # wait all fleet bundles in limited time
   wait_for_fleet_bundles
 
-  # update max-pods to 200 #
+  # update max-pods to 200
   set_max_pods
+  set_reserved_resource
+  set_oem_cleanup_kubelet
   # Upgarde RKE2
   upgrade_rke2
 

@@ -173,6 +173,9 @@ func needUpdateResourceOvercommit(oldVM, newVM *kubevirtv1.VirtualMachine) bool 
 	if newReservedMemory != oldReservedMemory {
 		return true
 	}
+	if isDedicatedCPU(oldVM) != isDedicatedCPU(newVM) {
+		return true
+	}
 
 	return hostDevicesOvercommitNeeded(oldVM, newVM)
 }
@@ -190,7 +193,14 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 	}
 
 	if !cpu.IsZero() {
-		newRequest := cpu.MilliValue() * int64(100) / int64(overcommit.CPU)
+		var newRequest int64
+		if isDedicatedCPU(vm) {
+			// do not apply overcommitted resource since dedicated CPU requires guaranteed QoS
+			// more info, please check https://github.com/kubevirt/kubevirt/blob/8fe1d71accd7d6f5837de514d6b9ddc782c5dd41/pkg/virt-api/webhooks/validating-webhook/admitters/vmi-create-admitter.go#L619
+			newRequest = cpu.MilliValue()
+		} else {
+			newRequest = cpu.MilliValue() * int64(100) / int64(overcommit.CPU)
+		}
 		quantity := resource.NewMilliQuantity(newRequest, cpu.Format)
 		if requestsMissing {
 			requestsToMutate[v1.ResourceCPU] = *quantity
@@ -235,10 +245,14 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 	guestMemory := *mem
 	guestMemory.Sub(reservedMemory)
 
-	// Needed to avoid issue due to overcommit when GPU or HostDevices are passed to a VM.
-	// Addresses issue: `https://github.com/kubevirt/kubevirt/issues/10379`
-	// This condition can be removed once a fix is available upstream
-	if hostDevicesPresent(vm) {
+	if isDedicatedCPU(vm) {
+		// do not apply overcommitted resource since dedicated CPU requires guaranteed QoS
+		// more info, please check https://github.com/kubevirt/kubevirt/blob/8fe1d71accd7d6f5837de514d6b9ddc782c5dd41/pkg/virt-api/webhooks/validating-webhook/admitters/vmi-create-admitter.go#L619
+		quantity = mem
+	} else if hostDevicesPresent(vm) {
+		// Needed to avoid issue due to overcommit when GPU or HostDevices are passed to a VM.
+		// Addresses issue: `https://github.com/kubevirt/kubevirt/issues/10379`
+		// This condition can be removed once a fix is available upstream
 		guestMemory.DeepCopyInto(quantity)
 	}
 
@@ -464,4 +478,8 @@ func hostDevicesOvercommitNeeded(oldVM, newVM *kubevirtv1.VirtualMachine) bool {
 		}
 	}
 	return false
+}
+
+func isDedicatedCPU(vm *kubevirtv1.VirtualMachine) bool {
+	return vm.Spec.Template.Spec.Domain.CPU != nil && vm.Spec.Template.Spec.Domain.CPU.DedicatedCPUPlacement
 }
