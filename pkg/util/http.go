@@ -8,6 +8,10 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
+var (
+	EmptyResponseBody = struct{}{}
+)
+
 func ResponseBody(obj interface{}) []byte {
 	respBody, err := json.Marshal(obj)
 	if err != nil {

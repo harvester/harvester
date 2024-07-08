@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/rancher/apiserver/pkg/apierror"
@@ -26,7 +27,8 @@ func (handler *harvesterServerHandler) ServeHTTP(rw http.ResponseWriter, req *ht
 	resp, err := handler.httpHandler.Do(rw, req)
 	if err != nil {
 		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
+		var e *apierror.APIError
+		if errors.As(err, &e) {
 			status = e.Code.Status
 		}
 		rw.WriteHeader(status)
@@ -36,6 +38,11 @@ func (handler *harvesterServerHandler) ServeHTTP(rw http.ResponseWriter, req *ht
 
 	if resp == nil {
 		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if resp == util.EmptyResponseBody {
+		util.ResponseOK(rw)
 		return
 	}
 
