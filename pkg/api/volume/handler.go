@@ -43,20 +43,7 @@ type ActionHandler struct {
 	vmCache     ctlkubevirtv1.VirtualMachineCache
 }
 
-func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if err := h.do(rw, req); err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
-			status = e.Code.Status
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
-		return
-	}
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (h *ActionHandler) do(_ http.ResponseWriter, r *http.Request) error {
+func (h *ActionHandler) Do(_ http.ResponseWriter, r *http.Request) (interface{}, error) {
 	vars := util.EncodeVars(mux.Vars(r))
 	action := vars["action"]
 	pvcName := vars["name"]
@@ -66,41 +53,41 @@ func (h *ActionHandler) do(_ http.ResponseWriter, r *http.Request) error {
 	case actionExport:
 		var input ExportVolumeInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		if input.DisplayName == "" {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `displayName` is required")
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `displayName` is required")
 		}
 		if input.Namespace == "" {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `namespace` is required")
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `namespace` is required")
 		}
 		return h.exportVolume(r.Context(), input.Namespace, input.DisplayName, input.StorageClassName, pvcNamespace, pvcName)
 	case actionCancelExpand:
-		return h.cancelExpand(r.Context(), pvcNamespace, pvcName)
+		return nil, h.cancelExpand(r.Context(), pvcNamespace, pvcName)
 	case actionClone:
 		var input CloneVolumeInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		if input.Name == "" {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
 		}
-		return h.clone(r.Context(), pvcNamespace, pvcName, input.Name)
+		return nil, h.clone(r.Context(), pvcNamespace, pvcName, input.Name)
 	case actionSnapshot:
 		var input SnapshotVolumeInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		if input.Name == "" {
-			return apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
 		}
-		return h.snapshot(r.Context(), pvcNamespace, pvcName, input.Name)
+		return nil, h.snapshot(r.Context(), pvcNamespace, pvcName, input.Name)
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+		return nil, apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
 }
 
-func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) error {
+func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) (interface{}, error) {
 	vmImage := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "image-",
@@ -119,7 +106,9 @@ func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDis
 		vmImage.Annotations[util.AnnotationStorageClassName] = imageStorageClassName
 	}
 
-	if _, err := h.images.Create(vmImage); err != nil {
+	image, err := h.images.Create(vmImage)
+
+	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"namespace":  pvcNamespace,
 			"name":       pvcName,
@@ -127,10 +116,10 @@ func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDis
 			"kind":       "PersistentVolumeClaim",
 			"err":        err,
 		}).Error("failed to create image from PVC")
-		return err
+		return nil, err
 	}
 
-	return nil
+	return image, nil
 }
 
 func (h *ActionHandler) cancelExpand(_ context.Context, pvcNamespace, pvcName string) error {
