@@ -152,6 +152,8 @@ devices:
 
 Overall, we will implement this feature in the harvester/pcidevices. So, the architecture will be similar. 
 
+The main implementation will be device plugin, we'll copy KubeVirt usb device plugin as first version, then improve it. Since the first version device plugin is 1-N mapping structure, which one resource name is mapped to multiple USB devices. But, in our design, one resource name is mapped to on USB device. That's why we could specify designated USB device.
+
 ### GUI
 
 It's quite similar with PCI devices, it also needs to show the matrix (node/usb) like below.
