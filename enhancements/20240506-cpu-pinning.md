@@ -287,7 +287,7 @@ spec:
 3. check vm live migration works if cpu pinning is enabled, note that this should be tested under two+ harvester nodes, and at least two nodes swithc cpu-manager-policy to `static`, otherwise vm live migration won't work due to insufficient resources.
 
 ### Notes
-- Users should also be able to set the CPU manager policy for nodes and enable VM CPU pinning through Terraform.
+- Users should also be able to enable VM CPU pinning through Terraform.
 
 ## Discussion
 - In [Story 2: Set cpu-manager-policy from static to none](#Story-2-Set-cpu-manager-policy-from-static-to-none), after changing cpu manager policy from none to static and then change it back to none. All existing pods still use the same cpu sets as settings in static policy. Currently, I'm not sure if this will affect the pod performance or not.
