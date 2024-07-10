@@ -267,6 +267,10 @@ func DecodeVMForceResetPolicy(value string) (*VMForceResetPolicy, error) {
 		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
 	}
 
+	if policy.Period <= 0 {
+		return nil, fmt.Errorf("period value should be greater than 0, value: %d", policy.Period)
+	}
+
 	return policy, nil
 }
 

@@ -18,6 +18,38 @@ func Test_validateOvercommitConfig(t *testing.T) {
 		errMsg string
 	}{
 		{
+			name: "invalid json default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: "overcommit-config"},
+				Default:    `{"cpu":100,"memory":100,"storage":100`,
+			},
+			errMsg: `Invalid JSON: {"cpu":100,"memory":100,"storage":100`,
+		},
+		{
+			name: "cpu undercommmit default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: "overcommit-config"},
+				Default:    `{"cpu":99,"memory":100,"storage":100}`,
+			},
+			errMsg: `Cannot undercommit. Should be greater than or equal to 100 but got 99`,
+		},
+		{
+			name: "memory undercommmit default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: "overcommit-config"},
+				Default:    `{"cpu":100,"memory":98,"storage":100}`,
+			},
+			errMsg: `Cannot undercommit. Should be greater than or equal to 100 but got 98`,
+		},
+		{
+			name: "storage undercommmit default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: "overcommit-config"},
+				Default:    `{"cpu":100,"memory":100,"storage":97}`,
+			},
+			errMsg: `Cannot undercommit. Should be greater than or equal to 100 but got 97`,
+		},
+		{
 			name: "invalid json",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: "overcommit-config"},
@@ -69,7 +101,23 @@ func Test_validateSupportBundleTimeout(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			name: "invalid int",
+			name: "invalid int default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
+				Default:    "not int",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "negative int default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
+				Default:    "-1",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid int value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
 				Value:      "not int",
@@ -77,7 +125,7 @@ func Test_validateSupportBundleTimeout(t *testing.T) {
 			expectedErr: true,
 		},
 		{
-			name: "negative int",
+			name: "negative int value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
 				Value:      "-1",
@@ -88,6 +136,7 @@ func Test_validateSupportBundleTimeout(t *testing.T) {
 			name: "input 0",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
+				Default:    "0",
 				Value:      "0",
 			},
 			expectedErr: false,
@@ -104,6 +153,7 @@ func Test_validateSupportBundleTimeout(t *testing.T) {
 			name: "positive int",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleTimeoutSettingName},
+				Default:    "1",
 				Value:      "1",
 			},
 			expectedErr: false,
@@ -129,6 +179,22 @@ func Test_validateSupportBundleExpiration(t *testing.T) {
 		expectedErr bool
 	}{
 		{
+			name: "invalid int default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleExpirationSettingName},
+				Default:    "not int",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "negative int default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleExpirationSettingName},
+				Default:    "-1",
+			},
+			expectedErr: true,
+		},
+		{
 			name: "invalid int",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleExpirationSettingName},
@@ -148,6 +214,7 @@ func Test_validateSupportBundleExpiration(t *testing.T) {
 			name: "empty input",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleExpirationSettingName},
+				Default:    "",
 				Value:      "",
 			},
 			expectedErr: false,
@@ -156,6 +223,7 @@ func Test_validateSupportBundleExpiration(t *testing.T) {
 			name: "positive int",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleExpirationSettingName},
+				Default:    "10",
 				Value:      "10",
 			},
 			expectedErr: false,
@@ -177,7 +245,23 @@ func Test_validateSupportBundleNodeCollectionTimeout(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			name: "invalid int",
+			name: "invalid int default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				Default:    "not int",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "negative int default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				Default:    "-1",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid int value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
 				Value:      "not int",
@@ -185,7 +269,7 @@ func Test_validateSupportBundleNodeCollectionTimeout(t *testing.T) {
 			expectedErr: true,
 		},
 		{
-			name: "negative int",
+			name: "negative int value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
 				Value:      "-1",
@@ -196,6 +280,7 @@ func Test_validateSupportBundleNodeCollectionTimeout(t *testing.T) {
 			name: "empty input",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				Default:    "",
 				Value:      "",
 			},
 			expectedErr: false,
@@ -204,6 +289,7 @@ func Test_validateSupportBundleNodeCollectionTimeout(t *testing.T) {
 			name: "positive int",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				Default:    "10",
 				Value:      "10",
 			},
 			expectedErr: false,
@@ -454,7 +540,23 @@ func Test_validateKubeconfigTTLSetting(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			name: "invalid int",
+			name: "invalid int default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
+				Default:    "not int",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "negative int default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
+				Default:    "-1",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid int value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
 				Value:      "not int",
@@ -462,7 +564,7 @@ func Test_validateKubeconfigTTLSetting(t *testing.T) {
 			expectedErr: true,
 		},
 		{
-			name: "negative int",
+			name: "negative int value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
 				Value:      "-1",
@@ -473,6 +575,7 @@ func Test_validateKubeconfigTTLSetting(t *testing.T) {
 			name: "empty input",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
+				Default:    "",
 				Value:      "",
 			},
 			expectedErr: false,
@@ -481,6 +584,7 @@ func Test_validateKubeconfigTTLSetting(t *testing.T) {
 			name: "positive int",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
+				Default:    "10",
 				Value:      "10",
 			},
 			expectedErr: false,
@@ -510,7 +614,15 @@ func Test_validateNTPServers(t *testing.T) {
 			expectedErr: "",
 		},
 		{
-			name: "valid ntp servers",
+			name: "valid ntp servers - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Default:    `{"ntpServers":["0.suse.pool.ntp.org", "1.suse.pool.ntp.org"]}`,
+			},
+			expectedErr: "",
+		},
+		{
+			name: "valid ntp servers - value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
 				Value:      `{"ntpServers":["0.suse.pool.ntp.org", "1.suse.pool.ntp.org"]}`,
@@ -518,7 +630,15 @@ func Test_validateNTPServers(t *testing.T) {
 			expectedErr: "",
 		},
 		{
-			name: "invalid ntp servers json string",
+			name: "invalid ntp servers json string - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Default:    `foobar`,
+			},
+			expectedErr: "failed to parse NTP settings: invalid character 'o' in literal false (expecting 'a')",
+		},
+		{
+			name: "invalid ntp servers json string - value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
 				Value:      `foobar`,
@@ -526,23 +646,47 @@ func Test_validateNTPServers(t *testing.T) {
 			expectedErr: "failed to parse NTP settings: invalid character 'o' in literal false (expecting 'a')",
 		},
 		{
-			name: "invalid ntp servers start with http",
+			name: "invalid ntp servers start with http - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Default:    `{"ntpServers":["http://1.suse.pool.ntp.org"]}`,
+			},
+			expectedErr: "ntp server http://1.suse.pool.ntp.org should not start with http:// or https://",
+		},
+		{
+			name: "invalid ntp servers start with http - value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
 				Value:      `{"ntpServers":["http://1.suse.pool.ntp.org"]}`,
 			},
-			expectedErr: "ntp server http://1.suse.pool.ntp.org should not start with http:// or https:// .",
+			expectedErr: "ntp server http://1.suse.pool.ntp.org should not start with http:// or https://",
 		},
 		{
-			name: "invalid ntp servers start with https",
+			name: "invalid ntp servers start with https - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Default:    `{"ntpServers":["https://1.suse.pool.ntp.org"]}`,
+			},
+			expectedErr: "ntp server https://1.suse.pool.ntp.org should not start with http:// or https://",
+		},
+		{
+			name: "invalid ntp servers start with https - value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
 				Value:      `{"ntpServers":["https://1.suse.pool.ntp.org"]}`,
 			},
-			expectedErr: "ntp server https://1.suse.pool.ntp.org should not start with http:// or https:// .",
+			expectedErr: "ntp server https://1.suse.pool.ntp.org should not start with http:// or https://",
 		},
 		{
-			name: "invalid ntp servers not match FQDN",
+			name: "invalid ntp servers not match FQDN - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Default:    `{"ntpServers":["$.suse.pool.ntp.org"]}`,
+			},
+			expectedErr: "invalid NTP server: $.suse.pool.ntp.org",
+		},
+		{
+			name: "invalid ntp servers not match FQDN - value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
 				Value:      `{"ntpServers":["$.suse.pool.ntp.org"]}`,
@@ -550,7 +694,15 @@ func Test_validateNTPServers(t *testing.T) {
 			expectedErr: "invalid NTP server: $.suse.pool.ntp.org",
 		},
 		{
-			name: "duplicate ntp servers",
+			name: "duplicate ntp servers - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
+				Default:    `{"ntpServers":["0.suse.pool.ntp.org", "0.suse.pool.ntp.org", "1.suse.pool.ntp.org"]}`,
+			},
+			expectedErr: "duplicate NTP server: [0.suse.pool.ntp.org]",
+		},
+		{
+			name: "duplicate ntp servers - value",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.NTPServersSettingName},
 				Value:      `{"ntpServers":["0.suse.pool.ntp.org", "0.suse.pool.ntp.org", "1.suse.pool.ntp.org"]}`,

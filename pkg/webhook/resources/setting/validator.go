@@ -24,6 +24,7 @@ import (
 	_ "github.com/longhorn/backupstore/nfs" //nolint
 	_ "github.com/longhorn/backupstore/s3"  //nolint
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/rancher/lasso/pkg/log"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/slice"
@@ -227,28 +228,40 @@ func validateDeleteSetting(oldObj runtime.Object) error {
 	return nil
 }
 
-func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateHTTPProxyHelper(value string, nodes []*corev1.Node) error {
+	if value == "" {
 		return nil
 	}
 
 	httpProxyConfig := &util.HTTPProxyConfig{}
-	if err := json.Unmarshal([]byte(setting.Value), httpProxyConfig); err != nil {
-		message := fmt.Sprintf("failed to unmarshal the setting value, %v", err)
-		return werror.NewInvalidError(message, "value")
+	if err := json.Unmarshal([]byte(value), httpProxyConfig); err != nil {
+		return err
 	}
 
 	// Make sure the node's IP addresses is set in 'noProxy'. These IP
 	// addresses can be specified individually or via CIDR address.
-	nodes, err := v.nodeCache.List(labels.Everything())
-	if err != nil {
-		return werror.NewInvalidError(err.Error(), "")
-	}
-	err = validateNoProxy(httpProxyConfig.NoProxy, nodes)
+	err := validateNoProxy(httpProxyConfig.NoProxy, nodes)
 	if err != nil {
 		return err
 	}
+	return nil
+}
 
+func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if setting.Default != "{}" {
+		if err := validateHTTPProxyHelper(setting.Default, nodes); err != nil {
+			return werror.NewInvalidError(err.Error(), "default")
+		}
+	}
+
+	if err := validateHTTPProxyHelper(setting.Value, nodes); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
 	return nil
 }
 
@@ -306,13 +319,13 @@ func validateNoProxy(noProxy string, nodes []*corev1.Node) error {
 	return nil
 }
 
-func validateOvercommitConfig(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateOvercommitConfigHelper(field, value string) error {
+	if value == "" {
 		return nil
 	}
 	overcommit := &settings.Overcommit{}
-	if err := json.Unmarshal([]byte(setting.Value), overcommit); err != nil {
-		return werror.NewInvalidError(fmt.Sprintf("Invalid JSON: %s", setting.Value), "Value")
+	if err := json.Unmarshal([]byte(value), overcommit); err != nil {
+		return werror.NewInvalidError(fmt.Sprintf("Invalid JSON: %s", value), field)
 	}
 	emit := func(percentage int, field string) error {
 		msg := fmt.Sprintf("Cannot undercommit. Should be greater than or equal to 100 but got %d", percentage)
@@ -330,16 +343,39 @@ func validateOvercommitConfig(setting *v1beta1.Setting) error {
 	return nil
 }
 
+func validateOvercommitConfig(setting *v1beta1.Setting) error {
+	if err := validateOvercommitConfigHelper("default", setting.Default); err != nil {
+		return err
+	}
+
+	if err := validateOvercommitConfigHelper("value", setting.Value); err != nil {
+		return err
+	}
+	return nil
+}
+
 func validateUpdateOvercommitConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateOvercommitConfig(newSetting)
 }
 
-func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateVMForceResetPolicyHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
-	if _, err := settings.DecodeVMForceResetPolicy(setting.Value); err != nil {
+	if _, err := settings.DecodeVMForceResetPolicy(value); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
+	if err := validateVMForceResetPolicyHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := validateVMForceResetPolicyHelper(setting.Value); err != nil {
 		return werror.NewInvalidError(err.Error(), "value")
 	}
 
@@ -405,14 +441,34 @@ func (v *settingValidator) validateUpdateBackupTarget(_ *v1beta1.Setting, newSet
 	return v.validateBackupTarget(newSetting)
 }
 
-func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
-		return nil
+func validateBackupTargetHelper(setting *v1beta1.Setting) (*settings.BackupTarget, error) {
+	var target *settings.BackupTarget
+
+	if setting.Default != "" {
+		defaultTarget, err := settings.DecodeBackupTarget(setting.Default)
+		if err != nil {
+			return nil, werror.NewInvalidError(err.Error(), "default")
+		}
+		target = defaultTarget
 	}
 
-	target, err := settings.DecodeBackupTarget(setting.Value)
+	if setting.Value != "" {
+		valueTarget, err := settings.DecodeBackupTarget(setting.Value)
+		if err != nil {
+			return nil, werror.NewInvalidError(err.Error(), "value")
+		}
+		target = valueTarget
+	}
+	return target, nil
+}
+
+func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error {
+	target, err := validateBackupTargetHelper(setting)
 	if err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return err
+	}
+	if target == nil {
+		return nil
 	}
 
 	// when target is from internal re-update, allow fast pass
@@ -509,14 +565,14 @@ func (v *settingValidator) customizeTransport() error {
 	return nil
 }
 
-func validateNTPServers(setting *v1beta1.Setting) error {
-	logrus.Infof("Prepare to validate NTP servers: %s", setting.Value)
-	if setting.Value == "" {
+func validateNTPServersHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
+	logrus.Infof("Prepare to validate NTP servers: %s", value)
 	ntpSettings := &util.NTPSettings{}
-	if err := json.Unmarshal([]byte(setting.Value), ntpSettings); err != nil {
+	if err := json.Unmarshal([]byte(value), ntpSettings); err != nil {
 		return fmt.Errorf("failed to parse NTP settings: %v", err)
 	}
 	if ntpSettings.NTPServers == nil {
@@ -526,33 +582,23 @@ func validateNTPServers(setting *v1beta1.Setting) error {
 
 	fqdnNameValidator, err := regexp.Compile(FQDNMatchNameRegexString)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to compile fqdnName regexp: %v", err)
-		logrus.Errorf(errMsg)
-		return fmt.Errorf(errMsg)
+		return fmt.Errorf("Failed to compile fqdnName regexp: %v", err)
 	}
 	fqdnPatternValidator, err := regexp.Compile(FQDNMatchPatternRegexString)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to compile fqdnPattern regexp: %v", err)
-		logrus.Errorf(errMsg)
-		return fmt.Errorf(errMsg)
+		return fmt.Errorf("Failed to compile fqdnPattern regexp: %v", err)
 	}
 	startWithHTTP, err := regexp.Compile("^https?://.*")
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to compile startWithHttp regexp: %v", err)
-		logrus.Errorf(errMsg)
-		return fmt.Errorf(errMsg)
+		return fmt.Errorf("Failed to compile startWithHttp regexp: %v", err)
 	}
 
 	for _, server := range ntpSettings.NTPServers {
 		if startWithHTTP.MatchString(server) {
-			errMsg := fmt.Sprintf("ntp server %s should not start with http:// or https:// .", server)
-			logrus.Errorf(errMsg)
-			return fmt.Errorf(errMsg)
+			return fmt.Errorf("ntp server %s should not start with http:// or https://", server)
 		}
 		if !validateNTPServer(server, fqdnNameValidator, fqdnPatternValidator) {
-			errMsg := fmt.Sprintf("invalid NTP server: %s", server)
-			logrus.Errorf(errMsg)
-			return fmt.Errorf(errMsg)
+			return fmt.Errorf("invalid NTP server: %s", server)
 		}
 	}
 
@@ -564,7 +610,19 @@ func validateNTPServers(setting *v1beta1.Setting) error {
 	}
 
 	logrus.Infof("NTP servers validation passed")
+	return nil
+}
 
+func validateNTPServers(setting *v1beta1.Setting) error {
+	if err := validateNTPServersHelper(setting.Default); err != nil {
+		log.Errorf(err.Error())
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := validateNTPServersHelper(setting.Value); err != nil {
+		log.Errorf(err.Error())
+		return werror.NewInvalidError(err.Error(), "value")
+	}
 	return nil
 }
 
@@ -588,21 +646,31 @@ func validateUpdateNTPServers(_ *v1beta1.Setting, newSetting *v1beta1.Setting) e
 	return validateNTPServers(newSetting)
 }
 
-func validateVipPoolsConfig(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateVipPoolsConfigHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
 	pools := map[string]string{}
-	err := json.Unmarshal([]byte(setting.Value), &pools)
+	err := json.Unmarshal([]byte(value), &pools)
 	if err != nil {
 		return err
 	}
 
 	if err := settingctl.ValidateCIDRs(pools); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return err
+	}
+	return nil
+}
+
+func validateVipPoolsConfig(setting *v1beta1.Setting) error {
+	if err := validateVipPoolsConfigHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
 	}
 
+	if err := validateVipPoolsConfigHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
 	return nil
 }
 
@@ -610,17 +678,28 @@ func validateUpdateVipPoolsConfig(_ *v1beta1.Setting, newSetting *v1beta1.Settin
 	return validateVipPoolsConfig(newSetting)
 }
 
-func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateSupportBundleTimeoutHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
-	i, err := strconv.Atoi(setting.Value)
+	i, err := strconv.Atoi(value)
 	if err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return err
 	}
 	if i < 0 {
-		return werror.NewInvalidError("timeout can't be negative", "value")
+		return fmt.Errorf("timeout can't be negative")
+	}
+	return nil
+}
+
+func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
+	if err := validateSupportBundleTimeoutHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := validateSupportBundleTimeoutHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
 	}
 	return nil
 }
@@ -629,17 +708,28 @@ func validateUpdateSupportBundleTimeout(_ *v1beta1.Setting, newSetting *v1beta1.
 	return validateSupportBundleTimeout(newSetting)
 }
 
-func validateSupportBundleExpiration(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateSupportBundleExpirationHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
-	i, err := strconv.Atoi(setting.Value)
+	i, err := strconv.Atoi(value)
 	if err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return err
 	}
 	if i < 0 {
-		return werror.NewInvalidError("expiration can't be negative", "value")
+		return fmt.Errorf("expiration can't be negative")
+	}
+	return nil
+}
+
+func validateSupportBundleExpiration(setting *v1beta1.Setting) error {
+	if err := validateSupportBundleExpirationHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := validateSupportBundleExpirationHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
 	}
 	return nil
 }
@@ -648,17 +738,28 @@ func validateUpdateSupportBundleNodeCollectionTimeout(_ *v1beta1.Setting, newSet
 	return validateSupportBundleNodeCollectionTimeout(newSetting)
 }
 
-func validateSupportBundleNodeCollectionTimeout(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateSupportBundleNodeCollectionTimeoutHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
-	i, err := strconv.Atoi(setting.Value)
+	i, err := strconv.Atoi(value)
 	if err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return err
 	}
 	if i < 0 {
-		return werror.NewInvalidError("node collection timeout can't be negative", "value")
+		return fmt.Errorf("node collection timeout can't be negative")
+	}
+	return nil
+}
+
+func validateSupportBundleNodeCollectionTimeout(setting *v1beta1.Setting) error {
+	if err := validateSupportBundleNodeCollectionTimeoutHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := validateSupportBundleNodeCollectionTimeoutHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
 	}
 	return nil
 }
@@ -667,19 +768,21 @@ func validateUpdateSupportBundle(_ *v1beta1.Setting, newSetting *v1beta1.Setting
 	return validateSupportBundleExpiration(newSetting)
 }
 
-func validateSSLCertificates(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateSSLCertificatesHelper(field, value string) error {
+	if value == "" {
 		return nil
 	}
 
 	sslCertificate := &settings.SSLCertificate{}
-	if err := json.Unmarshal([]byte(setting.Value), sslCertificate); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+	if err := json.Unmarshal([]byte(value), sslCertificate); err != nil {
+		return werror.NewInvalidError(err.Error(), field)
 	}
 
 	if sslCertificate.CA == "" && sslCertificate.PublicCertificate == "" && sslCertificate.PrivateKey == "" {
 		return nil
-	} else if sslCertificate.CA != "" {
+	}
+
+	if sslCertificate.CA != "" {
 		if err := tlsutil.ValidateCABundle([]byte(sslCertificate.CA)); err != nil {
 			return werror.NewInvalidError(err.Error(), "ca")
 		}
@@ -696,18 +799,29 @@ func validateSSLCertificates(setting *v1beta1.Setting) error {
 	return nil
 }
 
+func validateSSLCertificates(setting *v1beta1.Setting) error {
+	if err := validateSSLCertificatesHelper("default", setting.Default); err != nil {
+		return err
+	}
+
+	if err := validateSSLCertificatesHelper("value", setting.Value); err != nil {
+		return err
+	}
+	return nil
+}
+
 func validateUpdateSSLCertificates(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSSLCertificates(newSetting)
 }
 
-func validateSSLParameters(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateSSLParametersHelper(field, value string) error {
+	if value == "" {
 		return nil
 	}
 
 	sslParameter := &settings.SSLParameter{}
-	if err := json.Unmarshal([]byte(setting.Value), sslParameter); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+	if err := json.Unmarshal([]byte(value), sslParameter); err != nil {
+		return werror.NewInvalidError(err.Error(), field)
 	}
 
 	if sslParameter.Protocols == "" && sslParameter.Ciphers == "" {
@@ -716,6 +830,17 @@ func validateSSLParameters(setting *v1beta1.Setting) error {
 
 	if err := validateSSLProtocols(sslParameter); err != nil {
 		return werror.NewInvalidError(err.Error(), "protocols")
+	}
+	return nil
+}
+
+func validateSSLParameters(setting *v1beta1.Setting) error {
+	if err := validateSSLParametersHelper("default", setting.Default); err != nil {
+		return err
+	}
+
+	if err := validateSSLParametersHelper("value", setting.Value); err != nil {
+		return err
 	}
 
 	// TODO: Validate ciphers
@@ -774,13 +899,13 @@ func hasVMRestoreInCreatingOrDeletingProgress(vmRestores []*v1beta1.VirtualMachi
 	return false
 }
 
-func validateSupportBundleImage(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateSupportBundleImageHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
 	var image settings.Image
-	err := json.Unmarshal([]byte(setting.Value), &image)
+	err := json.Unmarshal([]byte(value), &image)
 	if err != nil {
 		return err
 	}
@@ -790,32 +915,64 @@ func validateSupportBundleImage(setting *v1beta1.Setting) error {
 	return nil
 }
 
+func validateSupportBundleImage(setting *v1beta1.Setting) error {
+	if setting.Default != "{}" {
+		if err := validateSupportBundleImageHelper(setting.Default); err != nil {
+			return werror.NewInvalidError(err.Error(), "default")
+		}
+	}
+	if err := validateSupportBundleImageHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	return nil
+}
+
 func validateUpdateSupportBundleImage(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleImage(newSetting)
 }
 
 func (v *settingValidator) validateVolumeSnapshotClass(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
-		return nil
+	if setting.Default != "" {
+		_, err := v.snapshotClassCache.Get(setting.Default)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), "default")
+		}
 	}
-	_, err := v.snapshotClassCache.Get(setting.Value)
-	return err
+	if setting.Value != "" {
+		_, err := v.snapshotClassCache.Get(setting.Value)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), "value")
+		}
+	}
+	return nil
 }
 
 func (v *settingValidator) validateUpdateVolumeSnapshotClass(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateVolumeSnapshotClass(newSetting)
 }
 
-func validateContainerdRegistry(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateContainerdRegistryHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
 	registry := &containerd.Registry{}
-	if err := json.Unmarshal([]byte(setting.Value), registry); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+	if err := json.Unmarshal([]byte(value), registry); err != nil {
+		return err
 	}
 
+	return nil
+}
+
+func validateContainerdRegistry(setting *v1beta1.Setting) error {
+	if err := validateContainerdRegistryHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := validateContainerdRegistryHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
 	return nil
 }
 
@@ -823,18 +980,42 @@ func validateUpdateContainerdRegistry(_ *v1beta1.Setting, newSetting *v1beta1.Se
 	return validateContainerdRegistry(newSetting)
 }
 
-func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) error {
-	if setting.Name != settings.StorageNetworkName {
-		return nil
-	}
-
-	if setting.Value == "" {
+func (v *settingValidator) validateStorageNetworkHelper(value string) error {
+	if value == "" {
 		// harvester will create a default setting with empty value
 		// storage-network will be the same in Longhorn, just skip check, don't require all VMs are stopped.
 		return nil
 	}
 
-	return v.checkStorageNetworkValueVaild(setting)
+	var config storagenetworkctl.Config
+	if err := json.Unmarshal([]byte(value), &config); err != nil {
+		return fmt.Errorf("failed to unmarshal the setting value, %v", err)
+	}
+
+	if err := v.checkStorageNetworkVlanValid(&config); err != nil {
+		return err
+	}
+
+	if err := v.checkStorageNetworkRangeValid(&config); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) error {
+	if setting.Name != settings.StorageNetworkName {
+		return nil
+	}
+
+	if err := v.validateStorageNetworkHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := v.validateStorageNetworkHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	return v.checkStorageNetworkValueVaild()
 }
 
 func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
@@ -842,11 +1023,19 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		return nil
 	}
 
-	if oldSetting.Value == newSetting.Value {
+	if oldSetting.Default == newSetting.Default && oldSetting.Value == newSetting.Value {
 		return nil
 	}
 
-	return v.checkStorageNetworkValueVaild(newSetting)
+	if err := v.validateStorageNetworkHelper(newSetting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := v.validateStorageNetworkHelper(newSetting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+
+	return v.checkStorageNetworkValueVaild()
 }
 
 func (v *settingValidator) validateDeleteStorageNetwork(_ *v1beta1.Setting) error {
@@ -943,23 +1132,7 @@ func (v *settingValidator) checkOnlineVolume() error {
 	return nil
 }
 
-func (v *settingValidator) checkStorageNetworkValueVaild(setting *v1beta1.Setting) error {
-	// check JSON is valid
-	if setting.Value != "" {
-		var config storagenetworkctl.Config
-		if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
-			return werror.NewInvalidError(fmt.Sprintf("failed to unmarshal the setting value, %v", err), "value")
-		}
-
-		if err := v.checkStorageNetworkVlanValid(&config); err != nil {
-			return werror.NewInvalidError(err.Error(), "value")
-		}
-
-		if err := v.checkStorageNetworkRangeValid(&config); err != nil {
-			return werror.NewInvalidError(err.Error(), "value")
-		}
-	}
-
+func (v *settingValidator) checkStorageNetworkValueVaild() error {
 	// check all VM are stopped, there is no VMI
 	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
@@ -1002,20 +1175,31 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkc
 	return nil
 }
 
-func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateDefaultVMTerminationGracePeriodSecondsHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
-	num, err := strconv.ParseInt(setting.Value, 10, 64)
+	num, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return err
 	}
 
 	if num < 0 {
-		return werror.NewInvalidError("can't be negative", "value")
+		return fmt.Errorf("can't be negative")
 	}
 
+	return nil
+}
+
+func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) error {
+	if err := validateDefaultVMTerminationGracePeriodSecondsHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := validateDefaultVMTerminationGracePeriodSecondsHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
 	return nil
 }
 
@@ -1023,25 +1207,36 @@ func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *v1beta1.Setting, ne
 	return validateDefaultVMTerminationGracePeriodSeconds(newSetting)
 }
 
-func validateAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateAutoRotateRKE2CertsHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
 	autoRotateRKE2Certs := &settings.AutoRotateRKE2Certs{}
-	if err := json.Unmarshal([]byte(setting.Value), autoRotateRKE2Certs); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+	if err := json.Unmarshal([]byte(value), autoRotateRKE2Certs); err != nil {
+		return err
 	}
 
 	if autoRotateRKE2Certs.ExpiringInHours <= 0 {
-		return werror.NewInvalidError("expiringInHours can't be negative or zero", "value")
+		return fmt.Errorf("expiringInHours can't be negative or zero")
 	}
 
 	largestExpiringInHours := 24*365 - 1
 	if autoRotateRKE2Certs.ExpiringInHours > largestExpiringInHours {
-		return werror.NewInvalidError(fmt.Sprintf("expiringInHours can't be large than %d", largestExpiringInHours), "value")
+		return fmt.Errorf("expiringInHours can't be large than %d", largestExpiringInHours)
 	}
 
+	return nil
+}
+
+func validateAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
+	if err := validateAutoRotateRKE2CertsHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := validateAutoRotateRKE2CertsHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
 	return nil
 }
 
@@ -1049,18 +1244,29 @@ func validateUpdateAutoRotateRKE2Certs(_ *v1beta1.Setting, newSetting *v1beta1.S
 	return validateAutoRotateRKE2Certs(newSetting)
 }
 
-func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
-	if newSetting.Value == "" {
+func validateKubeConfigTTLSettingHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
-	num, err := strconv.Atoi(newSetting.Value)
+	num, err := strconv.Atoi(value)
 	if err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return err
 	}
 
 	if num < 0 {
-		return werror.NewInvalidError("kubeconfig-default-token-ttl-minutes cannot be negative", "value")
+		return fmt.Errorf("kubeconfig-default-token-ttl-minutes can't be negative")
+	}
+	return nil
+}
+
+func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
+	if err := validateKubeConfigTTLSettingHelper(newSetting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := validateKubeConfigTTLSettingHelper(newSetting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
 	}
 	return nil
 }
