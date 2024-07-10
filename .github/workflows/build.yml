@@ -361,7 +361,7 @@ jobs:
         headers: |-
           cache-control: public,no-cache,proxy-revalidate
 
-    - id: upload-iso-with-tag
+    - name: upload-iso-with-tag
       uses: 'google-github-actions/upload-cloud-storage@v2'
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
       with:
