@@ -48,7 +48,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.57.1
 
 ## install controller-gen
-RUN GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1
+RUN GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0
 ## install ginkgo
 RUN GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.4
 
