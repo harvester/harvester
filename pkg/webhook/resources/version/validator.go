@@ -67,10 +67,7 @@ func checkVersion(version *v1beta1.Version) error {
 	if err := checkAnnotations(version); err != nil {
 		return err
 	}
-	if err := checkISOChecksum(version); err != nil {
-		return err
-	}
-	return nil
+	return checkISOChecksum(version)
 }
 
 func checkISOChecksum(version *v1beta1.Version) error {

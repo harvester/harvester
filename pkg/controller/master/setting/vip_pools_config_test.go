@@ -7,12 +7,14 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	corefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -250,4 +252,8 @@ func (c fakeSettingClient) Watch(opts metav1.ListOptions) (watch.Interface, erro
 
 func (c fakeSettingClient) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterv1.Setting, err error) {
 	return c().Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
+}
+
+func (c fakeSettingClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.NonNamespacedClientInterface[*harvesterv1.Setting, *harvesterv1.SettingList], error) {
+	panic("implement me")
 }

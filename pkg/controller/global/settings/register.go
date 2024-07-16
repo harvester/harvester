@@ -23,11 +23,7 @@ func Register(ctx context.Context, scaled *config.Scaled, _ *server.Server, _ co
 		fallback:       map[string]string{},
 	}
 
-	if err := settings.SetProvider(sp); err != nil {
-		return err
-	}
-
-	return nil
+	return settings.SetProvider(sp)
 }
 
 type settingsProvider struct {

@@ -3,7 +3,7 @@ package fakeclients
 import (
 	"context"
 
-	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -33,7 +33,7 @@ func (c NamespaceCache) List(selector labels.Selector) ([]*v1.Namespace, error) 
 	return result, err
 }
 
-func (c NamespaceCache) AddIndexer(_ string, _ ctlcorev1.NamespaceIndexer) {
+func (c NamespaceCache) AddIndexer(_ string, _ generic.Indexer[*v1.Namespace]) {
 	panic("implement me")
 }
 

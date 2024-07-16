@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -12,11 +13,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	typeharv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
-	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 func TestTemplateHandler_OnChanged(t *testing.T) {
@@ -304,6 +305,10 @@ func (c fakeTemplateClient) Patch(namespace, name string, pt types.PatchType, da
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
 }
 
+func (c fakeTemplateClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*harvesterv1.VirtualMachineTemplate, *harvesterv1.VirtualMachineTemplateList], error) {
+	panic("implement me")
+}
+
 type fakeTemplateVersionCache func(string) typeharv1.VirtualMachineTemplateVersionInterface
 
 func (c fakeTemplateVersionCache) Get(namespace, name string) (*harvesterv1.VirtualMachineTemplateVersion, error) {
@@ -314,7 +319,7 @@ func (c fakeTemplateVersionCache) List(_ string, _ labels.Selector) ([]*harveste
 	panic("implement me")
 }
 
-func (c fakeTemplateVersionCache) AddIndexer(_ string, _ ctlharvesterv1.VirtualMachineTemplateVersionIndexer) {
+func (c fakeTemplateVersionCache) AddIndexer(_ string, _ generic.Indexer[*harvesterv1.VirtualMachineTemplateVersion]) {
 	panic("implement me")
 }
 
@@ -354,4 +359,8 @@ func (c fakeTemplateVersionClient) Watch(namespace string, opts metav1.ListOptio
 
 func (c fakeTemplateVersionClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterv1.VirtualMachineTemplateVersion, err error) {
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
+}
+
+func (c fakeTemplateVersionClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*harvesterv1.VirtualMachineTemplateVersion, *harvesterv1.VirtualMachineTemplateVersionList], error) {
+	panic("implement me")
 }

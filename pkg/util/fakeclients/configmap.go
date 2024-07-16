@@ -3,8 +3,9 @@ package fakeclients
 import (
 	"context"
 
-	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/rest"
 
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
@@ -24,6 +25,11 @@ func (c ConfigmapClient) Update(configMap *v1.ConfigMap) (*v1.ConfigMap, error) 
 	return c(configMap.Namespace).Update(context.TODO(), configMap, metav1.UpdateOptions{})
 }
 
+func (c ConfigmapClient) UpdateStatus(_ *v1.ConfigMap) (*v1.ConfigMap, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (c ConfigmapClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
@@ -41,6 +47,10 @@ func (c ConfigmapClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface,
 }
 
 func (c ConfigmapClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *v1.ConfigMap, err error) {
+	panic("implement me")
+}
+
+func (c ConfigmapClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*v1.ConfigMap, *v1.ConfigMapList], error) {
 	panic("implement me")
 }
 
@@ -64,7 +74,7 @@ func (c ConfigmapCache) List(namespace string, selector labels.Selector) ([]*v1.
 	return result, err
 }
 
-func (c ConfigmapCache) AddIndexer(_ string, _ ctlcorev1.ConfigMapIndexer) {
+func (c ConfigmapCache) AddIndexer(_ string, _ generic.Indexer[*v1.ConfigMap]) {
 	panic("implement me")
 }
 

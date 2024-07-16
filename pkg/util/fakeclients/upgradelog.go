@@ -3,14 +3,15 @@ package fakeclients
 import (
 	"context"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harv1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
-	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 type UpgradeLogClient func(string) harv1type.UpgradeLogInterface
@@ -40,6 +41,10 @@ func (c UpgradeLogClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...s
 	panic("implement me")
 }
 
+func (c UpgradeLogClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*harvesterv1.UpgradeLog, *harvesterv1.UpgradeLogList], error) {
+	panic("implement me")
+}
+
 type UpgradeLogCache func(string) harv1type.UpgradeLogInterface
 
 func (c UpgradeLogCache) Get(namespace, name string) (*harvesterv1.UpgradeLog, error) {
@@ -48,7 +53,7 @@ func (c UpgradeLogCache) Get(namespace, name string) (*harvesterv1.UpgradeLog, e
 func (c UpgradeLogCache) List(_ string, _ labels.Selector) ([]*harvesterv1.UpgradeLog, error) {
 	panic("implement me")
 }
-func (c UpgradeLogCache) AddIndexer(_ string, _ ctlharvesterv1.UpgradeLogIndexer) {
+func (c UpgradeLogCache) AddIndexer(_ string, _ generic.Indexer[*harvesterv1.UpgradeLog]) {
 	panic("implement me")
 }
 func (c UpgradeLogCache) GetByIndex(_, _ string) ([]*harvesterv1.UpgradeLog, error) {
