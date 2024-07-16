@@ -486,8 +486,51 @@ patch_longhorn_settings() {
   yq -e '.spec.values.longhorn' $target || echo "fail to get info .spec.values.longhorn"
 }
 
+# if user has configured a valid additionalGuestMemoryOverheadRatio value on kubevirt object
+# but Harvester setting additional-guest-memory-overhead-ratio is not existing
+# try to convert it to Harvester setting to keep the configured value
+convert_kubevirt_additional_guest_memory_overhead_to_harvester_setting() {
+  local settingfile="additional-guest-memory-overhead-ratio.yaml"
+  local settingname="additional-guest-memory-overhead-ratio"
+  local agmor=$(kubectl get kubevirt kubevirt -n harvester-system -ojsonpath="{.spec.configuration.additionalGuestMemoryOverheadRatio}")
+  local setting=$(kubectl get settings.harvesterhci.io "$settingname")
+
+  if [[ -n "$agmor" ]]; then
+    echo "kubevirt additionalGuestMemoryOverheadRatio setting is $agmor"
+    if [[ -z $setting ]]; then
+      echo "try to convert kubevirt additionalGuestMemoryOverheadRatio to harvester setting $settingname"
+
+cat > $settingfile << EOF
+apiVersion: harvesterhci.io/v1beta1
+default: "1.5"
+kind: Setting
+metadata:
+  name: $settingname
+status:
+value: "$agmor"
+EOF
+
+      echo "the prepared yaml file to create setting"
+      cat $settingfile
+      # if the value was not valid but kubevirt did not deny it in the past
+      # the apply may be denied by harvester webhook
+      kubectl apply -f $settingfile || echo "failed to create setting $settingname, skip"
+      echo "the created object yaml"
+      kubectl get settings.harvesterhci.io $settingname -oyaml ||  echo "failed to get setting $settingname"
+      rm -f $settingfile
+    else
+      echo "harvester setting $settingname is found, do not re-convert"
+    fi
+  else
+    echo "kubevirt additionalGuestMemoryOverheadRatio is not found, skip"
+  fi
+}
+
 upgrade_harvester() {
   echo "Upgrading Harvester"
+
+  # after v1.4 is released, this function may be dropped from master-head
+  convert_kubevirt_additional_guest_memory_overhead_to_harvester_setting
 
   pre_generation_harvester=$(kubectl get managedcharts.management.cattle.io harvester -n fleet-local -o=jsonpath='{.status.observedGeneration}')
   pre_generation_harvester_crd=$(kubectl get managedcharts.management.cattle.io harvester-crd -n fleet-local -o=jsonpath='{.status.observedGeneration}')
