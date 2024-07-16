@@ -80,10 +80,7 @@ func (s *AdmissionWebhookServer) ListenAndServe() error {
 		return err
 	}
 
-	if err := clients.Start(s.context); err != nil {
-		return err
-	}
-	return nil
+	return clients.Start(s.context)
 }
 
 func (s *AdmissionWebhookServer) listenAndServe(clients *clients.Clients, handler http.Handler, validationResources []types.Resource, mutationResources []types.Resource) error {

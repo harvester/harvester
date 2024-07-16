@@ -3,14 +3,15 @@ package fakeclients
 import (
 	"context"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harv1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
-	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 type UpgradeClient func(string) harv1type.UpgradeInterface
@@ -39,6 +40,9 @@ func (c UpgradeClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, e
 func (c UpgradeClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *harvesterv1.Upgrade, err error) {
 	panic("implement me")
 }
+func (c UpgradeClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*harvesterv1.Upgrade, *harvesterv1.UpgradeList], error) {
+	panic("implement me")
+}
 
 type UpgradeCache func(string) harv1type.UpgradeInterface
 
@@ -56,7 +60,7 @@ func (c UpgradeCache) List(namespace string, selector labels.Selector) ([]*harve
 	}
 	return result, err
 }
-func (c UpgradeCache) AddIndexer(_ string, _ ctlharvesterv1.UpgradeIndexer) {
+func (c UpgradeCache) AddIndexer(_ string, _ generic.Indexer[*harvesterv1.Upgrade]) {
 	panic("implement me")
 }
 func (c UpgradeCache) GetByIndex(_, _ string) ([]*harvesterv1.Upgrade, error) {

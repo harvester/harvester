@@ -163,10 +163,7 @@ func (h *MetadataHandler) syncVMBackup(target *settings.BackupTarget) error {
 		}
 	}
 
-	if err = h.loadBackupMetadataAndCreateVMBackup(target, vmbackupMetadataFilePaths, bsDriver); err != nil {
-		return err
-	}
-	return nil
+	return h.loadBackupMetadataAndCreateVMBackup(target, vmbackupMetadataFilePaths, bsDriver)
 }
 
 func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachineBackupMetadata, target *settings.BackupTarget) error {

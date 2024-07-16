@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,11 +13,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	k8sfakeclient "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	virtualmachinetype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
-	kv1ctl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -293,6 +294,10 @@ func (c fakeVMClient) Patch(namespace, name string, pt types.PatchType, data []b
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
 }
 
+func (c fakeVMClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*kubevirtv1.VirtualMachine, *kubevirtv1.VirtualMachineList], error) {
+	panic("implement me")
+}
+
 type fakeVMCache func(string) virtualmachinetype.VirtualMachineInterface
 
 func (c fakeVMCache) Get(namespace, name string) (*kubevirtv1.VirtualMachine, error) {
@@ -303,7 +308,7 @@ func (c fakeVMCache) List(_ string, _ labels.Selector) ([]*kubevirtv1.VirtualMac
 	panic("implement me")
 }
 
-func (c fakeVMCache) AddIndexer(_ string, _ kv1ctl.VirtualMachineIndexer) {
+func (c fakeVMCache) AddIndexer(_ string, _ generic.Indexer[*kubevirtv1.VirtualMachine]) {
 	panic("implement me")
 }
 
@@ -343,4 +348,8 @@ func (c fakeVMIClient) Watch(namespace string, opts metav1.ListOptions) (watch.I
 
 func (c fakeVMIClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *kubevirtv1.VirtualMachineInstance, err error) {
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
+}
+
+func (c fakeVMIClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*kubevirtv1.VirtualMachineInstance, *kubevirtv1.VirtualMachineInstanceList], error) {
+	panic("implement me")
 }

@@ -3,14 +3,15 @@ package fakeclients
 import (
 	"context"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harvestertype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
-	harvesterv1ctl "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/ref"
 )
@@ -49,6 +50,10 @@ func (c VMBackupClient) Patch(namespace, name string, pt types.PatchType, data [
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
 }
 
+func (c VMBackupClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*harvesterv1beta1.VirtualMachineBackup, *harvesterv1beta1.VirtualMachineBackupList], error) {
+	panic("implement me")
+}
+
 type VMBackupCache func(string) harvestertype.VirtualMachineBackupInterface
 
 func (c VMBackupCache) Get(namespace, name string) (*harvesterv1beta1.VirtualMachineBackup, error) {
@@ -59,7 +64,7 @@ func (c VMBackupCache) List(_ string, _ labels.Selector) ([]*harvesterv1beta1.Vi
 	panic("implement me")
 }
 
-func (c VMBackupCache) AddIndexer(_ string, _ harvesterv1ctl.VirtualMachineBackupIndexer) {
+func (c VMBackupCache) AddIndexer(_ string, _ generic.Indexer[*harvesterv1beta1.VirtualMachineBackup]) {
 	panic("implement me")
 }
 

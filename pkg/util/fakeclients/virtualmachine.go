@@ -10,11 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	kubevirtv1api "kubevirt.io/api/core/v1"
 
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
-	kubevirtctlv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 type VirtualMachineClient func(string) kubevirtv1.VirtualMachineInterface
@@ -39,7 +39,7 @@ func (c VirtualMachineClient) List(_ string, _ metav1.ListOptions) (*kubevirtv1a
 	panic("implement me")
 }
 
-func (c VirtualMachineClient) UpdateStatus(*kubevirtv1api.VirtualMachine) (*kubevirtv1api.VirtualMachine, error) {
+func (c VirtualMachineClient) UpdateStatus(_ *kubevirtv1api.VirtualMachine) (*kubevirtv1api.VirtualMachine, error) {
 	panic("implement me")
 }
 
@@ -71,11 +71,11 @@ func (c VirtualMachineClient) Updater() generic.Updater {
 	panic("implement me")
 }
 
-func (c VirtualMachineClient) OnChange(_ context.Context, _ string, _ kubevirtctlv1.VirtualMachineHandler) {
+func (c VirtualMachineClient) OnChange(_ context.Context, _ string, _ generic.ObjectHandler[*kubevirtv1api.VirtualMachine]) {
 	panic("implement me")
 }
 
-func (c VirtualMachineClient) OnRemove(_ context.Context, _ string, _ kubevirtctlv1.VirtualMachineHandler) {
+func (c VirtualMachineClient) OnRemove(_ context.Context, _ string, _ generic.ObjectHandler[*kubevirtv1api.VirtualMachine]) {
 	panic("implement me")
 }
 
@@ -87,7 +87,11 @@ func (c VirtualMachineClient) EnqueueAfter(_, _ string, _ time.Duration) {
 	panic("implement me")
 }
 
-func (c VirtualMachineClient) Cache() kubevirtctlv1.VirtualMachineCache {
+func (c VirtualMachineClient) Cache() generic.CacheInterface[*kubevirtv1api.VirtualMachine] {
+	panic("implement me")
+}
+
+func (c VirtualMachineClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*kubevirtv1api.VirtualMachine, *kubevirtv1api.VirtualMachineList], error) {
 	panic("implement me")
 }
 
@@ -111,7 +115,7 @@ func (c VirtualMachineCache) List(namespace string, selector labels.Selector) ([
 	return result, err
 }
 
-func (c VirtualMachineCache) AddIndexer(_ string, _ kubevirtctlv1.VirtualMachineIndexer) {
+func (c VirtualMachineCache) AddIndexer(_ string, _ generic.Indexer[*kubevirtv1api.VirtualMachine]) {
 	panic("implement me")
 }
 

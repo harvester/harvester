@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harv1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
-	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/tests/framework/fuzz"
 )
 
@@ -44,6 +45,9 @@ func (c VirtualMachineImageClient) Watch(_ string, _ metav1.ListOptions) (watch.
 func (c VirtualMachineImageClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *harvesterv1.VirtualMachineImage, err error) {
 	panic("implement me")
 }
+func (c VirtualMachineImageClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*harvesterv1.VirtualMachineImage, *harvesterv1.VirtualMachineImageList], error) {
+	panic("implement me")
+}
 
 type VirtualMachineImageCache func(string) harv1type.VirtualMachineImageInterface
 
@@ -61,7 +65,7 @@ func (c VirtualMachineImageCache) List(namespace string, selector labels.Selecto
 	}
 	return result, err
 }
-func (c VirtualMachineImageCache) AddIndexer(_ string, _ ctlharvesterv1.VirtualMachineImageIndexer) {
+func (c VirtualMachineImageCache) AddIndexer(_ string, _ generic.Indexer[*harvesterv1.VirtualMachineImage]) {
 	panic("implement me")
 }
 func (c VirtualMachineImageCache) GetByIndex(_, _ string) ([]*harvesterv1.VirtualMachineImage, error) {
