@@ -3,14 +3,15 @@ package fakeclients
 import (
 	"context"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	kubevirttype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
-	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 type VirtualMachineInstanceMigrationCache func(string) kubevirttype.VirtualMachineInstanceMigrationInterface
@@ -33,7 +34,7 @@ func (c VirtualMachineInstanceMigrationCache) List(namespace string, selector la
 	return result, err
 }
 
-func (c VirtualMachineInstanceMigrationCache) AddIndexer(_ string, _ kubevirtctrl.VirtualMachineInstanceMigrationIndexer) {
+func (c VirtualMachineInstanceMigrationCache) AddIndexer(_ string, _ generic.Indexer[*kubevirtv1.VirtualMachineInstanceMigration]) {
 	panic("implement me")
 }
 
@@ -73,4 +74,8 @@ func (c VirtualMachineInstanceMigrationClient) Watch(namespace string, opts meta
 
 func (c VirtualMachineInstanceMigrationClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *kubevirtv1.VirtualMachineInstanceMigration, err error) {
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
+}
+
+func (c VirtualMachineInstanceMigrationClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*kubevirtv1.VirtualMachineInstanceMigration, *kubevirtv1.VirtualMachineInstanceMigrationList], error) {
+	panic("implement me")
 }

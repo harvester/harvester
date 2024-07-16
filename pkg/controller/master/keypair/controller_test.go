@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -274,4 +276,8 @@ func (c fakeKeyPairClient) Watch(namespace string, opts metav1.ListOptions) (wat
 
 func (c fakeKeyPairClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *harvesterv1.KeyPair, err error) {
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
+}
+
+func (c fakeKeyPairClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*harvesterv1.KeyPair, *harvesterv1.KeyPairList], error) {
+	panic("implement me")
 }

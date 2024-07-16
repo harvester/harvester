@@ -5,11 +5,12 @@ import (
 	"fmt"
 
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 
 	mgmtv3type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	"github.com/harvester/harvester/tests/framework/fuzz"
@@ -44,6 +45,9 @@ func (c ManagedChartClient) Watch(_ string, _ metav1.ListOptions) (watch.Interfa
 func (c ManagedChartClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *mgmtv3.ManagedChart, err error) {
 	panic("implement me")
 }
+func (c ManagedChartClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*mgmtv3.ManagedChart, *mgmtv3.ManagedChartList], error) {
+	panic("implement me")
+}
 
 type ManagedChartCache func(string) mgmtv3type.ManagedChartInterface
 
@@ -61,7 +65,7 @@ func (c ManagedChartCache) List(namespace string, selector labels.Selector) ([]*
 	}
 	return result, err
 }
-func (c ManagedChartCache) AddIndexer(_ string, _ ctlmgmtv3.ManagedChartIndexer) {
+func (c ManagedChartCache) AddIndexer(_ string, _ generic.Indexer[*mgmtv3.ManagedChart]) {
 	panic("implement me")
 }
 func (c ManagedChartCache) GetByIndex(_, _ string) ([]*mgmtv3.ManagedChart, error) {

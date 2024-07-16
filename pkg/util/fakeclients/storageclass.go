@@ -3,7 +3,7 @@ package fakeclients
 import (
 	"context"
 
-	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -64,7 +64,7 @@ func (c StorageClassCache) List(selector labels.Selector) ([]*storagev1.StorageC
 	return result, err
 }
 
-func (c StorageClassCache) AddIndexer(_ string, _ ctlstoragev1.StorageClassIndexer) {
+func (c StorageClassCache) AddIndexer(_ string, _ generic.Indexer[*storagev1.StorageClass]) {
 	panic("implement me")
 }
 

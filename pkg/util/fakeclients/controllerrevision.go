@@ -3,14 +3,14 @@ package fakeclients
 import (
 	"context"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	k8sappsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
-
-	ctlappsv1 "github.com/harvester/harvester/pkg/generated/controllers/apps/v1"
+	"k8s.io/client-go/rest"
 )
 
 type ControllerRevisionClient func(string) appsv1.ControllerRevisionInterface
@@ -47,6 +47,10 @@ func (c ControllerRevisionClient) Patch(_, _ string, _ types.PatchType, _ []byte
 	panic("implement me")
 }
 
+func (c ControllerRevisionClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*k8sappsv1.ControllerRevision, *k8sappsv1.ControllerRevisionList], error) {
+	panic("implement me")
+}
+
 type ControllerRevisionCache func(string) appsv1.ControllerRevisionInterface
 
 func (c ControllerRevisionCache) Get(namespace, name string) (*k8sappsv1.ControllerRevision, error) {
@@ -57,7 +61,7 @@ func (c ControllerRevisionCache) List(_ string, _ labels.Selector) ([]*k8sappsv1
 	panic("implement me")
 }
 
-func (c ControllerRevisionCache) AddIndexer(_ string, _ ctlappsv1.ControllerRevisionIndexer) {
+func (c ControllerRevisionCache) AddIndexer(_ string, _ generic.Indexer[*k8sappsv1.ControllerRevision]) {
 	panic("implement me")
 }
 

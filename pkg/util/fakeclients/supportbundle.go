@@ -10,11 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harv1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
-	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 type SupportBundleClient func(string) harv1type.SupportBundleInterface
@@ -39,7 +39,7 @@ func (c SupportBundleClient) List(_ string, _ metav1.ListOptions) (*harvesterv1.
 	panic("implement me")
 }
 
-func (c SupportBundleClient) UpdateStatus(*harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {
+func (c SupportBundleClient) UpdateStatus(_ *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {
 	panic("implement me")
 }
 
@@ -71,15 +71,15 @@ func (c SupportBundleClient) Updater() generic.Updater {
 	panic("implement me")
 }
 
-func (c SupportBundleClient) OnChange(_ context.Context, _ string, _ ctlharvesterv1.SupportBundleHandler) {
+func (c SupportBundleClient) OnChange(_ context.Context, _ string, _ generic.ObjectHandler[*harvesterv1.SupportBundle]) {
 	panic("implement me")
 }
 
-func (c SupportBundleClient) OnRemove(_ context.Context, _ string, _ ctlharvesterv1.SupportBundleHandler) {
+func (c SupportBundleClient) OnRemove(_ context.Context, _ string, _ generic.ObjectHandler[*harvesterv1.SupportBundle]) {
 	panic("implement me")
 }
 
-func (c SupportBundleClient) Cache() ctlharvesterv1.SupportBundleCache {
+func (c SupportBundleClient) Cache() generic.CacheInterface[*harvesterv1.SupportBundle] {
 	panic("implement me")
 }
 
@@ -89,6 +89,10 @@ func (c SupportBundleClient) Enqueue(_, _ string) {
 
 func (c SupportBundleClient) EnqueueAfter(_, _ string, _ time.Duration) {
 	// do nothing
+}
+
+func (c SupportBundleClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*harvesterv1.SupportBundle, *harvesterv1.SupportBundleList], error) {
+	panic("implement me")
 }
 
 type SupportBundleCache func(string) harv1type.SupportBundleInterface
@@ -101,7 +105,7 @@ func (c SupportBundleCache) List(_ string, _ labels.Selector) ([]*harvesterv1.Su
 	panic("implement me")
 }
 
-func (c SupportBundleCache) AddIndexer(_ string, _ ctlharvesterv1.SupportBundleIndexer) {
+func (c SupportBundleCache) AddIndexer(_ string, _ generic.Indexer[*harvesterv1.SupportBundle]) {
 	panic("implement me")
 }
 

@@ -3,13 +3,14 @@ package fakeclients
 import (
 	"context"
 
-	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	corev1type "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
 )
 
 type NodeCache func() corev1type.NodeInterface
@@ -33,7 +34,7 @@ func (c NodeCache) List(selector labels.Selector) ([]*v1.Node, error) {
 	return result, err
 }
 
-func (c NodeCache) AddIndexer(_ string, _ ctlcorev1.NodeIndexer) {
+func (c NodeCache) AddIndexer(_ string, _ generic.Indexer[*v1.Node]) {
 	panic("implement me")
 }
 
@@ -72,5 +73,9 @@ func (c NodeClient) Watch(metav1.ListOptions) (watch.Interface, error) {
 }
 
 func (c NodeClient) Patch(_ string, _ types.PatchType, _ []byte, _ ...string) (result *v1.Node, err error) {
+	panic("implement me")
+}
+
+func (c NodeClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.NonNamespacedClientInterface[*v1.Node, *v1.NodeList], error) {
 	panic("implement me")
 }

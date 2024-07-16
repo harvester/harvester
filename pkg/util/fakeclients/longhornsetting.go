@@ -4,13 +4,14 @@ import (
 	"context"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 
 	lhtype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
-	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 )
 
 type LonghornSettingClient func(string) lhtype.SettingInterface
@@ -46,6 +47,9 @@ func (c LonghornSettingClient) Watch(namespace string, opts metav1.ListOptions) 
 func (c LonghornSettingClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *lhv1beta2.Setting, err error) {
 	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
 }
+func (c LonghornSettingClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*lhv1beta2.Setting, *lhv1beta2.SettingList], error) {
+	panic("implement me")
+}
 
 type LonghornSettingCache func(string) lhtype.SettingInterface
 
@@ -57,7 +61,7 @@ func (c LonghornSettingCache) List(_ string, _ labels.Selector) ([]*lhv1beta2.Se
 	panic("implement me")
 }
 
-func (c LonghornSettingCache) AddIndexer(_ string, _ ctllhv1.SettingIndexer) {
+func (c LonghornSettingCache) AddIndexer(_ string, _ generic.Indexer[*lhv1beta2.Setting]) {
 	panic("implement me")
 }
 
