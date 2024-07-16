@@ -23,6 +23,14 @@ import (
 const (
 	networkGroup      = "network.harvesterhci.io"
 	keyClusterNetwork = networkGroup + "/clusternetwork"
+
+	memory512M         = 536870912
+	memory1G           = 1073741824
+	memoryReserved128M = 134217728
+	memory2GAndAHalf   = 2684354560
+	memoryReserved256M = 268435456
+	memory10G          = 10737418240
+	memoryReserved1G   = 1073741824
 )
 
 func NewMutator(
@@ -215,6 +223,34 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 	return patchOps, nil
 }
 
+// compute a higher default reserved memory for VM to tolerant
+// the potential more memory used by those backend components like qemu, kubevirt
+// refer: https://github.com/harvester/harvester/issues/5768
+func computeReservedMemory(mem, reservedMemory *resource.Quantity) {
+	cur := mem.Value()
+	if cur < memory512M {
+		// keep original 100M
+		return
+	}
+	if cur <= memory1G {
+		// [512Mi .. 1Gi], 128 Mi
+		reservedMemory.Set(memoryReserved128M) // 128 Mi
+		return
+	}
+	if cur <= memory2GAndAHalf {
+		// (1Gi .. 2.5Gi], 256 Mi
+		reservedMemory.Set(memoryReserved256M) // 256 Mi
+		return
+	}
+	if cur <= memory10G {
+		// (2.5Gi .. 10Gi], 10% of memory, round to Mi
+		reservedMemory.Set(int64(cur>>20/10) << 20)
+		return
+	}
+	// (10Gi..), 1Gi
+	reservedMemory.Set(memoryReserved1G)
+}
+
 func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, overcommit *settings.Overcommit, requestsMissing bool, requestsToMutate v1.ResourceList) (types.PatchOps, error) {
 	// Truncate to MiB
 	var patchOps types.PatchOps
@@ -231,9 +267,24 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 		if err != nil {
 			return patchOps, err
 		}
+		// already checked on validator: reservedMemory < mem
+		if reservedMemory.Value() >= mem.Value() {
+			return patchOps, fmt.Errorf("reservedMemory cannot be equal or greater than limits.memory %v %v", reservedMemory.Value(), mem.Value())
+		}
+	} else {
+		// if user does not specify the value, then compute it dynamically
+		computeReservedMemory(mem, &reservedMemory)
 	}
 	guestMemory := *mem
 	guestMemory.Sub(reservedMemory)
+	if guestMemory.Value() < 268435456 {
+		// some test cases use a small value to test, but for production such VM make no sense, add a warning here
+		logrus.Warnf("vm %s/%s guest memory is under the suggested minimum requirement(256Mi), original: %v, reserved: %v, final: %v", vm.Namespace, vm.Name, mem.Value(), reservedMemory.Value(), guestMemory.Value())
+	}
+	if guestMemory.Value() < 10485760 {
+		// should not be < 10 Mi
+		return patchOps, fmt.Errorf("guest memory is under the minimum requirement (10 Mi), original: %v, reserved: %v, final: %v", mem.Value(), reservedMemory.Value(), guestMemory.Value())
+	}
 
 	// Needed to avoid issue due to overcommit when GPU or HostDevices are passed to a VM.
 	// Addresses issue: `https://github.com/kubevirt/kubevirt/issues/10379`

@@ -52,7 +52,41 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			memory: nil,
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "256Mi"}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"896Mi"}}`, // 1Gi - 128Mi
+			},
+			setting: "",
+		},
+		{
+			name: "has memory limit and other requests 2",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 32)), resource.BinarySI), // 4Gi
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			memory: nil,
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3687Mi"}}`, // 4Gi * 90%
+			},
+			setting: "",
+		},
+		{
+			name: "has memory limit and other requests 3",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 34)), resource.BinarySI), // 16Gi
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			memory: nil,
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "4Gi"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"15Gi"}}`, // 16Gi - 1Gi
 			},
 			setting: "",
 		},
@@ -82,7 +116,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			},
 			memory: nil,
 			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"896Mi"}}`, // 1Gi - 128Mi
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"500m","memory":"256Mi"}}`,
 			},
 		},
@@ -96,7 +130,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			},
 			memory: nil,
 			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"896Mi"}}`, // 1Gi - 128Mi
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
 			},
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
@@ -113,10 +147,105 @@ func TestPatchResourceOvercommit(t *testing.T) {
 				Guest: resource.NewQuantity(int64(math.Pow(2, 40)), resource.BinarySI), // 1Ti
 			},
 			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "924Mi"}`, // 1Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "896Mi"}`, // 1Gi - 128Mi
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
 			},
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
+		},
+	}
+
+	tests2 := []struct {
+		name        string
+		resourceReq kubevirtv1.ResourceRequirements
+		memory      *kubevirtv1.Memory
+		patchOps    []string
+		setting     string
+	}{
+		{
+			name:        "has no limits",
+			resourceReq: kubevirtv1.ResourceRequirements{},
+			patchOps:    nil,
+			setting:     "",
+		},
+		{
+			name: "has memory limit, customized reserved memory and other requests",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 30)), resource.BinarySI), // 1Gi
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			memory: nil,
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "256Mi"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"640Mi"}}`, // 1Gi - 384Mi
+			},
+			setting: "",
+		},
+		{
+			name: "has memory limit, customized reserved memory and other requests 2",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 32)), resource.BinarySI), // 4Gi
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			memory: nil,
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3712Mi"}}`, // 4Gi - 384Mi
+			},
+			setting: "",
+		},
+	}
+
+	tests3 := []struct {
+		name        string
+		resourceReq kubevirtv1.ResourceRequirements
+		memory      *kubevirtv1.Memory
+		patchOps    []string
+		setting     string
+	}{
+		{
+			name: "wrong reserved memory seeting get captured",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 28)), resource.BinarySI), // 256Mi
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			memory:   nil,
+			patchOps: []string{},
+			setting:  "",
+		},
+	}
+
+	tests4 := []struct {
+		name        string
+		resourceReq kubevirtv1.ResourceRequirements
+		memory      *kubevirtv1.Memory
+		patchOps    []string
+		setting     string
+	}{
+		{
+			name: "too small guest OS memory get captured",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewQuantity(int64(385<<20), resource.BinarySI), // 385Mi, after sub 384 Mi reserved memory, only 1 Mi is left for guest OS
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			memory:   nil,
+			patchOps: []string{},
+			setting:  "",
 		},
 	}
 
@@ -159,6 +288,122 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			// assert
 			assert.Nil(t, err, tc.name)
 			assert.Equal(t, tc.patchOps, actual)
+		})
+	}
+
+	for _, tc := range tests2 {
+		t.Run(tc.name, func(t *testing.T) {
+			// arrage
+			clientset := fake.NewSimpleClientset()
+			settingCpy := setting.DeepCopy()
+			if tc.setting != "" {
+				settingCpy.Value = tc.setting
+			}
+			err := clientset.Tracker().Add(settingCpy)
+			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"harvesterhci.io/reservedMemory": "384Mi",
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: tc.resourceReq,
+								Memory:    tc.memory,
+							},
+						},
+					},
+				},
+			}
+
+			// act
+			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+
+			// assert
+			assert.Nil(t, err, tc.name)
+			assert.Equal(t, tc.patchOps, actual)
+		})
+	}
+
+	for _, tc := range tests3 {
+		t.Run(tc.name, func(t *testing.T) {
+			// arrage
+			clientset := fake.NewSimpleClientset()
+			settingCpy := setting.DeepCopy()
+			if tc.setting != "" {
+				settingCpy.Value = tc.setting
+			}
+			err := clientset.Tracker().Add(settingCpy)
+			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"harvesterhci.io/reservedMemory": "384Mi",
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: tc.resourceReq,
+								Memory:    tc.memory,
+							},
+						},
+					},
+				},
+			}
+
+			_, err = mutator.(*vmMutator).patchResourceOvercommit(vm)
+			assert.NotNil(t, err)
+			assert.Contains(t, err.Error(), "reservedMemory cannot be equal or greater than limits.memory")
+		})
+	}
+
+	for _, tc := range tests4 {
+		t.Run(tc.name, func(t *testing.T) {
+			// arrage
+			clientset := fake.NewSimpleClientset()
+			settingCpy := setting.DeepCopy()
+			if tc.setting != "" {
+				settingCpy.Value = tc.setting
+			}
+			err := clientset.Tracker().Add(settingCpy)
+			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"harvesterhci.io/reservedMemory": "384Mi",
+					},
+					Namespace: "test",
+					Name:      "NotEnoughMemory",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: tc.resourceReq,
+								Memory:    tc.memory,
+							},
+						},
+					},
+				},
+			}
+
+			_, err = mutator.(*vmMutator).patchResourceOvercommit(vm)
+			assert.NotNil(t, err)
+			assert.Contains(t, err.Error(), "guest memory is under the minimum requirement")
 		})
 	}
 }
