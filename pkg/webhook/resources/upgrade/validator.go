@@ -290,11 +290,12 @@ func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace ui
 		imageGCHighThresholdPercent = float64(*kubeletConfiguration.ImageGCHighThresholdPercent)
 	}
 	usedPercent := (float64(*summary.Node.Fs.UsedBytes+defaultNewImageSize) / float64(*summary.Node.Fs.CapacityBytes)) * 100.0
-	logrus.Debugf("node %s uses %3f%% storage space, kubelet image garbage collection threshold is %3f%%", node.Name, usedPercent, imageGCHighThresholdPercent)
+	logrus.Debugf("node %s uses %.3f%% storage space, kubelet image garbage collection threshold is %.3f%%", node.Name, usedPercent, imageGCHighThresholdPercent)
 
 	if usedPercent > imageGCHighThresholdPercent {
-		return werror.NewBadRequest(fmt.Sprintf("Node %q uses %3f%% storage space. It's higher than kubelet image garbage collection threshold %3f%%.",
-			node.Name, usedPercent, imageGCHighThresholdPercent))
+		// Using strconv.FormatFloat to show imageGCHighThresholdPercent to trim zeros, because the default value is 0.85.
+		return werror.NewBadRequest(fmt.Sprintf("Node %q will reach %.2f%% storage space after loading new images. It's higher than kubelet image garbage collection threshold %s%%.",
+			node.Name, usedPercent, strconv.FormatFloat(imageGCHighThresholdPercent, 'f', -1, 64)))
 	}
 
 	if *summary.Node.Fs.AvailableBytes < minFreeDiskSpace {
