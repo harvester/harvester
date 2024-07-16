@@ -23,6 +23,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	kubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -45,6 +46,7 @@ var (
 		settings.AutoRotateRKE2CertsSettingName,
 		settings.LogLevelSettingName,
 		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
+		settings.AdditionalGuestMemoryOverheadRatioName,
 	}
 )
 
@@ -80,6 +82,8 @@ type Handler struct {
 	rkeControlPlaneCache ctlrkev1.RKEControlPlaneCache
 	rancherSettings      ctlmgmtv3.SettingClient
 	rancherSettingsCache ctlmgmtv3.SettingCache
+	kubeVirtConfig       kubevirtv1.KubeVirtClient
+	kubeVirtConfigCache  kubevirtv1.KubeVirtCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

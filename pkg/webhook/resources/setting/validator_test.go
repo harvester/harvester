@@ -1,6 +1,7 @@
 package setting
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -887,6 +888,79 @@ func Test_validateUpgradeConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateUpgradeConfig(tt.args)
+			assert.Equal(t, tt.expectedErr, err != nil)
+		})
+	}
+}
+
+func Test_validateAdditionalGuestMemoryOverheadRatio(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        *v1beta1.Setting
+		expectedErr bool
+	}{
+		{
+			name: "valid default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.AdditionalGuestMemoryOverheadRatioName},
+				Default:    settings.AdditionalGuestMemoryOverheadRatioDefault,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.AdditionalGuestMemoryOverheadRatioName},
+				Default:    "2.8",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "invalid float",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				Default:    "invalid float",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid negative value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				Value:      "-1.0",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid less than limitation",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				Value:      fmt.Sprintf("%v", settings.AdditionalGuestMemoryOverheadRatioMinValue-0.1),
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid greater than limitation",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				Value:      fmt.Sprintf("%v", settings.AdditionalGuestMemoryOverheadRatioMaxValue+0.1),
+			},
+			expectedErr: true,
+		},
+		{
+			name: "empty input but is valid",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleNodeCollectionTimeoutName},
+				Default:    "",
+				Value:      "",
+			},
+			expectedErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateAdditionalGuestMemoryOverheadRatio(tt.args)
 			assert.Equal(t, tt.expectedErr, err != nil)
 		})
 	}

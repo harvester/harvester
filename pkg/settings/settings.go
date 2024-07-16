@@ -2,8 +2,6 @@ package settings
 
 import (
 	"encoding/json"
-	"fmt"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -54,6 +52,7 @@ var (
 	AutoRotateRKE2CertsSet                 = NewSetting(AutoRotateRKE2CertsSettingName, InitAutoRotateRKE2Certs())
 	KubeconfigTTL                          = NewSetting(KubeconfigDefaultTokenTTLMinutesSettingName, "0") // "0" is default value to ensure token does not expire
 	LonghornV2DataEngineEnabled            = NewSetting(LonghornV2DataEngineSettingName, "false")
+	AdditionalGuestMemoryOverheadRatio     = NewSetting(AdditionalGuestMemoryOverheadRatioName, AdditionalGuestMemoryOverheadRatioDefault)
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
 	NTPServers             = NewSetting(NTPServersSettingName, "")
@@ -93,6 +92,11 @@ const (
 	UpgradeConfigSettingName                          = "upgrade-config"
 	LonghornV2DataEngineSettingName                   = "longhorn-v2-data-engine-enabled"
 	LogLevelSettingName                               = "log-level"
+	AdditionalGuestMemoryOverheadRatioName            = "additional-guest-memory-overhead-ratio"
+
+	// settings have `default` and `value` string used in many places, replace them with const
+	KeywordDefault = "default"
+	KeywordValue   = "value"
 )
 
 func init() {
@@ -204,179 +208,4 @@ func IsRelease() bool {
 	return !strings.Contains(ServerVersion.Get(), "head") && releasePattern.MatchString(ServerVersion.Get())
 }
 
-type TargetType string
-
-const (
-	S3BackupType  TargetType = "s3"
-	NFSBackupType TargetType = "nfs"
-)
-
-type BackupTarget struct {
-	Type               TargetType `json:"type"`
-	Endpoint           string     `json:"endpoint"`
-	AccessKeyID        string     `json:"accessKeyId"`
-	SecretAccessKey    string     `json:"secretAccessKey"`
-	BucketName         string     `json:"bucketName"`
-	BucketRegion       string     `json:"bucketRegion"`
-	Cert               string     `json:"cert"`
-	VirtualHostedStyle bool       `json:"virtualHostedStyle"`
-}
-
-type VMForceResetPolicy struct {
-	Enable bool `json:"enable"`
-	// Period means how many seconds to wait for a node get back.
-	Period int64 `json:"period"`
-}
-
-func InitBackupTargetToString() string {
-	target := &BackupTarget{}
-	targetStr, err := json.Marshal(target)
-	if err != nil {
-		logrus.Errorf("failed to init %s, error: %s", BackupTargetSettingName, err.Error())
-	}
-	return string(targetStr)
-}
-
-func DecodeBackupTarget(value string) (*BackupTarget, error) {
-	target := &BackupTarget{}
-
-	if value != "" {
-		if err := json.Unmarshal([]byte(value), target); err != nil {
-			return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
-		}
-	}
-
-	return target, nil
-}
-
-func (target *BackupTarget) IsDefaultBackupTarget() bool {
-	if target == nil || target.Type != "" {
-		return false
-	}
-
-	defaultTarget := &BackupTarget{}
-	return reflect.DeepEqual(target, defaultTarget)
-}
-
-func InitVMForceResetPolicy() string {
-	policy := &VMForceResetPolicy{
-		Enable: true,
-		Period: 5 * 60, // 5 minutes
-	}
-	policyStr, err := json.Marshal(policy)
-	if err != nil {
-		logrus.Errorf("failed to init %s, error: %s", VMForceResetPolicySettingName, err.Error())
-	}
-	return string(policyStr)
-}
-
-func DecodeVMForceResetPolicy(value string) (*VMForceResetPolicy, error) {
-	policy := &VMForceResetPolicy{}
-	if err := json.Unmarshal([]byte(value), policy); err != nil {
-		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
-	}
-
-	if policy.Period <= 0 {
-		return nil, fmt.Errorf("period value should be greater than 0, value: %d", policy.Period)
-	}
-
-	return policy, nil
-}
-
-type Overcommit struct {
-	CPU     int `json:"cpu"`
-	Memory  int `json:"memory"`
-	Storage int `json:"storage"`
-}
-
-type SSLCertificate struct {
-	CA                string `json:"ca"`
-	PublicCertificate string `json:"publicCertificate"`
-	PrivateKey        string `json:"privateKey"`
-}
-
-type SSLParameter struct {
-	Protocols string `json:"protocols"`
-	Ciphers   string `json:"ciphers"`
-}
-
-type CSIDriverInfo struct {
-	VolumeSnapshotClassName       string `json:"volumeSnapshotClassName"`
-	BackupVolumeSnapshotClassName string `json:"backupVolumeSnapshotClassName"`
-}
-
-type AutoRotateRKE2Certs struct {
-	Enable          bool `json:"enable"`
-	ExpiringInHours int  `json:"expiringInHours"`
-}
-
-func InitAutoRotateRKE2Certs() string {
-	autoRotateRKE2Certs := &AutoRotateRKE2Certs{
-		Enable:          false,
-		ExpiringInHours: 240, // 7 days
-	}
-	autoRotateRKE2CertsStr, err := json.Marshal(autoRotateRKE2Certs)
-	if err != nil {
-		logrus.WithField("name", AutoRotateRKE2CertsSettingName).WithError(err).Error("failed to init setting")
-	}
-	return string(autoRotateRKE2CertsStr)
-}
-
-func GetCSIDriverInfo(provisioner string) (*CSIDriverInfo, error) {
-	csiDriverConfig := make(map[string]*CSIDriverInfo)
-	if err := json.Unmarshal([]byte(CSIDriverConfig.Get()), &csiDriverConfig); err != nil {
-		return nil, err
-	}
-	csiDriverInfo, ok := csiDriverConfig[provisioner]
-	if !ok {
-		return nil, fmt.Errorf("can not find csi driver info for %s", provisioner)
-	}
-	return csiDriverInfo, nil
-}
-
-type StrategyType string
-
-const (
-	// Do no preloading
-	SkipType StrategyType = "skip"
-
-	// Preloading one node at a time
-	SequentialType StrategyType = "sequential"
-
-	// Preloading multiple nodes starts at the same time
-	ParallelType StrategyType = "parallel"
-)
-
-type PreloadStrategy struct {
-	Type StrategyType `json:"type,omitempty"`
-
-	// Concurrency only takes effect when ParallelType is specified. Default to
-	// 0, which means "full scale." Any value higher than the number of the
-	// cluster nodes will be treated as 0; values lower than 0 will be rejected
-	// by the validator.
-	Concurrency int `json:"concurrency,omitempty"`
-}
-
-type ImagePreloadOption struct {
-	// PreloadStrategy tweaks the way images are preloaded.
-	Strategy PreloadStrategy `json:"strategy,omitempty"`
-}
-
-type UpgradeConfig struct {
-	// Options for the Image Preload phase of Harvester Upgrade
-	PreloadOption ImagePreloadOption `json:"imagePreloadOption,omitempty"`
-	// set true to restore vm to the pre-upgrade state, this option only works under single node.
-	RestoreVM bool `json:"restoreVM,omitempty"`
-}
-
-func DecodeConfig[T any](value string) (*T, error) {
-	target := new(T)
-
-	if value != "" {
-		if err := json.Unmarshal([]byte(value), target); err != nil {
-			return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
-		}
-	}
-
-	return target, nil
-}
+// move specific setting related things to settings_helper.go
