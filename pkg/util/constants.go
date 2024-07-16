@@ -66,6 +66,9 @@ const (
 	RancherMonitoringName               = "rancher-monitoring"
 	CattleMonitoringSystemNamespaceName = "cattle-monitoring-system"
 	HarvesterVMImportController         = "vm-import-controller-harvester-vm-import-controller"
+	// kubevirt create a CRD object automatically: type kubevirt, name kubevirt, namespace: harvester-system
+	// this object stores all kubevirt related configuration
+	KubeVirtObjectName = "kubevirt"
 
 	HTTPProxyEnv  = "HTTP_PROXY"
 	HTTPSProxyEnv = "HTTPS_PROXY"
