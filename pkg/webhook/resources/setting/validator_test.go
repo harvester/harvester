@@ -589,6 +589,15 @@ func Test_validateKubeconfigTTLSetting(t *testing.T) {
 			},
 			expectedErr: false,
 		},
+		{
+			name: "exceeds 100 years",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.KubeconfigDefaultTokenTTLMinutesSettingName},
+				Default:    "10",
+				Value:      "52560001",
+			},
+			expectedErr: true,
+		},
 	}
 
 	for _, tt := range tests {
