@@ -59,6 +59,7 @@ const (
 	labelAppNameValueAlertManager     = "alertmanager"
 	labelAppNameValueGrafana          = "grafana"
 	labelAppNameValueImportController = "harvester-vm-import-controller"
+	maxTTLDurationMinutes             = 52560000 //specifies max duration allowed for kubeconfig TTL setting, and corresponds to 100 years
 )
 
 var certs = getSystemCerts()
@@ -1256,6 +1257,10 @@ func validateKubeConfigTTLSettingHelper(value string) error {
 
 	if num < 0 {
 		return fmt.Errorf("kubeconfig-default-token-ttl-minutes can't be negative")
+	}
+
+	if num > maxTTLDurationMinutes {
+		return fmt.Errorf("kubeconfig-default-token-ttl-minutes exceeds 100 years")
 	}
 	return nil
 }
