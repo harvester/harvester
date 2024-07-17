@@ -58,6 +58,7 @@ const (
 	labelAppNameValueAlertManager     = "alertmanager"
 	labelAppNameValueGrafana          = "grafana"
 	labelAppNameValueImportController = "harvester-vm-import-controller"
+	maxTTLDurationMinutes             = 52560000 //specifies max duration allowed for kubeconfig TTL setting, and corresponds to 100 years
 )
 
 var certs = getSystemCerts()
@@ -1049,18 +1050,33 @@ func validateUpdateAutoRotateRKE2Certs(_ *v1beta1.Setting, newSetting *v1beta1.S
 	return validateAutoRotateRKE2Certs(newSetting)
 }
 
-func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
-	if newSetting.Value == "" {
+func validateKubeConfigTTLSettingHelper(value string) error {
+	if value == "" {
 		return nil
 	}
 
-	num, err := strconv.Atoi(newSetting.Value)
+	num, err := strconv.Atoi(value)
 	if err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return err
 	}
 
 	if num < 0 {
-		return werror.NewInvalidError("kubeconfig-default-token-ttl-minutes cannot be negative", "value")
+		return fmt.Errorf("kubeconfig-default-token-ttl-minutes can't be negative")
+	}
+
+	if num > maxTTLDurationMinutes {
+		return fmt.Errorf("kubeconfig-default-token-ttl-minutes exceeds 100 years")
+	}
+	return nil
+}
+
+func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
+	if err := validateKubeConfigTTLSettingHelper(newSetting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := validateKubeConfigTTLSettingHelper(newSetting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
 	}
 	return nil
 }
