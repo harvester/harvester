@@ -17,7 +17,7 @@ import (
 )
 
 func newTestPreparePlan() *upgradeapiv1.Plan {
-	plan := preparePlan(newTestUpgradeBuilder().Build())
+	plan := preparePlan(newTestUpgradeBuilder().Build(), defaultImagePreloadConcurrency)
 	plan.Status.LatestHash = testPlanHash
 	return plan
 }
