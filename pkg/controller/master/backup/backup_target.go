@@ -29,12 +29,6 @@ const (
 
 	longhornBackupTargetSettingName       = "backup-target"
 	longhornBackupTargetSecretSettingName = "backup-target-credential-secret"
-
-	AWSAccessKey       = "AWS_ACCESS_KEY_ID"
-	AWSSecretKey       = "AWS_SECRET_ACCESS_KEY"
-	AWSEndpoints       = "AWS_ENDPOINTS"
-	AWSCERT            = "AWS_CERT"
-	VirtualHostedStyle = "VIRTUAL_HOSTED_STYLE"
 )
 
 // RegisterBackupTarget register the setting controller and reconsile longhorn setting when backup target changed
@@ -171,7 +165,7 @@ func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget
 				Name:      longhornBackupTargetSettingName,
 				Namespace: util.LonghornSystemNamespaceName,
 			},
-			Value: ConstructEndpoint(backupTarget),
+			Value: util.ConstructEndpoint(backupTarget),
 		}); err != nil {
 			return err
 		}
@@ -179,7 +173,7 @@ func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget
 	}
 
 	targetCpy := target.DeepCopy()
-	targetCpy.Value = ConstructEndpoint(backupTarget)
+	targetCpy.Value = util.ConstructEndpoint(backupTarget)
 
 	if !reflect.DeepEqual(target, targetCpy) {
 		_, err := h.longhornSettings.Update(targetCpy)
@@ -190,14 +184,14 @@ func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget
 
 func getBackupSecretData(target *settings.BackupTarget) (map[string]string, error) {
 	data := map[string]string{
-		AWSAccessKey:       target.AccessKeyID,
-		AWSSecretKey:       target.SecretAccessKey,
-		AWSEndpoints:       target.Endpoint,
-		AWSCERT:            target.Cert,
-		VirtualHostedStyle: strconv.FormatBool(target.VirtualHostedStyle),
+		util.AWSAccessKey:       target.AccessKeyID,
+		util.AWSSecretKey:       target.SecretAccessKey,
+		util.AWSEndpoints:       target.Endpoint,
+		util.AWSCERT:            target.Cert,
+		util.VirtualHostedStyle: strconv.FormatBool(target.VirtualHostedStyle),
 	}
 	if settings.AdditionalCA.Get() != "" {
-		data[AWSCERT] = settings.AdditionalCA.Get()
+		data[util.AWSCERT] = settings.AdditionalCA.Get()
 	}
 
 	var httpProxyConfig util.HTTPProxyConfig
@@ -314,16 +308,4 @@ func (h *TargetHandler) setConfiguredCondition(setting *harvesterv1.Setting, rea
 	// SetError with nil error will cleanup message in condition and set the status to true
 	harvesterv1.SettingConfigured.SetError(settingCpy, reason, err)
 	return h.settings.Update(settingCpy)
-}
-
-func ConstructEndpoint(target *settings.BackupTarget) string {
-	switch target.Type {
-	case settings.S3BackupType:
-		return fmt.Sprintf("s3://%s@%s/", target.BucketName, target.BucketRegion)
-	case settings.NFSBackupType:
-		// we allow users to input nfs:// prefix as optional
-		return fmt.Sprintf("nfs://%s", strings.TrimPrefix(target.Endpoint, "nfs://"))
-	default:
-		return target.Endpoint
-	}
 }
