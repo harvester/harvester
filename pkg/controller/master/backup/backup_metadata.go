@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -111,19 +110,7 @@ func (h *MetadataHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Se
 }
 
 func (h *MetadataHandler) syncVMBackup(target *settings.BackupTarget) error {
-	if target.Type == settings.S3BackupType {
-		secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
-		if err != nil {
-			return err
-		}
-		os.Setenv(AWSAccessKey, string(secret.Data[AWSAccessKey]))
-		os.Setenv(AWSSecretKey, string(secret.Data[AWSSecretKey]))
-		os.Setenv(AWSEndpoints, string(secret.Data[AWSEndpoints]))
-		os.Setenv(AWSCERT, string(secret.Data[AWSCERT]))
-	}
-
-	endpoint := ConstructEndpoint(target)
-	bsDriver, err := backupstore.GetBackupStoreDriver(endpoint)
+	bsDriver, err := util.GetBackupStoreDriver(h.secretCache, target)
 	if err != nil {
 		return err
 	}
