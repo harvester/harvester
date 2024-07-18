@@ -14,13 +14,11 @@ import (
 	"strconv"
 	"strings"
 
-	gocommon "github.com/harvester/go-common"
-	"github.com/longhorn/backupstore"
-	corev1 "k8s.io/api/core/v1"
-
 	// Although we don't use following drivers directly, we need to import them to register drivers.
 	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
 	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
+	gocommon "github.com/harvester/go-common"
+	"github.com/longhorn/backupstore"
 	_ "github.com/longhorn/backupstore/nfs" //nolint
 	_ "github.com/longhorn/backupstore/s3"  //nolint
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -31,13 +29,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
-	"github.com/harvester/harvester/pkg/controller/master/backup"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	storagenetworkctl "github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -504,9 +502,9 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 
 	if target.Type == settings.S3BackupType {
 		// Set OS environment variables for S3
-		os.Setenv(backup.AWSAccessKey, target.AccessKeyID)
-		os.Setenv(backup.AWSSecretKey, target.SecretAccessKey)
-		os.Setenv(backup.AWSEndpoints, target.Endpoint)
+		os.Setenv(util.AWSAccessKey, target.AccessKeyID)
+		os.Setenv(util.AWSSecretKey, target.SecretAccessKey)
+		os.Setenv(util.AWSEndpoints, target.Endpoint)
 		if err := v.customizeTransport(); err != nil {
 			return err
 		}
@@ -515,7 +513,7 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	// GetBackupStoreDriver tests whether the driver can List objects, so we don't need to do it again here.
 	// S3: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/s3/s3.go#L38-L87
 	// NFS: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/nfs/nfs.go#L46-L81
-	endpoint := backup.ConstructEndpoint(target)
+	endpoint := util.ConstructEndpoint(target)
 	if _, err := backupstore.GetBackupStoreDriver(endpoint); err != nil {
 		return werror.NewInvalidError(err.Error(), "value")
 	}
@@ -544,7 +542,7 @@ func (v *settingValidator) customizeTransport() error {
 		return fmt.Errorf("failed to get additional CA setting: %v", err)
 	}
 	if caSetting.Value != "" {
-		os.Setenv(backup.AWSCERT, caSetting.Value)
+		os.Setenv(util.AWSCERT, caSetting.Value)
 		if ok := certs.AppendCertsFromPEM([]byte(caSetting.Value)); !ok {
 			return fmt.Errorf("failed to append custom certificates: %v", caSetting.Value)
 		}

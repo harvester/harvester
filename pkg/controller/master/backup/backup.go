@@ -11,13 +11,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	"github.com/longhorn/backupstore"
 
 	// Although we don't use following drivers directly, we need to import them to register drivers.
 	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
@@ -788,18 +786,7 @@ func (h *Handler) deleteVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		return nil
 	}
 
-	if target.Type == settings.S3BackupType {
-		secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
-		if err != nil {
-			return err
-		}
-		os.Setenv(AWSAccessKey, string(secret.Data[AWSAccessKey]))
-		os.Setenv(AWSSecretKey, string(secret.Data[AWSSecretKey]))
-		os.Setenv(AWSEndpoints, string(secret.Data[AWSEndpoints]))
-		os.Setenv(AWSCERT, string(secret.Data[AWSCERT]))
-	}
-
-	bsDriver, err := backupstore.GetBackupStoreDriver(ConstructEndpoint(target))
+	bsDriver, err := util.GetBackupStoreDriver(h.secretCache, target)
 	if err != nil {
 		return err
 	}
@@ -834,18 +821,7 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		return nil
 	}
 
-	if target.Type == settings.S3BackupType {
-		secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
-		if err != nil {
-			return err
-		}
-		os.Setenv(AWSAccessKey, string(secret.Data[AWSAccessKey]))
-		os.Setenv(AWSSecretKey, string(secret.Data[AWSSecretKey]))
-		os.Setenv(AWSEndpoints, string(secret.Data[AWSEndpoints]))
-		os.Setenv(AWSCERT, string(secret.Data[AWSCERT]))
-	}
-
-	bsDriver, err := backupstore.GetBackupStoreDriver(ConstructEndpoint(target))
+	bsDriver, err := util.GetBackupStoreDriver(h.secretCache, target)
 	if err != nil {
 		return err
 	}
