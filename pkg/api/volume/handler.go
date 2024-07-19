@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -26,6 +25,7 @@ import (
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
@@ -43,8 +43,9 @@ type ActionHandler struct {
 	vmCache     ctlkubevirtv1.VirtualMachineCache
 }
 
-func (h *ActionHandler) Do(_ http.ResponseWriter, r *http.Request) (interface{}, error) {
-	vars := util.EncodeVars(mux.Vars(r))
+func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (interface{}, error) {
+	req := ctx.Req()
+	vars := util.EncodeVars(mux.Vars(req))
 	action := vars["action"]
 	pvcName := vars["name"]
 	pvcNamespace := vars["namespace"]
@@ -52,7 +53,7 @@ func (h *ActionHandler) Do(_ http.ResponseWriter, r *http.Request) (interface{},
 	switch action {
 	case actionExport:
 		var input ExportVolumeInput
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		if input.DisplayName == "" {
@@ -61,27 +62,27 @@ func (h *ActionHandler) Do(_ http.ResponseWriter, r *http.Request) (interface{},
 		if input.Namespace == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `namespace` is required")
 		}
-		return h.exportVolume(r.Context(), input.Namespace, input.DisplayName, input.StorageClassName, pvcNamespace, pvcName)
+		return h.exportVolume(req.Context(), input.Namespace, input.DisplayName, input.StorageClassName, pvcNamespace, pvcName)
 	case actionCancelExpand:
-		return nil, h.cancelExpand(r.Context(), pvcNamespace, pvcName)
+		return nil, h.cancelExpand(req.Context(), pvcNamespace, pvcName)
 	case actionClone:
 		var input CloneVolumeInput
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		if input.Name == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
 		}
-		return nil, h.clone(r.Context(), pvcNamespace, pvcName, input.Name)
+		return nil, h.clone(req.Context(), pvcNamespace, pvcName, input.Name)
 	case actionSnapshot:
 		var input SnapshotVolumeInput
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		if input.Name == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
 		}
-		return nil, h.snapshot(r.Context(), pvcNamespace, pvcName, input.Name)
+		return nil, h.snapshot(req.Context(), pvcNamespace, pvcName, input.Name)
 	default:
 		return nil, apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}

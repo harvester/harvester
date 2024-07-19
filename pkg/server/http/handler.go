@@ -10,7 +10,7 @@ import (
 )
 
 type HarvesterServerHandler interface {
-	Do(_ http.ResponseWriter, r *http.Request) (interface{}, error)
+	Do(ctx *Ctx) (interface{}, error)
 }
 
 type harvesterServerHandler struct {
@@ -24,7 +24,8 @@ func NewHandler(httpHandler HarvesterServerHandler) http.Handler {
 }
 
 func (handler *harvesterServerHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	resp, err := handler.httpHandler.Do(rw, req)
+	ctx := newDefaultHarvesterServerCtx(rw, req)
+	resp, err := handler.httpHandler.Do(ctx)
 	if err != nil {
 		status := http.StatusInternalServerError
 		var e *apierror.APIError
@@ -37,12 +38,7 @@ func (handler *harvesterServerHandler) ServeHTTP(rw http.ResponseWriter, req *ht
 	}
 
 	if resp == nil {
-		rw.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	if resp == util.EmptyResponseBody {
-		util.ResponseOK(rw)
+		rw.WriteHeader(ctx.statusCode)
 		return
 	}
 
