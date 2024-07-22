@@ -32,3 +32,27 @@ pull_request_rules:
       assignees:
         - "{{ author }}"
 
+- name: Automatically merge Renovate PRs
+  conditions:
+  - check-success="Build binaries (x64)"
+  - check-success="Build binaries (arm64)"
+  - author = renovate[bot]
+  actions:
+    merge:
+      method: rebase
+
+- name: Automatically approve Renovate PRs
+  conditions:
+  - check-success="Build binaries (x64)"
+  - check-success="Build binaries (arm64)"
+  - author = renovate[bot]
+  actions:
+    review:
+      type: APPROVE
+
+- name: Ask to resolve conflict
+  conditions:
+  - conflict
+  actions:
+    comment:
+      message: This pull request is now in conflict. Could you fix it @{{author}}? 🙏
