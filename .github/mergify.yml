@@ -1,0 +1,58 @@
+pull_request_rules:
+- name: Automatically open v1.4 backport PR
+  conditions:
+    - base=master
+    - label="backport-to/v1.4"
+  actions:
+    backport:
+      branches:
+        - v1.4
+      assignees:
+        - "{{ author }}"
+
+- name: Automatically open v1.3 backport PR
+  conditions:
+    - base=master
+    - label="backport-to/v1.3"
+  actions:
+    backport:
+      branches:
+        - v1.3
+      assignees:
+        - "{{ author }}"
+
+- name: Automatically open v1.2 backport PR
+  conditions:
+    - base=master
+    - label="backport-to/v1.2"
+  actions:
+    backport:
+      branches:
+        - v1.2
+      assignees:
+        - "{{ author }}"
+
+- name: Automatically merge Renovate PRs
+  conditions:
+  - check-success="Build binaries (x64)"
+  - check-success="Build binaries (arm64)"
+  - author = renovate[bot]
+  actions:
+    merge:
+      method: rebase
+
+- name: Automatically approve Renovate PRs
+  conditions:
+  - check-success="Build binaries (x64)"
+  - check-success="Build binaries (arm64)"
+  - author = renovate[bot]
+  actions:
+    review:
+      type: APPROVE
+
+- name: Ask to resolve conflict
+  conditions:
+  - conflict
+  actions:
+    comment:
+      message: This pull request is now in conflict. Could you fix it @{{author}}? 🙏
