@@ -8,7 +8,6 @@ import (
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -18,6 +17,7 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
 	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
@@ -32,11 +32,13 @@ func NewValidator(
 	rqCache ctlharvestercorev1.ResourceQuotaCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
 	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
+	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 ) types.Validator {
 	return &vmValidator{
 		pvcCache:      pvcCache,
 		vmBackupCache: vmBackupCache,
+		vmCache:       vmCache,
 		vmiCache:      vmiCache,
 
 		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache),
@@ -47,6 +49,7 @@ type vmValidator struct {
 	types.DefaultValidator
 	pvcCache      v1.PersistentVolumeClaimCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
+	vmCache       ctlkubevirtv1.VirtualMachineCache
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
 
 	rqCalculator *resourcequota.Calculator
@@ -211,25 +214,15 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 }
 
 func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
-	vmID := ref.Construct(vm.Namespace, vm.Name)
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim != nil {
-			pvc, err := v.pvcCache.Get(vm.Namespace, volume.PersistentVolumeClaim.ClaimName)
+			vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(vm.Namespace, volume.PersistentVolumeClaim.ClaimName))
 			if err != nil {
-				if apierrors.IsNotFound(err) {
-					continue
-				}
-				return werror.NewInternalError(err.Error())
+				return werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, vm.Namespace, volume.PersistentVolumeClaim.ClaimName, err))
 			}
-			owners, err := ref.GetSchemaOwnersFromAnnotation(pvc)
-			if err != nil {
-				return werror.NewInvalidError(err.Error(), "spec.templates.spec.volumes")
-			}
-			ids := owners.List(kubevirtv1.VirtualMachineGroupVersionKind.GroupKind())
-
-			for _, id := range ids {
-				if id != vmID {
-					message := fmt.Sprintf("the volume %s is already used by VM %s", volume.PersistentVolumeClaim.ClaimName, id)
+			for _, otherVM := range vms {
+				if otherVM.Namespace != vm.Namespace || otherVM.Name != vm.Name {
+					message := fmt.Sprintf("the volume %s is already used by VM %s/%s", volume.PersistentVolumeClaim.ClaimName, otherVM.Namespace, otherVM.Name)
 					return werror.NewInvalidError(message, "spec.templates.spec.volumes")
 				}
 			}

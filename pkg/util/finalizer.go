@@ -35,3 +35,7 @@ func RemoveFinalizer(obj metav1.Object, finalizer string) {
 		obj.SetFinalizers(newFinalizers)
 	}
 }
+
+func GetWranglerFinalizerName(controllerName string) string {
+	return "wrangler.cattle.io/" + controllerName
+}
