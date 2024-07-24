@@ -16,6 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
+	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -23,21 +24,25 @@ const (
 	fieldCron          = "spec.cron"
 	fieldMaxFailure    = "spec.maxFailure"
 	fieldResumeRequest = "spec.resumeRequest"
+	fieldVMBackup      = "spec.vmbackup"
 )
 
 type scheuldeVMBackupValidator struct {
 	types.DefaultValidator
-	settingCache ctlharvesterv1.SettingCache
-	secretCache  ctlv1.SecretCache
+	settingCache   ctlharvesterv1.SettingCache
+	secretCache    ctlv1.SecretCache
+	svmbackupCache ctlharvesterv1.ScheduleVMBackupCache
 }
 
 func NewValidator(
 	settingCache ctlharvesterv1.SettingCache,
 	secretCache ctlv1.SecretCache,
+	svmbackupCache ctlharvesterv1.ScheduleVMBackupCache,
 ) types.Validator {
 	return &scheuldeVMBackupValidator{
-		settingCache: settingCache,
-		secretCache:  secretCache,
+		settingCache:   settingCache,
+		secretCache:    secretCache,
+		svmbackupCache: svmbackupCache,
 	}
 }
 
@@ -106,6 +111,20 @@ func (v *scheuldeVMBackupValidator) Create(_ *types.Request, newObj runtime.Obje
 		return werror.NewInvalidError("invalid cron format", fieldCron)
 	}
 
+	srcVM := fmt.Sprintf("%s/%s", newSVMBackup.Namespace, newSVMBackup.Spec.VMBackupSpec.Source.Name)
+	svmbackups, err := v.svmbackupCache.GetByIndex(indexeres.ScheduleVMBackupBySourceVM, srcVM)
+	if err != nil {
+		return err
+	}
+
+	if len(svmbackups) != 0 {
+		return werror.NewInvalidError(fmt.Sprintf("VM %s already has backup schedule", srcVM), fieldVMBackup)
+	}
+
+	if newSVMBackup.Spec.VMBackupSpec.Type == v1beta1.Snapshot {
+		return nil
+	}
+
 	if err := v.checkTargetHealth(); err != nil {
 		return werror.NewInvalidError(err.Error(), fieldResumeRequest)
 	}
@@ -129,10 +148,17 @@ func (v *scheuldeVMBackupValidator) Update(_ *types.Request, oldObj runtime.Obje
 		return werror.NewInvalidError("invalid cron format", fieldCron)
 	}
 
-	if !oldSVMBackup.Spec.ResumeRequest && newSVMBackup.Spec.ResumeRequest {
-		if err := v.checkTargetHealth(); err != nil {
-			return werror.NewInvalidError(err.Error(), fieldResumeRequest)
-		}
+	//ResumeRequest is not updated as true
+	if oldSVMBackup.Spec.ResumeRequest || !newSVMBackup.Spec.ResumeRequest {
+		return nil
+	}
+
+	if newSVMBackup.Spec.VMBackupSpec.Type == v1beta1.Snapshot {
+		return nil
+	}
+
+	if err := v.checkTargetHealth(); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldResumeRequest)
 	}
 
 	return nil

@@ -122,7 +122,9 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		version.NewValidator(),
 		schedulevmbackup.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
-			clients.Core.Secret().Cache()),
+			clients.Core.Secret().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache(),
+		),
 	}
 
 	router := webhook.NewRouter()
