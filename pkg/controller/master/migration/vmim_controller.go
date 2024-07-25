@@ -27,6 +27,7 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 	if vmim == nil {
 		return nil, nil
 	}
+
 	vmi, err := h.vmiCache.Get(vmim.Namespace, vmim.Spec.VMIName)
 	if err != nil {
 		return vmim, err
@@ -39,7 +40,8 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 
 	abortRequested := isAbortRequest(vmim)
 
-	logrus.Debugf("syncing vmim for migration annotation, phase: %v,abortRequested: %v", vmim.Status.Phase, abortRequested)
+	// debug log shows, after vmim was deleted, the OnChange here may be called two times
+	logrus.Debugf("syncing vmim %s/%s/%s phase %v abortRequested %v deleted %t", vmim.Namespace, vmim.Name, vmi.Name, vmim.Status.Phase, abortRequested, vmim.DeletionTimestamp != nil)
 	if vmim.Status.Phase == kubevirtv1.MigrationPending && !abortRequested {
 		return vmim, h.scaleResourceQuota(vmi)
 	} else if vmim.Status.Phase != kubevirtv1.MigrationFailed && abortRequested {
@@ -49,7 +51,11 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 	} else if vmi.Annotations[util.AnnotationMigrationUID] == string(vmim.UID) && vmim.Status.Phase == kubevirtv1.MigrationFailed {
 		// There are cases when VMIM failed but the status is not reported in VMI.status.migrationState
 		// https://github.com/kubevirt/kubevirt/issues/5503
-		return vmim, h.resetHarvesterMigrationStateInVMI(vmi)
+		if err := h.resetHarvesterMigrationStateInVmiAndSyncVM(vmi); err != nil {
+			logrus.Infof("vmim %s/%s/%s has MigrationFailed but fail to reset vmi state %s", vmim.Namespace, vmim.Name, vmi.Name, err.Error())
+			return vmim, err
+		}
+		return vmim, nil
 	}
 	return vmim, nil
 }
@@ -221,4 +227,20 @@ func isAbortRequest(vmim *kubevirtv1.VirtualMachineInstanceMigration) bool {
 		}
 	}
 	return false
+}
+
+// https://github.com/harvester/harvester/issues/6193
+// The UI VM page is anchored on VM object, only when VM object's resorceVersion is changed
+// then UI will update the VM action menu
+// VM's migration is done mainly between vmi and vmim
+// Propagate the changes to VM when necessary to keep UI updated
+func (h *Handler) resetHarvesterMigrationStateInVmiAndSyncVM(vmi *kubevirtv1.VirtualMachineInstance) error {
+	if err := h.resetHarvesterMigrationStateInVMI(vmi); err != nil {
+		return fmt.Errorf("fail to reset vmi migration %w", err)
+	}
+	// without syncing VM, the UI may still show the actions deduced from old VM/VMI status combination
+	if err := h.syncVM(vmi); err != nil {
+		return fmt.Errorf("fail to reset vmi migration to vm %w", err)
+	}
+	return nil
 }
