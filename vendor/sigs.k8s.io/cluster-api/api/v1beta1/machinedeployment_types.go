@@ -121,10 +121,8 @@ type MachineDeploymentSpec struct {
 	// +optional
 	Strategy *MachineDeploymentStrategy `json:"strategy,omitempty"`
 
-	// Minimum number of seconds for which a newly created machine should
-	// be ready.
-	// Defaults to 0 (machine will be considered available as soon as it
-	// is ready)
+	// MinReadySeconds is the minimum number of seconds for which a Node for a newly created machine should be ready before considering the replica available.
+	// Defaults to 0 (machine will be considered available as soon as the Node is ready)
 	// +optional
 	MinReadySeconds *int32 `json:"minReadySeconds,omitempty"`
 
@@ -154,8 +152,8 @@ type MachineDeploymentSpec struct {
 // MachineDeploymentStrategy describes how to replace existing machines
 // with new ones.
 type MachineDeploymentStrategy struct {
-	// Type of deployment.
-	// Default is RollingUpdate.
+	// Type of deployment. Allowed values are RollingUpdate and OnDelete.
+	// The default is RollingUpdate.
 	// +kubebuilder:validation:Enum=RollingUpdate;OnDelete
 	// +optional
 	Type MachineDeploymentStrategyType `json:"type,omitempty"`
@@ -339,7 +337,7 @@ type MachineDeploymentList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&MachineDeployment{}, &MachineDeploymentList{})
+	objectTypes = append(objectTypes, &MachineDeployment{}, &MachineDeploymentList{})
 }
 
 // GetConditions returns the set of conditions for the machinedeployment.

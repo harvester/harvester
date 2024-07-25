@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"strings"
 
-	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
+	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -455,6 +455,42 @@ func DeleteAll(kv *v1.KubeVirt,
 				if err != nil {
 					expectations.Route.DeletionObserved(kvkey, key)
 					log.Log.Errorf("Failed to delete route %+v: %v", route, err)
+					return err
+				}
+			}
+		} else if !ok {
+			log.Log.Errorf(castFailedFmt, obj)
+			return nil
+		}
+	}
+
+	objects = stores.ValidatingAdmissionPolicyBindingCache.List()
+	for _, obj := range objects {
+		if validatingAdmissionPolicyBinding, ok := obj.(*admissionregistrationv1.ValidatingAdmissionPolicyBinding); ok && validatingAdmissionPolicyBinding.DeletionTimestamp == nil {
+			if key, err := controller.KeyFunc(validatingAdmissionPolicyBinding); err == nil {
+				expectations.ValidatingAdmissionPolicyBinding.AddExpectedDeletion(kvkey, key)
+				err := clientset.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Delete(context.Background(), validatingAdmissionPolicyBinding.Name, deleteOptions)
+				if err != nil {
+					expectations.ValidatingAdmissionPolicyBinding.DeletionObserved(kvkey, key)
+					log.Log.Errorf("Failed to delete validatingAdmissionPolicyBinding %+v: %v", validatingAdmissionPolicyBinding, err)
+					return err
+				}
+			}
+		} else if !ok {
+			log.Log.Errorf(castFailedFmt, obj)
+			return nil
+		}
+	}
+
+	objects = stores.ValidatingAdmissionPolicyCache.List()
+	for _, obj := range objects {
+		if validatingAdmissionPolicy, ok := obj.(*admissionregistrationv1.ValidatingAdmissionPolicy); ok && validatingAdmissionPolicy.DeletionTimestamp == nil {
+			if key, err := controller.KeyFunc(validatingAdmissionPolicy); err == nil {
+				expectations.ValidatingAdmissionPolicy.AddExpectedDeletion(kvkey, key)
+				err := clientset.AdmissionregistrationV1().ValidatingAdmissionPolicies().Delete(context.Background(), validatingAdmissionPolicy.Name, deleteOptions)
+				if err != nil {
+					expectations.ValidatingAdmissionPolicy.DeletionObserved(kvkey, key)
+					log.Log.Errorf("Failed to delete validatingAdmissionPolicy %+v: %v", validatingAdmissionPolicy, err)
 					return err
 				}
 			}

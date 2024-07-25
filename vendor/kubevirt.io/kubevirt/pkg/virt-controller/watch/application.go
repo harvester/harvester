@@ -21,6 +21,7 @@ package watch
 
 import (
 	"context"
+	"crypto/tls"
 	golog "log"
 	"net/http"
 	"os"
@@ -33,9 +34,6 @@ import (
 
 	containerdisk "kubevirt.io/kubevirt/pkg/container-disk"
 	kvtls "kubevirt.io/kubevirt/pkg/util/tls"
-
-	"kubevirt.io/kubevirt/pkg/monitoring/migration"
-	"kubevirt.io/kubevirt/pkg/monitoring/migrationstats"
 
 	clonev1alpha1 "kubevirt.io/api/clone/v1alpha1"
 
@@ -65,9 +63,9 @@ import (
 	"kubevirt.io/kubevirt/pkg/healthz"
 	"kubevirt.io/kubevirt/pkg/monitoring/profiler"
 
-	exportv1 "kubevirt.io/api/export/v1alpha1"
+	exportv1 "kubevirt.io/api/export/v1beta1"
 	poolv1 "kubevirt.io/api/pool/v1alpha1"
-	snapshotv1 "kubevirt.io/api/snapshot/v1alpha1"
+	snapshotv1 "kubevirt.io/api/snapshot/v1beta1"
 	"kubevirt.io/client-go/kubecli"
 	"kubevirt.io/client-go/log"
 	clientutil "kubevirt.io/client-go/util"
@@ -76,10 +74,8 @@ import (
 	"kubevirt.io/kubevirt/pkg/controller"
 	clusterutil "kubevirt.io/kubevirt/pkg/util/cluster"
 
-	"kubevirt.io/kubevirt/pkg/monitoring/perfscale"
-	"kubevirt.io/kubevirt/pkg/monitoring/virt-controller/metrics"
-	vmiprom "kubevirt.io/kubevirt/pkg/monitoring/vmistats" // import for prometheus metrics
-	vmprom "kubevirt.io/kubevirt/pkg/monitoring/vmstats"
+	clientmetrics "kubevirt.io/kubevirt/pkg/monitoring/metrics/common/client"
+	metrics "kubevirt.io/kubevirt/pkg/monitoring/metrics/virt-controller"
 	"kubevirt.io/kubevirt/pkg/service"
 	"kubevirt.io/kubevirt/pkg/storage/export/export"
 	"kubevirt.io/kubevirt/pkg/storage/snapshot"
@@ -102,6 +98,8 @@ const (
 	launcherImage       = "virt-launcher"
 	exporterImage       = "virt-exportserver"
 	launcherQemuTimeout = 240
+
+	migrationControllerRestTimeout = 30 * time.Second
 
 	imagePullSecret = ""
 
@@ -168,10 +166,11 @@ type VirtControllerApp struct {
 
 	controllerRevisionInformer cache.SharedIndexInformer
 
-	dataVolumeInformer cache.SharedIndexInformer
-	dataSourceInformer cache.SharedIndexInformer
-	cdiInformer        cache.SharedIndexInformer
-	cdiConfigInformer  cache.SharedIndexInformer
+	dataVolumeInformer     cache.SharedIndexInformer
+	dataSourceInformer     cache.SharedIndexInformer
+	storageProfileInformer cache.SharedIndexInformer
+	cdiInformer            cache.SharedIndexInformer
+	cdiConfigInformer      cache.SharedIndexInformer
 
 	migrationController *MigrationController
 	migrationInformer   cache.SharedIndexInformer
@@ -266,8 +265,6 @@ func init() {
 	utilruntime.Must(exportv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(poolv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(clonev1alpha1.AddToScheme(scheme.Scheme))
-
-	metrics.SetupMetrics()
 }
 
 func Execute() {
@@ -283,6 +280,7 @@ func Execute() {
 	log.InitializeLogging("virt-controller")
 
 	app.reloadableRateLimiter = ratelimiter.NewReloadableRateLimiter(flowcontrol.NewTokenBucketRateLimiter(virtconfig.DefaultVirtControllerQPS, virtconfig.DefaultVirtControllerBurst))
+	clientmetrics.RegisterRestConfigHooks()
 	clientConfig, err := kubecli.GetKubevirtClientConfig()
 	if err != nil {
 		panic(err)
@@ -387,6 +385,7 @@ func Execute() {
 		app.cdiInformer = app.informerFactory.CDI()
 		app.cdiConfigInformer = app.informerFactory.CDIConfig()
 		app.dataSourceInformer = app.informerFactory.DataSource()
+		app.storageProfileInformer = app.informerFactory.StorageProfile()
 		log.Log.Infof("CDI detected, DataVolume integration enabled")
 	} else {
 		// Add a dummy DataVolume informer in the event datavolume support
@@ -396,6 +395,7 @@ func Execute() {
 		app.cdiInformer = app.informerFactory.DummyCDI()
 		app.cdiConfigInformer = app.informerFactory.DummyCDIConfig()
 		app.dataSourceInformer = app.informerFactory.DummyDataSource()
+		app.storageProfileInformer = app.informerFactory.DummyStorageProfile()
 		log.Log.Infof("CDI not detected, DataVolume integration disabled")
 	}
 
@@ -421,6 +421,19 @@ func Execute() {
 	app.clusterPreferenceInformer = app.informerFactory.VirtualMachineClusterPreference()
 
 	app.onOpenshift = onOpenShift
+
+	if err := metrics.SetupMetrics(
+		app.vmInformer,
+		app.vmiInformer,
+		app.clusterInstancetypeInformer,
+		app.instancetypeInformer,
+		app.clusterPreferenceInformer,
+		app.preferenceInformer,
+		app.migrationInformer,
+		app.clusterConfig,
+	); err != nil {
+		golog.Fatal(err)
+	}
 
 	app.initCommon()
 	app.initReplicaSet()
@@ -487,6 +500,9 @@ func (vca *VirtControllerApp) Run() {
 			Addr:      vca.Address(),
 			Handler:   http.DefaultServeMux,
 			TLSConfig: promTLSConfig,
+			// Disable HTTP/2
+			// See CVE-2023-44487
+			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
 		}
 		if err := server.ListenAndServeTLS("", ""); err != nil {
 			golog.Fatal(err)
@@ -514,20 +530,19 @@ func (vca *VirtControllerApp) onStartedLeading() func(ctx context.Context) {
 			vca.vmControllerThreads, vca.migrationControllerThreads, vca.evacuationControllerThreads,
 			vca.disruptionBudgetControllerThreads)
 
-		vmiprom.SetupVMICollector(
-			vca.vmiInformer,
-			vca.clusterInstancetypeInformer, vca.instancetypeInformer,
-			vca.clusterPreferenceInformer, vca.preferenceInformer,
-			vca.clusterConfig,
-		)
-		vmprom.SetupVMCollector(vca.vmInformer)
-		perfscale.RegisterPerfScaleMetrics(vca.vmiInformer)
+		if err := metrics.AddVMIPhaseTransitionHandlers(vca.vmiInformer); err != nil {
+			golog.Fatalf("failed to add vmi phase transition handler: %v", err)
+		}
+
 		if vca.migrationInformer == nil {
 			vca.migrationInformer = vca.informerFactory.VirtualMachineInstanceMigration()
+			metrics.UpdateVMIMigrationInformer(vca.migrationInformer)
 		}
 		golog.Printf("\nvca.migrationInformer :%v\n", vca.migrationInformer)
-		migration.RegisterMigrationMetrics(vca.migrationInformer)
-		migrationstats.SetupMigrationsCollector(vca.migrationInformer)
+
+		if err := metrics.CreateVMIMigrationHandler(vca.migrationInformer); err != nil {
+			golog.Fatalf("failed to add vmi phase transition time handler: %v", err)
+		}
 
 		go vca.evacuationController.Run(vca.evacuationControllerThreads, stop)
 		go vca.disruptionBudgetController.Run(vca.disruptionBudgetControllerThreads, stop)
@@ -600,10 +615,7 @@ func (vca *VirtControllerApp) initCommon() {
 			func(vmi *v1.VirtualMachineInstance, _ *v1.KubeVirtConfiguration) (hooks.HookSidecarList, error) {
 				return hooks.UnmarshalHookSidecarList(vmi)
 			}),
-		services.WithSidecarCreator(
-			func(vmi *v1.VirtualMachineInstance, kvc *v1.KubeVirtConfiguration) (hooks.HookSidecarList, error) {
-				return netbinding.NetBindingPluginSidecarList(vmi, kvc, vca.vmiRecorder)
-			}),
+		services.WithSidecarCreator(netbinding.NetBindingPluginSidecarList),
 	)
 
 	topologyHinter := topology.NewTopologyHinter(vca.nodeInformer.GetStore(), vca.vmiInformer.GetStore(), vca.clusterConfig)
@@ -613,9 +625,11 @@ func (vca *VirtControllerApp) initCommon() {
 		vca.vmInformer,
 		vca.kvPodInformer,
 		vca.persistentVolumeClaimInformer,
+		vca.storageClassInformer,
 		vca.vmiRecorder,
 		vca.clientSet,
 		vca.dataVolumeInformer,
+		vca.storageProfileInformer,
 		vca.cdiInformer,
 		vca.cdiConfigInformer,
 		vca.clusterConfig,
@@ -630,6 +644,11 @@ func (vca *VirtControllerApp) initCommon() {
 	if err != nil {
 		panic(err)
 	}
+	// Adding a timeout to the clientSet of the migration controller, to avoid potential deadlocks
+	clientSet, err := vca.clientSet.SetRestTimeout(migrationControllerRestTimeout)
+	if err != nil {
+		panic(err)
+	}
 	vca.migrationController, err = NewMigrationController(
 		vca.templateService,
 		vca.vmiInformer,
@@ -641,7 +660,7 @@ func (vca *VirtControllerApp) initCommon() {
 		vca.migrationPolicyInformer,
 		vca.resourceQuotaInformer,
 		vca.vmiRecorder,
-		vca.clientSet,
+		clientSet,
 		vca.clusterConfig,
 	)
 	if err != nil {
@@ -742,7 +761,7 @@ func (vca *VirtControllerApp) initWorkloadUpdaterController() {
 
 func (vca *VirtControllerApp) initEvacuationController() {
 	var err error
-	recorder := vca.newRecorder(k8sv1.NamespaceAll, "disruptionbudget-controller")
+	recorder := vca.newRecorder(k8sv1.NamespaceAll, "evacuation-controller")
 	vca.evacuationController, err = evacuation.NewEvacuationController(
 		vca.vmiInformer,
 		vca.migrationInformer,
@@ -839,7 +858,7 @@ func (vca *VirtControllerApp) initCloneController() {
 	var err error
 	recorder := vca.newRecorder(k8sv1.NamespaceAll, "clone-controller")
 	vca.vmCloneController, err = clone.NewVmCloneController(
-		vca.clientSet, vca.vmCloneInformer, vca.vmSnapshotInformer, vca.vmRestoreInformer, vca.vmInformer, vca.vmSnapshotContentInformer, recorder,
+		vca.clientSet, vca.vmCloneInformer, vca.vmSnapshotInformer, vca.vmRestoreInformer, vca.vmInformer, vca.vmSnapshotContentInformer, vca.persistentVolumeClaimInformer, recorder,
 	)
 	if err != nil {
 		panic(err)
@@ -974,12 +993,12 @@ func (vca *VirtControllerApp) setupLeaderElector() (err error) {
 
 	rl, err := resourcelock.New(vca.LeaderElection.ResourceLock,
 		vca.kubevirtNamespace,
-		leaderelectionconfig.DefaultEndpointName,
+		leaderelectionconfig.DefaultLeaseName,
 		clientSet.CoreV1(),
 		clientSet.CoordinationV1(),
 		resourcelock.ResourceLockConfig{
 			Identity:      vca.host,
-			EventRecorder: vca.newRecorder(k8sv1.NamespaceAll, leaderelectionconfig.DefaultEndpointName),
+			EventRecorder: vca.newRecorder(k8sv1.NamespaceAll, leaderelectionconfig.DefaultLeaseName),
 		})
 
 	if err != nil {
