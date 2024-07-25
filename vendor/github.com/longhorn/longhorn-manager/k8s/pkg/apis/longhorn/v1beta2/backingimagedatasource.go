@@ -8,7 +8,7 @@ const (
 	DataSourceTypeExportParameterVolumeName = "volume-name"
 )
 
-// +kubebuilder:validation:Enum=download;upload;export-from-volume;restore
+// +kubebuilder:validation:Enum=download;upload;export-from-volume;restore;clone
 type BackingImageDataSourceType string
 
 const (
@@ -16,6 +16,7 @@ const (
 	BackingImageDataSourceTypeUpload           = BackingImageDataSourceType("upload")
 	BackingImageDataSourceTypeExportFromVolume = BackingImageDataSourceType("export-from-volume")
 	BackingImageDataSourceTypeRestore          = BackingImageDataSourceType("restore")
+	BackingImageDataSourceTypeClone            = BackingImageDataSourceType("clone")
 
 	DataSourceTypeExportFromVolumeParameterVolumeName                = "volume-name"
 	DataSourceTypeExportFromVolumeParameterVolumeSize                = "volume-size"
@@ -24,6 +25,11 @@ const (
 	DataSourceTypeExportFromVolumeParameterFileSyncHTTPClientTimeout = "file-sync-http-client-timeout"
 	DataSourceTypeRestoreParameterBackupURL                          = "backup-url"
 	DataSourceTypeRestoreParameterConcurrentLimit                    = "concurrent-limit"
+	DataSourceTypeCloneParameterBackingImage                         = "backing-image"
+	DataSourceTypeCloneParameterBackingImageUUID                     = "backing-image-uuid"
+	DataSourceTypeCloneParameterEncryption                           = "encryption"
+	DataSourceTypeCloneParameterSecret                               = "secret"
+	DataSourceTypeCloneParameterSecretNamespace                      = "secret-namespace"
 )
 
 // BackingImageDataSourceSpec defines the desired state of the Longhorn backing image data source

@@ -96,6 +96,10 @@ type VolumeCloneStatus struct {
 	Snapshot string `json:"snapshot"`
 	// +optional
 	State VolumeCloneState `json:"state"`
+	// +optional
+	AttemptCount int `json:"attemptCount"`
+	// +optional
+	NextAllowedAttemptAt string `json:"nextAllowedAttemptAt"`
 }
 
 const (
@@ -158,6 +162,15 @@ const (
 	ReplicaDiskSoftAntiAffinityDefault  = ReplicaDiskSoftAntiAffinity("ignored")
 	ReplicaDiskSoftAntiAffinityEnabled  = ReplicaDiskSoftAntiAffinity("enabled")
 	ReplicaDiskSoftAntiAffinityDisabled = ReplicaDiskSoftAntiAffinity("disabled")
+)
+
+// +kubebuilder:validation:Enum=ignored;enabled;disabled
+type FreezeFilesystemForSnapshot string
+
+const (
+	FreezeFilesystemForSnapshotDefault  = FreezeFilesystemForSnapshot("ignored")
+	FreezeFilesystemForSnapshotEnabled  = FreezeFilesystemForSnapshot("enabled")
+	FreezeFilesystemForSnapshotDisabled = FreezeFilesystemForSnapshot("disabled")
 )
 
 // Deprecated.
@@ -298,6 +311,9 @@ type VolumeSpec struct {
 	// +kubebuilder:validation:Type=string
 	// +optional
 	SnapshotMaxSize int64 `json:"snapshotMaxSize,string"`
+	// Setting that freezes the filesystem on the root partition before a snapshot is created.
+	// +optional
+	FreezeFilesystemForSnapshot FreezeFilesystemForSnapshot `json:"freezeFilesystemForSnapshot"`
 }
 
 // VolumeStatus defines the observed state of the Longhorn volume

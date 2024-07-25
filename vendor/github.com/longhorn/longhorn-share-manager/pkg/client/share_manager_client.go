@@ -3,11 +3,12 @@ package client
 import (
 	"context"
 
+	rpc "github.com/longhorn/types/pkg/generated/smrpc"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	rpc "github.com/longhorn/longhorn-share-manager/pkg/rpc"
 	"github.com/longhorn/longhorn-share-manager/pkg/types"
 )
 
@@ -18,7 +19,7 @@ type ShareManagerClient struct {
 }
 
 func NewShareManagerClient(address string) (*ShareManagerClient, error) {
-	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to connect share manager service to %v", address)
 	}

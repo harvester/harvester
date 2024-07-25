@@ -1,7 +1,7 @@
 package api
 
 import (
-	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 )
 
 type Process struct {

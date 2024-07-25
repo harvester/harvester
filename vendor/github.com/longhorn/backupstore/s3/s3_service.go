@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -13,9 +14,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/pkg/errors"
+
+	bhttp "github.com/longhorn/backupstore/http"
 )
 
-type Service struct {
+type service struct {
 	Region string
 	Bucket string
 	Client *http.Client
@@ -25,7 +28,28 @@ const (
 	VirtualHostedStyle = "VIRTUAL_HOSTED_STYLE"
 )
 
-func (s *Service) New() (*s3.S3, error) {
+func newService(u *url.URL) (*service, error) {
+	s := service{}
+	if u.User != nil {
+		s.Region = u.Host
+		s.Bucket = u.User.Username()
+	} else {
+		//We would depends on AWS_REGION environment variable
+		s.Bucket = u.Host
+	}
+
+	// add custom ca to http client that is used by s3 service
+	customCerts := getCustomCerts()
+	client, err := bhttp.GetClientWithCustomCerts(customCerts)
+	if err != nil {
+		return nil, err
+	}
+	s.Client = client
+
+	return &s, nil
+}
+
+func (s *service) newInstance() (*s3.S3, error) {
 	// get custom endpoint
 	endpoints := os.Getenv("AWS_ENDPOINTS")
 	config := &aws.Config{Region: &s.Region, MaxRetries: aws.Int(3)}
@@ -58,7 +82,7 @@ func (s *Service) New() (*s3.S3, error) {
 	return s3.New(ses), nil
 }
 
-func (s *Service) Close() {
+func (s *service) Close() {
 }
 
 func parseAwsError(err error) error {
@@ -72,8 +96,8 @@ func parseAwsError(err error) error {
 	return err
 }
 
-func (s *Service) ListObjects(key, delimiter string) ([]*s3.Object, []*s3.CommonPrefix, error) {
-	svc, err := s.New()
+func (s *service) ListObjects(key, delimiter string) ([]*s3.Object, []*s3.CommonPrefix, error) {
+	svc, err := s.newInstance()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -102,8 +126,8 @@ func (s *Service) ListObjects(key, delimiter string) ([]*s3.Object, []*s3.Common
 	return objects, commonPrefixs, nil
 }
 
-func (s *Service) HeadObject(key string) (*s3.HeadObjectOutput, error) {
-	svc, err := s.New()
+func (s *service) HeadObject(key string) (*s3.HeadObjectOutput, error) {
+	svc, err := s.newInstance()
 	if err != nil {
 		return nil, err
 	}
@@ -120,8 +144,8 @@ func (s *Service) HeadObject(key string) (*s3.HeadObjectOutput, error) {
 	return resp, nil
 }
 
-func (s *Service) PutObject(key string, reader io.ReadSeeker) error {
-	svc, err := s.New()
+func (s *service) PutObject(key string, reader io.ReadSeeker) error {
+	svc, err := s.newInstance()
 	if err != nil {
 		return err
 	}
@@ -149,8 +173,8 @@ func (s *Service) PutObject(key string, reader io.ReadSeeker) error {
 	return nil
 }
 
-func (s *Service) GetObject(key string) (io.ReadCloser, error) {
-	svc, err := s.New()
+func (s *service) GetObject(key string) (io.ReadCloser, error) {
+	svc, err := s.newInstance()
 	if err != nil {
 		return nil, err
 	}
@@ -170,14 +194,14 @@ func (s *Service) GetObject(key string) (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-func (s *Service) DeleteObjects(key string) error {
+func (s *service) DeleteObjects(key string) error {
 
 	objects, _, err := s.ListObjects(key, "")
 	if err != nil {
 		return errors.Wrapf(err, "failed to list objects with prefix %v before removing them", key)
 	}
 
-	svc, err := s.New()
+	svc, err := s.newInstance()
 	if err != nil {
 		return errors.Wrap(err, "failed to get a new s3 client instance before removing objects")
 	}

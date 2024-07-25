@@ -1,13 +1,15 @@
 package engineapi
 
 import (
+	etypes "github.com/longhorn/longhorn-engine/pkg/types"
+
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
-func (p *Proxy) ReplicaAdd(e *longhorn.Engine, replicaName, replicaAddress string, restore, fastSync bool, replicaFileSyncHTTPClientTimeout int64) (err error) {
+func (p *Proxy) ReplicaAdd(e *longhorn.Engine, replicaName, replicaAddress string, restore, fastSync bool, localSync *etypes.FileLocalSync, replicaFileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) (err error) {
 	return p.grpcClient.ReplicaAdd(string(e.Spec.DataEngine), e.Name, e.Spec.VolumeName, p.DirectToURL(e),
 		replicaName, replicaAddress, restore, e.Spec.VolumeSize, e.Status.CurrentSize,
-		int(replicaFileSyncHTTPClientTimeout), fastSync)
+		int(replicaFileSyncHTTPClientTimeout), fastSync, localSync, grpcTimeoutSeconds)
 }
 
 func (p *Proxy) ReplicaRemove(e *longhorn.Engine, address string) (err error) {

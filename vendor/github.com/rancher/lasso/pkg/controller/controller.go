@@ -101,6 +101,10 @@ func applyDefaultOptions(opts *Options) *Options {
 	if opts != nil {
 		newOpts = *opts
 	}
+
+	// from failure 0 to 12: exponential growth in delays (5 ms * 2 ^ failures)
+	// from failure 13 to 30: 30s delay
+	// from failure 31 on: 120s delay (2 minutes)
 	if newOpts.RateLimiter == nil {
 		newOpts.RateLimiter = workqueue.NewMaxOfRateLimiter(
 			workqueue.NewItemFastSlowRateLimiter(time.Millisecond, maxTimeout2min, 30),

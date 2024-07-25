@@ -20,7 +20,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -463,12 +462,42 @@ func getShareManagerComponentSelector() (labels.Selector, error) {
 	})
 }
 
+func getShareManagerInstanceSelector(name string) (labels.Selector, error) {
+	return metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
+		MatchLabels: types.GetShareManagerInstanceLabel(name),
+	})
+}
+
 func (s *DataStore) ListShareManagerPods() ([]*corev1.Pod, error) {
 	selector, err := getShareManagerComponentSelector()
 	if err != nil {
 		return nil, err
 	}
 	return s.ListPodsBySelector(selector)
+}
+
+// ListShareManagerPodsRO returns a list of share manager pods.
+// If instanceName is not empty, only return share manager pods with label:
+// longhorn.io/share-manager: <instanceName>
+// Otherwise, return all pods with label:
+// longhorn.io/component: share-manager
+func (s *DataStore) ListShareManagerPodsRO(instanceName string) ([]*corev1.Pod, error) {
+	var err error
+	var selector labels.Selector
+
+	if instanceName != "" {
+		selector, err = getShareManagerInstanceSelector(instanceName)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		selector, err = getShareManagerComponentSelector()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return s.ListPodsBySelectorRO(selector)
 }
 
 func (s *DataStore) ListBackingImageManagerPods() ([]*corev1.Pod, error) {
@@ -525,9 +554,7 @@ func (s *DataStore) ListPodsBySelectorRO(selector labels.Selector) ([]*corev1.Po
 	}
 
 	res := make([]*corev1.Pod, len(podList))
-	for idx, item := range podList {
-		res[idx] = item
-	}
+	copy(res, podList)
 	return res, nil
 }
 
@@ -760,6 +787,21 @@ func (s *DataStore) UpdateService(namespace string, service *corev1.Service) (*c
 	return s.kubeClient.CoreV1().Services(namespace).Update(context.TODO(), service, metav1.UpdateOptions{})
 }
 
+// CreateKubernetesEndpoint creates a Kubernetes Endpoint resource.
+func (s *DataStore) CreateKubernetesEndpoint(endpoint *corev1.Endpoints) (*corev1.Endpoints, error) {
+	return s.kubeClient.CoreV1().Endpoints(endpoint.Namespace).Create(context.TODO(), endpoint, metav1.CreateOptions{})
+}
+
+// UpdateKubernetesEndpoint updates the Kubernetes Endpoint of the given name in the Longhorn namespace.
+func (s *DataStore) UpdateKubernetesEndpoint(endpoint *corev1.Endpoints) (*corev1.Endpoints, error) {
+	return s.kubeClient.CoreV1().Endpoints(s.namespace).Update(context.TODO(), endpoint, metav1.UpdateOptions{})
+}
+
+// GetKubernetesEndpointRO gets the Kubernetes Endpoint of the given name in the Longhorn namespace.
+func (s *DataStore) GetKubernetesEndpointRO(name string) (*corev1.Endpoints, error) {
+	return s.endpointLister.Endpoints(s.namespace).Get(name)
+}
+
 // NewPVManifestForVolume returns a new PersistentVolume object for a longhorn volume
 func NewPVManifestForVolume(v *longhorn.Volume, pvName, storageClassName, fsType string) *corev1.PersistentVolume {
 	diskSelector := strings.Join(v.Spec.DiskSelector, ",")
@@ -839,7 +881,7 @@ func NewPVCManifest(size int64, pvName, ns, pvcName, storageClassName string, ac
 			AccessModes: []corev1.PersistentVolumeAccessMode{
 				accessMode,
 			},
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: *resource.NewQuantity(size, resource.BinarySI),
 				},
@@ -1012,21 +1054,6 @@ func (s *DataStore) GetClusterRoleBinding(name string) (*rbacv1.ClusterRoleBindi
 // UpdateClusterRoleBinding updates the ClusterRoleBinding resource with the given ClusterRoleBinding object
 func (s *DataStore) UpdateClusterRoleBinding(clusterRoleBinding *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, error) {
 	return s.kubeClient.RbacV1().ClusterRoleBindings().Update(context.TODO(), clusterRoleBinding, metav1.UpdateOptions{})
-}
-
-// CreatePodSecurityPolicy create a PodSecurityPolicy resource with the given PodSecurityPolicy object
-func (s *DataStore) CreatePodSecurityPolicy(podSecurityPolicy *policyv1beta1.PodSecurityPolicy) (*policyv1beta1.PodSecurityPolicy, error) {
-	return s.kubeClient.PolicyV1beta1().PodSecurityPolicies().Create(context.TODO(), podSecurityPolicy, metav1.CreateOptions{})
-}
-
-// GetPodSecurityPolicy get the PodSecurityPolicy resource of the given name
-func (s *DataStore) GetPodSecurityPolicy(name string) (*policyv1beta1.PodSecurityPolicy, error) {
-	return s.kubeClient.PolicyV1beta1().PodSecurityPolicies().Get(context.TODO(), name, metav1.GetOptions{})
-}
-
-// UpdatePodSecurityPolicy updates the PodSecurityPolicy resource with the given PodSecurityPolicy object
-func (s *DataStore) UpdatePodSecurityPolicy(podSecurityPolicy *policyv1beta1.PodSecurityPolicy) (*policyv1beta1.PodSecurityPolicy, error) {
-	return s.kubeClient.PolicyV1beta1().PodSecurityPolicies().Update(context.TODO(), podSecurityPolicy, metav1.UpdateOptions{})
 }
 
 // CreateRole create a Role resource with the given Role object in the Longhorn namespace

@@ -95,9 +95,9 @@ func DetectGRPCServerAvailability(address string, waitIntervalInSecond int, shou
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		grpcOpts := []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
+			grpc.WithBlock(), // nolint: staticcheck
 		}
-		conn, err := grpc.DialContext(ctx, address, grpcOpts...)
+		conn, err := grpc.DialContext(ctx, address, grpcOpts...) // nolint: staticcheck
 		defer cancel()
 		if !shouldAvailable {
 			if err != nil {
@@ -298,6 +298,19 @@ func ConvertFromRawToQcow2(filePath string) error {
 		return err
 	}
 	return os.Rename(tmpFilePath, filePath)
+}
+
+func ConvertFromQcow2ToRaw(sourcePath, targetPath string) error {
+	if imgInfo, err := GetQemuImgInfo(sourcePath); err != nil {
+		return err
+	} else if imgInfo.Format == "raw" {
+		return nil
+	}
+
+	if _, err := Execute([]string{}, QemuImgBinary, "convert", "-f", "qcow2", "-O", "raw", sourcePath, targetPath); err != nil {
+		return err
+	}
+	return nil
 }
 
 func FileModificationTime(filePath string) string {

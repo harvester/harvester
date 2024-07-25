@@ -33,6 +33,9 @@ var (
 
 	// VolumeBackupTimeout is the timeout for volume backups
 	VolumeBackupTimeout = 24 * time.Hour
+
+	// BackingImageBackupTimeout is the timeout for backing image backups
+	BackingImageBackupTimeout = 24 * time.Hour
 )
 
 // DataStore object
@@ -118,6 +121,8 @@ type DataStore struct {
 	PodDisruptionBudgetInformer   cache.SharedInformer
 	serviceLister                 corelisters.ServiceLister
 	ServiceInformer               cache.SharedInformer
+	endpointLister                corelisters.EndpointsLister
+	EndpointInformer              cache.SharedInformer
 
 	extensionsClient apiextensionsclientset.Interface
 }
@@ -199,6 +204,8 @@ func NewDataStore(namespace string, lhClient lhclientset.Interface, kubeClient c
 	cacheSyncs = append(cacheSyncs, secretInformer.Informer().HasSynced)
 	serviceInformer := informerFactories.KubeNamespaceFilteredInformerFactory.Core().V1().Services()
 	cacheSyncs = append(cacheSyncs, serviceInformer.Informer().HasSynced)
+	endpointInformer := informerFactories.KubeNamespaceFilteredInformerFactory.Core().V1().Endpoints()
+	cacheSyncs = append(cacheSyncs, endpointInformer.Informer().HasSynced)
 	podDisruptionBudgetInformer := informerFactories.KubeNamespaceFilteredInformerFactory.Policy().V1().PodDisruptionBudgets()
 	cacheSyncs = append(cacheSyncs, podDisruptionBudgetInformer.Informer().HasSynced)
 	daemonSetInformer := informerFactories.KubeNamespaceFilteredInformerFactory.Apps().V1().DaemonSets()
@@ -283,6 +290,8 @@ func NewDataStore(namespace string, lhClient lhclientset.Interface, kubeClient c
 		SecretInformer:              secretInformer.Informer(),
 		serviceLister:               serviceInformer.Lister(),
 		ServiceInformer:             serviceInformer.Informer(),
+		endpointLister:              endpointInformer.Lister(),
+		EndpointInformer:            endpointInformer.Informer(),
 		podDisruptionBudgetLister:   podDisruptionBudgetInformer.Lister(),
 		PodDisruptionBudgetInformer: podDisruptionBudgetInformer.Informer(),
 		daemonSetLister:             daemonSetInformer.Lister(),
