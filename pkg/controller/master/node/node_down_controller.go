@@ -6,7 +6,7 @@ import (
 	"time"
 
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/multierr"
 	corev1 "k8s.io/api/core/v1"

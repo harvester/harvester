@@ -21,7 +21,7 @@ package v3
 import (
 	"github.com/rancher/lasso/pkg/controller"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	"github.com/rancher/wrangler/pkg/schemes"
+	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 

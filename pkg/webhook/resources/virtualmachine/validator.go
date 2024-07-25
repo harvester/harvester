@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

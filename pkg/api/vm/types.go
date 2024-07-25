@@ -1,6 +1,6 @@
 package vm
 
-import "github.com/rancher/wrangler/pkg/condition"
+import "github.com/rancher/wrangler/v3/pkg/condition"
 
 var (
 	vmReady   condition.Cond = "Ready"

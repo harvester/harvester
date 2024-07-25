@@ -7,7 +7,7 @@ import (
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/steve/pkg/stores/proxy"
-	"github.com/rancher/wrangler/pkg/schemas"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 

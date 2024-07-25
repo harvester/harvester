@@ -21,7 +21,7 @@ package v1
 import (
 	v1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/schemes"
+	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 

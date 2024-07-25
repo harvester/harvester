@@ -12,7 +12,7 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
-	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"

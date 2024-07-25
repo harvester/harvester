@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

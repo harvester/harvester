@@ -3,7 +3,7 @@ package fakeclients
 import (
 	"context"
 
-	ctlstoragev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"

@@ -21,7 +21,7 @@ package v1beta1
 import (
 	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/schemes"
+	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 

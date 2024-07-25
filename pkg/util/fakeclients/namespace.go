@@ -3,7 +3,7 @@ package fakeclients
 import (
 	"context"
 
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"

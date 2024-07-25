@@ -5,8 +5,8 @@ import (
 
 	ctlcatalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	ctlrancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler/pkg/relatedresource"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v3/pkg/relatedresource"
 
 	"github.com/harvester/harvester/pkg/config"
 )

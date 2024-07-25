@@ -2,7 +2,7 @@ package vm
 
 import (
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/wrangler/pkg/data/convert"
+	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

@@ -20,7 +20,7 @@ package networking
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"k8s.io/client-go/rest"
 )
 
