@@ -19,7 +19,8 @@ limitations under the License.
 package helm
 
 import (
-	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"k8s.io/client-go/rest"
 )
 
@@ -64,4 +65,8 @@ func NewFactoryFromConfigWithOptionsOrDie(config *rest.Config, opts *FactoryOpti
 
 func (c *Factory) Helm() Interface {
 	return New(c.ControllerFactory())
+}
+
+func (c *Factory) WithAgent(userAgent string) Interface {
+	return New(controller.NewSharedControllerFactoryWithAgent(userAgent, c.ControllerFactory()))
 }
