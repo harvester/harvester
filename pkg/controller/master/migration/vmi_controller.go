@@ -3,7 +3,12 @@ package migration
 import (
 	"context"
 
+<<<<<<< HEAD
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+=======
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
+>>>>>>> 0fa939f8 (Sync VM when migration is aborted)
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,10 +42,8 @@ func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance)
 
 	if vmi.Annotations[util.AnnotationMigrationUID] == string(vmi.Status.MigrationState.MigrationUID) &&
 		vmi.Status.MigrationState.Completed {
-		if err := h.resetHarvesterMigrationStateInVMI(vmi); err != nil {
-			return vmi, err
-		}
-		if err := h.syncVM(vmi); err != nil {
+		if err := h.resetHarvesterMigrationStateInVmiAndSyncVM(vmi); err != nil {
+			logrus.Infof("vmi %s/%s finished migration but fail to reset state %s", vmi.Namespace, vmi.Name, err.Error())
 			return vmi, err
 		}
 	}
