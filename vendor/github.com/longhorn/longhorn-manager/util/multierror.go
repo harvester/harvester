@@ -1,6 +1,7 @@
 package util
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -26,6 +27,8 @@ func (me MultiError) Join() string {
 	for err := range me {
 		keys = append(keys, err)
 	}
+
+	sort.Strings(keys)
 
 	return strings.Join(keys, ";")
 }

@@ -53,6 +53,10 @@ type RecurringJobSpec struct {
 	// The label of the snapshot/backup.
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
+	// The parameters of the snapshot/backup.
+	// Support parameters: "full-backup-interval".
+	// +optional
+	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
 // RecurringJobStatus defines the observed state of the Longhorn recurring job
@@ -60,6 +64,9 @@ type RecurringJobStatus struct {
 	// The owner ID which is responsible to reconcile this recurring job CR.
 	// +optional
 	OwnerID string `json:"ownerID"`
+	// The number of jobs that have been triggered.
+	// +optional
+	ExecutionCount int `json:"executionCount"`
 }
 
 // +genclient

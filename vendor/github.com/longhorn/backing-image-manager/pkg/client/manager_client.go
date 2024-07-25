@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 
+	rpc "github.com/longhorn/types/pkg/generated/bimrpc"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/longhorn/backing-image-manager/api"
 	"github.com/longhorn/backing-image-manager/pkg/meta"
-	"github.com/longhorn/backing-image-manager/pkg/rpc"
 	"github.com/longhorn/backing-image-manager/pkg/types"
 )
 
@@ -30,7 +30,7 @@ func (cli *BackingImageManagerClient) Sync(name, uuid, checksum, fromAddress str
 		return nil, fmt.Errorf("failed to sync backing image: missing required parameter")
 	}
 
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect backing image manager service to %v: %v", cli.Address, err)
 	}
@@ -60,7 +60,7 @@ func (cli *BackingImageManagerClient) Send(name, uuid, toAddress string) error {
 		return fmt.Errorf("failed to send backing image: missing required parameter")
 	}
 
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("cannot connect backing image manager service to %v: %v", cli.Address, err)
 	}
@@ -83,7 +83,7 @@ func (cli *BackingImageManagerClient) Delete(name, uuid string) error {
 		return fmt.Errorf("failed to delete backing image: missing required parameter")
 	}
 
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("cannot connect backing image manager service to %v: %v", cli.Address, err)
 	}
@@ -105,7 +105,7 @@ func (cli *BackingImageManagerClient) Get(name, uuid string) (*api.BackingImage,
 		return nil, fmt.Errorf("failed to get backing image: missing required parameter")
 	}
 
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect backing image manager service to %v: %v", cli.Address, err)
 	}
@@ -126,7 +126,7 @@ func (cli *BackingImageManagerClient) Get(name, uuid string) (*api.BackingImage,
 }
 
 func (cli *BackingImageManagerClient) List() (map[string]*api.BackingImage, error) {
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect backing image manager service to %v: %v", cli.Address, err)
 	}
@@ -148,7 +148,7 @@ func (cli *BackingImageManagerClient) Fetch(name, uuid, checksum, dataSourceAddr
 		return nil, fmt.Errorf("failed to fetch backing image: missing required parameter")
 	}
 
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect backing image manager service to %v: %v", cli.Address, err)
 	}
@@ -178,7 +178,7 @@ func (cli *BackingImageManagerClient) PrepareDownload(name, uuid string) (string
 		return "", "", fmt.Errorf("failed to get backing image: missing required parameter")
 	}
 
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return "", "", fmt.Errorf("cannot connect backing image manager service to %v: %v", cli.Address, err)
 	}
@@ -199,7 +199,7 @@ func (cli *BackingImageManagerClient) PrepareDownload(name, uuid string) (string
 }
 
 func (cli *BackingImageManagerClient) VersionGet() (*meta.VersionOutput, error) {
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect backing image manager service to %v: %v", cli.Address, err)
 	}
@@ -224,7 +224,7 @@ func (cli *BackingImageManagerClient) VersionGet() (*meta.VersionOutput, error) 
 }
 
 func (cli *BackingImageManagerClient) Watch() (*api.BackingImageStream, error) {
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect backing image manager service to %v: %v", cli.Address, err)
 	}
@@ -245,7 +245,7 @@ func (cli *BackingImageManagerClient) BackupCreate(name, uuid, checksum, backupT
 		return fmt.Errorf("failed to create backup backing image: missing required parameter")
 	}
 
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("failed to connect backing image manager service to %v: %v", cli.Address, err)
 	}
@@ -278,7 +278,7 @@ func (cli *BackingImageManagerClient) BackupStatus(name string) (*api.BackupStat
 		return nil, fmt.Errorf("failed to get backup backing image status: missing required parameter")
 	}
 
-	conn, err := grpc.Dial(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cli.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect backing image manager service to %v: %v", cli.Address, err)
 	}

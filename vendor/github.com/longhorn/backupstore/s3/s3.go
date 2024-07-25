@@ -13,7 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/longhorn/backupstore"
-	"github.com/longhorn/backupstore/http"
 )
 
 var (
@@ -23,7 +22,7 @@ var (
 type BackupStoreDriver struct {
 	destURL string
 	path    string
-	service Service
+	service *service
 }
 
 const (
@@ -37,8 +36,6 @@ func init() {
 }
 
 func initFunc(destURL string) (backupstore.BackupStoreDriver, error) {
-	b := &BackupStoreDriver{}
-
 	u, err := url.Parse(destURL)
 	if err != nil {
 		return nil, err
@@ -48,25 +45,16 @@ func initFunc(destURL string) (backupstore.BackupStoreDriver, error) {
 		return nil, fmt.Errorf("BUG: Why dispatch %v to %v?", u.Scheme, KIND)
 	}
 
-	if u.User != nil {
-		b.service.Region = u.Host
-		b.service.Bucket = u.User.Username()
-	} else {
-		//We would depends on AWS_REGION environment variable
-		b.service.Bucket = u.Host
+	b := &BackupStoreDriver{}
+	b.service, err = newService(u)
+	if err != nil {
+		return nil, err
 	}
+
 	b.path = u.Path
 	if b.service.Bucket == "" || b.path == "" {
 		return nil, fmt.Errorf("invalid URL. Must be either s3://bucket@region/path/, or s3://bucket/path")
 	}
-
-	// add custom ca to http client that is used by s3 service
-	customCerts := getCustomCerts()
-	client, err := http.GetClientWithCustomCerts(customCerts)
-	if err != nil {
-		return nil, err
-	}
-	b.service.Client = client
 
 	//Leading '/' can cause mystery problems for s3
 	b.path = strings.TrimLeft(b.path, "/")

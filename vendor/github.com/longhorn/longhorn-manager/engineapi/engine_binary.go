@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/longhorn/longhorn-manager/datastore"
+	"github.com/longhorn/longhorn-manager/types"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
@@ -29,7 +30,7 @@ func GetEngineBinaryClient(ds *datastore.DataStore, volumeName, nodeID string) (
 	for _, e = range es {
 		break
 	}
-	if datastore.IsDataEngineV2(e.Spec.DataEngine) {
+	if types.IsDataEngineV2(e.Spec.DataEngine) {
 		return nil, nil
 	}
 	if e.Status.CurrentState != longhorn.InstanceStateRunning {

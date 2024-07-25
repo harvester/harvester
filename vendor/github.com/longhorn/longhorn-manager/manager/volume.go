@@ -151,7 +151,10 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 	}
 
 	// restore backing image if needed
-	if err := m.restoreBackingImage(spec.BackingImage); err != nil {
+	// TODO: We should record the secret and secret namespace in the backing image
+	// so we can auto fill in the secret and namespace when auto restore the backing image in volume creation api.
+	// Currently, if the backing image is encrypted, users need to restore it first so they can specifically assign the secret and namespace
+	if err := m.restoreBackingImage(spec.BackingImage, "", ""); err != nil {
 		return nil, errors.Wrapf(err, "failed to restore backing image %v when create volume %v", spec.BackingImage, v.Name)
 	}
 
@@ -189,6 +192,7 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 			ReplicaDiskSoftAntiAffinity: spec.ReplicaDiskSoftAntiAffinity,
 			DataEngine:                  spec.DataEngine,
 			OfflineReplicaRebuilding:    spec.OfflineReplicaRebuilding,
+			FreezeFilesystemForSnapshot: spec.FreezeFilesystemForSnapshot,
 		},
 	}
 
@@ -468,6 +472,15 @@ func (m *VolumeManager) Expand(volumeName string, size int64) (v *longhorn.Volum
 
 	size = util.RoundUpSize(size)
 
+	if v.Spec.Size >= size {
+		logrus.Infof("Volume %v expansion is not allowable since current size %v >= %v", v.Name, v.Spec.Size, size)
+		return v, nil
+	}
+
+	if _, err := m.scheduler.CheckReplicasSizeExpansion(v, v.Spec.Size, size); err != nil {
+		return nil, err
+	}
+
 	kubernetesStatus := &v.Status.KubernetesStatus
 	if kubernetesStatus.PVCName != "" && kubernetesStatus.LastPVCRefAt == "" {
 		waitForPVCExpansion, size, err := m.checkAndExpandPVC(kubernetesStatus.Namespace, kubernetesStatus.PVCName, size)
@@ -481,15 +494,6 @@ func (m *VolumeManager) Expand(volumeName string, size int64) (v *longhorn.Volum
 		}
 
 		logrus.Infof("CSI plugin call to expand volume %v to size %v", v.Name, size)
-	}
-
-	if v.Spec.Size >= size {
-		logrus.Infof("Volume %v expansion is not necessary since current size %v >= %v", v.Name, v.Spec.Size, size)
-		return v, nil
-	}
-
-	if _, err := m.scheduler.CheckReplicasSizeExpansion(v, v.Spec.Size, size); err != nil {
-		return nil, err
 	}
 
 	previousSize := v.Spec.Size
@@ -520,7 +524,7 @@ func (m *VolumeManager) checkAndExpandPVC(namespace string, pvcName string, size
 	requestedSize := resource.MustParse(strconv.FormatInt(size, 10))
 
 	if pvcSpecValue.Cmp(requestedSize) < 0 {
-		pvc.Spec.Resources = corev1.ResourceRequirements{
+		pvc.Spec.Resources = corev1.VolumeResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceStorage: requestedSize,
 			},
@@ -767,7 +771,7 @@ func (m *VolumeManager) EngineUpgrade(volumeName, image string) (v *longhorn.Vol
 		return nil, err
 	}
 
-	if datastore.IsDataEngineV2(v.Spec.DataEngine) {
+	if types.IsDataEngineV2(v.Spec.DataEngine) {
 		return nil, fmt.Errorf("cannot upgrade engine for volume %v using image %v because the volume is using data engine v2", volumeName, image)
 	}
 
@@ -1185,11 +1189,18 @@ func (m *VolumeManager) UpdateSnapshotMaxSize(name string, snapshotMaxSize int64
 	return v, nil
 }
 
-func (m *VolumeManager) restoreBackingImage(biName string) error {
+func (m *VolumeManager) restoreBackingImage(biName, secret, secretNamespace string) error {
+	if secret != "" || secretNamespace != "" {
+		_, err := m.ds.GetSecretRO(secretNamespace, secret)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get secret %v in namespace %v for the backing image %v", secret, secretNamespace, biName)
+		}
+	}
+
 	if biName == "" {
 		return nil
 	}
-	bi, err := m.ds.GetBackingImage(biName)
+	bi, err := m.ds.GetBackingImageRO(biName)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return errors.Wrapf(err, "failed to get backing image %v", biName)
@@ -1201,7 +1212,7 @@ func (m *VolumeManager) restoreBackingImage(biName string) error {
 	}
 
 	// try find the backup backing image
-	bbi, err := m.ds.GetBackupBackingImage(biName)
+	bbi, err := m.ds.GetBackupBackingImageRO(biName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get backup backing image %v", biName)
 	}
@@ -1223,6 +1234,8 @@ func (m *VolumeManager) restoreBackingImage(biName string) error {
 				longhorn.DataSourceTypeRestoreParameterBackupURL:       bbi.Status.URL,
 				longhorn.DataSourceTypeRestoreParameterConcurrentLimit: strconv.FormatInt(concurrentLimit, 10),
 			},
+			Secret:          secret,
+			SecretNamespace: secretNamespace,
 		},
 	}
 	if _, err = m.ds.CreateBackingImage(restoreBi); err != nil && !apierrors.IsAlreadyExists(err) {
@@ -1230,4 +1243,32 @@ func (m *VolumeManager) restoreBackingImage(biName string) error {
 	}
 
 	return nil
+}
+
+func (m *VolumeManager) UpdateFreezeFilesystemForSnapshot(name string,
+	freezeFilesystemForSnapshot longhorn.FreezeFilesystemForSnapshot) (v *longhorn.Volume, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "unable to update field FreezeFilesystemForSnapshot for volume %v", name)
+	}()
+
+	v, err = m.ds.GetVolume(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if v.Spec.FreezeFilesystemForSnapshot == freezeFilesystemForSnapshot {
+		logrus.Debugf("Volume %v already set field FreezeFilesystemForSnapshot to %v", v.Name, freezeFilesystemForSnapshot)
+		return v, nil
+	}
+
+	oldFreezeFilesystemForSnapshot := v.Spec.FreezeFilesystemForSnapshot
+	v.Spec.FreezeFilesystemForSnapshot = freezeFilesystemForSnapshot
+	v, err = m.ds.UpdateVolume(v)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Infof("Updated volume %v field FreezeFilesystemForSnapshot from %v to %v", v.Name,
+		oldFreezeFilesystemForSnapshot, freezeFilesystemForSnapshot)
+	return v, nil
 }

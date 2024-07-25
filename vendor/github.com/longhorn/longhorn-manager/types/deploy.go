@@ -3,8 +3,12 @@ package types
 import (
 	"os"
 
+	"github.com/sirupsen/logrus"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -88,4 +92,51 @@ func AddGoCoverDirToDaemonSet(daemonset *appsv1.DaemonSet) {
 			},
 		},
 	)
+}
+
+func UpdateDaemonSetTemplateBasedOnStorageNetwork(daemonSet *appsv1.DaemonSet, storageNetwork *longhorn.Setting, isStorageNetworkForRWXVolumeEnabled bool) {
+	if daemonSet == nil {
+		return
+	}
+
+	logger := logrus.WithField("daemonSet", daemonSet.Name)
+	logger.Infof("Updating DaemonSet template for storage network %v", storageNetwork)
+
+	isContainerNetworkNamespace := IsStorageNetworkForRWXVolume(storageNetwork, isStorageNetworkForRWXVolumeEnabled)
+
+	updateHostNetwork := func() {
+		newHostNetwork := !isContainerNetworkNamespace
+		logger.WithFields(logrus.Fields{
+			"oldValue": daemonSet.Spec.Template.Spec.HostNetwork,
+			"newValue": newHostNetwork,
+		}).Debugf("Updating hostNetwork")
+		daemonSet.Spec.Template.Spec.HostNetwork = newHostNetwork
+	}
+
+	updateAnnotation := func() {
+		annotKey := string(CNIAnnotationNetworks)
+		annotValue := ""
+		if isContainerNetworkNamespace {
+			annotValue = CreateCniAnnotationFromSetting(storageNetwork)
+		}
+
+		logger.WithFields(logrus.Fields{
+			"oldValue": daemonSet.Spec.Template.Annotations[annotKey],
+			"newValue": annotValue,
+		}).Debugf("Updating template %v annotation", annotKey)
+
+		if daemonSet.Spec.Template.Annotations == nil {
+			daemonSet.Spec.Template.Annotations = make(map[string]string)
+		}
+
+		daemonSet.Spec.Template.Annotations[annotKey] = annotValue
+
+		if annotValue == "" {
+			delete(daemonSet.Spec.Template.Annotations, annotKey)
+			daemonSet.Spec.Template.Spec.HostPID = false
+		}
+	}
+
+	updateHostNetwork()
+	updateAnnotation()
 }

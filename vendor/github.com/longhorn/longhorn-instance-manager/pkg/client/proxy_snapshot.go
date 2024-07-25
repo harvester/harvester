@@ -7,13 +7,12 @@ import (
 
 	etypes "github.com/longhorn/longhorn-engine/pkg/types"
 	eutil "github.com/longhorn/longhorn-engine/pkg/util"
-	eptypes "github.com/longhorn/longhorn-engine/proto/ptypes"
-
-	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
+	"github.com/longhorn/types/pkg/generated/enginerpc"
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 )
 
 func (c *ProxyClient) VolumeSnapshot(dataEngine, engineName, volumeName, serviceAddress,
-	volumeSnapshotName string, labels map[string]string) (snapshotName string, err error) {
+	volumeSnapshotName string, labels map[string]string, freezeFilesystem bool) (snapshotName string, err error) {
 	input := map[string]string{
 		"engineName":     engineName,
 		"volumeName":     volumeName,
@@ -55,9 +54,10 @@ func (c *ProxyClient) VolumeSnapshot(dataEngine, engineName, volumeName, service
 			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
-		SnapshotVolume: &eptypes.VolumeSnapshotRequest{
-			Name:   volumeSnapshotName,
-			Labels: labels,
+		SnapshotVolume: &enginerpc.VolumeSnapshotRequest{
+			Name:             volumeSnapshotName,
+			Labels:           labels,
+			FreezeFilesystem: freezeFilesystem,
 		},
 	}
 	recv, err := c.service.VolumeSnapshot(getContextWithGRPCTimeout(c.ctx), req)
@@ -124,7 +124,7 @@ func (c *ProxyClient) SnapshotList(dataEngine, engineName, volumeName,
 }
 
 func (c *ProxyClient) SnapshotClone(dataEngine, engineName, volumeName, serviceAddress,
-	snapshotName, fromEngineAddress, fromVolumeName, fromEngineName string, fileSyncHTTPClientTimeout int) (err error) {
+	snapshotName, fromEngineAddress, fromVolumeName, fromEngineName string, fileSyncHTTPClientTimeout int, grpcTimeoutSeconds int64) (err error) {
 	input := map[string]string{
 		"engineName":        engineName,
 		"volumeName":        volumeName,
@@ -163,8 +163,9 @@ func (c *ProxyClient) SnapshotClone(dataEngine, engineName, volumeName, serviceA
 		FileSyncHttpClientTimeout: int32(fileSyncHTTPClientTimeout),
 		FromEngineName:            fromEngineName,
 		FromVolumeName:            fromVolumeName,
+		GrpcTimeoutSeconds:        grpcTimeoutSeconds,
 	}
-	_, err = c.service.SnapshotClone(getContextWithGRPCLongTimeout(c.ctx), req)
+	_, err = c.service.SnapshotClone(getContextWithGRPCLongTimeout(c.ctx, grpcTimeoutSeconds), req)
 	if err != nil {
 		return err
 	}

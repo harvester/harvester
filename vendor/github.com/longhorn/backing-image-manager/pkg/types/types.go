@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -19,9 +20,10 @@ const (
 	DefaultSyncServerPort           = 8001
 	DefaultVolumeExportReceiverPort = 8002
 
-	GRPCServiceTimeout = 1 * time.Minute
-	HTTPTimeout        = 4 * time.Second
-	MonitorInterval    = 3 * time.Second
+	GRPCServiceTimeout      = 1 * time.Minute
+	HTTPTimeout             = 4 * time.Second
+	MonitorInterval         = 3 * time.Second
+	CommandExecutionTimeout = 10 * time.Second
 
 	FileSyncHTTPClientTimeout = 5 // TODO: use 5 seconds as default, need to refactor it
 
@@ -30,6 +32,9 @@ const (
 	BackingImageFileName    = "backing"
 	TmpFileSuffix           = ".tmp"
 	BackingImageTmpFileName = BackingImageFileName + TmpFileSuffix
+
+	MapperFilePathPrefix = "/dev/mapper"
+	EncryptionMetaSize   = 16 * 1024 * 1024 // 16MB
 )
 
 type State string
@@ -52,9 +57,14 @@ const (
 	DataSourceTypeUpload           = DataSourceType("upload")
 	DataSourceTypeExportFromVolume = DataSourceType("export-from-volume")
 	DataSourceTypeRestore          = DataSourceType("restore")
+	DataSourceTypeClone            = DataSourceType("clone")
 )
 
 const (
+	DataSourceTypeCloneParameterBackingImage     = "backing-image"
+	DataSourceTypeCloneParameterBackingImageUUID = "backing-image-uuid"
+	DataSourceTypeCloneParameterEncryption       = "encryption"
+
 	DataSourceTypeDownloadParameterURL            = "url"
 	DataSourceTypeRestoreParameterBackupURL       = "backup-url"
 	DataSourceTypeRestoreParameterConcurrentLimit = "concurrent-limit"
@@ -71,6 +81,14 @@ const (
 	SyncingFileTypeEmpty = ""
 	SyncingFileTypeRaw   = "raw"
 	SyncingFileTypeQcow2 = "qcow2"
+)
+
+type EncryptionType string
+
+const (
+	EncryptionTypeEncrypt = EncryptionType("encrypt")
+	EncryptionTypeDecrypt = EncryptionType("decrypt")
+	EncryptionTypeIgnore  = EncryptionType("ignore")
 )
 
 func GetDataSourceFileName(biName, biUUID string) string {
@@ -96,4 +114,12 @@ func GetBackingImageFilePath(diskPath, biName, biUUID string) string {
 func GetBackingImageNameFromFilePath(biFilePath, biUUID string) string {
 	biDirName := filepath.Join(filepath.Base(filepath.Dir(biFilePath)))
 	return strings.TrimSuffix(biDirName, "-"+biUUID)
+}
+
+func BackingImageMapper(uuid string) string {
+	return path.Join(MapperFilePathPrefix, GetLuksBackingImageName(uuid))
+}
+
+func GetLuksBackingImageName(uuid string) string {
+	return fmt.Sprintf("%v-%v", BackingImageFileName, uuid)
 }

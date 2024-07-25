@@ -5,14 +5,15 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type SystemBackupState string
 
 const (
-	SystemBackupStateDeleting     = SystemBackupState("Deleting")
-	SystemBackupStateError        = SystemBackupState("Error")
-	SystemBackupStateGenerating   = SystemBackupState("Generating")
-	SystemBackupStateNone         = SystemBackupState("")
-	SystemBackupStateReady        = SystemBackupState("Ready")
-	SystemBackupStateSyncing      = SystemBackupState("Syncing")
-	SystemBackupStateUploading    = SystemBackupState("Uploading")
-	SystemBackupStateVolumeBackup = SystemBackupState("CreatingVolumeBackups")
+	SystemBackupStateDeleting           = SystemBackupState("Deleting")
+	SystemBackupStateError              = SystemBackupState("Error")
+	SystemBackupStateGenerating         = SystemBackupState("Generating")
+	SystemBackupStateNone               = SystemBackupState("")
+	SystemBackupStateReady              = SystemBackupState("Ready")
+	SystemBackupStateSyncing            = SystemBackupState("Syncing")
+	SystemBackupStateUploading          = SystemBackupState("Uploading")
+	SystemBackupStateVolumeBackup       = SystemBackupState("CreatingVolumeBackups")
+	SystemBackupStateBackingImageBackup = SystemBackupState("CreatingBackingImageBackups")
 
 	SystemBackupConditionTypeError = "Error"
 

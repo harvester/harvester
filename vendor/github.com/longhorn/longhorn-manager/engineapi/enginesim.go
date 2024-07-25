@@ -6,6 +6,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	etypes "github.com/longhorn/longhorn-engine/pkg/types"
+
 	"github.com/longhorn/longhorn-manager/datastore"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
@@ -45,7 +47,7 @@ func (c *EngineSimulatorCollection) CreateEngineSimulator(request *EngineSimulat
 		mutex:          &sync.RWMutex{},
 	}
 	for _, addr := range request.ReplicaAddrs {
-		if err := s.ReplicaAdd(&longhorn.Engine{}, "", addr, false, false, 30); err != nil {
+		if err := s.ReplicaAdd(&longhorn.Engine{}, "", addr, false, false, nil, 30, 0); err != nil {
 			return err
 		}
 	}
@@ -121,7 +123,7 @@ func (e *EngineSimulator) ReplicaList(*longhorn.Engine) (map[string]*Replica, er
 	return ret, nil
 }
 
-func (e *EngineSimulator) ReplicaAdd(engine *longhorn.Engine, replicaName, url string, isRestoreVolume, fastSync bool, replicaFileSyncHTTPClientTimeout int64) error {
+func (e *EngineSimulator) ReplicaAdd(engine *longhorn.Engine, replicaName, url string, isRestoreVolume, fastSync bool, localSync *etypes.FileLocalSync, replicaFileSyncHTTPClientTimeout int64, grpcTimeoutSeconds int64) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 
@@ -162,7 +164,8 @@ func (e *EngineSimulator) SimulateStopReplica(addr string) error {
 	return nil
 }
 
-func (e *EngineSimulator) SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string) (string, error) {
+func (e *EngineSimulator) SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string,
+	freezeFilesystem bool) (string, error) {
 	return "", fmt.Errorf(ErrNotImplement)
 }
 
@@ -192,7 +195,7 @@ func (e *EngineSimulator) SnapshotPurgeStatus(*longhorn.Engine) (map[string]*lon
 
 func (e *EngineSimulator) SnapshotBackup(engine *longhorn.Engine, snapshotName, backupName, backupTarget,
 	backingImageName, backingImageChecksum, compressionMethod string, concurrentLimit int, storageClassName string,
-	labels, credential map[string]string) (string, string, error) {
+	labels, credential, parameters map[string]string) (string, string, error) {
 	return "", "", fmt.Errorf(ErrNotImplement)
 }
 
@@ -218,7 +221,7 @@ func (e *EngineSimulator) BackupRestore(engine *longhorn.Engine, backupTarget, b
 }
 
 func (e *EngineSimulator) SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName,
-	fromEngineName string, fileSyncHTTPClientTimeout int64) error {
+	fromEngineName string, fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) error {
 	return fmt.Errorf(ErrNotImplement)
 }
 
