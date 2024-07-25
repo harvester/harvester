@@ -109,7 +109,7 @@ func validateVClusterAddon(newAddon *v1beta1.Addon) error {
 	// this check will return error if hostname is fqdn
 	// but an ip address
 	if fqdnErrs := validationutil.IsFullyQualifiedDomainName(field.NewPath(""), addonContent.Hostname); len(fqdnErrs) == 0 {
-		if ipErrs := validationutil.IsValidIP(addonContent.Hostname); len(ipErrs) == 0 {
+		if ipErrs := validationutil.IsValidIP(field.NewPath(""), addonContent.Hostname); len(ipErrs) == 0 {
 			return werror.NewBadRequest(fmt.Sprintf("%s is not a valid hostname", addonContent.Hostname))
 		}
 		return nil
