@@ -133,9 +133,6 @@ func main() {
 					corev1.PersistentVolume{},
 					corev1.ResourceQuota{},
 				},
-				InformersPackage: "k8s.io/client-go/informers",
-				ClientSetPackage: "k8s.io/client-go/kubernetes",
-				ListersPackage:   "k8s.io/client-go/listers",
 			},
 			catalogv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
