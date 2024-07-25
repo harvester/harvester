@@ -344,7 +344,7 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.CatalogFactory = catalog
 	management.starters = append(management.starters, catalog)
 
-	helm, err := helmv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	helm, err := helmv1.NewFactoryFromConfigWithOptions(restConfig, (*helmv1.FactoryOptions)(opts))
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +386,7 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.MonitoringFactory = monitoring
 	management.starters = append(management.starters, monitoring)
 
-	nodeconfig, err := ctlnodeharvester.NewFactoryFromConfigWithOptions(restConfig, opts)
+	nodeconfig, err := ctlnodeharvester.NewFactoryFromConfigWithOptions(restConfig, (*ctlnodeharvester.FactoryOptions)(opts))
 	if err != nil {
 		return nil, err
 	}
