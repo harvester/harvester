@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
-	"github.com/rancher/wrangler/pkg/generated/controllers/apps"
+	"github.com/rancher/wrangler/v3/pkg/generated/controllers/apps"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/util/wait"
 	restclient "k8s.io/client-go/rest"

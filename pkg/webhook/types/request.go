@@ -3,7 +3,7 @@ package types
 import (
 	"fmt"
 
-	"github.com/rancher/wrangler/pkg/webhook"
+	"github.com/rancher/wrangler/v3/pkg/webhook"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 

@@ -5,7 +5,7 @@ import (
 
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/wrangler/pkg/data/convert"
+	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/settings"

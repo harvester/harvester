@@ -5,7 +5,7 @@ package v1beta1
 // 1. live VM snapshot/backup should be supported, but it is prohibited on the Kubevirt side.
 // 2. restore a VM backup to a new VM should be supported.
 import (
-	"github.com/rancher/wrangler/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/condition"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"

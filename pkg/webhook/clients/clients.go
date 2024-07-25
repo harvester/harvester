@@ -5,10 +5,10 @@ import (
 
 	ctlfleetv1 "github.com/rancher/rancher/pkg/generated/controllers/fleet.cattle.io"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
-	"github.com/rancher/wrangler/pkg/clients"
-	ctrlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core"
-	storagev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage"
-	"github.com/rancher/wrangler/pkg/schemes"
+	"github.com/rancher/wrangler/v3/pkg/clients"
+	ctrlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
+	storagev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage"
+	"github.com/rancher/wrangler/v3/pkg/schemes"
 	v1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/client-go/rest"
 

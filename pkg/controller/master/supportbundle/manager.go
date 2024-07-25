@@ -9,8 +9,8 @@ import (
 	"time"
 
 	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"

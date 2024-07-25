@@ -3,7 +3,7 @@ package volumesnapshot
 import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/wrangler/pkg/data/convert"
+	"github.com/rancher/wrangler/v3/pkg/data/convert"
 
 	"github.com/harvester/harvester/pkg/util"
 )

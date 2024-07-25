@@ -3,7 +3,7 @@ package setting
 import (
 	"encoding/json"
 
-	"github.com/rancher/wrangler/pkg/data"
+	"github.com/rancher/wrangler/v3/pkg/data"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
