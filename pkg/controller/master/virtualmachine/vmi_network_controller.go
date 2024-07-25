@@ -3,6 +3,7 @@ package virtualmachine
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -47,7 +48,6 @@ func (h *VMNetworkController) SetDefaultNetworkMacAddress(id string, vmi *kubevi
 }
 
 func (h *VMNetworkController) updateVMDefaultNetworkMacAddress(vmi *kubevirtv1.VirtualMachineInstance) error {
-	logrus.Debugf("update default network mac address of the vm: %s\n", vmi.Name)
 	vm, err := h.vmCache.Get(vmi.Namespace, vmi.Name)
 	if err != nil {
 		return err
@@ -71,6 +71,11 @@ func (h *VMNetworkController) updateVMDefaultNetworkMacAddress(vmi *kubevirtv1.V
 		}
 	}
 
+	if reflect.DeepEqual(vmCopy.Spec.Template.Spec.Domain.Devices, vm.Spec.Template.Spec.Domain.Devices) {
+		return nil
+	}
+
+	logrus.Debugf("update default network mac address of the vm: %s", vmi.Name)
 	if err := h.regenerateControllerRevision(vmi, vm); err != nil {
 		return err
 	}

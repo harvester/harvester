@@ -406,8 +406,13 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 		}
 	}
 
-	_, err = h.vmims.Create(vmim)
-	return err
+	vmimc, err := h.vmims.Create(vmim)
+	if err != nil {
+		logrus.Infof("start migration of vm %s/%s to node %s but fail to create vmim %s", namespace, vmName, nodeName, err.Error())
+		return err
+	}
+	logrus.Infof("start migration of vm %s/%s to node %s, vmim %s", namespace, vmName, nodeName, vmimc.Name)
+	return nil
 }
 
 func (h *vmActionHandler) isMigratableNode(targetNode string, vmi *kubevirtv1.VirtualMachineInstance) (bool, error) {
@@ -446,7 +451,8 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 			if !vmim.IsRunning() {
 				return fmt.Errorf("cannot abort the migration as it is in %q phase", vmim.Status.Phase)
 			}
-			//Migration is aborted by deleting the VMIM object
+			// Migration is aborted by deleting the VMIM object
+			logrus.Infof("abort migration of vm %s/%s, delete vmim %s", namespace, name, vmim.Name)
 			if err := h.vmims.Delete(namespace, vmim.Name, &metav1.DeleteOptions{}); err != nil {
 				return err
 			}
