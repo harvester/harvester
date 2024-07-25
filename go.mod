@@ -110,7 +110,6 @@ require (
 	k8s.io/apiserver v0.28.5
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/component-helpers v0.28.5
-	k8s.io/gengo v0.0.0-20240228010128-51d4e06bde70
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340
 	k8s.io/kubectl v0.25.0
 	k8s.io/kubelet v0.26.13
@@ -309,6 +308,7 @@ require (
 	k8s.io/cli-runtime v0.28.5 // indirect
 	k8s.io/code-generator v0.29.2 // indirect
 	k8s.io/component-base v0.28.5 // indirect
+	k8s.io/gengo v0.0.0-20240228010128-51d4e06bde70 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-aggregator v0.26.4 // indirect
