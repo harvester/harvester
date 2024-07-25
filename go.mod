@@ -67,7 +67,7 @@ require (
 	github.com/harvester/harvester-network-controller v0.3.1
 	github.com/harvester/node-manager v0.1.5-0.20230614075852-de2da3ef3aca
 	github.com/iancoleman/strcase v0.2.0
-	github.com/k3s-io/helm-controller v0.11.7
+	github.com/k3s-io/helm-controller v0.16.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.3.0
 	github.com/kube-logging/logging-operator/pkg/sdk v0.9.1
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
