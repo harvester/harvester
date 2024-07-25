@@ -6,25 +6,16 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rancher/apiserver/pkg/server"
+	apiserver "github.com/rancher/apiserver/pkg/server"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/attributes"
-	"github.com/rancher/wrangler/pkg/name"
+	"github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/cache"
-	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/request"
 )
-
-type Factory interface {
-	Schemas(user user.Info) (*types.APISchemas, error)
-	ByGVR(gvr schema.GroupVersionResource) string
-	ByGVK(gvr schema.GroupVersionKind) string
-	OnChange(ctx context.Context, cb func())
-	AddTemplate(template ...Template)
-}
 
 type Collection struct {
 	toSync     int32
@@ -36,6 +27,7 @@ type Collection struct {
 	byGVR      map[schema.GroupVersionResource]string
 	byGVK      map[schema.GroupVersionKind]string
 	cache      *cache.LRUExpireCache
+	userCache  *cache.LRUExpireCache
 	lock       sync.RWMutex
 
 	ctx     context.Context
@@ -54,7 +46,7 @@ type Template struct {
 	StoreFactory func(types.Store) types.Store
 }
 
-func WrapServer(factory Factory, server *server.Server) http.Handler {
+func WrapServer(factory Factory, server *apiserver.Server) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		user, ok := request.UserFrom(req.Context())
 		if !ok {
@@ -84,6 +76,7 @@ func NewCollection(ctx context.Context, baseSchema *types.APISchemas, access acc
 		byGVR:      map[schema.GroupVersionResource]string{},
 		byGVK:      map[schema.GroupVersionKind]string{},
 		cache:      cache.NewLRUExpireCache(1000),
+		userCache:  cache.NewLRUExpireCache(1000),
 		notifiers:  map[int]func(){},
 		ctx:        ctx,
 		as:         access,

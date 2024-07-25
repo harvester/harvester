@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,12 +18,12 @@ import (
 )
 
 type Session struct {
-	sync.Mutex
+	sync.RWMutex
 
 	nextConnID       int64
 	clientKey        string
 	sessionKey       int64
-	conn             *wsConn
+	conn             wsConn
 	conns            map[int64]*connection
 	remoteClientKeys map[string]map[int]bool
 	auth             ConnectAuthorizer
@@ -57,15 +57,99 @@ func NewClientSessionWithDialer(auth ConnectAuthorizer, conn *websocket.Conn, di
 	}
 }
 
-func newSession(sessionKey int64, clientKey string, conn *websocket.Conn) *Session {
+func newSession(sessionKey int64, clientKey string, conn wsConn) *Session {
 	return &Session{
 		nextConnID:       1,
 		clientKey:        clientKey,
 		sessionKey:       sessionKey,
-		conn:             newWSConn(conn),
+		conn:             conn,
 		conns:            map[int64]*connection{},
 		remoteClientKeys: map[string]map[int]bool{},
 	}
+}
+
+// addConnection safely registers a new connection in the connections map
+func (s *Session) addConnection(connID int64, conn *connection) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.conns[connID] = conn
+	if PrintTunnelData {
+		logrus.Debugf("CONNECTIONS %d %d", s.sessionKey, len(s.conns))
+	}
+}
+
+// removeConnection safely removes a connection by ID, returning the connection object
+func (s *Session) removeConnection(connID int64) *connection {
+	s.Lock()
+	defer s.Unlock()
+
+	conn := s.removeConnectionLocked(connID)
+	if PrintTunnelData {
+		defer logrus.Debugf("CONNECTIONS %d %d", s.sessionKey, len(s.conns))
+	}
+	return conn
+}
+
+// removeConnectionLocked removes a given connection from the session.
+// The session lock must be held by the caller when calling this method
+func (s *Session) removeConnectionLocked(connID int64) *connection {
+	conn := s.conns[connID]
+	delete(s.conns, connID)
+	return conn
+}
+
+// getConnection retrieves a connection by ID
+func (s *Session) getConnection(connID int64) *connection {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.conns[connID]
+}
+
+// activeConnectionIDs returns an ordered list of IDs for the currently active connections
+func (s *Session) activeConnectionIDs() []int64 {
+	s.RLock()
+	defer s.RUnlock()
+
+	res := make([]int64, 0, len(s.conns))
+	for id := range s.conns {
+		res = append(res, id)
+	}
+	sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+	return res
+}
+
+// addSessionKey registers a new session key for a given client key
+func (s *Session) addSessionKey(clientKey string, sessionKey int) {
+	s.Lock()
+	defer s.Unlock()
+
+	keys := s.remoteClientKeys[clientKey]
+	if keys == nil {
+		keys = map[int]bool{}
+		s.remoteClientKeys[clientKey] = keys
+	}
+	keys[sessionKey] = true
+}
+
+// removeSessionKey removes a specific session key for a client key
+func (s *Session) removeSessionKey(clientKey string, sessionKey int) {
+	s.Lock()
+	defer s.Unlock()
+
+	keys := s.remoteClientKeys[clientKey]
+	delete(keys, sessionKey)
+	if len(keys) == 0 {
+		delete(s.remoteClientKeys, clientKey)
+	}
+}
+
+// getSessionKeys retrieves all session keys for a given client key
+func (s *Session) getSessionKeys(clientKey string) map[int]bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.remoteClientKeys[clientKey]
 }
 
 func (s *Session) startPings(rootCtx context.Context) {
@@ -79,20 +163,30 @@ func (s *Session) startPings(rootCtx context.Context) {
 		t := time.NewTicker(PingWriteInterval)
 		defer t.Stop()
 
+		syncConnections := time.NewTicker(SyncConnectionsInterval)
+		defer syncConnections.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
+			case <-syncConnections.C:
+				if err := s.sendSyncConnections(); err != nil {
+					logrus.WithError(err).Error("Error syncing connections")
+				}
 			case <-t.C:
-				s.conn.Lock()
-				if err := s.conn.conn.WriteControl(websocket.PingMessage, []byte(""), time.Now().Add(PingWaitDuration)); err != nil {
+				if err := s.sendPing(); err != nil {
 					logrus.WithError(err).Error("Error writing ping")
 				}
 				logrus.Debug("Wrote ping")
-				s.conn.Unlock()
 			}
 		}
 	}()
+}
+
+// sendPing sends a Ping control message to the peer
+func (s *Session) sendPing() error {
+	return s.conn.WriteControl(websocket.PingMessage, time.Now().Add(PingWaitDuration), []byte(""))
 }
 
 func (s *Session) stopPings() {
@@ -125,61 +219,6 @@ func (s *Session) Serve(ctx context.Context) (int, error) {
 	}
 }
 
-func (s *Session) serveMessage(ctx context.Context, reader io.Reader) error {
-	message, err := newServerMessage(reader)
-	if err != nil {
-		return err
-	}
-
-	if PrintTunnelData {
-		logrus.Debug("REQUEST ", message)
-	}
-
-	if message.messageType == Connect {
-		if s.auth == nil || !s.auth(message.proto, message.address) {
-			return errors.New("connect not allowed")
-		}
-		s.clientConnect(ctx, message)
-		return nil
-	}
-
-	s.Lock()
-	if message.messageType == AddClient && s.remoteClientKeys != nil {
-		err := s.addRemoteClient(message.address)
-		s.Unlock()
-		return err
-	} else if message.messageType == RemoveClient {
-		err := s.removeRemoteClient(message.address)
-		s.Unlock()
-		return err
-	}
-	conn := s.conns[message.connID]
-	s.Unlock()
-
-	if conn == nil {
-		if message.messageType == Data {
-			err := fmt.Errorf("connection not found %s/%d/%d", s.clientKey, s.sessionKey, message.connID)
-			newErrorMessage(message.connID, err).WriteTo(defaultDeadline(), s.conn)
-		}
-		return nil
-	}
-
-	switch message.messageType {
-	case Data:
-		if err := conn.OnData(message); err != nil {
-			s.closeConnection(message.connID, err)
-		}
-	case Pause:
-		conn.OnPause()
-	case Resume:
-		conn.OnResume()
-	case Error:
-		s.closeConnection(message.connID, message.Err())
-	}
-
-	return nil
-}
-
 func defaultDeadline() time.Time {
 	return time.Now().Add(time.Minute)
 }
@@ -191,72 +230,6 @@ func parseAddress(address string) (string, int, error) {
 	}
 	v, err := strconv.Atoi(parts[1])
 	return parts[0], v, err
-}
-
-func (s *Session) addRemoteClient(address string) error {
-	clientKey, sessionKey, err := parseAddress(address)
-	if err != nil {
-		return fmt.Errorf("invalid remote Session %s: %v", address, err)
-	}
-
-	keys := s.remoteClientKeys[clientKey]
-	if keys == nil {
-		keys = map[int]bool{}
-		s.remoteClientKeys[clientKey] = keys
-	}
-	keys[sessionKey] = true
-
-	if PrintTunnelData {
-		logrus.Debugf("ADD REMOTE CLIENT %s, SESSION %d", address, s.sessionKey)
-	}
-
-	return nil
-}
-
-func (s *Session) removeRemoteClient(address string) error {
-	clientKey, sessionKey, err := parseAddress(address)
-	if err != nil {
-		return fmt.Errorf("invalid remote Session %s: %v", address, err)
-	}
-
-	keys := s.remoteClientKeys[clientKey]
-	delete(keys, int(sessionKey))
-	if len(keys) == 0 {
-		delete(s.remoteClientKeys, clientKey)
-	}
-
-	if PrintTunnelData {
-		logrus.Debugf("REMOVE REMOTE CLIENT %s, SESSION %d", address, s.sessionKey)
-	}
-
-	return nil
-}
-
-func (s *Session) closeConnection(connID int64, err error) {
-	s.Lock()
-	conn := s.conns[connID]
-	delete(s.conns, connID)
-	if PrintTunnelData {
-		logrus.Debugf("CONNECTIONS %d %d", s.sessionKey, len(s.conns))
-	}
-	s.Unlock()
-
-	if conn != nil {
-		conn.tunnelClose(err)
-	}
-}
-
-func (s *Session) clientConnect(ctx context.Context, message *message) {
-	conn := newConnection(message.connID, s, message.proto, message.address)
-
-	s.Lock()
-	s.conns[message.connID] = conn
-	if PrintTunnelData {
-		logrus.Debugf("CONNECTIONS %d %d", s.sessionKey, len(s.conns))
-	}
-	s.Unlock()
-
-	go clientDial(ctx, s.dialer, conn, message)
 }
 
 type connResult struct {
@@ -299,12 +272,7 @@ func (s *Session) serverConnect(deadline time.Time, proto, address string) (net.
 	connID := atomic.AddInt64(&s.nextConnID, 1)
 	conn := newConnection(connID, s, proto, address)
 
-	s.Lock()
-	s.conns[connID] = conn
-	if PrintTunnelData {
-		logrus.Debugf("CONNECTIONS %d %d", s.sessionKey, len(s.conns))
-	}
-	s.Unlock()
+	s.addConnection(connID, conn)
 
 	_, err := s.writeMessage(deadline, newConnect(connID, proto, address))
 	if err != nil {
@@ -339,7 +307,7 @@ func (s *Session) sessionAdded(clientKey string, sessionKey int64) {
 	client := fmt.Sprintf("%s/%d", clientKey, sessionKey)
 	_, err := s.writeMessage(time.Time{}, newAddClient(client))
 	if err != nil {
-		s.conn.conn.Close()
+		s.conn.Close()
 	}
 }
 
@@ -347,6 +315,6 @@ func (s *Session) sessionRemoved(clientKey string, sessionKey int64) {
 	client := fmt.Sprintf("%s/%d", clientKey, sessionKey)
 	_, err := s.writeMessage(time.Time{}, newRemoveClient(client))
 	if err != nil {
-		s.conn.conn.Close()
+		s.conn.Close()
 	}
 }

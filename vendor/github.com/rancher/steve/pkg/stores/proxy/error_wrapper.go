@@ -3,43 +3,53 @@ package proxy
 import (
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/wrangler/pkg/schemas/validation"
+	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"k8s.io/apimachinery/pkg/api/errors"
 )
 
-type errorStore struct {
+// ErrorStore implements types.store with errors translated into APIErrors
+type ErrorStore struct {
 	types.Store
 }
 
-func (e *errorStore) ByID(apiOp *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
+// NewErrorStore returns a store with errors translated into APIErrors
+func NewErrorStore(s types.Store) *ErrorStore {
+	return &ErrorStore{Store: s}
+}
+
+// ByID looks up a single object by its ID.
+func (e *ErrorStore) ByID(apiOp *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
 	data, err := e.Store.ByID(apiOp, schema, id)
 	return data, translateError(err)
 }
 
-func (e *errorStore) List(apiOp *types.APIRequest, schema *types.APISchema) (types.APIObjectList, error) {
+// List returns a list of resources.
+func (e *ErrorStore) List(apiOp *types.APIRequest, schema *types.APISchema) (types.APIObjectList, error) {
 	data, err := e.Store.List(apiOp, schema)
 	return data, translateError(err)
 }
 
-func (e *errorStore) Create(apiOp *types.APIRequest, schema *types.APISchema, data types.APIObject) (types.APIObject, error) {
+// Create creates a single object in the store.
+func (e *ErrorStore) Create(apiOp *types.APIRequest, schema *types.APISchema, data types.APIObject) (types.APIObject, error) {
 	data, err := e.Store.Create(apiOp, schema, data)
 	return data, translateError(err)
-
 }
 
-func (e *errorStore) Update(apiOp *types.APIRequest, schema *types.APISchema, data types.APIObject, id string) (types.APIObject, error) {
+// Update updates a single object in the store.
+func (e *ErrorStore) Update(apiOp *types.APIRequest, schema *types.APISchema, data types.APIObject, id string) (types.APIObject, error) {
 	data, err := e.Store.Update(apiOp, schema, data, id)
 	return data, translateError(err)
-
 }
 
-func (e *errorStore) Delete(apiOp *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
+// Delete deletes an object from a store.
+func (e *ErrorStore) Delete(apiOp *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
 	data, err := e.Store.Delete(apiOp, schema, id)
 	return data, translateError(err)
 
 }
 
-func (e *errorStore) Watch(apiOp *types.APIRequest, schema *types.APISchema, wr types.WatchRequest) (chan types.APIEvent, error) {
+// Watch returns a channel of events for a list or resource.
+func (e *ErrorStore) Watch(apiOp *types.APIRequest, schema *types.APISchema, wr types.WatchRequest) (chan types.APIEvent, error) {
 	data, err := e.Store.Watch(apiOp, schema, wr)
 	return data, translateError(err)
 }

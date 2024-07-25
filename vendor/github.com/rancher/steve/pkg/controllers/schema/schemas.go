@@ -11,8 +11,8 @@ import (
 	"github.com/rancher/steve/pkg/resources/common"
 	schema2 "github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/schema/converter"
-	apiextcontrollerv1 "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io/v1"
-	v1 "github.com/rancher/wrangler/pkg/generated/controllers/apiregistration.k8s.io/v1"
+	apiextcontrollerv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiextensions.k8s.io/v1"
+	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiregistration.k8s.io/v1"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -31,8 +31,10 @@ var (
 	}
 )
 
-type SchemasHandler interface {
-	OnSchemas(schemas *schema2.Collection) error
+type SchemasHandlerFunc func(schemas *schema2.Collection) error
+
+func (s SchemasHandlerFunc) OnSchemas(schemas *schema2.Collection) error {
+	return s(schemas)
 }
 
 type handler struct {
@@ -45,7 +47,7 @@ type handler struct {
 	cols    *common.DynamicColumns
 	crd     apiextcontrollerv1.CustomResourceDefinitionClient
 	ssar    authorizationv1client.SelfSubjectAccessReviewInterface
-	handler SchemasHandler
+	handler SchemasHandlerFunc
 }
 
 func Register(ctx context.Context,
@@ -54,7 +56,7 @@ func Register(ctx context.Context,
 	crd apiextcontrollerv1.CustomResourceDefinitionController,
 	apiService v1.APIServiceController,
 	ssar authorizationv1client.SelfSubjectAccessReviewInterface,
-	schemasHandler SchemasHandler,
+	schemasHandler SchemasHandlerFunc,
 	schemas *schema2.Collection) {
 
 	h := &handler{

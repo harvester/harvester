@@ -16,13 +16,25 @@ import (
 )
 
 const (
+	// Data is the main message type, used to transport application data
 	Data messageType = iota + 1
+	// Connect is a control message type, used to request opening a new connection
 	Connect
+	// Error is a message type used to send an error during the communication.
+	// Any receiver of an Error message can assume the connection can be closed.
+	// io.EOF is used for graceful termination of connections.
 	Error
+	// AddClient is a message type used to open a new client to the peering session
 	AddClient
+	// RemoveClient is a message type used to remove an existing client from a peering session
 	RemoveClient
+	// Pause is a message type used to temporarily stop a given connection
 	Pause
+	// Resume is a message type used to resume a paused connection
 	Resume
+	// SyncConnections is a message type used to communicate active connection IDs.
+	// The receiver can consider any ID not present in this message as stale and free any associated resource.
+	SyncConnections
 )
 
 var (
@@ -211,7 +223,7 @@ func (m *message) Read(p []byte) (int, error) {
 	return m.body.Read(p)
 }
 
-func (m *message) WriteTo(deadline time.Time, wsConn *wsConn) (int, error) {
+func (m *message) WriteTo(deadline time.Time, wsConn wsConn) (int, error) {
 	err := wsConn.WriteMessage(websocket.BinaryMessage, deadline, m.Bytes())
 	return len(m.bytes), err
 }
@@ -235,6 +247,8 @@ func (m *message) String() string {
 		return fmt.Sprintf("%d PAUSE        [%d]", m.id, m.connID)
 	case Resume:
 		return fmt.Sprintf("%d RESUME       [%d]", m.id, m.connID)
+	case SyncConnections:
+		return fmt.Sprintf("%d SYNCCONNS    [%d]", m.id, m.connID)
 	}
 	return fmt.Sprintf("%d UNKNOWN[%d]: %d", m.id, m.connID, m.messageType)
 }

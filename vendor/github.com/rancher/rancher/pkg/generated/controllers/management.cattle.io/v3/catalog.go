@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,262 +20,54 @@ package v3
 
 import (
 	"context"
+	"sync"
 	"time"
 
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type CatalogHandler func(string, *v3.Catalog) (*v3.Catalog, error)
-
+// CatalogController interface for managing Catalog resources.
 type CatalogController interface {
-	generic.ControllerMeta
-	CatalogClient
-
-	OnChange(ctx context.Context, name string, sync CatalogHandler)
-	OnRemove(ctx context.Context, name string, sync CatalogHandler)
-	Enqueue(name string)
-	EnqueueAfter(name string, duration time.Duration)
-
-	Cache() CatalogCache
+	generic.NonNamespacedControllerInterface[*v3.Catalog, *v3.CatalogList]
 }
 
+// CatalogClient interface for managing Catalog resources in Kubernetes.
 type CatalogClient interface {
-	Create(*v3.Catalog) (*v3.Catalog, error)
-	Update(*v3.Catalog) (*v3.Catalog, error)
-	UpdateStatus(*v3.Catalog) (*v3.Catalog, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	Get(name string, options metav1.GetOptions) (*v3.Catalog, error)
-	List(opts metav1.ListOptions) (*v3.CatalogList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v3.Catalog, err error)
+	generic.NonNamespacedClientInterface[*v3.Catalog, *v3.CatalogList]
 }
 
+// CatalogCache interface for retrieving Catalog resources in memory.
 type CatalogCache interface {
-	Get(name string) (*v3.Catalog, error)
-	List(selector labels.Selector) ([]*v3.Catalog, error)
-
-	AddIndexer(indexName string, indexer CatalogIndexer)
-	GetByIndex(indexName, key string) ([]*v3.Catalog, error)
+	generic.NonNamespacedCacheInterface[*v3.Catalog]
 }
 
-type CatalogIndexer func(obj *v3.Catalog) ([]string, error)
-
-type catalogController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewCatalogController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) CatalogController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &catalogController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromCatalogHandlerToHandler(sync CatalogHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v3.Catalog
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v3.Catalog))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *catalogController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v3.Catalog))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateCatalogDeepCopyOnChange(client CatalogClient, obj *v3.Catalog, handler func(obj *v3.Catalog) (*v3.Catalog, error)) (*v3.Catalog, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *catalogController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *catalogController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *catalogController) OnChange(ctx context.Context, name string, sync CatalogHandler) {
-	c.AddGenericHandler(ctx, name, FromCatalogHandlerToHandler(sync))
-}
-
-func (c *catalogController) OnRemove(ctx context.Context, name string, sync CatalogHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromCatalogHandlerToHandler(sync)))
-}
-
-func (c *catalogController) Enqueue(name string) {
-	c.controller.Enqueue("", name)
-}
-
-func (c *catalogController) EnqueueAfter(name string, duration time.Duration) {
-	c.controller.EnqueueAfter("", name, duration)
-}
-
-func (c *catalogController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *catalogController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *catalogController) Cache() CatalogCache {
-	return &catalogCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *catalogController) Create(obj *v3.Catalog) (*v3.Catalog, error) {
-	result := &v3.Catalog{}
-	return result, c.client.Create(context.TODO(), "", obj, result, metav1.CreateOptions{})
-}
-
-func (c *catalogController) Update(obj *v3.Catalog) (*v3.Catalog, error) {
-	result := &v3.Catalog{}
-	return result, c.client.Update(context.TODO(), "", obj, result, metav1.UpdateOptions{})
-}
-
-func (c *catalogController) UpdateStatus(obj *v3.Catalog) (*v3.Catalog, error) {
-	result := &v3.Catalog{}
-	return result, c.client.UpdateStatus(context.TODO(), "", obj, result, metav1.UpdateOptions{})
-}
-
-func (c *catalogController) Delete(name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), "", name, *options)
-}
-
-func (c *catalogController) Get(name string, options metav1.GetOptions) (*v3.Catalog, error) {
-	result := &v3.Catalog{}
-	return result, c.client.Get(context.TODO(), "", name, result, options)
-}
-
-func (c *catalogController) List(opts metav1.ListOptions) (*v3.CatalogList, error) {
-	result := &v3.CatalogList{}
-	return result, c.client.List(context.TODO(), "", result, opts)
-}
-
-func (c *catalogController) Watch(opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), "", opts)
-}
-
-func (c *catalogController) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (*v3.Catalog, error) {
-	result := &v3.Catalog{}
-	return result, c.client.Patch(context.TODO(), "", name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type catalogCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *catalogCache) Get(name string) (*v3.Catalog, error) {
-	obj, exists, err := c.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v3.Catalog), nil
-}
-
-func (c *catalogCache) List(selector labels.Selector) (ret []*v3.Catalog, err error) {
-
-	err = cache.ListAll(c.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v3.Catalog))
-	})
-
-	return ret, err
-}
-
-func (c *catalogCache) AddIndexer(indexName string, indexer CatalogIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v3.Catalog))
-		},
-	}))
-}
-
-func (c *catalogCache) GetByIndex(indexName, key string) (result []*v3.Catalog, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v3.Catalog, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v3.Catalog))
-	}
-	return result, nil
-}
-
+// CatalogStatusHandler is executed for every added or modified Catalog. Should return the new status to be updated
 type CatalogStatusHandler func(obj *v3.Catalog, status v3.CatalogStatus) (v3.CatalogStatus, error)
 
+// CatalogGeneratingHandler is the top-level handler that is executed for every Catalog event. It extends CatalogStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type CatalogGeneratingHandler func(obj *v3.Catalog, status v3.CatalogStatus) ([]runtime.Object, v3.CatalogStatus, error)
 
+// RegisterCatalogStatusHandler configures a CatalogController to execute a CatalogStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterCatalogStatusHandler(ctx context.Context, controller CatalogController, condition condition.Cond, name string, handler CatalogStatusHandler) {
 	statusHandler := &catalogStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromCatalogHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterCatalogGeneratingHandler configures a CatalogController to execute a CatalogGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterCatalogGeneratingHandler(ctx context.Context, controller CatalogController, apply apply.Apply,
 	condition condition.Cond, name string, handler CatalogGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &catalogGeneratingHandler{
@@ -297,6 +89,7 @@ type catalogStatusHandler struct {
 	handler   CatalogStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *catalogStatusHandler) sync(key string, obj *v3.Catalog) (*v3.Catalog, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +135,10 @@ type catalogGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *catalogGeneratingHandler) Remove(key string, obj *v3.Catalog) (*v3.Catalog, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +148,17 @@ func (a *catalogGeneratingHandler) Remove(key string, obj *v3.Catalog) (*v3.Cata
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured CatalogGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *catalogGeneratingHandler) Handle(obj *v3.Catalog, status v3.CatalogStatus) (v3.CatalogStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +168,41 @@ func (a *catalogGeneratingHandler) Handle(obj *v3.Catalog, status v3.CatalogStat
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *catalogGeneratingHandler) isNewResourceVersion(obj *v3.Catalog) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *catalogGeneratingHandler) storeResourceVersion(obj *v3.Catalog) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

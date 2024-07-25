@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,262 +20,54 @@ package v3
 
 import (
 	"context"
+	"sync"
 	"time"
 
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type ProjectHandler func(string, *v3.Project) (*v3.Project, error)
-
+// ProjectController interface for managing Project resources.
 type ProjectController interface {
-	generic.ControllerMeta
-	ProjectClient
-
-	OnChange(ctx context.Context, name string, sync ProjectHandler)
-	OnRemove(ctx context.Context, name string, sync ProjectHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() ProjectCache
+	generic.ControllerInterface[*v3.Project, *v3.ProjectList]
 }
 
+// ProjectClient interface for managing Project resources in Kubernetes.
 type ProjectClient interface {
-	Create(*v3.Project) (*v3.Project, error)
-	Update(*v3.Project) (*v3.Project, error)
-	UpdateStatus(*v3.Project) (*v3.Project, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v3.Project, error)
-	List(namespace string, opts metav1.ListOptions) (*v3.ProjectList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v3.Project, err error)
+	generic.ClientInterface[*v3.Project, *v3.ProjectList]
 }
 
+// ProjectCache interface for retrieving Project resources in memory.
 type ProjectCache interface {
-	Get(namespace, name string) (*v3.Project, error)
-	List(namespace string, selector labels.Selector) ([]*v3.Project, error)
-
-	AddIndexer(indexName string, indexer ProjectIndexer)
-	GetByIndex(indexName, key string) ([]*v3.Project, error)
+	generic.CacheInterface[*v3.Project]
 }
 
-type ProjectIndexer func(obj *v3.Project) ([]string, error)
-
-type projectController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewProjectController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) ProjectController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &projectController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromProjectHandlerToHandler(sync ProjectHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v3.Project
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v3.Project))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *projectController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v3.Project))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateProjectDeepCopyOnChange(client ProjectClient, obj *v3.Project, handler func(obj *v3.Project) (*v3.Project, error)) (*v3.Project, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *projectController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *projectController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *projectController) OnChange(ctx context.Context, name string, sync ProjectHandler) {
-	c.AddGenericHandler(ctx, name, FromProjectHandlerToHandler(sync))
-}
-
-func (c *projectController) OnRemove(ctx context.Context, name string, sync ProjectHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromProjectHandlerToHandler(sync)))
-}
-
-func (c *projectController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *projectController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *projectController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *projectController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *projectController) Cache() ProjectCache {
-	return &projectCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *projectController) Create(obj *v3.Project) (*v3.Project, error) {
-	result := &v3.Project{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *projectController) Update(obj *v3.Project) (*v3.Project, error) {
-	result := &v3.Project{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *projectController) UpdateStatus(obj *v3.Project) (*v3.Project, error) {
-	result := &v3.Project{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *projectController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *projectController) Get(namespace, name string, options metav1.GetOptions) (*v3.Project, error) {
-	result := &v3.Project{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *projectController) List(namespace string, opts metav1.ListOptions) (*v3.ProjectList, error) {
-	result := &v3.ProjectList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *projectController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *projectController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v3.Project, error) {
-	result := &v3.Project{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type projectCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *projectCache) Get(namespace, name string) (*v3.Project, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v3.Project), nil
-}
-
-func (c *projectCache) List(namespace string, selector labels.Selector) (ret []*v3.Project, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v3.Project))
-	})
-
-	return ret, err
-}
-
-func (c *projectCache) AddIndexer(indexName string, indexer ProjectIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v3.Project))
-		},
-	}))
-}
-
-func (c *projectCache) GetByIndex(indexName, key string) (result []*v3.Project, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v3.Project, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v3.Project))
-	}
-	return result, nil
-}
-
+// ProjectStatusHandler is executed for every added or modified Project. Should return the new status to be updated
 type ProjectStatusHandler func(obj *v3.Project, status v3.ProjectStatus) (v3.ProjectStatus, error)
 
+// ProjectGeneratingHandler is the top-level handler that is executed for every Project event. It extends ProjectStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type ProjectGeneratingHandler func(obj *v3.Project, status v3.ProjectStatus) ([]runtime.Object, v3.ProjectStatus, error)
 
+// RegisterProjectStatusHandler configures a ProjectController to execute a ProjectStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterProjectStatusHandler(ctx context.Context, controller ProjectController, condition condition.Cond, name string, handler ProjectStatusHandler) {
 	statusHandler := &projectStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromProjectHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterProjectGeneratingHandler configures a ProjectController to execute a ProjectGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterProjectGeneratingHandler(ctx context.Context, controller ProjectController, apply apply.Apply,
 	condition condition.Cond, name string, handler ProjectGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &projectGeneratingHandler{
@@ -297,6 +89,7 @@ type projectStatusHandler struct {
 	handler   ProjectStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *projectStatusHandler) sync(key string, obj *v3.Project) (*v3.Project, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +135,10 @@ type projectGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *projectGeneratingHandler) Remove(key string, obj *v3.Project) (*v3.Project, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +148,17 @@ func (a *projectGeneratingHandler) Remove(key string, obj *v3.Project) (*v3.Proj
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured ProjectGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *projectGeneratingHandler) Handle(obj *v3.Project, status v3.ProjectStatus) (v3.ProjectStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +168,41 @@ func (a *projectGeneratingHandler) Handle(obj *v3.Project, status v3.ProjectStat
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *projectGeneratingHandler) isNewResourceVersion(obj *v3.Project) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *projectGeneratingHandler) storeResourceVersion(obj *v3.Project) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }
