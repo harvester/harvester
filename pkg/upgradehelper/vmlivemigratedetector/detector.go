@@ -76,7 +76,7 @@ func (d *VMLiveMigrateDetector) Run(ctx context.Context) error {
 	listOptions := metav1.ListOptions{
 		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
 	}
-	vmiList, err := d.virtClient.VirtualMachineInstance("").List(ctx, &listOptions)
+	vmiList, err := d.virtClient.VirtualMachineInstance("").List(ctx, listOptions)
 	if err != nil {
 		return err
 	}
