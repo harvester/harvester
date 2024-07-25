@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	gocommon "github.com/harvester/go-common"
-	"github.com/rancher/wrangler/pkg/slice"
+	"github.com/rancher/wrangler/v3/pkg/slice"
 )
 
 var builtInNoProxy = []string{

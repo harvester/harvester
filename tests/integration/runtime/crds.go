@@ -9,7 +9,7 @@ import (
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
-	wcrd "github.com/rancher/wrangler/pkg/crd"
+	wcrd "github.com/rancher/wrangler/v3/pkg/crd"
 	"k8s.io/client-go/rest"
 
 	"github.com/harvester/harvester/pkg/util/crd"
