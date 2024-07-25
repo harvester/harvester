@@ -93,7 +93,7 @@ func (h *ActionHandler) restore(_ context.Context, snapshotNamespace, snapshotNa
 	accessModes := []corev1.PersistentVolumeAccessMode{
 		corev1.ReadWriteMany,
 	}
-	resources := corev1.ResourceRequirements{
+	resources := corev1.VolumeResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceStorage: *volumeSnapshot.Status.RestoreSize,
 		},

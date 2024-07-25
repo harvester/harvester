@@ -98,7 +98,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 
 	vmStore := &vmStore{
-		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
+		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup, nil),
 		vms:      scaled.VirtFactory.Kubevirt().V1().VirtualMachine(),
 		vmCache:  scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 		pvcs:     scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
