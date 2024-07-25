@@ -35,9 +35,9 @@ type FakeMachines struct {
 	ns   string
 }
 
-var machinesResource = v1beta1.SchemeGroupVersion.WithResource("machines")
+var machinesResource = v1beta1.GroupVersion.WithResource("machines")
 
-var machinesKind = v1beta1.SchemeGroupVersion.WithKind("Machine")
+var machinesKind = v1beta1.GroupVersion.WithKind("Machine")
 
 // Get takes name of the machine, and returns the corresponding machine object, and an error if there is any.
 func (c *FakeMachines) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Machine, err error) {
