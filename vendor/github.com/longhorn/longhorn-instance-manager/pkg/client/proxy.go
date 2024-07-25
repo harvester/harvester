@@ -3,7 +3,11 @@ package client
 import (
 	"crypto/tls"
 	"fmt"
+	"time"
 
+	emeta "github.com/longhorn/longhorn-engine/pkg/meta"
+	eclient "github.com/longhorn/longhorn-engine/pkg/replica/client"
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
@@ -11,12 +15,8 @@ import (
 	"google.golang.org/grpc/connectivity"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 	"github.com/longhorn/longhorn-instance-manager/pkg/meta"
 	"github.com/longhorn/longhorn-instance-manager/pkg/util"
-
-	emeta "github.com/longhorn/longhorn-engine/pkg/meta"
-	eclient "github.com/longhorn/longhorn-engine/pkg/replica/client"
 )
 
 var (
@@ -100,6 +100,7 @@ func NewProxyClientWithTLS(ctx context.Context, ctxCancel context.CancelFunc, ad
 }
 
 const (
+	// We want to have a slightly bigger timeout on the proxy client-side compared to the actual timeout in the engine/replica because the proxy server adds some delay to the flow
 	GRPCServiceTimeout     = eclient.GRPCServiceCommonTimeout * 2
 	GRPCServiceLongTimeout = eclient.GRPCServiceLongTimeout + GRPCServiceTimeout
 )
@@ -109,8 +110,15 @@ func getContextWithGRPCTimeout(parent context.Context) context.Context {
 	return ctx
 }
 
-func getContextWithGRPCLongTimeout(parent context.Context) context.Context {
-	ctx, _ := context.WithTimeout(parent, GRPCServiceLongTimeout)
+// getContextWithGRPCLongTimeout returns a context with given grpcTimeoutSeconds + GRPCServiceTimeout timeout.
+// If grpcTimeoutSeconds is 0, use the default GRPCServiceLongTimeout instead.
+func getContextWithGRPCLongTimeout(parent context.Context, grpcTimeoutSeconds int64) context.Context {
+	grpcTimeout := GRPCServiceLongTimeout
+	if grpcTimeoutSeconds > 0 {
+		// We want to have a slightly bigger timeout on the proxy client-side compared to the actual timeout in the engine/replica because the proxy server adds some delay to the flow
+		grpcTimeout = (time.Second * time.Duration(grpcTimeoutSeconds)) + GRPCServiceTimeout
+	}
+	ctx, _ := context.WithTimeout(parent, grpcTimeout)
 	return ctx
 }
 

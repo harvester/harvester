@@ -7,6 +7,9 @@ const (
 	BackingImageParameterDataSourceType       = "backingImageDataSourceType"
 	BackingImageParameterChecksum             = "backingImageChecksum"
 	BackingImageParameterDataSourceParameters = "backingImageDataSourceParameters"
+	BackingImageParameterMinNumberOfCopies    = "backingImageMinNumberOfCopies"
+	BackingImageParameterNodeSelector         = "backingImageNodeSelector"
+	BackingImageParameterDiskSelector         = "backingImageDiskSelector"
 )
 
 // BackingImageDownloadState is replaced by BackingImageState.
@@ -36,16 +39,34 @@ type BackingImageDiskFileStatus struct {
 	LastStateTransitionTime string `json:"lastStateTransitionTime"`
 }
 
+type BackingImageDiskFileSpec struct {
+	// +optional
+	EvictionRequested bool `json:"evictionRequested"`
+}
+
 // BackingImageSpec defines the desired state of the Longhorn backing image
 type BackingImageSpec struct {
+	// Deprecated. We are now using DiskFileSpecMap to assign different spec to the file on different disks.
 	// +optional
 	Disks map[string]string `json:"disks"`
+	// +optional
+	DiskFileSpecMap map[string]*BackingImageDiskFileSpec `json:"diskFileSpecMap"`
 	// +optional
 	Checksum string `json:"checksum"`
 	// +optional
 	SourceType BackingImageDataSourceType `json:"sourceType"`
 	// +optional
 	SourceParameters map[string]string `json:"sourceParameters"`
+	// +optional
+	MinNumberOfCopies int `json:"minNumberOfCopies"`
+	// +optional
+	DiskSelector []string `json:"diskSelector"`
+	// +optional
+	NodeSelector []string `json:"nodeSelector"`
+	// +optional
+	Secret string `json:"secret"`
+	// +optional
+	SecretNamespace string `json:"secretNamespace"`
 }
 
 // BackingImageStatus defines the observed state of the Longhorn backing image status

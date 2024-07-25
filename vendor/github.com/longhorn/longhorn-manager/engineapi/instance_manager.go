@@ -10,18 +10,19 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.uber.org/multierr"
 
+	lhlonghorn "github.com/longhorn/go-common-libs/longhorn"
 	imapi "github.com/longhorn/longhorn-instance-manager/pkg/api"
 	imclient "github.com/longhorn/longhorn-instance-manager/pkg/client"
 	immeta "github.com/longhorn/longhorn-instance-manager/pkg/meta"
 	imutil "github.com/longhorn/longhorn-instance-manager/pkg/util"
 
-	"github.com/longhorn/longhorn-manager/datastore"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
-	CurrentInstanceManagerAPIVersion = 5
+	CurrentInstanceManagerAPIVersion = 6
 	MinInstanceManagerAPIVersion     = 1
 	UnknownInstanceManagerAPIVersion = 0
 
@@ -267,12 +268,14 @@ func parseInstance(p *imapi.Instance) *longhorn.InstanceProcess {
 			DataEngine: getDataEngineFromInstanceProcess(p),
 		},
 		Status: longhorn.InstanceProcessStatus{
-			Type:       getTypeForInstance(longhorn.InstanceType(p.Type), p.PortCount),
-			State:      longhorn.InstanceState(p.InstanceStatus.State),
-			ErrorMsg:   p.InstanceStatus.ErrorMsg,
-			Conditions: p.InstanceStatus.Conditions,
-			PortStart:  p.InstanceStatus.PortStart,
-			PortEnd:    p.InstanceStatus.PortEnd,
+			Type:            getTypeForInstance(longhorn.InstanceType(p.Type), p.Name),
+			State:           longhorn.InstanceState(p.InstanceStatus.State),
+			ErrorMsg:        p.InstanceStatus.ErrorMsg,
+			Conditions:      p.InstanceStatus.Conditions,
+			PortStart:       p.InstanceStatus.PortStart,
+			PortEnd:         p.InstanceStatus.PortEnd,
+			TargetPortStart: p.InstanceStatus.TargetPortStart,
+			TargetPortEnd:   p.InstanceStatus.TargetPortEnd,
 
 			// FIXME: These fields are not used, maybe we can deprecate them later.
 			Listen:   "",
@@ -292,7 +295,7 @@ func parseProcess(p *imapi.Process) *longhorn.InstanceProcess {
 			DataEngine: longhorn.DataEngineTypeV1,
 		},
 		Status: longhorn.InstanceProcessStatus{
-			Type:       getTypeForProcess(p.PortCount),
+			Type:       getTypeForProcess(p.Name),
 			State:      longhorn.InstanceState(p.ProcessStatus.State),
 			ErrorMsg:   p.ProcessStatus.ErrorMsg,
 			Conditions: p.ProcessStatus.Conditions,
@@ -315,22 +318,20 @@ func getDataEngineFromInstanceProcess(p *imapi.Instance) longhorn.DataEngineType
 	return longhorn.DataEngineType(p.BackendStoreDriver)
 }
 
-func getTypeForInstance(instanceType longhorn.InstanceType, portCount int32) longhorn.InstanceType {
-	if instanceType != longhorn.InstanceType("") {
+func getTypeForInstance(instanceType longhorn.InstanceType, name string) longhorn.InstanceType {
+	if instanceType != longhorn.InstanceTypeNone {
 		return instanceType
 	}
 
-	if portCount == DefaultEnginePortCount {
+	if lhlonghorn.IsEngineProcess(name) {
 		return longhorn.InstanceTypeEngine
 	}
+
 	return longhorn.InstanceTypeReplica
 }
 
-func getTypeForProcess(portCount int32) longhorn.InstanceType {
-	if portCount == DefaultEnginePortCount {
-		return longhorn.InstanceTypeEngine
-	}
-	return longhorn.InstanceTypeReplica
+func getTypeForProcess(name string) longhorn.InstanceType {
+	return getTypeForInstance(longhorn.InstanceTypeNone, name)
 }
 
 func getBinaryAndArgsForEngineProcessCreation(e *longhorn.Engine,
@@ -441,6 +442,9 @@ type EngineInstanceCreateRequest struct {
 	DataLocality                     longhorn.DataLocality
 	ImIP                             string
 	EngineCLIAPIVersion              int
+	UpgradeRequired                  bool
+	InitiatorAddress                 string
+	TargetAddress                    string
 }
 
 // EngineInstanceCreate creates a new engine instance
@@ -495,6 +499,9 @@ func (c *InstanceManagerClient) EngineInstanceCreate(req *EngineInstanceCreateRe
 		Engine: imclient.EngineCreateRequest{
 			ReplicaAddressMap: replicaAddresses,
 			Frontend:          frontend,
+			UpgradeRequired:   req.UpgradeRequired,
+			InitiatorAddress:  req.InitiatorAddress,
+			TargetAddress:     req.TargetAddress,
 		},
 	})
 
@@ -523,7 +530,7 @@ func (c *InstanceManagerClient) ReplicaInstanceCreate(req *ReplicaInstanceCreate
 
 	binary := ""
 	args := []string{}
-	if datastore.IsDataEngineV1(req.Replica.Spec.DataEngine) {
+	if types.IsDataEngineV1(req.Replica.Spec.DataEngine) {
 		binary, args = getBinaryAndArgsForReplicaProcessCreation(req.Replica, req.DataPath, req.BackingImagePath, req.DataLocality, DefaultReplicaPortCountV1, req.EngineCLIAPIVersion)
 	}
 
@@ -537,7 +544,7 @@ func (c *InstanceManagerClient) ReplicaInstanceCreate(req *ReplicaInstanceCreate
 	}
 
 	portCount := DefaultReplicaPortCountV1
-	if datastore.IsDataEngineV2(req.Replica.Spec.DataEngine) {
+	if types.IsDataEngineV2(req.Replica.Spec.DataEngine) {
 		portCount = DefaultReplicaPortCountV2
 	}
 
@@ -783,4 +790,28 @@ func (c *InstanceManagerClient) VersionGet() (int, int, int, int, error) {
 	}
 	return output.InstanceManagerAPIMinVersion, output.InstanceManagerAPIVersion,
 		output.InstanceManagerProxyAPIMinVersion, output.InstanceManagerProxyAPIVersion, nil
+}
+
+func (c *InstanceManagerClient) LogSetLevel(dataEngine longhorn.DataEngineType, component, level string) error {
+	if err := CheckInstanceManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
+		return err
+	}
+
+	if c.GetAPIVersion() < 6 {
+		return nil
+	}
+
+	return c.instanceServiceGrpcClient.LogSetLevel(string(dataEngine), component, level)
+}
+
+func (c *InstanceManagerClient) LogSetFlags(dataEngine longhorn.DataEngineType, component, flags string) error {
+	if err := CheckInstanceManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
+		return err
+	}
+
+	if c.GetAPIVersion() < 6 {
+		return nil
+	}
+
+	return c.instanceServiceGrpcClient.LogSetFlags(string(dataEngine), component, flags)
 }

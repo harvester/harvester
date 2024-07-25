@@ -23,6 +23,8 @@ _testmain.go
 *.test
 *.prof
 
+coverage.out
+
 # build files
 /.dapper
 

@@ -15,12 +15,16 @@ import (
 
 // SnapshotCreate calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
-func (e *EngineBinary) SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string) (string, error) {
+func (e *EngineBinary) SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string,
+	freezeFilesystem bool) (string, error) {
 	args := []string{"snapshot", "create"}
 	for k, v := range labels {
 		args = append(args, "--label", k+"="+v)
 	}
 	args = append(args, name)
+
+	// Ignore freezeFilesystem argument. v1.7.0 engines understand the corresponding freeze-fs CLI flag, but older
+	// engines do not.
 
 	output, err := e.ExecuteEngineBinary(args...)
 	if err != nil {
@@ -106,7 +110,7 @@ func (e *EngineBinary) SnapshotPurgeStatus(*longhorn.Engine) (map[string]*longho
 // SnapshotClone calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
 func (e *EngineBinary) SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName,
-	fromEngineName string, fileSyncHTTPClientTimeout int64) error {
+	fromEngineName string, fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) error {
 	args := []string{"snapshot", "clone", "--snapshot-name", snapshotName, "--from-controller-address",
 		fromEngineAddress}
 

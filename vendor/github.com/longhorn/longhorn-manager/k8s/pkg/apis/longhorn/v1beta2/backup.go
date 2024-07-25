@@ -23,6 +23,15 @@ const (
 	BackupCompressionMethodGzip = BackupCompressionMethod("gzip")
 )
 
+// +kubebuilder:validation:Enum=full;incremental;""
+type BackupMode string
+
+const (
+	BackupModeFull            = BackupMode("full")
+	BackupModeIncremental     = BackupMode("incremental")
+	BackupModeIncrementalNone = BackupMode("")
+)
+
 // BackupSpec defines the desired state of the Longhorn backup
 type BackupSpec struct {
 	// The time to request run sync the remote backup.
@@ -35,6 +44,10 @@ type BackupSpec struct {
 	// The labels of snapshot backup.
 	// +optional
 	Labels map[string]string `json:"labels"`
+	// The backup mode of this backup.
+	// Can be "full" or "incremental"
+	// +optional
+	BackupMode BackupMode `json:"backupMode"`
 }
 
 // BackupStatus defines the observed state of the Longhorn backup
@@ -97,6 +110,12 @@ type BackupStatus struct {
 	// Compression method
 	// +optional
 	CompressionMethod BackupCompressionMethod `json:"compressionMethod"`
+	// Size in bytes of newly uploaded data
+	// +optional
+	NewlyUploadedDataSize string `json:"newlyUploadDataSize"`
+	// Size in bytes of reuploaded data
+	// +optional
+	ReUploadedDataSize string `json:"reUploadedDataSize"`
 }
 
 // +genclient

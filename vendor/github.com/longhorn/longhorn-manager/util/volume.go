@@ -10,3 +10,7 @@ import (
 func IsVolumeMigrating(v *longhorn.Volume) bool {
 	return v.Spec.MigrationNodeID != "" || v.Status.CurrentMigrationNodeID != ""
 }
+
+func IsMigratableVolume(v *longhorn.Volume) bool {
+	return v.Spec.Migratable && v.Spec.AccessMode == longhorn.AccessModeReadWriteMany
+}

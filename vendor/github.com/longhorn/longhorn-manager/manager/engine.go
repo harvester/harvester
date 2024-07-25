@@ -103,13 +103,18 @@ func (m *VolumeManager) CreateSnapshot(snapshotName string, labels map[string]st
 		return nil, err
 	}
 
+	freezeFilesystem, err := m.ds.GetFreezeFilesystemForSnapshotSetting(e)
+	if err != nil {
+		return nil, err
+	}
+
 	engineClientProxy, err := engineapi.GetCompatibleClient(e, engineCliClient, m.ds, nil, m.proxyConnCounter)
 	if err != nil {
 		return nil, err
 	}
 	defer engineClientProxy.Close()
 
-	snapshotName, err = engineClientProxy.SnapshotCreate(e, snapshotName, labels)
+	snapshotName, err = engineClientProxy.SnapshotCreate(e, snapshotName, labels, freezeFilesystem)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +252,7 @@ func (m *VolumeManager) PurgeSnapshot(volumeName string) error {
 	return nil
 }
 
-func (m *VolumeManager) BackupSnapshot(backupName, volumeName, snapshotName string, labels map[string]string) error {
+func (m *VolumeManager) BackupSnapshot(backupName, volumeName, snapshotName string, labels map[string]string, backupMode string) error {
 	if volumeName == "" || snapshotName == "" {
 		return fmt.Errorf("volume and snapshot name required")
 	}
@@ -263,6 +268,7 @@ func (m *VolumeManager) BackupSnapshot(backupName, volumeName, snapshotName stri
 		Spec: longhorn.BackupSpec{
 			SnapshotName: snapshotName,
 			Labels:       labels,
+			BackupMode:   longhorn.BackupMode(backupMode),
 		},
 	}
 	_, err := m.ds.CreateBackup(backupCR, volumeName)

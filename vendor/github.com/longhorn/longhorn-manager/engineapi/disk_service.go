@@ -38,14 +38,16 @@ func NewDiskServiceClient(im *longhorn.InstanceManager, logger logrus.FieldLogge
 	}
 
 	return &DiskService{
-		logger:     logger,
-		grpcClient: client,
+		logger:              logger,
+		grpcClient:          client,
+		instanceManagerName: im.Name,
 	}, nil
 }
 
 type DiskService struct {
-	logger     logrus.FieldLogger
-	grpcClient *imclient.DiskServiceClient
+	logger              logrus.FieldLogger
+	grpcClient          *imclient.DiskServiceClient
+	instanceManagerName string
 }
 
 func (s *DiskService) Close() {
@@ -59,22 +61,26 @@ func (s *DiskService) Close() {
 	}
 }
 
-func (s *DiskService) DiskCreate(diskType, diskName, diskUUID, diskPath string, blockSize int64) (*imapi.DiskInfo, error) {
-	return s.grpcClient.DiskCreate(diskType, diskName, diskUUID, diskPath, blockSize)
+func (s *DiskService) DiskCreate(diskType, diskName, diskUUID, diskPath, diskDriver string, blockSize int64) (*imapi.DiskInfo, error) {
+	return s.grpcClient.DiskCreate(diskType, diskName, diskUUID, diskPath, diskDriver, blockSize)
 }
 
-func (s *DiskService) DiskGet(diskType, diskName, diskPath string) (*imapi.DiskInfo, error) {
-	return s.grpcClient.DiskGet(diskType, diskName, diskPath)
+func (s *DiskService) DiskGet(diskType, diskName, diskPath, diskDriver string) (*imapi.DiskInfo, error) {
+	return s.grpcClient.DiskGet(diskType, diskName, diskPath, diskDriver)
 }
 
-func (s *DiskService) DiskDelete(diskType, diskName, diskUUID string) error {
-	return s.grpcClient.DiskDelete(diskType, diskName, diskUUID)
+func (s *DiskService) DiskDelete(diskType, diskName, diskUUID, diskPath, diskDriver string) error {
+	return s.grpcClient.DiskDelete(diskType, diskName, diskUUID, diskPath, diskDriver)
 }
 
-func (s *DiskService) DiskReplicaInstanceList(diskType, diskName string) (map[string]*imapi.ReplicaStorageInstance, error) {
-	return s.grpcClient.DiskReplicaInstanceList(diskType, diskName)
+func (s *DiskService) DiskReplicaInstanceList(diskType, diskName, diskDriver string) (map[string]*imapi.ReplicaStorageInstance, error) {
+	return s.grpcClient.DiskReplicaInstanceList(diskType, diskName, diskDriver)
 }
 
-func (s *DiskService) DiskReplicaInstanceDelete(diskType, diskName, diskUUID, replciaInstanceName string) error {
-	return s.grpcClient.DiskReplicaInstanceDelete(diskType, diskName, diskUUID, replciaInstanceName)
+func (s *DiskService) DiskReplicaInstanceDelete(diskType, diskName, diskUUID, diskDriver, replciaInstanceName string) error {
+	return s.grpcClient.DiskReplicaInstanceDelete(diskType, diskName, diskUUID, diskDriver, replciaInstanceName)
+}
+
+func (s *DiskService) GetInstanceManagerName() string {
+	return s.instanceManagerName
 }

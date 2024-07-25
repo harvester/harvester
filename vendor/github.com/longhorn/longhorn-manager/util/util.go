@@ -71,8 +71,9 @@ const (
 
 	DiskConfigFile = "longhorn-disk.cfg"
 
-	SizeAlignment     = 2 * 1024 * 1024
-	MinimalVolumeSize = 10 * 1024 * 1024
+	SizeAlignment        = 2 * MiB
+	MinimalVolumeSize    = 10 * MiB
+	MinimalVolumeSizeXFS = 300 * MiB // See https://github.com/longhorn/longhorn/issues/8488
 
 	MaxExt4VolumeSize = 16 * TiB
 	MaxXfsVolumeSize  = 8*EiB - 1
@@ -233,6 +234,10 @@ func WaitForAPI(url string, timeout int) error {
 
 func Now() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+func TimestampAfterDuration(d time.Duration) string {
+	return time.Now().Add(d).UTC().Format(time.RFC3339)
 }
 
 func ParseTime(t string) (time.Time, error) {
@@ -502,6 +507,14 @@ func ValidateSnapshotLabels(labels map[string]string) (map[string]string, error)
 	return validLabels, nil
 }
 
+func ValidateBackupMode(backupMode string) error {
+	if longhorn.BackupMode(backupMode) != longhorn.BackupModeFull &&
+		longhorn.BackupMode(backupMode) != longhorn.BackupModeIncremental {
+		return fmt.Errorf("backup mode: %v is not a valid option", backupMode)
+	}
+	return nil
+}
+
 func ValidateTags(inputTags []string) ([]string, error) {
 	foundTags := make(map[string]struct{})
 	var tags []string
@@ -622,7 +635,9 @@ func IsKubernetesVersionAtLeast(kubeClient clientset.Interface, vers string) (bo
 }
 
 type DiskConfig struct {
-	DiskUUID string `json:"diskUUID"`
+	DiskName   string              `json:"diskName"`
+	DiskUUID   string              `json:"diskUUID"`
+	DiskDriver longhorn.DiskDriver `json:"diskDriver"`
 }
 
 func MinInt(a, b int) int {
@@ -734,7 +749,7 @@ func TrimFilesystem(volumeName string, encryptedDevice bool) error {
 		return err
 	}
 
-	_, err = nsexec.Execute([]string{}, lhtypes.BinaryFstrim, []string{validMountpoint}, lhtypes.ExecuteDefaultTimeout)
+	_, err = nsexec.Execute(nil, lhtypes.BinaryFstrim, []string{validMountpoint}, lhtypes.ExecuteDefaultTimeout)
 	if err != nil {
 		return errors.Wrapf(err, "cannot find volume %v mount info on host", volumeName)
 	}
@@ -862,4 +877,5 @@ func GetDataEngineForDiskType(diskType longhorn.DiskType) longhorn.DataEngineTyp
 		return longhorn.DataEngineTypeV2
 	}
 	return longhorn.DataEngineTypeV1
+
 }

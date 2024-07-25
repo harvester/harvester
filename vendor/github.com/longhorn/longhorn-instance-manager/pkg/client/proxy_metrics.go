@@ -3,7 +3,7 @@ package client
 import (
 	"github.com/pkg/errors"
 
-	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 )
 
 func (c *ProxyClient) MetricsGet(engineName, volumeName, serviceAddress string) (metrics *Metrics, err error) {

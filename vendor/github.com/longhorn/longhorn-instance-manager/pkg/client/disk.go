@@ -5,13 +5,13 @@ import (
 	"crypto/tls"
 	"fmt"
 
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/longhorn/longhorn-instance-manager/pkg/api"
-	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
 	"github.com/longhorn/longhorn-instance-manager/pkg/meta"
 	"github.com/longhorn/longhorn-instance-manager/pkg/types"
 	"github.com/longhorn/longhorn-instance-manager/pkg/util"
@@ -85,7 +85,7 @@ func NewDiskServiceClientWithTLS(ctx context.Context, ctxCancel context.CancelFu
 
 // DiskCreate creates a disk with the given name and path.
 // diskUUID is optional, if not provided, it indicates the disk is newly added.
-func (c *DiskServiceClient) DiskCreate(diskType, diskName, diskUUID, diskPath string, blockSize int64) (*api.DiskInfo, error) {
+func (c *DiskServiceClient) DiskCreate(diskType, diskName, diskUUID, diskPath, diskDriver string, blockSize int64) (*api.DiskInfo, error) {
 	if diskName == "" || diskPath == "" {
 		return nil, fmt.Errorf("failed to create disk: missing required parameters")
 	}
@@ -100,11 +100,12 @@ func (c *DiskServiceClient) DiskCreate(diskType, diskName, diskUUID, diskPath st
 	defer cancel()
 
 	resp, err := client.DiskCreate(ctx, &rpc.DiskCreateRequest{
-		DiskType:  rpc.DiskType(t),
-		DiskName:  diskName,
-		DiskUuid:  diskUUID,
-		DiskPath:  diskPath,
-		BlockSize: blockSize,
+		DiskType:   rpc.DiskType(t),
+		DiskName:   diskName,
+		DiskUuid:   diskUUID,
+		DiskPath:   diskPath,
+		BlockSize:  blockSize,
+		DiskDriver: diskDriver,
 	})
 	if err != nil {
 		return nil, err
@@ -112,9 +113,11 @@ func (c *DiskServiceClient) DiskCreate(diskType, diskName, diskUUID, diskPath st
 
 	return &api.DiskInfo{
 		ID:          resp.GetId(),
+		Name:        resp.GetName(),
 		UUID:        resp.GetUuid(),
 		Path:        resp.GetPath(),
 		Type:        resp.GetType(),
+		Driver:      resp.GetDriver(),
 		TotalSize:   resp.GetTotalSize(),
 		FreeSize:    resp.GetFreeSize(),
 		TotalBlocks: resp.GetTotalBlocks(),
@@ -125,9 +128,9 @@ func (c *DiskServiceClient) DiskCreate(diskType, diskName, diskUUID, diskPath st
 }
 
 // DiskGet returns the disk info with the given name and path.
-func (c *DiskServiceClient) DiskGet(diskType, diskName, diskPath string) (*api.DiskInfo, error) {
+func (c *DiskServiceClient) DiskGet(diskType, diskName, diskPath, diskDriver string) (*api.DiskInfo, error) {
 	if diskName == "" {
-		return nil, fmt.Errorf("failed to get disk info: missing required parameter")
+		return nil, fmt.Errorf("failed to get disk info: missing required parameter diskName")
 	}
 
 	t, ok := rpc.DiskType_value[diskType]
@@ -140,9 +143,10 @@ func (c *DiskServiceClient) DiskGet(diskType, diskName, diskPath string) (*api.D
 	defer cancel()
 
 	resp, err := client.DiskGet(ctx, &rpc.DiskGetRequest{
-		DiskType: rpc.DiskType(t),
-		DiskName: diskName,
-		DiskPath: diskPath,
+		DiskType:   rpc.DiskType(t),
+		DiskName:   diskName,
+		DiskPath:   diskPath,
+		DiskDriver: diskDriver,
 	})
 	if err != nil {
 		return nil, err
@@ -150,9 +154,11 @@ func (c *DiskServiceClient) DiskGet(diskType, diskName, diskPath string) (*api.D
 
 	return &api.DiskInfo{
 		ID:          resp.GetId(),
+		Name:        resp.GetName(),
 		UUID:        resp.GetUuid(),
 		Path:        resp.GetPath(),
 		Type:        resp.GetType(),
+		Driver:      resp.GetDriver(),
 		TotalSize:   resp.GetTotalSize(),
 		FreeSize:    resp.GetFreeSize(),
 		TotalBlocks: resp.GetTotalBlocks(),
@@ -162,8 +168,8 @@ func (c *DiskServiceClient) DiskGet(diskType, diskName, diskPath string) (*api.D
 	}, nil
 }
 
-// DiskDelete deletes the disk with the given name and uuid.
-func (c *DiskServiceClient) DiskDelete(diskType, diskName, diskUUID string) error {
+// DiskDelete deletes the disk with the given name, disk name, disk UUID, disk path and disk driver.
+func (c *DiskServiceClient) DiskDelete(diskType, diskName, diskUUID, diskPath, diskDriver string) error {
 	if diskName == "" || diskUUID == "" {
 		return fmt.Errorf("failed to delete disk: missing required parameters")
 	}
@@ -173,14 +179,16 @@ func (c *DiskServiceClient) DiskDelete(diskType, diskName, diskUUID string) erro
 	defer cancel()
 
 	_, err := client.DiskDelete(ctx, &rpc.DiskDeleteRequest{
-		DiskType: rpc.DiskType(rpc.DiskType_value[diskType]),
-		DiskName: diskName,
-		DiskUuid: diskUUID,
+		DiskType:   rpc.DiskType(rpc.DiskType_value[diskType]),
+		DiskName:   diskName,
+		DiskUuid:   diskUUID,
+		DiskPath:   diskPath,
+		DiskDriver: diskDriver,
 	})
 	return err
 }
 
-func (c *DiskServiceClient) DiskReplicaInstanceList(diskType, diskName string) (map[string]*api.ReplicaStorageInstance, error) {
+func (c *DiskServiceClient) DiskReplicaInstanceList(diskType, diskName, diskDriver string) (map[string]*api.ReplicaStorageInstance, error) {
 	if diskName == "" {
 		return nil, fmt.Errorf("failed to list replica instances on disk: missing required parameter")
 	}
@@ -190,8 +198,9 @@ func (c *DiskServiceClient) DiskReplicaInstanceList(diskType, diskName string) (
 	defer cancel()
 
 	resp, err := client.DiskReplicaInstanceList(ctx, &rpc.DiskReplicaInstanceListRequest{
-		DiskType: rpc.DiskType(rpc.DiskType_value[diskType]),
-		DiskName: diskName,
+		DiskType:   rpc.DiskType(rpc.DiskType_value[diskType]),
+		DiskName:   diskName,
+		DiskDriver: diskDriver,
 	})
 	if err != nil {
 		return nil, err
@@ -213,7 +222,7 @@ func (c *DiskServiceClient) DiskReplicaInstanceList(diskType, diskName string) (
 }
 
 // DiskReplicaInstanceDelete deletes the replica instance with the given name on the disk.
-func (c *DiskServiceClient) DiskReplicaInstanceDelete(diskType, diskName, diskUUID, replciaInstanceName string) error {
+func (c *DiskServiceClient) DiskReplicaInstanceDelete(diskType, diskName, diskUUID, diskDriver, replciaInstanceName string) error {
 	if diskName == "" || diskUUID == "" || replciaInstanceName == "" {
 		return fmt.Errorf("failed to delete replica instance on disk: missing required parameters")
 	}
@@ -226,6 +235,7 @@ func (c *DiskServiceClient) DiskReplicaInstanceDelete(diskType, diskName, diskUU
 		DiskType:            rpc.DiskType(rpc.DiskType_value[diskType]),
 		DiskName:            diskName,
 		DiskUuid:            diskUUID,
+		DiskDriver:          diskDriver,
 		ReplciaInstanceName: replciaInstanceName,
 	})
 

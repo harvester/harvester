@@ -2,9 +2,11 @@ package api
 
 type DiskInfo struct {
 	ID          string
+	Name        string
 	UUID        string
 	Path        string
 	Type        string
+	Driver      string
 	TotalSize   int64
 	FreeSize    int64
 	TotalBlocks int64
