@@ -35,9 +35,9 @@ type FakeClusters struct {
 	ns   string
 }
 
-var clustersResource = v1beta1.SchemeGroupVersion.WithResource("clusters")
+var clustersResource = v1beta1.GroupVersion.WithResource("clusters")
 
-var clustersKind = v1beta1.SchemeGroupVersion.WithKind("Cluster")
+var clustersKind = v1beta1.GroupVersion.WithKind("Cluster")
 
 // Get takes name of the cluster, and returns the corresponding cluster object, and an error if there is any.
 func (c *FakeClusters) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Cluster, err error) {
