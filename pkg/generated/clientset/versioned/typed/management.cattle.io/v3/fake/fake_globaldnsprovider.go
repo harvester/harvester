@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeGlobalDnsProviders struct {
 	ns   string
 }
 
-var globaldnsprovidersResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "globaldnsproviders"}
+var globaldnsprovidersResource = v3.SchemeGroupVersion.WithResource("globaldnsproviders")
 
-var globaldnsprovidersKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "GlobalDnsProvider"}
+var globaldnsprovidersKind = v3.SchemeGroupVersion.WithKind("GlobalDnsProvider")
 
 // Get takes name of the globalDnsProvider, and returns the corresponding globalDnsProvider object, and an error if there is any.
 func (c *FakeGlobalDnsProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.GlobalDnsProvider, err error) {

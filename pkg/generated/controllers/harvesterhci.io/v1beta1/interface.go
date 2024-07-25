@@ -21,6 +21,7 @@ package v1beta1
 import (
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -55,42 +56,54 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) Addon() AddonController {
-	return NewAddonController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Addon"}, "addons", true, c.controllerFactory)
+func (v *version) Addon() AddonController {
+	return generic.NewController[*v1beta1.Addon, *v1beta1.AddonList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Addon"}, "addons", true, v.controllerFactory)
 }
-func (c *version) KeyPair() KeyPairController {
-	return NewKeyPairController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "KeyPair"}, "keypairs", true, c.controllerFactory)
+
+func (v *version) KeyPair() KeyPairController {
+	return generic.NewController[*v1beta1.KeyPair, *v1beta1.KeyPairList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "KeyPair"}, "keypairs", true, v.controllerFactory)
 }
-func (c *version) Preference() PreferenceController {
-	return NewPreferenceController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Preference"}, "preferences", true, c.controllerFactory)
+
+func (v *version) Preference() PreferenceController {
+	return generic.NewController[*v1beta1.Preference, *v1beta1.PreferenceList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Preference"}, "preferences", true, v.controllerFactory)
 }
-func (c *version) Setting() SettingController {
-	return NewSettingController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Setting"}, "settings", false, c.controllerFactory)
+
+func (v *version) Setting() SettingController {
+	return generic.NewNonNamespacedController[*v1beta1.Setting, *v1beta1.SettingList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Setting"}, "settings", v.controllerFactory)
 }
-func (c *version) SupportBundle() SupportBundleController {
-	return NewSupportBundleController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "SupportBundle"}, "supportbundles", true, c.controllerFactory)
+
+func (v *version) SupportBundle() SupportBundleController {
+	return generic.NewController[*v1beta1.SupportBundle, *v1beta1.SupportBundleList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "SupportBundle"}, "supportbundles", true, v.controllerFactory)
 }
-func (c *version) Upgrade() UpgradeController {
-	return NewUpgradeController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Upgrade"}, "upgrades", true, c.controllerFactory)
+
+func (v *version) Upgrade() UpgradeController {
+	return generic.NewController[*v1beta1.Upgrade, *v1beta1.UpgradeList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Upgrade"}, "upgrades", true, v.controllerFactory)
 }
-func (c *version) UpgradeLog() UpgradeLogController {
-	return NewUpgradeLogController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "UpgradeLog"}, "upgradelogs", true, c.controllerFactory)
+
+func (v *version) UpgradeLog() UpgradeLogController {
+	return generic.NewController[*v1beta1.UpgradeLog, *v1beta1.UpgradeLogList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "UpgradeLog"}, "upgradelogs", true, v.controllerFactory)
 }
-func (c *version) Version() VersionController {
-	return NewVersionController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Version"}, "versions", true, c.controllerFactory)
+
+func (v *version) Version() VersionController {
+	return generic.NewController[*v1beta1.Version, *v1beta1.VersionList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Version"}, "versions", true, v.controllerFactory)
 }
-func (c *version) VirtualMachineBackup() VirtualMachineBackupController {
-	return NewVirtualMachineBackupController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineBackup"}, "virtualmachinebackups", true, c.controllerFactory)
+
+func (v *version) VirtualMachineBackup() VirtualMachineBackupController {
+	return generic.NewController[*v1beta1.VirtualMachineBackup, *v1beta1.VirtualMachineBackupList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineBackup"}, "virtualmachinebackups", true, v.controllerFactory)
 }
-func (c *version) VirtualMachineImage() VirtualMachineImageController {
-	return NewVirtualMachineImageController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineImage"}, "virtualmachineimages", true, c.controllerFactory)
+
+func (v *version) VirtualMachineImage() VirtualMachineImageController {
+	return generic.NewController[*v1beta1.VirtualMachineImage, *v1beta1.VirtualMachineImageList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineImage"}, "virtualmachineimages", true, v.controllerFactory)
 }
-func (c *version) VirtualMachineRestore() VirtualMachineRestoreController {
-	return NewVirtualMachineRestoreController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineRestore"}, "virtualmachinerestores", true, c.controllerFactory)
+
+func (v *version) VirtualMachineRestore() VirtualMachineRestoreController {
+	return generic.NewController[*v1beta1.VirtualMachineRestore, *v1beta1.VirtualMachineRestoreList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineRestore"}, "virtualmachinerestores", true, v.controllerFactory)
 }
-func (c *version) VirtualMachineTemplate() VirtualMachineTemplateController {
-	return NewVirtualMachineTemplateController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineTemplate"}, "virtualmachinetemplates", true, c.controllerFactory)
+
+func (v *version) VirtualMachineTemplate() VirtualMachineTemplateController {
+	return generic.NewController[*v1beta1.VirtualMachineTemplate, *v1beta1.VirtualMachineTemplateList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineTemplate"}, "virtualmachinetemplates", true, v.controllerFactory)
 }
-func (c *version) VirtualMachineTemplateVersion() VirtualMachineTemplateVersionController {
-	return NewVirtualMachineTemplateVersionController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineTemplateVersion"}, "virtualmachinetemplateversions", true, c.controllerFactory)
+
+func (v *version) VirtualMachineTemplateVersion() VirtualMachineTemplateVersionController {
+	return generic.NewController[*v1beta1.VirtualMachineTemplateVersion, *v1beta1.VirtualMachineTemplateVersionList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineTemplateVersion"}, "virtualmachinetemplateversions", true, v.controllerFactory)
 }

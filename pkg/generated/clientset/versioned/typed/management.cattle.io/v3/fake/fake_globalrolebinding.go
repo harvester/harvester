@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeGlobalRoleBindings struct {
 	Fake *FakeManagementV3
 }
 
-var globalrolebindingsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "globalrolebindings"}
+var globalrolebindingsResource = v3.SchemeGroupVersion.WithResource("globalrolebindings")
 
-var globalrolebindingsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "GlobalRoleBinding"}
+var globalrolebindingsKind = v3.SchemeGroupVersion.WithKind("GlobalRoleBinding")
 
 // Get takes name of the globalRoleBinding, and returns the corresponding globalRoleBinding object, and an error if there is any.
 func (c *FakeGlobalRoleBindings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.GlobalRoleBinding, err error) {

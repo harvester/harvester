@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeNodeDrivers struct {
 	Fake *FakeManagementV3
 }
 
-var nodedriversResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "nodedrivers"}
+var nodedriversResource = v3.SchemeGroupVersion.WithResource("nodedrivers")
 
-var nodedriversKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "NodeDriver"}
+var nodedriversKind = v3.SchemeGroupVersion.WithKind("NodeDriver")
 
 // Get takes name of the nodeDriver, and returns the corresponding nodeDriver object, and an error if there is any.
 func (c *FakeNodeDrivers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.NodeDriver, err error) {

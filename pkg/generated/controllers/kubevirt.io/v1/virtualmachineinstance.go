@@ -23,245 +23,30 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/v3/pkg/apply"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 	v1 "kubevirt.io/api/core/v1"
 )
 
-type VirtualMachineInstanceHandler func(string, *v1.VirtualMachineInstance) (*v1.VirtualMachineInstance, error)
-
+// VirtualMachineInstanceController interface for managing VirtualMachineInstance resources.
 type VirtualMachineInstanceController interface {
-	generic.ControllerMeta
-	VirtualMachineInstanceClient
-
-	OnChange(ctx context.Context, name string, sync VirtualMachineInstanceHandler)
-	OnRemove(ctx context.Context, name string, sync VirtualMachineInstanceHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() VirtualMachineInstanceCache
+	generic.ControllerInterface[*v1.VirtualMachineInstance, *v1.VirtualMachineInstanceList]
 }
 
+// VirtualMachineInstanceClient interface for managing VirtualMachineInstance resources in Kubernetes.
 type VirtualMachineInstanceClient interface {
-	Create(*v1.VirtualMachineInstance) (*v1.VirtualMachineInstance, error)
-	Update(*v1.VirtualMachineInstance) (*v1.VirtualMachineInstance, error)
-	UpdateStatus(*v1.VirtualMachineInstance) (*v1.VirtualMachineInstance, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1.VirtualMachineInstance, error)
-	List(namespace string, opts metav1.ListOptions) (*v1.VirtualMachineInstanceList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.VirtualMachineInstance, err error)
+	generic.ClientInterface[*v1.VirtualMachineInstance, *v1.VirtualMachineInstanceList]
 }
 
+// VirtualMachineInstanceCache interface for retrieving VirtualMachineInstance resources in memory.
 type VirtualMachineInstanceCache interface {
-	Get(namespace, name string) (*v1.VirtualMachineInstance, error)
-	List(namespace string, selector labels.Selector) ([]*v1.VirtualMachineInstance, error)
-
-	AddIndexer(indexName string, indexer VirtualMachineInstanceIndexer)
-	GetByIndex(indexName, key string) ([]*v1.VirtualMachineInstance, error)
-}
-
-type VirtualMachineInstanceIndexer func(obj *v1.VirtualMachineInstance) ([]string, error)
-
-type virtualMachineInstanceController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewVirtualMachineInstanceController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) VirtualMachineInstanceController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &virtualMachineInstanceController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromVirtualMachineInstanceHandlerToHandler(sync VirtualMachineInstanceHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1.VirtualMachineInstance
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1.VirtualMachineInstance))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *virtualMachineInstanceController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1.VirtualMachineInstance))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateVirtualMachineInstanceDeepCopyOnChange(client VirtualMachineInstanceClient, obj *v1.VirtualMachineInstance, handler func(obj *v1.VirtualMachineInstance) (*v1.VirtualMachineInstance, error)) (*v1.VirtualMachineInstance, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *virtualMachineInstanceController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *virtualMachineInstanceController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *virtualMachineInstanceController) OnChange(ctx context.Context, name string, sync VirtualMachineInstanceHandler) {
-	c.AddGenericHandler(ctx, name, FromVirtualMachineInstanceHandlerToHandler(sync))
-}
-
-func (c *virtualMachineInstanceController) OnRemove(ctx context.Context, name string, sync VirtualMachineInstanceHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromVirtualMachineInstanceHandlerToHandler(sync)))
-}
-
-func (c *virtualMachineInstanceController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *virtualMachineInstanceController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *virtualMachineInstanceController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *virtualMachineInstanceController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *virtualMachineInstanceController) Cache() VirtualMachineInstanceCache {
-	return &virtualMachineInstanceCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *virtualMachineInstanceController) Create(obj *v1.VirtualMachineInstance) (*v1.VirtualMachineInstance, error) {
-	result := &v1.VirtualMachineInstance{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *virtualMachineInstanceController) Update(obj *v1.VirtualMachineInstance) (*v1.VirtualMachineInstance, error) {
-	result := &v1.VirtualMachineInstance{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *virtualMachineInstanceController) UpdateStatus(obj *v1.VirtualMachineInstance) (*v1.VirtualMachineInstance, error) {
-	result := &v1.VirtualMachineInstance{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *virtualMachineInstanceController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *virtualMachineInstanceController) Get(namespace, name string, options metav1.GetOptions) (*v1.VirtualMachineInstance, error) {
-	result := &v1.VirtualMachineInstance{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *virtualMachineInstanceController) List(namespace string, opts metav1.ListOptions) (*v1.VirtualMachineInstanceList, error) {
-	result := &v1.VirtualMachineInstanceList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *virtualMachineInstanceController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *virtualMachineInstanceController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1.VirtualMachineInstance, error) {
-	result := &v1.VirtualMachineInstance{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type virtualMachineInstanceCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *virtualMachineInstanceCache) Get(namespace, name string) (*v1.VirtualMachineInstance, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1.VirtualMachineInstance), nil
-}
-
-func (c *virtualMachineInstanceCache) List(namespace string, selector labels.Selector) (ret []*v1.VirtualMachineInstance, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.VirtualMachineInstance))
-	})
-
-	return ret, err
-}
-
-func (c *virtualMachineInstanceCache) AddIndexer(indexName string, indexer VirtualMachineInstanceIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1.VirtualMachineInstance))
-		},
-	}))
-}
-
-func (c *virtualMachineInstanceCache) GetByIndex(indexName, key string) (result []*v1.VirtualMachineInstance, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1.VirtualMachineInstance, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1.VirtualMachineInstance))
-	}
-	return result, nil
+	generic.CacheInterface[*v1.VirtualMachineInstance]
 }
 
 // VirtualMachineInstanceStatusHandler is executed for every added or modified VirtualMachineInstance. Should return the new status to be updated
@@ -278,7 +63,7 @@ func RegisterVirtualMachineInstanceStatusHandler(ctx context.Context, controller
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromVirtualMachineInstanceHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
 // RegisterVirtualMachineInstanceGeneratingHandler configures a VirtualMachineInstanceController to execute a VirtualMachineInstanceGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.

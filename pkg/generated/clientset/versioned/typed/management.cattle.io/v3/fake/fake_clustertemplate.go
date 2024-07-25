@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeClusterTemplates struct {
 	ns   string
 }
 
-var clustertemplatesResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "clustertemplates"}
+var clustertemplatesResource = v3.SchemeGroupVersion.WithResource("clustertemplates")
 
-var clustertemplatesKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "ClusterTemplate"}
+var clustertemplatesKind = v3.SchemeGroupVersion.WithKind("ClusterTemplate")
 
 // Get takes name of the clusterTemplate, and returns the corresponding clusterTemplate object, and an error if there is any.
 func (c *FakeClusterTemplates) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterTemplate, err error) {

@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeMultiClusterApps struct {
 	ns   string
 }
 
-var multiclusterappsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "multiclusterapps"}
+var multiclusterappsResource = v3.SchemeGroupVersion.WithResource("multiclusterapps")
 
-var multiclusterappsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "MultiClusterApp"}
+var multiclusterappsKind = v3.SchemeGroupVersion.WithKind("MultiClusterApp")
 
 // Get takes name of the multiClusterApp, and returns the corresponding multiClusterApp object, and an error if there is any.
 func (c *FakeMultiClusterApps) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.MultiClusterApp, err error) {

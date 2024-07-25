@@ -20,6 +20,7 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	v1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -43,6 +44,6 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) ControllerRevision() ControllerRevisionController {
-	return NewControllerRevisionController(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ControllerRevision"}, "controllerrevisions", true, c.controllerFactory)
+func (v *version) ControllerRevision() ControllerRevisionController {
+	return generic.NewController[*v1.ControllerRevision, *v1.ControllerRevisionList](schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ControllerRevision"}, "controllerrevisions", true, v.controllerFactory)
 }

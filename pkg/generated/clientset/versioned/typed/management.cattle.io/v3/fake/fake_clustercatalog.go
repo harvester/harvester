@@ -23,7 +23,6 @@ import (
 
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeClusterCatalogs struct {
 	ns   string
 }
 
-var clustercatalogsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "clustercatalogs"}
+var clustercatalogsResource = v3.SchemeGroupVersion.WithResource("clustercatalogs")
 
-var clustercatalogsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "ClusterCatalog"}
+var clustercatalogsKind = v3.SchemeGroupVersion.WithKind("ClusterCatalog")
 
 // Get takes name of the clusterCatalog, and returns the corresponding clusterCatalog object, and an error if there is any.
 func (c *FakeClusterCatalogs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterCatalog, err error) {

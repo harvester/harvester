@@ -24,7 +24,6 @@ import (
 	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeLoggings struct {
 	Fake *FakeLoggingV1beta1
 }
 
-var loggingsResource = schema.GroupVersionResource{Group: "logging.banzaicloud.io", Version: "v1beta1", Resource: "loggings"}
+var loggingsResource = v1beta1.SchemeGroupVersion.WithResource("loggings")
 
-var loggingsKind = schema.GroupVersionKind{Group: "logging.banzaicloud.io", Version: "v1beta1", Kind: "Logging"}
+var loggingsKind = v1beta1.SchemeGroupVersion.WithKind("Logging")
 
 // Get takes name of the logging, and returns the corresponding logging object, and an error if there is any.
 func (c *FakeLoggings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Logging, err error) {

@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeActiveDirectoryProviders struct {
 	Fake *FakeManagementV3
 }
 
-var activedirectoryprovidersResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "activedirectoryproviders"}
+var activedirectoryprovidersResource = v3.SchemeGroupVersion.WithResource("activedirectoryproviders")
 
-var activedirectoryprovidersKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "ActiveDirectoryProvider"}
+var activedirectoryprovidersKind = v3.SchemeGroupVersion.WithKind("ActiveDirectoryProvider")
 
 // Get takes name of the activeDirectoryProvider, and returns the corresponding activeDirectoryProvider object, and an error if there is any.
 func (c *FakeActiveDirectoryProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ActiveDirectoryProvider, err error) {

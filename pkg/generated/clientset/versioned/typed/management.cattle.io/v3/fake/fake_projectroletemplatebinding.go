@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeProjectRoleTemplateBindings struct {
 	ns   string
 }
 
-var projectroletemplatebindingsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "projectroletemplatebindings"}
+var projectroletemplatebindingsResource = v3.SchemeGroupVersion.WithResource("projectroletemplatebindings")
 
-var projectroletemplatebindingsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "ProjectRoleTemplateBinding"}
+var projectroletemplatebindingsKind = v3.SchemeGroupVersion.WithKind("ProjectRoleTemplateBinding")
 
 // Get takes name of the projectRoleTemplateBinding, and returns the corresponding projectRoleTemplateBinding object, and an error if there is any.
 func (c *FakeProjectRoleTemplateBindings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ProjectRoleTemplateBinding, err error) {

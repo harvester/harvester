@@ -24,7 +24,6 @@ import (
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeVirtualMachineBackups struct {
 	ns   string
 }
 
-var virtualmachinebackupsResource = schema.GroupVersionResource{Group: "harvesterhci.io", Version: "v1beta1", Resource: "virtualmachinebackups"}
+var virtualmachinebackupsResource = v1beta1.SchemeGroupVersion.WithResource("virtualmachinebackups")
 
-var virtualmachinebackupsKind = schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineBackup"}
+var virtualmachinebackupsKind = v1beta1.SchemeGroupVersion.WithKind("VirtualMachineBackup")
 
 // Get takes name of the virtualMachineBackup, and returns the corresponding virtualMachineBackup object, and an error if there is any.
 func (c *FakeVirtualMachineBackups) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VirtualMachineBackup, err error) {
