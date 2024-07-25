@@ -46,8 +46,7 @@ const (
 	VirtOperatorName    = "virt-operator"
 	VirtExportProxyName = "virt-exportproxy"
 
-	kubevirtLabelKey              = "kubevirt.io"
-	kubernetesHostnameTopologyKey = "kubernetes.io/hostname"
+	kubevirtLabelKey = "kubevirt.io"
 
 	portName = "--port"
 )
@@ -261,7 +260,7 @@ func newBaseDeployment(deploymentName, imageName, namespace, repository, version
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: int32Ptr(2),
+			Replicas: pointer.Int32(2),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					kubevirtLabelKey: deploymentName,
@@ -311,7 +310,7 @@ func newPodAntiAffinity(key, topologyKey string, operator metav1.LabelSelectorOp
 }
 
 func NewApiServerDeployment(namespace, repository, imagePrefix, version, productName, productVersion, productComponent, image string, pullPolicy corev1.PullPolicy, imagePullSecrets []corev1.LocalObjectReference, verbosity string, extraEnv map[string]string) (*appsv1.Deployment, error) {
-	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, kubernetesHostnameTopologyKey, metav1.LabelSelectorOpIn, []string{VirtAPIName})
+	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, corev1.LabelHostname, metav1.LabelSelectorOpIn, []string{VirtAPIName})
 	deploymentName := VirtAPIName
 	imageName := fmt.Sprintf("%s%s", imagePrefix, deploymentName)
 	env := operatorutil.NewEnvVarMap(extraEnv)
@@ -327,7 +326,7 @@ func NewApiServerDeployment(namespace, repository, imagePrefix, version, product
 	pod := &deployment.Spec.Template.Spec
 	pod.ServiceAccountName = ApiServiceAccountName
 	pod.SecurityContext = &corev1.PodSecurityContext{
-		RunAsNonRoot:   boolPtr(true),
+		RunAsNonRoot:   pointer.Bool(true),
 		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 	}
 
@@ -388,8 +387,8 @@ func NewApiServerDeployment(namespace, repository, imagePrefix, version, product
 	return deployment, nil
 }
 
-func NewControllerDeployment(namespace, repository, imagePrefix, controllerVersion, launcherVersion, exportServerVersion, productName, productVersion, productComponent, image, launcherImage, exporterImage string, pullPolicy corev1.PullPolicy, imagePullSecrets []corev1.LocalObjectReference, verbosity string, extraEnv map[string]string) (*appsv1.Deployment, error) {
-	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, kubernetesHostnameTopologyKey, metav1.LabelSelectorOpIn, []string{VirtControllerName})
+func NewControllerDeployment(namespace, repository, imagePrefix, controllerVersion, launcherVersion, exportServerVersion, sidecarVersion, productName, productVersion, productComponent, image, launcherImage, exporterImage, sidecarImage string, pullPolicy corev1.PullPolicy, imagePullSecrets []corev1.LocalObjectReference, verbosity string, extraEnv map[string]string) (*appsv1.Deployment, error) {
+	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, corev1.LabelHostname, metav1.LabelSelectorOpIn, []string{VirtControllerName})
 	deploymentName := VirtControllerName
 	imageName := fmt.Sprintf("%s%s", imagePrefix, deploymentName)
 	env := operatorutil.NewEnvVarMap(extraEnv)
@@ -408,7 +407,7 @@ func NewControllerDeployment(namespace, repository, imagePrefix, controllerVersi
 	pod := &deployment.Spec.Template.Spec
 	pod.ServiceAccountName = ControllerServiceAccountName
 	pod.SecurityContext = &corev1.PodSecurityContext{
-		RunAsNonRoot:   boolPtr(true),
+		RunAsNonRoot:   pointer.Bool(true),
 		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 	}
 
@@ -482,16 +481,22 @@ func NewControllerDeployment(namespace, repository, imagePrefix, controllerVersi
 		},
 		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 	}
+
+	if sidecarImage == "" {
+		sidecarImage = fmt.Sprintf("%s/%s%s%s", repository, imagePrefix, "sidecar-shim", AddVersionSeparatorPrefix(sidecarVersion))
+	}
+	container.Env = append(container.Env, corev1.EnvVar{Name: operatorutil.SidecarShimImageEnvName, Value: sidecarImage})
+
 	return deployment, nil
 }
 
 // Used for manifest generation only
 func NewOperatorDeployment(namespace, repository, imagePrefix, version, verbosity, kubeVirtVersionEnv, virtApiShaEnv, virtControllerShaEnv, virtHandlerShaEnv, virtLauncherShaEnv, virtExportProxyShaEnv,
-	virtExportServerShaEnv, gsShaEnv, prHelperShaEnv, runbookURLTemplate, virtApiImageEnv, virtControllerImageEnv, virtHandlerImageEnv, virtLauncherImageEnv, virtExportProxyImageEnv, virtExportServerImageEnv, gsImage, prHelperImage,
+	virtExportServerShaEnv, gsShaEnv, prHelperShaEnv, sidecarShimShaEnv, runbookURLTemplate, virtApiImageEnv, virtControllerImageEnv, virtHandlerImageEnv, virtLauncherImageEnv, virtExportProxyImageEnv, virtExportServerImageEnv, gsImage, prHelperImage, sidecarShimImage,
 	image string, pullPolicy corev1.PullPolicy) (*appsv1.Deployment, error) {
 
 	const kubernetesOSLinux = "linux"
-	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, kubernetesHostnameTopologyKey, metav1.LabelSelectorOpIn, []string{VirtOperatorName})
+	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, corev1.LabelHostname, metav1.LabelSelectorOpIn, []string{VirtOperatorName})
 	version = AddVersionSeparatorPrefix(version)
 	if image == "" {
 		image = fmt.Sprintf("%s/%s%s%s", repository, imagePrefix, VirtOperatorName, version)
@@ -510,7 +515,7 @@ func NewOperatorDeployment(namespace, repository, imagePrefix, version, verbosit
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: int32Ptr(2),
+			Replicas: pointer.Int32(2),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					virtv1.AppLabel: VirtOperatorName,
@@ -606,7 +611,7 @@ func NewOperatorDeployment(namespace, repository, imagePrefix, version, verbosit
 						},
 					},
 					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot:   boolPtr(true),
+						RunAsNonRoot:   pointer.Bool(true),
 						SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 					},
 				},
@@ -616,8 +621,8 @@ func NewOperatorDeployment(namespace, repository, imagePrefix, version, verbosit
 
 	envVars := generateVirtOperatorEnvVars(
 		virtApiShaEnv, virtControllerShaEnv, virtHandlerShaEnv, virtLauncherShaEnv, virtExportProxyShaEnv, virtExportServerShaEnv,
-		gsShaEnv, prHelperShaEnv, runbookURLTemplate, virtApiImageEnv, virtControllerImageEnv, virtHandlerImageEnv, virtLauncherImageEnv, virtExportProxyImageEnv,
-		virtExportServerImageEnv, gsImage, prHelperImage, kubeVirtVersionEnv,
+		gsShaEnv, prHelperShaEnv, sidecarShimShaEnv, runbookURLTemplate, virtApiImageEnv, virtControllerImageEnv, virtHandlerImageEnv, virtLauncherImageEnv, virtExportProxyImageEnv,
+		virtExportServerImageEnv, gsImage, prHelperImage, sidecarShimImage, kubeVirtVersionEnv,
 	)
 
 	if envVars != nil {
@@ -631,7 +636,7 @@ func NewOperatorDeployment(namespace, repository, imagePrefix, version, verbosit
 }
 
 func NewExportProxyDeployment(namespace, repository, imagePrefix, version, productName, productVersion, productComponent, image string, pullPolicy corev1.PullPolicy, imagePullSecrets []corev1.LocalObjectReference, verbosity string, extraEnv map[string]string) (*appsv1.Deployment, error) {
-	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, kubernetesHostnameTopologyKey, metav1.LabelSelectorOpIn, []string{VirtAPIName})
+	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, corev1.LabelHostname, metav1.LabelSelectorOpIn, []string{VirtAPIName})
 	deploymentName := VirtExportProxyName
 	imageName := fmt.Sprintf("%s%s", imagePrefix, deploymentName)
 	env := operatorutil.NewEnvVarMap(extraEnv)
@@ -646,7 +651,7 @@ func NewExportProxyDeployment(namespace, repository, imagePrefix, version, produ
 	pod := &deployment.Spec.Template.Spec
 	pod.ServiceAccountName = ExportProxyServiceAccountName
 	pod.SecurityContext = &corev1.PodSecurityContext{
-		RunAsNonRoot: boolPtr(true),
+		RunAsNonRoot: pointer.Bool(true),
 	}
 
 	const shortName = "exportproxy"
@@ -698,14 +703,6 @@ func NewExportProxyDeployment(namespace, repository, imagePrefix, version, produ
 	return deployment, nil
 }
 
-func int32Ptr(i int32) *int32 {
-	return &i
-}
-
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 func criticalAddonsToleration() []corev1.Toleration {
 	return []corev1.Toleration{
 		{
@@ -751,8 +748,8 @@ func NewPodDisruptionBudgetForDeployment(deployment *appsv1.Deployment) *policyv
 }
 
 func generateVirtOperatorEnvVars(virtApiShaEnv, virtControllerShaEnv, virtHandlerShaEnv, virtLauncherShaEnv, virtExportProxyShaEnv,
-	virtExportServerShaEnv, gsShaEnv, prHelperShaEnv, runbookURLTemplate, virtApiImageEnv, virtControllerImageEnv, virtHandlerImageEnv, virtLauncherImageEnv, virtExportProxyImageEnv,
-	virtExportServerImageEnv, gsImage, prHelperImage, kubeVirtVersionEnv string) (envVars []corev1.EnvVar) {
+	virtExportServerShaEnv, gsShaEnv, prHelperShaEnv, sidecarShimShaEnv, runbookURLTemplate, virtApiImageEnv, virtControllerImageEnv, virtHandlerImageEnv, virtLauncherImageEnv, virtExportProxyImageEnv,
+	virtExportServerImageEnv, gsImage, prHelperImage, sidecarShimImage, kubeVirtVersionEnv string) (envVars []corev1.EnvVar) {
 
 	addEnvVar := func(envVarName, envVarValue string) {
 		envVars = append(envVars, corev1.EnvVar{
@@ -813,6 +810,12 @@ func generateVirtOperatorEnvVars(virtApiShaEnv, virtControllerShaEnv, virtHandle
 		addEnvVar(operatorutil.PrHelperImageEnvName, prHelperImage)
 	} else if prHelperShaEnv != "" {
 		addEnvVar(operatorutil.PrHelperShasumEnvName, prHelperShaEnv)
+	}
+
+	if sidecarShimImage != "" {
+		addEnvVar(operatorutil.SidecarShimImageEnvName, sidecarShimImage)
+	} else if sidecarShimShaEnv != "" {
+		addEnvVar(operatorutil.SidecarShimShasumEnvName, sidecarShimShaEnv)
 	}
 
 	if kubeVirtVersionEnv != "" {

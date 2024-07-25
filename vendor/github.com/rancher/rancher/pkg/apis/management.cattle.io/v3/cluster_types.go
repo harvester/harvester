@@ -29,15 +29,10 @@ const (
 	ClusterActionGenerateKubeconfig    = "generateKubeconfig"
 	ClusterActionImportYaml            = "importYaml"
 	ClusterActionExportYaml            = "exportYaml"
-	ClusterActionViewMonitoring        = "viewMonitoring"
-	ClusterActionEditMonitoring        = "editMonitoring"
-	ClusterActionEnableMonitoring      = "enableMonitoring"
-	ClusterActionDisableMonitoring     = "disableMonitoring"
 	ClusterActionBackupEtcd            = "backupEtcd"
 	ClusterActionRestoreFromEtcdBackup = "restoreFromEtcdBackup"
 	ClusterActionRotateCertificates    = "rotateCertificates"
 	ClusterActionRotateEncryptionKey   = "rotateEncryptionKey"
-	ClusterActionRunSecurityScan       = "runSecurityScan"
 	ClusterActionSaveAsTemplate        = "saveAsTemplate"
 
 	// ClusterConditionReady Cluster ready to serve API (healthy when true, unhealthy when false)
@@ -69,8 +64,6 @@ const (
 	ClusterConditionGlobalAdminsSynced                   condition.Cond = "GlobalAdminsSynced"
 	ClusterConditionInitialRolesPopulated                condition.Cond = "InitialRolesPopulated"
 	ClusterConditionServiceAccountMigrated               condition.Cond = "ServiceAccountMigrated"
-	ClusterConditionPrometheusOperatorDeployed           condition.Cond = "PrometheusOperatorDeployed"
-	ClusterConditionMonitoringEnabled                    condition.Cond = "MonitoringEnabled"
 	ClusterConditionAlertingEnabled                      condition.Cond = "AlertingEnabled"
 	ClusterConditionSecretsMigrated                      condition.Cond = "SecretsMigrated"
 	ClusterConditionServiceAccountSecretsMigrated        condition.Cond = "ServiceAccountSecretsMigrated"
@@ -88,9 +81,13 @@ const (
 	ClusterDriverEKS      = "EKS"
 	ClusterDriverGKE      = "GKE"
 	ClusterDriverRancherD = "rancherd"
+
+	ClusterPrivateRegistrySecret = "PrivateRegistrySecret"
+	ClusterPrivateRegistryURL    = "PrivateRegistryURL"
 )
 
 // +genclient
+// +kubebuilder:skipversion
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -108,21 +105,26 @@ type Cluster struct {
 }
 
 type ClusterSpecBase struct {
-	DesiredAgentImage                    string                                  `json:"desiredAgentImage"`
-	DesiredAuthImage                     string                                  `json:"desiredAuthImage"`
-	AgentImageOverride                   string                                  `json:"agentImageOverride"`
-	AgentEnvVars                         []v1.EnvVar                             `json:"agentEnvVars,omitempty"`
-	RancherKubernetesEngineConfig        *rketypes.RancherKubernetesEngineConfig `json:"rancherKubernetesEngineConfig,omitempty"`
-	DefaultPodSecurityPolicyTemplateName string                                  `json:"defaultPodSecurityPolicyTemplateName,omitempty" norman:"type=reference[podSecurityPolicyTemplate]"`
-	DefaultClusterRoleForProjectMembers  string                                  `json:"defaultClusterRoleForProjectMembers,omitempty" norman:"type=reference[roleTemplate]"`
-	DockerRootDir                        string                                  `json:"dockerRootDir,omitempty" norman:"default=/var/lib/docker"`
-	EnableNetworkPolicy                  *bool                                   `json:"enableNetworkPolicy" norman:"default=false"`
-	EnableClusterAlerting                bool                                    `json:"enableClusterAlerting" norman:"default=false"`
-	EnableClusterMonitoring              bool                                    `json:"enableClusterMonitoring" norman:"default=false"`
-	WindowsPreferedCluster               bool                                    `json:"windowsPreferedCluster" norman:"noupdate"`
-	LocalClusterAuthEndpoint             LocalClusterAuthEndpoint                `json:"localClusterAuthEndpoint,omitempty"`
-	ScheduledClusterScan                 *ScheduledClusterScan                   `json:"scheduledClusterScan,omitempty"`
-	ClusterSecrets                       ClusterSecrets                          `json:"clusterSecrets" norman:"nocreate,noupdate"`
+	DesiredAgentImage                                    string                                  `json:"desiredAgentImage"`
+	DesiredAuthImage                                     string                                  `json:"desiredAuthImage"`
+	AgentImageOverride                                   string                                  `json:"agentImageOverride"`
+	AgentEnvVars                                         []v1.EnvVar                             `json:"agentEnvVars,omitempty"`
+	RancherKubernetesEngineConfig                        *rketypes.RancherKubernetesEngineConfig `json:"rancherKubernetesEngineConfig,omitempty"`
+	DefaultPodSecurityAdmissionConfigurationTemplateName string                                  `json:"defaultPodSecurityAdmissionConfigurationTemplateName,omitempty"`
+	DefaultClusterRoleForProjectMembers                  string                                  `json:"defaultClusterRoleForProjectMembers,omitempty" norman:"type=reference[roleTemplate]"`
+	DockerRootDir                                        string                                  `json:"dockerRootDir,omitempty" norman:"default=/var/lib/docker"`
+	EnableNetworkPolicy                                  *bool                                   `json:"enableNetworkPolicy" norman:"default=false"`
+	WindowsPreferedCluster                               bool                                    `json:"windowsPreferedCluster" norman:"noupdate"`
+	LocalClusterAuthEndpoint                             LocalClusterAuthEndpoint                `json:"localClusterAuthEndpoint,omitempty"`
+	ClusterSecrets                                       ClusterSecrets                          `json:"clusterSecrets" norman:"nocreate,noupdate"`
+	ClusterAgentDeploymentCustomization                  *AgentDeploymentCustomization           `json:"clusterAgentDeploymentCustomization,omitempty"`
+	FleetAgentDeploymentCustomization                    *AgentDeploymentCustomization           `json:"fleetAgentDeploymentCustomization,omitempty"`
+}
+
+type AgentDeploymentCustomization struct {
+	AppendTolerations            []v1.Toleration          `json:"appendTolerations,omitempty"`
+	OverrideAffinity             *v1.Affinity             `json:"overrideAffinity,omitempty"`
+	OverrideResourceRequirements *v1.ResourceRequirements `json:"overrideResourceRequirements,omitempty"`
 }
 
 type ClusterSpec struct {
@@ -157,47 +159,46 @@ type ClusterStatus struct {
 	Conditions []ClusterCondition `json:"conditions,omitempty"`
 	// Component statuses will represent cluster's components (etcd/controller/scheduler) health
 	// https://kubernetes.io/docs/api-reference/v1.8/#componentstatus-v1-core
-	Driver                               string                      `json:"driver"`
-	Provider                             string                      `json:"provider"`
-	AgentImage                           string                      `json:"agentImage"`
-	AppliedAgentEnvVars                  []v1.EnvVar                 `json:"appliedAgentEnvVars,omitempty"`
-	AgentFeatures                        map[string]bool             `json:"agentFeatures,omitempty"`
-	AuthImage                            string                      `json:"authImage"`
-	ComponentStatuses                    []ClusterComponentStatus    `json:"componentStatuses,omitempty"`
-	APIEndpoint                          string                      `json:"apiEndpoint,omitempty"`
-	ServiceAccountToken                  string                      `json:"serviceAccountToken,omitempty"`
-	ServiceAccountTokenSecret            string                      `json:"serviceAccountTokenSecret,omitempty"`
-	CACert                               string                      `json:"caCert,omitempty"`
-	Capacity                             v1.ResourceList             `json:"capacity,omitempty"`
-	Allocatable                          v1.ResourceList             `json:"allocatable,omitempty"`
-	AppliedSpec                          ClusterSpec                 `json:"appliedSpec,omitempty"`
-	FailedSpec                           *ClusterSpec                `json:"failedSpec,omitempty"`
-	Requested                            v1.ResourceList             `json:"requested,omitempty"`
-	Limits                               v1.ResourceList             `json:"limits,omitempty"`
-	Version                              *version.Info               `json:"version,omitempty"`
-	AppliedPodSecurityPolicyTemplateName string                      `json:"appliedPodSecurityPolicyTemplateId"`
-	AppliedEnableNetworkPolicy           bool                        `json:"appliedEnableNetworkPolicy" norman:"nocreate,noupdate,default=false"`
-	Capabilities                         Capabilities                `json:"capabilities,omitempty"`
-	MonitoringStatus                     *MonitoringStatus           `json:"monitoringStatus,omitempty" norman:"nocreate,noupdate"`
-	NodeVersion                          int                         `json:"nodeVersion,omitempty"`
-	NodeCount                            int                         `json:"nodeCount,omitempty" norman:"nocreate,noupdate"`
-	LinuxWorkerCount                     int                         `json:"linuxWorkerCount,omitempty" norman:"nocreate,noupdate"`
-	WindowsWorkerCount                   int                         `json:"windowsWorkerCount,omitempty" norman:"nocreate,noupdate"`
-	IstioEnabled                         bool                        `json:"istioEnabled,omitempty" norman:"nocreate,noupdate,default=false"`
-	CertificatesExpiration               map[string]CertExpiration   `json:"certificatesExpiration,omitempty"`
-	ScheduledClusterScanStatus           *ScheduledClusterScanStatus `json:"scheduledClusterScanStatus,omitempty"`
-	CurrentCisRunName                    string                      `json:"currentCisRunName,omitempty"`
-	AKSStatus                            AKSStatus                   `json:"aksStatus,omitempty" norman:"nocreate,noupdate"`
-	EKSStatus                            EKSStatus                   `json:"eksStatus,omitempty" norman:"nocreate,noupdate"`
-	GKEStatus                            GKEStatus                   `json:"gkeStatus,omitempty" norman:"nocreate,noupdate"`
-	PrivateRegistrySecret                string                      `json:"privateRegistrySecret,omitempty" norman:"nocreate,noupdate"` // Deprecated: use ClusterSpec.ClusterSecrets.PrivateRegistrySecret instead
-	S3CredentialSecret                   string                      `json:"s3CredentialSecret,omitempty" norman:"nocreate,noupdate"`    // Deprecated: use ClusterSpec.ClusterSecrets.S3CredentialSecret instead
-	WeavePasswordSecret                  string                      `json:"weavePasswordSecret,omitempty" norman:"nocreate,noupdate"`   // Deprecated: use ClusterSpec.ClusterSecrets.WeavePasswordSecret instead
-	VsphereSecret                        string                      `json:"vsphereSecret,omitempty" norman:"nocreate,noupdate"`         // Deprecated: use ClusterSpec.ClusterSecrets.VsphereSecret instead
-	VirtualCenterSecret                  string                      `json:"virtualCenterSecret,omitempty" norman:"nocreate,noupdate"`   // Deprecated: use ClusterSpec.ClusterSecrets.VirtualCenterSecret instead
-	OpenStackSecret                      string                      `json:"openStackSecret,omitempty" norman:"nocreate,noupdate"`       // Deprecated: use ClusterSpec.ClusterSecrets.OpenStackSecret instead
-	AADClientSecret                      string                      `json:"aadClientSecret,omitempty" norman:"nocreate,noupdate"`       // Deprecated: use ClusterSpec.ClusterSecrets.AADClientSecret instead
-	AADClientCertSecret                  string                      `json:"aadClientCertSecret,omitempty" norman:"nocreate,noupdate"`   // Deprecated: use ClusterSpec.ClusterSecrets.AADClientCertSecret instead
+	Driver                     string                    `json:"driver"`
+	Provider                   string                    `json:"provider"`
+	AgentImage                 string                    `json:"agentImage"`
+	AppliedAgentEnvVars        []v1.EnvVar               `json:"appliedAgentEnvVars,omitempty"`
+	AgentFeatures              map[string]bool           `json:"agentFeatures,omitempty"`
+	AuthImage                  string                    `json:"authImage"`
+	ComponentStatuses          []ClusterComponentStatus  `json:"componentStatuses,omitempty"`
+	APIEndpoint                string                    `json:"apiEndpoint,omitempty"`
+	ServiceAccountToken        string                    `json:"serviceAccountToken,omitempty"`
+	ServiceAccountTokenSecret  string                    `json:"serviceAccountTokenSecret,omitempty"`
+	CACert                     string                    `json:"caCert,omitempty"`
+	Capacity                   v1.ResourceList           `json:"capacity,omitempty"`
+	Allocatable                v1.ResourceList           `json:"allocatable,omitempty"`
+	AppliedSpec                ClusterSpec               `json:"appliedSpec,omitempty"`
+	FailedSpec                 *ClusterSpec              `json:"failedSpec,omitempty"`
+	Requested                  v1.ResourceList           `json:"requested,omitempty"`
+	Limits                     v1.ResourceList           `json:"limits,omitempty"`
+	Version                    *version.Info             `json:"version,omitempty"`
+	AppliedEnableNetworkPolicy bool                      `json:"appliedEnableNetworkPolicy" norman:"nocreate,noupdate,default=false"`
+	Capabilities               Capabilities              `json:"capabilities,omitempty"`
+	NodeVersion                int                       `json:"nodeVersion,omitempty"`
+	NodeCount                  int                       `json:"nodeCount,omitempty" norman:"nocreate,noupdate"`
+	LinuxWorkerCount           int                       `json:"linuxWorkerCount,omitempty" norman:"nocreate,noupdate"`
+	WindowsWorkerCount         int                       `json:"windowsWorkerCount,omitempty" norman:"nocreate,noupdate"`
+	IstioEnabled               bool                      `json:"istioEnabled,omitempty" norman:"nocreate,noupdate,default=false"`
+	CertificatesExpiration     map[string]CertExpiration `json:"certificatesExpiration,omitempty"`
+	CurrentCisRunName          string                    `json:"currentCisRunName,omitempty"`
+	AKSStatus                  AKSStatus                 `json:"aksStatus,omitempty" norman:"nocreate,noupdate"`
+	EKSStatus                  EKSStatus                 `json:"eksStatus,omitempty" norman:"nocreate,noupdate"`
+	GKEStatus                  GKEStatus                 `json:"gkeStatus,omitempty" norman:"nocreate,noupdate"`
+	PrivateRegistrySecret      string                    `json:"privateRegistrySecret,omitempty" norman:"nocreate,noupdate"` // Deprecated: use ClusterSpec.ClusterSecrets.PrivateRegistrySecret instead
+	S3CredentialSecret         string                    `json:"s3CredentialSecret,omitempty" norman:"nocreate,noupdate"`    // Deprecated: use ClusterSpec.ClusterSecrets.S3CredentialSecret instead
+	WeavePasswordSecret        string                    `json:"weavePasswordSecret,omitempty" norman:"nocreate,noupdate"`   // Deprecated: use ClusterSpec.ClusterSecrets.WeavePasswordSecret instead
+	VsphereSecret              string                    `json:"vsphereSecret,omitempty" norman:"nocreate,noupdate"`         // Deprecated: use ClusterSpec.ClusterSecrets.VsphereSecret instead
+	VirtualCenterSecret        string                    `json:"virtualCenterSecret,omitempty" norman:"nocreate,noupdate"`   // Deprecated: use ClusterSpec.ClusterSecrets.VirtualCenterSecret instead
+	OpenStackSecret            string                    `json:"openStackSecret,omitempty" norman:"nocreate,noupdate"`       // Deprecated: use ClusterSpec.ClusterSecrets.OpenStackSecret instead
+	AADClientSecret            string                    `json:"aadClientSecret,omitempty" norman:"nocreate,noupdate"`       // Deprecated: use ClusterSpec.ClusterSecrets.AADClientSecret instead
+	AADClientCertSecret        string                    `json:"aadClientCertSecret,omitempty" norman:"nocreate,noupdate"`   // Deprecated: use ClusterSpec.ClusterSecrets.AADClientCertSecret instead
+
+	AppliedClusterAgentDeploymentCustomization *AgentDeploymentCustomization `json:"appliedClusterAgentDeploymentCustomization,omitempty"`
 }
 
 type ClusterComponentStatus struct {
@@ -243,6 +244,7 @@ func (m *MapStringInterface) DeepCopy() *MapStringInterface {
 }
 
 // +genclient
+// +kubebuilder:skipversion
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type ClusterRegistrationToken struct {
@@ -315,7 +317,6 @@ type Capabilities struct {
 	NodePoolScalingSupported bool                     `json:"nodePoolScalingSupported,omitempty"`
 	NodePortRange            string                   `json:"nodePortRange,omitempty"`
 	TaintSupport             *bool                    `json:"taintSupport,omitempty"`
-	PspEnabled               bool                     `json:"pspEnabled,omitempty"`
 }
 
 type LoadBalancerCapabilities struct {
@@ -328,18 +329,6 @@ type LoadBalancerCapabilities struct {
 type IngressCapabilities struct {
 	IngressProvider      string `json:"ingressProvider,omitempty"`
 	CustomDefaultBackend *bool  `json:"customDefaultBackend,omitempty"`
-}
-
-type MonitoringInput struct {
-	Version          string            `json:"version,omitempty"`
-	Answers          map[string]string `json:"answers,omitempty"`
-	AnswersSetString map[string]string `json:"answersSetString,omitempty"`
-}
-
-type MonitoringOutput struct {
-	Version          string            `json:"version,omitempty"`
-	Answers          map[string]string `json:"answers,omitempty"`
-	AnswersSetString map[string]string `json:"answersSetString,omitempty"`
 }
 
 type RestoreFromEtcdBackupInput struct {
@@ -394,6 +383,7 @@ type EKSStatus struct {
 	PrivateRequiresTunnel         *bool                       `json:"privateRequiresTunnel"`
 	ManagedLaunchTemplateID       string                      `json:"managedLaunchTemplateID"`
 	ManagedLaunchTemplateVersions map[string]string           `json:"managedLaunchTemplateVersions"`
+	GeneratedNodeRole             string                      `json:"generatedNodeRole"`
 }
 
 type GKEStatus struct {
@@ -403,6 +393,7 @@ type GKEStatus struct {
 
 type ClusterSecrets struct {
 	PrivateRegistrySecret            string `json:"privateRegistrySecret,omitempty" norman:"nocreate,noupdate"`
+	PrivateRegistryURL               string `json:"privateRegistryURL,omitempty" norman:"nocreate,noupdate"`
 	S3CredentialSecret               string `json:"s3CredentialSecret,omitempty" norman:"nocreate,noupdate"`
 	WeavePasswordSecret              string `json:"weavePasswordSecret,omitempty" norman:"nocreate,noupdate"`
 	VsphereSecret                    string `json:"vsphereSecret,omitempty" norman:"nocreate,noupdate"`

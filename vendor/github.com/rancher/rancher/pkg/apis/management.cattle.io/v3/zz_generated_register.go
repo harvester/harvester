@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,84 +28,72 @@ import (
 )
 
 var (
-	APIServiceResourceName                              = "apiservices"
-	ActiveDirectoryProviderResourceName                 = "activedirectoryproviders"
-	AuthConfigResourceName                              = "authconfigs"
-	AuthProviderResourceName                            = "authproviders"
-	AuthTokenResourceName                               = "authtokens"
-	AzureADProviderResourceName                         = "azureadproviders"
-	CatalogResourceName                                 = "catalogs"
-	CatalogTemplateResourceName                         = "catalogtemplates"
-	CatalogTemplateVersionResourceName                  = "catalogtemplateversions"
-	CisBenchmarkVersionResourceName                     = "cisbenchmarkversions"
-	CisConfigResourceName                               = "cisconfigs"
-	CloudCredentialResourceName                         = "cloudcredentials"
-	ClusterResourceName                                 = "clusters"
-	ClusterAlertResourceName                            = "clusteralerts"
-	ClusterAlertGroupResourceName                       = "clusteralertgroups"
-	ClusterAlertRuleResourceName                        = "clusteralertrules"
-	ClusterCatalogResourceName                          = "clustercatalogs"
-	ClusterLoggingResourceName                          = "clusterloggings"
-	ClusterMonitorGraphResourceName                     = "clustermonitorgraphs"
-	ClusterRegistrationTokenResourceName                = "clusterregistrationtokens"
-	ClusterRoleTemplateBindingResourceName              = "clusterroletemplatebindings"
-	ClusterScanResourceName                             = "clusterscans"
-	ClusterTemplateResourceName                         = "clustertemplates"
-	ClusterTemplateRevisionResourceName                 = "clustertemplaterevisions"
-	ComposeConfigResourceName                           = "composeconfigs"
-	DynamicSchemaResourceName                           = "dynamicschemas"
-	EtcdBackupResourceName                              = "etcdbackups"
-	FeatureResourceName                                 = "features"
-	FleetWorkspaceResourceName                          = "fleetworkspaces"
-	FreeIpaProviderResourceName                         = "freeipaproviders"
-	GithubProviderResourceName                          = "githubproviders"
-	GlobalDnsResourceName                               = "globaldnses"
-	GlobalDnsProviderResourceName                       = "globaldnsproviders"
-	GlobalRoleResourceName                              = "globalroles"
-	GlobalRoleBindingResourceName                       = "globalrolebindings"
-	GoogleOAuthProviderResourceName                     = "googleoauthproviders"
-	GroupResourceName                                   = "groups"
-	GroupMemberResourceName                             = "groupmembers"
-	KontainerDriverResourceName                         = "kontainerdrivers"
-	LocalProviderResourceName                           = "localproviders"
-	ManagedChartResourceName                            = "managedcharts"
-	MonitorMetricResourceName                           = "monitormetrics"
-	MultiClusterAppResourceName                         = "multiclusterapps"
-	MultiClusterAppRevisionResourceName                 = "multiclusterapprevisions"
-	NodeResourceName                                    = "nodes"
-	NodeDriverResourceName                              = "nodedrivers"
-	NodePoolResourceName                                = "nodepools"
-	NodeTemplateResourceName                            = "nodetemplates"
-	NotifierResourceName                                = "notifiers"
-	OIDCProviderResourceName                            = "oidcproviders"
-	OpenLdapProviderResourceName                        = "openldapproviders"
-	PodSecurityPolicyTemplateResourceName               = "podsecuritypolicytemplates"
-	PodSecurityPolicyTemplateProjectBindingResourceName = "podsecuritypolicytemplateprojectbindings"
-	PreferenceResourceName                              = "preferences"
-	PrincipalResourceName                               = "principals"
-	ProjectResourceName                                 = "projects"
-	ProjectAlertResourceName                            = "projectalerts"
-	ProjectAlertGroupResourceName                       = "projectalertgroups"
-	ProjectAlertRuleResourceName                        = "projectalertrules"
-	ProjectCatalogResourceName                          = "projectcatalogs"
-	ProjectLoggingResourceName                          = "projectloggings"
-	ProjectMonitorGraphResourceName                     = "projectmonitorgraphs"
-	ProjectNetworkPolicyResourceName                    = "projectnetworkpolicies"
-	ProjectRoleTemplateBindingResourceName              = "projectroletemplatebindings"
-	RancherUserNotificationResourceName                 = "rancherusernotifications"
-	RkeAddonResourceName                                = "rkeaddons"
-	RkeK8sServiceOptionResourceName                     = "rkek8sserviceoptions"
-	RkeK8sSystemImageResourceName                       = "rkek8ssystemimages"
-	RoleTemplateResourceName                            = "roletemplates"
-	SamlProviderResourceName                            = "samlproviders"
-	SamlTokenResourceName                               = "samltokens"
-	SettingResourceName                                 = "settings"
-	TemplateResourceName                                = "templates"
-	TemplateContentResourceName                         = "templatecontents"
-	TemplateVersionResourceName                         = "templateversions"
-	TokenResourceName                                   = "tokens"
-	UserResourceName                                    = "users"
-	UserAttributeResourceName                           = "userattributes"
+	APIServiceResourceName                                = "apiservices"
+	ActiveDirectoryProviderResourceName                   = "activedirectoryproviders"
+	AuthConfigResourceName                                = "authconfigs"
+	AuthProviderResourceName                              = "authproviders"
+	AuthTokenResourceName                                 = "authtokens"
+	AzureADProviderResourceName                           = "azureadproviders"
+	CatalogResourceName                                   = "catalogs"
+	CatalogTemplateResourceName                           = "catalogtemplates"
+	CatalogTemplateVersionResourceName                    = "catalogtemplateversions"
+	CloudCredentialResourceName                           = "cloudcredentials"
+	ClusterResourceName                                   = "clusters"
+	ClusterCatalogResourceName                            = "clustercatalogs"
+	ClusterLoggingResourceName                            = "clusterloggings"
+	ClusterProxyConfigResourceName                        = "clusterproxyconfigs"
+	ClusterRegistrationTokenResourceName                  = "clusterregistrationtokens"
+	ClusterRoleTemplateBindingResourceName                = "clusterroletemplatebindings"
+	ClusterTemplateResourceName                           = "clustertemplates"
+	ClusterTemplateRevisionResourceName                   = "clustertemplaterevisions"
+	ComposeConfigResourceName                             = "composeconfigs"
+	DynamicSchemaResourceName                             = "dynamicschemas"
+	EtcdBackupResourceName                                = "etcdbackups"
+	FeatureResourceName                                   = "features"
+	FleetWorkspaceResourceName                            = "fleetworkspaces"
+	FreeIpaProviderResourceName                           = "freeipaproviders"
+	GenericOIDCProviderResourceName                       = "genericoidcproviders"
+	GithubProviderResourceName                            = "githubproviders"
+	GlobalDnsResourceName                                 = "globaldnses"
+	GlobalDnsProviderResourceName                         = "globaldnsproviders"
+	GlobalRoleResourceName                                = "globalroles"
+	GlobalRoleBindingResourceName                         = "globalrolebindings"
+	GoogleOAuthProviderResourceName                       = "googleoauthproviders"
+	GroupResourceName                                     = "groups"
+	GroupMemberResourceName                               = "groupmembers"
+	KontainerDriverResourceName                           = "kontainerdrivers"
+	LocalProviderResourceName                             = "localproviders"
+	ManagedChartResourceName                              = "managedcharts"
+	MultiClusterAppResourceName                           = "multiclusterapps"
+	MultiClusterAppRevisionResourceName                   = "multiclusterapprevisions"
+	NodeResourceName                                      = "nodes"
+	NodeDriverResourceName                                = "nodedrivers"
+	NodePoolResourceName                                  = "nodepools"
+	NodeTemplateResourceName                              = "nodetemplates"
+	OIDCProviderResourceName                              = "oidcproviders"
+	OpenLdapProviderResourceName                          = "openldapproviders"
+	PodSecurityAdmissionConfigurationTemplateResourceName = "podsecurityadmissionconfigurationtemplates"
+	PreferenceResourceName                                = "preferences"
+	PrincipalResourceName                                 = "principals"
+	ProjectResourceName                                   = "projects"
+	ProjectCatalogResourceName                            = "projectcatalogs"
+	ProjectLoggingResourceName                            = "projectloggings"
+	ProjectNetworkPolicyResourceName                      = "projectnetworkpolicies"
+	ProjectRoleTemplateBindingResourceName                = "projectroletemplatebindings"
+	RancherUserNotificationResourceName                   = "rancherusernotifications"
+	RkeAddonResourceName                                  = "rkeaddons"
+	RkeK8sServiceOptionResourceName                       = "rkek8sserviceoptions"
+	RkeK8sSystemImageResourceName                         = "rkek8ssystemimages"
+	RoleTemplateResourceName                              = "roletemplates"
+	SamlProviderResourceName                              = "samlproviders"
+	SamlTokenResourceName                                 = "samltokens"
+	SettingResourceName                                   = "settings"
+	TemplateResourceName                                  = "templates"
+	TemplateContentResourceName                           = "templatecontents"
+	TemplateVersionResourceName                           = "templateversions"
+	TokenResourceName                                     = "tokens"
+	UserResourceName                                      = "users"
+	UserAttributeResourceName                             = "userattributes"
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -147,32 +135,20 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&CatalogTemplateList{},
 		&CatalogTemplateVersion{},
 		&CatalogTemplateVersionList{},
-		&CisBenchmarkVersion{},
-		&CisBenchmarkVersionList{},
-		&CisConfig{},
-		&CisConfigList{},
 		&CloudCredential{},
 		&CloudCredentialList{},
 		&Cluster{},
 		&ClusterList{},
-		&ClusterAlert{},
-		&ClusterAlertList{},
-		&ClusterAlertGroup{},
-		&ClusterAlertGroupList{},
-		&ClusterAlertRule{},
-		&ClusterAlertRuleList{},
 		&ClusterCatalog{},
 		&ClusterCatalogList{},
 		&ClusterLogging{},
 		&ClusterLoggingList{},
-		&ClusterMonitorGraph{},
-		&ClusterMonitorGraphList{},
+		&ClusterProxyConfig{},
+		&ClusterProxyConfigList{},
 		&ClusterRegistrationToken{},
 		&ClusterRegistrationTokenList{},
 		&ClusterRoleTemplateBinding{},
 		&ClusterRoleTemplateBindingList{},
-		&ClusterScan{},
-		&ClusterScanList{},
 		&ClusterTemplate{},
 		&ClusterTemplateList{},
 		&ClusterTemplateRevision{},
@@ -189,6 +165,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&FleetWorkspaceList{},
 		&FreeIpaProvider{},
 		&FreeIpaProviderList{},
+		&GenericOIDCProvider{},
+		&GenericOIDCProviderList{},
 		&GithubProvider{},
 		&GithubProviderList{},
 		&GlobalDns{},
@@ -211,8 +189,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&LocalProviderList{},
 		&ManagedChart{},
 		&ManagedChartList{},
-		&MonitorMetric{},
-		&MonitorMetricList{},
 		&MultiClusterApp{},
 		&MultiClusterAppList{},
 		&MultiClusterAppRevision{},
@@ -225,34 +201,22 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&NodePoolList{},
 		&NodeTemplate{},
 		&NodeTemplateList{},
-		&Notifier{},
-		&NotifierList{},
 		&OIDCProvider{},
 		&OIDCProviderList{},
 		&OpenLdapProvider{},
 		&OpenLdapProviderList{},
-		&PodSecurityPolicyTemplate{},
-		&PodSecurityPolicyTemplateList{},
-		&PodSecurityPolicyTemplateProjectBinding{},
-		&PodSecurityPolicyTemplateProjectBindingList{},
+		&PodSecurityAdmissionConfigurationTemplate{},
+		&PodSecurityAdmissionConfigurationTemplateList{},
 		&Preference{},
 		&PreferenceList{},
 		&Principal{},
 		&PrincipalList{},
 		&Project{},
 		&ProjectList{},
-		&ProjectAlert{},
-		&ProjectAlertList{},
-		&ProjectAlertGroup{},
-		&ProjectAlertGroupList{},
-		&ProjectAlertRule{},
-		&ProjectAlertRuleList{},
 		&ProjectCatalog{},
 		&ProjectCatalogList{},
 		&ProjectLogging{},
 		&ProjectLoggingList{},
-		&ProjectMonitorGraph{},
-		&ProjectMonitorGraphList{},
 		&ProjectNetworkPolicy{},
 		&ProjectNetworkPolicyList{},
 		&ProjectRoleTemplateBinding{},

@@ -18,7 +18,10 @@ package v1beta1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 const (
@@ -57,9 +60,17 @@ const (
 	// a classy Cluster to define the maximum concurrency while upgrading MachineDeployments.
 	ClusterTopologyUpgradeConcurrencyAnnotation = "topology.cluster.x-k8s.io/upgrade-concurrency"
 
+	// ClusterTopologyMachinePoolNameLabel is the label set on the generated  MachinePool objects
+	// to track the name of the MachinePool topology it represents.
+	ClusterTopologyMachinePoolNameLabel = "topology.cluster.x-k8s.io/pool-name"
+
 	// ClusterTopologyUnsafeUpdateClassNameAnnotation can be used to disable the webhook check on
 	// update that disallows a pre-existing Cluster to be populated with Topology information and Class.
 	ClusterTopologyUnsafeUpdateClassNameAnnotation = "unsafe.topology.cluster.x-k8s.io/disable-update-class-name-check"
+
+	// ClusterTopologyUnsafeUpdateVersionAnnotation can be used to disable the webhook checks on
+	// update that disallows updating the .topology.spec.version on certain conditions.
+	ClusterTopologyUnsafeUpdateVersionAnnotation = "unsafe.topology.cluster.x-k8s.io/disable-update-version-check"
 
 	// ProviderNameLabel is the label set on components in the provider manifest.
 	// This label allows to easily identify all the components belonging to a provider; the clusterctl
@@ -117,6 +128,21 @@ const (
 	// MachineSkipRemediationAnnotation is the annotation used to mark the machines that should not be considered for remediation by MachineHealthCheck reconciler.
 	MachineSkipRemediationAnnotation = "cluster.x-k8s.io/skip-remediation"
 
+	// RemediateMachineAnnotation is the annotation used to mark machines that should be remediated by MachineHealthCheck reconciler.
+	RemediateMachineAnnotation = "cluster.x-k8s.io/remediate-machine"
+
+	// MachineSetSkipPreflightChecksAnnotation is the annotation used to provide a comma-separated list of
+	// preflight checks that should be skipped during the MachineSet reconciliation.
+	// Supported items are:
+	// - KubeadmVersion (skips the kubeadm version skew preflight check)
+	// - KubernetesVersion (skips the kubernetes version skew preflight check)
+	// - ControlPlaneStable (skips checking that the control plane is neither provisioning nor upgrading)
+	// - All (skips all preflight checks)
+	// Example: "machineset.cluster.x-k8s.io/skip-preflight-checks": "ControlPlaneStable,KubernetesVersion".
+	// Note: The annotation can also be set on a MachineDeployment as MachineDeployment annotations are synced to
+	// the MachineSet.
+	MachineSetSkipPreflightChecksAnnotation = "machineset.cluster.x-k8s.io/skip-preflight-checks"
+
 	// ClusterSecretType defines the type of secret created by core components.
 	// Note: This is used by core CAPI, CAPBK, and KCP to determine whether a secret is created by the controllers
 	// themselves or supplied by the user (e.g. bring your own certificates).
@@ -148,10 +174,70 @@ const (
 	// This annotation can be used to inform MachinePool status during in-progress scaling scenarios.
 	ReplicasManagedByAnnotation = "cluster.x-k8s.io/replicas-managed-by"
 
+	// AutoscalerMinSizeAnnotation defines the minimum node group size.
+	// The annotation is used by autoscaler.
+	// The annotation is copied from kubernetes/autoscaler.
+	// Ref:https://github.com/kubernetes/autoscaler/blob/d8336cca37dbfa5d1cb7b7e453bd511172d6e5e7/cluster-autoscaler/cloudprovider/clusterapi/clusterapi_utils.go#L256-L259
+	// Note: With the Kubernetes autoscaler it is possible to use different annotations by configuring a different
+	// "Cluster API group" than "cluster.x-k8s.io" via the "CAPI_GROUP" environment variable.
+	// We only handle the default group in our implementation.
+	// Note: It can be used by setting as top level annotation on MachineDeployment and MachineSets.
+	AutoscalerMinSizeAnnotation = "cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size"
+
+	// AutoscalerMaxSizeAnnotation defines the maximum node group size.
+	// The annotations is used by the autoscaler.
+	// The annotation definition is copied from kubernetes/autoscaler.
+	// Ref:https://github.com/kubernetes/autoscaler/blob/d8336cca37dbfa5d1cb7b7e453bd511172d6e5e7/cluster-autoscaler/cloudprovider/clusterapi/clusterapi_utils.go#L264-L267
+	// Note: With the Kubernetes autoscaler it is possible to use different annotations by configuring a different
+	// "Cluster API group" than "cluster.x-k8s.io" via the "CAPI_GROUP" environment variable.
+	// We only handle the default group in our implementation.
+	// Note: It can be used by setting as top level annotation on MachineDeployment and MachineSets.
+	AutoscalerMaxSizeAnnotation = "cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size"
+
 	// VariableDefinitionFromInline indicates a patch or variable was defined in the `.spec` of a ClusterClass
 	// rather than from an external patch extension.
 	VariableDefinitionFromInline = "inline"
 )
+
+// MachineSetPreflightCheck defines a valid MachineSet preflight check.
+type MachineSetPreflightCheck string
+
+const (
+	// MachineSetPreflightCheckAll can be used to represent all the MachineSet preflight checks.
+	MachineSetPreflightCheckAll MachineSetPreflightCheck = "All"
+
+	// MachineSetPreflightCheckKubeadmVersionSkew is the name of the preflight check
+	// that verifies if the machine being created or remediated for the MachineSet conforms to the kubeadm version
+	// skew policy that requires the machine to be at the same version as the control plane.
+	// Note: This is a stopgap while the root cause of the problem is fixed in kubeadm; this check will become
+	// a no-op when this check will be available in kubeadm, and then eventually be dropped when all the
+	// supported Kuberenetes/kubeadm versions have implemented the fix.
+	// The preflight check is only run if a ControlPlane is used (controlPlaneRef must exist in the Cluster),
+	// the ControlPlane has a version, the MachineSet has a version and the MachineSet uses the Kubeadm bootstrap
+	// provider.
+	MachineSetPreflightCheckKubeadmVersionSkew MachineSetPreflightCheck = "KubeadmVersionSkew"
+
+	// MachineSetPreflightCheckKubernetesVersionSkew is the name of the preflight check that verifies
+	// if the machines being created or remediated for the MachineSet conform to the Kubernetes version skew policy
+	// that requires the machines to be at a version that is not more than 2 minor lower than the ControlPlane version.
+	// The preflight check is only run if a ControlPlane is used (controlPlaneRef must exist in the Cluster),
+	// the ControlPlane has a version and the MachineSet has a version.
+	MachineSetPreflightCheckKubernetesVersionSkew MachineSetPreflightCheck = "KubernetesVersionSkew"
+
+	// MachineSetPreflightCheckControlPlaneIsStable is the name of the preflight check
+	// that verifies if the control plane is not provisioning and not upgrading.
+	// The preflight check is only run if a ControlPlane is used (controlPlaneRef must exist in the Cluster)
+	// and the ControlPlane has a version.
+	MachineSetPreflightCheckControlPlaneIsStable MachineSetPreflightCheck = "ControlPlaneIsStable"
+)
+
+// NodeOutdatedRevisionTaint can be added to Nodes at rolling updates in general triggered by updating MachineDeployment
+// This taint is used to prevent unnecessary pod churn, i.e., as the first node is drained, pods previously running on
+// that node are scheduled onto nodes who have yet to be replaced, but will be torn down soon.
+var NodeOutdatedRevisionTaint = corev1.Taint{
+	Key:    "node.cluster.x-k8s.io/outdated-revision",
+	Effect: corev1.TaintEffectPreferNoSchedule,
+}
 
 // NodeUninitializedTaint can be added to Nodes at creation by the bootstrap provider, e.g. the
 // KubeadmBootstrap provider will add the taint.
@@ -232,4 +318,17 @@ type ObjectMeta struct {
 	// More info: http://kubernetes.io/docs/user-guide/annotations
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// Validate validates the labels and annotations in ObjectMeta.
+func (metadata *ObjectMeta) Validate(parent *field.Path) field.ErrorList {
+	allErrs := metav1validation.ValidateLabels(
+		metadata.Labels,
+		parent.Child("labels"),
+	)
+	allErrs = append(allErrs, apivalidation.ValidateAnnotations(
+		metadata.Annotations,
+		parent.Child("annotations"),
+	)...)
+	return allErrs
 }

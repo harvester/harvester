@@ -101,6 +101,7 @@ const (
 	HostDeviceMDev = "mdev"
 	HostDeviceUSB  = "usb"
 	AddressPCI     = "pci"
+	AddressCCW     = "ccw"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -157,12 +158,18 @@ type FSFreeze struct {
 	Status string
 }
 
+type FSDisk struct {
+	Serial  string
+	BusType string
+}
+
 type Filesystem struct {
 	Name       string
 	Mountpoint string
 	Type       string
 	UsedBytes  int
 	TotalBytes int
+	Disk       []FSDisk
 }
 
 type User struct {
@@ -308,7 +315,10 @@ type Features struct {
 	PMU        *FeatureState      `xml:"pmu,omitempty"`
 }
 
+const HypervModePassthrough = "passthrough"
+
 type FeatureHyperv struct {
+	Mode            string            `xml:"mode,attr,omitempty"`
 	Relaxed         *FeatureState     `xml:"relaxed,omitempty"`
 	VAPIC           *FeatureState     `xml:"vapic,omitempty"`
 	Spinlocks       *FeatureSpinlocks `xml:"spinlocks,omitempty"`
@@ -348,6 +358,16 @@ type FeatureEnabled struct {
 }
 
 type Shareable struct{}
+
+type Slice struct {
+	Slice SliceType `xml:"slice,omitempty"`
+}
+
+type SliceType struct {
+	Type   string `xml:"type,attr"`
+	Offset int64  `xml:"offset,attr"`
+	Size   int64  `xml:"size,attr"`
+}
 
 type FeatureState struct {
 	State string `xml:"state,attr,omitempty"`
@@ -474,12 +494,17 @@ type MemoryBackingAccess struct {
 type NoSharePages struct {
 }
 
+type MemoryAddress struct {
+	Base string `xml:"base,attr"`
+}
+
 type MemoryTarget struct {
-	Size      Memory `xml:"size"`
-	Requested Memory `xml:"requested"`
-	Current   Memory `xml:"current"`
-	Node      string `xml:"node"`
-	Block     Memory `xml:"block"`
+	Size      Memory         `xml:"size"`
+	Requested Memory         `xml:"requested"`
+	Current   Memory         `xml:"current"`
+	Node      string         `xml:"node"`
+	Block     Memory         `xml:"block"`
+	Address   *MemoryAddress `xml:"address,omitempty"`
 }
 
 type MemoryDevice struct {
@@ -591,7 +616,7 @@ type HostDevice struct {
 	Source    HostDeviceSource `xml:"source"`
 	Type      string           `xml:"type,attr"`
 	BootOrder *BootOrder       `xml:"boot,omitempty"`
-	Managed   string           `xml:"managed,attr"`
+	Managed   string           `xml:"managed,attr,omitempty"`
 	Mode      string           `xml:"mode,attr,omitempty"`
 	Model     string           `xml:"model,attr,omitempty"`
 	Address   *Address         `xml:"address,omitempty"`
@@ -674,6 +699,7 @@ type DiskSource struct {
 	Name          string          `xml:"name,attr,omitempty"`
 	Host          *DiskSourceHost `xml:"host,omitempty"`
 	Reservations  *Reservations   `xml:"reservations,omitempty"`
+	Slices        []Slice         `xml:"slices,omitempty"`
 }
 
 type DiskTarget struct {
@@ -777,6 +803,7 @@ type ConsoleSource struct {
 // BEGIN Inteface -----------------------------
 
 type Interface struct {
+	XMLName             xml.Name               `xml:"interface"`
 	Address             *Address               `xml:"address,omitempty"`
 	Type                string                 `xml:"type,attr"`
 	TrustGuestRxFilters string                 `xml:"trustGuestRxFilters,attr,omitempty"`
@@ -934,6 +961,7 @@ func (alias *Alias) UnmarshalJSON(data []byte) error {
 
 type OS struct {
 	Type       OSType    `xml:"type"`
+	ACPI       *OSACPI   `xml:"acpi,omitempty"`
 	SMBios     *SMBios   `xml:"smbios,omitempty"`
 	BootOrder  []Boot    `xml:"boot"`
 	BootMenu   *BootMenu `xml:"bootmenu,omitempty"`
@@ -949,6 +977,15 @@ type OSType struct {
 	OS      string `xml:",chardata"`
 	Arch    string `xml:"arch,attr,omitempty"`
 	Machine string `xml:"machine,attr,omitempty"`
+}
+
+type OSACPI struct {
+	Table ACPITable `xml:"table,omitempty"`
+}
+
+type ACPITable struct {
+	Path string `xml:",chardata"`
+	Type string `xml:"type,attr,omitempty"`
 }
 
 type SMBios struct {

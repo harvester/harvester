@@ -3,9 +3,9 @@ package types
 import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	apiserverv1alpha1 "k8s.io/apiserver/pkg/apis/apiserver/v1alpha1"
+	apiserverv1 "k8s.io/apiserver/pkg/apis/apiserver/v1"
 	auditv1 "k8s.io/apiserver/pkg/apis/audit/v1"
-	configv1 "k8s.io/apiserver/pkg/apis/config/v1"
+	eventratelimitapi "k8s.io/kubernetes/plugin/pkg/admission/eventratelimit/apis/eventratelimit"
 )
 
 type RancherKubernetesEngineConfig struct {
@@ -153,7 +153,7 @@ type RKESystemImages struct {
 	CalicoControllers string `yaml:"calico_controllers" json:"calicoControllers,omitempty"`
 	// Calicoctl image
 	CalicoCtl string `yaml:"calico_ctl" json:"calicoCtl,omitempty"`
-	//CalicoFlexVol image
+	// CalicoFlexVol image
 	CalicoFlexVol string `yaml:"calico_flexvol" json:"calicoFlexVol,omitempty"`
 	// Canal Node Image
 	CanalNode string `yaml:"canal_node" json:"canalNode,omitempty"`
@@ -161,11 +161,11 @@ type RKESystemImages struct {
 	CanalCNI string `yaml:"canal_cni" json:"canalCni,omitempty"`
 	// Canal Controllers Image needed for Calico/Canal v3.14.0+
 	CanalControllers string `yaml:"canal_controllers" json:"canalControllers,omitempty"`
-	//CanalFlannel image
+	// CanalFlannel image
 	CanalFlannel string `yaml:"canal_flannel" json:"canalFlannel,omitempty"`
-	//CanalFlexVol image
+	// CanalFlexVol image
 	CanalFlexVol string `yaml:"canal_flexvol" json:"canalFlexVol,omitempty"`
-	//Weave Node image
+	// Weave Node image
 	WeaveNode string `yaml:"weave_node" json:"weaveNode,omitempty"`
 	// Weave CNI image
 	WeaveCNI string `yaml:"weave_cni" json:"weaveCni,omitempty"`
@@ -292,8 +292,8 @@ type KubeAPIService struct {
 	ServiceClusterIPRange string `yaml:"service_cluster_ip_range" json:"serviceClusterIpRange,omitempty"`
 	// Port range for services defined with NodePort type
 	ServiceNodePortRange string `yaml:"service_node_port_range" json:"serviceNodePortRange,omitempty" norman:"default=30000-32767"`
-	// Enabled/Disable PodSecurityPolicy
-	PodSecurityPolicy bool `yaml:"pod_security_policy" json:"podSecurityPolicy,omitempty"`
+	// setting the default configuration for PodSecurityAdmission
+	PodSecurityConfiguration string `yaml:"pod_security_configuration" json:"podSecurityConfiguration,omitempty"`
 	// Enable/Disable AlwaysPullImages admissions plugin
 	AlwaysPullImages bool `yaml:"always_pull_images" json:"alwaysPullImages,omitempty"`
 	// Secrets encryption provider config
@@ -301,14 +301,14 @@ type KubeAPIService struct {
 	// Audit Log Configuration
 	AuditLog *AuditLog `yaml:"audit_log" json:"auditLog,omitempty"`
 	// AdmissionConfiguration
-	AdmissionConfiguration *apiserverv1alpha1.AdmissionConfiguration `yaml:"admission_configuration" json:"admissionConfiguration,omitempty" norman:"type=map[json]"`
+	AdmissionConfiguration *apiserverv1.AdmissionConfiguration `yaml:"admission_configuration" json:"admissionConfiguration,omitempty" norman:"type=map[json]"`
 	// Event Rate Limit configuration
 	EventRateLimit *EventRateLimit `yaml:"event_rate_limit" json:"eventRateLimit,omitempty"`
 }
 
 type EventRateLimit struct {
-	Enabled       bool           `yaml:"enabled" json:"enabled,omitempty"`
-	Configuration *Configuration `yaml:"configuration" json:"configuration,omitempty" norman:"type=map[json]"`
+	Enabled       bool                             `yaml:"enabled" json:"enabled,omitempty"`
+	Configuration *eventratelimitapi.Configuration `yaml:"configuration" json:"configuration,omitempty" norman:"type=map[json]"`
 }
 
 type AuditLog struct {
@@ -513,7 +513,7 @@ type Process struct {
 	Env []string `json:"env,omitempty"`
 	// Process docker image
 	Image string `json:"image,omitempty"`
-	//AuthConfig for image private registry
+	// AuthConfig for image private registry
 	ImageRegistryAuthConfig string `json:"imageRegistryAuthConfig,omitempty"`
 	// Process docker image VolumesFrom
 	VolumesFrom []string `json:"volumesFrom,omitempty"`
@@ -554,6 +554,8 @@ type PortCheck struct {
 type CloudProvider struct {
 	// Name of the Cloud Provider
 	Name string `yaml:"name" json:"name,omitempty"`
+	// Only configured for AWS currently, add for other providers as needed
+	UseInstanceMetadataHostname *bool ` yaml:"useInstanceMetadataHostname,omitempty" json:"useInstanceMetadataHostname,omitempty"`
 	// AWSCloudProvider
 	AWSCloudProvider *AWSCloudProvider `yaml:"awsCloudProvider,omitempty" json:"awsCloudProvider,omitempty"`
 	// AzureCloudProvider
@@ -587,84 +589,116 @@ type WeaveNetworkProvider struct {
 }
 
 type AciNetworkProvider struct {
-	SystemIdentifier                  string              `yaml:"system_id,omitempty" json:"systemId,omitempty"`
-	ApicHosts                         []string            `yaml:"apic_hosts" json:"apicHosts,omitempty"`
-	Token                             string              `yaml:"token,omitempty" json:"token,omitempty"`
-	ApicUserName                      string              `yaml:"apic_user_name,omitempty" json:"apicUserName,omitempty"`
-	ApicUserKey                       string              `yaml:"apic_user_key,omitempty" json:"apicUserKey,omitempty"`
-	ApicUserCrt                       string              `yaml:"apic_user_crt,omitempty" json:"apicUserCrt,omitempty"`
-	ApicRefreshTime                   string              `yaml:"apic_refresh_time,omitempty" json:"apicRefreshTime,omitempty" norman:"default=1200"`
-	VmmDomain                         string              `yaml:"vmm_domain,omitempty" json:"vmmDomain,omitempty"`
-	VmmController                     string              `yaml:"vmm_controller,omitempty" json:"vmmController,omitempty"`
-	EncapType                         string              `yaml:"encap_type,omitempty" json:"encapType,omitempty"`
-	NodeSubnet                        string              `yaml:"node_subnet,omitempty" json:"nodeSubnet,omitempty"`
-	McastRangeStart                   string              `yaml:"mcast_range_start,omitempty" json:"mcastRangeStart,omitempty"`
-	McastRangeEnd                     string              `yaml:"mcast_range_end,omitempty" json:"mcastRangeEnd,omitempty"`
-	AEP                               string              `yaml:"aep,omitempty" json:"aep,omitempty"`
-	VRFName                           string              `yaml:"vrf_name,omitempty" json:"vrfName,omitempty"`
-	VRFTenant                         string              `yaml:"vrf_tenant,omitempty" json:"vrfTenant,omitempty"`
-	L3Out                             string              `yaml:"l3out,omitempty" json:"l3out,omitempty"`
-	L3OutExternalNetworks             []string            `yaml:"l3out_external_networks" json:"l3outExternalNetworks,omitempty"`
-	DynamicExternalSubnet             string              `yaml:"extern_dynamic,omitempty" json:"externDynamic,omitempty"`
-	StaticExternalSubnet              string              `yaml:"extern_static,omitempty" json:"externStatic,omitempty"`
-	ServiceGraphSubnet                string              `yaml:"node_svc_subnet,omitempty" json:"nodeSvcSubnet,omitempty"`
-	KubeAPIVlan                       string              `yaml:"kube_api_vlan,omitempty" json:"kubeApiVlan,omitempty"`
-	ServiceVlan                       string              `yaml:"service_vlan,omitempty" json:"serviceVlan,omitempty"`
-	InfraVlan                         string              `yaml:"infra_vlan,omitempty" json:"infraVlan,omitempty"`
-	Tenant                            string              `yaml:"tenant,omitempty" json:"tenant,omitempty"`
-	OVSMemoryLimit                    string              `yaml:"ovs_memory_limit,omitempty" json:"ovsMemoryLimit,omitempty"`
-	ImagePullPolicy                   string              `yaml:"image_pull_policy,omitempty" json:"imagePullPolicy,omitempty"`
-	ImagePullSecret                   string              `yaml:"image_pull_secret,omitempty" json:"imagePullSecret,omitempty"`
-	ServiceMonitorInterval            string              `yaml:"service_monitor_interval,omitempty" json:"serviceMonitorInterval,omitempty"`
-	PBRTrackingNonSnat                string              `yaml:"pbr_tracking_non_snat,omitempty" json:"pbrTrackingNonSnat,omitempty"`
-	InstallIstio                      string              `yaml:"install_istio,omitempty" json:"installIstio,omitempty"`
-	IstioProfile                      string              `yaml:"istio_profile,omitempty" json:"istioProfile,omitempty"`
-	DropLogEnable                     string              `yaml:"drop_log_enable,omitempty" json:"dropLogEnable,omitempty"`
-	ControllerLogLevel                string              `yaml:"controller_log_level,omitempty" json:"controllerLogLevel,omitempty"`
-	HostAgentLogLevel                 string              `yaml:"host_agent_log_level,omitempty" json:"hostAgentLogLevel,omitempty"`
-	OpflexAgentLogLevel               string              `yaml:"opflex_log_level,omitempty" json:"opflexLogLevel,omitempty"`
-	UseAciCniPriorityClass            string              `yaml:"use_aci_cni_priority_class,omitempty" json:"useAciCniPriorityClass,omitempty"`
-	NoPriorityClass                   string              `yaml:"no_priority_class,omitempty" json:"noPriorityClass,omitempty"`
-	MaxNodesSvcGraph                  string              `yaml:"max_nodes_svc_graph,omitempty" json:"maxNodesSvcGraph,omitempty"`
-	SnatContractScope                 string              `yaml:"snat_contract_scope,omitempty" json:"snatContractScope,omitempty"`
-	PodSubnetChunkSize                string              `yaml:"pod_subnet_chunk_size,omitempty" json:"podSubnetChunkSize,omitempty"`
-	EnableEndpointSlice               string              `yaml:"enable_endpoint_slice,omitempty" json:"enableEndpointSlice,omitempty"`
-	SnatNamespace                     string              `yaml:"snat_namespace,omitempty" json:"snatNamespace,omitempty"`
-	EpRegistry                        string              `yaml:"ep_registry,omitempty" json:"epRegistry,omitempty"`
-	OpflexMode                        string              `yaml:"opflex_mode,omitempty" json:"opflexMode,omitempty"`
-	SnatPortRangeStart                string              `yaml:"snat_port_range_start,omitempty" json:"snatPortRangeStart,omitempty"`
-	SnatPortRangeEnd                  string              `yaml:"snat_port_range_end,omitempty" json:"snatPortRangeEnd,omitempty"`
-	SnatPortsPerNode                  string              `yaml:"snat_ports_per_node,omitempty" json:"snatPortsPerNode,omitempty"`
-	OpflexClientSSL                   string              `yaml:"opflex_client_ssl,omitempty" json:"opflexClientSsl,omitempty"`
-	UsePrivilegedContainer            string              `yaml:"use_privileged_container,omitempty" json:"usePrivilegedContainer,omitempty"`
-	UseHostNetnsVolume                string              `yaml:"use_host_netns_volume,omitempty" json:"useHostNetnsVolume,omitempty"`
-	UseOpflexServerVolume             string              `yaml:"use_opflex_server_volume,omitempty" json:"useOpflexServerVolume,omitempty"`
-	SubnetDomainName                  string              `yaml:"subnet_domain_name,omitempty" json:"subnetDomainName,omitempty"`
-	KafkaBrokers                      []string            `yaml:"kafka_brokers,omitempty" json:"kafkaBrokers,omitempty"`
-	KafkaClientCrt                    string              `yaml:"kafka_client_crt,omitempty" json:"kafkaClientCrt,omitempty"`
-	KafkaClientKey                    string              `yaml:"kafka_client_key,omitempty" json:"kafkaClientKey,omitempty"`
-	CApic                             string              `yaml:"capic,omitempty" json:"capic,omitempty"`
-	UseAciAnywhereCRD                 string              `yaml:"use_aci_anywhere_crd,omitempty" json:"useAciAnywhereCrd,omitempty"`
-	OverlayVRFName                    string              `yaml:"overlay_vrf_name,omitempty" json:"overlayVrfName,omitempty"`
-	GbpPodSubnet                      string              `yaml:"gbp_pod_subnet,omitempty" json:"gbpPodSubnet,omitempty"`
-	RunGbpContainer                   string              `yaml:"run_gbp_container,omitempty" json:"runGbpContainer,omitempty"`
-	RunOpflexServerContainer          string              `yaml:"run_opflex_server_container,omitempty" json:"runOpflexServerContainer,omitempty"`
-	OpflexServerPort                  string              `yaml:"opflex_server_port,omitempty" json:"opflexServerPort,omitempty"`
-	DurationWaitForNetwork            string              `yaml:"duration_wait_for_network,omitempty" json:"durationWaitForNetwork,omitempty"`
-	DisableWaitForNetwork             string              `yaml:"disable_wait_for_network,omitempty" json:"disableWaitForNetwork,omitempty"`
-	ApicSubscriptionDelay             string              `yaml:"apic_subscription_delay,omitempty" json:"apicSubscriptionDelay,omitempty"`
-	ApicRefreshTickerAdjust           string              `yaml:"apic_refresh_ticker_adjust,omitempty" json:"apicRefreshTickerAdjust,omitempty"`
-	DisablePeriodicSnatGlobalInfoSync string              `yaml:"disable_periodic_snat_global_info_sync,omitempty" json:"disablePeriodicSnatGlobalInfoSync,omitempty"`
-	OpflexDeviceDeleteTimeout         string              `yaml:"opflex_device_delete_timeout,omitempty" json:"opflexDeviceDeleteTimeout,omitempty"`
-	MTUHeadRoom                       string              `yaml:"mtu_head_room,omitempty" json:"mtuHeadRoom,omitempty"`
-	NodePodIfEnable                   string              `yaml:"node_pod_if_enable,omitempty" json:"nodePodIfEnable,omitempty"`
-	SriovEnable                       string              `yaml:"sriov_enable,omitempty" json:"sriovEnable,omitempty"`
-	MultusDisable                     string              `yaml:"multus_disable,omitempty" json:"multusDisable,omitempty"`
-	UseClusterRole                    string              `yaml:"use_cluster_role,omitempty" json:"useClusterRole,omitempty"`
-	NoWaitForServiceEpReadiness       string              `yaml:"no_wait_for_service_ep_readiness,omitempty" json:"noWaitForServiceEpReadiness,omitempty"`
-	AddExternalSubnetsToRdconfig      string              `yaml:"add_external_subnets_to_rdconfig,omitempty" json:"addExternalSubnetsToRdconfig,omitempty"`
-	ServiceGraphEndpointAddDelay      string              `yaml:"service_graph_endpoint_add_delay,omitempty" json:"serviceGraphEndpointAddDelay,omitempty"`
-	ServiceGraphEndpointAddServices   []map[string]string `yaml:"service_graph_endpoint_add_services,omitempty" json:"serviceGraphEndpointAddServices,omitempty"`
+	SystemIdentifier                     string              `yaml:"system_id,omitempty" json:"systemId,omitempty"`
+	ApicHosts                            []string            `yaml:"apic_hosts" json:"apicHosts,omitempty"`
+	Token                                string              `yaml:"token,omitempty" json:"token,omitempty"`
+	ApicUserName                         string              `yaml:"apic_user_name,omitempty" json:"apicUserName,omitempty"`
+	ApicUserKey                          string              `yaml:"apic_user_key,omitempty" json:"apicUserKey,omitempty"`
+	ApicUserCrt                          string              `yaml:"apic_user_crt,omitempty" json:"apicUserCrt,omitempty"`
+	ApicRefreshTime                      string              `yaml:"apic_refresh_time,omitempty" json:"apicRefreshTime,omitempty" norman:"default=1200"`
+	VmmDomain                            string              `yaml:"vmm_domain,omitempty" json:"vmmDomain,omitempty"`
+	VmmController                        string              `yaml:"vmm_controller,omitempty" json:"vmmController,omitempty"`
+	EncapType                            string              `yaml:"encap_type,omitempty" json:"encapType,omitempty"`
+	NodeSubnet                           string              `yaml:"node_subnet,omitempty" json:"nodeSubnet,omitempty"`
+	McastRangeStart                      string              `yaml:"mcast_range_start,omitempty" json:"mcastRangeStart,omitempty"`
+	McastRangeEnd                        string              `yaml:"mcast_range_end,omitempty" json:"mcastRangeEnd,omitempty"`
+	AEP                                  string              `yaml:"aep,omitempty" json:"aep,omitempty"`
+	VRFName                              string              `yaml:"vrf_name,omitempty" json:"vrfName,omitempty"`
+	VRFTenant                            string              `yaml:"vrf_tenant,omitempty" json:"vrfTenant,omitempty"`
+	L3Out                                string              `yaml:"l3out,omitempty" json:"l3out,omitempty"`
+	L3OutExternalNetworks                []string            `yaml:"l3out_external_networks" json:"l3outExternalNetworks,omitempty"`
+	DynamicExternalSubnet                string              `yaml:"extern_dynamic,omitempty" json:"externDynamic,omitempty"`
+	StaticExternalSubnet                 string              `yaml:"extern_static,omitempty" json:"externStatic,omitempty"`
+	ServiceGraphSubnet                   string              `yaml:"node_svc_subnet,omitempty" json:"nodeSvcSubnet,omitempty"`
+	KubeAPIVlan                          string              `yaml:"kube_api_vlan,omitempty" json:"kubeApiVlan,omitempty"`
+	ServiceVlan                          string              `yaml:"service_vlan,omitempty" json:"serviceVlan,omitempty"`
+	InfraVlan                            string              `yaml:"infra_vlan,omitempty" json:"infraVlan,omitempty"`
+	Tenant                               string              `yaml:"tenant,omitempty" json:"tenant,omitempty"`
+	OVSMemoryLimit                       string              `yaml:"ovs_memory_limit,omitempty" json:"ovsMemoryLimit,omitempty"`
+	OVSMemoryRequest                     string              `yaml:"ovs_memory_request,omitempty" json:"ovsMemoryRequest,omitempty"`
+	ImagePullPolicy                      string              `yaml:"image_pull_policy,omitempty" json:"imagePullPolicy,omitempty"`
+	ImagePullSecret                      string              `yaml:"image_pull_secret,omitempty" json:"imagePullSecret,omitempty"`
+	ServiceMonitorInterval               string              `yaml:"service_monitor_interval,omitempty" json:"serviceMonitorInterval,omitempty"`
+	PBRTrackingNonSnat                   string              `yaml:"pbr_tracking_non_snat,omitempty" json:"pbrTrackingNonSnat,omitempty"`
+	InstallIstio                         string              `yaml:"install_istio,omitempty" json:"installIstio,omitempty"`
+	IstioProfile                         string              `yaml:"istio_profile,omitempty" json:"istioProfile,omitempty"`
+	DropLogEnable                        string              `yaml:"drop_log_enable,omitempty" json:"dropLogEnable,omitempty"`
+	ControllerLogLevel                   string              `yaml:"controller_log_level,omitempty" json:"controllerLogLevel,omitempty"`
+	HostAgentLogLevel                    string              `yaml:"host_agent_log_level,omitempty" json:"hostAgentLogLevel,omitempty"`
+	OpflexAgentLogLevel                  string              `yaml:"opflex_log_level,omitempty" json:"opflexLogLevel,omitempty"`
+	UseAciCniPriorityClass               string              `yaml:"use_aci_cni_priority_class,omitempty" json:"useAciCniPriorityClass,omitempty"`
+	NoPriorityClass                      string              `yaml:"no_priority_class,omitempty" json:"noPriorityClass,omitempty"`
+	MaxNodesSvcGraph                     string              `yaml:"max_nodes_svc_graph,omitempty" json:"maxNodesSvcGraph,omitempty"`
+	SnatContractScope                    string              `yaml:"snat_contract_scope,omitempty" json:"snatContractScope,omitempty"`
+	PodSubnetChunkSize                   string              `yaml:"pod_subnet_chunk_size,omitempty" json:"podSubnetChunkSize,omitempty"`
+	EnableEndpointSlice                  string              `yaml:"enable_endpoint_slice,omitempty" json:"enableEndpointSlice,omitempty"`
+	SnatNamespace                        string              `yaml:"snat_namespace,omitempty" json:"snatNamespace,omitempty"`
+	EpRegistry                           string              `yaml:"ep_registry,omitempty" json:"epRegistry,omitempty"`
+	OpflexMode                           string              `yaml:"opflex_mode,omitempty" json:"opflexMode,omitempty"`
+	SnatPortRangeStart                   string              `yaml:"snat_port_range_start,omitempty" json:"snatPortRangeStart,omitempty"`
+	SnatPortRangeEnd                     string              `yaml:"snat_port_range_end,omitempty" json:"snatPortRangeEnd,omitempty"`
+	SnatPortsPerNode                     string              `yaml:"snat_ports_per_node,omitempty" json:"snatPortsPerNode,omitempty"`
+	OpflexClientSSL                      string              `yaml:"opflex_client_ssl,omitempty" json:"opflexClientSsl,omitempty"`
+	UsePrivilegedContainer               string              `yaml:"use_privileged_container,omitempty" json:"usePrivilegedContainer,omitempty"`
+	UseHostNetnsVolume                   string              `yaml:"use_host_netns_volume,omitempty" json:"useHostNetnsVolume,omitempty"`
+	UseOpflexServerVolume                string              `yaml:"use_opflex_server_volume,omitempty" json:"useOpflexServerVolume,omitempty"`
+	SubnetDomainName                     string              `yaml:"subnet_domain_name,omitempty" json:"subnetDomainName,omitempty"`
+	KafkaBrokers                         []string            `yaml:"kafka_brokers,omitempty" json:"kafkaBrokers,omitempty"`
+	KafkaClientCrt                       string              `yaml:"kafka_client_crt,omitempty" json:"kafkaClientCrt,omitempty"`
+	KafkaClientKey                       string              `yaml:"kafka_client_key,omitempty" json:"kafkaClientKey,omitempty"`
+	CApic                                string              `yaml:"capic,omitempty" json:"capic,omitempty"`
+	UseAciAnywhereCRD                    string              `yaml:"use_aci_anywhere_crd,omitempty" json:"useAciAnywhereCrd,omitempty"`
+	OverlayVRFName                       string              `yaml:"overlay_vrf_name,omitempty" json:"overlayVrfName,omitempty"`
+	GbpPodSubnet                         string              `yaml:"gbp_pod_subnet,omitempty" json:"gbpPodSubnet,omitempty"`
+	RunGbpContainer                      string              `yaml:"run_gbp_container,omitempty" json:"runGbpContainer,omitempty"`
+	RunOpflexServerContainer             string              `yaml:"run_opflex_server_container,omitempty" json:"runOpflexServerContainer,omitempty"`
+	OpflexServerPort                     string              `yaml:"opflex_server_port,omitempty" json:"opflexServerPort,omitempty"`
+	DurationWaitForNetwork               string              `yaml:"duration_wait_for_network,omitempty" json:"durationWaitForNetwork,omitempty"`
+	DisableWaitForNetwork                string              `yaml:"disable_wait_for_network,omitempty" json:"disableWaitForNetwork,omitempty"`
+	ApicSubscriptionDelay                string              `yaml:"apic_subscription_delay,omitempty" json:"apicSubscriptionDelay,omitempty"`
+	ApicRefreshTickerAdjust              string              `yaml:"apic_refresh_ticker_adjust,omitempty" json:"apicRefreshTickerAdjust,omitempty"`
+	DisablePeriodicSnatGlobalInfoSync    string              `yaml:"disable_periodic_snat_global_info_sync,omitempty" json:"disablePeriodicSnatGlobalInfoSync,omitempty"`
+	OpflexDeviceDeleteTimeout            string              `yaml:"opflex_device_delete_timeout,omitempty" json:"opflexDeviceDeleteTimeout,omitempty"`
+	MTUHeadRoom                          string              `yaml:"mtu_head_room,omitempty" json:"mtuHeadRoom,omitempty"`
+	NodePodIfEnable                      string              `yaml:"node_pod_if_enable,omitempty" json:"nodePodIfEnable,omitempty"`
+	SriovEnable                          string              `yaml:"sriov_enable,omitempty" json:"sriovEnable,omitempty"`
+	MultusDisable                        string              `yaml:"multus_disable,omitempty" json:"multusDisable,omitempty"`
+	UseClusterRole                       string              `yaml:"use_cluster_role,omitempty" json:"useClusterRole,omitempty"`
+	NoWaitForServiceEpReadiness          string              `yaml:"no_wait_for_service_ep_readiness,omitempty" json:"noWaitForServiceEpReadiness,omitempty"`
+	AddExternalSubnetsToRdconfig         string              `yaml:"add_external_subnets_to_rdconfig,omitempty" json:"addExternalSubnetsToRdconfig,omitempty"`
+	ServiceGraphEndpointAddDelay         string              `yaml:"service_graph_endpoint_add_delay,omitempty" json:"serviceGraphEndpointAddDelay,omitempty"`
+	ServiceGraphEndpointAddServices      []map[string]string `yaml:"service_graph_endpoint_add_services,omitempty" json:"serviceGraphEndpointAddServices,omitempty"`
+	HppOptimization                      string              `yaml:"hpp_optimization,omitempty" json:"hppOptimization,omitempty"`
+	SleepTimeSnatGlobalInfoSync          string              `yaml:"sleep_time_snat_global_info_sync,omitempty" json:"sleepTimeSnatGlobalInfoSync,omitempty"`
+	OpflexAgentOpflexAsyncjsonEnabled    string              `yaml:"opflex_agent_opflex_asyncjson_enabled,omitempty" json:"opflexAgentOpflexAsyncjsonEnabled,omitempty"`
+	OpflexAgentOvsAsyncjsonEnabled       string              `yaml:"opflex_agent_ovs_asyncjson_enabled,omitempty" json:"opflexAgentOvsAsyncjsonEnabled,omitempty"`
+	OpflexAgentPolicyRetryDelayTimer     string              `yaml:"opflex_agent_policy_retry_delay_timer,omitempty" json:"opflexAgentPolicyRetryDelayTimer,omitempty"`
+	AciMultipod                          string              `yaml:"aci_multipod,omitempty" json:"aciMultipod,omitempty"`
+	OpflexDeviceReconnectWaitTimeout     string              `yaml:"opflex_device_reconnect_wait_timeout,omitempty" json:"opflexDeviceReconnectWaitTimeout,omitempty"`
+	AciMultipodUbuntu                    string              `yaml:"aci_multipod_ubuntu,omitempty" json:"aciMultipodUbuntu,omitempty"`
+	DhcpRenewMaxRetryCount               string              `yaml:"dhcp_renew_max_retry_count,omitempty" json:"dhcpRenewMaxRetryCount,omitempty"`
+	DhcpDelay                            string              `yaml:"dhcp_delay,omitempty" json:"dhcpDelay,omitempty"`
+	UseSystemNodePriorityClass           string              `yaml:"use_system_node_priority_class,omitempty" json:"useSystemNodePriorityClass,omitempty"`
+	AciContainersControllerMemoryRequest string              `yaml:"aci_containers_controller_memory_request,omitempty" json:"aciContainersControllerMemoryRequest,omitempty"`
+	AciContainersControllerMemoryLimit   string              `yaml:"aci_containers_controller_memory_limit,omitempty" json:"aciContainersControllerMemoryLimit,omitempty"`
+	AciContainersHostMemoryRequest       string              `yaml:"aci_containers_host_memory_request,omitempty" json:"aciContainersHostMemoryRequest,omitempty"`
+	AciContainersHostMemoryLimit         string              `yaml:"aci_containers_host_memory_limit,omitempty" json:"aciContainersHostMemoryLimit,omitempty"`
+	McastDaemonMemoryRequest             string              `yaml:"mcast_daemon_memory_request,omitempty" json:"mcastDaemonMemoryRequest,omitempty"`
+	McastDaemonMemoryLimit               string              `yaml:"mcast_daemon_memory_limit,omitempty" json:"mcastDaemonMemoryLimit,omitempty"`
+	OpflexAgentMemoryRequest             string              `yaml:"opflex_agent_memory_request,omitempty" json:"opflexAgentMemoryRequest,omitempty"`
+	OpflexAgentMemoryLimit               string              `yaml:"opflex_agent_memory_limit,omitempty" json:"opflexAgentMemoryLimit,omitempty"`
+	AciContainersMemoryRequest           string              `yaml:"aci_containers_memory_request,omitempty" json:"aciContainersMemoryRequest,omitempty"`
+	AciContainersMemoryLimit             string              `yaml:"aci_containers_memory_limit,omitempty" json:"aciContainersMemoryLimit,omitempty"`
+	OpflexAgentStatistics                string              `yaml:"opflex_agent_statistics,omitempty" json:"opflexAgentStatistics,omitempty"`
+	AddExternalContractToDefaultEpg      string              `yaml:"add_external_contract_to_default_epg,omitempty" json:"addExternalContractToDefaultEpg,omitempty"`
+	EnableOpflexAgentReconnect           string              `yaml:"enable_opflex_agent_reconnect,omitempty" json:"enableOpflexAgentReconnect,omitempty"`
+	OpflexOpensslCompat                  string              `yaml:"opflex_openssl_compat,omitempty" json:"opflexOpensslCompat,omitempty"`
+	NodeSnatRedirectExclude              []map[string]string `yaml:"node_snat_redirect_exclude,omitempty" json:"nodeSnatRedirectExclude,omitempty"`
+	TolerationSeconds                    string              `yaml:"toleration_seconds,omitempty" json:"tolerationSeconds,omitempty"`
+	DisableHppRendering                  string              `yaml:"disable_hpp_rendering,omitempty" json:"disableHppRendering,omitempty"`
+	ApicConnectionRetryLimit             string              `yaml:"apic_connection_retry_limit,omitempty" json:"apicConnectionRetryLimit,omitempty"`
+	TaintNotReadyNode                    string              `yaml:"taint_not_ready_node,omitempty" json:"taintNotReadyNode,omitempty"`
+	DropLogDisableEvents                 string              `yaml:"drop_log_disable_events,omitempty" json:"dropLogDisableEvents,omitempty"`
 }
 
 type KubernetesServicesOptions struct {
@@ -802,6 +836,8 @@ type AzureCloudProvider struct {
 	SubnetName string `json:"subnetName" yaml:"subnetName"`
 	// The name of the security group attached to the cluster's subnet
 	SecurityGroupName string `json:"securityGroupName" yaml:"securityGroupName"`
+	// The name of the resource group that the security group is deployed in
+	SecurityGroupResourceGroup string `json:"securityGroupResourceGroup,omitempty" yaml:"securityGroupResourceGroup,omitempty"`
 	// (Optional in 1.6) The name of the route table attached to the subnet that the cluster is deployed in
 	RouteTableName string `json:"routeTableName" yaml:"routeTableName"`
 	// (Optional) The name of the availability set that should be used as the load balancer backend
@@ -907,29 +943,29 @@ type GlobalAwsOpts struct {
 	// KubernetesClusterID is the cluster id we'll use to identify our cluster resources
 	KubernetesClusterID string `json:"kubernetes-cluster-id" yaml:"kubernetes-cluster-id" ini:"KubernetesClusterID,omitempty"`
 
-	//The aws provider creates an inbound rule per load balancer on the node security
-	//group. However, this can run into the AWS security group rule limit of 50 if
-	//many LoadBalancers are created.
+	// The aws provider creates an inbound rule per load balancer on the node security
+	// group. However, this can run into the AWS security group rule limit of 50 if
+	// many LoadBalancers are created.
 	//
-	//This flag disables the automatic ingress creation. It requires that the user
-	//has setup a rule that allows inbound traffic on kubelet ports from the
-	//local VPC subnet (so load balancers can access it). E.g. 10.82.0.0/16 30000-32000.
+	// This flag disables the automatic ingress creation. It requires that the user
+	// has setup a rule that allows inbound traffic on kubelet ports from the
+	// local VPC subnet (so load balancers can access it). E.g. 10.82.0.0/16 30000-32000.
 	DisableSecurityGroupIngress bool `json:"disable-security-group-ingress" yaml:"disable-security-group-ingress" ini:"DisableSecurityGroupIngress,omitempty"`
 
-	//AWS has a hard limit of 500 security groups. For large clusters creating a security group for each ELB
-	//can cause the max number of security groups to be reached. If this is set instead of creating a new
-	//Security group for each ELB this security group will be used instead.
+	// AWS has a hard limit of 500 security groups. For large clusters creating a security group for each ELB
+	// can cause the max number of security groups to be reached. If this is set instead of creating a new
+	// Security group for each ELB this security group will be used instead.
 	ElbSecurityGroup string `json:"elb-security-group" yaml:"elb-security-group" ini:"ElbSecurityGroup,omitempty"`
 
-	//During the instantiation of an new AWS cloud provider, the detected region
-	//is validated against a known set of regions.
+	// During the instantiation of a new AWS cloud provider, the detected region
+	// is validated against a known set of regions.
 	//
-	//In a non-standard, AWS like environment (e.g. Eucalyptus), this check may
-	//be undesirable.  Setting this to true will disable the check and provide
-	//a warning that the check was skipped.  Please note that this is an
-	//experimental feature and work-in-progress for the moment.  If you find
-	//yourself in an non-AWS cloud and open an issue, please indicate that in the
-	//issue body.
+	// In a non-standard, AWS like environment (e.g. Eucalyptus), this check may
+	// be undesirable.  Setting this to true will disable the check and provide
+	// a warning that the check was skipped.  Please note that this is an
+	// experimental feature and work-in-progress for the moment.  If you find
+	// yourself in a non-AWS cloud and open an issue, please indicate that in the
+	// issue body.
 	DisableStrictZoneCheck bool `json:"disable-strict-zone-check" yaml:"disable-strict-zone-check" ini:"DisableStrictZoneCheck,omitempty"`
 }
 
@@ -1016,7 +1052,7 @@ type SecretsEncryptionConfig struct {
 	// Enable/disable secrets encryption provider config
 	Enabled bool `yaml:"enabled" json:"enabled,omitempty"`
 	// Custom Encryption Provider configuration object
-	CustomConfig *configv1.EncryptionConfiguration `yaml:"custom_config" json:"customConfig,omitempty"`
+	CustomConfig *apiserverv1.EncryptionConfiguration `yaml:"custom_config" json:"customConfig,omitempty"`
 }
 
 type File struct {
@@ -1033,7 +1069,7 @@ type NodeDrainInput struct {
 	IgnoreDaemonSets *bool `yaml:"ignore_daemonsets" json:"ignoreDaemonSets,omitempty" norman:"default=true"`
 	// Continue even if there are pods using emptyDir
 	DeleteLocalData bool `yaml:"delete_local_data" json:"deleteLocalData,omitempty"`
-	//Period of time in seconds given to each pod to terminate gracefully.
+	// Period of time in seconds given to each pod to terminate gracefully.
 	// If negative, the default value specified in the pod will be used
 	GracePeriod int `yaml:"grace_period" json:"gracePeriod,omitempty" norman:"default=-1"`
 	// Time to wait (in seconds) before giving up for one try
