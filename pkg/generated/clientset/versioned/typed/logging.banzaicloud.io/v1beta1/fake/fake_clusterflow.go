@@ -34,9 +34,9 @@ type FakeClusterFlows struct {
 	Fake *FakeLoggingV1beta1
 }
 
-var clusterflowsResource = v1beta1.SchemeGroupVersion.WithResource("clusterflows")
+var clusterflowsResource = v1beta1.GroupVersion.WithResource("clusterflows")
 
-var clusterflowsKind = v1beta1.SchemeGroupVersion.WithKind("ClusterFlow")
+var clusterflowsKind = v1beta1.GroupVersion.WithKind("ClusterFlow")
 
 // Get takes name of the clusterFlow, and returns the corresponding clusterFlow object, and an error if there is any.
 func (c *FakeClusterFlows) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ClusterFlow, err error) {

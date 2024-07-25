@@ -10152,7 +10152,8 @@
             "items": {
               "type": "string",
               "default": ""
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "gracePeriodSeconds": {
             "type": "integer",
@@ -10202,7 +10203,8 @@
             "items": {
               "type": "string",
               "default": ""
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           }
         }
       },
@@ -10227,7 +10229,8 @@
                   "$ref": "#/components/schemas/k8s.io.v1.HTTPHeader"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "path": {
             "type": "string"
@@ -10278,7 +10281,8 @@
                   "$ref": "#/components/schemas/k8s.io.v1.LabelSelectorRequirement"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "matchLabels": {
             "type": "object",
@@ -10299,9 +10303,7 @@
         "properties": {
           "key": {
             "type": "string",
-            "default": "",
-            "x-kubernetes-patch-merge-key": "key",
-            "x-kubernetes-patch-strategy": "merge"
+            "default": ""
           },
           "operator": {
             "type": "string",
@@ -10312,7 +10314,8 @@
             "items": {
               "type": "string",
               "default": ""
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           }
         }
       },
@@ -10338,7 +10341,8 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           }
         },
         "x-kubernetes-map-type": "atomic"
@@ -10369,6 +10373,26 @@
           }
         }
       },
+      "k8s.io.v1.ModifyVolumeStatus": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "default": "",
+            "enum": [
+              "InProgress",
+              "Infeasible",
+              "Pending"
+            ]
+          },
+          "targetVolumeAttributesClassName": {
+            "type": "string"
+          }
+        }
+      },
       "k8s.io.v1.NodeAffinity": {
         "type": "object",
         "properties": {
@@ -10381,7 +10405,8 @@
                   "$ref": "#/components/schemas/k8s.io.v1.PreferredSchedulingTerm"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "requiredDuringSchedulingIgnoredDuringExecution": {
             "$ref": "#/components/schemas/k8s.io.v1.NodeSelector"
@@ -10403,7 +10428,8 @@
                   "$ref": "#/components/schemas/k8s.io.v1.NodeSelectorTerm"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           }
         },
         "x-kubernetes-map-type": "atomic"
@@ -10436,7 +10462,8 @@
             "items": {
               "type": "string",
               "default": ""
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           }
         }
       },
@@ -10452,7 +10479,8 @@
                   "$ref": "#/components/schemas/k8s.io.v1.NodeSelectorRequirement"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "matchFields": {
             "type": "array",
@@ -10463,7 +10491,8 @@
                   "$ref": "#/components/schemas/k8s.io.v1.NodeSelectorRequirement"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           }
         },
         "x-kubernetes-map-type": "atomic"
@@ -10656,7 +10685,8 @@
             "items": {
               "type": "string",
               "default": ""
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "dataSource": {
             "$ref": "#/components/schemas/k8s.io.v1.TypedLocalObjectReference"
@@ -10668,7 +10698,7 @@
             "default": {},
             "allOf": [
               {
-                "$ref": "#/components/schemas/k8s.io.v1.ResourceRequirements"
+                "$ref": "#/components/schemas/k8s.io.v1.VolumeResourceRequirements"
               }
             ]
           },
@@ -10676,6 +10706,9 @@
             "$ref": "#/components/schemas/k8s.io.v1.LabelSelector"
           },
           "storageClassName": {
+            "type": "string"
+          },
+          "volumeAttributesClassName": {
             "type": "string"
           },
           "volumeMode": {
@@ -10694,7 +10727,16 @@
             "items": {
               "type": "string",
               "default": ""
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
+          },
+          "allocatedResourceStatuses": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "default": ""
+            },
+            "x-kubernetes-map-type": "granular"
           },
           "allocatedResources": {
             "type": "object",
@@ -10728,8 +10770,18 @@
                 }
               ]
             },
+            "x-kubernetes-list-map-keys": [
+              "type"
+            ],
+            "x-kubernetes-list-type": "map",
             "x-kubernetes-patch-merge-key": "type",
             "x-kubernetes-patch-strategy": "merge"
+          },
+          "currentVolumeAttributesClassName": {
+            "type": "string"
+          },
+          "modifyVolumeStatus": {
+            "$ref": "#/components/schemas/k8s.io.v1.ModifyVolumeStatus"
           },
           "phase": {
             "type": "string",
@@ -10738,9 +10790,6 @@
               "Lost",
               "Pending"
             ]
-          },
-          "resizeStatus": {
-            "type": "string"
           }
         }
       },
@@ -10771,7 +10820,8 @@
                   "$ref": "#/components/schemas/k8s.io.v1.WeightedPodAffinityTerm"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "requiredDuringSchedulingIgnoredDuringExecution": {
             "type": "array",
@@ -10782,7 +10832,8 @@
                   "$ref": "#/components/schemas/k8s.io.v1.PodAffinityTerm"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           }
         }
       },
@@ -10795,6 +10846,22 @@
           "labelSelector": {
             "$ref": "#/components/schemas/k8s.io.v1.LabelSelector"
           },
+          "matchLabelKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "default": ""
+            },
+            "x-kubernetes-list-type": "atomic"
+          },
+          "mismatchLabelKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "default": ""
+            },
+            "x-kubernetes-list-type": "atomic"
+          },
           "namespaceSelector": {
             "$ref": "#/components/schemas/k8s.io.v1.LabelSelector"
           },
@@ -10803,7 +10870,8 @@
             "items": {
               "type": "string",
               "default": ""
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "topologyKey": {
             "type": "string",
@@ -10823,7 +10891,8 @@
                   "$ref": "#/components/schemas/k8s.io.v1.WeightedPodAffinityTerm"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "requiredDuringSchedulingIgnoredDuringExecution": {
             "type": "array",
@@ -10834,7 +10903,8 @@
                   "$ref": "#/components/schemas/k8s.io.v1.PodAffinityTerm"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           }
         }
       },
@@ -10846,7 +10916,8 @@
             "items": {
               "type": "string",
               "default": ""
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "options": {
             "type": "array",
@@ -10857,14 +10928,16 @@
                   "$ref": "#/components/schemas/k8s.io.v1.PodDNSConfigOption"
                 }
               ]
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           },
           "searches": {
             "type": "array",
             "items": {
               "type": "string",
               "default": ""
-            }
+            },
+            "x-kubernetes-list-type": "atomic"
           }
         }
       },
@@ -11135,6 +11208,33 @@
           }
         }
       },
+      "k8s.io.v1.VolumeResourceRequirements": {
+        "type": "object",
+        "properties": {
+          "limits": {
+            "type": "object",
+            "additionalProperties": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
+                }
+              ]
+            }
+          },
+          "requests": {
+            "type": "object",
+            "additionalProperties": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
+                }
+              ]
+            }
+          }
+        }
+      },
       "k8s.io.v1.WeightedPodAffinityTerm": {
         "type": "object",
         "required": [
@@ -11154,6 +11254,14 @@
             "type": "integer",
             "format": "int32",
             "default": 0
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.ACPI": {
+        "type": "object",
+        "properties": {
+          "slicNameRef": {
+            "type": "string"
           }
         }
       },
@@ -11430,7 +11538,8 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           },
           "optional": {
             "type": "boolean"
@@ -11593,6 +11702,15 @@
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DataVolumeTemplateDummyStatus"
           }
         }
+      },
+      "kubevirt.io.api.core.v1.DeprecatedInterfaceMacvtap": {
+        "type": "object"
+      },
+      "kubevirt.io.api.core.v1.DeprecatedInterfacePasst": {
+        "type": "object"
+      },
+      "kubevirt.io.api.core.v1.DeprecatedInterfaceSlirp": {
+        "type": "object"
       },
       "kubevirt.io.api.core.v1.Devices": {
         "type": "object",
@@ -12024,6 +12142,9 @@
           "hyperv": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.FeatureHyperv"
           },
+          "hypervPassthrough": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.HyperVPassthrough"
+          },
           "kvm": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.FeatureKVM"
           },
@@ -12057,6 +12178,9 @@
       "kubevirt.io.api.core.v1.Firmware": {
         "type": "object",
         "properties": {
+          "acpi": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.ACPI"
+          },
           "bootloader": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.Bootloader"
           },
@@ -12186,6 +12310,14 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.HyperVPassthrough": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.HypervTimer": {
         "type": "object",
         "properties": {
@@ -12278,7 +12410,7 @@
             "type": "string"
           },
           "macvtap": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.InterfaceMacvtap"
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeprecatedInterfaceMacvtap"
           },
           "masquerade": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.InterfaceMasquerade"
@@ -12291,7 +12423,7 @@
             "default": ""
           },
           "passt": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.InterfacePasst"
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeprecatedInterfacePasst"
           },
           "pciAddress": {
             "type": "string"
@@ -12308,7 +12440,7 @@
             }
           },
           "slirp": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.InterfaceSlirp"
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeprecatedInterfaceSlirp"
           },
           "sriov": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.InterfaceSRIOV"
@@ -12324,19 +12456,10 @@
       "kubevirt.io.api.core.v1.InterfaceBridge": {
         "type": "object"
       },
-      "kubevirt.io.api.core.v1.InterfaceMacvtap": {
-        "type": "object"
-      },
       "kubevirt.io.api.core.v1.InterfaceMasquerade": {
         "type": "object"
       },
-      "kubevirt.io.api.core.v1.InterfacePasst": {
-        "type": "object"
-      },
       "kubevirt.io.api.core.v1.InterfaceSRIOV": {
-        "type": "object"
-      },
-      "kubevirt.io.api.core.v1.InterfaceSlirp": {
         "type": "object"
       },
       "kubevirt.io.api.core.v1.KVMTimer": {
@@ -12412,40 +12535,6 @@
         "properties": {
           "sev": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.SEV"
-          }
-        }
-      },
-      "kubevirt.io.api.core.v1.LiveUpdateAffinity": {
-        "type": "object"
-      },
-      "kubevirt.io.api.core.v1.LiveUpdateCPU": {
-        "type": "object",
-        "properties": {
-          "maxSockets": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "kubevirt.io.api.core.v1.LiveUpdateFeatures": {
-        "type": "object",
-        "properties": {
-          "affinity": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.LiveUpdateAffinity"
-          },
-          "cpu": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.LiveUpdateCPU"
-          },
-          "memory": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.LiveUpdateMemory"
-          }
-        }
-      },
-      "kubevirt.io.api.core.v1.LiveUpdateMemory": {
-        "type": "object",
-        "properties": {
-          "maxGuest": {
-            "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
           }
         }
       },
@@ -12642,6 +12731,9 @@
                 }
               ]
             }
+          },
+          "claimName": {
+            "type": "string"
           },
           "filesystemOverhead": {
             "type": "string"
@@ -12983,6 +13075,24 @@
             "type": "string"
           },
           "name": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.StorageMigratedVolumeInfo": {
+        "type": "object",
+        "required": [
+          "volumeName"
+        ],
+        "properties": {
+          "destinationPVCInfo": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.PersistentVolumeClaimInfo"
+          },
+          "sourcePVCInfo": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.PersistentVolumeClaimInfo"
+          },
+          "volumeName": {
             "type": "string",
             "default": ""
           }
@@ -13485,6 +13595,9 @@
           "failed": {
             "type": "boolean"
           },
+          "failureReason": {
+            "type": "string"
+          },
           "migrationConfiguration": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.MigrationConfiguration"
           },
@@ -13498,6 +13611,9 @@
             "type": "string"
           },
           "sourceNode": {
+            "type": "string"
+          },
+          "sourcePod": {
             "type": "string"
           },
           "startTimestamp": {
@@ -13821,6 +13937,18 @@
           "memory": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.MemoryStatus"
           },
+          "migratedVolumes": {
+            "type": "array",
+            "items": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.StorageMigratedVolumeInfo"
+                }
+              ]
+            },
+            "x-kubernetes-list-type": "atomic"
+          },
           "migrationMethod": {
             "type": "string"
           },
@@ -13990,9 +14118,6 @@
           "instancetype": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.InstancetypeMatcher"
           },
-          "liveUpdateFeatures": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.LiveUpdateFeatures"
-          },
           "preference": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.PreferenceMatcher"
           },
@@ -14004,6 +14129,9 @@
           },
           "template": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceTemplateSpec"
+          },
+          "updateVolumesStrategy": {
+            "type": "string"
           }
         }
       },
@@ -14079,6 +14207,9 @@
             "type": "boolean"
           },
           "restoreInProgress": {
+            "type": "string"
+          },
+          "runStrategy": {
             "type": "string"
           },
           "snapshotInProgress": {

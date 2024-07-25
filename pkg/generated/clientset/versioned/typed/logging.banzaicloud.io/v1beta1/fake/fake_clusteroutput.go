@@ -34,9 +34,9 @@ type FakeClusterOutputs struct {
 	Fake *FakeLoggingV1beta1
 }
 
-var clusteroutputsResource = v1beta1.SchemeGroupVersion.WithResource("clusteroutputs")
+var clusteroutputsResource = v1beta1.GroupVersion.WithResource("clusteroutputs")
 
-var clusteroutputsKind = v1beta1.SchemeGroupVersion.WithKind("ClusterOutput")
+var clusteroutputsKind = v1beta1.GroupVersion.WithKind("ClusterOutput")
 
 // Get takes name of the clusterOutput, and returns the corresponding clusterOutput object, and an error if there is any.
 func (c *FakeClusterOutputs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ClusterOutput, err error) {
