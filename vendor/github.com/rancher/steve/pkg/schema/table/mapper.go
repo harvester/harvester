@@ -3,9 +3,9 @@ package table
 import (
 	types2 "github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/attributes"
-	"github.com/rancher/wrangler/pkg/data"
-	types "github.com/rancher/wrangler/pkg/schemas"
-	"github.com/rancher/wrangler/pkg/schemas/mappers"
+	"github.com/rancher/wrangler/v3/pkg/data"
+	types "github.com/rancher/wrangler/v3/pkg/schemas"
+	"github.com/rancher/wrangler/v3/pkg/schemas/mappers"
 )
 
 type Column struct {

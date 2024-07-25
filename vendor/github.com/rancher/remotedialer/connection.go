@@ -36,7 +36,6 @@ func newConnection(connID int64, session *Session, proto, address string) *conne
 }
 
 func (c *connection) tunnelClose(err error) {
-	metrics.IncSMTotalRemoveConnectionsForWS(c.session.clientKey, c.addr.Network(), c.addr.String())
 	c.writeErr(err)
 	c.doTunnelClose(err)
 }
@@ -46,6 +45,7 @@ func (c *connection) doTunnelClose(err error) {
 		return
 	}
 
+	metrics.IncSMTotalRemoveConnectionsForWS(c.session.clientKey, c.addr.Network(), c.addr.String())
 	c.err = err
 	if c.err == nil {
 		c.err = io.ErrClosedPipe
@@ -54,13 +54,13 @@ func (c *connection) doTunnelClose(err error) {
 	c.buffer.Close(c.err)
 }
 
-func (c *connection) OnData(m *message) error {
+func (c *connection) OnData(r io.Reader) error {
 	if PrintTunnelData {
 		defer func() {
 			logrus.Debugf("ONDATA  [%d] %s", c.connID, c.buffer.Status())
 		}()
 	}
-	return c.buffer.Offer(m.body)
+	return c.buffer.Offer(r)
 }
 
 func (c *connection) Close() error {
@@ -124,7 +124,10 @@ func (c *connection) writeErr(err error) {
 	if err != nil {
 		msg := newErrorMessage(c.connID, err)
 		metrics.AddSMTotalTransmitErrorBytesOnWS(c.session.clientKey, float64(len(msg.Bytes())))
-		c.session.writeMessage(c.writeDeadline, msg)
+		deadline := time.Now().Add(SendErrorTimeout)
+		if _, err2 := c.session.writeMessage(deadline, msg); err2 != nil {
+			logrus.Warnf("[%d] encountered error %q while writing error %q to close remotedialer", c.connID, err2, err)
+		}
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/attributes"
 	"github.com/rancher/steve/pkg/clustercache"
-	"github.com/rancher/wrangler/pkg/summary"
+	"github.com/rancher/wrangler/v3/pkg/summary"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	schema2 "k8s.io/apimachinery/pkg/runtime/schema"
@@ -24,6 +24,7 @@ var (
 	}
 )
 
+// Register registers a new count schema. This schema isn't a true resource but instead returns counts for other resources
 func Register(schemas *types.APISchemas, ccache clustercache.ClusterCache) {
 	schemas.MustImportAndCustomize(Count{}, func(schema *types.APISchema) {
 		schema.CollectionMethods = []string{http.MethodGet}
@@ -110,9 +111,10 @@ func (s *Store) List(apiOp *types.APIRequest, schema *types.APISchema) (types.AP
 	}, nil
 }
 
+// Watch creates a watch for the Counts schema. This returns only the counts which have changed since the watch was established
 func (s *Store) Watch(apiOp *types.APIRequest, schema *types.APISchema, w types.WatchRequest) (chan types.APIEvent, error) {
 	var (
-		result      = make(chan types.APIEvent, 100)
+		result      = make(chan Count, 100)
 		counts      map[string]ItemCount
 		gvkToSchema = map[schema2.GroupVersionKind]*types.APISchema{}
 		countLock   sync.Mutex
@@ -178,18 +180,13 @@ func (s *Store) Watch(apiOp *types.APIRequest, schema *types.APISchema, w types.
 		}
 
 		counts[schema.ID] = itemCount
-		countsCopy := map[string]ItemCount{}
-		for k, v := range counts {
-			countsCopy[k] = *v.DeepCopy()
+		changedCount := map[string]ItemCount{
+			schema.ID: *itemCount.DeepCopy(),
 		}
 
-		result <- types.APIEvent{
-			Name:         "resource.change",
-			ResourceType: "counts",
-			Object: toAPIObject(Count{
-				ID:     "count",
-				Counts: countsCopy,
-			}),
+		result <- Count{
+			ID:     "count",
+			Counts: changedCount,
 		}
 
 		return nil
@@ -205,7 +202,8 @@ func (s *Store) Watch(apiOp *types.APIRequest, schema *types.APISchema, w types.
 		return onChange(false, gvk, key, obj, nil)
 	})
 
-	return buffer(result), nil
+	// buffer the counts so that we don't spam the consumer with constant updates
+	return countsBuffer(result), nil
 }
 
 func (s *Store) schemasToWatch(apiOp *types.APIRequest) (result []*types.APISchema) {
@@ -280,7 +278,7 @@ func removeSummary(counts Summary, summary summary.Summary) Summary {
 		if counts.States == nil {
 			counts.States = map[string]int{}
 		}
-		counts.States[simpleState(summary)] -= 1
+		counts.States[simpleState(summary)]--
 	}
 	return counts
 }
@@ -297,7 +295,7 @@ func addSummary(counts Summary, summary summary.Summary) Summary {
 		if counts.States == nil {
 			counts.States = map[string]int{}
 		}
-		counts.States[simpleState(summary)] += 1
+		counts.States[simpleState(summary)]++
 	}
 	return counts
 }

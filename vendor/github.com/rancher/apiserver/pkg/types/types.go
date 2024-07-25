@@ -3,7 +3,7 @@ package types
 import (
 	"net/http"
 
-	"github.com/rancher/wrangler/pkg/schemas"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
 )
 
 type Collection struct {

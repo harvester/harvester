@@ -16,15 +16,15 @@ import (
 	"github.com/rancher/steve/pkg/resources/formatters"
 	"github.com/rancher/steve/pkg/resources/userpreferences"
 	"github.com/rancher/steve/pkg/schema"
-	steveschema "github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/steve/pkg/summarycache"
+	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/discovery"
 )
 
 func DefaultSchemas(ctx context.Context, baseSchema *types.APISchemas, ccache clustercache.ClusterCache,
-	cg proxy.ClientGetter, schemaFactory steveschema.Factory, serverVersion string) error {
+	cg proxy.ClientGetter, schemaFactory schema.Factory, serverVersion string) error {
 	counts.Register(baseSchema, ccache)
 	subscribe.Register(baseSchema, func(apiOp *types.APIRequest) *types.APISchemas {
 		user, ok := request.UserFrom(apiOp.Context())
@@ -46,9 +46,40 @@ func DefaultSchemaTemplates(cf *client.Factory,
 	baseSchemas *types.APISchemas,
 	summaryCache *summarycache.SummaryCache,
 	lookup accesscontrol.AccessSetLookup,
-	discovery discovery.DiscoveryInterface) []schema.Template {
+	discovery discovery.DiscoveryInterface,
+	namespaceCache corecontrollers.NamespaceCache) []schema.Template {
 	return []schema.Template{
-		common.DefaultTemplate(cf, summaryCache, lookup),
+		common.DefaultTemplate(cf, summaryCache, lookup, namespaceCache),
+		apigroups.Template(discovery),
+		{
+			ID:        "configmap",
+			Formatter: formatters.DropHelmData,
+		},
+		{
+			ID:        "secret",
+			Formatter: formatters.DropHelmData,
+		},
+		{
+			ID:        "pod",
+			Formatter: formatters.Pod,
+		},
+		{
+			ID: "management.cattle.io.cluster",
+			Customize: func(apiSchema *types.APISchema) {
+				cluster.AddApply(baseSchemas, apiSchema)
+			},
+		},
+	}
+}
+
+// DefaultSchemaTemplatesForStore returns the same default templates as DefaultSchemaTemplates, only using DefaultSchemaTemplateFoStore internally to construct the templates.
+func DefaultSchemaTemplatesForStore(store types.Store,
+	baseSchemas *types.APISchemas,
+	summaryCache *summarycache.SummaryCache,
+	discovery discovery.DiscoveryInterface) []schema.Template {
+
+	return []schema.Template{
+		common.DefaultTemplateForStore(store, summaryCache),
 		apigroups.Template(discovery),
 		{
 			ID:        "configmap",

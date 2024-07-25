@@ -3,7 +3,7 @@ package apierror
 import (
 	"fmt"
 
-	"github.com/rancher/wrangler/pkg/schemas/validation"
+	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 )
 
 type APIError struct {

@@ -13,7 +13,7 @@ import (
 	"github.com/rancher/apiserver/pkg/subscribe"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/apiserver/pkg/writer"
-	"github.com/rancher/wrangler/pkg/schemas/validation"
+	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 )
 
 type RequestHandler interface {
@@ -151,7 +151,8 @@ func (s *Server) handle(apiOp *types.APIRequest, parser parse.Parser) {
 	} else if code > http.StatusOK {
 		apiOp.Response.WriteHeader(code)
 	}
-	metrics.RecordResponseTime(apiOp.Schema.ID, apiOp.Method, strconv.Itoa(code), float64(time.Since(requestStart).Milliseconds()))
+
+	metrics.RecordResponseTime(apiOp.Type, apiOp.Method, strconv.Itoa(code), float64(time.Since(requestStart).Milliseconds()))
 }
 
 func (s *Server) handleOp(apiOp *types.APIRequest) (int, interface{}, error) {

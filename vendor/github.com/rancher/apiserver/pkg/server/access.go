@@ -7,8 +7,8 @@ import (
 	"github.com/rancher/apiserver/pkg/apierror"
 
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/wrangler/pkg/schemas/validation"
-	"github.com/rancher/wrangler/pkg/slice"
+	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
+	"github.com/rancher/wrangler/v3/pkg/slice"
 )
 
 type SchemaBasedAccess struct {

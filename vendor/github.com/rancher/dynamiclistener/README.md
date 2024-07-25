@@ -1,5 +1,7 @@
 # [dynamiclistener](https://github.com/rancher/dynamiclistener)
 
+DynamicListener allows you to setup a server with automatically generated (and re-generated) TLS certs with kubernetes secrets integration.
+
 This `README` is a work in progress; aimed towards providing information for navigating the contents of this repository.
 
 ## Changing the Expiration Days for Newly Signed Certificates
