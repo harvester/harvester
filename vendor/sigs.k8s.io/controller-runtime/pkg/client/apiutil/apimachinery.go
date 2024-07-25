@@ -20,7 +20,9 @@ limitations under the License.
 package apiutil
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"reflect"
 	"sync"
 
@@ -29,10 +31,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 )
 
 var (
@@ -57,19 +58,34 @@ func AddToProtobufScheme(addToScheme func(*runtime.Scheme) error) error {
 	return addToScheme(protobufScheme)
 }
 
-// NewDiscoveryRESTMapper constructs a new RESTMapper based on discovery
-// information fetched by a new client with the given config.
-func NewDiscoveryRESTMapper(c *rest.Config) (meta.RESTMapper, error) {
-	// Get a mapper
-	dc, err := discovery.NewDiscoveryClientForConfig(c)
+// IsObjectNamespaced returns true if the object is namespace scoped.
+// For unstructured objects the gvk is found from the object itself.
+func IsObjectNamespaced(obj runtime.Object, scheme *runtime.Scheme, restmapper meta.RESTMapper) (bool, error) {
+	gvk, err := GVKForObject(obj, scheme)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	gr, err := restmapper.GetAPIGroupResources(dc)
+
+	return IsGVKNamespaced(gvk, restmapper)
+}
+
+// IsGVKNamespaced returns true if the object having the provided
+// GVK is namespace scoped.
+func IsGVKNamespaced(gvk schema.GroupVersionKind, restmapper meta.RESTMapper) (bool, error) {
+	restmapping, err := restmapper.RESTMapping(schema.GroupKind{Group: gvk.Group, Kind: gvk.Kind})
 	if err != nil {
-		return nil, err
+		return false, fmt.Errorf("failed to get restmapping: %w", err)
 	}
-	return restmapper.NewDiscoveryRESTMapper(gr), nil
+
+	scope := restmapping.Scope.Name()
+	if scope == "" {
+		return false, errors.New("scope cannot be identified, empty scope returned")
+	}
+
+	if scope != meta.RESTScopeNameRoot {
+		return true, nil
+	}
+	return false, nil
 }
 
 // GVKForObject finds the GroupVersionKind associated with the given object, if there is only a single such GVK.
@@ -142,21 +158,11 @@ func GVKForObject(obj runtime.Object, scheme *runtime.Scheme) (schema.GroupVersi
 // RESTClientForGVK constructs a new rest.Interface capable of accessing the resource associated
 // with the given GroupVersionKind. The REST client will be configured to use the negotiated serializer from
 // baseConfig, if set, otherwise a default serializer will be set.
-func RESTClientForGVK(gvk schema.GroupVersionKind, isUnstructured bool, baseConfig *rest.Config, codecs serializer.CodecFactory) (rest.Interface, error) {
-	return rest.RESTClientFor(createRestConfig(gvk, isUnstructured, baseConfig, codecs))
-}
-
-// serializerWithDecodedGVK is a CodecFactory that overrides the DecoderToVersion of a WithoutConversionCodecFactory
-// in order to avoid clearing the GVK from the decoded object.
-//
-// See https://github.com/kubernetes/kubernetes/issues/80609.
-type serializerWithDecodedGVK struct {
-	serializer.WithoutConversionCodecFactory
-}
-
-// DecoderToVersion returns an decoder that does not do conversion.
-func (f serializerWithDecodedGVK) DecoderToVersion(serializer runtime.Decoder, _ runtime.GroupVersioner) runtime.Decoder {
-	return serializer
+func RESTClientForGVK(gvk schema.GroupVersionKind, isUnstructured bool, baseConfig *rest.Config, codecs serializer.CodecFactory, httpClient *http.Client) (rest.Interface, error) {
+	if httpClient == nil {
+		return nil, fmt.Errorf("httpClient must not be nil, consider using rest.HTTPClientFor(c) to create a client")
+	}
+	return rest.RESTClientForConfigAndClient(createRestConfig(gvk, isUnstructured, baseConfig, codecs), httpClient)
 }
 
 // createRestConfig copies the base config and updates needed fields for a new rest config.
@@ -183,9 +189,8 @@ func createRestConfig(gvk schema.GroupVersionKind, isUnstructured bool, baseConf
 	}
 
 	if isUnstructured {
-		// If the object is unstructured, we need to preserve the GVK information.
-		// Use our own custom serializer.
-		cfg.NegotiatedSerializer = serializerWithDecodedGVK{serializer.WithoutConversionCodecFactory{CodecFactory: codecs}}
+		// If the object is unstructured, we use the client-go dynamic serializer.
+		cfg = dynamic.ConfigFor(cfg)
 	} else {
 		cfg.NegotiatedSerializer = serializerWithTargetZeroingDecode{NegotiatedSerializer: serializer.WithoutConversionCodecFactory{CodecFactory: codecs}}
 	}

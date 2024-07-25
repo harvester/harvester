@@ -26,18 +26,18 @@ func (VirtualMachineInstanceSpec) SwaggerDoc() map[string]string {
 		"schedulerName":                 "If specified, the VMI will be dispatched by specified scheduler.\nIf not specified, the VMI will be dispatched by default scheduler.\n+optional",
 		"tolerations":                   "If toleration is specified, obey all the toleration rules.",
 		"topologySpreadConstraints":     "TopologySpreadConstraints describes how a group of VMIs will be spread across a given topology\ndomains. K8s scheduler will schedule VMI pods in a way which abides by the constraints.\n+optional\n+patchMergeKey=topologyKey\n+patchStrategy=merge\n+listType=map\n+listMapKey=topologyKey\n+listMapKey=whenUnsatisfiable",
-		"evictionStrategy":              "EvictionStrategy can be set to \"LiveMigrate\" if the VirtualMachineInstance should be\nmigrated instead of shut-off in case of a node drain.\n\n+optional",
+		"evictionStrategy":              "EvictionStrategy describes the strategy to follow when a node drain occurs.\nThe possible options are:\n- \"None\": No action will be taken, according to the specified 'RunStrategy' the VirtualMachine will be restarted or shutdown.\n- \"LiveMigrate\": the VirtualMachineInstance will be migrated instead of being shutdown.\n- \"LiveMigrateIfPossible\": the same as \"LiveMigrate\" but only if the VirtualMachine is Live-Migratable, otherwise it will behave as \"None\".\n- \"External\": the VirtualMachineInstance will be protected by a PDB and `vmi.Status.EvacuationNodeName` will be set on eviction. This is mainly useful for cluster-api-provider-kubevirt (capk) which needs a way for VMI's to be blocked from eviction, yet signal capk that eviction has been called on the VMI so the capk controller can handle tearing the VMI down. Details can be found in the commit description https://github.com/kubevirt/kubevirt/commit/c1d77face705c8b126696bac9a3ee3825f27f1fa.\n+optional",
 		"startStrategy":                 "StartStrategy can be set to \"Paused\" if Virtual Machine should be started in paused state.\n\n+optional",
 		"terminationGracePeriodSeconds": "Grace period observed after signalling a VirtualMachineInstance to stop after which the VirtualMachineInstance is force terminated.",
-		"volumes":                       "List of volumes that can be mounted by disks belonging to the vmi.",
+		"volumes":                       "List of volumes that can be mounted by disks belonging to the vmi.\n+kubebuilder:validation:MaxItems:=256",
 		"livenessProbe":                 "Periodic probe of VirtualMachineInstance liveness.\nVirtualmachineInstances will be stopped if the probe fails.\nCannot be updated.\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes\n+optional",
 		"readinessProbe":                "Periodic probe of VirtualMachineInstance service readiness.\nVirtualmachineInstances will be removed from service endpoints if the probe fails.\nCannot be updated.\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes\n+optional",
 		"hostname":                      "Specifies the hostname of the vmi\nIf not specified, the hostname will be set to the name of the vmi, if dhcp or cloud-init is configured properly.\n+optional",
 		"subdomain":                     "If specified, the fully qualified vmi hostname will be \"<hostname>.<subdomain>.<pod namespace>.svc.<cluster domain>\".\nIf not specified, the vmi will not have a domainname at all. The DNS entry will resolve to the vmi,\nno matter if the vmi itself can pick up a hostname.\n+optional",
-		"networks":                      "List of networks that can be attached to a vm's virtual interface.",
+		"networks":                      "List of networks that can be attached to a vm's virtual interface.\n+kubebuilder:validation:MaxItems:=256",
 		"dnsPolicy":                     "Set DNS policy for the pod.\nDefaults to \"ClusterFirst\".\nValid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.\nDNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy.\nTo have DNS options set along with hostNetwork, you have to specify DNS policy\nexplicitly to 'ClusterFirstWithHostNet'.\n+optional",
 		"dnsConfig":                     "Specifies the DNS parameters of a pod.\nParameters specified here will be merged to the generated DNS\nconfiguration based on DNSPolicy.\n+optional",
-		"accessCredentials":             "Specifies a set of public keys to inject into the vm guest\n+listType=atomic\n+optional",
+		"accessCredentials":             "Specifies a set of public keys to inject into the vm guest\n+listType=atomic\n+optional\n+kubebuilder:validation:MaxItems:=256",
 		"architecture":                  "Specifies the architecture of the vm guest you are attempting to run. Defaults to the compiled architecture of the KubeVirt components",
 	}
 }
@@ -82,12 +82,23 @@ func (VirtualMachineInstanceStatus) SwaggerDoc() map[string]string {
 		"machine":                       "Machine shows the final resulting qemu machine type. This can be different\nthan the machine type selected in the spec, due to qemus machine type alias mechanism.\n+optional",
 		"currentCPUTopology":            "CurrentCPUTopology specifies the current CPU topology used by the VM workload.\nCurrent topology may differ from the desired topology in the spec while CPU hotplug\ntakes place.",
 		"memory":                        "Memory shows various informations about the VirtualMachine memory.\n+optional",
+		"migratedVolumes":               "MigratedVolumes lists the source and destination volumes during the volume migration\n+listType=atomic\n+optional",
+	}
+}
+
+func (StorageMigratedVolumeInfo) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                   "StorageMigratedVolumeInfo tracks the information about the source and destination volumes during the volume migration",
+		"volumeName":         "VolumeName is the name of the volume that is being migrated",
+		"sourcePVCInfo":      "SourcePVCInfo contains the information about the source PVC",
+		"destinationPVCInfo": "DestinationPVCInfo contains the information about the destination PVC",
 	}
 }
 
 func (PersistentVolumeClaimInfo) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                   "PersistentVolumeClaimInfo contains the relavant information virt-handler needs cached about a PVC",
+		"claimName":          "ClaimName is the name of the PVC",
 		"accessModes":        "AccessModes contains the desired access modes the volume should have.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1\n+listType=atomic\n+optional",
 		"volumeMode":         "VolumeMode defines what type of volume is required by the claim.\nValue of Filesystem is implied when not included in claim spec.\n+optional",
 		"capacity":           "Capacity represents the capacity set on the corresponding PVC status\n+optional",
@@ -216,6 +227,7 @@ func (VirtualMachineInstanceMigrationState) SwaggerDoc() map[string]string {
 		"failed":                         "Indicates that the migration failed",
 		"abortRequested":                 "Indicates that the migration has been requested to abort",
 		"abortStatus":                    "Indicates the final status of the live migration abortion",
+		"failureReason":                  "Contains the reason why the migration failed",
 		"migrationUid":                   "The VirtualMachineInstanceMigration object associated with this migration",
 		"mode":                           "Lets us know if the vmi is currently running pre or post copy migration",
 		"migrationPolicyName":            "Name of the migration policy. If string is empty, no policy is matched",
@@ -357,14 +369,14 @@ func (VirtualMachineList) SwaggerDoc() map[string]string {
 
 func (VirtualMachineSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                    "VirtualMachineSpec describes how the proper VirtualMachine\nshould look like",
-		"running":             "Running controls whether the associatied VirtualMachineInstance is created or not\nMutually exclusive with RunStrategy",
-		"runStrategy":         "Running state indicates the requested running state of the VirtualMachineInstance\nmutually exclusive with Running",
-		"instancetype":        "InstancetypeMatcher references a instancetype that is used to fill fields in Template",
-		"preference":          "PreferenceMatcher references a set of preference that is used to fill fields in Template",
-		"template":            "Template is the direct specification of VirtualMachineInstance",
-		"dataVolumeTemplates": "dataVolumeTemplates is a list of dataVolumes that the VirtualMachineInstance template can reference.\nDataVolumes in this list are dynamically created for the VirtualMachine and are tied to the VirtualMachine's life-cycle.",
-		"liveUpdateFeatures":  "LiveUpdateFeatures references a configuration of hotpluggable resources",
+		"":                      "VirtualMachineSpec describes how the proper VirtualMachine\nshould look like",
+		"running":               "Running controls whether the associatied VirtualMachineInstance is created or not\nMutually exclusive with RunStrategy",
+		"runStrategy":           "Running state indicates the requested running state of the VirtualMachineInstance\nmutually exclusive with Running",
+		"instancetype":          "InstancetypeMatcher references a instancetype that is used to fill fields in Template",
+		"preference":            "PreferenceMatcher references a set of preference that is used to fill fields in Template",
+		"template":              "Template is the direct specification of VirtualMachineInstance",
+		"dataVolumeTemplates":   "dataVolumeTemplates is a list of dataVolumes that the VirtualMachineInstance template can reference.\nDataVolumes in this list are dynamically created for the VirtualMachine and are tied to the VirtualMachine's life-cycle.",
+		"updateVolumesStrategy": "UpdateVolumesStrategy is the strategy to apply on volumes updates",
 	}
 }
 
@@ -381,7 +393,7 @@ func (VirtualMachineStatus) SwaggerDoc() map[string]string {
 		"restoreInProgress":      "RestoreInProgress is the name of the VirtualMachineRestore currently executing",
 		"created":                "Created indicates if the virtual machine is created in the cluster",
 		"ready":                  "Ready indicates if the virtual machine is running and ready",
-		"printableStatus":        "PrintableStatus is a human readable, high-level representation of the status of the virtual machine",
+		"printableStatus":        "PrintableStatus is a human readable, high-level representation of the status of the virtual machine\n+kubebuilder:default=Stopped",
 		"conditions":             "Hold the state information of the VirtualMachine and its VirtualMachineInstance",
 		"stateChangeRequests":    "StateChangeRequests indicates a list of actions that should be taken on a VMI\ne.g. stop a specific VMI then start a new one.",
 		"volumeRequests":         "VolumeRequests indicates a list of volumes add or remove from the VMI template and\nhotplug on an active running VMI.\n+listType=atomic",
@@ -390,6 +402,7 @@ func (VirtualMachineStatus) SwaggerDoc() map[string]string {
 		"memoryDumpRequest":      "MemoryDumpRequest tracks memory dump request phase and info of getting a memory\ndump to the given pvc\n+nullable\n+optional",
 		"observedGeneration":     "ObservedGeneration is the generation observed by the vmi when started.\n+optional",
 		"desiredGeneration":      "DesiredGeneration is the generation which is desired for the VMI.\nThis will be used in comparisons with ObservedGeneration to understand when\nthe VMI is out of sync. This will be changed at the same time as\nObservedGeneration to remove errors which could occur if Generation is\nupdated through an Update() before ObservedGeneration in Status.\n+optional",
+		"runStrategy":            "RunStrategy tracks the last recorded RunStrategy used by the VM.\nThis is needed to correctly process the next strategy (for now only the RerunOnFailure)",
 	}
 }
 
@@ -644,6 +657,12 @@ func (VirtualMachineInstanceFileSystemList) SwaggerDoc() map[string]string {
 	}
 }
 
+func (VirtualMachineInstanceFileSystemDisk) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "VirtualMachineInstanceFileSystemDisk represents the guest os FS disks",
+	}
+}
+
 func (VirtualMachineInstanceFileSystem) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "VirtualMachineInstanceFileSystem represents guest os disk",
@@ -723,7 +742,9 @@ func (ReloadableComponentConfiguration) SwaggerDoc() map[string]string {
 func (KubeVirtConfiguration) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                                   "KubeVirtConfiguration holds all kubevirt configurations",
+		"emulatedMachines":                   "Deprecated. Use architectureConfiguration instead.",
 		"machineType":                        "Deprecated. Use architectureConfiguration instead.",
+		"ovmfPath":                           "Deprecated. Use architectureConfiguration instead.",
 		"evictionStrategy":                   "EvictionStrategy defines at the cluster level if the VirtualMachineInstance should be\nmigrated instead of shut-off in case of a node drain. If the VirtualMachineInstance specific\nfield is set it overrides the cluster level one.",
 		"additionalGuestMemoryOverheadRatio": "AdditionalGuestMemoryOverheadRatio can be used to increase the virtualization infrastructure\noverhead. This is useful, since the calculation of this overhead is not accurate and cannot\nbe entirely known in advance. The ratio that is being set determines by which factor to increase\nthe overhead calculated by Kubevirt. A higher ratio means that the VMs would be less compromised\nby node pressures, but would mean that fewer VMs could be scheduled to a node.\nIf not set, the default is 1.",
 		"supportContainerResources":          "+listType=map\n+listMapKey=type\nSupportContainerResources specifies the resource requirements for various types of supporting containers such as container disks/virtiofs/sidecars and hotplug attachment pods. If omitted a sensible default will be supplied.",
@@ -732,6 +753,7 @@ func (KubeVirtConfiguration) SwaggerDoc() map[string]string {
 		"ksmConfiguration":                   "KSMConfiguration holds the information regarding the enabling the KSM in the nodes (if available).",
 		"autoCPULimitNamespaceLabelSelector": "When set, AutoCPULimitNamespaceLabelSelector will set a CPU limit on virt-launcher for VMIs running inside\nnamespaces that match the label selector.\nThe CPU limit will equal the number of requested vCPUs.\nThis setting does not apply to VMIs with dedicated CPUs.",
 		"liveUpdateConfiguration":            "LiveUpdateConfiguration holds defaults for live update features",
+		"vmRolloutStrategy":                  "VMRolloutStrategy defines how changes to a VM object propagate to its VMI\n+nullable\n+kubebuilder:validation:Enum=Stage;LiveUpdate",
 	}
 }
 
@@ -904,7 +926,8 @@ func (KSMConfiguration) SwaggerDoc() map[string]string {
 
 func (NetworkConfiguration) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "NetworkConfiguration holds network options",
+		"":                     "NetworkConfiguration holds network options",
+		"permitSlirpInterface": "DeprecatedPermitSlirpInterface is an alias for the deprecated PermitSlirpInterface.\nDeprecated: Removed in v1.3.",
 	}
 }
 
@@ -913,6 +936,15 @@ func (InterfaceBindingPlugin) SwaggerDoc() map[string]string {
 		"sidecarImage":                "SidecarImage references a container image that runs in the virt-launcher pod.\nThe sidecar handles (libvirt) domain configuration and optional services.\nversion: 1alphav1",
 		"networkAttachmentDefinition": "NetworkAttachmentDefinition references to a NetworkAttachmentDefinition CR object.\nFormat: <name>, <namespace>/<name>.\nIf namespace is not specified, VMI namespace is assumed.\nversion: 1alphav1",
 		"domainAttachmentType":        "DomainAttachmentType is a standard domain network attachment method kubevirt supports.\nSupported values: \"tap\".\nThe standard domain attachment can be used instead or in addition to the sidecarImage.\nversion: 1alphav1",
+		"migration":                   "Migration means the VM using the plugin can be safely migrated\nversion: 1alphav1",
+		"downwardAPI":                 "DownwardAPI specifies what kind of data should be exposed to the binding plugin sidecar.\nSupported values: \"device-info\"\nversion: v1alphav1\n+optional",
+		"computeResourceOverhead":     "ComputeResourceOverhead specifies the resource overhead that should be added to the compute container when using the binding.\nversion: v1alphav1\n+optional",
+	}
+}
+
+func (InterfaceBindingMigration) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"method": "Method defines a pre-defined migration methodology\nversion: 1alphav1",
 	}
 }
 
@@ -953,14 +985,6 @@ func (PreferenceMatcher) SwaggerDoc() map[string]string {
 		"revisionName":                 "RevisionName specifies a ControllerRevision containing a specific copy of the\nVirtualMachinePreference or VirtualMachineClusterPreference to be used. This is\ninitially captured the first time the instancetype is applied to the VirtualMachineInstance.\n\n+optional",
 		"inferFromVolume":              "InferFromVolume lists the name of a volume that should be used to infer or discover the preference\nto be used through known annotations on the underlying resource. Once applied to the PreferenceMatcher\nthis field is removed.\n\n+optional",
 		"inferFromVolumeFailurePolicy": "InferFromVolumeFailurePolicy controls what should happen on failure when preference the instancetype.\nAllowed values are: \"RejectInferFromVolumeFailure\" and \"IgnoreInferFromVolumeFailure\".\nIf not specified, \"RejectInferFromVolumeFailure\" is used by default.\n\n+optional",
-	}
-}
-
-func (LiveUpdateFeatures) SwaggerDoc() map[string]string {
-	return map[string]string{
-		"cpu":      "LiveUpdateCPU holds hotplug configuration for the CPU resource.\nEmpty struct indicates that default will be used for maxSockets.\nDefault is specified on cluster level.\nAbsence of the struct means opt-out from CPU hotplug functionality.",
-		"affinity": "Affinity allows live updating the virtual machines node affinity",
-		"memory":   "MemoryLiveUpdateConfiguration defines the live update memory features for the VirtualMachine\n+optional",
 	}
 }
 

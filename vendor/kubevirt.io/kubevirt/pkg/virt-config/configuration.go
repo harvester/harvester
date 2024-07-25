@@ -30,10 +30,11 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/utils/pointer"
 
 	v1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/client-go/log"
+
+	"kubevirt.io/kubevirt/pkg/pointer"
 )
 
 const (
@@ -60,22 +61,22 @@ func NewClusterConfig(crdInformer cache.SharedIndexInformer,
 // 2. Check if the config got updated. If so, try to parse and return it
 // 3. In case of errors or no updates (resource version stays the same), it returns the values from the last good config
 func NewClusterConfigWithCPUArch(crdInformer cache.SharedIndexInformer,
-	kubeVirtInformer cache.SharedIndexInformer,
+	kubeVirtInformer cache.SharedInformer,
 	namespace, cpuArch string) (*ClusterConfig, error) {
 
 	defaultConfig := defaultClusterConfig(cpuArch)
 
 	c := &ClusterConfig{
-		crdInformer:      crdInformer,
-		kubeVirtInformer: kubeVirtInformer,
-		cpuArch:          cpuArch,
-		lock:             &sync.Mutex{},
-		namespace:        namespace,
-		lastValidConfig:  defaultConfig,
-		defaultConfig:    defaultConfig,
+		crdStore:        crdInformer.GetStore(),
+		kubeVirtStore:   kubeVirtInformer.GetStore(),
+		cpuArch:         cpuArch,
+		lock:            &sync.Mutex{},
+		namespace:       namespace,
+		lastValidConfig: defaultConfig,
+		defaultConfig:   defaultConfig,
 	}
 
-	_, err := c.crdInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := crdInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.crdAddedDeleted,
 		DeleteFunc: c.crdAddedDeleted,
 		UpdateFunc: c.crdUpdated,
@@ -84,7 +85,7 @@ func NewClusterConfigWithCPUArch(crdInformer cache.SharedIndexInformer,
 		return nil, err
 	}
 
-	_, err = c.kubeVirtInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = kubeVirtInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.configAddedDeleted,
 		UpdateFunc: c.configUpdated,
 	})
@@ -175,7 +176,6 @@ func defaultClusterConfig(cpuArch string) *v1.KubeVirtConfiguration {
 		Product:      SmbiosConfigDefaultProduct,
 	}
 	supportedQEMUGuestAgentVersions := strings.Split(strings.TrimRight(SupportedGuestAgentVersions, ","), ",")
-	DefaultOVMFPath, _, emulatedMachinesDefault := getCPUArchSpecificDefault(cpuArch)
 	defaultDiskVerification := &v1.DiskVerification{
 		MemoryLimit: resource.NewScaledQuantity(DefaultDiskVerificationMemoryLimitMBytes, resource.Mega),
 	}
@@ -211,17 +211,15 @@ func defaultClusterConfig(cpuArch string) *v1.KubeVirtConfiguration {
 			AllowAutoConverge:                 &allowAutoConverge,
 			AllowPostCopy:                     &allowPostCopy,
 		},
-		CPURequest:       &cpuRequestDefault,
-		EmulatedMachines: emulatedMachinesDefault,
+		CPURequest: &cpuRequestDefault,
 		NetworkConfiguration: &v1.NetworkConfiguration{
 			NetworkInterface:                  defaultNetworkInterface,
-			PermitSlirpInterface:              pointer.BoolPtr(DefaultPermitSlirpInterface),
-			PermitBridgeInterfaceOnPodNetwork: pointer.BoolPtr(DefaultPermitBridgeInterfaceOnPodNetwork),
+			DeprecatedPermitSlirpInterface:    pointer.P(DefaultPermitSlirpInterface),
+			PermitBridgeInterfaceOnPodNetwork: pointer.P(DefaultPermitBridgeInterfaceOnPodNetwork),
 		},
 		SMBIOSConfig:                SmbiosDefaultConfig,
 		SELinuxLauncherType:         DefaultSELinuxLauncherType,
 		SupportedGuestAgentVersions: supportedQEMUGuestAgentVersions,
-		OVMFPath:                    DefaultOVMFPath,
 		MemBalloonStatsPeriod:       &defaultMemBalloonStatsPeriod,
 		APIConfiguration: &v1.ReloadableComponentConfiguration{
 			RestClient: &v1.RESTClientConfiguration{RateLimiter: &v1.RateLimiter{TokenBucketRateLimiter: &v1.TokenBucketRateLimiter{
@@ -268,12 +266,13 @@ func defaultClusterConfig(cpuArch string) *v1.KubeVirtConfiguration {
 		LiveUpdateConfiguration: &v1.LiveUpdateConfiguration{
 			MaxHotplugRatio: DefaultMaxHotplugRatio,
 		},
+		VMRolloutStrategy: pointer.P(DefaultVMRolloutStrategy),
 	}
 }
 
 type ClusterConfig struct {
-	crdInformer                      cache.SharedIndexInformer
-	kubeVirtInformer                 cache.SharedIndexInformer
+	crdStore                         cache.Store
+	kubeVirtStore                    cache.Store
 	namespace                        string
 	cpuArch                          string
 	lock                             *sync.Mutex
@@ -324,6 +323,9 @@ func getCPUArchSpecificDefault(cpuArch string) (string, string, []string) {
 	case "ppc64le":
 		emulatedMachinesDefault := strings.Split(DefaultPPC64LEEmulatedMachines, ",")
 		return DefaultARCHOVMFPath, DefaultPPC64LEMachineType, emulatedMachinesDefault
+	case "s390x":
+		emulatedMachinesDefault := strings.Split(DefaultS390XEmulatedMachines, ",")
+		return DefaultARCHOVMFPath, DefaultS390XMachineType, emulatedMachinesDefault
 	default:
 		emulatedMachinesDefault := strings.Split(DefaultAMD64EmulatedMachines, ",")
 		return DefaultARCHOVMFPath, DefaultAMD64MachineType, emulatedMachinesDefault
@@ -367,7 +369,7 @@ func (c *ClusterConfig) GetConfig() (config *v1.KubeVirtConfiguration) {
 }
 
 func (c *ClusterConfig) GetConfigFromKubeVirtCR() *v1.KubeVirt {
-	objects := c.kubeVirtInformer.GetStore().List()
+	objects := c.kubeVirtStore.List()
 	var kubeVirtName string
 	for _, obj := range objects {
 		if kv, ok := obj.(*v1.KubeVirt); ok && kv.DeletionTimestamp == nil {
@@ -381,7 +383,7 @@ func (c *ClusterConfig) GetConfigFromKubeVirtCR() *v1.KubeVirt {
 		return nil
 	}
 
-	if obj, exists, err := c.kubeVirtInformer.GetStore().GetByKey(c.namespace + "/" + kubeVirtName); err != nil {
+	if obj, exists, err := c.kubeVirtStore.GetByKey(c.namespace + "/" + kubeVirtName); err != nil {
 		log.DefaultLogger().Reason(err).Errorf("Error loading the cluster config from KubeVirt cache, falling back to last good resource version '%s'", c.lastValidConfigResourceVersion)
 		return nil
 	} else if !exists {
@@ -396,7 +398,7 @@ func (c *ClusterConfig) HasDataSourceAPI() bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	objects := c.crdInformer.GetStore().List()
+	objects := c.crdStore.List()
 	for _, obj := range objects {
 		if crd, ok := obj.(*extv1.CustomResourceDefinition); ok && crd.DeletionTimestamp == nil {
 			if isDataSourceCrd(crd) {
@@ -411,7 +413,7 @@ func (c *ClusterConfig) HasDataVolumeAPI() bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	objects := c.crdInformer.GetStore().List()
+	objects := c.crdStore.List()
 	for _, obj := range objects {
 		if crd, ok := obj.(*extv1.CustomResourceDefinition); ok && crd.DeletionTimestamp == nil {
 			if isDataVolumeCrd(crd) {
@@ -426,7 +428,7 @@ func (c *ClusterConfig) HasServiceMonitorAPI() bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	objects := c.crdInformer.GetStore().List()
+	objects := c.crdStore.List()
 	for _, obj := range objects {
 		if crd, ok := obj.(*extv1.CustomResourceDefinition); ok && crd.DeletionTimestamp == nil {
 			if isServiceMonitor(crd) {
@@ -441,7 +443,7 @@ func (c *ClusterConfig) HasPrometheusRuleAPI() bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	objects := c.crdInformer.GetStore().List()
+	objects := c.crdStore.List()
 	for _, obj := range objects {
 		if crd, ok := obj.(*extv1.CustomResourceDefinition); ok && crd.DeletionTimestamp == nil {
 			if isPrometheusRules(crd) {
@@ -487,7 +489,7 @@ func validateConfig(config *v1.KubeVirtConfiguration) error {
 
 	// set default network interface
 	switch config.NetworkConfiguration.NetworkInterface {
-	case "", string(v1.BridgeInterface), string(v1.SlirpInterface), string(v1.MasqueradeInterface):
+	case "", string(v1.BridgeInterface), string(v1.DeprecatedSlirpInterface), string(v1.MasqueradeInterface):
 		break
 	default:
 		return fmt.Errorf("invalid default-network-interface in config: %v", config.NetworkConfiguration.NetworkInterface)

@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,15 +38,8 @@ var (
 	NamespacedDockerCredentialResourceName    = "namespaceddockercredentials"
 	NamespacedSSHAuthResourceName             = "namespacedsshauths"
 	NamespacedServiceAccountTokenResourceName = "namespacedserviceaccounttokens"
-	PipelineResourceName                      = "pipelines"
-	PipelineExecutionResourceName             = "pipelineexecutions"
-	PipelineSettingResourceName               = "pipelinesettings"
 	SSHAuthResourceName                       = "sshauths"
 	ServiceAccountTokenResourceName           = "serviceaccounttokens"
-	SourceCodeCredentialResourceName          = "sourcecodecredentials"
-	SourceCodeProviderResourceName            = "sourcecodeproviders"
-	SourceCodeProviderConfigResourceName      = "sourcecodeproviderconfigs"
-	SourceCodeRepositoryResourceName          = "sourcecoderepositories"
 	WorkloadResourceName                      = "workloads"
 )
 
@@ -91,24 +84,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&NamespacedSSHAuthList{},
 		&NamespacedServiceAccountToken{},
 		&NamespacedServiceAccountTokenList{},
-		&Pipeline{},
-		&PipelineList{},
-		&PipelineExecution{},
-		&PipelineExecutionList{},
-		&PipelineSetting{},
-		&PipelineSettingList{},
 		&SSHAuth{},
 		&SSHAuthList{},
 		&ServiceAccountToken{},
 		&ServiceAccountTokenList{},
-		&SourceCodeCredential{},
-		&SourceCodeCredentialList{},
-		&SourceCodeProvider{},
-		&SourceCodeProviderList{},
-		&SourceCodeProviderConfig{},
-		&SourceCodeProviderConfigList{},
-		&SourceCodeRepository{},
-		&SourceCodeRepositoryList{},
 		&Workload{},
 		&WorkloadList{},
 	)

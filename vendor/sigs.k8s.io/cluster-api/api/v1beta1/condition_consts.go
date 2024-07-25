@@ -152,6 +152,10 @@ const (
 	// MachineHasFailureReason is the reason used when a machine has either a FailureReason or a FailureMessage set on its status.
 	MachineHasFailureReason = "MachineHasFailure"
 
+	// HasRemediateMachineAnnotationReason is the reason that get's set at the MachineHealthCheckSucceededCondition when a machine
+	// has the RemediateMachineAnnotation set.
+	HasRemediateMachineAnnotationReason = "HasRemediateMachineAnnotation"
+
 	// NodeStartupTimeoutReason is the reason used when a machine's node does not appear within the specified timeout.
 	NodeStartupTimeoutReason = "NodeStartupTimeout"
 
@@ -207,6 +211,11 @@ const (
 
 	// NodeConditionsFailedReason (Severity=Warning) documents a node is not in a healthy state due to the failed state of at least 1 Kubelet condition.
 	NodeConditionsFailedReason = "NodeConditionsFailed"
+
+	// NodeInspectionFailedReason documents a failure in inspecting the node.
+	// This reason is used when the Machine controller is unable to list Nodes to find
+	// the corresponding Node for a Machine by ProviderID.
+	NodeInspectionFailedReason = "NodeInspectionFailed"
 )
 
 // Conditions and condition Reasons for the MachineHealthCheck object.
@@ -228,6 +237,14 @@ const (
 	// machines required (i.e. Spec.Replicas-MaxUnavailable when MachineDeploymentStrategyType = RollingUpdate) are up and running for at least minReadySeconds.
 	MachineDeploymentAvailableCondition ConditionType = "Available"
 
+	// MachineSetReadyCondition reports a summary of current status of the MachineSet owned by the MachineDeployment.
+	MachineSetReadyCondition ConditionType = "MachineSetReady"
+
+	// WaitingForMachineSetFallbackReason (Severity=Info) documents a MachineDeployment waiting for the underlying MachineSet
+	// to be available.
+	// NOTE: This reason is used only as a fallback when the MachineSet object is not reporting its own ready condition.
+	WaitingForMachineSetFallbackReason = "WaitingForMachineSet"
+
 	// WaitingForAvailableMachinesReason (Severity=Warning) reflects the fact that the required minimum number of machines for a machinedeployment are not available.
 	WaitingForAvailableMachinesReason = "WaitingForAvailableMachines"
 )
@@ -242,6 +259,10 @@ const (
 
 	// MachinesReadyCondition reports an aggregate of current status of the machines controlled by the MachineSet.
 	MachinesReadyCondition ConditionType = "MachinesReady"
+
+	// PreflightCheckFailedReason (Severity=Error) documents a MachineSet failing preflight checks
+	// to create machine(s).
+	PreflightCheckFailedReason = "PreflightCheckFailed"
 
 	// BootstrapTemplateCloningFailedReason (Severity=Error) documents a MachineSet failing to
 	// clone the bootstrap template.
@@ -282,6 +303,11 @@ const (
 	// not yet completed because Control Plane is not yet updated to match the desired topology spec.
 	TopologyReconciledControlPlaneUpgradePendingReason = "ControlPlaneUpgradePending"
 
+	// TopologyReconciledMachineDeploymentsCreatePendingReason (Severity=Info) documents reconciliation of a Cluster topology
+	// not yet completed because at least one of the MachineDeployments is yet to be created.
+	// This generally happens because new MachineDeployment creations are held off while the ControlPlane is not stable.
+	TopologyReconciledMachineDeploymentsCreatePendingReason = "MachineDeploymentsCreatePending"
+
 	// TopologyReconciledMachineDeploymentsUpgradePendingReason (Severity=Info) documents reconciliation of a Cluster topology
 	// not yet completed because at least one of the MachineDeployments is not yet updated to match the desired topology spec.
 	TopologyReconciledMachineDeploymentsUpgradePendingReason = "MachineDeploymentsUpgradePending"
@@ -289,6 +315,19 @@ const (
 	// TopologyReconciledMachineDeploymentsUpgradeDeferredReason (Severity=Info) documents reconciliation of a Cluster topology
 	// not yet completed because the upgrade for at least one of the MachineDeployments has been deferred.
 	TopologyReconciledMachineDeploymentsUpgradeDeferredReason = "MachineDeploymentsUpgradeDeferred"
+
+	// TopologyReconciledMachinePoolsUpgradePendingReason (Severity=Info) documents reconciliation of a Cluster topology
+	// not yet completed because at least one of the MachinePools is not yet updated to match the desired topology spec.
+	TopologyReconciledMachinePoolsUpgradePendingReason = "MachinePoolsUpgradePending"
+
+	// TopologyReconciledMachinePoolsCreatePendingReason (Severity=Info) documents reconciliation of a Cluster topology
+	// not yet completed because at least one of the MachinePools is yet to be created.
+	// This generally happens because new MachinePool creations are held off while the ControlPlane is not stable.
+	TopologyReconciledMachinePoolsCreatePendingReason = "MachinePoolsCreatePending"
+
+	// TopologyReconciledMachinePoolsUpgradeDeferredReason (Severity=Info) documents reconciliation of a Cluster topology
+	// not yet completed because the upgrade for at least one of the MachinePools has been deferred.
+	TopologyReconciledMachinePoolsUpgradeDeferredReason = "MachinePoolsUpgradeDeferred"
 
 	// TopologyReconciledHookBlockingReason (Severity=Info) documents reconciliation of a Cluster topology
 	// not yet completed because at least one of the lifecycle hooks is blocking.
