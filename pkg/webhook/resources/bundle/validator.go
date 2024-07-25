@@ -21,7 +21,7 @@ type bundleValidator struct {
 
 func (v *bundleValidator) Resource() types.Resource {
 	return types.Resource{
-		Names:      []string{fleetv1alpha1.BundleResourceName},
+		Names:      []string{"bundles"},
 		Scope:      admissionregv1.NamespacedScope,
 		APIGroup:   fleetv1alpha1.SchemeGroupVersion.Group,
 		APIVersion: fleetv1alpha1.SchemeGroupVersion.Version,
