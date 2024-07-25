@@ -21,6 +21,7 @@ package v1
 import (
 	v1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -45,12 +46,14 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) VolumeSnapshot() VolumeSnapshotController {
-	return NewVolumeSnapshotController(schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1", Kind: "VolumeSnapshot"}, "volumesnapshots", true, c.controllerFactory)
+func (v *version) VolumeSnapshot() VolumeSnapshotController {
+	return generic.NewController[*v1.VolumeSnapshot, *v1.VolumeSnapshotList](schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1", Kind: "VolumeSnapshot"}, "volumesnapshots", true, v.controllerFactory)
 }
-func (c *version) VolumeSnapshotClass() VolumeSnapshotClassController {
-	return NewVolumeSnapshotClassController(schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1", Kind: "VolumeSnapshotClass"}, "volumesnapshotclasses", false, c.controllerFactory)
+
+func (v *version) VolumeSnapshotClass() VolumeSnapshotClassController {
+	return generic.NewNonNamespacedController[*v1.VolumeSnapshotClass, *v1.VolumeSnapshotClassList](schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1", Kind: "VolumeSnapshotClass"}, "volumesnapshotclasses", v.controllerFactory)
 }
-func (c *version) VolumeSnapshotContent() VolumeSnapshotContentController {
-	return NewVolumeSnapshotContentController(schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1", Kind: "VolumeSnapshotContent"}, "volumesnapshotcontents", false, c.controllerFactory)
+
+func (v *version) VolumeSnapshotContent() VolumeSnapshotContentController {
+	return generic.NewNonNamespacedController[*v1.VolumeSnapshotContent, *v1.VolumeSnapshotContentList](schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1", Kind: "VolumeSnapshotContent"}, "volumesnapshotcontents", v.controllerFactory)
 }

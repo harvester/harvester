@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeAuthConfigs struct {
 	Fake *FakeManagementV3
 }
 
-var authconfigsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "authconfigs"}
+var authconfigsResource = v3.SchemeGroupVersion.WithResource("authconfigs")
 
-var authconfigsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "AuthConfig"}
+var authconfigsKind = v3.SchemeGroupVersion.WithKind("AuthConfig")
 
 // Get takes name of the authConfig, and returns the corresponding authConfig object, and an error if there is any.
 func (c *FakeAuthConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.AuthConfig, err error) {
@@ -90,6 +89,17 @@ func (c *FakeAuthConfigs) Create(ctx context.Context, authConfig *v3.AuthConfig,
 func (c *FakeAuthConfigs) Update(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (result *v3.AuthConfig, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootUpdateAction(authconfigsResource, authConfig), &v3.AuthConfig{})
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v3.AuthConfig), err
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeAuthConfigs) UpdateStatus(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (*v3.AuthConfig, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewRootUpdateSubresourceAction(authconfigsResource, "status", authConfig), &v3.AuthConfig{})
 	if obj == nil {
 		return nil, err
 	}

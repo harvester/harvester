@@ -24,7 +24,6 @@ import (
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeBackingImageManagers struct {
 	ns   string
 }
 
-var backingimagemanagersResource = schema.GroupVersionResource{Group: "longhorn.io", Version: "v1beta2", Resource: "backingimagemanagers"}
+var backingimagemanagersResource = v1beta2.SchemeGroupVersion.WithResource("backingimagemanagers")
 
-var backingimagemanagersKind = schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "BackingImageManager"}
+var backingimagemanagersKind = v1beta2.SchemeGroupVersion.WithKind("BackingImageManager")
 
 // Get takes name of the backingImageManager, and returns the corresponding backingImageManager object, and an error if there is any.
 func (c *FakeBackingImageManagers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.BackingImageManager, err error) {

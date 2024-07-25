@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeEtcdBackups struct {
 	ns   string
 }
 
-var etcdbackupsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "etcdbackups"}
+var etcdbackupsResource = v3.SchemeGroupVersion.WithResource("etcdbackups")
 
-var etcdbackupsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "EtcdBackup"}
+var etcdbackupsKind = v3.SchemeGroupVersion.WithKind("EtcdBackup")
 
 // Get takes name of the etcdBackup, and returns the corresponding etcdBackup object, and an error if there is any.
 func (c *FakeEtcdBackups) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.EtcdBackup, err error) {

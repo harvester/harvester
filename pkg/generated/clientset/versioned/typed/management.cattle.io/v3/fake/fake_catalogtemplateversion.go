@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeCatalogTemplateVersions struct {
 	ns   string
 }
 
-var catalogtemplateversionsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "catalogtemplateversions"}
+var catalogtemplateversionsResource = v3.SchemeGroupVersion.WithResource("catalogtemplateversions")
 
-var catalogtemplateversionsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "CatalogTemplateVersion"}
+var catalogtemplateversionsKind = v3.SchemeGroupVersion.WithKind("CatalogTemplateVersion")
 
 // Get takes name of the catalogTemplateVersion, and returns the corresponding catalogTemplateVersion object, and an error if there is any.
 func (c *FakeCatalogTemplateVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.CatalogTemplateVersion, err error) {

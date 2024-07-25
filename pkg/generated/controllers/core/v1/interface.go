@@ -20,6 +20,7 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -44,9 +45,10 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) PersistentVolume() PersistentVolumeController {
-	return NewPersistentVolumeController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolume"}, "persistentvolumes", false, c.controllerFactory)
+func (v *version) PersistentVolume() PersistentVolumeController {
+	return generic.NewNonNamespacedController[*v1.PersistentVolume, *v1.PersistentVolumeList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolume"}, "persistentvolumes", v.controllerFactory)
 }
-func (c *version) ResourceQuota() ResourceQuotaController {
-	return NewResourceQuotaController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ResourceQuota"}, "resourcequotas", true, c.controllerFactory)
+
+func (v *version) ResourceQuota() ResourceQuotaController {
+	return generic.NewController[*v1.ResourceQuota, *v1.ResourceQuotaList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ResourceQuota"}, "resourcequotas", true, v.controllerFactory)
 }

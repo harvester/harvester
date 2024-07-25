@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeManagedCharts struct {
 	ns   string
 }
 
-var managedchartsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "managedcharts"}
+var managedchartsResource = v3.SchemeGroupVersion.WithResource("managedcharts")
 
-var managedchartsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "ManagedChart"}
+var managedchartsKind = v3.SchemeGroupVersion.WithKind("ManagedChart")
 
 // Get takes name of the managedChart, and returns the corresponding managedChart object, and an error if there is any.
 func (c *FakeManagedCharts) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ManagedChart, err error) {

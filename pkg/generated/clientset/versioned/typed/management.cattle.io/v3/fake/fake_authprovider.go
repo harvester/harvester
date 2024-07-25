@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeAuthProviders struct {
 	Fake *FakeManagementV3
 }
 
-var authprovidersResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "authproviders"}
+var authprovidersResource = v3.SchemeGroupVersion.WithResource("authproviders")
 
-var authprovidersKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "AuthProvider"}
+var authprovidersKind = v3.SchemeGroupVersion.WithKind("AuthProvider")
 
 // Get takes name of the authProvider, and returns the corresponding authProvider object, and an error if there is any.
 func (c *FakeAuthProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.AuthProvider, err error) {

@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeAuthTokens struct {
 	Fake *FakeManagementV3
 }
 
-var authtokensResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "authtokens"}
+var authtokensResource = v3.SchemeGroupVersion.WithResource("authtokens")
 
-var authtokensKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "AuthToken"}
+var authtokensKind = v3.SchemeGroupVersion.WithKind("AuthToken")
 
 // Get takes name of the authToken, and returns the corresponding authToken object, and an error if there is any.
 func (c *FakeAuthTokens) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.AuthToken, err error) {

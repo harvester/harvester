@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeGlobalRoles struct {
 	Fake *FakeManagementV3
 }
 
-var globalrolesResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "globalroles"}
+var globalrolesResource = v3.SchemeGroupVersion.WithResource("globalroles")
 
-var globalrolesKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "GlobalRole"}
+var globalrolesKind = v3.SchemeGroupVersion.WithKind("GlobalRole")
 
 // Get takes name of the globalRole, and returns the corresponding globalRole object, and an error if there is any.
 func (c *FakeGlobalRoles) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.GlobalRole, err error) {
@@ -90,6 +89,17 @@ func (c *FakeGlobalRoles) Create(ctx context.Context, globalRole *v3.GlobalRole,
 func (c *FakeGlobalRoles) Update(ctx context.Context, globalRole *v3.GlobalRole, opts v1.UpdateOptions) (result *v3.GlobalRole, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootUpdateAction(globalrolesResource, globalRole), &v3.GlobalRole{})
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v3.GlobalRole), err
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeGlobalRoles) UpdateStatus(ctx context.Context, globalRole *v3.GlobalRole, opts v1.UpdateOptions) (*v3.GlobalRole, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewRootUpdateSubresourceAction(globalrolesResource, "status", globalRole), &v3.GlobalRole{})
 	if obj == nil {
 		return nil, err
 	}

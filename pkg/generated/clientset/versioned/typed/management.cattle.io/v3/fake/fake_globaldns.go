@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeGlobalDnses struct {
 	ns   string
 }
 
-var globaldnsesResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "globaldnses"}
+var globaldnsesResource = v3.SchemeGroupVersion.WithResource("globaldnses")
 
-var globaldnsesKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "GlobalDns"}
+var globaldnsesKind = v3.SchemeGroupVersion.WithKind("GlobalDns")
 
 // Get takes name of the globalDns, and returns the corresponding globalDns object, and an error if there is any.
 func (c *FakeGlobalDnses) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.GlobalDns, err error) {

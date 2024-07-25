@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeNodeTemplates struct {
 	ns   string
 }
 
-var nodetemplatesResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "nodetemplates"}
+var nodetemplatesResource = v3.SchemeGroupVersion.WithResource("nodetemplates")
 
-var nodetemplatesKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "NodeTemplate"}
+var nodetemplatesKind = v3.SchemeGroupVersion.WithKind("NodeTemplate")
 
 // Get takes name of the nodeTemplate, and returns the corresponding nodeTemplate object, and an error if there is any.
 func (c *FakeNodeTemplates) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.NodeTemplate, err error) {
