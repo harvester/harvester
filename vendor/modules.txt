@@ -405,6 +405,12 @@ github.com/harvester/node-manager/pkg/apis/node.harvesterhci.io
 github.com/harvester/node-manager/pkg/apis/node.harvesterhci.io/v1beta1
 github.com/harvester/node-manager/pkg/generated/controllers/node.harvesterhci.io
 github.com/harvester/node-manager/pkg/generated/controllers/node.harvesterhci.io/v1beta1
+# github.com/hashicorp/errwrap v1.1.0
+## explicit
+github.com/hashicorp/errwrap
+# github.com/hashicorp/go-multierror v1.1.1
+## explicit; go 1.13
+github.com/hashicorp/go-multierror
 # github.com/hashicorp/golang-lru/v2 v2.0.7
 ## explicit; go 1.18
 github.com/hashicorp/golang-lru/v2
@@ -1398,8 +1404,8 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# helm.sh/helm/v3 v3.15.1 => github.com/rancher/helm/v3 v3.9.0-rancher1
-## explicit; go 1.17
+# helm.sh/helm/v3 v3.15.1 => github.com/rancher/helm/v3 v3.13.3-rancher1
+## explicit; go 1.19
 helm.sh/helm/v3/internal/fileutil
 helm.sh/helm/v3/internal/ignore
 helm.sh/helm/v3/internal/resolver
@@ -2500,7 +2506,7 @@ sigs.k8s.io/yaml/goyaml.v2
 # github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20240710123941-93e332156bbe
 # github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20240710123941-93e332156bbe
 # go.qase.io/client => github.com/rancher/qase-go/client v0.0.0-20231114201952-65195ec001fa
-# helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.9.0-rancher1
+# helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.13.3-rancher1
 # k8s.io/api => k8s.io/api v0.30.3
 # k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.30.3
 # k8s.io/apimachinery => k8s.io/apimachinery v0.30.3
