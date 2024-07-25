@@ -5,8 +5,8 @@ import (
 
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/attributes"
-	"github.com/rancher/wrangler/pkg/merr"
-	"github.com/rancher/wrangler/pkg/schemas"
+	"github.com/rancher/wrangler/v3/pkg/merr"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -22,7 +22,9 @@ var (
 	}
 )
 
-func AddDiscovery(client discovery.DiscoveryInterface, schemasMap map[string]*types.APISchema) error {
+// addDiscovery uses a k8s discovery client to create very basic schemas for all registered groups/resources. Other
+// functions, such as addCustomResources are used to add more details to these schemas later on.
+func addDiscovery(client discovery.DiscoveryInterface, schemasMap map[string]*types.APISchema) error {
 	groups, resourceLists, err := client.ServerGroupsAndResources()
 	if gd, ok := err.(*discovery.ErrGroupDiscoveryFailed); ok {
 		logrus.Errorf("Failed to read API for groups %v", gd.Groups)

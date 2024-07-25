@@ -5,8 +5,8 @@ import (
 
 	"github.com/rancher/apiserver/pkg/store/schema"
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/wrangler/pkg/schemas"
-	"github.com/rancher/wrangler/pkg/slice"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
+	"github.com/rancher/wrangler/v3/pkg/slice"
 )
 
 var (

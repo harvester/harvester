@@ -7,7 +7,7 @@ import (
 
 	"github.com/rancher/apiserver/pkg/store/empty"
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/wrangler/pkg/schemas"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
 )
 
 func Register(apiSchemas *types.APISchemas, versions []string, roots ...string) {

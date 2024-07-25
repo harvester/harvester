@@ -1,15 +1,15 @@
 package accesscontrol
 
 import (
-	"github.com/rancher/apiserver/pkg/server"
+	apiserver "github.com/rancher/apiserver/pkg/server"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/attributes"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type AccessControl struct {
-	server.SchemaBasedAccess
+	apiserver.SchemaBasedAccess
 }
 
 func NewAccessControl() *AccessControl {

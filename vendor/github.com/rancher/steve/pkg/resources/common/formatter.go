@@ -10,9 +10,10 @@ import (
 	metricsStore "github.com/rancher/steve/pkg/stores/metrics"
 	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/steve/pkg/summarycache"
-	"github.com/rancher/wrangler/pkg/data"
-	"github.com/rancher/wrangler/pkg/slice"
-	"github.com/rancher/wrangler/pkg/summary"
+	"github.com/rancher/wrangler/v3/pkg/data"
+	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v3/pkg/slice"
+	"github.com/rancher/wrangler/v3/pkg/summary"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -21,9 +22,18 @@ import (
 
 func DefaultTemplate(clientGetter proxy.ClientGetter,
 	summaryCache *summarycache.SummaryCache,
-	asl accesscontrol.AccessSetLookup) schema.Template {
+	asl accesscontrol.AccessSetLookup,
+	namespaceCache corecontrollers.NamespaceCache) schema.Template {
 	return schema.Template{
-		Store:     metricsStore.NewMetricsStore(proxy.NewProxyStore(clientGetter, summaryCache, asl)),
+		Store:     metricsStore.NewMetricsStore(proxy.NewProxyStore(clientGetter, summaryCache, asl, namespaceCache)),
+		Formatter: formatter(summaryCache),
+	}
+}
+
+// DefaultTemplateForStore provides a default schema template which uses a provided, pre-initialized store. Primarily used when creating a Template that uses a Lasso SQL store internally.
+func DefaultTemplateForStore(store types.Store, summaryCache *summarycache.SummaryCache) schema.Template {
+	return schema.Template{
+		Store:     store,
 		Formatter: formatter(summaryCache),
 	}
 }

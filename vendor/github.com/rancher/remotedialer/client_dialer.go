@@ -38,7 +38,7 @@ func pipe(client *connection, server net.Conn) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
-	close := func(err error) error {
+	closePipe := func(err error) error {
 		if err == nil {
 			err = io.EOF
 		}
@@ -50,11 +50,11 @@ func pipe(client *connection, server net.Conn) {
 	go func() {
 		defer wg.Done()
 		_, err := io.Copy(server, client)
-		close(err)
+		closePipe(err)
 	}()
 
 	_, err := io.Copy(client, server)
-	err = close(err)
+	err = closePipe(err)
 	wg.Wait()
 
 	// Write tunnel error after no more I/O is happening, just incase messages get out of order

@@ -3,7 +3,7 @@ package types
 import (
 	"strings"
 
-	"github.com/rancher/wrangler/pkg/schemas"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/sirupsen/logrus"
 )
 
