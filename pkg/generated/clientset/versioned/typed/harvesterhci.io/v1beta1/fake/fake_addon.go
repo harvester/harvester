@@ -24,7 +24,6 @@ import (
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeAddons struct {
 	ns   string
 }
 
-var addonsResource = schema.GroupVersionResource{Group: "harvesterhci.io", Version: "v1beta1", Resource: "addons"}
+var addonsResource = v1beta1.SchemeGroupVersion.WithResource("addons")
 
-var addonsKind = schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Addon"}
+var addonsKind = v1beta1.SchemeGroupVersion.WithKind("Addon")
 
 // Get takes name of the addon, and returns the corresponding addon object, and an error if there is any.
 func (c *FakeAddons) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Addon, err error) {

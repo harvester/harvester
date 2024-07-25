@@ -24,7 +24,6 @@ import (
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeVirtualMachineTemplateVersions struct {
 	ns   string
 }
 
-var virtualmachinetemplateversionsResource = schema.GroupVersionResource{Group: "harvesterhci.io", Version: "v1beta1", Resource: "virtualmachinetemplateversions"}
+var virtualmachinetemplateversionsResource = v1beta1.SchemeGroupVersion.WithResource("virtualmachinetemplateversions")
 
-var virtualmachinetemplateversionsKind = schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineTemplateVersion"}
+var virtualmachinetemplateversionsKind = v1beta1.SchemeGroupVersion.WithKind("VirtualMachineTemplateVersion")
 
 // Get takes name of the virtualMachineTemplateVersion, and returns the corresponding virtualMachineTemplateVersion object, and an error if there is any.
 func (c *FakeVirtualMachineTemplateVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VirtualMachineTemplateVersion, err error) {

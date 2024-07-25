@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeCloudCredentials struct {
 	ns   string
 }
 
-var cloudcredentialsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "cloudcredentials"}
+var cloudcredentialsResource = v3.SchemeGroupVersion.WithResource("cloudcredentials")
 
-var cloudcredentialsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "CloudCredential"}
+var cloudcredentialsKind = v3.SchemeGroupVersion.WithKind("CloudCredential")
 
 // Get takes name of the cloudCredential, and returns the corresponding cloudCredential object, and an error if there is any.
 func (c *FakeCloudCredentials) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.CloudCredential, err error) {

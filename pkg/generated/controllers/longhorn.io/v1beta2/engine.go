@@ -24,244 +24,29 @@ import (
 	"time"
 
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/v3/pkg/apply"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type EngineHandler func(string, *v1beta2.Engine) (*v1beta2.Engine, error)
-
+// EngineController interface for managing Engine resources.
 type EngineController interface {
-	generic.ControllerMeta
-	EngineClient
-
-	OnChange(ctx context.Context, name string, sync EngineHandler)
-	OnRemove(ctx context.Context, name string, sync EngineHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() EngineCache
+	generic.ControllerInterface[*v1beta2.Engine, *v1beta2.EngineList]
 }
 
+// EngineClient interface for managing Engine resources in Kubernetes.
 type EngineClient interface {
-	Create(*v1beta2.Engine) (*v1beta2.Engine, error)
-	Update(*v1beta2.Engine) (*v1beta2.Engine, error)
-	UpdateStatus(*v1beta2.Engine) (*v1beta2.Engine, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1beta2.Engine, error)
-	List(namespace string, opts metav1.ListOptions) (*v1beta2.EngineList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta2.Engine, err error)
+	generic.ClientInterface[*v1beta2.Engine, *v1beta2.EngineList]
 }
 
+// EngineCache interface for retrieving Engine resources in memory.
 type EngineCache interface {
-	Get(namespace, name string) (*v1beta2.Engine, error)
-	List(namespace string, selector labels.Selector) ([]*v1beta2.Engine, error)
-
-	AddIndexer(indexName string, indexer EngineIndexer)
-	GetByIndex(indexName, key string) ([]*v1beta2.Engine, error)
-}
-
-type EngineIndexer func(obj *v1beta2.Engine) ([]string, error)
-
-type engineController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewEngineController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) EngineController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &engineController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromEngineHandlerToHandler(sync EngineHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1beta2.Engine
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1beta2.Engine))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *engineController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1beta2.Engine))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateEngineDeepCopyOnChange(client EngineClient, obj *v1beta2.Engine, handler func(obj *v1beta2.Engine) (*v1beta2.Engine, error)) (*v1beta2.Engine, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *engineController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *engineController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *engineController) OnChange(ctx context.Context, name string, sync EngineHandler) {
-	c.AddGenericHandler(ctx, name, FromEngineHandlerToHandler(sync))
-}
-
-func (c *engineController) OnRemove(ctx context.Context, name string, sync EngineHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromEngineHandlerToHandler(sync)))
-}
-
-func (c *engineController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *engineController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *engineController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *engineController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *engineController) Cache() EngineCache {
-	return &engineCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *engineController) Create(obj *v1beta2.Engine) (*v1beta2.Engine, error) {
-	result := &v1beta2.Engine{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *engineController) Update(obj *v1beta2.Engine) (*v1beta2.Engine, error) {
-	result := &v1beta2.Engine{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *engineController) UpdateStatus(obj *v1beta2.Engine) (*v1beta2.Engine, error) {
-	result := &v1beta2.Engine{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *engineController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *engineController) Get(namespace, name string, options metav1.GetOptions) (*v1beta2.Engine, error) {
-	result := &v1beta2.Engine{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *engineController) List(namespace string, opts metav1.ListOptions) (*v1beta2.EngineList, error) {
-	result := &v1beta2.EngineList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *engineController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *engineController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1beta2.Engine, error) {
-	result := &v1beta2.Engine{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type engineCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *engineCache) Get(namespace, name string) (*v1beta2.Engine, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1beta2.Engine), nil
-}
-
-func (c *engineCache) List(namespace string, selector labels.Selector) (ret []*v1beta2.Engine, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.Engine))
-	})
-
-	return ret, err
-}
-
-func (c *engineCache) AddIndexer(indexName string, indexer EngineIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1beta2.Engine))
-		},
-	}))
-}
-
-func (c *engineCache) GetByIndex(indexName, key string) (result []*v1beta2.Engine, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1beta2.Engine, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1beta2.Engine))
-	}
-	return result, nil
+	generic.CacheInterface[*v1beta2.Engine]
 }
 
 // EngineStatusHandler is executed for every added or modified Engine. Should return the new status to be updated
@@ -278,7 +63,7 @@ func RegisterEngineStatusHandler(ctx context.Context, controller EngineControlle
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromEngineHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
 // RegisterEngineGeneratingHandler configures a EngineController to execute a EngineGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.

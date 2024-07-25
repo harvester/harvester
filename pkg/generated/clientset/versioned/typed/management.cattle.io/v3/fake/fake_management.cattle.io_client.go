@@ -64,32 +64,12 @@ func (c *FakeManagementV3) CatalogTemplateVersions(namespace string) v3.CatalogT
 	return &FakeCatalogTemplateVersions{c, namespace}
 }
 
-func (c *FakeManagementV3) CisBenchmarkVersions(namespace string) v3.CisBenchmarkVersionInterface {
-	return &FakeCisBenchmarkVersions{c, namespace}
-}
-
-func (c *FakeManagementV3) CisConfigs(namespace string) v3.CisConfigInterface {
-	return &FakeCisConfigs{c, namespace}
-}
-
 func (c *FakeManagementV3) CloudCredentials(namespace string) v3.CloudCredentialInterface {
 	return &FakeCloudCredentials{c, namespace}
 }
 
 func (c *FakeManagementV3) Clusters() v3.ClusterInterface {
 	return &FakeClusters{c}
-}
-
-func (c *FakeManagementV3) ClusterAlerts(namespace string) v3.ClusterAlertInterface {
-	return &FakeClusterAlerts{c, namespace}
-}
-
-func (c *FakeManagementV3) ClusterAlertGroups(namespace string) v3.ClusterAlertGroupInterface {
-	return &FakeClusterAlertGroups{c, namespace}
-}
-
-func (c *FakeManagementV3) ClusterAlertRules(namespace string) v3.ClusterAlertRuleInterface {
-	return &FakeClusterAlertRules{c, namespace}
 }
 
 func (c *FakeManagementV3) ClusterCatalogs(namespace string) v3.ClusterCatalogInterface {
@@ -100,8 +80,8 @@ func (c *FakeManagementV3) ClusterLoggings(namespace string) v3.ClusterLoggingIn
 	return &FakeClusterLoggings{c, namespace}
 }
 
-func (c *FakeManagementV3) ClusterMonitorGraphs(namespace string) v3.ClusterMonitorGraphInterface {
-	return &FakeClusterMonitorGraphs{c, namespace}
+func (c *FakeManagementV3) ClusterProxyConfigs(namespace string) v3.ClusterProxyConfigInterface {
+	return &FakeClusterProxyConfigs{c, namespace}
 }
 
 func (c *FakeManagementV3) ClusterRegistrationTokens(namespace string) v3.ClusterRegistrationTokenInterface {
@@ -110,10 +90,6 @@ func (c *FakeManagementV3) ClusterRegistrationTokens(namespace string) v3.Cluste
 
 func (c *FakeManagementV3) ClusterRoleTemplateBindings(namespace string) v3.ClusterRoleTemplateBindingInterface {
 	return &FakeClusterRoleTemplateBindings{c, namespace}
-}
-
-func (c *FakeManagementV3) ClusterScans(namespace string) v3.ClusterScanInterface {
-	return &FakeClusterScans{c, namespace}
 }
 
 func (c *FakeManagementV3) ClusterTemplates(namespace string) v3.ClusterTemplateInterface {
@@ -146,6 +122,10 @@ func (c *FakeManagementV3) FleetWorkspaces() v3.FleetWorkspaceInterface {
 
 func (c *FakeManagementV3) FreeIpaProviders() v3.FreeIpaProviderInterface {
 	return &FakeFreeIpaProviders{c}
+}
+
+func (c *FakeManagementV3) GenericOIDCProviders() v3.GenericOIDCProviderInterface {
+	return &FakeGenericOIDCProviders{c}
 }
 
 func (c *FakeManagementV3) GithubConfigs() v3.GithubConfigInterface {
@@ -196,10 +176,6 @@ func (c *FakeManagementV3) ManagedCharts(namespace string) v3.ManagedChartInterf
 	return &FakeManagedCharts{c, namespace}
 }
 
-func (c *FakeManagementV3) MonitorMetrics(namespace string) v3.MonitorMetricInterface {
-	return &FakeMonitorMetrics{c, namespace}
-}
-
 func (c *FakeManagementV3) MultiClusterApps(namespace string) v3.MultiClusterAppInterface {
 	return &FakeMultiClusterApps{c, namespace}
 }
@@ -224,10 +200,6 @@ func (c *FakeManagementV3) NodeTemplates(namespace string) v3.NodeTemplateInterf
 	return &FakeNodeTemplates{c, namespace}
 }
 
-func (c *FakeManagementV3) Notifiers(namespace string) v3.NotifierInterface {
-	return &FakeNotifiers{c, namespace}
-}
-
 func (c *FakeManagementV3) OIDCProviders() v3.OIDCProviderInterface {
 	return &FakeOIDCProviders{c}
 }
@@ -236,12 +208,8 @@ func (c *FakeManagementV3) OpenLdapProviders() v3.OpenLdapProviderInterface {
 	return &FakeOpenLdapProviders{c}
 }
 
-func (c *FakeManagementV3) PodSecurityPolicyTemplates() v3.PodSecurityPolicyTemplateInterface {
-	return &FakePodSecurityPolicyTemplates{c}
-}
-
-func (c *FakeManagementV3) PodSecurityPolicyTemplateProjectBindings(namespace string) v3.PodSecurityPolicyTemplateProjectBindingInterface {
-	return &FakePodSecurityPolicyTemplateProjectBindings{c, namespace}
+func (c *FakeManagementV3) PodSecurityAdmissionConfigurationTemplates() v3.PodSecurityAdmissionConfigurationTemplateInterface {
+	return &FakePodSecurityAdmissionConfigurationTemplates{c}
 }
 
 func (c *FakeManagementV3) Preferences(namespace string) v3.PreferenceInterface {
@@ -256,28 +224,12 @@ func (c *FakeManagementV3) Projects(namespace string) v3.ProjectInterface {
 	return &FakeProjects{c, namespace}
 }
 
-func (c *FakeManagementV3) ProjectAlerts(namespace string) v3.ProjectAlertInterface {
-	return &FakeProjectAlerts{c, namespace}
-}
-
-func (c *FakeManagementV3) ProjectAlertGroups(namespace string) v3.ProjectAlertGroupInterface {
-	return &FakeProjectAlertGroups{c, namespace}
-}
-
-func (c *FakeManagementV3) ProjectAlertRules(namespace string) v3.ProjectAlertRuleInterface {
-	return &FakeProjectAlertRules{c, namespace}
-}
-
 func (c *FakeManagementV3) ProjectCatalogs(namespace string) v3.ProjectCatalogInterface {
 	return &FakeProjectCatalogs{c, namespace}
 }
 
 func (c *FakeManagementV3) ProjectLoggings(namespace string) v3.ProjectLoggingInterface {
 	return &FakeProjectLoggings{c, namespace}
-}
-
-func (c *FakeManagementV3) ProjectMonitorGraphs(namespace string) v3.ProjectMonitorGraphInterface {
-	return &FakeProjectMonitorGraphs{c, namespace}
 }
 
 func (c *FakeManagementV3) ProjectNetworkPolicies(namespace string) v3.ProjectNetworkPolicyInterface {

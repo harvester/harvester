@@ -21,6 +21,7 @@ package v1
 import (
 	v1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -43,6 +44,6 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) NetworkAttachmentDefinition() NetworkAttachmentDefinitionController {
-	return NewNetworkAttachmentDefinitionController(schema.GroupVersionKind{Group: "k8s.cni.cncf.io", Version: "v1", Kind: "NetworkAttachmentDefinition"}, "network-attachment-definitions", true, c.controllerFactory)
+func (v *version) NetworkAttachmentDefinition() NetworkAttachmentDefinitionController {
+	return generic.NewController[*v1.NetworkAttachmentDefinition, *v1.NetworkAttachmentDefinitionList](schema.GroupVersionKind{Group: "k8s.cni.cncf.io", Version: "v1", Kind: "NetworkAttachmentDefinition"}, "network-attachment-definitions", true, v.controllerFactory)
 }

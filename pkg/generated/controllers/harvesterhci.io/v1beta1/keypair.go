@@ -24,244 +24,29 @@ import (
 	"time"
 
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/v3/pkg/apply"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type KeyPairHandler func(string, *v1beta1.KeyPair) (*v1beta1.KeyPair, error)
-
+// KeyPairController interface for managing KeyPair resources.
 type KeyPairController interface {
-	generic.ControllerMeta
-	KeyPairClient
-
-	OnChange(ctx context.Context, name string, sync KeyPairHandler)
-	OnRemove(ctx context.Context, name string, sync KeyPairHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() KeyPairCache
+	generic.ControllerInterface[*v1beta1.KeyPair, *v1beta1.KeyPairList]
 }
 
+// KeyPairClient interface for managing KeyPair resources in Kubernetes.
 type KeyPairClient interface {
-	Create(*v1beta1.KeyPair) (*v1beta1.KeyPair, error)
-	Update(*v1beta1.KeyPair) (*v1beta1.KeyPair, error)
-	UpdateStatus(*v1beta1.KeyPair) (*v1beta1.KeyPair, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1beta1.KeyPair, error)
-	List(namespace string, opts metav1.ListOptions) (*v1beta1.KeyPairList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta1.KeyPair, err error)
+	generic.ClientInterface[*v1beta1.KeyPair, *v1beta1.KeyPairList]
 }
 
+// KeyPairCache interface for retrieving KeyPair resources in memory.
 type KeyPairCache interface {
-	Get(namespace, name string) (*v1beta1.KeyPair, error)
-	List(namespace string, selector labels.Selector) ([]*v1beta1.KeyPair, error)
-
-	AddIndexer(indexName string, indexer KeyPairIndexer)
-	GetByIndex(indexName, key string) ([]*v1beta1.KeyPair, error)
-}
-
-type KeyPairIndexer func(obj *v1beta1.KeyPair) ([]string, error)
-
-type keyPairController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewKeyPairController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) KeyPairController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &keyPairController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromKeyPairHandlerToHandler(sync KeyPairHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1beta1.KeyPair
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1beta1.KeyPair))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *keyPairController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1beta1.KeyPair))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateKeyPairDeepCopyOnChange(client KeyPairClient, obj *v1beta1.KeyPair, handler func(obj *v1beta1.KeyPair) (*v1beta1.KeyPair, error)) (*v1beta1.KeyPair, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *keyPairController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *keyPairController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *keyPairController) OnChange(ctx context.Context, name string, sync KeyPairHandler) {
-	c.AddGenericHandler(ctx, name, FromKeyPairHandlerToHandler(sync))
-}
-
-func (c *keyPairController) OnRemove(ctx context.Context, name string, sync KeyPairHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromKeyPairHandlerToHandler(sync)))
-}
-
-func (c *keyPairController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *keyPairController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *keyPairController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *keyPairController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *keyPairController) Cache() KeyPairCache {
-	return &keyPairCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *keyPairController) Create(obj *v1beta1.KeyPair) (*v1beta1.KeyPair, error) {
-	result := &v1beta1.KeyPair{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *keyPairController) Update(obj *v1beta1.KeyPair) (*v1beta1.KeyPair, error) {
-	result := &v1beta1.KeyPair{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *keyPairController) UpdateStatus(obj *v1beta1.KeyPair) (*v1beta1.KeyPair, error) {
-	result := &v1beta1.KeyPair{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *keyPairController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *keyPairController) Get(namespace, name string, options metav1.GetOptions) (*v1beta1.KeyPair, error) {
-	result := &v1beta1.KeyPair{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *keyPairController) List(namespace string, opts metav1.ListOptions) (*v1beta1.KeyPairList, error) {
-	result := &v1beta1.KeyPairList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *keyPairController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *keyPairController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1beta1.KeyPair, error) {
-	result := &v1beta1.KeyPair{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type keyPairCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *keyPairCache) Get(namespace, name string) (*v1beta1.KeyPair, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1beta1.KeyPair), nil
-}
-
-func (c *keyPairCache) List(namespace string, selector labels.Selector) (ret []*v1beta1.KeyPair, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.KeyPair))
-	})
-
-	return ret, err
-}
-
-func (c *keyPairCache) AddIndexer(indexName string, indexer KeyPairIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1beta1.KeyPair))
-		},
-	}))
-}
-
-func (c *keyPairCache) GetByIndex(indexName, key string) (result []*v1beta1.KeyPair, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1beta1.KeyPair, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1beta1.KeyPair))
-	}
-	return result, nil
+	generic.CacheInterface[*v1beta1.KeyPair]
 }
 
 // KeyPairStatusHandler is executed for every added or modified KeyPair. Should return the new status to be updated
@@ -278,7 +63,7 @@ func RegisterKeyPairStatusHandler(ctx context.Context, controller KeyPairControl
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromKeyPairHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
 // RegisterKeyPairGeneratingHandler configures a KeyPairController to execute a KeyPairGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.

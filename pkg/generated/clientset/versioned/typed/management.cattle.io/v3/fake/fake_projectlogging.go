@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeProjectLoggings struct {
 	ns   string
 }
 
-var projectloggingsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "projectloggings"}
+var projectloggingsResource = v3.SchemeGroupVersion.WithResource("projectloggings")
 
-var projectloggingsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "ProjectLogging"}
+var projectloggingsKind = v3.SchemeGroupVersion.WithKind("ProjectLogging")
 
 // Get takes name of the projectLogging, and returns the corresponding projectLogging object, and an error if there is any.
 func (c *FakeProjectLoggings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ProjectLogging, err error) {

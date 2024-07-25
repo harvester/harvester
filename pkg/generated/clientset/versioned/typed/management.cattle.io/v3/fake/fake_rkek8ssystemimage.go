@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeRkeK8sSystemImages struct {
 	ns   string
 }
 
-var rkek8ssystemimagesResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "rkek8ssystemimages"}
+var rkek8ssystemimagesResource = v3.SchemeGroupVersion.WithResource("rkek8ssystemimages")
 
-var rkek8ssystemimagesKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "RkeK8sSystemImage"}
+var rkek8ssystemimagesKind = v3.SchemeGroupVersion.WithKind("RkeK8sSystemImage")
 
 // Get takes name of the rkeK8sSystemImage, and returns the corresponding rkeK8sSystemImage object, and an error if there is any.
 func (c *FakeRkeK8sSystemImages) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.RkeK8sSystemImage, err error) {

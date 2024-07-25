@@ -24,244 +24,29 @@ import (
 	"time"
 
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/v3/pkg/apply"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type UpgradeHandler func(string, *v1beta1.Upgrade) (*v1beta1.Upgrade, error)
-
+// UpgradeController interface for managing Upgrade resources.
 type UpgradeController interface {
-	generic.ControllerMeta
-	UpgradeClient
-
-	OnChange(ctx context.Context, name string, sync UpgradeHandler)
-	OnRemove(ctx context.Context, name string, sync UpgradeHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() UpgradeCache
+	generic.ControllerInterface[*v1beta1.Upgrade, *v1beta1.UpgradeList]
 }
 
+// UpgradeClient interface for managing Upgrade resources in Kubernetes.
 type UpgradeClient interface {
-	Create(*v1beta1.Upgrade) (*v1beta1.Upgrade, error)
-	Update(*v1beta1.Upgrade) (*v1beta1.Upgrade, error)
-	UpdateStatus(*v1beta1.Upgrade) (*v1beta1.Upgrade, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1beta1.Upgrade, error)
-	List(namespace string, opts metav1.ListOptions) (*v1beta1.UpgradeList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta1.Upgrade, err error)
+	generic.ClientInterface[*v1beta1.Upgrade, *v1beta1.UpgradeList]
 }
 
+// UpgradeCache interface for retrieving Upgrade resources in memory.
 type UpgradeCache interface {
-	Get(namespace, name string) (*v1beta1.Upgrade, error)
-	List(namespace string, selector labels.Selector) ([]*v1beta1.Upgrade, error)
-
-	AddIndexer(indexName string, indexer UpgradeIndexer)
-	GetByIndex(indexName, key string) ([]*v1beta1.Upgrade, error)
-}
-
-type UpgradeIndexer func(obj *v1beta1.Upgrade) ([]string, error)
-
-type upgradeController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewUpgradeController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) UpgradeController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &upgradeController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromUpgradeHandlerToHandler(sync UpgradeHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1beta1.Upgrade
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1beta1.Upgrade))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *upgradeController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1beta1.Upgrade))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateUpgradeDeepCopyOnChange(client UpgradeClient, obj *v1beta1.Upgrade, handler func(obj *v1beta1.Upgrade) (*v1beta1.Upgrade, error)) (*v1beta1.Upgrade, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *upgradeController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *upgradeController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *upgradeController) OnChange(ctx context.Context, name string, sync UpgradeHandler) {
-	c.AddGenericHandler(ctx, name, FromUpgradeHandlerToHandler(sync))
-}
-
-func (c *upgradeController) OnRemove(ctx context.Context, name string, sync UpgradeHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromUpgradeHandlerToHandler(sync)))
-}
-
-func (c *upgradeController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *upgradeController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *upgradeController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *upgradeController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *upgradeController) Cache() UpgradeCache {
-	return &upgradeCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *upgradeController) Create(obj *v1beta1.Upgrade) (*v1beta1.Upgrade, error) {
-	result := &v1beta1.Upgrade{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *upgradeController) Update(obj *v1beta1.Upgrade) (*v1beta1.Upgrade, error) {
-	result := &v1beta1.Upgrade{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *upgradeController) UpdateStatus(obj *v1beta1.Upgrade) (*v1beta1.Upgrade, error) {
-	result := &v1beta1.Upgrade{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *upgradeController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *upgradeController) Get(namespace, name string, options metav1.GetOptions) (*v1beta1.Upgrade, error) {
-	result := &v1beta1.Upgrade{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *upgradeController) List(namespace string, opts metav1.ListOptions) (*v1beta1.UpgradeList, error) {
-	result := &v1beta1.UpgradeList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *upgradeController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *upgradeController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1beta1.Upgrade, error) {
-	result := &v1beta1.Upgrade{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type upgradeCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *upgradeCache) Get(namespace, name string) (*v1beta1.Upgrade, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1beta1.Upgrade), nil
-}
-
-func (c *upgradeCache) List(namespace string, selector labels.Selector) (ret []*v1beta1.Upgrade, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.Upgrade))
-	})
-
-	return ret, err
-}
-
-func (c *upgradeCache) AddIndexer(indexName string, indexer UpgradeIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1beta1.Upgrade))
-		},
-	}))
-}
-
-func (c *upgradeCache) GetByIndex(indexName, key string) (result []*v1beta1.Upgrade, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1beta1.Upgrade, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1beta1.Upgrade))
-	}
-	return result, nil
+	generic.CacheInterface[*v1beta1.Upgrade]
 }
 
 // UpgradeStatusHandler is executed for every added or modified Upgrade. Should return the new status to be updated
@@ -278,7 +63,7 @@ func RegisterUpgradeStatusHandler(ctx context.Context, controller UpgradeControl
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromUpgradeHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
 // RegisterUpgradeGeneratingHandler configures a UpgradeController to execute a UpgradeGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.

@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeRkeK8sServiceOptions struct {
 	ns   string
 }
 
-var rkek8sserviceoptionsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "rkek8sserviceoptions"}
+var rkek8sserviceoptionsResource = v3.SchemeGroupVersion.WithResource("rkek8sserviceoptions")
 
-var rkek8sserviceoptionsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "RkeK8sServiceOption"}
+var rkek8sserviceoptionsKind = v3.SchemeGroupVersion.WithKind("RkeK8sServiceOption")
 
 // Get takes name of the rkeK8sServiceOption, and returns the corresponding rkeK8sServiceOption object, and an error if there is any.
 func (c *FakeRkeK8sServiceOptions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.RkeK8sServiceOption, err error) {

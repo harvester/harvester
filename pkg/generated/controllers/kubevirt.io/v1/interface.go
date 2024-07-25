@@ -20,6 +20,7 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	v1 "kubevirt.io/api/core/v1"
@@ -45,12 +46,14 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) VirtualMachine() VirtualMachineController {
-	return NewVirtualMachineController(schema.GroupVersionKind{Group: "kubevirt.io", Version: "v1", Kind: "VirtualMachine"}, "virtualmachines", true, c.controllerFactory)
+func (v *version) VirtualMachine() VirtualMachineController {
+	return generic.NewController[*v1.VirtualMachine, *v1.VirtualMachineList](schema.GroupVersionKind{Group: "kubevirt.io", Version: "v1", Kind: "VirtualMachine"}, "virtualmachines", true, v.controllerFactory)
 }
-func (c *version) VirtualMachineInstance() VirtualMachineInstanceController {
-	return NewVirtualMachineInstanceController(schema.GroupVersionKind{Group: "kubevirt.io", Version: "v1", Kind: "VirtualMachineInstance"}, "virtualmachineinstances", true, c.controllerFactory)
+
+func (v *version) VirtualMachineInstance() VirtualMachineInstanceController {
+	return generic.NewController[*v1.VirtualMachineInstance, *v1.VirtualMachineInstanceList](schema.GroupVersionKind{Group: "kubevirt.io", Version: "v1", Kind: "VirtualMachineInstance"}, "virtualmachineinstances", true, v.controllerFactory)
 }
-func (c *version) VirtualMachineInstanceMigration() VirtualMachineInstanceMigrationController {
-	return NewVirtualMachineInstanceMigrationController(schema.GroupVersionKind{Group: "kubevirt.io", Version: "v1", Kind: "VirtualMachineInstanceMigration"}, "virtualmachineinstancemigrations", true, c.controllerFactory)
+
+func (v *version) VirtualMachineInstanceMigration() VirtualMachineInstanceMigrationController {
+	return generic.NewController[*v1.VirtualMachineInstanceMigration, *v1.VirtualMachineInstanceMigrationList](schema.GroupVersionKind{Group: "kubevirt.io", Version: "v1", Kind: "VirtualMachineInstanceMigration"}, "virtualmachineinstancemigrations", true, v.controllerFactory)
 }

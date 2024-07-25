@@ -40,6 +40,7 @@ type AuthConfigsGetter interface {
 type AuthConfigInterface interface {
 	Create(ctx context.Context, authConfig *v3.AuthConfig, opts v1.CreateOptions) (*v3.AuthConfig, error)
 	Update(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (*v3.AuthConfig, error)
+	UpdateStatus(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (*v3.AuthConfig, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.AuthConfig, error)
@@ -121,6 +122,21 @@ func (c *authConfigs) Update(ctx context.Context, authConfig *v3.AuthConfig, opt
 	err = c.client.Put().
 		Resource("authconfigs").
 		Name(authConfig.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(authConfig).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *authConfigs) UpdateStatus(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (result *v3.AuthConfig, err error) {
+	result = &v3.AuthConfig{}
+	err = c.client.Put().
+		Resource("authconfigs").
+		Name(authConfig.Name).
+		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(authConfig).
 		Do(ctx).

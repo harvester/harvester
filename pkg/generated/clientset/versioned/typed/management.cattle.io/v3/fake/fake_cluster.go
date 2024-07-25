@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeClusters struct {
 	Fake *FakeManagementV3
 }
 
-var clustersResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "clusters"}
+var clustersResource = v3.SchemeGroupVersion.WithResource("clusters")
 
-var clustersKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "Cluster"}
+var clustersKind = v3.SchemeGroupVersion.WithKind("Cluster")
 
 // Get takes name of the cluster, and returns the corresponding cluster object, and an error if there is any.
 func (c *FakeClusters) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Cluster, err error) {

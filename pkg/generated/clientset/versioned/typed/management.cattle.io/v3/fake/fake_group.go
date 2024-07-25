@@ -24,7 +24,6 @@ import (
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeGroups struct {
 	Fake *FakeManagementV3
 }
 
-var groupsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "groups"}
+var groupsResource = v3.SchemeGroupVersion.WithResource("groups")
 
-var groupsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "Group"}
+var groupsKind = v3.SchemeGroupVersion.WithKind("Group")
 
 // Get takes name of the group, and returns the corresponding group object, and an error if there is any.
 func (c *FakeGroups) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Group, err error) {
