@@ -452,8 +452,8 @@ github.com/josharian/native
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
-# github.com/k3s-io/helm-controller v0.11.7
-## explicit; go 1.16
+# github.com/k3s-io/helm-controller v0.16.1
+## explicit; go 1.22.0
 github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io
 github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1
 github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io
