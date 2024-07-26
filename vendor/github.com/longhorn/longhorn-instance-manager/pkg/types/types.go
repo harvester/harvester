@@ -46,3 +46,13 @@ const (
 const (
 	EngineConditionFilesystemReadOnly = "FilesystemReadOnly"
 )
+
+const TcpAddressPrefix = "tcp://"
+
+func AddTcpPrefixForAddress(address string) string {
+	if address == "" {
+		return ""
+	}
+
+	return TcpAddressPrefix + address
+}

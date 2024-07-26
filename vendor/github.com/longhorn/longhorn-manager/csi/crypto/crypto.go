@@ -76,7 +76,7 @@ func VolumeMapper(volume string) string {
 // EncryptVolume encrypts provided device with LUKS.
 func EncryptVolume(devicePath, passphrase string, cryptoParams *EncryptParams) error {
 	namespaces := []lhtypes.Namespace{lhtypes.NamespaceMnt, lhtypes.NamespaceIpc}
-	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.ProcDirectory, namespaces)
+	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.HostProcDirectory, namespaces)
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func OpenVolume(volume, devicePath, passphrase string) error {
 	}
 
 	namespaces := []lhtypes.Namespace{lhtypes.NamespaceMnt, lhtypes.NamespaceIpc}
-	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.ProcDirectory, namespaces)
+	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.HostProcDirectory, namespaces)
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func OpenVolume(volume, devicePath, passphrase string) error {
 // CloseVolume closes encrypted volume so it can be detached.
 func CloseVolume(volume string) error {
 	namespaces := []lhtypes.Namespace{lhtypes.NamespaceMnt, lhtypes.NamespaceIpc}
-	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.ProcDirectory, namespaces)
+	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.HostProcDirectory, namespaces)
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func ResizeEncryptoDevice(volume, passphrase string) error {
 	}
 
 	namespaces := []lhtypes.Namespace{lhtypes.NamespaceMnt, lhtypes.NamespaceIpc}
-	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.ProcDirectory, namespaces)
+	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.HostProcDirectory, namespaces)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func DeviceEncryptionStatus(devicePath string) (mappedDevice, mapper string, err
 	}
 
 	namespaces := []lhtypes.Namespace{lhtypes.NamespaceMnt, lhtypes.NamespaceIpc}
-	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.ProcDirectory, namespaces)
+	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.HostProcDirectory, namespaces)
 	if err != nil {
 		return devicePath, "", err
 	}

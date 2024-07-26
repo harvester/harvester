@@ -749,7 +749,7 @@ func TrimFilesystem(volumeName string, encryptedDevice bool) error {
 		return err
 	}
 
-	_, err = nsexec.Execute(nil, lhtypes.BinaryFstrim, []string{validMountpoint}, lhtypes.ExecuteDefaultTimeout)
+	_, err = nsexec.Execute(nil, lhtypes.BinaryFstrim, []string{validMountpoint}, time.Hour)
 	if err != nil {
 		return errors.Wrapf(err, "cannot find volume %v mount info on host", volumeName)
 	}

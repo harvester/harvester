@@ -566,6 +566,11 @@ func filterActiveReplicas(replicas map[string]*longhorn.Replica) map[string]*lon
 }
 
 func (rcs *ReplicaScheduler) CheckAndReuseFailedReplica(replicas map[string]*longhorn.Replica, volume *longhorn.Volume, hardNodeAffinity string) (*longhorn.Replica, error) {
+	// TODO: Remove it once we can reuse failed replicas during v2 rebuilding
+	if types.IsDataEngineV2(volume.Spec.DataEngine) {
+		return nil, nil
+	}
+
 	replicas = filterActiveReplicas(replicas)
 
 	allNodesInfo, err := rcs.getNodeInfo()
@@ -651,6 +656,11 @@ func (rcs *ReplicaScheduler) RequireNewReplica(replicas map[string]*longhorn.Rep
 		}
 	}
 	if !hasPotentiallyReusableReplica {
+		return 0
+	}
+
+	// TODO: Remove it once we can reuse failed replicas during v2 rebuilding
+	if types.IsDataEngineV2(volume.Spec.DataEngine) {
 		return 0
 	}
 
