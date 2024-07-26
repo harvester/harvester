@@ -136,6 +136,7 @@ const (
 	SettingNameFreezeFilesystemForSnapshot                              = SettingName("freeze-filesystem-for-snapshot")
 	SettingNameAutoCleanupSnapshotWhenDeleteBackup                      = SettingName("auto-cleanup-when-delete-backup")
 	SettingNameDefaultMinNumberOfBackingImageCopies                     = SettingName("default-min-number-of-backing-image-copies")
+	SettingNameRWXVolumeFastFailover                                    = SettingName("rwx-volume-fast-failover")
 )
 
 var (
@@ -228,6 +229,7 @@ var (
 		SettingNameFreezeFilesystemForSnapshot,
 		SettingNameAutoCleanupSnapshotWhenDeleteBackup,
 		SettingNameDefaultMinNumberOfBackingImageCopies,
+		SettingNameRWXVolumeFastFailover,
 	}
 )
 
@@ -348,6 +350,7 @@ var (
 		SettingNameFreezeFilesystemForSnapshot:                              SettingDefinitionFreezeFilesystemForSnapshot,
 		SettingNameAutoCleanupSnapshotWhenDeleteBackup:                      SettingDefinitionAutoCleanupSnapshotWhenDeleteBackup,
 		SettingNameDefaultMinNumberOfBackingImageCopies:                     SettingDefinitionDefaultMinNumberOfBackingImageCopies,
+		SettingNameRWXVolumeFastFailover:                                    SettingDefinitionRWXVolumeFastFailover,
 	}
 
 	SettingDefinitionBackupTarget = SettingDefinition{
@@ -1481,6 +1484,16 @@ var (
 		ValueIntRange: map[string]int{
 			ValueIntRangeMinimum: 1,
 		},
+	}
+
+	SettingDefinitionRWXVolumeFastFailover = SettingDefinition{
+		DisplayName: "RWX Volume Fast Failover",
+		Description: "Turn on logic to detect and move stale RWX volumes quickly (Experimental)",
+		Category:    SettingCategoryGeneral,
+		Type:        SettingTypeBool,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "false",
 	}
 )
 

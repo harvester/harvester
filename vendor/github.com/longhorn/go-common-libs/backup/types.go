@@ -8,3 +8,8 @@ const (
 	LonghornBackupModeFull        = LonghornBackupMode("full")
 	LonghornBackupModeIncremental = LonghornBackupMode("incremental")
 )
+
+const (
+	LonghornBackupBackingImageParameterSecret          = "secret"
+	LonghornBackupBackingImageParameterSecretNamespace = "secret-namespace"
+)
