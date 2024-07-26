@@ -73,8 +73,8 @@ require (
 	github.com/kube-logging/logging-operator/pkg/sdk v0.9.1
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
-	github.com/longhorn/backupstore v0.0.0-20240709004445-1cadf9073de3
-	github.com/longhorn/longhorn-manager v1.7.0-rc1
+	github.com/longhorn/backupstore v0.0.0-20240720163059-56c90cd23634
+	github.com/longhorn/longhorn-manager v1.7.0-rc2
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.5.0
@@ -116,7 +116,7 @@ require (
 	k8s.io/kube-openapi v0.30.0
 	k8s.io/kubectl v0.30.1
 	k8s.io/kubelet v0.26.13
-	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
+	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	kubevirt.io/api v1.1.1
 	kubevirt.io/client-go v1.1.1
 	kubevirt.io/containerized-data-importer-api v1.57.0-alpha1
@@ -223,14 +223,14 @@ require (
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
-	github.com/longhorn/backing-image-manager v1.7.0-dev.0.20240707082104-dfbe0d008b9c // indirect
-	github.com/longhorn/go-common-libs v0.0.0-20240707062002-b9354601827e // indirect
-	github.com/longhorn/go-iscsi-helper v0.0.0-20240708025845-7cc78e60866a // indirect
-	github.com/longhorn/go-spdk-helper v0.0.0-20240708060539-de887e9cc6db // indirect
-	github.com/longhorn/longhorn-engine v1.7.0-dev.0.20240707085442-0bfac42c4aff // indirect
-	github.com/longhorn/longhorn-instance-manager v1.7.0-dev.0.20240709072210-84ba8e974de0 // indirect
-	github.com/longhorn/longhorn-share-manager v1.7.0-dev.0.20240707073010-6d6d282d334a // indirect
-	github.com/longhorn/types v0.0.0-20240706151541-33cb010c3544 // indirect
+	github.com/longhorn/backing-image-manager v1.7.0-rc1 // indirect
+	github.com/longhorn/go-common-libs v0.0.0-20240720044518-32fc527fe868 // indirect
+	github.com/longhorn/go-iscsi-helper v0.0.0-20240720064937-c6ce82d67032 // indirect
+	github.com/longhorn/go-spdk-helper v0.0.0-20240723045100-85e5737da4b5 // indirect
+	github.com/longhorn/longhorn-engine v1.7.0-rc1 // indirect
+	github.com/longhorn/longhorn-instance-manager v1.7.0-rc1.0.20240725054145-4fdba7305ae5 // indirect
+	github.com/longhorn/longhorn-share-manager v1.7.0-rc1 // indirect
+	github.com/longhorn/types v0.0.0-20240725040629-473d671316c4 // indirect
 	github.com/machadovilaca/operator-observability v0.0.20 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -324,8 +324,8 @@ require (
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-aggregator v0.30.1 // indirect
-	k8s.io/kubernetes v1.30.2 // indirect
-	k8s.io/mount-utils v0.30.2 // indirect
+	k8s.io/kubernetes v1.30.3 // indirect
+	k8s.io/mount-utils v0.30.3 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
 	modernc.org/libc v1.49.3 // indirect
