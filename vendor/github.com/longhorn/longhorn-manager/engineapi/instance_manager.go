@@ -517,7 +517,6 @@ type ReplicaInstanceCreateRequest struct {
 	DataPath            string
 	BackingImagePath    string
 	DataLocality        longhorn.DataLocality
-	ExposeRequired      bool
 	ImIP                string
 	EngineCLIAPIVersion int
 }
@@ -562,9 +561,8 @@ func (c *InstanceManagerClient) ReplicaInstanceCreate(req *ReplicaInstanceCreate
 		BinaryArgs: args,
 
 		Replica: imclient.ReplicaCreateRequest{
-			DiskName:       req.DiskName,
-			DiskUUID:       req.Replica.Spec.DiskID,
-			ExposeRequired: req.ExposeRequired,
+			DiskName: req.DiskName,
+			DiskUUID: req.Replica.Spec.DiskID,
 		},
 	})
 	if err != nil {

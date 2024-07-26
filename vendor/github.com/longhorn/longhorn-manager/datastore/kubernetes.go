@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -18,6 +19,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -243,9 +245,76 @@ func (s *DataStore) UpdatePod(obj *corev1.Pod) (*corev1.Pod, error) {
 	return s.kubeClient.CoreV1().Pods(s.namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
 }
 
+// CreateLease creates a Lease resource for the given CreateLease object
+func (s *DataStore) CreateLease(lease *coordinationv1.Lease) (*coordinationv1.Lease, error) {
+	return s.kubeClient.CoordinationV1().Leases(s.namespace).Create(context.TODO(), lease, metav1.CreateOptions{})
+}
+
+// GetLease gets the Lease for the given name
+func (s *DataStore) GetLeaseRO(name string) (*coordinationv1.Lease, error) {
+	return s.leaseLister.Leases(s.namespace).Get(name)
+	// return s.kubeClient.CoordinationV1().Leases(namespace).Get(context.Background(), name, metav1.GetOptions{})
+}
+
+// GetLease returns a new Lease object for the given name
+func (s *DataStore) GetLease(name string) (*coordinationv1.Lease, error) {
+	resultRO, err := s.GetLeaseRO(name)
+	if err != nil {
+		return nil, err
+	}
+	// Cannot use cached object from lister
+	return resultRO.DeepCopy(), nil
+}
+
+// ListLeasesRO returns a list of all Leases for the given namespace,
+// the list contains direct references to the internal cache objects and should not be mutated.
+func (s *DataStore) ListLeasesRO() ([]*coordinationv1.Lease, error) {
+	return s.leaseLister.Leases(s.namespace).List(labels.Everything())
+}
+
 // DeleteLease deletes Lease with the given name in s.namespace
 func (s *DataStore) DeleteLease(name string) error {
 	return s.kubeClient.CoordinationV1().Leases(s.namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+}
+
+// UpdateLease updates the Lease resource with the given object and namespace
+func (s *DataStore) UpdateLease(lease *coordinationv1.Lease) (*coordinationv1.Lease, error) {
+	return s.kubeClient.CoordinationV1().Leases(s.namespace).Update(context.TODO(), lease, metav1.UpdateOptions{})
+}
+
+// IsRWXVolumeDelinquent checks whether the volume has a lease by the same name, which an RWX volume should,
+// and whether that lease's spec shows that its holder is delinquent (its acquire time has been zeroed.)
+// If so, return the delinquent holder.
+// Any hiccup yields a return of "false".
+func (s *DataStore) IsRWXVolumeDelinquent(name string) (isDelinquent bool, holder string, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "failed to check IsRWXVolumeDelinquent")
+	}()
+
+	enabled, err := s.GetSettingAsBool(types.SettingNameRWXVolumeFastFailover)
+	if err != nil {
+		return false, "", err
+	}
+	if !enabled {
+		return false, "", nil
+	}
+
+	lease, err := s.GetLeaseRO(name)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, "", nil
+		}
+		return false, "", err
+	}
+
+	holder = *lease.Spec.HolderIdentity
+	if holder == "" {
+		return false, "", nil
+	}
+	if (lease.Spec.AcquireTime).IsZero() {
+		isDelinquent = true
+	}
+	return isDelinquent, holder, nil
 }
 
 // GetStorageClassRO gets StorageClass with the given name
@@ -428,6 +497,51 @@ func (s *DataStore) ListManagerPodsRO() ([]*corev1.Pod, error) {
 		return nil, err
 	}
 	return s.ListPodsBySelectorRO(selector)
+}
+
+func (s *DataStore) GetManagerPodForNode(nodeName string) (*corev1.Pod, error) {
+	pods, err := s.ListManagerPods()
+	if err != nil {
+		return nil, err
+	}
+	for _, pod := range pods {
+		if pod.Spec.NodeName == nodeName {
+			return pod, nil
+		}
+	}
+	return nil, apierrors.NewNotFound(corev1.Resource("pod"), nodeName)
+}
+
+func (s *DataStore) AddLabelToManagerPod(nodeName string, label map[string]string) error {
+	pod, err := s.GetManagerPodForNode(nodeName)
+	if err != nil {
+		return err
+	}
+	changed := false
+	for key, value := range label {
+		if _, exists := pod.Labels[key]; !exists {
+			pod.Labels[key] = value
+			changed = true
+		}
+	}
+
+	// Protect against frequent no-change updates.
+	if changed {
+		_, err = s.UpdatePod(pod)
+	}
+	return err
+}
+
+func (s *DataStore) RemoveLabelFromManagerPod(nodeName string, label map[string]string) error {
+	pod, err := s.GetManagerPodForNode(nodeName)
+	if err != nil {
+		return err
+	}
+	for key := range label {
+		delete(pod.Labels, key)
+	}
+	_, err = s.UpdatePod(pod)
+	return err
 }
 
 func getInstanceManagerComponentSelector() (labels.Selector, error) {
@@ -790,6 +904,11 @@ func (s *DataStore) UpdateService(namespace string, service *corev1.Service) (*c
 // CreateKubernetesEndpoint creates a Kubernetes Endpoint resource.
 func (s *DataStore) CreateKubernetesEndpoint(endpoint *corev1.Endpoints) (*corev1.Endpoints, error) {
 	return s.kubeClient.CoreV1().Endpoints(endpoint.Namespace).Create(context.TODO(), endpoint, metav1.CreateOptions{})
+}
+
+// DeleteKubernetesEndpoint deletes the Kubernetes Endpoint of the given name in the Longhorn namespace.
+func (s *DataStore) DeleteKubernetesEndpoint(namespace, name string) error {
+	return s.kubeClient.CoreV1().Endpoints(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
 // UpdateKubernetesEndpoint updates the Kubernetes Endpoint of the given name in the Longhorn namespace.

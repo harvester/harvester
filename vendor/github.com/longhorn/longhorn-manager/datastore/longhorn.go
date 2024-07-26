@@ -490,11 +490,26 @@ func (s *DataStore) ValidateV2DataEngineEnabled(dataEngineEnabled bool) (ims []*
 }
 
 func (s *DataStore) AreAllRWXVolumesDetached() (bool, error) {
-	pods, err := s.ListShareManagerPodsRO("")
+	volumes, err := s.ListVolumesRO()
 	if err != nil {
 		return false, err
 	}
-	return len(pods) == 0, nil
+	for _, volume := range volumes {
+		if volume.Spec.AccessMode != longhorn.AccessModeReadWriteMany {
+			continue
+		}
+
+		volumeAttachment, err := s.GetLHVolumeAttachmentByVolumeName(volume.Name)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+
+		if volumeAttachment != nil && len(volumeAttachment.Spec.AttachmentTickets) > 0 {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 func (s *DataStore) AreAllVolumesDetached(dataEngine longhorn.DataEngineType) (bool, []*longhorn.InstanceManager, error) {
@@ -945,6 +960,17 @@ func (s *DataStore) ListVolumes() (map[string]*longhorn.Volume, error) {
 		itemMap[itemRO.Name] = itemRO.DeepCopy()
 	}
 	return itemMap, nil
+}
+
+func (s *DataStore) IsRegularRWXVolume(volumeName string) (bool, error) {
+	v, err := s.GetVolumeRO(volumeName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return v.Spec.AccessMode == longhorn.AccessModeReadWriteMany && !v.Spec.Migratable, nil
 }
 
 func MarshalLabelToVolumeRecurringJob(labels map[string]string) map[string]*longhorn.VolumeRecurringJob {
@@ -2558,16 +2584,7 @@ func (s *DataStore) needDefaultDiskCreation(dataPath string) bool {
 	}
 
 	// Do not create default block-type disk if v2 data engine is disabled
-	ok, err := types.IsBlockDisk(dataPath)
-	if err != nil {
-		logrus.WithError(err).Errorf("Failed to check if the data path %v is block-type", dataPath)
-		return false
-	}
-	if ok {
-		return false
-	}
-
-	return true
+	return !types.IsPotentialBlockDisk(dataPath)
 }
 
 func (s *DataStore) GetNodeRO(name string) (*longhorn.Node, error) {
@@ -2913,6 +2930,52 @@ func (s *DataStore) IsNodeDownOrDeleted(name string) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+// IsNodeDelinquent checks an early-warning condition of Lease expiration
+// that is of interest to share-manager types.
+func (s *DataStore) IsNodeDelinquent(nodeName string, volumeName string) (bool, error) {
+	if nodeName == "" || volumeName == "" {
+		return false, nil
+	}
+
+	isRWX, err := s.IsRegularRWXVolume(volumeName)
+	if err != nil {
+		return false, err
+	}
+	if !isRWX {
+		return false, nil
+	}
+
+	isDelinquent, delinquentNode, err := s.IsRWXVolumeDelinquent(volumeName)
+	if err != nil {
+		return false, err
+	}
+	return isDelinquent && delinquentNode == nodeName, nil
+}
+
+// IsNodeDownOrDeletedOrDelinquent gets Node for the given name and checks
+// if the Node condition is gone or not ready or, if we are asking on behalf
+// of an RWX-related resource, delinquent for that resource's volume.
+func (s *DataStore) IsNodeDownOrDeletedOrDelinquent(nodeName string, volumeName string) (bool, error) {
+	if nodeName == "" {
+		return false, errors.New("no node name provided to check node down or deleted or delinquent")
+	}
+	node, err := s.GetNodeRO(nodeName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	cond := types.GetCondition(node.Status.Conditions, longhorn.NodeConditionTypeReady)
+	if cond.Status == longhorn.ConditionStatusFalse &&
+		(cond.Reason == string(longhorn.NodeConditionReasonKubernetesNodeGone) ||
+			cond.Reason == string(longhorn.NodeConditionReasonKubernetesNodeNotReady)) {
+		return true, nil
+	}
+
+	return s.IsNodeDelinquent(nodeName, volumeName)
 }
 
 // IsNodeDeleted checks whether the node does not exist by passing in the node name
@@ -3818,6 +3881,10 @@ func (s *DataStore) ListShareManagers() (map[string]*longhorn.ShareManager, erro
 		itemMap[itemRO.Name] = itemRO.DeepCopy()
 	}
 	return itemMap, nil
+}
+
+func (s *DataStore) ListShareManagersRO() ([]*longhorn.ShareManager, error) {
+	return s.shareManagerLister.ShareManagers(s.namespace).List(labels.Everything())
 }
 
 // CreateBackupTarget creates a Longhorn BackupTargets CR and verifies creation

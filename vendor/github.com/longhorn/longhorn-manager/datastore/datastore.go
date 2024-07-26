@@ -10,6 +10,7 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	batchlisters_v1 "k8s.io/client-go/listers/batch/v1"
+	coordinationlisters "k8s.io/client-go/listers/coordination/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	policylisters "k8s.io/client-go/listers/policy/v1"
 	schedulinglisters "k8s.io/client-go/listers/scheduling/v1"
@@ -123,6 +124,8 @@ type DataStore struct {
 	ServiceInformer               cache.SharedInformer
 	endpointLister                corelisters.EndpointsLister
 	EndpointInformer              cache.SharedInformer
+	leaseLister                   coordinationlisters.LeaseLister
+	LeaseInformer                 cache.SharedInformer
 
 	extensionsClient apiextensionsclientset.Interface
 }
@@ -194,6 +197,8 @@ func NewDataStore(namespace string, lhClient lhclientset.Interface, kubeClient c
 	cacheSyncs = append(cacheSyncs, storageclassInformer.Informer().HasSynced)
 	priorityClassInformer := informerFactories.KubeInformerFactory.Scheduling().V1().PriorityClasses()
 	cacheSyncs = append(cacheSyncs, priorityClassInformer.Informer().HasSynced)
+	leaseInformer := informerFactories.KubeInformerFactory.Coordination().V1().Leases()
+	cacheSyncs = append(cacheSyncs, leaseInformer.Informer().HasSynced)
 
 	// Filtered kube Informers by longhorn-system namespace
 	cronJobInformer := informerFactories.KubeNamespaceFilteredInformerFactory.Batch().V1().CronJobs()
@@ -281,6 +286,8 @@ func NewDataStore(namespace string, lhClient lhclientset.Interface, kubeClient c
 		StorageClassInformer:          storageclassInformer.Informer(),
 		priorityClassLister:           priorityClassInformer.Lister(),
 		PriorityClassInformer:         priorityClassInformer.Informer(),
+		leaseLister:                   leaseInformer.Lister(),
+		LeaseInformer:                 leaseInformer.Informer(),
 
 		cronJobLister:               cronJobInformer.Lister(),
 		CronJobInformer:             cronJobInformer.Informer(),
