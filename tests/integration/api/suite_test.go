@@ -110,6 +110,7 @@ func TestAPI(t *testing.T) {
 
 var _ = SynchronizedBeforeSuite(
 	func() []byte {
+		// Only first processor run this function
 		testCtx, testCtxCancel = context.WithCancel(context.Background())
 		var err error
 
@@ -164,6 +165,9 @@ var _ = SynchronizedBeforeSuite(
 		MustNotError(err)
 		return b
 	}, func(combinedConf []byte) {
+		// All processors run this function
+
+		// combinedConf is the return value from previous function
 		err := json.Unmarshal(combinedConf, &combinedConfig)
 		MustNotError(err)
 
@@ -173,7 +177,10 @@ var _ = SynchronizedBeforeSuite(
 		MustNotError(err)
 	})
 
-var _ = SynchronizedAfterSuite(func() {}, func() {
+var _ = SynchronizedAfterSuite(func() {
+	// All processors run this function
+}, func() {
+	// Only first processor run this function
 	By("tearing down harvester runtime")
 	err := runtime.Destruct(context.Background(), kubeConfig)
 	MustNotError(err)
