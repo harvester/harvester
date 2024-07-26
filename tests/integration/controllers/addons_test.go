@@ -63,6 +63,7 @@ var _ = ginkgo.Describe("verify helm chart is create and addon gets to desired s
 			helmController = scaled.Management.HelmFactory.Helm().V1().HelmChart()
 			jobController = scaled.Management.BatchFactory.Batch().V1().Job()
 			appController = scaled.Management.CatalogFactory.Catalog().V1().App()
+
 			_, err := addonController.Create(a)
 			return err
 		}).ShouldNot(gomega.HaveOccurred())

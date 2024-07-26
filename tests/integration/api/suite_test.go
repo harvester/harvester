@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/server"
@@ -20,6 +22,11 @@ import (
 	"github.com/harvester/harvester/tests/framework/helper"
 	"github.com/harvester/harvester/tests/integration/runtime"
 )
+
+type CombinedConfig struct {
+	RawKubeConfig clientcmdapi.Config
+	Options       config.Options
+}
 
 var (
 	testSuiteStartErrChan chan error
@@ -31,6 +38,7 @@ var (
 	KubeClientConfig clientcmd.ClientConfig
 	testCluster      cluster.Cluster
 	options          config.Options
+	combinedConfig   CombinedConfig
 
 	testResourceLabels = map[string]string{
 		"harvester.test.io": "harvester-test",
@@ -51,9 +59,9 @@ var It = ginkgo.It
 var By = ginkgo.By
 var BeforeEach = ginkgo.BeforeEach
 var AfterEach = ginkgo.AfterEach
-var BeforeSuite = ginkgo.BeforeSuite
-var AfterSuite = ginkgo.AfterSuite
 var RunSpecs = ginkgo.RunSpecs
+var SynchronizedBeforeSuite = ginkgo.SynchronizedBeforeSuite
+var SynchronizedAfterSuite = ginkgo.SynchronizedAfterSuite
 var GinkgoWriter = ginkgo.GinkgoWriter
 var GinkgoRecover = ginkgo.GinkgoRecover
 var GinkgoT = ginkgo.GinkgoT
@@ -100,54 +108,72 @@ func TestAPI(t *testing.T) {
 	RunSpecs(t, "api suite")
 }
 
-var _ = BeforeSuite(func() {
-	testCtx, testCtxCancel = context.WithCancel(context.Background())
-	var err error
+var _ = SynchronizedBeforeSuite(
+	func() []byte {
+		testCtx, testCtxCancel = context.WithCancel(context.Background())
+		var err error
 
-	By("starting test cluster")
-	KubeClientConfig, testCluster, err = cluster.Start(GinkgoWriter)
-	MustNotError(err)
-
-	kubeConfig, err = KubeClientConfig.ClientConfig()
-	MustNotError(err)
-
-	By("construct harvester runtime")
-	err = runtime.Construct(testCtx, kubeConfig)
-	MustNotError(err)
-
-	By("set harvester config")
-	options, err = runtime.SetConfig()
-	MustNotError(err)
-
-	By("new harvester server")
-	harvester, err = server.New(testCtx, KubeClientConfig, options)
-	MustNotError(err)
-
-	By("start harvester server")
-	listenOpts := &dynamiclistener.Config{
-		CloseConnOnCertChange: false,
-	}
-	testSuiteStartErrChan = make(chan error)
-	go func() {
-		testSuiteStartErrChan <- harvester.ListenAndServe(listenOpts, options)
-	}()
-
-	// NB(thxCode): since the start of all controllers is not synchronized,
-	// it cannot guarantee the controllers has been start,
-	// which means the cache(informer) has not ready,
-	// so we give a stupid time sleep to trigger the first list-watch,
-	// and please use the client interface instead of informer interface if you can.
-	select {
-	case <-time.After(harvesterStartTimeOut * time.Second):
-		MustFinallyBeTrue(func() bool {
-			return validateAPIIsReady()
-		})
-	case err := <-testSuiteStartErrChan:
+		By("starting test cluster")
+		KubeClientConfig, testCluster, err = cluster.Start(GinkgoWriter)
 		MustNotError(err)
-	}
-})
 
-var _ = AfterSuite(func() {
+		kubeConfig, err = KubeClientConfig.ClientConfig()
+		MustNotError(err)
+
+		By("construct harvester runtime")
+		err = runtime.Construct(testCtx, kubeConfig)
+		MustNotError(err)
+
+		By("set harvester config")
+		options, err = runtime.SetConfig()
+		MustNotError(err)
+
+		By("new harvester server")
+		harvester, err = server.New(testCtx, KubeClientConfig, options)
+		MustNotError(err)
+
+		By("start harvester server")
+		listenOpts := &dynamiclistener.Config{
+			CloseConnOnCertChange: false,
+		}
+		testSuiteStartErrChan = make(chan error)
+		go func() {
+			testSuiteStartErrChan <- harvester.ListenAndServe(listenOpts, options)
+		}()
+
+		// NB(thxCode): since the start of all controllers is not synchronized,
+		// it cannot guarantee the controllers has been start,
+		// which means the cache(informer) has not ready,
+		// so we give a stupid time sleep to trigger the first list-watch,
+		// and please use the client interface instead of informer interface if you can.
+		select {
+		case <-time.After(harvesterStartTimeOut * time.Second):
+			MustFinallyBeTrue(func() bool {
+				return validateAPIIsReady()
+			})
+		case err := <-testSuiteStartErrChan:
+			MustNotError(err)
+		}
+
+		rawConf, err := KubeClientConfig.RawConfig()
+		MustNotError(err)
+
+		combinedConfig := CombinedConfig{rawConf, options}
+
+		b, err := json.Marshal(combinedConfig)
+		MustNotError(err)
+		return b
+	}, func(combinedConf []byte) {
+		err := json.Unmarshal(combinedConf, &combinedConfig)
+		MustNotError(err)
+
+		options = combinedConfig.Options
+
+		kubeConfig, err = clientcmd.NewDefaultClientConfig(combinedConfig.RawKubeConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
+		MustNotError(err)
+	})
+
+var _ = SynchronizedAfterSuite(func() {}, func() {
 	By("tearing down harvester runtime")
 	err := runtime.Destruct(context.Background(), kubeConfig)
 	MustNotError(err)
@@ -160,7 +186,6 @@ var _ = AfterSuite(func() {
 	if testCtxCancel != nil {
 		testCtxCancel()
 	}
-
 })
 
 // validate the v1 api server is ready

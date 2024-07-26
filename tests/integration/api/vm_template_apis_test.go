@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/rancher/wrangler/pkg/generated/controllers/core"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"sigs.k8s.io/yaml"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/tests/framework/fuzz"
 	"github.com/harvester/harvester/tests/framework/helper"
@@ -23,17 +27,25 @@ const (
 var _ = Describe("verify vm template APIs", func() {
 
 	var (
-		scaled            *config.Scaled
 		templates         ctlharvesterv1.VirtualMachineTemplateClient
 		templateVersions  ctlharvesterv1.VirtualMachineTemplateVersionClient
 		templateNamespace string
 	)
 
 	BeforeEach(func() {
-		scaled = harvester.Scaled()
-		templates = scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
-		templateVersions = scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
-		templateNamespace = options.Namespace
+		harvFactory, err := harvesterhci.NewFactoryFromConfig(kubeConfig)
+		MustNotError(err)
+		coreFactory, err := core.NewFactoryFromConfig(kubeConfig)
+		MustNotError(err)
+		nsController := coreFactory.Core().V1().Namespace()
+		templates = harvFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
+		templateVersions = harvFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
+		templateNamespace = fmt.Sprintf("%s-%d", testVMNamespace, ginkgo.GinkgoParallelProcess())
+		_, _ = nsController.Create(&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: templateNamespace,
+			},
+		})
 	})
 
 	Cleanup(func() {
@@ -66,9 +78,8 @@ var _ = Describe("verify vm template APIs", func() {
 		var (
 			template = harvesterv1.VirtualMachineTemplate{
 				ObjectMeta: v1.ObjectMeta{
-					Name:      "vm-template-0",
-					Namespace: "harvester-system",
-					Labels:    testResourceLabels,
+					Name:   "vm-template-0",
+					Labels: testResourceLabels,
 				},
 				Spec: harvesterv1.VirtualMachineTemplateSpec{
 					Description: "testing vm template",
@@ -76,9 +87,8 @@ var _ = Describe("verify vm template APIs", func() {
 			}
 			templateVersion = harvesterv1.VirtualMachineTemplateVersion{
 				ObjectMeta: v1.ObjectMeta{
-					Name:      fuzz.String(5),
-					Namespace: "harvester-system",
-					Labels:    testResourceLabels,
+					Name:   fuzz.String(5),
+					Labels: testResourceLabels,
 				},
 				Spec: harvesterv1.VirtualMachineTemplateVersionSpec{},
 			}
@@ -87,6 +97,8 @@ var _ = Describe("verify vm template APIs", func() {
 
 		BeforeEach(func() {
 			var port = options.HTTPSListenPort
+			template.Namespace = templateNamespace
+			templateVersion.Namespace = templateNamespace
 			templateAPI = helper.BuildAPIURL("v1", "harvesterhci.io.virtualmachinetemplates", port)
 			templateVersionAPI = helper.BuildAPIURL("v1", "harvesterhci.io.virtualmachinetemplateversions", port)
 
@@ -96,7 +108,8 @@ var _ = Describe("verify vm template APIs", func() {
 
 			By("list default templates", func() {
 
-				templates, respCode, respBody, err := helper.GetCollection(templateAPI)
+				specifiedNSAPI := fmt.Sprintf("%s/harvester-public", templateAPI)
+				templates, respCode, respBody, err := helper.GetCollection(specifiedNSAPI)
 				MustRespCodeIs(http.StatusOK, "get templates", err, respCode, respBody)
 				MustEqual(len(templates.Data), defaultVMTemplates)
 
@@ -104,7 +117,8 @@ var _ = Describe("verify vm template APIs", func() {
 
 			By("list default template versions", func() {
 
-				templates, respCode, respBody, err := helper.GetCollection(templateVersionAPI)
+				specifiedNSAPI := fmt.Sprintf("%s/harvester-public", templateVersionAPI)
+				templates, respCode, respBody, err := helper.GetCollection(specifiedNSAPI)
 				MustRespCodeIs(http.StatusOK, "get template versions", err, respCode, respBody)
 				MustEqual(len(templates.Data), defaultVMTemplateVersions)
 
@@ -123,6 +137,13 @@ var _ = Describe("verify vm template APIs", func() {
 
 			By("create a vm template", func() {
 
+				fmt.Println("==========")
+				fmt.Println(templateAPI)
+				fmt.Println(template)
+				yamlData, err := yaml.Marshal(template)
+				fmt.Println(yamlData)
+				fmt.Println("==========")
+
 				respCode, respBody, err := helper.PostObjectByYAML(templateAPI, template)
 				MustRespCodeIs(http.StatusCreated, "create template", err, respCode, respBody)
 
@@ -138,7 +159,7 @@ var _ = Describe("verify vm template APIs", func() {
 			By("create a vm template version", func() {
 
 				templateVersion.Spec.TemplateID = templateID
-				vm, err := NewDefaultTestVMBuilder(testResourceLabels).VM()
+				vm, err := NewDefaultTestVMBuilder(testResourceLabels).Namespace(templateNamespace).VM()
 				MustNotError(err)
 				templateVersion.Spec.VM = harvesterv1.VirtualMachineSourceSpec{
 					ObjectMeta: vm.ObjectMeta,

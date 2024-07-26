@@ -20,6 +20,7 @@ import (
 )
 
 func TestMigrateAction(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		namespace  string
 		name       string
@@ -209,6 +210,7 @@ func TestMigrateAction(t *testing.T) {
 }
 
 func TestAbortMigrateAction(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		namespace           string
 		name                string
@@ -373,6 +375,7 @@ func TestAbortMigrateAction(t *testing.T) {
 }
 
 func TestAddVolume(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		namespace string
 		name      string
@@ -427,6 +430,7 @@ func TestAddVolume(t *testing.T) {
 }
 
 func TestRemoveVolume(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		namespace string
 		name      string
@@ -508,6 +512,7 @@ func TestRemoveVolume(t *testing.T) {
 }
 
 func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		vmi *kubevirtv1.VirtualMachineInstance
 	}

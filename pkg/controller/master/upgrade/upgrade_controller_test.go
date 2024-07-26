@@ -88,6 +88,7 @@ func newTestVirtualMachineImage() *harvesterv1.VirtualMachineImage {
 }
 
 func TestUpgradeHandler_OnChanged(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		key     string
 		upgrade *harvesterv1.Upgrade
@@ -250,6 +251,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 }
 
 func Test_isVersionUpgradable(t *testing.T) {
+	t.Parallel()
 	var testCases = []struct {
 		name                 string
 		currentVersion       string

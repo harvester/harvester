@@ -117,6 +117,7 @@ sigGu6RstlytNkq8d3Ozq/jqbStvCoVvXpHVWw==
 )
 
 func TestCAValidation(t *testing.T) {
+	t.Parallel()
 	tests := map[string]struct {
 		pem   string
 		valid bool
@@ -139,6 +140,7 @@ func TestCAValidation(t *testing.T) {
 }
 
 func TestPublicCertificateValidation(t *testing.T) {
+	t.Parallel()
 	tests := map[string]struct {
 		pem   string
 		valid bool
@@ -165,6 +167,7 @@ func TestPublicCertificateValidation(t *testing.T) {
 }
 
 func TestPrivateKeyValidation(t *testing.T) {
+	t.Parallel()
 	tests := map[string]struct {
 		pem   string
 		valid bool

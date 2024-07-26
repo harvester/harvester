@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -14,7 +16,7 @@ import (
 
 	apivm "github.com/harvester/harvester/pkg/api/vm"
 	"github.com/harvester/harvester/pkg/builder"
-	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/tests/framework/fuzz"
 	"github.com/harvester/harvester/tests/framework/helper"
@@ -23,19 +25,30 @@ import (
 var _ = Describe("verify vm APIs", func() {
 
 	var (
-		scaled        *config.Scaled
 		vmController  ctlkubevirtv1.VirtualMachineController
 		vmiController ctlkubevirtv1.VirtualMachineInstanceController
 		pvcController v1.PersistentVolumeClaimController
+		nsController  v1.NamespaceController
 		vmNamespace   string
 	)
 
 	BeforeEach(func() {
-		scaled = harvester.Scaled()
-		vmController = scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
-		vmiController = scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
-		pvcController = scaled.CoreFactory.Core().V1().PersistentVolumeClaim()
-		vmNamespace = testVMNamespace
+		coreFactory, err := core.NewFactoryFromConfig(kubeConfig)
+		MustNotError(err)
+		pvcController = coreFactory.Core().V1().PersistentVolumeClaim()
+		nsController = coreFactory.Core().V1().Namespace()
+
+		virtFactory, err := kubevirt.NewFactoryFromConfig(kubeConfig)
+		MustNotError(err)
+		vmController = virtFactory.Kubevirt().V1().VirtualMachine()
+		vmiController = virtFactory.Kubevirt().V1().VirtualMachineInstance()
+
+		vmNamespace = fmt.Sprintf("%s-%d", testVMNamespace, ginkgo.GinkgoParallelProcess())
+		_, _ = nsController.Create(&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmNamespace,
+			},
+		})
 	})
 
 	Cleanup(func() {
@@ -102,7 +115,7 @@ var _ = Describe("verify vm APIs", func() {
 			}
 			userData := fmt.Sprintf(testVMCloudInitUserDataTemplate, vmCloudInit.UserName, vmCloudInit.Password)
 			networkData := fmt.Sprintf(testVMCloudInitNetworkDataTemplate, vmCloudInit.Address, vmCloudInit.Gateway)
-			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
+			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).Namespace(vmNamespace).
 				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
 				ContainerDisk(testVMContainerDiskName, testVMDefaultDiskBus, false, 1, testVMContainerDiskImageName, testVMContainerDiskImagePullPolicy).
 				CloudInitDisk(testVMCloudInitDiskName, testVMDefaultDiskBus, false, 0, builder.CloudInitSource{
@@ -131,7 +144,7 @@ var _ = Describe("verify vm APIs", func() {
 				// re-get, vm object may be outdated at this point
 				vm, err = vmController.Get(vmNamespace, vmName, metav1.GetOptions{})
 				MustNotError(err)
-				vm, err = builder.NewVMBuilder(testCreator).Update(vm).CPU(testVMUpdatedCPUCore).Memory(testVMUpdatedMemory).
+				vm, err = builder.NewVMBuilder(testCreator).Namespace(vmNamespace).Update(vm).CPU(testVMUpdatedCPUCore).Memory(testVMUpdatedMemory).
 					PVCDisk(testVMCDRomDiskName, testVMCDRomBus, true, false, 2, testVMDiskSize, "", &builder.PersistentVolumeClaimOption{
 						VolumeMode: builder.PersistentVolumeModeFilesystem,
 						AccessMode: builder.PersistentVolumeAccessModeReadWriteOnce,
@@ -251,7 +264,7 @@ var _ = Describe("verify vm APIs", func() {
 		Specify("deleting a vm and its volume", func() {
 			By("create a virtual machine with one spare disk")
 			vmName := testVMGenerateName + fuzz.String(5)
-			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
+			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Namespace(vmNamespace).Name(vmName).
 				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
 				PVCDisk(testVMRemoveDiskName, testVMDefaultDiskBus, false, false, 1, testVMDiskSize, testVMRemoveDiskName, &builder.PersistentVolumeClaimOption{
 					VolumeMode: builder.PersistentVolumeModeFilesystem,

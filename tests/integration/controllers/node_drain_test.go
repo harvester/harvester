@@ -5,6 +5,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -14,10 +15,13 @@ import (
 
 var _ = ginkgo.Describe("verify node drain apis", func() {
 	var node corev1.Node
+	var nodeController ctlcorev1.NodeController
 
 	ginkgo.BeforeEach(func() {
+		nodeController = scaled.CoreFactory.Core().V1().Node()
+
 		gomega.Eventually(func() error {
-			nodeList, err := scaled.CoreFactory.Core().V1().Node().List(metav1.ListOptions{})
+			nodeList, err := nodeController.List(metav1.ListOptions{})
 			if err != nil {
 				return err
 			}
@@ -39,7 +43,7 @@ var _ = ginkgo.Describe("verify node drain apis", func() {
 		})
 
 		gomega.Eventually(func() error {
-			nodeObj, err := scaled.CoreFactory.Core().V1().Node().Get(node.Name, metav1.GetOptions{})
+			nodeObj, err := nodeController.Get(node.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
