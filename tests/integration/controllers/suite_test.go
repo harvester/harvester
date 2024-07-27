@@ -54,6 +54,7 @@ var (
 
 	RawKubeConfig    clientcmdapi.Config
 	KubeClientConfig clientcmd.ClientConfig
+	kubeConfig       *rest.Config
 	testCluster      cluster.Cluster
 	options          config.Options
 	cfg              *rest.Config
@@ -148,21 +149,10 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	err := json.Unmarshal(kubeConf, &RawKubeConfig)
 	dsl.MustNotError(err)
 
-	kubeConfig, err := clientcmd.NewDefaultClientConfig(RawKubeConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
-	dsl.MustNotError(err)
+	kubeConfig, err = clientcmd.NewDefaultClientConfig(RawKubeConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
+	cfg = kubeConfig
 
-	clientFactory, err := client.NewSharedClientFactory(kubeConfig, nil)
-	dsl.MustNotError(err)
-
-	cacheFactory := cache.NewSharedCachedFactory(clientFactory, nil)
-	scf := controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{})
-
-	factoryOpts := &generic.FactoryOptions{
-		SharedControllerFactory: scf,
-	}
-
-	_, scaled, err = config.SetupScaled(context.TODO(), kubeConfig, factoryOpts)
-	dsl.MustNotError(err)
+	testCtx = context.TODO()
 })
 
 var _ = ginkgo.SynchronizedAfterSuite(func() {}, func() {
