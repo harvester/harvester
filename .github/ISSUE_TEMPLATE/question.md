@@ -1,8 +1,8 @@
 ---
 name: Question
 about: Question on Harvester
-title: "[Question]"
-labels: question
+title: "[QUESTION]"
+labels: kind/question
 assignees: ''
 
 ---
