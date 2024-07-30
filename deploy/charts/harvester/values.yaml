@@ -407,6 +407,7 @@ longhorn:
     ## Specify the concurrent automatic engine upgrade per node limit
     concurrentAutomaticEngineUpgradePerNodeLimit: 3
     priorityClass: &longhornPriorityClass system-cluster-critical
+    autoCleanupSnapshotWhenDeleteBackup: true
 
   # after upgrade to longhorn 1.6.0, we need to set the priorityClass for longhorn-manager, longhorn-driver and longhorn-ui
   # or it will be default one longhorn-critical
