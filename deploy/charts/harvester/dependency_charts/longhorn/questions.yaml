@@ -17,7 +17,7 @@ questions:
     label: Longhorn Manager Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.manager.tag
-    default: v1.7.0-rc1
+    default: v1.7.0-rc2
     description: "Tag for the Longhorn Manager image."
     type: string
     label: Longhorn Manager Image Tag
@@ -29,7 +29,7 @@ questions:
     label: Longhorn Engine Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.engine.tag
-    default: v1.7.0-rc1
+    default: v1.7.0-rc2
     description: "Tag for the Longhorn Engine image."
     type: string
     label: Longhorn Engine Image Tag
@@ -41,7 +41,7 @@ questions:
     label: Longhorn UI Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.ui.tag
-    default: v1.7.0-rc1
+    default: v1.7.0-rc2
     description: "Tag for the Longhorn UI image."
     type: string
     label: Longhorn UI Image Tag
@@ -53,7 +53,7 @@ questions:
     label: Longhorn Instance Manager Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.instanceManager.tag
-    default: v1.7.0-rc1
+    default: v1.7.0-rc2
     description: "Tag for the Longhorn Instance Manager image."
     type: string
     label: Longhorn Instance Manager Image Tag
@@ -65,7 +65,7 @@ questions:
     label: Longhorn Share Manager Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.shareManager.tag
-    default: v1.7.0-rc1
+    default: v1.7.0-rc2
     description: "Tag for the Longhorn Share Manager image."
     type: string
     label: Longhorn Share Manager Image Tag
@@ -77,7 +77,7 @@ questions:
     label: Longhorn Backing Image Manager Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.backingImageManager.tag
-    default: v1.7.0-rc1
+    default: v1.7.0-rc2
     description: "Tag for the Backing Image Manager image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn Backing Image Manager Image Tag
@@ -89,7 +89,7 @@ questions:
     label: Longhorn Support Bundle Kit Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.supportBundleKit.tag
-    default: v0.0.39
+    default: v0.0.40
     description: "Tag for the Longhorn Support Bundle Manager image."
     type: string
     label: Longhorn Support Bundle Kit Image Tag
@@ -101,7 +101,7 @@ questions:
     label: Longhorn CSI Attacher Image Repository
     group: "Longhorn CSI Driver Images"
   - variable: image.csi.attacher.tag
-    default: v4.5.1
+    default: v4.6.1
     description: "Tag for the CSI attacher image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn CSI Attacher Image Tag
@@ -125,7 +125,7 @@ questions:
     label: Longhorn CSI Node Driver Registrar Image Repository
     group: "Longhorn CSI Driver Images"
   - variable: image.csi.nodeDriverRegistrar.tag
-    default: v2.9.2
+    default: v2.10.1
     description: "Tag for the CSI Node Driver Registrar image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn CSI Node Driver Registrar Image Tag
@@ -137,7 +137,7 @@ questions:
     label: Longhorn CSI Driver Resizer Image Repository
     group: "Longhorn CSI Driver Images"
   - variable: image.csi.resizer.tag
-    default: v1.10.1
+    default: v1.11.1
     description: "Tag for the CSI Resizer image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn CSI Driver Resizer Image Tag
@@ -173,7 +173,7 @@ questions:
     label: OpenShift OAuth Proxy Image Repository
     group: "OpenShift Images"
   - variable: image.openshift.oauthProxy.tag
-    default: 4.14
+    default: 4.15
     description: "Tag for the OAuth Proxy image. This setting applies only to OpenShift users. Specify OCP/OKD version 4.1 or later."
     type: string
     label: OpenShift OAuth Proxy Image Tag
@@ -750,6 +750,12 @@ questions:
 - variable: defaultSettings.autoCleanupSnapshotWhenDeleteBackup
   label: Auto Cleanup Snapshot When Delete Backup
   description: "Setting that automatically cleans up the snapshot when the backup is deleted."
+  group: "Longhorn Default Settings"
+  type: boolean
+  default: false
+- variable: defaultSettings.rwxVolumeFastFailover
+  label: RWX Volume Fast Failover (Experimental)
+  description: "Turn on logic to detect and move RWX volumes quickly on node failure."
   group: "Longhorn Default Settings"
   type: boolean
   default: false
