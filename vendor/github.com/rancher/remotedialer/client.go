@@ -2,6 +2,7 @@ package remotedialer
 
 import (
 	"context"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -17,8 +18,10 @@ type ConnectAuthorizer func(proto, address string) bool
 func ClientConnect(ctx context.Context, wsURL string, headers http.Header, dialer *websocket.Dialer,
 	auth ConnectAuthorizer, onConnect func(context.Context, *Session) error) error {
 	if err := ConnectToProxy(ctx, wsURL, headers, auth, dialer, onConnect); err != nil {
-		logrus.WithError(err).Error("Remotedialer proxy error")
-		time.Sleep(time.Duration(5) * time.Second)
+		if !errors.Is(err, context.Canceled) {
+			logrus.WithError(err).Error("Remotedialer proxy error")
+			time.Sleep(time.Duration(5) * time.Second)
+		}
 		return err
 	}
 	return nil
@@ -34,7 +37,9 @@ func ConnectToProxy(rootCtx context.Context, proxyURL string, headers http.Heade
 	ws, resp, err := dialer.DialContext(rootCtx, proxyURL, headers)
 	if err != nil {
 		if resp == nil {
-			logrus.WithError(err).Errorf("Failed to connect to proxy. Empty dialer response")
+			if !errors.Is(err, context.Canceled) {
+				logrus.WithError(err).Errorf("Failed to connect to proxy. Empty dialer response")
+			}
 		} else {
 			rb, err2 := ioutil.ReadAll(resp.Body)
 			if err2 != nil {

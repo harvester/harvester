@@ -318,7 +318,7 @@ func (btc *BackupTargetClient) BackupCleanUpAllMounts() (err error) {
 // TODO: Deprecated, replaced by gRPC proxy
 func (e *EngineBinary) SnapshotBackup(engine *longhorn.Engine, snapName, backupName, backupTarget,
 	backingImageName, backingImageChecksum, compressionMethod string, concurrentLimit int, storageClassName string,
-	labels, credential map[string]string) (string, string, error) {
+	labels, credential, parameters map[string]string) (string, string, error) {
 	if snapName == etypes.VolumeHeadName {
 		return "", "", fmt.Errorf("invalid operation: cannot backup %v", etypes.VolumeHeadName)
 	}

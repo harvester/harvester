@@ -4,7 +4,7 @@ import (
 	"context"
 
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
-	ctlcatalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -21,7 +21,7 @@ func (c AppCache) Get(namespace, name string) (*catalogv1.App, error) {
 func (c AppCache) List(_ string, _ labels.Selector) ([]*catalogv1.App, error) {
 	panic("implement me")
 }
-func (c AppCache) AddIndexer(_ string, _ ctlcatalogv1.AppIndexer) {
+func (c AppCache) AddIndexer(_ string, _ generic.Indexer[*catalogv1.App]) {
 	panic("implement me")
 }
 func (c AppCache) GetByIndex(_, _ string) ([]*catalogv1.App, error) {

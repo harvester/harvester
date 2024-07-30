@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/rancher/wrangler/pkg/data"
+	"github.com/rancher/wrangler/v3/pkg/data"
 	"gopkg.in/yaml.v3"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"

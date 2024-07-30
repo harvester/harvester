@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
-	ctlstoragev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
-	"github.com/rancher/wrangler/pkg/slice"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
+	"github.com/rancher/wrangler/v3/pkg/slice"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"

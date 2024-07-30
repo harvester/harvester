@@ -7,6 +7,7 @@ type InstanceType string
 const (
 	InstanceTypeEngine  = InstanceType("engine")
 	InstanceTypeReplica = InstanceType("replica")
+	InstanceTypeNone    = InstanceType("")
 )
 
 type InstanceManagerState string
@@ -132,6 +133,10 @@ type InstanceProcessStatus struct {
 	PortEnd int32 `json:"portEnd"`
 	// +optional
 	PortStart int32 `json:"portStart"`
+	// +optional
+	TargetPortEnd int32 `json:"targetPortEnd"`
+	// +optional
+	TargetPortStart int32 `json:"targetPortStart"`
 	// +optional
 	State InstanceState `json:"state"`
 	// +optional

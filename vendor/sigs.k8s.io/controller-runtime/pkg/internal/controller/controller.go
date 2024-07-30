@@ -28,16 +28,13 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/util/workqueue"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
+
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/internal/controller/metrics"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/ratelimiter"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
-
-var _ inject.Injector = &Controller{}
 
 // Controller implements controller.Controller.
 type Controller struct {
@@ -52,18 +49,17 @@ type Controller struct {
 	// Defaults to the DefaultReconcileFunc.
 	Do reconcile.Reconciler
 
-	// MakeQueue constructs the queue for this controller once the controller is ready to start.
-	// This exists because the standard Kubernetes workqueues start themselves immediately, which
+	// RateLimiter is used to limit how frequently requests may be queued into the work queue.
+	RateLimiter ratelimiter.RateLimiter
+
+	// NewQueue constructs the queue for this controller once the controller is ready to start.
+	// This is a func because the standard Kubernetes work queues start themselves immediately, which
 	// leads to goroutine leaks if something calls controller.New repeatedly.
-	MakeQueue func() workqueue.RateLimitingInterface
+	NewQueue func(controllerName string, rateLimiter ratelimiter.RateLimiter) workqueue.RateLimitingInterface
 
 	// Queue is an listeningQueue that listens for events from Informers and adds object keys to
 	// the Queue for processing
 	Queue workqueue.RateLimitingInterface
-
-	// SetFields is used to inject dependencies into other objects such as Sources, EventHandlers and Predicates
-	// Deprecated: the caller should handle injected fields itself.
-	SetFields func(i interface{}) error
 
 	// mu is used to synchronize Controller setup
 	mu sync.Mutex
@@ -83,7 +79,7 @@ type Controller struct {
 	CacheSyncTimeout time.Duration
 
 	// startWatches maintains a list of sources, handlers, and predicates to start when the controller is started.
-	startWatches []watchDescription
+	startWatches []source.Source
 
 	// LogConstructor is used to construct a logger to then log messages to users during reconciliation,
 	// or for example when a watch is started.
@@ -93,13 +89,9 @@ type Controller struct {
 
 	// RecoverPanic indicates whether the panic caused by reconcile should be recovered.
 	RecoverPanic *bool
-}
 
-// watchDescription contains all the information necessary to start a watch.
-type watchDescription struct {
-	src        source.Source
-	handler    handler.EventHandler
-	predicates []predicate.Predicate
+	// LeaderElected indicates whether the controller is leader elected or always running.
+	LeaderElected *bool
 }
 
 // Reconcile implements reconcile.Reconciler.
@@ -123,33 +115,28 @@ func (c *Controller) Reconcile(ctx context.Context, req reconcile.Request) (_ re
 }
 
 // Watch implements controller.Controller.
-func (c *Controller) Watch(src source.Source, evthdler handler.EventHandler, prct ...predicate.Predicate) error {
+func (c *Controller) Watch(src source.Source) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	// Inject Cache into arguments
-	if err := c.SetFields(src); err != nil {
-		return err
-	}
-	if err := c.SetFields(evthdler); err != nil {
-		return err
-	}
-	for _, pr := range prct {
-		if err := c.SetFields(pr); err != nil {
-			return err
-		}
-	}
 
 	// Controller hasn't started yet, store the watches locally and return.
 	//
 	// These watches are going to be held on the controller struct until the manager or user calls Start(...).
 	if !c.Started {
-		c.startWatches = append(c.startWatches, watchDescription{src: src, handler: evthdler, predicates: prct})
+		c.startWatches = append(c.startWatches, src)
 		return nil
 	}
 
 	c.LogConstructor(nil).Info("Starting EventSource", "source", src)
-	return src.Start(c.ctx, evthdler, c.Queue, prct...)
+	return src.Start(c.ctx, c.Queue)
+}
+
+// NeedLeaderElection implements the manager.LeaderElectionRunnable interface.
+func (c *Controller) NeedLeaderElection() bool {
+	if c.LeaderElected == nil {
+		return true
+	}
+	return *c.LeaderElected
 }
 
 // Start implements controller.Controller.
@@ -166,7 +153,7 @@ func (c *Controller) Start(ctx context.Context) error {
 	// Set the internal context.
 	c.ctx = ctx
 
-	c.Queue = c.MakeQueue()
+	c.Queue = c.NewQueue(c.Name, c.RateLimiter)
 	go func() {
 		<-ctx.Done()
 		c.Queue.ShutDown()
@@ -183,9 +170,9 @@ func (c *Controller) Start(ctx context.Context) error {
 		// caches to sync so that they have a chance to register their intendeded
 		// caches.
 		for _, watch := range c.startWatches {
-			c.LogConstructor(nil).Info("Starting EventSource", "source", fmt.Sprintf("%s", watch.src))
+			c.LogConstructor(nil).Info("Starting EventSource", "source", fmt.Sprintf("%s", watch))
 
-			if err := watch.src.Start(ctx, watch.handler, c.Queue, watch.predicates...); err != nil {
+			if err := watch.Start(ctx, c.Queue); err != nil {
 				return err
 			}
 		}
@@ -194,7 +181,7 @@ func (c *Controller) Start(ctx context.Context) error {
 		c.LogConstructor(nil).Info("Starting Controller")
 
 		for _, watch := range c.startWatches {
-			syncingSource, ok := watch.src.(source.SyncingSource)
+			syncingSource, ok := watch.(source.SyncingSource)
 			if !ok {
 				continue
 			}
@@ -320,14 +307,23 @@ func (c *Controller) reconcileHandler(ctx context.Context, obj interface{}) {
 
 	// RunInformersAndControllers the syncHandler, passing it the Namespace/Name string of the
 	// resource to be synced.
+	log.V(5).Info("Reconciling")
 	result, err := c.Reconcile(ctx, req)
 	switch {
 	case err != nil:
-		c.Queue.AddRateLimited(req)
+		if errors.Is(err, reconcile.TerminalError(nil)) {
+			ctrlmetrics.TerminalReconcileErrors.WithLabelValues(c.Name).Inc()
+		} else {
+			c.Queue.AddRateLimited(req)
+		}
 		ctrlmetrics.ReconcileErrors.WithLabelValues(c.Name).Inc()
 		ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelError).Inc()
+		if !result.IsZero() {
+			log.Info("Warning: Reconciler returned both a non-zero result and a non-nil error. The result will always be ignored if the error is non-nil and the non-nil error causes reqeueuing with exponential backoff. For more details, see: https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/reconcile#Reconciler")
+		}
 		log.Error(err, "Reconciler error")
 	case result.RequeueAfter > 0:
+		log.V(5).Info(fmt.Sprintf("Reconcile done, requeueing after %s", result.RequeueAfter))
 		// The result.RequeueAfter request will be lost, if it is returned
 		// along with a non-nil error. But this is intended as
 		// We need to drive to stable reconcile loops before queuing due
@@ -336,9 +332,11 @@ func (c *Controller) reconcileHandler(ctx context.Context, obj interface{}) {
 		c.Queue.AddAfter(req, result.RequeueAfter)
 		ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelRequeueAfter).Inc()
 	case result.Requeue:
+		log.V(5).Info("Reconcile done, requeueing")
 		c.Queue.AddRateLimited(req)
 		ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelRequeue).Inc()
 	default:
+		log.V(5).Info("Reconcile successful")
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		c.Queue.Forget(obj)
@@ -349,12 +347,6 @@ func (c *Controller) reconcileHandler(ctx context.Context, obj interface{}) {
 // GetLogger returns this controller's logger.
 func (c *Controller) GetLogger() logr.Logger {
 	return c.LogConstructor(nil)
-}
-
-// InjectFunc implement SetFields.Injector.
-func (c *Controller) InjectFunc(f inject.Func) error {
-	c.SetFields = f
-	return nil
 }
 
 // updateMetrics updates prometheus metrics within the controller.

@@ -25,10 +25,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/internal/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/ratelimiter"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -39,6 +37,18 @@ type Options struct {
 	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
 	MaxConcurrentReconciles int
 
+	// CacheSyncTimeout refers to the time limit set to wait for syncing caches.
+	// Defaults to 2 minutes if not set.
+	CacheSyncTimeout time.Duration
+
+	// RecoverPanic indicates whether the panic caused by reconcile should be recovered.
+	// Defaults to the Controller.RecoverPanic setting from the Manager if unset.
+	RecoverPanic *bool
+
+	// NeedLeaderElection indicates whether the controller needs to use leader election.
+	// Defaults to true, which means the controller will use leader election.
+	NeedLeaderElection *bool
+
 	// Reconciler reconciles an object
 	Reconciler reconcile.Reconciler
 
@@ -47,17 +57,21 @@ type Options struct {
 	// The overall is a token bucket and the per-item is exponential.
 	RateLimiter ratelimiter.RateLimiter
 
+	// NewQueue constructs the queue for this controller once the controller is ready to start.
+	// With NewQueue a custom queue implementation can be used, e.g. a priority queue to prioritize with which
+	// priority/order objects are reconciled (e.g. to reconcile objects with changes first).
+	// This is a func because the standard Kubernetes work queues start themselves immediately, which
+	// leads to goroutine leaks if something calls controller.New repeatedly.
+	// The NewQueue func gets the controller name and the RateLimiter option (defaulted if necessary) passed in.
+	// NewQueue defaults to NewRateLimitingQueueWithConfig.
+	//
+	// NOTE: LOW LEVEL PRIMITIVE!
+	// Only use a custom NewQueue if you know what you are doing.
+	NewQueue func(controllerName string, rateLimiter ratelimiter.RateLimiter) workqueue.RateLimitingInterface
+
 	// LogConstructor is used to construct a logger used for this controller and passed
 	// to each reconciliation via the context field.
 	LogConstructor func(request *reconcile.Request) logr.Logger
-
-	// CacheSyncTimeout refers to the time limit set to wait for syncing caches.
-	// Defaults to 2 minutes if not set.
-	CacheSyncTimeout time.Duration
-
-	// RecoverPanic indicates whether the panic caused by reconcile should be recovered.
-	// Defaults to the Controller.RecoverPanic setting from the Manager if unset.
-	RecoverPanic *bool
 }
 
 // Controller implements a Kubernetes API.  A Controller manages a work queue fed reconcile.Requests
@@ -68,13 +82,8 @@ type Controller interface {
 	// Reconciler is called to reconcile an object by Namespace/Name
 	reconcile.Reconciler
 
-	// Watch takes events provided by a Source and uses the EventHandler to
-	// enqueue reconcile.Requests in response to the events.
-	//
-	// Watch may be provided one or more Predicates to filter events before
-	// they are given to the EventHandler.  Events will be passed to the
-	// EventHandler if all provided Predicates evaluate to true.
-	Watch(src source.Source, eventhandler handler.EventHandler, predicates ...predicate.Predicate) error
+	// Watch watches the provided Source.
+	Watch(src source.Source) error
 
 	// Start starts the controller.  Start blocks until the context is closed or a
 	// controller has an error starting.
@@ -124,38 +133,52 @@ func NewUnmanaged(name string, mgr manager.Manager, options Options) (Controller
 	}
 
 	if options.MaxConcurrentReconciles <= 0 {
-		options.MaxConcurrentReconciles = 1
+		if mgr.GetControllerOptions().MaxConcurrentReconciles > 0 {
+			options.MaxConcurrentReconciles = mgr.GetControllerOptions().MaxConcurrentReconciles
+		} else {
+			options.MaxConcurrentReconciles = 1
+		}
 	}
 
 	if options.CacheSyncTimeout == 0 {
-		options.CacheSyncTimeout = 2 * time.Minute
+		if mgr.GetControllerOptions().CacheSyncTimeout != 0 {
+			options.CacheSyncTimeout = mgr.GetControllerOptions().CacheSyncTimeout
+		} else {
+			options.CacheSyncTimeout = 2 * time.Minute
+		}
 	}
 
 	if options.RateLimiter == nil {
 		options.RateLimiter = workqueue.DefaultControllerRateLimiter()
 	}
 
-	// Inject dependencies into Reconciler
-	if err := mgr.SetFields(options.Reconciler); err != nil {
-		return nil, err
+	if options.NewQueue == nil {
+		options.NewQueue = func(controllerName string, rateLimiter ratelimiter.RateLimiter) workqueue.RateLimitingInterface {
+			return workqueue.NewRateLimitingQueueWithConfig(rateLimiter, workqueue.RateLimitingQueueConfig{
+				Name: controllerName,
+			})
+		}
 	}
 
 	if options.RecoverPanic == nil {
 		options.RecoverPanic = mgr.GetControllerOptions().RecoverPanic
 	}
 
+	if options.NeedLeaderElection == nil {
+		options.NeedLeaderElection = mgr.GetControllerOptions().NeedLeaderElection
+	}
+
 	// Create controller with dependencies set
 	return &controller.Controller{
-		Do: options.Reconciler,
-		MakeQueue: func() workqueue.RateLimitingInterface {
-			return workqueue.NewNamedRateLimitingQueue(options.RateLimiter, name)
-		},
+		Do:                      options.Reconciler,
+		RateLimiter:             options.RateLimiter,
+		NewQueue:                options.NewQueue,
 		MaxConcurrentReconciles: options.MaxConcurrentReconciles,
 		CacheSyncTimeout:        options.CacheSyncTimeout,
-		SetFields:               mgr.SetFields,
 		Name:                    name,
 		LogConstructor:          options.LogConstructor,
 		RecoverPanic:            options.RecoverPanic,
+		LeaderElected:           options.NeedLeaderElection,
 	}, nil
 }
 

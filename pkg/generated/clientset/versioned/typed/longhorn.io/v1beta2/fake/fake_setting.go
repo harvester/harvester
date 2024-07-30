@@ -24,7 +24,6 @@ import (
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeSettings struct {
 	ns   string
 }
 
-var settingsResource = schema.GroupVersionResource{Group: "longhorn.io", Version: "v1beta2", Resource: "settings"}
+var settingsResource = v1beta2.SchemeGroupVersion.WithResource("settings")
 
-var settingsKind = schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Setting"}
+var settingsKind = v1beta2.SchemeGroupVersion.WithKind("Setting")
 
 // Get takes name of the setting, and returns the corresponding setting object, and an error if there is any.
 func (c *FakeSettings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.Setting, err error) {
@@ -95,6 +94,18 @@ func (c *FakeSettings) Create(ctx context.Context, setting *v1beta2.Setting, opt
 func (c *FakeSettings) Update(ctx context.Context, setting *v1beta2.Setting, opts v1.UpdateOptions) (result *v1beta2.Setting, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(settingsResource, c.ns, setting), &v1beta2.Setting{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1beta2.Setting), err
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeSettings) UpdateStatus(ctx context.Context, setting *v1beta2.Setting, opts v1.UpdateOptions) (*v1beta2.Setting, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(settingsResource, "status", c.ns, setting), &v1beta2.Setting{})
 
 	if obj == nil {
 		return nil, err

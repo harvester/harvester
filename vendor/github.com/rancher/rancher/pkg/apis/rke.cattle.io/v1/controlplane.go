@@ -1,11 +1,12 @@
 package v1
 
 import (
-	"github.com/rancher/wrangler/pkg/genericcondition"
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // +genclient
+// +kubebuilder:skipversion
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type RKEControlPlane struct {
@@ -36,12 +37,14 @@ type RKEControlPlaneSpec struct {
 }
 
 type RKEControlPlaneStatus struct {
+	AppliedSpec                   *RKEControlPlaneSpec                `json:"appliedSpec,omitempty"`
 	Conditions                    []genericcondition.GenericCondition `json:"conditions,omitempty"`
 	Ready                         bool                                `json:"ready,omitempty"`
 	ObservedGeneration            int64                               `json:"observedGeneration"`
 	CertificateRotationGeneration int64                               `json:"certificateRotationGeneration"`
 	RotateEncryptionKeys          *RotateEncryptionKeys               `json:"rotateEncryptionKeys,omitempty"`
 	RotateEncryptionKeysPhase     RotateEncryptionKeysPhase           `json:"rotateEncryptionKeysPhase,omitempty"`
+	RotateEncryptionKeysLeader    string                              `json:"rotateEncryptionKeysLeader,omitempty"`
 	ETCDSnapshotRestore           *ETCDSnapshotRestore                `json:"etcdSnapshotRestore,omitempty"`
 	ETCDSnapshotRestorePhase      ETCDSnapshotPhase                   `json:"etcdSnapshotRestorePhase,omitempty"`
 	ETCDSnapshotCreate            *ETCDSnapshotCreate                 `json:"etcdSnapshotCreate,omitempty"`

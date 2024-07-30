@@ -10,6 +10,7 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	batchlisters_v1 "k8s.io/client-go/listers/batch/v1"
+	coordinationlisters "k8s.io/client-go/listers/coordination/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	policylisters "k8s.io/client-go/listers/policy/v1"
 	schedulinglisters "k8s.io/client-go/listers/scheduling/v1"
@@ -33,6 +34,9 @@ var (
 
 	// VolumeBackupTimeout is the timeout for volume backups
 	VolumeBackupTimeout = 24 * time.Hour
+
+	// BackingImageBackupTimeout is the timeout for backing image backups
+	BackingImageBackupTimeout = 24 * time.Hour
 )
 
 // DataStore object
@@ -118,6 +122,10 @@ type DataStore struct {
 	PodDisruptionBudgetInformer   cache.SharedInformer
 	serviceLister                 corelisters.ServiceLister
 	ServiceInformer               cache.SharedInformer
+	endpointLister                corelisters.EndpointsLister
+	EndpointInformer              cache.SharedInformer
+	leaseLister                   coordinationlisters.LeaseLister
+	LeaseInformer                 cache.SharedInformer
 
 	extensionsClient apiextensionsclientset.Interface
 }
@@ -189,6 +197,8 @@ func NewDataStore(namespace string, lhClient lhclientset.Interface, kubeClient c
 	cacheSyncs = append(cacheSyncs, storageclassInformer.Informer().HasSynced)
 	priorityClassInformer := informerFactories.KubeInformerFactory.Scheduling().V1().PriorityClasses()
 	cacheSyncs = append(cacheSyncs, priorityClassInformer.Informer().HasSynced)
+	leaseInformer := informerFactories.KubeInformerFactory.Coordination().V1().Leases()
+	cacheSyncs = append(cacheSyncs, leaseInformer.Informer().HasSynced)
 
 	// Filtered kube Informers by longhorn-system namespace
 	cronJobInformer := informerFactories.KubeNamespaceFilteredInformerFactory.Batch().V1().CronJobs()
@@ -199,6 +209,8 @@ func NewDataStore(namespace string, lhClient lhclientset.Interface, kubeClient c
 	cacheSyncs = append(cacheSyncs, secretInformer.Informer().HasSynced)
 	serviceInformer := informerFactories.KubeNamespaceFilteredInformerFactory.Core().V1().Services()
 	cacheSyncs = append(cacheSyncs, serviceInformer.Informer().HasSynced)
+	endpointInformer := informerFactories.KubeNamespaceFilteredInformerFactory.Core().V1().Endpoints()
+	cacheSyncs = append(cacheSyncs, endpointInformer.Informer().HasSynced)
 	podDisruptionBudgetInformer := informerFactories.KubeNamespaceFilteredInformerFactory.Policy().V1().PodDisruptionBudgets()
 	cacheSyncs = append(cacheSyncs, podDisruptionBudgetInformer.Informer().HasSynced)
 	daemonSetInformer := informerFactories.KubeNamespaceFilteredInformerFactory.Apps().V1().DaemonSets()
@@ -274,6 +286,8 @@ func NewDataStore(namespace string, lhClient lhclientset.Interface, kubeClient c
 		StorageClassInformer:          storageclassInformer.Informer(),
 		priorityClassLister:           priorityClassInformer.Lister(),
 		PriorityClassInformer:         priorityClassInformer.Informer(),
+		leaseLister:                   leaseInformer.Lister(),
+		LeaseInformer:                 leaseInformer.Informer(),
 
 		cronJobLister:               cronJobInformer.Lister(),
 		CronJobInformer:             cronJobInformer.Informer(),
@@ -283,6 +297,8 @@ func NewDataStore(namespace string, lhClient lhclientset.Interface, kubeClient c
 		SecretInformer:              secretInformer.Informer(),
 		serviceLister:               serviceInformer.Lister(),
 		ServiceInformer:             serviceInformer.Informer(),
+		endpointLister:              endpointInformer.Lister(),
+		EndpointInformer:            endpointInformer.Informer(),
 		podDisruptionBudgetLister:   podDisruptionBudgetInformer.Lister(),
 		PodDisruptionBudgetInformer: podDisruptionBudgetInformer.Informer(),
 		daemonSetLister:             daemonSetInformer.Lister(),

@@ -3,7 +3,7 @@ package upgrade
 import (
 	"fmt"
 
-	jobV1 "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
+	jobV1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"

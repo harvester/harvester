@@ -4,9 +4,10 @@ import (
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
-func (p *Proxy) SnapshotCreate(e *longhorn.Engine, name string, labels map[string]string) (string, error) {
+func (p *Proxy) SnapshotCreate(e *longhorn.Engine, name string, labels map[string]string,
+	freezeFilesystem bool) (string, error) {
 	return p.grpcClient.VolumeSnapshot(string(e.Spec.DataEngine), e.Name, e.Spec.VolumeName, p.DirectToURL(e),
-		name, labels)
+		name, labels, freezeFilesystem)
 }
 
 func (p *Proxy) SnapshotList(e *longhorn.Engine) (snapshots map[string]*longhorn.SnapshotInfo, err error) {
@@ -33,9 +34,9 @@ func (p *Proxy) SnapshotGet(e *longhorn.Engine, name string) (snapshot *longhorn
 }
 
 func (p *Proxy) SnapshotClone(e *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName, fromEngineName string,
-	fileSyncHTTPClientTimeout int64) (err error) {
+	fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) (err error) {
 	return p.grpcClient.SnapshotClone(string(e.Spec.DataEngine), e.Name, e.Spec.VolumeName, p.DirectToURL(e),
-		snapshotName, fromEngineAddress, fromVolumeName, fromEngineName, int(fileSyncHTTPClientTimeout))
+		snapshotName, fromEngineAddress, fromVolumeName, fromEngineName, int(fileSyncHTTPClientTimeout), grpcTimeoutSeconds)
 }
 
 func (p *Proxy) SnapshotCloneStatus(e *longhorn.Engine) (status map[string]*longhorn.SnapshotCloneStatus, err error) {

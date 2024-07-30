@@ -7,7 +7,7 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
-	"github.com/rancher/wrangler/pkg/schemas"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
 
 	"github.com/harvester/harvester/pkg/config"
 )

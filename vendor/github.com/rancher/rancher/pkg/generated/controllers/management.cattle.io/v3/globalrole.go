@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,237 +20,189 @@ package v3
 
 import (
 	"context"
+	"sync"
 	"time"
 
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type GlobalRoleHandler func(string, *v3.GlobalRole) (*v3.GlobalRole, error)
-
+// GlobalRoleController interface for managing GlobalRole resources.
 type GlobalRoleController interface {
-	generic.ControllerMeta
-	GlobalRoleClient
-
-	OnChange(ctx context.Context, name string, sync GlobalRoleHandler)
-	OnRemove(ctx context.Context, name string, sync GlobalRoleHandler)
-	Enqueue(name string)
-	EnqueueAfter(name string, duration time.Duration)
-
-	Cache() GlobalRoleCache
+	generic.NonNamespacedControllerInterface[*v3.GlobalRole, *v3.GlobalRoleList]
 }
 
+// GlobalRoleClient interface for managing GlobalRole resources in Kubernetes.
 type GlobalRoleClient interface {
-	Create(*v3.GlobalRole) (*v3.GlobalRole, error)
-	Update(*v3.GlobalRole) (*v3.GlobalRole, error)
-
-	Delete(name string, options *metav1.DeleteOptions) error
-	Get(name string, options metav1.GetOptions) (*v3.GlobalRole, error)
-	List(opts metav1.ListOptions) (*v3.GlobalRoleList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v3.GlobalRole, err error)
+	generic.NonNamespacedClientInterface[*v3.GlobalRole, *v3.GlobalRoleList]
 }
 
+// GlobalRoleCache interface for retrieving GlobalRole resources in memory.
 type GlobalRoleCache interface {
-	Get(name string) (*v3.GlobalRole, error)
-	List(selector labels.Selector) ([]*v3.GlobalRole, error)
-
-	AddIndexer(indexName string, indexer GlobalRoleIndexer)
-	GetByIndex(indexName, key string) ([]*v3.GlobalRole, error)
+	generic.NonNamespacedCacheInterface[*v3.GlobalRole]
 }
 
-type GlobalRoleIndexer func(obj *v3.GlobalRole) ([]string, error)
+// GlobalRoleStatusHandler is executed for every added or modified GlobalRole. Should return the new status to be updated
+type GlobalRoleStatusHandler func(obj *v3.GlobalRole, status v3.GlobalRoleStatus) (v3.GlobalRoleStatus, error)
 
-type globalRoleController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
+// GlobalRoleGeneratingHandler is the top-level handler that is executed for every GlobalRole event. It extends GlobalRoleStatusHandler by a returning a slice of child objects to be passed to apply.Apply
+type GlobalRoleGeneratingHandler func(obj *v3.GlobalRole, status v3.GlobalRoleStatus) ([]runtime.Object, v3.GlobalRoleStatus, error)
 
-func NewGlobalRoleController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) GlobalRoleController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &globalRoleController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
+// RegisterGlobalRoleStatusHandler configures a GlobalRoleController to execute a GlobalRoleStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
+func RegisterGlobalRoleStatusHandler(ctx context.Context, controller GlobalRoleController, condition condition.Cond, name string, handler GlobalRoleStatusHandler) {
+	statusHandler := &globalRoleStatusHandler{
+		client:    controller,
+		condition: condition,
+		handler:   handler,
 	}
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
-func FromGlobalRoleHandlerToHandler(sync GlobalRoleHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v3.GlobalRole
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v3.GlobalRole))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
+// RegisterGlobalRoleGeneratingHandler configures a GlobalRoleController to execute a GlobalRoleGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
+func RegisterGlobalRoleGeneratingHandler(ctx context.Context, controller GlobalRoleController, apply apply.Apply,
+	condition condition.Cond, name string, handler GlobalRoleGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &globalRoleGeneratingHandler{
+		GlobalRoleGeneratingHandler: handler,
+		apply:                       apply,
+		name:                        name,
+		gvk:                         controller.GroupVersionKind(),
 	}
-}
-
-func (c *globalRoleController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v3.GlobalRole))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
+	if opts != nil {
+		statusHandler.opts = *opts
 	}
+	controller.OnChange(ctx, name, statusHandler.Remove)
+	RegisterGlobalRoleStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
 }
 
-func UpdateGlobalRoleDeepCopyOnChange(client GlobalRoleClient, obj *v3.GlobalRole, handler func(obj *v3.GlobalRole) (*v3.GlobalRole, error)) (*v3.GlobalRole, error) {
+type globalRoleStatusHandler struct {
+	client    GlobalRoleClient
+	condition condition.Cond
+	handler   GlobalRoleStatusHandler
+}
+
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
+func (a *globalRoleStatusHandler) sync(key string, obj *v3.GlobalRole) (*v3.GlobalRole, error) {
 	if obj == nil {
 		return obj, nil
 	}
 
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *globalRoleController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *globalRoleController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *globalRoleController) OnChange(ctx context.Context, name string, sync GlobalRoleHandler) {
-	c.AddGenericHandler(ctx, name, FromGlobalRoleHandlerToHandler(sync))
-}
-
-func (c *globalRoleController) OnRemove(ctx context.Context, name string, sync GlobalRoleHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromGlobalRoleHandlerToHandler(sync)))
-}
-
-func (c *globalRoleController) Enqueue(name string) {
-	c.controller.Enqueue("", name)
-}
-
-func (c *globalRoleController) EnqueueAfter(name string, duration time.Duration) {
-	c.controller.EnqueueAfter("", name, duration)
-}
-
-func (c *globalRoleController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *globalRoleController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *globalRoleController) Cache() GlobalRoleCache {
-	return &globalRoleCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *globalRoleController) Create(obj *v3.GlobalRole) (*v3.GlobalRole, error) {
-	result := &v3.GlobalRole{}
-	return result, c.client.Create(context.TODO(), "", obj, result, metav1.CreateOptions{})
-}
-
-func (c *globalRoleController) Update(obj *v3.GlobalRole) (*v3.GlobalRole, error) {
-	result := &v3.GlobalRole{}
-	return result, c.client.Update(context.TODO(), "", obj, result, metav1.UpdateOptions{})
-}
-
-func (c *globalRoleController) Delete(name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), "", name, *options)
-}
-
-func (c *globalRoleController) Get(name string, options metav1.GetOptions) (*v3.GlobalRole, error) {
-	result := &v3.GlobalRole{}
-	return result, c.client.Get(context.TODO(), "", name, result, options)
-}
-
-func (c *globalRoleController) List(opts metav1.ListOptions) (*v3.GlobalRoleList, error) {
-	result := &v3.GlobalRoleList{}
-	return result, c.client.List(context.TODO(), "", result, opts)
-}
-
-func (c *globalRoleController) Watch(opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), "", opts)
-}
-
-func (c *globalRoleController) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (*v3.GlobalRole, error) {
-	result := &v3.GlobalRole{}
-	return result, c.client.Patch(context.TODO(), "", name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type globalRoleCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *globalRoleCache) Get(name string) (*v3.GlobalRole, error) {
-	obj, exists, err := c.indexer.GetByKey(name)
+	origStatus := obj.Status.DeepCopy()
+	obj = obj.DeepCopy()
+	newStatus, err := a.handler(obj, obj.Status)
 	if err != nil {
-		return nil, err
+		// Revert to old status on error
+		newStatus = *origStatus.DeepCopy()
 	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
+
+	if a.condition != "" {
+		if errors.IsConflict(err) {
+			a.condition.SetError(&newStatus, "", nil)
+		} else {
+			a.condition.SetError(&newStatus, "", err)
+		}
 	}
-	return obj.(*v3.GlobalRole), nil
+	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		if a.condition != "" {
+			// Since status has changed, update the lastUpdatedTime
+			a.condition.LastUpdated(&newStatus, time.Now().UTC().Format(time.RFC3339))
+		}
+
+		var newErr error
+		obj.Status = newStatus
+		newObj, newErr := a.client.UpdateStatus(obj)
+		if err == nil {
+			err = newErr
+		}
+		if newErr == nil {
+			obj = newObj
+		}
+	}
+	return obj, err
 }
 
-func (c *globalRoleCache) List(selector labels.Selector) (ret []*v3.GlobalRole, err error) {
-
-	err = cache.ListAll(c.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v3.GlobalRole))
-	})
-
-	return ret, err
+type globalRoleGeneratingHandler struct {
+	GlobalRoleGeneratingHandler
+	apply apply.Apply
+	opts  generic.GeneratingHandlerOptions
+	gvk   schema.GroupVersionKind
+	name  string
+	seen  sync.Map
 }
 
-func (c *globalRoleCache) AddIndexer(indexName string, indexer GlobalRoleIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v3.GlobalRole))
-		},
-	}))
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
+func (a *globalRoleGeneratingHandler) Remove(key string, obj *v3.GlobalRole) (*v3.GlobalRole, error) {
+	if obj != nil {
+		return obj, nil
+	}
+
+	obj = &v3.GlobalRole{}
+	obj.Namespace, obj.Name = kv.RSplit(key, "/")
+	obj.SetGroupVersionKind(a.gvk)
+
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
+	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects()
 }
 
-func (c *globalRoleCache) GetByIndex(indexName, key string) (result []*v3.GlobalRole, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
+// Handle executes the configured GlobalRoleGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
+func (a *globalRoleGeneratingHandler) Handle(obj *v3.GlobalRole, status v3.GlobalRoleStatus) (v3.GlobalRoleStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
+	objs, newStatus, err := a.GlobalRoleGeneratingHandler(obj, status)
 	if err != nil {
-		return nil, err
+		return newStatus, err
 	}
-	result = make([]*v3.GlobalRole, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v3.GlobalRole))
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
 	}
-	return result, nil
+
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+		WithOwner(obj).
+		WithSetID(a.name).
+		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *globalRoleGeneratingHandler) isNewResourceVersion(obj *v3.GlobalRole) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *globalRoleGeneratingHandler) storeResourceVersion(obj *v3.GlobalRole) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

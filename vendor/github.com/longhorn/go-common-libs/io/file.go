@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -164,12 +165,29 @@ func GetEmptyFiles(directory string) (filePaths []string, err error) {
 
 // FindFiles searches for files in the specified directory with the given fileName.
 // If fileName is empty, it retrieves all files in the directory.
+// If maxDepth is greater than 0, it limits the search to the specified depth.
 // It returns a slice of filePaths and an error if any.
-func FindFiles(directory, fileName string) (filePaths []string, err error) {
+func FindFiles(directory, fileName string, maxDepth int) (filePaths []string, err error) {
 	err = filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			// If the directory contains symbolic links, it might lead to a non-existing file error.
+			// Ignore this error and continue walking the directory.
+			logrus.WithError(err).Warn("Encountered error while searching for files")
+			return nil
 		}
+
+		// Calculate the depth of the directory
+		depth := strings.Count(strings.TrimPrefix(path, directory), string(os.PathSeparator))
+
+		// Skip the directory if it exceeds the maximum depth
+		if maxDepth > 0 && depth > maxDepth {
+			if info.IsDir() {
+				return filepath.SkipDir // Skip this directory
+			}
+
+			return nil // Skip this file
+		}
+
 		if fileName == "" || info.Name() == fileName {
 			filePaths = append(filePaths, path)
 		}
@@ -240,4 +258,128 @@ func GetDiskStat(path string) (diskStat types.DiskStat, err error) {
 		StorageMaximum:   int64(statfs.Blocks) * statfs.Bsize,
 		StorageAvailable: int64(statfs.Bfree) * statfs.Bsize,
 	}, nil
+}
+
+// ListOpenFiles returns a list of open files in the specified directory.
+func ListOpenFiles(procDirectory, directory string) ([]string, error) {
+	// Check if the specified directory exists
+	if _, err := os.Stat(directory); err != nil {
+		return nil, err
+	}
+
+	// Get the list of all processes in the provided procDirectory
+	procs, err := os.ReadDir(procDirectory)
+	if err != nil {
+		return nil, err
+	}
+
+	// Iterate over each process in the procDirectory
+	var openedFiles []string
+	for _, proc := range procs {
+		// Skip non-directory entries
+		if !proc.IsDir() {
+			continue
+		}
+
+		// Read the file descriptor directory for the process
+		pid := proc.Name()
+		fdDir := filepath.Join(procDirectory, pid, "fd")
+		files, err := os.ReadDir(fdDir)
+		if err != nil {
+			logrus.WithError(err).Tracef("Failed to read file descriptors for process %v", pid)
+			continue
+		}
+
+		// Iterate over each file in the file descriptor directory
+		for _, file := range files {
+			filePath, err := os.Readlink(filepath.Join(fdDir, file.Name()))
+			if err != nil {
+				logrus.WithError(err).Tracef("Failed to read link for file descriptor %v", file.Name())
+				continue
+			}
+
+			// Check if the file path is within the specified directory
+			if strings.HasPrefix(filePath, directory+"/") || filePath == directory {
+				openedFiles = append(openedFiles, filePath)
+			}
+		}
+	}
+
+	return openedFiles, nil
+}
+
+// IsDirectoryEmpty returns true if the specified directory is empty.
+func IsDirectoryEmpty(directory string) (bool, error) {
+	f, err := os.Open(directory)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	_, err = f.Readdirnames(1)
+	if err == io.EOF {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	return false, nil
+}
+
+// CheckIsFileSizeSame verifies if all files in the provided paths have the same
+// apparent and actual size.
+// It returns an error if any file is a directory, does not exist, or has a different size.
+func CheckIsFileSizeSame(paths ...string) error {
+	referenceInfo, err := os.Stat(paths[0])
+	if err != nil {
+		return err
+	}
+
+	if referenceInfo.IsDir() {
+		return errors.Errorf("file %v is a directory", paths[0])
+	}
+
+	referenceApparentSize := referenceInfo.Size()
+
+	referenceActualSize, err := getFileBlockSizeEstimate(paths[0])
+	if err != nil {
+		return err
+	}
+
+	for _, path := range paths {
+		fileInfo, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+
+		if fileInfo.IsDir() {
+			return errors.Errorf("file %v is a directory", path)
+
+		}
+
+		if fileInfo.Size() != referenceApparentSize {
+			return errors.Errorf("file %v apparent size %v is not equal to %v", path, fileInfo.Size(), referenceApparentSize)
+		}
+
+		actualSize, err := getFileBlockSizeEstimate(path)
+		if err != nil {
+			return err
+		}
+
+		if actualSize != referenceActualSize {
+			return errors.Errorf("file %v actual size %v is not equal to %v", path, actualSize, referenceActualSize)
+		}
+	}
+
+	return nil
+}
+
+func getFileBlockSizeEstimate(path string) (uint64, error) {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		return 0, err
+	}
+
+	return uint64(stat.Blocks) * uint64(stat.Blksize), nil
 }

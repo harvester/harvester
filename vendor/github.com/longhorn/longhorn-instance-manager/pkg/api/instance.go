@@ -1,10 +1,9 @@
 package api
 
 import (
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
+	"github.com/longhorn/types/pkg/generated/spdkrpc"
 	"google.golang.org/protobuf/types/known/emptypb"
-
-	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
-	"github.com/longhorn/longhorn-spdk-engine/proto/spdkrpc"
 )
 
 var (
@@ -39,7 +38,7 @@ func RPCToInstance(obj *rpc.InstanceResponse) *Instance {
 		Name: obj.Spec.Name,
 		Type: obj.Spec.Type,
 		//lint:ignore SA1019 replaced with DataEngine
-		BackendStoreDriver: obj.Spec.BackendStoreDriver.String(),
+		BackendStoreDriver: obj.Spec.BackendStoreDriver.String(), // nolint: staticcheck
 		DataEngine:         dataEngines[obj.Spec.DataEngine.String()],
 		PortCount:          obj.Spec.PortCount,
 		PortArgs:           obj.Spec.PortArgs,
@@ -65,20 +64,24 @@ func RPCToInstanceList(obj *rpc.InstanceListResponse) map[string]*Instance {
 }
 
 type InstanceStatus struct {
-	State      string          `json:"state"`
-	ErrorMsg   string          `json:"errorMsg"`
-	Conditions map[string]bool `json:"conditions"`
-	PortStart  int32           `json:"portStart"`
-	PortEnd    int32           `json:"portEnd"`
+	State           string          `json:"state"`
+	ErrorMsg        string          `json:"errorMsg"`
+	Conditions      map[string]bool `json:"conditions"`
+	PortStart       int32           `json:"portStart"`
+	PortEnd         int32           `json:"portEnd"`
+	TargetPortStart int32           `json:"targetPortStart"`
+	TargetPortEnd   int32           `json:"targetPortEnd"`
 }
 
 func RPCToInstanceStatus(obj *rpc.InstanceStatus) InstanceStatus {
 	return InstanceStatus{
-		State:      obj.State,
-		ErrorMsg:   obj.ErrorMsg,
-		Conditions: obj.Conditions,
-		PortStart:  obj.PortStart,
-		PortEnd:    obj.PortEnd,
+		State:           obj.State,
+		ErrorMsg:        obj.ErrorMsg,
+		Conditions:      obj.Conditions,
+		PortStart:       obj.PortStart,
+		PortEnd:         obj.PortEnd,
+		TargetPortStart: obj.TargetPortStart,
+		TargetPortEnd:   obj.TargetPortEnd,
 	}
 }
 

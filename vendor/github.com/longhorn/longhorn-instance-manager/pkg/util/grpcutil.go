@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
@@ -29,7 +30,13 @@ func Connect(endpoint string, tlsConfig *tls.Config, dialOptions ...grpc.DialOpt
 		return nil, err
 	}
 
-	dialOptions = append(dialOptions, grpc.WithBackoffMaxDelay(time.Second))
+	dialOptions = append(dialOptions, grpc.WithConnectParams(grpc.ConnectParams{
+		Backoff: backoff.Config{
+			BaseDelay: time.Second,
+			MaxDelay:  time.Second,
+		},
+	}))
+
 	if tlsConfig != nil {
 		dialOptions = append(dialOptions, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	} else {
@@ -45,7 +52,7 @@ func Connect(endpoint string, tlsConfig *tls.Config, dialOptions ...grpc.DialOpt
 	// Code lifted from https://github.com/kubernetes-csi/csi-test/commit/6b8830bf5959a1c51c6e98fe514b22818b51eeeb
 	dialOptions = append(dialOptions, grpc.WithKeepaliveParams(keepalive.ClientParameters{Time: 30 * time.Second, PermitWithoutStream: true}))
 
-	return grpc.Dial(address, dialOptions...)
+	return grpc.NewClient(address, dialOptions...)
 }
 
 // NewServer is a helper function to start a grpc server at the given endpoint.

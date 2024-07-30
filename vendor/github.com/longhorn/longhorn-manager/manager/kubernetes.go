@@ -12,6 +12,7 @@ import (
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
+	"github.com/longhorn/longhorn-manager/util"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
@@ -52,6 +53,10 @@ func (m *VolumeManager) PVCreate(name, pvName, fsType, secretNamespace, secretNa
 
 	if fsType == "" {
 		fsType = "ext4"
+	}
+	if fsType == "xfs" && v.Spec.Size < util.MinimalVolumeSizeXFS {
+		return nil, fmt.Errorf("XFS filesystems with size %d, smaller than %d, are not supported", v.Spec.Size,
+			util.MinimalVolumeSizeXFS)
 	}
 
 	pv := datastore.NewPVManifestForVolume(v, pvName, storageClassName, fsType)

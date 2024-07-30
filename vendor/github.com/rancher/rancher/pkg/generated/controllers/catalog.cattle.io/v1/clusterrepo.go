@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,262 +20,54 @@ package v1
 
 import (
 	"context"
+	"sync"
 	"time"
 
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	v1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type ClusterRepoHandler func(string, *v1.ClusterRepo) (*v1.ClusterRepo, error)
-
+// ClusterRepoController interface for managing ClusterRepo resources.
 type ClusterRepoController interface {
-	generic.ControllerMeta
-	ClusterRepoClient
-
-	OnChange(ctx context.Context, name string, sync ClusterRepoHandler)
-	OnRemove(ctx context.Context, name string, sync ClusterRepoHandler)
-	Enqueue(name string)
-	EnqueueAfter(name string, duration time.Duration)
-
-	Cache() ClusterRepoCache
+	generic.NonNamespacedControllerInterface[*v1.ClusterRepo, *v1.ClusterRepoList]
 }
 
+// ClusterRepoClient interface for managing ClusterRepo resources in Kubernetes.
 type ClusterRepoClient interface {
-	Create(*v1.ClusterRepo) (*v1.ClusterRepo, error)
-	Update(*v1.ClusterRepo) (*v1.ClusterRepo, error)
-	UpdateStatus(*v1.ClusterRepo) (*v1.ClusterRepo, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	Get(name string, options metav1.GetOptions) (*v1.ClusterRepo, error)
-	List(opts metav1.ListOptions) (*v1.ClusterRepoList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.ClusterRepo, err error)
+	generic.NonNamespacedClientInterface[*v1.ClusterRepo, *v1.ClusterRepoList]
 }
 
+// ClusterRepoCache interface for retrieving ClusterRepo resources in memory.
 type ClusterRepoCache interface {
-	Get(name string) (*v1.ClusterRepo, error)
-	List(selector labels.Selector) ([]*v1.ClusterRepo, error)
-
-	AddIndexer(indexName string, indexer ClusterRepoIndexer)
-	GetByIndex(indexName, key string) ([]*v1.ClusterRepo, error)
+	generic.NonNamespacedCacheInterface[*v1.ClusterRepo]
 }
 
-type ClusterRepoIndexer func(obj *v1.ClusterRepo) ([]string, error)
-
-type clusterRepoController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewClusterRepoController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) ClusterRepoController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &clusterRepoController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromClusterRepoHandlerToHandler(sync ClusterRepoHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1.ClusterRepo
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1.ClusterRepo))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *clusterRepoController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1.ClusterRepo))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateClusterRepoDeepCopyOnChange(client ClusterRepoClient, obj *v1.ClusterRepo, handler func(obj *v1.ClusterRepo) (*v1.ClusterRepo, error)) (*v1.ClusterRepo, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *clusterRepoController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *clusterRepoController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *clusterRepoController) OnChange(ctx context.Context, name string, sync ClusterRepoHandler) {
-	c.AddGenericHandler(ctx, name, FromClusterRepoHandlerToHandler(sync))
-}
-
-func (c *clusterRepoController) OnRemove(ctx context.Context, name string, sync ClusterRepoHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromClusterRepoHandlerToHandler(sync)))
-}
-
-func (c *clusterRepoController) Enqueue(name string) {
-	c.controller.Enqueue("", name)
-}
-
-func (c *clusterRepoController) EnqueueAfter(name string, duration time.Duration) {
-	c.controller.EnqueueAfter("", name, duration)
-}
-
-func (c *clusterRepoController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *clusterRepoController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *clusterRepoController) Cache() ClusterRepoCache {
-	return &clusterRepoCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *clusterRepoController) Create(obj *v1.ClusterRepo) (*v1.ClusterRepo, error) {
-	result := &v1.ClusterRepo{}
-	return result, c.client.Create(context.TODO(), "", obj, result, metav1.CreateOptions{})
-}
-
-func (c *clusterRepoController) Update(obj *v1.ClusterRepo) (*v1.ClusterRepo, error) {
-	result := &v1.ClusterRepo{}
-	return result, c.client.Update(context.TODO(), "", obj, result, metav1.UpdateOptions{})
-}
-
-func (c *clusterRepoController) UpdateStatus(obj *v1.ClusterRepo) (*v1.ClusterRepo, error) {
-	result := &v1.ClusterRepo{}
-	return result, c.client.UpdateStatus(context.TODO(), "", obj, result, metav1.UpdateOptions{})
-}
-
-func (c *clusterRepoController) Delete(name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), "", name, *options)
-}
-
-func (c *clusterRepoController) Get(name string, options metav1.GetOptions) (*v1.ClusterRepo, error) {
-	result := &v1.ClusterRepo{}
-	return result, c.client.Get(context.TODO(), "", name, result, options)
-}
-
-func (c *clusterRepoController) List(opts metav1.ListOptions) (*v1.ClusterRepoList, error) {
-	result := &v1.ClusterRepoList{}
-	return result, c.client.List(context.TODO(), "", result, opts)
-}
-
-func (c *clusterRepoController) Watch(opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), "", opts)
-}
-
-func (c *clusterRepoController) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (*v1.ClusterRepo, error) {
-	result := &v1.ClusterRepo{}
-	return result, c.client.Patch(context.TODO(), "", name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type clusterRepoCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *clusterRepoCache) Get(name string) (*v1.ClusterRepo, error) {
-	obj, exists, err := c.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1.ClusterRepo), nil
-}
-
-func (c *clusterRepoCache) List(selector labels.Selector) (ret []*v1.ClusterRepo, err error) {
-
-	err = cache.ListAll(c.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.ClusterRepo))
-	})
-
-	return ret, err
-}
-
-func (c *clusterRepoCache) AddIndexer(indexName string, indexer ClusterRepoIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1.ClusterRepo))
-		},
-	}))
-}
-
-func (c *clusterRepoCache) GetByIndex(indexName, key string) (result []*v1.ClusterRepo, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1.ClusterRepo, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1.ClusterRepo))
-	}
-	return result, nil
-}
-
+// ClusterRepoStatusHandler is executed for every added or modified ClusterRepo. Should return the new status to be updated
 type ClusterRepoStatusHandler func(obj *v1.ClusterRepo, status v1.RepoStatus) (v1.RepoStatus, error)
 
+// ClusterRepoGeneratingHandler is the top-level handler that is executed for every ClusterRepo event. It extends ClusterRepoStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type ClusterRepoGeneratingHandler func(obj *v1.ClusterRepo, status v1.RepoStatus) ([]runtime.Object, v1.RepoStatus, error)
 
+// RegisterClusterRepoStatusHandler configures a ClusterRepoController to execute a ClusterRepoStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterClusterRepoStatusHandler(ctx context.Context, controller ClusterRepoController, condition condition.Cond, name string, handler ClusterRepoStatusHandler) {
 	statusHandler := &clusterRepoStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromClusterRepoHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterClusterRepoGeneratingHandler configures a ClusterRepoController to execute a ClusterRepoGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterClusterRepoGeneratingHandler(ctx context.Context, controller ClusterRepoController, apply apply.Apply,
 	condition condition.Cond, name string, handler ClusterRepoGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &clusterRepoGeneratingHandler{
@@ -297,6 +89,7 @@ type clusterRepoStatusHandler struct {
 	handler   ClusterRepoStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *clusterRepoStatusHandler) sync(key string, obj *v1.ClusterRepo) (*v1.ClusterRepo, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +135,10 @@ type clusterRepoGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *clusterRepoGeneratingHandler) Remove(key string, obj *v1.ClusterRepo) (*v1.ClusterRepo, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +148,17 @@ func (a *clusterRepoGeneratingHandler) Remove(key string, obj *v1.ClusterRepo) (
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured ClusterRepoGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *clusterRepoGeneratingHandler) Handle(obj *v1.ClusterRepo, status v1.RepoStatus) (v1.RepoStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +168,41 @@ func (a *clusterRepoGeneratingHandler) Handle(obj *v1.ClusterRepo, status v1.Rep
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *clusterRepoGeneratingHandler) isNewResourceVersion(obj *v1.ClusterRepo) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *clusterRepoGeneratingHandler) storeResourceVersion(obj *v1.ClusterRepo) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

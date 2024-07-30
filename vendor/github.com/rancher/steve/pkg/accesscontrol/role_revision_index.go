@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	rbac "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
-	"github.com/rancher/wrangler/pkg/kv"
+	rbac "github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac/v1"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	rbacv1 "k8s.io/api/rbac/v1"
 )
 

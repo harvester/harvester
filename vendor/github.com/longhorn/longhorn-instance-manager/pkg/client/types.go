@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 )
 
 const (

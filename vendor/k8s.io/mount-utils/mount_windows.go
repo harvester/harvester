@@ -82,11 +82,11 @@ func (mounter *Mounter) MountSensitive(source string, target string, fstype stri
 
 	if source == "tmpfs" {
 		klog.V(3).Infof("mounting source (%q), target (%q), with options (%q)", source, target, sanitizedOptionsForLogging)
-		return os.MkdirAll(target, 0755)
+		return os.MkdirAll(target, 0o755)
 	}
 
 	parentDir := filepath.Dir(target)
-	if err := os.MkdirAll(parentDir, 0755); err != nil {
+	if err := os.MkdirAll(parentDir, 0o755); err != nil {
 		return err
 	}
 
@@ -164,7 +164,7 @@ func (mounter *Mounter) MountSensitive(source string, target string, fstype stri
 // return (output, error)
 func newSMBMapping(username, password, remotepath string) (string, error) {
 	if username == "" || password == "" || remotepath == "" {
-		return "", fmt.Errorf("invalid parameter(username: %s, password: %s, remoteapth: %s)", username, sensitiveOptionsRemoved, remotepath)
+		return "", fmt.Errorf("invalid parameter(username: %s, password: %s, remotepath: %s)", username, sensitiveOptionsRemoved, remotepath)
 	}
 
 	// use PowerShell Environment Variables to store user input string to prevent command line injection
@@ -193,8 +193,8 @@ func isSMBMappingExist(remotepath string) bool {
 // check whether remotepath is valid
 // return (true, nil) if remotepath is valid
 func isValidPath(remotepath string) (bool, error) {
-	cmd := exec.Command("powershell", "/c", `Test-Path $Env:remoteapth`)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("remoteapth=%s", remotepath))
+	cmd := exec.Command("powershell", "/c", `Test-Path $Env:remotepath`)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("remotepath=%s", remotepath))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return false, fmt.Errorf("returned output: %s, error: %v", string(output), err)
@@ -245,8 +245,8 @@ func (mounter *Mounter) IsLikelyNotMountPoint(file string) (bool, error) {
 	return true, nil
 }
 
-// canSafelySkipMountPointCheck always returns false on Windows
-func (mounter *Mounter) canSafelySkipMountPointCheck() bool {
+// CanSafelySkipMountPointCheck always returns false on Windows
+func (mounter *Mounter) CanSafelySkipMountPointCheck() bool {
 	return false
 }
 
@@ -306,28 +306,22 @@ func (mounter *SafeFormatAndMount) formatAndMountSensitive(source string, target
 	}
 	klog.V(4).Infof("diskMount: Disk successfully formatted, disk: %q, fstype: %q", source, fstype)
 
-	volumeIds, err := listVolumesOnDisk(source)
+	volumeIds, err := ListVolumesOnDisk(source)
 	if err != nil {
 		return err
 	}
 	driverPath := volumeIds[0]
-	target = NormalizeWindowsPath(target)
-	output, err := mounter.Exec.Command("cmd", "/c", "mklink", "/D", target, driverPath).CombinedOutput()
-	if err != nil {
-		klog.Errorf("mklink(%s, %s) failed: %v, output: %q", target, driverPath, err, string(output))
-		return err
-	}
-	klog.V(2).Infof("formatAndMount disk(%s) fstype(%s) on(%s) with output(%s) successfully", driverPath, fstype, target, string(output))
-	return nil
+	return mounter.MountSensitive(driverPath, target, fstype, options, sensitiveOptions)
 }
 
 // ListVolumesOnDisk - returns back list of volumes(volumeIDs) in the disk (requested in diskID).
-func listVolumesOnDisk(diskID string) (volumeIDs []string, err error) {
-	cmd := exec.Command("powershell", "/c", "(Get-Disk -DeviceId $env:diskID | Get-Partition | Get-Volume).UniqueId")
+func ListVolumesOnDisk(diskID string) (volumeIDs []string, err error) {
+	// If a Disk has multiple volumes, Get-Volume may not return items in the same order.
+	cmd := exec.Command("powershell", "/c", "(Get-Disk -DeviceId $env:diskID | Get-Partition | Get-Volume | Sort-Object -Property UniqueId).UniqueId")
 	cmd.Env = append(os.Environ(), fmt.Sprintf("diskID=%s", diskID))
 	klog.V(8).Infof("Executing command: %q", cmd.String())
 	output, err := cmd.CombinedOutput()
-	klog.V(4).Infof("listVolumesOnDisk id from %s: %s", diskID, string(output))
+	klog.V(4).Infof("ListVolumesOnDisk id from %s: %s", diskID, string(output))
 	if err != nil {
 		return []string{}, fmt.Errorf("error list volumes on disk. cmd: %s, output: %s, error: %v", cmd, string(output), err)
 	}

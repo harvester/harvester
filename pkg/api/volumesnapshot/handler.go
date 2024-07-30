@@ -9,9 +9,9 @@ import (
 	"github.com/gorilla/mux"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/rancher/apiserver/pkg/apierror"
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	ctlstoragev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage/v1"
-	"github.com/rancher/wrangler/pkg/schemas/validation"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
+	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -93,7 +93,7 @@ func (h *ActionHandler) restore(_ context.Context, snapshotNamespace, snapshotNa
 	accessModes := []corev1.PersistentVolumeAccessMode{
 		corev1.ReadWriteMany,
 	}
-	resources := corev1.ResourceRequirements{
+	resources := corev1.VolumeResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceStorage: *volumeSnapshot.Status.RestoreSize,
 		},

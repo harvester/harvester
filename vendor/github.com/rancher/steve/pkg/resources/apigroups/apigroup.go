@@ -7,9 +7,21 @@ import (
 
 	"github.com/rancher/apiserver/pkg/store/empty"
 	"github.com/rancher/apiserver/pkg/types"
+	wschemas "github.com/rancher/wrangler/v3/pkg/schemas"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 )
+
+var BaseSchema = types.APISchema{
+	Schema: &wschemas.Schema{
+		ID: "apigroup",
+		Attributes: map[string]interface{}{
+			"group":   "",
+			"kind":    "APIGroup",
+			"version": "v1",
+		},
+	},
+}
 
 func Template(discovery discovery.DiscoveryInterface) schema.Template {
 	return schema.Template{

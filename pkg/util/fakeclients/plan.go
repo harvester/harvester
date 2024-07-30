@@ -4,13 +4,14 @@ import (
 	"context"
 
 	upgradeapiv1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
-	upgradectlv1 "github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
 )
 
 type PlanClient func(string) upgradev1.PlanInterface
@@ -40,6 +41,10 @@ func (c PlanClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string)
 	panic("implement me")
 }
 
+func (c PlanClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*upgradeapiv1.Plan, *upgradeapiv1.PlanList], error) {
+	panic("implement me")
+}
+
 type PlanCache func(string) upgradev1.PlanInterface
 
 func (c PlanCache) Get(namespace, name string) (*upgradeapiv1.Plan, error) {
@@ -50,7 +55,7 @@ func (c PlanCache) List(_ string, _ labels.Selector) ([]*upgradeapiv1.Plan, erro
 	panic("implement me")
 }
 
-func (c PlanCache) AddIndexer(_ string, _ upgradectlv1.PlanIndexer) {
+func (c PlanCache) AddIndexer(_ string, _ generic.Indexer[*upgradeapiv1.Plan]) {
 	panic("implement me")
 }
 

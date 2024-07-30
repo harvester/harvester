@@ -7,9 +7,8 @@ import (
 	"github.com/pkg/errors"
 
 	etypes "github.com/longhorn/longhorn-engine/pkg/types"
-	eptypes "github.com/longhorn/longhorn-engine/proto/ptypes"
-
-	rpc "github.com/longhorn/longhorn-instance-manager/pkg/imrpc"
+	"github.com/longhorn/types/pkg/generated/enginerpc"
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 )
 
 func (c *ProxyClient) VolumeGet(dataEngine, engineName, volumeName, serviceAddress string) (info *etypes.VolumeInfo, err error) {
@@ -90,7 +89,7 @@ func (c *ProxyClient) VolumeExpand(dataEngine, engineName, volumeName, serviceAd
 			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
-		Expand: &eptypes.VolumeExpandRequest{
+		Expand: &enginerpc.VolumeExpandRequest{
 			Size: size,
 		},
 	}
@@ -131,7 +130,7 @@ func (c *ProxyClient) VolumeFrontendStart(dataEngine, engineName, volumeName, se
 			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
-		FrontendStart: &eptypes.VolumeFrontendStartRequest{
+		FrontendStart: &enginerpc.VolumeFrontendStartRequest{
 			Frontend: frontendName,
 		},
 	}
@@ -207,7 +206,7 @@ func (c *ProxyClient) VolumeUnmapMarkSnapChainRemovedSet(dataEngine, engineName,
 			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
-		UnmapMarkSnap: &eptypes.VolumeUnmapMarkSnapChainRemovedSetRequest{Enabled: enabled},
+		UnmapMarkSnap: &enginerpc.VolumeUnmapMarkSnapChainRemovedSetRequest{Enabled: enabled},
 	}
 	_, err = c.service.VolumeUnmapMarkSnapChainRemovedSet(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -247,7 +246,7 @@ func (c *ProxyClient) VolumeSnapshotMaxCountSet(dataEngine, engineName, volumeNa
 			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
-		Count: &eptypes.VolumeSnapshotMaxCountSetRequest{Count: int32(count)},
+		Count: &enginerpc.VolumeSnapshotMaxCountSetRequest{Count: int32(count)},
 	}
 	_, err = c.service.VolumeSnapshotMaxCountSet(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {
@@ -287,7 +286,7 @@ func (c *ProxyClient) VolumeSnapshotMaxSizeSet(dataEngine, engineName, volumeNam
 			DataEngine:         rpc.DataEngine(driver),
 			VolumeName:         volumeName,
 		},
-		Size: &eptypes.VolumeSnapshotMaxSizeSetRequest{Size: size},
+		Size: &enginerpc.VolumeSnapshotMaxSizeSetRequest{Size: size},
 	}
 	_, err = c.service.VolumeSnapshotMaxSizeSet(getContextWithGRPCTimeout(c.ctx), req)
 	if err != nil {

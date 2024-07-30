@@ -3,7 +3,7 @@ package server
 import (
 	"fmt"
 
-	"github.com/rancher/wrangler/pkg/kubeconfig"
+	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )

@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,262 +20,54 @@ package v3
 
 import (
 	"context"
+	"sync"
 	"time"
 
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type ComposeConfigHandler func(string, *v3.ComposeConfig) (*v3.ComposeConfig, error)
-
+// ComposeConfigController interface for managing ComposeConfig resources.
 type ComposeConfigController interface {
-	generic.ControllerMeta
-	ComposeConfigClient
-
-	OnChange(ctx context.Context, name string, sync ComposeConfigHandler)
-	OnRemove(ctx context.Context, name string, sync ComposeConfigHandler)
-	Enqueue(name string)
-	EnqueueAfter(name string, duration time.Duration)
-
-	Cache() ComposeConfigCache
+	generic.NonNamespacedControllerInterface[*v3.ComposeConfig, *v3.ComposeConfigList]
 }
 
+// ComposeConfigClient interface for managing ComposeConfig resources in Kubernetes.
 type ComposeConfigClient interface {
-	Create(*v3.ComposeConfig) (*v3.ComposeConfig, error)
-	Update(*v3.ComposeConfig) (*v3.ComposeConfig, error)
-	UpdateStatus(*v3.ComposeConfig) (*v3.ComposeConfig, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	Get(name string, options metav1.GetOptions) (*v3.ComposeConfig, error)
-	List(opts metav1.ListOptions) (*v3.ComposeConfigList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v3.ComposeConfig, err error)
+	generic.NonNamespacedClientInterface[*v3.ComposeConfig, *v3.ComposeConfigList]
 }
 
+// ComposeConfigCache interface for retrieving ComposeConfig resources in memory.
 type ComposeConfigCache interface {
-	Get(name string) (*v3.ComposeConfig, error)
-	List(selector labels.Selector) ([]*v3.ComposeConfig, error)
-
-	AddIndexer(indexName string, indexer ComposeConfigIndexer)
-	GetByIndex(indexName, key string) ([]*v3.ComposeConfig, error)
+	generic.NonNamespacedCacheInterface[*v3.ComposeConfig]
 }
 
-type ComposeConfigIndexer func(obj *v3.ComposeConfig) ([]string, error)
-
-type composeConfigController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewComposeConfigController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) ComposeConfigController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &composeConfigController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromComposeConfigHandlerToHandler(sync ComposeConfigHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v3.ComposeConfig
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v3.ComposeConfig))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *composeConfigController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v3.ComposeConfig))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateComposeConfigDeepCopyOnChange(client ComposeConfigClient, obj *v3.ComposeConfig, handler func(obj *v3.ComposeConfig) (*v3.ComposeConfig, error)) (*v3.ComposeConfig, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *composeConfigController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *composeConfigController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *composeConfigController) OnChange(ctx context.Context, name string, sync ComposeConfigHandler) {
-	c.AddGenericHandler(ctx, name, FromComposeConfigHandlerToHandler(sync))
-}
-
-func (c *composeConfigController) OnRemove(ctx context.Context, name string, sync ComposeConfigHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromComposeConfigHandlerToHandler(sync)))
-}
-
-func (c *composeConfigController) Enqueue(name string) {
-	c.controller.Enqueue("", name)
-}
-
-func (c *composeConfigController) EnqueueAfter(name string, duration time.Duration) {
-	c.controller.EnqueueAfter("", name, duration)
-}
-
-func (c *composeConfigController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *composeConfigController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *composeConfigController) Cache() ComposeConfigCache {
-	return &composeConfigCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *composeConfigController) Create(obj *v3.ComposeConfig) (*v3.ComposeConfig, error) {
-	result := &v3.ComposeConfig{}
-	return result, c.client.Create(context.TODO(), "", obj, result, metav1.CreateOptions{})
-}
-
-func (c *composeConfigController) Update(obj *v3.ComposeConfig) (*v3.ComposeConfig, error) {
-	result := &v3.ComposeConfig{}
-	return result, c.client.Update(context.TODO(), "", obj, result, metav1.UpdateOptions{})
-}
-
-func (c *composeConfigController) UpdateStatus(obj *v3.ComposeConfig) (*v3.ComposeConfig, error) {
-	result := &v3.ComposeConfig{}
-	return result, c.client.UpdateStatus(context.TODO(), "", obj, result, metav1.UpdateOptions{})
-}
-
-func (c *composeConfigController) Delete(name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), "", name, *options)
-}
-
-func (c *composeConfigController) Get(name string, options metav1.GetOptions) (*v3.ComposeConfig, error) {
-	result := &v3.ComposeConfig{}
-	return result, c.client.Get(context.TODO(), "", name, result, options)
-}
-
-func (c *composeConfigController) List(opts metav1.ListOptions) (*v3.ComposeConfigList, error) {
-	result := &v3.ComposeConfigList{}
-	return result, c.client.List(context.TODO(), "", result, opts)
-}
-
-func (c *composeConfigController) Watch(opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), "", opts)
-}
-
-func (c *composeConfigController) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (*v3.ComposeConfig, error) {
-	result := &v3.ComposeConfig{}
-	return result, c.client.Patch(context.TODO(), "", name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type composeConfigCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *composeConfigCache) Get(name string) (*v3.ComposeConfig, error) {
-	obj, exists, err := c.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v3.ComposeConfig), nil
-}
-
-func (c *composeConfigCache) List(selector labels.Selector) (ret []*v3.ComposeConfig, err error) {
-
-	err = cache.ListAll(c.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v3.ComposeConfig))
-	})
-
-	return ret, err
-}
-
-func (c *composeConfigCache) AddIndexer(indexName string, indexer ComposeConfigIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v3.ComposeConfig))
-		},
-	}))
-}
-
-func (c *composeConfigCache) GetByIndex(indexName, key string) (result []*v3.ComposeConfig, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v3.ComposeConfig, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v3.ComposeConfig))
-	}
-	return result, nil
-}
-
+// ComposeConfigStatusHandler is executed for every added or modified ComposeConfig. Should return the new status to be updated
 type ComposeConfigStatusHandler func(obj *v3.ComposeConfig, status v3.ComposeStatus) (v3.ComposeStatus, error)
 
+// ComposeConfigGeneratingHandler is the top-level handler that is executed for every ComposeConfig event. It extends ComposeConfigStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type ComposeConfigGeneratingHandler func(obj *v3.ComposeConfig, status v3.ComposeStatus) ([]runtime.Object, v3.ComposeStatus, error)
 
+// RegisterComposeConfigStatusHandler configures a ComposeConfigController to execute a ComposeConfigStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterComposeConfigStatusHandler(ctx context.Context, controller ComposeConfigController, condition condition.Cond, name string, handler ComposeConfigStatusHandler) {
 	statusHandler := &composeConfigStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromComposeConfigHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterComposeConfigGeneratingHandler configures a ComposeConfigController to execute a ComposeConfigGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterComposeConfigGeneratingHandler(ctx context.Context, controller ComposeConfigController, apply apply.Apply,
 	condition condition.Cond, name string, handler ComposeConfigGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &composeConfigGeneratingHandler{
@@ -297,6 +89,7 @@ type composeConfigStatusHandler struct {
 	handler   ComposeConfigStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *composeConfigStatusHandler) sync(key string, obj *v3.ComposeConfig) (*v3.ComposeConfig, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +135,10 @@ type composeConfigGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *composeConfigGeneratingHandler) Remove(key string, obj *v3.ComposeConfig) (*v3.ComposeConfig, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +148,17 @@ func (a *composeConfigGeneratingHandler) Remove(key string, obj *v3.ComposeConfi
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured ComposeConfigGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *composeConfigGeneratingHandler) Handle(obj *v3.ComposeConfig, status v3.ComposeStatus) (v3.ComposeStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +168,41 @@ func (a *composeConfigGeneratingHandler) Handle(obj *v3.ComposeConfig, status v3
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *composeConfigGeneratingHandler) isNewResourceVersion(obj *v3.ComposeConfig) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *composeConfigGeneratingHandler) storeResourceVersion(obj *v3.ComposeConfig) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

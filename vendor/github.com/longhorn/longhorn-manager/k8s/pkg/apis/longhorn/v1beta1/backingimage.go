@@ -105,6 +105,7 @@ func (bi *BackingImage) ConvertTo(dst conversion.Hub) error {
 		biV1beta2.Spec.Disks = make(map[string]string)
 		for name := range bi.Spec.Disks {
 			biV1beta2.Spec.Disks[name] = ""
+			biV1beta2.Spec.DiskFileSpecMap[name] = &v1beta2.BackingImageDiskFileSpec{}
 		}
 		return nil
 	default:

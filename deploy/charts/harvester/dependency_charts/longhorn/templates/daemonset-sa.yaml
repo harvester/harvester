@@ -1,0 +1,175 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+    app: longhorn-manager
+  name: longhorn-manager
+  namespace: {{ include "release_namespace" . }}
+spec:
+  selector:
+    matchLabels:
+      app: longhorn-manager
+  template:
+    metadata:
+      labels: {{- include "longhorn.labels" . | nindent 8 }}
+        app: longhorn-manager
+      {{- with .Values.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      containers:
+      - name: longhorn-manager
+        image: {{ template "registry_url" . }}{{ .Values.image.longhorn.manager.repository }}:{{ .Values.image.longhorn.manager.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          privileged: true
+        command:
+        - longhorn-manager
+        - -d
+        {{- if eq .Values.longhornManager.log.format "json" }}
+        - -j
+        {{- end }}
+        - daemon
+        - --engine-image
+        - "{{ template "registry_url" . }}{{ .Values.image.longhorn.engine.repository }}:{{ .Values.image.longhorn.engine.tag }}"
+        - --instance-manager-image
+        - "{{ template "registry_url" . }}{{ .Values.image.longhorn.instanceManager.repository }}:{{ .Values.image.longhorn.instanceManager.tag }}"
+        - --share-manager-image
+        - "{{ template "registry_url" . }}{{ .Values.image.longhorn.shareManager.repository }}:{{ .Values.image.longhorn.shareManager.tag }}"
+        - --backing-image-manager-image
+        - "{{ template "registry_url" . }}{{ .Values.image.longhorn.backingImageManager.repository }}:{{ .Values.image.longhorn.backingImageManager.tag }}"
+        - --support-bundle-manager-image
+        - "{{ template "registry_url" . }}{{ .Values.image.longhorn.supportBundleKit.repository }}:{{ .Values.image.longhorn.supportBundleKit.tag }}"
+        - --manager-image
+        - "{{ template "registry_url" . }}{{ .Values.image.longhorn.manager.repository }}:{{ .Values.image.longhorn.manager.tag }}"
+        - --service-account
+        - longhorn-service-account
+        {{- if .Values.preUpgradeChecker.upgradeVersionCheck}}
+        - --upgrade-version-check
+        {{- end }}
+        ports:
+        - containerPort: 9500
+          name: manager
+        - containerPort: 9501
+          name: conversion-wh
+        - containerPort: 9502
+          name: admission-wh
+        - containerPort: 9503
+          name: recov-backend
+        readinessProbe:
+          httpGet:
+            path: /v1/healthz
+            port: 9501
+            scheme: HTTPS
+        volumeMounts:
+        - name: dev
+          mountPath: /host/dev/
+        - name: proc
+          mountPath: /host/proc/
+        - name: longhorn
+          mountPath: /var/lib/longhorn/
+          mountPropagation: Bidirectional
+        - name: longhorn-grpc-tls
+          mountPath: /tls-files/
+        {{- if .Values.enableGoCoverDir }}
+        - name: go-cover-dir
+          mountPath: /go-cover-dir/
+        {{- end }}
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        {{- if .Values.enableGoCoverDir }}
+        - name: GOCOVERDIR
+          value: /go-cover-dir/
+        {{- end }}
+      - name: pre-pull-share-manager-image
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        image: {{ template "registry_url" . }}{{ .Values.image.longhorn.shareManager.repository }}:{{ .Values.image.longhorn.shareManager.tag }}
+        command: ["sh", "-c", "echo share-manager image pulled && sleep infinity"]
+      volumes:
+      - name: dev
+        hostPath:
+          path: /dev/
+      - name: proc
+        hostPath:
+          path: /proc/
+      - name: longhorn
+        hostPath:
+          path: /var/lib/longhorn/
+      {{- if .Values.enableGoCoverDir }}
+      - name: go-cover-dir
+        hostPath:
+          path: /go-cover-dir/
+          type: DirectoryOrCreate
+      {{- end }}
+      - name: longhorn-grpc-tls
+        secret:
+          secretName: longhorn-grpc-tls
+          optional: true
+      {{- if .Values.privateRegistry.registrySecret }}
+      imagePullSecrets:
+      - name: {{ .Values.privateRegistry.registrySecret }}
+      {{- end }}
+      {{- if .Values.longhornManager.priorityClass }}
+      priorityClassName: {{ .Values.longhornManager.priorityClass | quote }}
+      {{- end }}
+      {{- if or .Values.global.tolerations .Values.longhornManager.tolerations .Values.global.cattle.windowsCluster.enabled }}
+      tolerations:
+        {{- if and .Values.global.cattle.windowsCluster.enabled .Values.global.cattle.windowsCluster.tolerations }}
+{{ toYaml .Values.global.cattle.windowsCluster.tolerations | indent 6 }}
+        {{- end }}
+        {{- if or .Values.global.tolerations .Values.longhornManager.tolerations }}
+{{ default .Values.global.tolerations .Values.longhornManager.tolerations | toYaml | indent 6 }}
+        {{- end }}
+      {{- end }}
+      {{- if or .Values.global.nodeSelector .Values.longhornManager.nodeSelector .Values.global.cattle.windowsCluster.enabled }}
+      nodeSelector:
+        {{- if and .Values.global.cattle.windowsCluster.enabled .Values.global.cattle.windowsCluster.nodeSelector }}
+{{ toYaml .Values.global.cattle.windowsCluster.nodeSelector | indent 8 }}
+        {{- end }}
+        {{- if or .Values.global.nodeSelector .Values.longhornManager.nodeSelector }}
+{{ default .Values.global.nodeSelector .Values.longhornManager.nodeSelector | toYaml | indent 8 }}
+        {{- end }}
+      {{- end }}
+      serviceAccountName: longhorn-service-account
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: "100%"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+    app: longhorn-manager
+  name: longhorn-backend
+  namespace: {{ include "release_namespace" . }}
+  {{- if .Values.longhornManager.serviceAnnotations }}
+  annotations:
+{{ toYaml .Values.longhornManager.serviceAnnotations | indent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.manager.type }}
+  selector:
+    app: longhorn-manager
+  ports:
+  - name: manager
+    port: 9500
+    targetPort: manager
+    {{- if .Values.service.manager.nodePort }}
+    nodePort: {{ .Values.service.manager.nodePort }}
+    {{- end }}

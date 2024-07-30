@@ -26,8 +26,8 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/lasso/pkg/log"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler/pkg/slice"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v3/pkg/slice"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -349,10 +349,7 @@ func validateOvercommitConfig(setting *v1beta1.Setting) error {
 		return err
 	}
 
-	if err := validateOvercommitConfigHelper("value", setting.Value); err != nil {
-		return err
-	}
-	return nil
+	return validateOvercommitConfigHelper("value", setting.Value)
 }
 
 func validateUpdateOvercommitConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
@@ -658,10 +655,7 @@ func validateVipPoolsConfigHelper(value string) error {
 		return err
 	}
 
-	if err := settingctl.ValidateCIDRs(pools); err != nil {
-		return err
-	}
-	return nil
+	return settingctl.ValidateCIDRs(pools)
 }
 
 func validateVipPoolsConfig(setting *v1beta1.Setting) error {
@@ -804,11 +798,7 @@ func validateSSLCertificates(setting *v1beta1.Setting) error {
 	if err := validateSSLCertificatesHelper("default", setting.Default); err != nil {
 		return err
 	}
-
-	if err := validateSSLCertificatesHelper("value", setting.Value); err != nil {
-		return err
-	}
-	return nil
+	return validateSSLCertificatesHelper("value", setting.Value)
 }
 
 func validateUpdateSSLCertificates(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
@@ -959,11 +949,8 @@ func validateContainerdRegistryHelper(value string) error {
 	}
 
 	registry := &containerd.Registry{}
-	if err := json.Unmarshal([]byte(value), registry); err != nil {
-		return err
-	}
 
-	return nil
+	return json.Unmarshal([]byte(value), registry)
 }
 
 func validateContainerdRegistry(setting *v1beta1.Setting) error {
@@ -997,10 +984,7 @@ func (v *settingValidator) validateStorageNetworkHelper(value string) error {
 		return err
 	}
 
-	if err := v.checkStorageNetworkRangeValid(&config); err != nil {
-		return err
-	}
-	return nil
+	return v.checkStorageNetworkRangeValid(&config)
 }
 
 func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) error {

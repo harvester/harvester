@@ -4,7 +4,7 @@ import (
 	"reflect"
 
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
-	"github.com/rancher/wrangler/pkg/slice"
+	"github.com/rancher/wrangler/v3/pkg/slice"
 )
 
 const (

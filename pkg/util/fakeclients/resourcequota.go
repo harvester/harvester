@@ -3,14 +3,14 @@ package fakeclients
 import (
 	"context"
 
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	corev1type "k8s.io/client-go/kubernetes/typed/core/v1"
-
-	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
+	"k8s.io/client-go/rest"
 )
 
 type ResourceQuotaCache func(string) corev1type.ResourceQuotaInterface
@@ -34,7 +34,7 @@ func (c ResourceQuotaCache) List(namespace string, selector labels.Selector) ([]
 	return result, err
 }
 
-func (c ResourceQuotaCache) AddIndexer(_ string, _ ctlharvcorev1.ResourceQuotaIndexer) {
+func (c ResourceQuotaCache) AddIndexer(_ string, _ generic.Indexer[*v1.ResourceQuota]) {
 	panic("implement me")
 }
 
@@ -73,5 +73,9 @@ func (c ResourceQuotaClient) Watch(_ string, _ metav1.ListOptions) (watch.Interf
 }
 
 func (c ResourceQuotaClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *v1.ResourceQuota, err error) {
+	panic("implement me")
+}
+
+func (c ResourceQuotaClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*v1.ResourceQuota, *v1.ResourceQuotaList], error) {
 	panic("implement me")
 }

@@ -36,31 +36,19 @@ type CatalogTemplateExpansion interface{}
 
 type CatalogTemplateVersionExpansion interface{}
 
-type CisBenchmarkVersionExpansion interface{}
-
-type CisConfigExpansion interface{}
-
 type CloudCredentialExpansion interface{}
 
 type ClusterExpansion interface{}
-
-type ClusterAlertExpansion interface{}
-
-type ClusterAlertGroupExpansion interface{}
-
-type ClusterAlertRuleExpansion interface{}
 
 type ClusterCatalogExpansion interface{}
 
 type ClusterLoggingExpansion interface{}
 
-type ClusterMonitorGraphExpansion interface{}
+type ClusterProxyConfigExpansion interface{}
 
 type ClusterRegistrationTokenExpansion interface{}
 
 type ClusterRoleTemplateBindingExpansion interface{}
-
-type ClusterScanExpansion interface{}
 
 type ClusterTemplateExpansion interface{}
 
@@ -77,6 +65,8 @@ type FeatureExpansion interface{}
 type FleetWorkspaceExpansion interface{}
 
 type FreeIpaProviderExpansion interface{}
+
+type GenericOIDCProviderExpansion interface{}
 
 type GithubConfigExpansion interface{}
 
@@ -102,8 +92,6 @@ type LocalProviderExpansion interface{}
 
 type ManagedChartExpansion interface{}
 
-type MonitorMetricExpansion interface{}
-
 type MultiClusterAppExpansion interface{}
 
 type MultiClusterAppRevisionExpansion interface{}
@@ -116,15 +104,11 @@ type NodePoolExpansion interface{}
 
 type NodeTemplateExpansion interface{}
 
-type NotifierExpansion interface{}
-
 type OIDCProviderExpansion interface{}
 
 type OpenLdapProviderExpansion interface{}
 
-type PodSecurityPolicyTemplateExpansion interface{}
-
-type PodSecurityPolicyTemplateProjectBindingExpansion interface{}
+type PodSecurityAdmissionConfigurationTemplateExpansion interface{}
 
 type PreferenceExpansion interface{}
 
@@ -132,17 +116,9 @@ type PrincipalExpansion interface{}
 
 type ProjectExpansion interface{}
 
-type ProjectAlertExpansion interface{}
-
-type ProjectAlertGroupExpansion interface{}
-
-type ProjectAlertRuleExpansion interface{}
-
 type ProjectCatalogExpansion interface{}
 
 type ProjectLoggingExpansion interface{}
-
-type ProjectMonitorGraphExpansion interface{}
 
 type ProjectNetworkPolicyExpansion interface{}
 

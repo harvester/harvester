@@ -86,17 +86,30 @@ func (m *VolumeManager) GetDefaultBackingImageManagersByDiskUUID(diskUUID string
 	return nil, fmt.Errorf("default backing image manager for disk %v is not found", diskUUID)
 }
 
-func (m *VolumeManager) CreateBackingImage(name, checksum, sourceType string, parameters map[string]string) (bi *longhorn.BackingImage, err error) {
+func (m *VolumeManager) CreateBackingImage(name, checksum, sourceType string, parameters map[string]string, minNumberOfCopies int, nodeSelector, diskSelector []string, secret, secretNamespace string) (bi *longhorn.BackingImage, err error) {
+	if secret != "" || secretNamespace != "" {
+		_, err := m.ds.GetSecretRO(secretNamespace, secret)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to get secret %v in namespace %v for the backing image %v", secret, secretNamespace, name)
+		}
+	}
+
 	bi = &longhorn.BackingImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
 			Labels: types.GetBackingImageLabels(),
 		},
 		Spec: longhorn.BackingImageSpec{
-			Disks:            map[string]string{},
-			Checksum:         checksum,
-			SourceType:       longhorn.BackingImageDataSourceType(sourceType),
-			SourceParameters: parameters,
+			Disks:             map[string]string{},
+			DiskFileSpecMap:   map[string]*longhorn.BackingImageDiskFileSpec{},
+			Checksum:          checksum,
+			SourceType:        longhorn.BackingImageDataSourceType(sourceType),
+			SourceParameters:  parameters,
+			MinNumberOfCopies: minNumberOfCopies,
+			NodeSelector:      nodeSelector,
+			DiskSelector:      diskSelector,
+			Secret:            secret,
+			SecretNamespace:   secretNamespace,
 		},
 	}
 	if bi, err = m.ds.CreateBackingImage(bi); err != nil {
@@ -126,7 +139,7 @@ func (m *VolumeManager) CleanUpBackingImageDiskFiles(name string, diskFileList [
 		logrus.Infof("Deleting backing image %v, there is no need to do disk cleanup for it", name)
 		return bi, nil
 	}
-	if bi.Spec.Disks == nil {
+	if bi.Spec.DiskFileSpecMap == nil {
 		logrus.Infof("backing image %v has not disk required, there is no need to do cleanup then", name)
 		return bi, nil
 	}
@@ -164,16 +177,16 @@ func (m *VolumeManager) CleanUpBackingImageDiskFiles(name string, diskFileList [
 		if _, exists := disksInUse[diskUUID]; exists {
 			return nil, fmt.Errorf("cannot clean up backing image %v in disk %v since there is at least one replica using it", name, diskUUID)
 		}
-		if _, exists := bi.Spec.Disks[diskUUID]; !exists {
+		if _, exists := bi.Spec.DiskFileSpecMap[diskUUID]; !exists {
 			continue
 		}
-		delete(bi.Spec.Disks, diskUUID)
+		delete(bi.Spec.DiskFileSpecMap, diskUUID)
 		cleanupFileMap[diskUUID] = struct{}{}
 	}
 
 	var readyActiveFileCount, handlingActiveFileCount, failedActiveFileCount int
 	var readyCleanupFileCount, handlingCleanupFileCount, failedCleanupFileCount int
-	for diskUUID := range existingBI.Spec.Disks {
+	for diskUUID := range existingBI.Spec.DiskFileSpecMap {
 		// Consider non-existing files as pending backing image files.
 		fileStatus, exists := bi.Status.DiskFileStatusMap[diskUUID]
 		if !exists {
@@ -201,8 +214,7 @@ func (m *VolumeManager) CleanUpBackingImageDiskFiles(name string, diskFileList [
 		}
 	}
 
-	// TODO: Make `haBackingImageCount` configure when introducing HA backing image feature
-	haBackingImageCount := 1
+	haBackingImageCount := existingBI.Spec.MinNumberOfCopies
 	if haBackingImageCount <= readyActiveFileCount {
 		return bi, nil
 	}
@@ -222,6 +234,21 @@ func (m *VolumeManager) CleanUpBackingImageDiskFiles(name string, diskFileList [
 	}
 	if failedCleanupFileCount > 0 {
 		return nil, fmt.Errorf("cannot do cleanup since there are no enough files for HA")
+	}
+
+	return bi, nil
+}
+
+func (m *VolumeManager) UpdateBackingImageMinNumberOfCopies(name string, minNumberOfCopies int) (bi *longhorn.BackingImage, err error) {
+	bi, err = m.GetBackingImage(name)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to get backing image %v", name)
+	}
+
+	bi.Spec.MinNumberOfCopies = minNumberOfCopies
+	bi, err = m.ds.UpdateBackingImage(bi)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to update backing image %v", name)
 	}
 
 	return bi, nil

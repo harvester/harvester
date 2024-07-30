@@ -21,7 +21,8 @@ package v1
 import (
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/schemes"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -44,9 +45,10 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) HelmChart() HelmChartController {
-	return NewHelmChartController(schema.GroupVersionKind{Group: "helm.cattle.io", Version: "v1", Kind: "HelmChart"}, "helmcharts", true, c.controllerFactory)
+func (v *version) HelmChart() HelmChartController {
+	return generic.NewController[*v1.HelmChart, *v1.HelmChartList](schema.GroupVersionKind{Group: "helm.cattle.io", Version: "v1", Kind: "HelmChart"}, "helmcharts", true, v.controllerFactory)
 }
-func (c *version) HelmChartConfig() HelmChartConfigController {
-	return NewHelmChartConfigController(schema.GroupVersionKind{Group: "helm.cattle.io", Version: "v1", Kind: "HelmChartConfig"}, "helmchartconfigs", true, c.controllerFactory)
+
+func (v *version) HelmChartConfig() HelmChartConfigController {
+	return generic.NewController[*v1.HelmChartConfig, *v1.HelmChartConfigList](schema.GroupVersionKind{Group: "helm.cattle.io", Version: "v1", Kind: "HelmChartConfig"}, "helmchartconfigs", true, v.controllerFactory)
 }

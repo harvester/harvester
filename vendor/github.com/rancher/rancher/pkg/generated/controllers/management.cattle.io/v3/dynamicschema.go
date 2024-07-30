@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,262 +20,54 @@ package v3
 
 import (
 	"context"
+	"sync"
 	"time"
 
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type DynamicSchemaHandler func(string, *v3.DynamicSchema) (*v3.DynamicSchema, error)
-
+// DynamicSchemaController interface for managing DynamicSchema resources.
 type DynamicSchemaController interface {
-	generic.ControllerMeta
-	DynamicSchemaClient
-
-	OnChange(ctx context.Context, name string, sync DynamicSchemaHandler)
-	OnRemove(ctx context.Context, name string, sync DynamicSchemaHandler)
-	Enqueue(name string)
-	EnqueueAfter(name string, duration time.Duration)
-
-	Cache() DynamicSchemaCache
+	generic.NonNamespacedControllerInterface[*v3.DynamicSchema, *v3.DynamicSchemaList]
 }
 
+// DynamicSchemaClient interface for managing DynamicSchema resources in Kubernetes.
 type DynamicSchemaClient interface {
-	Create(*v3.DynamicSchema) (*v3.DynamicSchema, error)
-	Update(*v3.DynamicSchema) (*v3.DynamicSchema, error)
-	UpdateStatus(*v3.DynamicSchema) (*v3.DynamicSchema, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	Get(name string, options metav1.GetOptions) (*v3.DynamicSchema, error)
-	List(opts metav1.ListOptions) (*v3.DynamicSchemaList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v3.DynamicSchema, err error)
+	generic.NonNamespacedClientInterface[*v3.DynamicSchema, *v3.DynamicSchemaList]
 }
 
+// DynamicSchemaCache interface for retrieving DynamicSchema resources in memory.
 type DynamicSchemaCache interface {
-	Get(name string) (*v3.DynamicSchema, error)
-	List(selector labels.Selector) ([]*v3.DynamicSchema, error)
-
-	AddIndexer(indexName string, indexer DynamicSchemaIndexer)
-	GetByIndex(indexName, key string) ([]*v3.DynamicSchema, error)
+	generic.NonNamespacedCacheInterface[*v3.DynamicSchema]
 }
 
-type DynamicSchemaIndexer func(obj *v3.DynamicSchema) ([]string, error)
-
-type dynamicSchemaController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewDynamicSchemaController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) DynamicSchemaController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &dynamicSchemaController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromDynamicSchemaHandlerToHandler(sync DynamicSchemaHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v3.DynamicSchema
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v3.DynamicSchema))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *dynamicSchemaController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v3.DynamicSchema))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateDynamicSchemaDeepCopyOnChange(client DynamicSchemaClient, obj *v3.DynamicSchema, handler func(obj *v3.DynamicSchema) (*v3.DynamicSchema, error)) (*v3.DynamicSchema, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *dynamicSchemaController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *dynamicSchemaController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *dynamicSchemaController) OnChange(ctx context.Context, name string, sync DynamicSchemaHandler) {
-	c.AddGenericHandler(ctx, name, FromDynamicSchemaHandlerToHandler(sync))
-}
-
-func (c *dynamicSchemaController) OnRemove(ctx context.Context, name string, sync DynamicSchemaHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromDynamicSchemaHandlerToHandler(sync)))
-}
-
-func (c *dynamicSchemaController) Enqueue(name string) {
-	c.controller.Enqueue("", name)
-}
-
-func (c *dynamicSchemaController) EnqueueAfter(name string, duration time.Duration) {
-	c.controller.EnqueueAfter("", name, duration)
-}
-
-func (c *dynamicSchemaController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *dynamicSchemaController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *dynamicSchemaController) Cache() DynamicSchemaCache {
-	return &dynamicSchemaCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *dynamicSchemaController) Create(obj *v3.DynamicSchema) (*v3.DynamicSchema, error) {
-	result := &v3.DynamicSchema{}
-	return result, c.client.Create(context.TODO(), "", obj, result, metav1.CreateOptions{})
-}
-
-func (c *dynamicSchemaController) Update(obj *v3.DynamicSchema) (*v3.DynamicSchema, error) {
-	result := &v3.DynamicSchema{}
-	return result, c.client.Update(context.TODO(), "", obj, result, metav1.UpdateOptions{})
-}
-
-func (c *dynamicSchemaController) UpdateStatus(obj *v3.DynamicSchema) (*v3.DynamicSchema, error) {
-	result := &v3.DynamicSchema{}
-	return result, c.client.UpdateStatus(context.TODO(), "", obj, result, metav1.UpdateOptions{})
-}
-
-func (c *dynamicSchemaController) Delete(name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), "", name, *options)
-}
-
-func (c *dynamicSchemaController) Get(name string, options metav1.GetOptions) (*v3.DynamicSchema, error) {
-	result := &v3.DynamicSchema{}
-	return result, c.client.Get(context.TODO(), "", name, result, options)
-}
-
-func (c *dynamicSchemaController) List(opts metav1.ListOptions) (*v3.DynamicSchemaList, error) {
-	result := &v3.DynamicSchemaList{}
-	return result, c.client.List(context.TODO(), "", result, opts)
-}
-
-func (c *dynamicSchemaController) Watch(opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), "", opts)
-}
-
-func (c *dynamicSchemaController) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (*v3.DynamicSchema, error) {
-	result := &v3.DynamicSchema{}
-	return result, c.client.Patch(context.TODO(), "", name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type dynamicSchemaCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *dynamicSchemaCache) Get(name string) (*v3.DynamicSchema, error) {
-	obj, exists, err := c.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v3.DynamicSchema), nil
-}
-
-func (c *dynamicSchemaCache) List(selector labels.Selector) (ret []*v3.DynamicSchema, err error) {
-
-	err = cache.ListAll(c.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v3.DynamicSchema))
-	})
-
-	return ret, err
-}
-
-func (c *dynamicSchemaCache) AddIndexer(indexName string, indexer DynamicSchemaIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v3.DynamicSchema))
-		},
-	}))
-}
-
-func (c *dynamicSchemaCache) GetByIndex(indexName, key string) (result []*v3.DynamicSchema, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v3.DynamicSchema, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v3.DynamicSchema))
-	}
-	return result, nil
-}
-
+// DynamicSchemaStatusHandler is executed for every added or modified DynamicSchema. Should return the new status to be updated
 type DynamicSchemaStatusHandler func(obj *v3.DynamicSchema, status v3.DynamicSchemaStatus) (v3.DynamicSchemaStatus, error)
 
+// DynamicSchemaGeneratingHandler is the top-level handler that is executed for every DynamicSchema event. It extends DynamicSchemaStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type DynamicSchemaGeneratingHandler func(obj *v3.DynamicSchema, status v3.DynamicSchemaStatus) ([]runtime.Object, v3.DynamicSchemaStatus, error)
 
+// RegisterDynamicSchemaStatusHandler configures a DynamicSchemaController to execute a DynamicSchemaStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterDynamicSchemaStatusHandler(ctx context.Context, controller DynamicSchemaController, condition condition.Cond, name string, handler DynamicSchemaStatusHandler) {
 	statusHandler := &dynamicSchemaStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromDynamicSchemaHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterDynamicSchemaGeneratingHandler configures a DynamicSchemaController to execute a DynamicSchemaGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterDynamicSchemaGeneratingHandler(ctx context.Context, controller DynamicSchemaController, apply apply.Apply,
 	condition condition.Cond, name string, handler DynamicSchemaGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &dynamicSchemaGeneratingHandler{
@@ -297,6 +89,7 @@ type dynamicSchemaStatusHandler struct {
 	handler   DynamicSchemaStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *dynamicSchemaStatusHandler) sync(key string, obj *v3.DynamicSchema) (*v3.DynamicSchema, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +135,10 @@ type dynamicSchemaGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *dynamicSchemaGeneratingHandler) Remove(key string, obj *v3.DynamicSchema) (*v3.DynamicSchema, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +148,17 @@ func (a *dynamicSchemaGeneratingHandler) Remove(key string, obj *v3.DynamicSchem
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured DynamicSchemaGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *dynamicSchemaGeneratingHandler) Handle(obj *v3.DynamicSchema, status v3.DynamicSchemaStatus) (v3.DynamicSchemaStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +168,41 @@ func (a *dynamicSchemaGeneratingHandler) Handle(obj *v3.DynamicSchema, status v3
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *dynamicSchemaGeneratingHandler) isNewResourceVersion(obj *v3.DynamicSchema) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *dynamicSchemaGeneratingHandler) storeResourceVersion(obj *v3.DynamicSchema) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

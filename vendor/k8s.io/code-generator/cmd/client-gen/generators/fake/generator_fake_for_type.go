@@ -18,22 +18,20 @@ package fake
 
 import (
 	"io"
-	gopath "path"
-	"path/filepath"
+	"path"
 	"strings"
 
-	"k8s.io/gengo/generator"
-	"k8s.io/gengo/namer"
-	"k8s.io/gengo/types"
+	"k8s.io/gengo/v2/generator"
+	"k8s.io/gengo/v2/namer"
+	"k8s.io/gengo/v2/types"
 
 	"k8s.io/code-generator/cmd/client-gen/generators/util"
-	"k8s.io/code-generator/cmd/client-gen/path"
 )
 
 // genFakeForType produces a file for each top-level type.
 type genFakeForType struct {
-	generator.DefaultGen
-	outputPackage             string
+	generator.GoGenerator
+	outputPackage             string // Must be a Go import-path
 	group                     string
 	version                   string
 	groupGoName               string
@@ -78,7 +76,7 @@ func genStatus(t *types.Type) bool {
 // hasObjectMeta returns true if the type has a ObjectMeta field.
 func hasObjectMeta(t *types.Type) bool {
 	for _, m := range t.Members {
-		if m.Embedded == true && m.Name == "ObjectMeta" {
+		if m.Embedded && m.Name == "ObjectMeta" {
 			return true
 		}
 	}
@@ -88,56 +86,38 @@ func hasObjectMeta(t *types.Type) bool {
 // GenerateType makes the body of a file implementing the individual typed client for type t.
 func (g *genFakeForType) GenerateType(c *generator.Context, t *types.Type, w io.Writer) error {
 	sw := generator.NewSnippetWriter(w, c, "$", "$")
-	pkg := filepath.Base(t.Name.Package)
+	pkg := path.Base(t.Name.Package)
 	tags, err := util.ParseClientGenTags(append(t.SecondClosestCommentLines, t.CommentLines...))
 	if err != nil {
 		return err
 	}
-	canonicalGroup := g.group
-	if canonicalGroup == "core" {
-		canonicalGroup = ""
-	}
-
-	groupName := g.group
-	if g.group == "core" {
-		groupName = ""
-	}
-
-	// allow user to define a group name that's different from the one parsed from the directory.
-	p := c.Universe.Package(path.Vendorless(g.inputPackage))
-	if override := types.ExtractCommentTags("+", p.Comments)["groupName"]; override != nil {
-		groupName = override[0]
-	}
 
 	const pkgClientGoTesting = "k8s.io/client-go/testing"
 	m := map[string]interface{}{
-		"type":                 t,
-		"inputType":            t,
-		"resultType":           t,
-		"subresourcePath":      "",
-		"package":              pkg,
-		"Package":              namer.IC(pkg),
-		"namespaced":           !tags.NonNamespaced,
-		"Group":                namer.IC(g.group),
-		"GroupGoName":          g.groupGoName,
-		"Version":              namer.IC(g.version),
-		"group":                canonicalGroup,
-		"groupName":            groupName,
-		"version":              g.version,
-		"CreateOptions":        c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "CreateOptions"}),
-		"DeleteOptions":        c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "DeleteOptions"}),
-		"GetOptions":           c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "GetOptions"}),
-		"ListOptions":          c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "ListOptions"}),
-		"PatchOptions":         c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "PatchOptions"}),
-		"ApplyOptions":         c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "ApplyOptions"}),
-		"UpdateOptions":        c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "UpdateOptions"}),
-		"Everything":           c.Universe.Function(types.Name{Package: "k8s.io/apimachinery/pkg/labels", Name: "Everything"}),
-		"GroupVersionResource": c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/runtime/schema", Name: "GroupVersionResource"}),
-		"GroupVersionKind":     c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/runtime/schema", Name: "GroupVersionKind"}),
-		"PatchType":            c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/types", Name: "PatchType"}),
-		"ApplyPatchType":       c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/types", Name: "ApplyPatchType"}),
-		"watchInterface":       c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/watch", Name: "Interface"}),
-		"jsonMarshal":          c.Universe.Type(types.Name{Package: "encoding/json", Name: "Marshal"}),
+		"type":               t,
+		"inputType":          t,
+		"resultType":         t,
+		"subresourcePath":    "",
+		"package":            pkg,
+		"Package":            namer.IC(pkg),
+		"namespaced":         !tags.NonNamespaced,
+		"Group":              namer.IC(g.group),
+		"GroupGoName":        g.groupGoName,
+		"Version":            namer.IC(g.version),
+		"version":            g.version,
+		"SchemeGroupVersion": c.Universe.Type(types.Name{Package: t.Name.Package, Name: "SchemeGroupVersion"}),
+		"CreateOptions":      c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "CreateOptions"}),
+		"DeleteOptions":      c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "DeleteOptions"}),
+		"GetOptions":         c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "GetOptions"}),
+		"ListOptions":        c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "ListOptions"}),
+		"PatchOptions":       c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "PatchOptions"}),
+		"ApplyOptions":       c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "ApplyOptions"}),
+		"UpdateOptions":      c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "UpdateOptions"}),
+		"Everything":         c.Universe.Function(types.Name{Package: "k8s.io/apimachinery/pkg/labels", Name: "Everything"}),
+		"PatchType":          c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/types", Name: "PatchType"}),
+		"ApplyPatchType":     c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/types", Name: "ApplyPatchType"}),
+		"watchInterface":     c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/watch", Name: "Interface"}),
+		"jsonMarshal":        c.Universe.Type(types.Name{Package: "encoding/json", Name: "Marshal"}),
 
 		"NewRootListAction":              c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewRootListAction"}),
 		"NewListAction":                  c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewListAction"}),
@@ -172,7 +152,7 @@ func (g *genFakeForType) GenerateType(c *generator.Context, t *types.Type, w io.
 	if generateApply {
 		// Generated apply builder type references required for generated Apply function
 		_, gvString := util.ParsePathGroupVersion(g.inputPackage)
-		m["inputApplyConfig"] = types.Ref(gopath.Join(g.applyConfigurationPackage, gvString), t.Name.Name+"ApplyConfiguration")
+		m["inputApplyConfig"] = types.Ref(path.Join(g.applyConfigurationPackage, gvString), t.Name.Name+"ApplyConfiguration")
 	}
 
 	if tags.NonNamespaced {
@@ -256,7 +236,7 @@ func (g *genFakeForType) GenerateType(c *generator.Context, t *types.Type, w io.
 		m["resultType"] = &resultType
 		m["subresourcePath"] = e.SubResourcePath
 		if e.HasVerb("apply") {
-			m["inputApplyConfig"] = types.Ref(gopath.Join(g.applyConfigurationPackage, inputGVString), inputType.Name.Name+"ApplyConfiguration")
+			m["inputApplyConfig"] = types.Ref(path.Join(g.applyConfigurationPackage, inputGVString), inputType.Name.Name+"ApplyConfiguration")
 		}
 
 		if e.HasVerb("get") {
@@ -319,7 +299,9 @@ func (g *genFakeForType) GenerateType(c *generator.Context, t *types.Type, w io.
 // TODO: Make the verbs in templates parametrized so the strings.Replace() is
 // not needed.
 func adjustTemplate(name, verbType, template string) string {
-	return strings.Replace(template, " "+strings.Title(verbType), " "+name, -1)
+	//nolint:staticcheck
+	// TODO: convert this to use golang.org/x/text/cases
+	return strings.ReplaceAll(template, " "+strings.Title(verbType), " "+name)
 }
 
 // template for the struct that implements the type's interface
@@ -340,11 +322,11 @@ type Fake$.type|publicPlural$ struct {
 `
 
 var resource = `
-var $.type|allLowercasePlural$Resource = $.GroupVersionResource|raw${Group: "$.groupName$", Version: "$.version$", Resource: "$.type|resource$"}
+var $.type|allLowercasePlural$Resource = $.SchemeGroupVersion|raw$.WithResource("$.type|resource$")
 `
 
 var kind = `
-var $.type|allLowercasePlural$Kind = $.GroupVersionKind|raw${Group: "$.groupName$", Version: "$.version$", Kind: "$.type|singularKind$"}
+var $.type|allLowercasePlural$Kind = $.SchemeGroupVersion|raw$.WithKind("$.type|singularKind$")
 `
 
 var listTemplate = `

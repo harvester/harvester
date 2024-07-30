@@ -14,6 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/clock"
 
+	lhbackup "github.com/longhorn/go-common-libs/backup"
+
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
@@ -72,7 +74,10 @@ func NewBackupMonitor(logger logrus.FieldLogger, ds *datastore.DataStore, backup
 	}
 
 	// Call engine API snapshot backup
-	if backup.Status.State == longhorn.BackupStateNew {
+	if backup.Status.State == longhorn.BackupStateNew || backup.Status.State == longhorn.BackupStatePending {
+
+		backupParameters := getBackupParameters(backup)
+
 		// volumeRecurringJobInfo could be "".
 		volumeRecurringJobInfo, err := m.getVolumeRecurringJobInfos(ds, volume)
 		if err != nil {
@@ -84,7 +89,7 @@ func NewBackupMonitor(logger logrus.FieldLogger, ds *datastore.DataStore, backup
 		}
 		_, replicaAddress, err := engineClientProxy.SnapshotBackup(engine, backup.Spec.SnapshotName, backup.Name,
 			backupTargetClient.URL, volume.Spec.BackingImage, biChecksum, string(compressionMethod), concurrentLimit, storageClassName,
-			backup.Spec.Labels, backupTargetClient.Credential)
+			backup.Spec.Labels, backupTargetClient.Credential, backupParameters)
 		if err != nil {
 			if !strings.Contains(err.Error(), "DeadlineExceeded") {
 				m.logger.WithError(err).Warn("Cannot take snapshot backup")
@@ -195,7 +200,7 @@ func (m *BackupMonitor) monitorBackups() {
 
 // linerTimer runs a periodically liner timer to sync backup status from engine/replica
 func (m *BackupMonitor) linerTimer() {
-	wait.PollUntil(BackupMonitorSyncPeriod, func() (done bool, err error) {
+	if err := wait.PollUntilContextCancel(m.ctx, BackupMonitorSyncPeriod, false, func(context.Context) (done bool, err error) {
 		currentBackupStatus, err := m.syncBackupStatusFromEngineReplica()
 		if err != nil {
 			currentBackupStatus.State = longhorn.BackupStateError
@@ -203,7 +208,9 @@ func (m *BackupMonitor) linerTimer() {
 		}
 		m.syncCallBack(currentBackupStatus)
 		return false, nil
-	}, m.ctx.Done())
+	}); err != nil {
+		m.logger.WithError(err).Error("Failed to sync backup status")
+	}
 }
 
 // exponentialBackOffTimer runs a exponential backoff timer to sync backup status from engine/replica
@@ -218,7 +225,7 @@ func (m *BackupMonitor) exponentialBackOffTimer() bool {
 		retryCount    = 0
 	)
 	// The exponential backoff timer 2s/4s/8s/16s/.../10mins
-	backoffMgr := wait.NewExponentialBackoffManager(initBackoff, maxBackoff, resetDuration, backoffFactor, jitter, clock)
+	backoffMgr := wait.NewExponentialBackoffManager(initBackoff, maxBackoff, resetDuration, backoffFactor, jitter, clock) // nolint: staticcheck
 	defer backoffMgr.Backoff().Stop()
 
 	ctx, cancel := context.WithTimeout(context.Background(), BackupMonitorMaxRetryPeriod)
@@ -317,4 +324,10 @@ func (m *BackupMonitor) GetBackupStatus() longhorn.BackupStatus {
 func (m *BackupMonitor) Close() {
 	m.engineClientProxy.Close()
 	m.quit()
+}
+
+func getBackupParameters(backup *longhorn.Backup) map[string]string {
+	parameters := map[string]string{}
+	parameters[lhbackup.LonghornBackupParameterBackupMode] = string(backup.Spec.BackupMode)
+	return parameters
 }

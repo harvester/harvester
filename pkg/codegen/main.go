@@ -15,8 +15,8 @@ import (
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
-	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
-	"github.com/rancher/wrangler/pkg/controller-gen/args"
+	controllergen "github.com/rancher/wrangler/v3/pkg/controller-gen"
+	"github.com/rancher/wrangler/v3/pkg/controller-gen/args"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -133,9 +133,6 @@ func main() {
 					corev1.PersistentVolume{},
 					corev1.ResourceQuota{},
 				},
-				InformersPackage: "k8s.io/client-go/informers",
-				ClientSetPackage: "k8s.io/client-go/kubernetes",
-				ListersPackage:   "k8s.io/client-go/listers",
 			},
 			catalogv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
@@ -192,15 +189,23 @@ func nadControllerInterfaceRefactor() {
 // `SchemeGroupVersion` is not declared in the vendor package but wrangler uses it.
 // https://github.com/kubernetes-sigs/cluster-api/blob/56f9e9db7a9e9ca625ffe4bdc1e5e93a14d5e96c/api/v1beta1/groupversion_info.go#L29
 func capiWorkaround() {
-	absPath, _ := filepath.Abs("pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1/cluster.x-k8s.io_client.go")
-	input, err := ioutil.ReadFile(absPath)
-	if err != nil {
-		logrus.Fatalf("failed to read the clusters.cluster.x-k8s.io client file: %v", err)
+	files := []string{
+		"pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1/cluster.x-k8s.io_client.go",
+		"pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1/fake/fake_machine.go",
+		"pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1/fake/fake_cluster.go",
 	}
-	output := bytes.Replace(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"), -1)
 
-	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
-		logrus.Fatalf("failed to update the clusters.cluster.x-k8s.io client file: %v", err)
+	// Replace the variable `SchemeGroupVersion` with `GroupVersion` in the above files path
+	for _, absPath := range files {
+		input, err := ioutil.ReadFile(absPath)
+		if err != nil {
+			logrus.Fatalf("failed to read the clusters.cluster.x-k8s.io client file: %v", err)
+		}
+		output := bytes.Replace(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"), -1)
+
+		if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
+			logrus.Fatalf("failed to update the clusters.cluster.x-k8s.io client file: %v", err)
+		}
 	}
 }
 
@@ -208,14 +213,23 @@ func capiWorkaround() {
 // `SchemeGroupVersion` is not declared in the vendor package but wrangler uses it.
 // https://github.com/banzaicloud/logging-operator/blob/e935c5d60604036a6f40cd4ab991420c6eaf096b/pkg/sdk/logging/api/v1beta1/groupversion_info.go#L27
 func loggingWorkaround() {
-	absPath, _ := filepath.Abs("pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/logging.banzaicloud.io_client.go")
-	input, err := ioutil.ReadFile(absPath)
-	if err != nil {
-		logrus.Fatalf("failed to read the logging.banzaicloud.io client file: %v", err)
+	files := []string{
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/logging.banzaicloud.io_client.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_clusterflow.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_clusteroutput.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_logging.go",
 	}
-	output := bytes.Replace(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"), -1)
 
-	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
-		logrus.Fatalf("failed to update the logging.banzaicloud.io client file: %v", err)
+	// Replace the variable `SchemeGroupVersion` with `GroupVersion` in the above files path
+	for _, absPath := range files {
+		input, err := ioutil.ReadFile(absPath)
+		if err != nil {
+			logrus.Fatalf("failed to read the logging.banzaicloud.io client file: %v", err)
+		}
+		output := bytes.Replace(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"), -1)
+
+		if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
+			logrus.Fatalf("failed to update the logging.banzaicloud.io client file: %v", err)
+		}
 	}
 }

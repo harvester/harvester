@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/rancher/steve/pkg/server"
-	"github.com/rancher/wrangler/pkg/leader"
+	"github.com/rancher/wrangler/v3/pkg/leader"
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/master/addon"

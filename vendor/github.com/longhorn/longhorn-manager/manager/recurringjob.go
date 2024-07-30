@@ -65,11 +65,7 @@ func (m *VolumeManager) UpdateRecurringJob(spec longhorn.RecurringJobSpec) (*lon
 	}
 	sort.Strings(recurringJob.Spec.Groups)
 	sort.Strings(spec.Groups)
-	if recurringJob.Spec.Cron == spec.Cron &&
-		reflect.DeepEqual(recurringJob.Spec.Groups, spec.Groups) &&
-		recurringJob.Spec.Retain == spec.Retain &&
-		recurringJob.Spec.Concurrency == spec.Concurrency &&
-		reflect.DeepEqual(recurringJob.Spec.Labels, spec.Labels) {
+	if reflect.DeepEqual(recurringJob.Spec, spec) {
 		return recurringJob, nil
 	}
 	recurringJob.Spec.Cron = spec.Cron
@@ -77,6 +73,7 @@ func (m *VolumeManager) UpdateRecurringJob(spec longhorn.RecurringJobSpec) (*lon
 	recurringJob.Spec.Retain = spec.Retain
 	recurringJob.Spec.Concurrency = spec.Concurrency
 	recurringJob.Spec.Labels = spec.Labels
+	recurringJob.Spec.Parameters = spec.Parameters
 	return m.ds.UpdateRecurringJob(recurringJob)
 }
 

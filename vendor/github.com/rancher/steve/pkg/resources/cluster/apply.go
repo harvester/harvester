@@ -11,12 +11,13 @@ import (
 	"github.com/rancher/steve/pkg/attributes"
 	steveschema "github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/stores/proxy"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/yaml"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 )
 
 type Apply struct {
@@ -110,7 +111,8 @@ func (a *Apply) createApply(apiContext *types.APIRequest) (apply.Apply, error) {
 	}
 
 	apply := apply.New(client.Discovery(), func(gvr schema.GroupVersionResource) (dynamic.NamespaceableResourceInterface, error) {
-		dynamicClient, err := a.cg.DynamicClient(apiContext)
+		// don't record warnings from apply
+		dynamicClient, err := a.cg.DynamicClient(apiContext, rest.NoWarnings{})
 		if err != nil {
 			return nil, err
 		}

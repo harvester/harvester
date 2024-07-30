@@ -47,6 +47,7 @@ const (
 	LonghornKindRecurringJobList = "RecurringJobList"
 	LonghornKindSettingList      = "SettingList"
 	LonghornKindVolumeList       = "VolumeList"
+	LonghornKindBackingImageList = "BackingImageList"
 
 	KubernetesKindClusterRole           = "ClusterRole"
 	KubernetesKindClusterRoleBinding    = "ClusterRoleBinding"
@@ -56,7 +57,6 @@ const (
 	KubernetesKindJob                   = "Job"
 	KubernetesKindPersistentVolume      = "PersistentVolume"
 	KubernetesKindPersistentVolumeClaim = "PersistentVolumeClaim"
-	KubernetesKindPodSecurityPolicy     = "PodSecurityPolicy"
 	KubernetesKindRole                  = "Role"
 	KubernetesKindRoleBinding           = "RoleBinding"
 	KubernetesKindService               = "Service"
@@ -68,9 +68,9 @@ const (
 	KubernetesKindConfigMapList             = "ConfigMapList"
 	KubernetesKindDaemonSetList             = "DaemonSetList"
 	KubernetesKindDeploymentList            = "DeploymentList"
+	KubernetesKindPod                       = "Pod"
 	KubernetesKindPersistentVolumeList      = "PersistentVolumeList"
 	KubernetesKindPersistentVolumeClaimList = "PersistentVolumeClaimList"
-	KubernetesKindPodSecurityPolicyList     = "PodSecurityPolicyList"
 	KubernetesKindRoleList                  = "RoleList"
 	KubernetesKindRoleBindingList           = "RoleBindingList"
 	KubernetesKindServiceList               = "ServiceList"
@@ -174,6 +174,10 @@ const (
 	LonghornLabelLastSystemRestoreBackup    = "last-system-restored-backup"
 	LonghornLabelDataEngine                 = "data-engine"
 	LonghornLabelVersion                    = "version"
+	LonghornLabelAdmissionWebhook           = "admission-webhook"
+	LonghornLabelConversionWebhook          = "conversion-webhook"
+
+	LonghornRecoveryBackendServiceName = "longhorn-recovery-backend"
 
 	LonghornLabelValueEnabled = "enabled"
 	LonghornLabelValueIgnored = "ignored"
@@ -205,6 +209,13 @@ const (
 
 	CniNetworkNone          = ""
 	StorageNetworkInterface = "lhnet1"
+
+	KubeAPIQPS   = 50
+	KubeAPIBurst = 100
+)
+
+const (
+	RecurringJobBackupParameterFullBackupInterval = "full-backup-interval"
 )
 
 const (
@@ -213,6 +224,7 @@ const (
 
 const (
 	EnvNodeName       = "NODE_NAME"
+	EnvPodName        = "POD_NAME"
 	EnvPodNamespace   = "POD_NAMESPACE"
 	EnvPodIP          = "POD_IP"
 	EnvServiceAccount = "SERVICE_ACCOUNT"
@@ -255,6 +267,17 @@ const (
 
 	ImageChecksumNameLength             = 8
 	InstanceManagerSuffixChecksumLength = 32
+)
+
+const (
+	// CryptoKeyProvider specifies how the CryptoKeyValue is retrieved
+	// We currently only support passphrase retrieval via direct secret values
+	CryptoKeyProvider = "CRYPTO_KEY_PROVIDER"
+	CryptoKeyValue    = "CRYPTO_KEY_VALUE"
+	CryptoKeyCipher   = "CRYPTO_KEY_CIPHER"
+	CryptoKeyHash     = "CRYPTO_KEY_HASH"
+	CryptoKeySize     = "CRYPTO_KEY_SIZE"
+	CryptoPBKDF       = "CRYPTO_PBKDF"
 )
 
 // SettingsRelatedToVolume should match the items in datastore.GetLabelsForVolumesFollowsGlobalSettings
@@ -402,6 +425,25 @@ func GetManagerLabels() map[string]string {
 		"app": LonghornManagerDaemonSetName,
 	}
 }
+
+func GetAdmissionWebhookLabel() map[string]string {
+	return map[string]string{
+		GetLonghornLabelKey(LonghornLabelAdmissionWebhook): AdmissionWebhookServiceName,
+	}
+}
+
+func GetRecoveryBackendLabel() map[string]string {
+	return map[string]string{
+		GetLonghornLabelKey(LonghornLabelRecoveryBackend): LonghornRecoveryBackendServiceName,
+	}
+}
+
+func GetConversionWebhookLabel() map[string]string {
+	return map[string]string{
+		GetLonghornLabelKey(LonghornLabelConversionWebhook): ConversionWebhookServiceName,
+	}
+}
+
 func GetEngineImageLabels(engineImageName string) map[string]string {
 	labels := GetBaseLabelsForSystemManagedComponent()
 	labels[GetLonghornLabelComponentKey()] = LonghornLabelEngineImage
@@ -638,8 +680,8 @@ func GetShareManagerImageChecksumName(image string) string {
 	return shareManagerImagePrefix + util.GetStringChecksum(strings.TrimSpace(image))[:ImageChecksumNameLength]
 }
 
-func GetOrphanChecksumNameForOrphanedDirectory(nodeID, diskName, diskPath, diskUUID, dirName string) string {
-	return orphanPrefix + util.GetStringChecksumSHA256(strings.TrimSpace(fmt.Sprintf("%s-%s-%s-%s-%s", nodeID, diskName, diskPath, diskUUID, dirName)))
+func GetOrphanChecksumNameForOrphanedDataStore(nodeID, diskName, diskPath, diskUUID, dataStore string) string {
+	return orphanPrefix + util.GetStringChecksumSHA256(strings.TrimSpace(fmt.Sprintf("%s-%s-%s-%s-%s", nodeID, diskName, diskPath, diskUUID, dataStore)))
 }
 
 func GetShareManagerPodNameFromShareManagerName(smName string) string {
@@ -725,16 +767,41 @@ func ErrorIsInvalidState(err error) bool {
 }
 
 func ValidateReplicaCount(count int) error {
-	if count < 1 || count > 20 {
-		return fmt.Errorf("replica count value must between 1 to 20")
+
+	definition, _ := GetSettingDefinition(SettingNameDefaultReplicaCount)
+	valueIntRange := definition.ValueIntRange
+
+	if count < valueIntRange[ValueIntRangeMinimum] || count > valueIntRange[ValueIntRangeMaximum] {
+		return fmt.Errorf("replica count value %v must between %v to %v", count, valueIntRange[ValueIntRangeMinimum], valueIntRange[ValueIntRangeMaximum])
 	}
 	return nil
 }
 
-func ValidateLogLevel(level string) error {
-	if _, err := logrus.ParseLevel(level); err != nil {
-		return fmt.Errorf("log level is invalid")
+func ValidateMinNumberOfBackingIamgeCopies(number int) error {
+	definition, exists := GetSettingDefinition(SettingNameDefaultMinNumberOfBackingImageCopies)
+	if !exists {
+		return fmt.Errorf("setting %v definition does not exists", SettingNameDefaultMinNumberOfBackingImageCopies)
 	}
+	valueIntRange := definition.ValueIntRange
+
+	if number < valueIntRange[ValueIntRangeMinimum] {
+		return fmt.Errorf("minimum number of backing image copies %v must larger than %v", number, valueIntRange[ValueIntRangeMaximum])
+	}
+	return nil
+}
+
+func ValidateV2DataEngineLogFlags(flags string) error {
+	if flags == "" {
+		return nil
+	}
+
+	pattern := "^[a-zA-Z,]+$"
+	reg := regexp.MustCompile(pattern)
+
+	if !reg.MatchString(flags) {
+		return fmt.Errorf("log flags %s is invalid", flags)
+	}
+
 	return nil
 }
 
@@ -810,8 +877,16 @@ func ValidateBackupCompressionMethod(method string) error {
 	return nil
 }
 
-func ValidateUnmapMarkSnapChainRemoved(unmapValue longhorn.UnmapMarkSnapChainRemoved) error {
-	if unmapValue != longhorn.UnmapMarkSnapChainRemovedIgnored && unmapValue != longhorn.UnmapMarkSnapChainRemovedEnabled && unmapValue != longhorn.UnmapMarkSnapChainRemovedDisabled {
+func ValidateUnmapMarkSnapChainRemoved(dataEngine longhorn.DataEngineType, unmapValue longhorn.UnmapMarkSnapChainRemoved) error {
+	if IsDataEngineV2(dataEngine) {
+		if unmapValue != longhorn.UnmapMarkSnapChainRemovedDisabled {
+			return fmt.Errorf("invalid UnmapMarkSnapChainRemoved setting: %v", unmapValue)
+		}
+	}
+
+	if unmapValue != longhorn.UnmapMarkSnapChainRemovedIgnored &&
+		unmapValue != longhorn.UnmapMarkSnapChainRemovedEnabled &&
+		unmapValue != longhorn.UnmapMarkSnapChainRemovedDisabled {
 		return fmt.Errorf("invalid UnmapMarkSnapChainRemoved setting: %v", unmapValue)
 	}
 	return nil
@@ -840,6 +915,15 @@ func ValidateReplicaDiskSoftAntiAffinity(value longhorn.ReplicaDiskSoftAntiAffin
 		value != longhorn.ReplicaDiskSoftAntiAffinityEnabled &&
 		value != longhorn.ReplicaDiskSoftAntiAffinityDisabled {
 		return fmt.Errorf("invalid ReplicaDiskSoftAntiAffinity setting: %v", value)
+	}
+	return nil
+}
+
+func ValidateFreezeFilesystemForSnapshot(value longhorn.FreezeFilesystemForSnapshot) error {
+	if value != longhorn.FreezeFilesystemForSnapshotDefault &&
+		value != longhorn.FreezeFilesystemForSnapshotEnabled &&
+		value != longhorn.FreezeFilesystemForSnapshotDisabled {
+		return fmt.Errorf("invalid FreezeFilesystemForSnapshot setting: %v", value)
 	}
 	return nil
 }
@@ -959,25 +1043,37 @@ func UnmarshalToNodeTags(s string) ([]string, error) {
 	return res, nil
 }
 
-func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[string]longhorn.DiskSpec, error) {
-	fileInfo, err := os.Stat(dataPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, errors.Wrapf(err, "failed to stat %v for creating default disk", dataPath)
-		}
+func IsBDF(addr string) bool {
+	bdfFormat := "[a-f0-9]{4}:[a-f0-9]{2}:[a-f0-9]{2}\\.[a-f0-9]{1}"
+	bdfPattern := regexp.MustCompile(bdfFormat)
+	return bdfPattern.MatchString(addr)
+}
 
-		// Longhorn is unable to create block-type disk automatically
-		if strings.HasPrefix(dataPath, "/dev/") {
-			return nil, errors.Wrapf(err, "creating default block-type disk %v is not supported", dataPath)
-		}
+func IsPotentialBlockDisk(path string) bool {
+	if IsBDF(path) {
+		return true
 	}
 
-	// Block-type disk
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		logrus.WithError(err).Warnf("Failed to get file info for %v", path)
+		return strings.HasPrefix(path, "/dev/")
+	}
+
 	if fileInfo != nil && (fileInfo.Mode()&os.ModeDevice) == os.ModeDevice {
+		return true
+	}
+
+	return false
+}
+
+func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[string]longhorn.DiskSpec, error) {
+	if IsPotentialBlockDisk(dataPath) {
 		return map[string]longhorn.DiskSpec{
 			DefaultDiskPrefix + util.RandomID(): {
 				Type:              longhorn.DiskTypeBlock,
 				Path:              dataPath,
+				DiskDriver:        longhorn.DiskDriverAuto,
 				AllowScheduling:   true,
 				EvictionRequested: false,
 				StorageReserved:   0,
@@ -1000,6 +1096,7 @@ func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[st
 		DefaultDiskPrefix + diskStat.DiskID: {
 			Type:              longhorn.DiskTypeFilesystem,
 			Path:              diskStat.Path,
+			DiskDriver:        longhorn.DiskDriverNone,
 			AllowScheduling:   true,
 			EvictionRequested: false,
 			StorageReserved:   diskStat.StorageMaximum * storageReservedPercentage / 100,
@@ -1014,18 +1111,15 @@ func ValidateCPUReservationValues(settingName SettingName, instanceManagerCPUStr
 		return errors.Wrapf(err, "invalid guaranteed/requested instance manager CPU value (%v)", instanceManagerCPUStr)
 	}
 
+	definition, _ := GetSettingDefinition(settingName)
+	valueIntRange := definition.ValueIntRange
+
 	switch settingName {
-	case SettingNameGuaranteedInstanceManagerCPU:
-		isUnderLimit := instanceManagerCPU < 0
-		isOverLimit := instanceManagerCPU > 40
+	case SettingNameGuaranteedInstanceManagerCPU, SettingNameV2DataEngineGuaranteedInstanceManagerCPU:
+		isUnderLimit := instanceManagerCPU < valueIntRange[ValueIntRangeMinimum]
+		isOverLimit := instanceManagerCPU > valueIntRange[ValueIntRangeMaximum]
 		if isUnderLimit || isOverLimit {
-			return fmt.Errorf("invalid requested v1 data engine instance manager CPUs. Valid instance manager CPU range between 0%% - 40%%")
-		}
-	case SettingNameV2DataEngineGuaranteedInstanceManagerCPU:
-		isUnderLimit := instanceManagerCPU < 1000
-		isOverLimit := instanceManagerCPU > 8000
-		if isUnderLimit || isOverLimit {
-			return fmt.Errorf("invalid requested v2 data engine instance manager CPUs. Valid instance manager CPU range between 1000 - 8000 millicpu")
+			return fmt.Errorf("invalid requested instance manager CPUs. Valid instance manager CPU range between %v - %v millicpu", valueIntRange[ValueIntRangeMinimum], valueIntRange[ValueIntRangeMaximum])
 		}
 	}
 	return nil
@@ -1134,4 +1228,34 @@ func GetPDBNameFromIMName(imName string) string {
 
 func GetIMNameFromPDBName(pdbName string) string {
 	return pdbName
+}
+
+// IsDataEngineV1 returns true if the given dataEngine is v1
+func IsDataEngineV1(dataEngine longhorn.DataEngineType) bool {
+	return dataEngine != longhorn.DataEngineTypeV2
+}
+
+// IsDataEngineV2 returns true if the given dataEngine is v2
+func IsDataEngineV2(dataEngine longhorn.DataEngineType) bool {
+	return dataEngine == longhorn.DataEngineTypeV2
+}
+
+// IsStorageNetworkForRWXVolume returns true if the storage network setting value is not empty.
+// And isStorageNetworkForRWXVolumeEnabled is true.
+func IsStorageNetworkForRWXVolume(storageNetwork *longhorn.Setting, isStorageNetworkForRWXVolumeEnabled bool) bool {
+	if storageNetwork == nil {
+		return false
+	}
+	return storageNetwork.Value != CniNetworkNone && isStorageNetworkForRWXVolumeEnabled
+}
+
+func MergeStringMaps(baseMap, overwriteMap map[string]string) map[string]string {
+	result := map[string]string{}
+	for k, v := range baseMap {
+		result[k] = v
+	}
+	for k, v := range overwriteMap {
+		result[k] = v
+	}
+	return result
 }

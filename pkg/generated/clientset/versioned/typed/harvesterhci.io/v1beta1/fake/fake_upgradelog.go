@@ -24,7 +24,6 @@ import (
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeUpgradeLogs struct {
 	ns   string
 }
 
-var upgradelogsResource = schema.GroupVersionResource{Group: "harvesterhci.io", Version: "v1beta1", Resource: "upgradelogs"}
+var upgradelogsResource = v1beta1.SchemeGroupVersion.WithResource("upgradelogs")
 
-var upgradelogsKind = schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "UpgradeLog"}
+var upgradelogsKind = v1beta1.SchemeGroupVersion.WithKind("UpgradeLog")
 
 // Get takes name of the upgradeLog, and returns the corresponding upgradeLog object, and an error if there is any.
 func (c *FakeUpgradeLogs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.UpgradeLog, err error) {

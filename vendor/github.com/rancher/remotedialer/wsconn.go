@@ -10,20 +10,40 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type wsConn struct {
+type wsWrapper struct {
+	// Mutex is used to protect from concurrent usage of the websocket connection
 	sync.Mutex
+	// conn is the underlying websocket connection
 	conn *websocket.Conn
 }
 
-func newWSConn(conn *websocket.Conn) *wsConn {
-	w := &wsConn{
+func newWSConn(conn *websocket.Conn) *wsWrapper {
+	w := &wsWrapper{
 		conn: conn,
 	}
 	w.setupDeadline()
 	return w
 }
 
-func (w *wsConn) WriteMessage(messageType int, deadline time.Time, data []byte) error {
+type wsConn interface {
+	// Close will indicate the underlying websocket connection
+	Close() error
+	// NextReader gets a new reader from the underlying websocket connection
+	NextReader() (int, io.Reader, error)
+	// WriteControl writes a new websocket control frame, see https://datatracker.ietf.org/doc/html/rfc6455#section-5.5
+	WriteControl(messageType int, deadline time.Time, data []byte) error
+	// WriteMessage writes a new websocket data frame, see https://datatracker.ietf.org/doc/html/rfc6455#section-6
+	WriteMessage(messageType int, deadline time.Time, data []byte) error
+}
+
+func (w *wsWrapper) WriteControl(messageType int, deadline time.Time, data []byte) error {
+	w.Lock()
+	defer w.Unlock()
+
+	return w.conn.WriteControl(messageType, data, deadline)
+}
+
+func (w *wsWrapper) WriteMessage(messageType int, deadline time.Time, data []byte) error {
 	if deadline.IsZero() {
 		w.Lock()
 		defer w.Unlock()
@@ -48,11 +68,15 @@ func (w *wsConn) WriteMessage(messageType int, deadline time.Time, data []byte) 
 	}
 }
 
-func (w *wsConn) NextReader() (int, io.Reader, error) {
+func (w *wsWrapper) NextReader() (int, io.Reader, error) {
 	return w.conn.NextReader()
 }
 
-func (w *wsConn) setupDeadline() {
+func (w *wsWrapper) Close() error {
+	return w.conn.Close()
+}
+
+func (w *wsWrapper) setupDeadline() {
 	w.conn.SetReadDeadline(time.Now().Add(PingWaitDuration))
 	w.conn.SetPingHandler(func(string) error {
 		w.Lock()

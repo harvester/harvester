@@ -9,8 +9,9 @@ import (
 	spdkdevtypes "github.com/longhorn/go-spdk-helper/pkg/types"
 
 	emeta "github.com/longhorn/longhorn-engine/pkg/meta"
+	etypes "github.com/longhorn/longhorn-engine/pkg/types"
 
-	"github.com/longhorn/longhorn-manager/datastore"
+	"github.com/longhorn/longhorn-manager/types"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
@@ -85,23 +86,23 @@ type EngineClient interface {
 	VolumeSnapshotMaxSizeSet(engine *longhorn.Engine) error
 
 	ReplicaList(*longhorn.Engine) (map[string]*Replica, error)
-	ReplicaAdd(engine *longhorn.Engine, replicaName, url string, isRestoreVolume, fastSync bool, replicaFileSyncHTTPClientTimeout int64) error
+	ReplicaAdd(engine *longhorn.Engine, replicaName, url string, isRestoreVolume, fastSync bool, localSync *etypes.FileLocalSync, replicaFileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) error
 	ReplicaRemove(engine *longhorn.Engine, url string) error
 	ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longhorn.RebuildStatus, error)
 	ReplicaRebuildVerify(engine *longhorn.Engine, replicaName, url string) error
 	ReplicaModeUpdate(engine *longhorn.Engine, url string, mode string) error
 
-	SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string) (string, error)
+	SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string, freezeFilesystem bool) (string, error)
 	SnapshotList(engine *longhorn.Engine) (map[string]*longhorn.SnapshotInfo, error)
 	SnapshotGet(engine *longhorn.Engine, name string) (*longhorn.SnapshotInfo, error)
 	SnapshotDelete(engine *longhorn.Engine, name string) error
 	SnapshotRevert(engine *longhorn.Engine, name string) error
 	SnapshotPurge(engine *longhorn.Engine) error
 	SnapshotPurgeStatus(engine *longhorn.Engine) (map[string]*longhorn.PurgeStatus, error)
-	SnapshotBackup(engine *longhorn.Engine, snapshotName, backupName, backupTarget, backingImageName, backingImageChecksum, compressionMethod string, concurrentLimit int, storageClassName string, labels, credential map[string]string) (string, string, error)
+	SnapshotBackup(engine *longhorn.Engine, snapshotName, backupName, backupTarget, backingImageName, backingImageChecksum, compressionMethod string, concurrentLimit int, storageClassName string, labels, credential, parameters map[string]string) (string, string, error)
 	SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress, replicaName string) (*longhorn.EngineBackupStatus, error)
 	SnapshotCloneStatus(engine *longhorn.Engine) (map[string]*longhorn.SnapshotCloneStatus, error)
-	SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName, fromEngineName string, fileSyncHTTPClientTimeout int64) error
+	SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName, fromEngineName string, fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) error
 	SnapshotHash(engine *longhorn.Engine, snapshotName string, rehash bool) error
 	SnapshotHashStatus(engine *longhorn.Engine, snapshotName string) (map[string]*longhorn.HashStatus, error)
 
@@ -180,6 +181,9 @@ type Backup struct {
 	VolumeBackingImageName string               `json:"volumeBackingImageName"`
 	Messages               map[string]string    `json:"messages"`
 	CompressionMethod      string               `json:"compressionMethod"`
+	Parameters             map[string]string    `json:"parameters"`
+	NewlyUploadedDataSize  string               `json:"newlyUploadedDataSize"`
+	ReUploadedDataSize     string               `json:"reUploadedDataSize"`
 }
 
 type ConfigMetadata struct {
@@ -262,7 +266,7 @@ func GetEngineInstanceFrontend(dataEngine longhorn.DataEngineType, volumeFronten
 	switch volumeFrontend {
 	case longhorn.VolumeFrontendBlockDev:
 		frontend = string(iscsidevtypes.FrontendTGTBlockDev)
-		if datastore.IsDataEngineV2(dataEngine) {
+		if types.IsDataEngineV2(dataEngine) {
 			frontend = string(spdkdevtypes.FrontendSPDKTCPBlockdev)
 		}
 	case longhorn.VolumeFrontendISCSI:

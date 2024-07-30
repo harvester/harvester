@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,7 +76,7 @@ func (d *VMLiveMigrateDetector) Run(ctx context.Context) error {
 	listOptions := metav1.ListOptions{
 		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
 	}
-	vmiList, err := d.virtClient.VirtualMachineInstance("").List(ctx, &listOptions)
+	vmiList, err := d.virtClient.VirtualMachineInstance("").List(ctx, listOptions)
 	if err != nil {
 		return err
 	}

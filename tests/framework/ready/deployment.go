@@ -1,7 +1,7 @@
 package ready
 
 import (
-	"github.com/rancher/wrangler/pkg/generated/controllers/apps"
+	"github.com/rancher/wrangler/v3/pkg/generated/controllers/apps"
 	v1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

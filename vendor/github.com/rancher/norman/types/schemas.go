@@ -9,7 +9,7 @@ import (
 
 	"github.com/rancher/norman/types/convert"
 	"github.com/rancher/norman/types/definition"
-	"github.com/rancher/wrangler/pkg/name"
+	"github.com/rancher/wrangler/v3/pkg/name"
 )
 
 type SchemaCollection struct {

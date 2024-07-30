@@ -82,15 +82,18 @@ func fillVolumeInfo(volume *Volume) *VolumeInfo {
 
 func fillBackupInfo(backup *Backup, destURL string) *BackupInfo {
 	return &BackupInfo{
-		Name:              backup.Name,
-		URL:               EncodeBackupURL(backup.Name, backup.VolumeName, destURL),
-		SnapshotName:      backup.SnapshotName,
-		SnapshotCreated:   backup.SnapshotCreatedAt,
-		Created:           backup.CreatedTime,
-		Size:              backup.Size,
-		Labels:            backup.Labels,
-		IsIncremental:     backup.IsIncremental,
-		CompressionMethod: backup.CompressionMethod,
+		Name:                  backup.Name,
+		URL:                   EncodeBackupURL(backup.Name, backup.VolumeName, destURL),
+		SnapshotName:          backup.SnapshotName,
+		SnapshotCreated:       backup.SnapshotCreatedAt,
+		Created:               backup.CreatedTime,
+		Size:                  backup.Size,
+		Labels:                backup.Labels,
+		Parameters:            backup.Parameters,
+		IsIncremental:         backup.IsIncremental,
+		CompressionMethod:     backup.CompressionMethod,
+		NewlyUploadedDataSize: backup.NewlyUploadedDataSize,
+		ReUploadedDataSize:    backup.ReUploadedDataSize,
 	}
 }
 

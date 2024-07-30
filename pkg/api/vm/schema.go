@@ -7,7 +7,7 @@ import (
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/steve/pkg/stores/proxy"
-	"github.com/rancher/wrangler/pkg/schemas"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 
@@ -98,7 +98,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 
 	vmStore := &vmStore{
-		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup),
+		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup, nil),
 		vms:      scaled.VirtFactory.Kubevirt().V1().VirtualMachine(),
 		vmCache:  scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 		pvcs:     scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),

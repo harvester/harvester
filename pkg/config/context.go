@@ -11,14 +11,14 @@ import (
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io"
 	rkev1 "github.com/rancher/rancher/pkg/generated/controllers/rke.cattle.io"
-	"github.com/rancher/wrangler/pkg/apply"
-	appsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps"
-	batchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch"
-	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core"
-	rbacv1 "github.com/rancher/wrangler/pkg/generated/controllers/rbac"
-	storagev1 "github.com/rancher/wrangler/pkg/generated/controllers/storage"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/start"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	appsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps"
+	batchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch"
+	corev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
+	rbacv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac"
+	storagev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/start"
 	"github.com/sirupsen/logrus"
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -344,7 +344,7 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.CatalogFactory = catalog
 	management.starters = append(management.starters, catalog)
 
-	helm, err := helmv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	helm, err := helmv1.NewFactoryFromConfigWithOptions(restConfig, (*helmv1.FactoryOptions)(opts))
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +386,7 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.MonitoringFactory = monitoring
 	management.starters = append(management.starters, monitoring)
 
-	nodeconfig, err := ctlnodeharvester.NewFactoryFromConfigWithOptions(restConfig, opts)
+	nodeconfig, err := ctlnodeharvester.NewFactoryFromConfigWithOptions(restConfig, (*ctlnodeharvester.FactoryOptions)(opts))
 	if err != nil {
 		return nil, err
 	}

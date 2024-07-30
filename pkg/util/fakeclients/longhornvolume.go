@@ -4,13 +4,13 @@ import (
 	"context"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 
 	longhornv1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
-	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 )
 
 type LonghornVolumeClient func(string) longhornv1beta2.VolumeInterface
@@ -68,7 +68,7 @@ func (c LonghornVolumeCache) List(namespace string, selector labels.Selector) ([
 	return returnVolumes, nil
 }
 
-func (c LonghornVolumeCache) AddIndexer(_ string, _ ctllhv1.VolumeIndexer) {
+func (c LonghornVolumeCache) AddIndexer(_ string, _ generic.Indexer[*lhv1beta2.Volume]) {
 	panic("implement me")
 }
 

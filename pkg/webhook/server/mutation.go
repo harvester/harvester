@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/rancher/wrangler/pkg/webhook"
+	"github.com/rancher/wrangler/v3/pkg/webhook"
 	"github.com/sirupsen/logrus"
 
 	"github.com/harvester/harvester/pkg/webhook/clients"

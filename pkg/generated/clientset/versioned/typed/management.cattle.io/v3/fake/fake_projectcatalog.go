@@ -23,7 +23,6 @@ import (
 
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeProjectCatalogs struct {
 	ns   string
 }
 
-var projectcatalogsResource = schema.GroupVersionResource{Group: "management.cattle.io", Version: "v3", Resource: "projectcatalogs"}
+var projectcatalogsResource = v3.SchemeGroupVersion.WithResource("projectcatalogs")
 
-var projectcatalogsKind = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "ProjectCatalog"}
+var projectcatalogsKind = v3.SchemeGroupVersion.WithKind("ProjectCatalog")
 
 // Get takes name of the projectCatalog, and returns the corresponding projectCatalog object, and an error if there is any.
 func (c *FakeProjectCatalogs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ProjectCatalog, err error) {

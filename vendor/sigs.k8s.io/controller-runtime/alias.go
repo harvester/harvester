@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	cfg "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -96,11 +95,6 @@ var (
 	// * $HOME/.kube/config if exists.
 	GetConfig = config.GetConfig
 
-	// ConfigFile returns the cfg.File function for deferred config file loading,
-	// this is passed into Options{}.From() to populate the Options fields for
-	// the manager.
-	ConfigFile = cfg.File
-
 	// NewControllerManagedBy returns a new controller builder that will be started by the provided Manager.
 	NewControllerManagedBy = builder.ControllerManagedBy
 
@@ -108,6 +102,9 @@ var (
 	NewWebhookManagedBy = builder.WebhookManagedBy
 
 	// NewManager returns a new Manager for creating Controllers.
+	// Note that if ContentType in the given config is not set, "application/vnd.kubernetes.protobuf"
+	// will be used for all built-in resources of Kubernetes, and "application/json" is for other types
+	// including all CRD resources.
 	NewManager = manager.New
 
 	// CreateOrUpdate creates or updates the given object obj in the Kubernetes
@@ -139,7 +136,7 @@ var (
 	// The logger, when used with controllers, can be expected to contain basic information about the object
 	// that's being reconciled like:
 	// - `reconciler group` and `reconciler kind` coming from the For(...) object passed in when building a controller.
-	// - `name` and `namespace` injected from the reconciliation request.
+	// - `name` and `namespace` from the reconciliation request.
 	//
 	// This is meant to be used with the context supplied in a struct that satisfies the Reconciler interface.
 	LoggerFrom = log.FromContext
