@@ -244,3 +244,20 @@ func NewAddon(namespace, name string, obj Addon) *Addon {
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ResourceQuotaList is a list of ResourceQuota resources
+type ResourceQuotaList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ResourceQuota `json:"items"`
+}
+
+func NewResourceQuota(namespace, name string, obj ResourceQuota) *ResourceQuota {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ResourceQuota").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
