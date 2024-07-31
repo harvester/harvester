@@ -182,7 +182,8 @@ func TestGetUpgradableVersions(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		assert.Equal(t, tc.expected.canUpgrades, canUpgrade(tc.given.currentVersion, &tc.given.newVersions, tc.given.respVersion), "case %q", tc.name)
+		nv := tc.given.newVersions
+		assert.Equal(t, tc.expected.canUpgrades, canUpgrade(tc.given.currentVersion, &nv, tc.given.respVersion), "case %q", tc.name)
 	}
 }
 

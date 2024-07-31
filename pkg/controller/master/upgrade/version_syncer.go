@@ -162,7 +162,7 @@ func (s *versionSyncer) syncVersions(resp CheckUpgradeResponse, currentVersion s
 
 		// newVersion CRD is created from the version.yaml created from the release artifact
 		// this needs to be changed to use the min version coming from the upgrade responder
-		// as this could be dyanmically update and will cause cleanup of older versions
+		// as this could be dynamically update and will cause cleanup of older versions
 		if !canUpgrade(currentVersion, newVersion, v) {
 			continue
 		}
