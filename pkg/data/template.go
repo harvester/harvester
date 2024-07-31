@@ -506,7 +506,7 @@ spec:
               claimName: pvc-rootdisk
             name: rootdisk
           - containerDisk:
-              image: registry.suse.com/suse/vmdp/vmdp:2.5.4.2
+              image: registry.suse.com/suse/vmdp/vmdp:2.5.4.3
               imagePullPolicy: IfNotPresent
             name: virtio-container-disk
 `
