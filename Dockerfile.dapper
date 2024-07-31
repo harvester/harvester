@@ -1,10 +1,10 @@
-FROM quay.io/costoolkit/releases-teal:grub2-live-0.0.4-2 as grub2-mbr
-FROM quay.io/costoolkit/releases-teal:grub2-efi-image-live-0.0.4-2 as grub2-efi
+FROM quay.io/costoolkit/releases-teal:grub2-live-0.0.4-2 AS grub2-mbr
+FROM quay.io/costoolkit/releases-teal:grub2-efi-image-live-0.0.4-2 AS grub2-efi
 
 FROM golang:1.22-bookworm
 
 ARG DAPPER_HOST_ARCH
-ENV ARCH $DAPPER_HOST_ARCH
+ENV ARCH=$DAPPER_HOST_ARCH
 ENV GOTOOLCHAIN=auto
 
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
@@ -22,7 +22,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
 # install yq
 RUN GO111MODULE=on go install github.com/mikefarah/yq/v4@v4.27.5
 # set up helm
-ENV HELM_VERSION v3.5.4
+ENV HELM_VERSION=v3.5.4
 ENV HELM_URL=https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
 RUN mkdir /usr/tmp && \
     curl ${HELM_URL} | tar xvzf - --strip-components=1 -C /usr/tmp/ && \
@@ -70,16 +70,16 @@ COPY --from=grub2-efi / /grub2-efi
 # -- for make rules
 
 # -- for dapper
-ENV DAPPER_RUN_ARGS --privileged --network host -v /run/containerd/containerd.sock:/run/containerd/containerd.sock
-ENV GO111MODULE off
-ENV DAPPER_ENV REPO TAG DRONE_TAG DRONE_BRANCH CROSS GOPROXY PUSH RKE2_IMAGE_REPO USE_LOCAL_IMAGES CODECOV_TOKEN
-ENV DAPPER_SOURCE /go/src/github.com/harvester/harvester/
-ENV DAPPER_OUTPUT ./api ./bin ./deploy ./dist ./package ./pkg
-ENV DAPPER_DOCKER_SOCKET true
-ENV HOME ${DAPPER_SOURCE}
+ENV DAPPER_RUN_ARGS="--privileged --network host -v /run/containerd/containerd.sock:/run/containerd/containerd.sock"
+ENV GO111MODULE=off
+ENV DAPPER_ENV="REPO TAG DRONE_TAG DRONE_BRANCH CROSS GOPROXY PUSH RKE2_IMAGE_REPO USE_LOCAL_IMAGES CODECOV_TOKEN"
+ENV DAPPER_SOURCE=/go/src/github.com/harvester/harvester/
+ENV DAPPER_OUTPUT="./api ./bin ./deploy ./dist ./package ./pkg"
+ENV DAPPER_DOCKER_SOCKET=true
+ENV HOME=${DAPPER_SOURCE}
 # -- for dapper
 
-ENV GO111MODULE on
+ENV GO111MODULE=on
 
 WORKDIR ${DAPPER_SOURCE}
 ENTRYPOINT ["./scripts/entry"]
