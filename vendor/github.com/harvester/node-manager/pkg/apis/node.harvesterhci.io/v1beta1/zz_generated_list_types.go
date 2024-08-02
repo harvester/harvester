@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -53,6 +53,23 @@ type NodeConfigList struct {
 
 func NewNodeConfig(namespace, name string, obj NodeConfig) *NodeConfig {
 	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("NodeConfig").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// CloudInitList is a list of CloudInit resources
+type CloudInitList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []CloudInit `json:"items"`
+}
+
+func NewCloudInit(namespace, name string, obj CloudInit) *CloudInit {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("CloudInit").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj

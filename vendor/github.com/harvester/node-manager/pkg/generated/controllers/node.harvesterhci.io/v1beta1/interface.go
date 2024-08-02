@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,8 @@ package v1beta1
 import (
 	v1beta1 "github.com/harvester/node-manager/pkg/apis/node.harvesterhci.io/v1beta1"
 	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/schemes"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -30,6 +31,7 @@ func init() {
 }
 
 type Interface interface {
+	CloudInit() CloudInitController
 	Ksmtuned() KsmtunedController
 	NodeConfig() NodeConfigController
 }
@@ -44,9 +46,14 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) Ksmtuned() KsmtunedController {
-	return NewKsmtunedController(schema.GroupVersionKind{Group: "node.harvesterhci.io", Version: "v1beta1", Kind: "Ksmtuned"}, "ksmtuneds", false, c.controllerFactory)
+func (v *version) CloudInit() CloudInitController {
+	return generic.NewNonNamespacedController[*v1beta1.CloudInit, *v1beta1.CloudInitList](schema.GroupVersionKind{Group: "node.harvesterhci.io", Version: "v1beta1", Kind: "CloudInit"}, "cloudinits", v.controllerFactory)
 }
-func (c *version) NodeConfig() NodeConfigController {
-	return NewNodeConfigController(schema.GroupVersionKind{Group: "node.harvesterhci.io", Version: "v1beta1", Kind: "NodeConfig"}, "nodeconfigs", true, c.controllerFactory)
+
+func (v *version) Ksmtuned() KsmtunedController {
+	return generic.NewNonNamespacedController[*v1beta1.Ksmtuned, *v1beta1.KsmtunedList](schema.GroupVersionKind{Group: "node.harvesterhci.io", Version: "v1beta1", Kind: "Ksmtuned"}, "ksmtuneds", v.controllerFactory)
+}
+
+func (v *version) NodeConfig() NodeConfigController {
+	return generic.NewController[*v1beta1.NodeConfig, *v1beta1.NodeConfigList](schema.GroupVersionKind{Group: "node.harvesterhci.io", Version: "v1beta1", Kind: "NodeConfig"}, "nodeconfigs", true, v.controllerFactory)
 }

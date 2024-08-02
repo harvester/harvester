@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Rancher Labs, Inc.
+Copyright 2024 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import (
 )
 
 var (
+	CloudInitResourceName  = "cloudinits"
 	KsmtunedResourceName   = "ksmtuneds"
 	NodeConfigResourceName = "nodeconfigs"
 )
@@ -53,6 +54,8 @@ var (
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
+		&CloudInit{},
+		&CloudInitList{},
 		&Ksmtuned{},
 		&KsmtunedList{},
 		&NodeConfig{},
