@@ -34,31 +34,31 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// NodeConfigController interface for managing NodeConfig resources.
-type NodeConfigController interface {
-	generic.ControllerInterface[*v1beta1.NodeConfig, *v1beta1.NodeConfigList]
+// CloudInitController interface for managing CloudInit resources.
+type CloudInitController interface {
+	generic.NonNamespacedControllerInterface[*v1beta1.CloudInit, *v1beta1.CloudInitList]
 }
 
-// NodeConfigClient interface for managing NodeConfig resources in Kubernetes.
-type NodeConfigClient interface {
-	generic.ClientInterface[*v1beta1.NodeConfig, *v1beta1.NodeConfigList]
+// CloudInitClient interface for managing CloudInit resources in Kubernetes.
+type CloudInitClient interface {
+	generic.NonNamespacedClientInterface[*v1beta1.CloudInit, *v1beta1.CloudInitList]
 }
 
-// NodeConfigCache interface for retrieving NodeConfig resources in memory.
-type NodeConfigCache interface {
-	generic.CacheInterface[*v1beta1.NodeConfig]
+// CloudInitCache interface for retrieving CloudInit resources in memory.
+type CloudInitCache interface {
+	generic.NonNamespacedCacheInterface[*v1beta1.CloudInit]
 }
 
-// NodeConfigStatusHandler is executed for every added or modified NodeConfig. Should return the new status to be updated
-type NodeConfigStatusHandler func(obj *v1beta1.NodeConfig, status v1beta1.NodeConfigStatus) (v1beta1.NodeConfigStatus, error)
+// CloudInitStatusHandler is executed for every added or modified CloudInit. Should return the new status to be updated
+type CloudInitStatusHandler func(obj *v1beta1.CloudInit, status v1beta1.CloudInitStatus) (v1beta1.CloudInitStatus, error)
 
-// NodeConfigGeneratingHandler is the top-level handler that is executed for every NodeConfig event. It extends NodeConfigStatusHandler by a returning a slice of child objects to be passed to apply.Apply
-type NodeConfigGeneratingHandler func(obj *v1beta1.NodeConfig, status v1beta1.NodeConfigStatus) ([]runtime.Object, v1beta1.NodeConfigStatus, error)
+// CloudInitGeneratingHandler is the top-level handler that is executed for every CloudInit event. It extends CloudInitStatusHandler by a returning a slice of child objects to be passed to apply.Apply
+type CloudInitGeneratingHandler func(obj *v1beta1.CloudInit, status v1beta1.CloudInitStatus) ([]runtime.Object, v1beta1.CloudInitStatus, error)
 
-// RegisterNodeConfigStatusHandler configures a NodeConfigController to execute a NodeConfigStatusHandler for every events observed.
+// RegisterCloudInitStatusHandler configures a CloudInitController to execute a CloudInitStatusHandler for every events observed.
 // If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
-func RegisterNodeConfigStatusHandler(ctx context.Context, controller NodeConfigController, condition condition.Cond, name string, handler NodeConfigStatusHandler) {
-	statusHandler := &nodeConfigStatusHandler{
+func RegisterCloudInitStatusHandler(ctx context.Context, controller CloudInitController, condition condition.Cond, name string, handler CloudInitStatusHandler) {
+	statusHandler := &cloudInitStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
@@ -66,31 +66,31 @@ func RegisterNodeConfigStatusHandler(ctx context.Context, controller NodeConfigC
 	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
-// RegisterNodeConfigGeneratingHandler configures a NodeConfigController to execute a NodeConfigGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// RegisterCloudInitGeneratingHandler configures a CloudInitController to execute a CloudInitGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
 // If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
-func RegisterNodeConfigGeneratingHandler(ctx context.Context, controller NodeConfigController, apply apply.Apply,
-	condition condition.Cond, name string, handler NodeConfigGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
-	statusHandler := &nodeConfigGeneratingHandler{
-		NodeConfigGeneratingHandler: handler,
-		apply:                       apply,
-		name:                        name,
-		gvk:                         controller.GroupVersionKind(),
+func RegisterCloudInitGeneratingHandler(ctx context.Context, controller CloudInitController, apply apply.Apply,
+	condition condition.Cond, name string, handler CloudInitGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &cloudInitGeneratingHandler{
+		CloudInitGeneratingHandler: handler,
+		apply:                      apply,
+		name:                       name,
+		gvk:                        controller.GroupVersionKind(),
 	}
 	if opts != nil {
 		statusHandler.opts = *opts
 	}
 	controller.OnChange(ctx, name, statusHandler.Remove)
-	RegisterNodeConfigStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+	RegisterCloudInitStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
 }
 
-type nodeConfigStatusHandler struct {
-	client    NodeConfigClient
+type cloudInitStatusHandler struct {
+	client    CloudInitClient
 	condition condition.Cond
-	handler   NodeConfigStatusHandler
+	handler   CloudInitStatusHandler
 }
 
 // sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
-func (a *nodeConfigStatusHandler) sync(key string, obj *v1beta1.NodeConfig) (*v1beta1.NodeConfig, error) {
+func (a *cloudInitStatusHandler) sync(key string, obj *v1beta1.CloudInit) (*v1beta1.CloudInit, error) {
 	if obj == nil {
 		return obj, nil
 	}
@@ -129,8 +129,8 @@ func (a *nodeConfigStatusHandler) sync(key string, obj *v1beta1.NodeConfig) (*v1
 	return obj, err
 }
 
-type nodeConfigGeneratingHandler struct {
-	NodeConfigGeneratingHandler
+type cloudInitGeneratingHandler struct {
+	CloudInitGeneratingHandler
 	apply apply.Apply
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
@@ -139,12 +139,12 @@ type nodeConfigGeneratingHandler struct {
 }
 
 // Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
-func (a *nodeConfigGeneratingHandler) Remove(key string, obj *v1beta1.NodeConfig) (*v1beta1.NodeConfig, error) {
+func (a *cloudInitGeneratingHandler) Remove(key string, obj *v1beta1.CloudInit) (*v1beta1.CloudInit, error) {
 	if obj != nil {
 		return obj, nil
 	}
 
-	obj = &v1beta1.NodeConfig{}
+	obj = &v1beta1.CloudInit{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
@@ -158,13 +158,13 @@ func (a *nodeConfigGeneratingHandler) Remove(key string, obj *v1beta1.NodeConfig
 		ApplyObjects()
 }
 
-// Handle executes the configured NodeConfigGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
-func (a *nodeConfigGeneratingHandler) Handle(obj *v1beta1.NodeConfig, status v1beta1.NodeConfigStatus) (v1beta1.NodeConfigStatus, error) {
+// Handle executes the configured CloudInitGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
+func (a *cloudInitGeneratingHandler) Handle(obj *v1beta1.CloudInit, status v1beta1.CloudInitStatus) (v1beta1.CloudInitStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
 	}
 
-	objs, newStatus, err := a.NodeConfigGeneratingHandler(obj, status)
+	objs, newStatus, err := a.CloudInitGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
 	}
@@ -185,7 +185,7 @@ func (a *nodeConfigGeneratingHandler) Handle(obj *v1beta1.NodeConfig, status v1b
 
 // isNewResourceVersion detects if a specific resource version was already successfully processed.
 // Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *nodeConfigGeneratingHandler) isNewResourceVersion(obj *v1beta1.NodeConfig) bool {
+func (a *cloudInitGeneratingHandler) isNewResourceVersion(obj *v1beta1.CloudInit) bool {
 	if !a.opts.UniqueApplyForResourceVersion {
 		return true
 	}
@@ -198,7 +198,7 @@ func (a *nodeConfigGeneratingHandler) isNewResourceVersion(obj *v1beta1.NodeConf
 
 // storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
 // Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *nodeConfigGeneratingHandler) storeResourceVersion(obj *v1beta1.NodeConfig) {
+func (a *cloudInitGeneratingHandler) storeResourceVersion(obj *v1beta1.CloudInit) {
 	if !a.opts.UniqueApplyForResourceVersion {
 		return
 	}

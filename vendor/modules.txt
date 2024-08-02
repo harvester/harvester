@@ -398,8 +398,8 @@ github.com/harvester/go-common
 ## explicit; go 1.18
 github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io
 github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1
-# github.com/harvester/node-manager v0.1.5-0.20230614075852-de2da3ef3aca
-## explicit; go 1.19
+# github.com/harvester/node-manager v0.3.0
+## explicit; go 1.22.5
 github.com/harvester/node-manager/pkg/apis/node.harvesterhci.io
 github.com/harvester/node-manager/pkg/apis/node.harvesterhci.io/v1beta1
 github.com/harvester/node-manager/pkg/generated/controllers/node.harvesterhci.io
