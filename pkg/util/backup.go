@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/longhorn/backupstore"
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 
 	"github.com/harvester/harvester/pkg/settings"
 )
