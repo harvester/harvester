@@ -89,12 +89,15 @@ func (v *virtualMachineImageValidator) CheckImageDisplayNameAndURL(newImage *v1b
 		return werror.NewConflict("A resource with the same name exists")
 	}
 
-	if newImage.Spec.SourceType == v1beta1.VirtualMachineImageSourceTypeDownload && newImage.Spec.URL == "" {
-		return werror.NewInvalidError(`url is required when image source type is "download"`, "spec.url")
+	shouldHaveURL := false
+	if newImage.Spec.SourceType == v1beta1.VirtualMachineImageSourceTypeDownload || newImage.Spec.SourceType == v1beta1.VirtualMachineImageSourceTypeRestore {
+		shouldHaveURL = true
 	}
 
-	if newImage.Spec.SourceType != v1beta1.VirtualMachineImageSourceTypeDownload && newImage.Spec.URL != "" {
-		return werror.NewInvalidError(`url should be empty when image source type is not "download"`, "spec.url")
+	if shouldHaveURL && newImage.Spec.URL == "" {
+		return werror.NewInvalidError(fmt.Sprintf(`url is required when image source type is "%s"`, newImage.Spec.SourceType), "spec.url")
+	} else if !shouldHaveURL && newImage.Spec.URL != "" {
+		return werror.NewInvalidError(fmt.Sprintf(`url should be empty when image source type is "%s"`, newImage.Spec.SourceType), "spec.url")
 	}
 
 	return nil
