@@ -860,6 +860,12 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		}
 	}
 
+	vmBackupCopy := vmBackup.DeepCopy()
+	updateBackupCondition(vmBackupCopy, harvesterv1.Condition{
+		Type:               harvesterv1.BackupConditionMetadataReady,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: currentTime().Format(time.RFC3339),
+	})
 	return nil
 }
 

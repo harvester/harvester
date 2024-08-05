@@ -32,8 +32,19 @@ import (
 
 const (
 	vmBackupMetadataFolderPath   = "harvester/vmbackups/"
+	vmImageMetadataFolderPath    = "harvester/vmimages/"
 	backupMetadataControllerName = "harvester-backup-metadata-controller"
 )
+
+type VirtualMachineImageMetadata struct {
+	Name                   string            `json:"name"`
+	Namespace              string            `json:"namespace"`
+	URL                    string            `json:"url"`
+	DisplayName            string            `json:"displayName,omitempty"`
+	Description            string            `json:"description,omitempty"`
+	Checksum               string            `json:"checksum,omitempty"`
+	StorageClassParameters map[string]string `json:"storageClassParameters,omitempty"`
+}
 
 type VirtualMachineBackupMetadata struct {
 	Name          string                                `json:"name"`
@@ -54,11 +65,14 @@ type MetadataHandler struct {
 	settings             ctlharvesterv1.SettingController
 	vmBackups            ctlharvesterv1.VirtualMachineBackupClient
 	vmBackupCache        ctlharvesterv1.VirtualMachineBackupCache
+	vmImages             ctlharvesterv1.VirtualMachineImageClient
+	vmImageCache         ctlharvesterv1.VirtualMachineImageCache
 }
 
 // RegisterBackupMetadata register the setting controller and resync vm backup metadata when backup target change
 func RegisterBackupMetadata(ctx context.Context, management *config.Management, _ config.Options) error {
 	vmBackups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
+	vmImages := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
 	secrets := management.CoreFactory.Core().V1().Secret()
@@ -75,6 +89,8 @@ func RegisterBackupMetadata(ctx context.Context, management *config.Management, 
 		settings:             settings,
 		vmBackups:            vmBackups,
 		vmBackupCache:        vmBackups.Cache(),
+		vmImages:             vmImages,
+		vmImageCache:         vmImages.Cache(),
 	}
 
 	settings.OnChange(ctx, backupMetadataControllerName, backupMetadataController.OnBackupTargetChange)
@@ -100,13 +116,87 @@ func (h *MetadataHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Se
 		return nil, nil
 	}
 
+	contextLogger := logrus.WithFields(logrus.Fields{
+		"target.type":     target.Type,
+		"target.endpoint": target.Endpoint,
+	})
+	contextLogger.Info("start syncing vm image metadata...")
+	if err = h.syncVMImage(target); err != nil {
+		contextLogger.WithError(err).Errorf("can't sync vm image metadata")
+		h.settings.EnqueueAfter(setting.Name, 5*time.Second)
+		return nil, nil
+	}
+
+	contextLogger.Info("start syncing vm backup metadata...")
 	if err = h.syncVMBackup(target); err != nil {
-		logrus.Errorf("can't sync vm backup metadata, target:%s:%s, err: %v", target.Type, target.Endpoint, err)
+		contextLogger.WithError(err).Errorf("can't sync vm backup metadata")
 		h.settings.EnqueueAfter(setting.Name, 5*time.Second)
 		return nil, nil
 	}
 
 	return nil, nil
+}
+
+func (h *MetadataHandler) syncVMImage(target *settings.BackupTarget) error {
+	bsDriver, err := util.GetBackupStoreDriver(h.secretCache, target)
+	if err != nil {
+		return err
+	}
+
+	namespaceFolders, err := bsDriver.List(filepath.Join(vmImageMetadataFolderPath))
+	if err != nil {
+		return err
+	}
+
+	for _, namespaceFolder := range namespaceFolders {
+		fileNames, err := bsDriver.List(filepath.Join(vmImageMetadataFolderPath, namespaceFolder))
+		if err != nil {
+			return err
+		}
+		for _, fileName := range fileNames {
+			imageMetadata, err := loadVMImageMetadataInBackupTarget(filepath.Join(vmImageMetadataFolderPath, namespaceFolder, fileName), bsDriver)
+			if err != nil {
+				return err
+			}
+			if imageMetadata.Namespace == "" {
+				imageMetadata.Namespace = metav1.NamespaceDefault
+			}
+			if err := h.createVMImageIfNotExist(*imageMetadata); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (h *MetadataHandler) createVMImageIfNotExist(imageMetadata VirtualMachineImageMetadata) error {
+	if _, err := h.vmImageCache.Get(imageMetadata.Namespace, imageMetadata.Name); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	} else if err == nil {
+		return nil
+	}
+
+	if err := h.createNamespaceIfNotExist(imageMetadata.Namespace); err != nil {
+		return err
+	}
+
+	if _, err := h.vmImages.Create(&harvesterv1.VirtualMachineImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      imageMetadata.Name,
+			Namespace: imageMetadata.Namespace,
+		},
+		Spec: harvesterv1.VirtualMachineImageSpec{
+			SourceType:             harvesterv1.VirtualMachineImageSourceTypeRestore,
+			URL:                    imageMetadata.URL,
+			Description:            imageMetadata.Description,
+			DisplayName:            imageMetadata.DisplayName,
+			Checksum:               imageMetadata.Checksum,
+			StorageClassParameters: imageMetadata.StorageClassParameters,
+		},
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (h *MetadataHandler) syncVMBackup(target *settings.BackupTarget) error {
@@ -244,6 +334,24 @@ func (h *MetadataHandler) moveFilePaths(filePaths []string, bsDriver backupstore
 		}
 	}
 	return nil
+}
+
+func loadVMImageMetadataInBackupTarget(filePath string, bsDriver backupstore.BackupStoreDriver) (*VirtualMachineImageMetadata, error) {
+	if !bsDriver.FileExists(filePath) {
+		return nil, fmt.Errorf("cannot find %v in backupstore", filePath)
+	}
+
+	rc, err := bsDriver.Read(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+
+	imageMetadata := &VirtualMachineImageMetadata{}
+	if err := json.NewDecoder(rc).Decode(imageMetadata); err != nil {
+		return nil, err
+	}
+	return imageMetadata, nil
 }
 
 func loadBackupMetadataInBackupTarget(filePath string, bsDriver backupstore.BackupStoreDriver) (*VirtualMachineBackupMetadata, error) {

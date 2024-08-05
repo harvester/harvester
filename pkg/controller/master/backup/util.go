@@ -229,3 +229,7 @@ func getSecretRefName(vmName string, secretName string) string {
 func getVMBackupMetadataFilePath(vmBackupNamespace, vmBackupName string) string {
 	return filepath.Join(vmBackupMetadataFolderPath, vmBackupNamespace, fmt.Sprintf("%s.cfg", vmBackupName))
 }
+
+func getVMImageMetadataFilePath(vmImageNamespace, vmImageName string) string {
+	return filepath.Join(vmImageMetadataFolderPath, vmImageNamespace, fmt.Sprintf("%s.cfg", vmImageName))
+}
