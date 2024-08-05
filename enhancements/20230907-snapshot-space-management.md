@@ -2,7 +2,8 @@
 
 ## Summary
 
-This proposal leverages [LH Snapshot Space Management](https://github.com/longhorn/longhorn/issues/6563) to control snapshot space usage in the system. LH introduces two new attributes `snapshotMaxCount` and `snapshotMaxSize` in Volume. Harvester can use these parameters to set upper bound for snapshot space usage.
+This proposal introduces soft limitation about snapshot size. Users can set maximal total snapshot size at VM or Namespace level.
+Before creating a new VMBackup or VolumeSnapshot, webhook will check snapshot size usage from LH Engine status. This proposal focuses on snapshot size usage in the system, not backup target.
 
 ### Related Issues
 
@@ -12,11 +13,12 @@ https://github.com/harvester/harvester/issues/4478
 
 ### Goals
 
-- Set snapshot count and size limitations for each volume.
+- Provide a way to control snapshot size usage at VM or Namespace level.
 
 ## Proposal
 
-Use a PVC controller to watch PVCs. If there is `harvesterhci.io/snapshotMaxCount` or `harvesterhci.io/snapshotMaxSize` annotation on a PVC, the system uses the value to update the related LH Volume.
+When receiving a new VMBackup or VolumeSnapshot request, webhook will check the snapshot size usage from the related LH Engine status.
+If the usage is more than limit, deny the request.
 
 ### User Stories
 
@@ -28,66 +30,205 @@ Before snapshot space management:
 The default maximum snapshot count for each volume is `250`. This is a constants value in the [source code](https://github.com/longhorn/longhorn-engine/blob/8b4c80ab174b4f454a992ff998b6cb1041faf63d/pkg/replica/replica.go#L33) and users don't have a way to control it. If a volume size is 1G, the maximum snapshot space usage will be 250G.
 
 After snapshot space management:
-There is a configurable default maximum snapshot count setting. Users can update it to overwrite the fixed value in the system.
-Users can set different maximum snapshot count and size on each volume. A more important volume can have more snapshot space usage.
+Administrators can control snapshot space usage at VM or Namespace level.
 
 ### API changes
 
-No harvester API changes are needed. The changes will only be in the pvc controller logic.
+#### Update Resource Quota API on Namespace [POST]
+
+Endpoint: `/v1/harvester/namespace/<namespace>?action=updateResourceQuota`
+
+Request (application/json):
+```json
+{
+    "updateResourceQuota": "10Gi"
+}
+```
+
+Response:
+- 403: if users don't have permission to update `resourcequotas.harvesterhci.io`.
+- 204: if the request is successful.
+
+This API will update `spec.snapshotLimit.namespaceTotalSnapshotSizeQuota` in `ResourceQuota` CRD. For CRD details, please refer to the [Design](#ResourceQuota-CRD-in-harvesterhcioio-group) section.
+
+#### Update Resource Quota API on VM [POST]
+
+Endpoint: `/v1/harvester/kubevirt.io.virtualmachines/<namespace>/<name>?action=updateResourceQuota`
+
+Request (application/json):
+```json
+{
+    "updateResourceQuota": "10Gi"
+}
+```
+
+Response:
+- 403: if users don't have permission to update `resourcequotas.harvesterhci.io`.
+- 204: if the request is successful.
+
+This API will update `spec.snapshotLimit.vmTotalSnapshotSizeUsage[vmName]` in `ResourceQuota` CRD. For CRD details, please refer to the [Design](#ResourceQuota-CRD-in-harvesterhcioio-group) section.
 
 ## Design
 
-### Implementation Overview
+### `ResourceQuota` CRD in `harvesterhcio.io` group
 
-#### Settings
+Although there is default `ResourceQuota` in `core` group, it can't fulfill our use cases.
+For example, we want to have sum of snapshots size in a VM, but it can only limit sum of storage requests.
+We would like to have a quota limit at VM or Namespace level, so we introduce `ResourceQuota` CRD in `harvesterhci.io` group.
+At first, we will only have snapshot limit in this CRD. In the future, we can have different limits like pci devices, gpu, etc.
 
-Add a harvester setting `snapshot-max-count`. The range of the value is same as LH setting `snapshot-max-count`. It should be between `2` to `250`. The [Setting controller](https://github.com/harvester/harvester/blob/ea814927a14f99b0f0ef9fe74c37dbea3e6e95df/pkg/controller/master/setting/register.go#L66-L80) will overwrite the value to LH setting.
+The new CRD is Namescoped resource. The Namescoped resource can have many different names CR in each namespace.
+Currently, we only want to use one resource in each namespace to enforce limit, so each namespace has one `default-resource-quota` resource.
 
-#### PVC webhook
+The CRD definition is:
+```go
+type ResourceQuota struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-Add annotations value check to [PVC webhook](https://github.com/harvester/harvester/blob/master/pkg/webhook/resources/persistentvolumeclaim/validator.go).
+	Spec   ResourceQuotaSpec   `json:"spec,omitempty"`
+	Status ResourceQuotaStatus `json:"status,omitempty"`
+}
 
-* `harvesterhci.io/snapshotMaxCount`: The default value is from the harvester setting `snapshot-max-count`. Users can overwrite the default value by setting the annotation.
-* `harvesterhci.io/snapshotMaxSize`: The default value is `0` which means no limitation for snapshot max size. Without `0`, the minimum value is `PVC size * 2`. The minimum snapshot count is `2`, so the system needs at least twice of the PVC size.
+type ResourceQuotaSpec struct {
+	// +kubebuilder:validation:Optional
+	SnapshotLimit SnapshotLimit `json:"snapshotLimit,omitempty"`
+}
 
-#### PVC controller
+type ResourceQuotaStatus struct {
+	// +kubebuilder:validation:Optional
+	SnapshotLimitStatus SnapshotLimitStatus `json:"snapshotLimitStatus,omitempty"`
+}
 
-Introduce a new PVC controller to watch PVCs. If there is `harvesterhci.io/snapshotMaxCount` or `harvesterhci.io/snapshotMaxSize` annotation on a PVC, the system uses the value to update `snapshotMaxCount` or `snapshotMaxSize` fields in the related LH Volume.
+type SnapshotLimit struct {
+	NamespaceTotalSnapshotSizeQuota int64            `json:"namespaceTotalSnapshotSizeQuota,omitempty"`
+	VMTotalSnapshotSizeQuota        map[string]int64 `json:"vmTotalSnapshotSizeQuota,omitempty"`
+}
+
+type SnapshotLimitStatus struct {
+	NamespaceTotalSnapshotSizeUsage int64            `json:"namespaceTotalSnapshotSizeUsage,omitempty"`
+	VMTotalSnapshotSizeUsage        map[string]int64 `json:"vmTotalSnapshotSizeUsage,omitempty"`
+}
+```
+
+### `RoleTemplate` in Rancher
+
+The administrator has permission to set limit on `ResourceQuota`, but other users only have permission to read it, because they cannot overwrite settings from adminstrator.
+We offer two `RoleTemplate` at cluster level in Rancher to control the permission.
+
+harvester-resourcequotas-admin:
+```yaml
+apiVersion: management.cattle.io/v3
+builtin: false
+context: cluster
+description: "Harvester ResourceQuotas Admin can manage all resourcequotas.harvesterhci.io on downstream Harvester cluster"
+displayName: Harvester ResourceQuotas Admin Role
+external: false
+hidden: false
+kind: RoleTemplate
+metadata:
+  name: harvester-resourcequotas-admin
+rules:
+- apiGroups:
+  - harvesterhci.io
+  resources:
+  - resourcequotas
+  verbs:
+  - '*'
+```
+
+harvester-resourcequotas-read-only:
+```yaml
+apiVersion: management.cattle.io/v3
+builtin: false
+context: cluster
+description: "Harvester ResourceQuotas Read Only can view resourcequotas.harvesterhci.io on downstream Harvester cluster"
+displayName: Harvester ResourceQuotas Read Role
+external: false
+hidden: false
+kind: RoleTemplate
+metadata:
+  name: harvester-resourcequotas-read-only
+rules:
+- apiGroups:
+  - harvesterhci.io
+  resources:
+  - resourcequotas
+  verbs:
+  - get
+  - list
+  - watch
+```
 
 #### VMBackup webhook
 
-From LH perspective, it only checks whether one volume can take a new snapshot. However, a VM may has multiple volumes. If Harvester doesn't do pre-checks, users may get a VMBackup with partial failed snapshots.
+1. Check whether the source VM has related `default-resource-quota` CR in the same namespace. Also, whether the CR has `spec.snapshotLimit.vmTotalSnapshotSizeUsage[vmName]`.  If not, jump to step 4.
+2. Sum up all snapshots size for each volume in the VM.
+3. If the total size is over the limit, deny the request.
+4. Check whether `default-resource-quota` CR in the same namespace has `spec.snapshotLimit.namespaceTotalSnapshotSizeUsage`. If not, skip following steps.
+5. Sum up all snapshots size for each volume in the Namespace.
+6. If the total size is over the limit, deny the request.
 
-Introduce snapshot limitation checks in [VMBackup webhook](https://github.com/harvester/harvester/blob/master/pkg/webhook/resources/virtualmachinebackup/validator.go). The webhook checks related LH [EngineStatus](https://github.com/longhorn/longhorn-manager/blob/421da081cf870659e390dd6e08a5abad1f392af0/k8s/pkg/apis/longhorn/v1beta2/engine.go#L176) CRD. It will sum up all snapshots count and size for each Volume and check whether the total count or size is over the `snapshotMaxCount` or `snapshotMaxSize` limitation.
+#### VolumeSnapshot webhook
 
-From Harvester perspective, it can't freeze the disk before taking snapshots, so a VMBackup request may pass the webhook check but fail to take snapshots.
+1. Check whether `default-resource-quota` CR in the same namespace has `spec.snapshotLimit.namespaceTotalSnapshotSizeUsage`. If not, skip following steps.
+2. Check whether the owner reference is a VMBackup. Skip following steps if yes, because we already done the check in VMBackup webhook.
+3. Sum up all snapshots size for each volume in the Namespace.
+4. If the total size is over the limit, deny the request.
 
 ### Test plan
 
-1. `snapshot-max-size` setting.
-    - Validate the value should be between `2` to `250`. After the value is updated in Harvester, the related LH setting should be updated.
-    - Create a VM with PVC with empty `harvesterhci.io/snapshotMaxCount` and mutator should replace the value with `snapshot-max-count` setting value.
-    - Create a VM with PVC with nonempty `harvesterhci.io/snapshotMaxCount` and mutator shouldn't update the value.
-2. A VM with two `20G` PVC with `2` snapshot max count and `0` snapshot max size.
-    - Create the first VMBackup. It should be successful.
-    - Create the second VMBackup. It should be successful.
-    - Create the third VMBackup. It should be failed.
-    - Delete a snapshot and create a new snapshot. It should be successful.
-3. A VM with two `20G` PVC with `250` snapshot max count and `45G` snapshot max size. Assumed OS installation takes `5G` on the first PVC.
-    - Write `5G` data to the second PVC and create the first snapshot. It should be successful.
-    - Write `20G` data to each PVC and create the second snapshot. It should be successful.
-    - Write `20G` data to each PVC and create the third snapshot. It should be successful.
-    - Write `20G` data to each PVC and create the fourth snapshot. It should be failed.
-    - Delete the second or third snapshot and create a new snapshot. It should be successful.
-4. Partial failed snapshot case. A VM with two `10G` PVC with `250` snapshot max count and `20G` snapshot max size. Assumed OS installation takes `5G` on the first PVC.
-    - Write `10G` data to the second PVC and create the first snapshot. It should be successful.
-    - Write `10G` data to the second PVC and create the second snapshot. It should be successful.
-    - Write `10G` data to the second PVC and create the third snapshot. It should be failed.
-    - Delete the first or second snapshot and create a new snapshot. It should be successful.
+1. `namespaceTotalSnapshotSizeUsage` and `vmTotalSnapshotSizeUsage` values format.
+    - Deny value which can't be parse by [ParseQuantity](https://github.com/kubernetes/apimachinery/blob/e126c655b8146add9b9c19bf89dab6eb85578814/pkg/api/resource/quantity.go#L276-L277).
+    - Deny negative value.
+2. Set `30Gi` limit on a VM after it's created. The VM has two volumes. The first volume size is `10Gi` and the second volume size is `20Gi`.
+    - Write data to make two volumes full. Create the first VMBackup. It should be allowed. The total snapshot size is `30Gi`.
+    - Clear data and write data to make two volumes full again. Create the seoncd VMBackup. It should be allowed, because we haven't set the annotation. The total snapshot size is `60Gi`.
+    - Set `30Gi` on the VM. It should be allowed.
+    - Clear data and write data to make two volumes full again.  Create the third VMBackup. It should be denied, because the total snapshot size will be `90Gi` if the request is allowed.
+    - Remove the first and the second VMBackup. The total snapshot size is `0Gi`.
+    - Create a new VMBackup. It should be allowed. The total snapshot size is `30Gi`.
+4. Set `10Gi` limit on a Namespace. Create a VM with size `10Gi`.
+    - Write data to make the volume full. Create the first VMBackup. It should be allowed. The total snapshot size is `10Gi`.
+    - Clear data and write data to make the volume full again. Create the second VMBackup. It should be denied, because the total snapshot size will be `20Gi` if the request is allowed.
+    - Remove the first VMBackup. The total snapshot size is `0Gi`.
+    - Create a new VMBackup. It should be allowed. The total snapshot size is `10Gi`.
+5. Set `10Gi` limit on a Namespace. Create a volume with size `10Gi`.
+    - Write data to make the volume full. Create the first VolumeSnapshot. It should be allowed. The total snapshot size is `10Gi`.
+    - Clear data and write data to make the volume full again. Create the second VolumeSnapshot. It should be denied, because the total snapshot size will be `20Gi` if the request is allowed.
+    - Remove the first VolumeSnapshot. The total snapshot size is `0Gi`.
+    - Create a new VolumeSnapshot. It should be allowed. The total snapshot size is `10Gi`.
+6. Users with `Harvester ResourceQuotas Read Only` role.
+    - Apply `harvester-resourcequotas-admin` and `harvester-resourcequotas-read-only` to a Rancher.
+    - Import Harvester to a Rancher.
+    - Create a new user with `Harvester ResourceQuotas Read Only` role.
+    - Add the user to a project as member.
+    - Send requests to update Resource Quotas via API on Namespace / VM. Both requests should be denied.
+7. Users with `Harvester ResourceQuotas Admin` role.
+    - Apply `harvester-resourcequotas-admin` and `harvester-resourcequotas-read-only` to a Rancher.
+    - Import Harvester to a Rancher.
+    - Create a new user with `Harvester ResourceQuotas Admin` role.
+    - Add the user to a project as readonly user.
+    - Send requests to update Resource Quotas via API on Namespace / VM. Both requests should be allowed.
 
 ### Upgrade strategy
 
 None
+
+## Rejected Alternatives
+
+Leveraging [LH Snapshot Space Management](https://github.com/longhorn/longhorn/issues/6563) to control snapshot space usage in the system.
+LH can limit snapshot count and size in data path. It's most accurate way to control snapshot space usage.
+There are two reason we don't use this way:
+
+* This limitation introduces some risks to the system. For example, to rebuild a replica, the system needs to create a snapshot.
+If the snapshot count is over the limitation, the system can't create a snapshot and the rebuild process will be failed.
+If the volume is not ready, the VM can't start.
+* From Harvester perspective, VM is a basic instance. If a VMBackup suceeds, all snapshots should be created successfully.
+However, there is always time gap between real data status and status on CRD.
+When webhook check snapshot usage for a new VMBackup request, it can't make sure all snapshots will be successfully created, because the status webhook can check may be stale.
+
+To minimize the risk for the system, we decide to use soft limitation currently.
 
 ## Note [optional]
 
