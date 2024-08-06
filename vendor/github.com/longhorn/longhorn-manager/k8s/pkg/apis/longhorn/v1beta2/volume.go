@@ -190,14 +190,6 @@ const (
 	DataEngineTypeAll = DataEngineType("all")
 )
 
-type OfflineReplicaRebuilding string
-
-const (
-	OfflineReplicaRebuildingIgnored  = OfflineReplicaRebuilding("ignored")
-	OfflineReplicaRebuildingEnabled  = OfflineReplicaRebuilding("enabled")
-	OfflineReplicaRebuildingDisabled = OfflineReplicaRebuilding("disabled")
-)
-
 type KubernetesStatus struct {
 	// +optional
 	PVName string `json:"pvName"`
@@ -302,10 +294,6 @@ type VolumeSpec struct {
 	// +kubebuilder:validation:Enum=v1;v2
 	// +optional
 	DataEngine DataEngineType `json:"dataEngine"`
-	// OfflineReplicaRebuilding is used to determine if the offline replica rebuilding feature is enabled or not
-	// +kubebuilder:validation:Enum=ignored;disabled;enabled
-	// +optional
-	OfflineReplicaRebuilding OfflineReplicaRebuilding `json:"offlineReplicaRebuilding"`
 	// +optional
 	SnapshotMaxCount int `json:"snapshotMaxCount"`
 	// +kubebuilder:validation:Type=string
@@ -365,8 +353,6 @@ type VolumeStatus struct {
 	ShareEndpoint string `json:"shareEndpoint"`
 	// +optional
 	ShareState ShareManagerState `json:"shareState"`
-	// +optional
-	OfflineReplicaRebuildingRequired bool `json:"offlineReplicaRebuildingRequired"`
 }
 
 // +genclient
