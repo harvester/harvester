@@ -111,4 +111,6 @@ const (
 	MaintainModeStrategyShutdownAndRestartAfterEnable  = "ShutdownAndRestartAfterEnable"
 	MaintainModeStrategyShutdownAndRestartAfterDisable = "ShutdownAndRestartAfterDisable"
 	MaintainModeStrategyShutdown                       = "Shutdown"
+
+	DefaultResourceQuotaName = "default-resource-quota"
 )
