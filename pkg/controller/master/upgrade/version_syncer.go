@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -198,7 +199,11 @@ func (s *versionSyncer) cleanupVersions(currentVersion string) error {
 
 func (s *versionSyncer) getNewVersion(v Version) (*harvesterv1.Version, error) {
 	releaseDownloadURL := settings.ReleaseDownloadURL.Get()
-	url := fmt.Sprintf("%s/%s/version.yaml", releaseDownloadURL, v.Name)
+	var archSuffix string
+	if runtime.GOARCH == "arm64" {
+		archSuffix = "-arm64"
+	}
+	url := fmt.Sprintf("%s/%s/version%s.yaml", releaseDownloadURL, v.Name, archSuffix)
 	resp, err := s.httpClient.Get(url)
 	if err != nil {
 		return nil, err
