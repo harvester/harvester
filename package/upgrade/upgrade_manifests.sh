@@ -448,6 +448,44 @@ EOF
   kubectl -n cattle-system patch ingress rancher-expose --patch-file ./rancher-expose.yaml --type=merge
 }
 
+patch_longhorn_settings() {
+  # set Longhorn default settings with Harvester expected values, only when they are not set in managedchart and LH uses the default value
+  local target=$1
+  local EXIT_CODE=0
+  # yq returns 'Error: no matches found' if an item is not found
+  yq -e '.spec.values.longhorn.defaultSettings.nodeDrainPolicy' $target || EXIT_CODE=$?
+  if [ $EXIT_CODE != 0 ]; then
+    local ndp=$(kubectl get setting.longhorn.io -n longhorn-system node-drain-policy -ojsonpath="{.value}")
+    if [ $ndp == "block-if-contains-last-replica" ]; then
+      echo "patch longhorn nodeDrainPolicy to allow-if-replica-is-stopped"
+      yq '.spec.values.longhorn.defaultSettings.nodeDrainPolicy = "allow-if-replica-is-stopped"' -i $target
+    else
+      # user may set it from LH UI
+      echo "longhorn nodeDrainPolicy $ndp is not the default value, do not patch"
+    fi
+  else
+    echo "longhorn nodeDrainPolicy has been set in managedchart, do not patch again"
+  fi
+
+  EXIT_CODE=0
+  yq -e '.spec.values.longhorn.defaultSettings.detachManuallyAttachedVolumesWhenCordoned' $target || EXIT_CODE=$?
+  if [ $EXIT_CODE != 0 ]; then
+    local dma=$(kubectl get setting.longhorn.io -n longhorn-system detach-manually-attached-volumes-when-cordoned  -ojsonpath="{.value}")
+    if [ $dma == "false" ]; then
+      echo "patch longhorn detachManuallyAttachedVolumesWhenCordoned to true"
+      yq '.spec.values.longhorn.defaultSettings.detachManuallyAttachedVolumesWhenCordoned = true' -i $target
+    else
+      # user may set it from LH UI
+      echo "longhorn detachManuallyAttachedVolumesWhenCordoned $dma is not the default value, do not patch"
+    fi
+  else
+    echo "longhorn detachManuallyAttachedVolumesWhenCordoned has been set in managedchart, do not patch again"
+  fi
+
+  echo "longhorn related config"
+  yq -e '.spec.values.longhorn' $target || echo "fail to get info .spec.values.longhorn"
+}
+
 upgrade_harvester() {
   echo "Upgrading Harvester"
 
@@ -479,6 +517,8 @@ EOF
   if [ -n "$sc" ] && [ "$UPGRADE_PREVIOUS_VERSION" != "v1.0.3" ]; then
       yq e '.spec.values.storageClass.defaultStorageClass = false' -i harvester.yaml
   fi
+
+  patch_longhorn_settings harvester.yaml
 
   kubectl apply -f ./harvester.yaml
 
