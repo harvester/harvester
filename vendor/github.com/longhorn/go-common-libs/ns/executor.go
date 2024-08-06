@@ -45,7 +45,7 @@ func NewNamespaceExecutor(processName, procDirectory string, namespaces []types.
 	return NamespaceExecutor, nil
 }
 
-// prepareCommandArgs prepares the nsenter command arguments.
+// prepareCommandArgs prepares the nsenter command arguments, and the environment variables are not ignored.
 func (nsexec *Executor) prepareCommandArgs(binary string, args, envs []string) []string {
 	cmdArgs := []string{}
 	for _, ns := range nsexec.namespaces {
@@ -60,7 +60,7 @@ func (nsexec *Executor) prepareCommandArgs(binary string, args, envs []string) [
 		}
 	}
 	if len(envs) > 0 {
-		cmdArgs = append(cmdArgs, "env", "-i")
+		cmdArgs = append(cmdArgs, "env")
 		cmdArgs = append(cmdArgs, envs...)
 	}
 
