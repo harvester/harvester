@@ -8,11 +8,12 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 
 	//batchv1type "k8s.io/client-go/kubernetes/typed/batch/v1"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 
 	batchv1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1"
-	ctlharvbatchv1 "github.com/harvester/harvester/pkg/generated/controllers/batch/v1"
 )
 
 type CronJobClient func(string) batchv1type.CronJobInterface
@@ -42,6 +43,10 @@ func (c CronJobClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...stri
 	panic("implement me")
 }
 
+func (c CronJobClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*batchv1.CronJob, *batchv1.CronJobList], error) {
+	panic("implement me")
+}
+
 type CronJobCache func(string) batchv1type.CronJobInterface
 
 func (c CronJobCache) Get(namespace, name string) (*batchv1.CronJob, error) {
@@ -52,7 +57,7 @@ func (c CronJobCache) List(_ string, _ labels.Selector) ([]*batchv1.CronJob, err
 	panic("implement me")
 }
 
-func (c CronJobCache) AddIndexer(_ string, _ ctlharvbatchv1.CronJobIndexer) {
+func (c CronJobCache) AddIndexer(_ string, _ generic.Indexer[*batchv1.CronJob]) {
 	panic("implement me")
 }
 

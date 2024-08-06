@@ -27,8 +27,8 @@ spec:
     - jsonPath: .spec.maxFailure
       name: MaxFailure
       type: integer
-    - jsonPath: .spec.resumeRequest
-      name: ResumeRequest
+    - jsonPath: .spec.suspend
+      name: SpecSuspend
       type: boolean
     - jsonPath: .spec.vmbackup.source.name
       name: Source
@@ -68,13 +68,14 @@ spec:
                 default: 4
                 minimum: 2
                 type: integer
-              resumeRequest:
-                type: boolean
               retain:
                 default: 8
                 maximum: 250
                 minimum: 2
                 type: integer
+              suspend:
+                default: false
+                type: boolean
               vmbackup:
                 properties:
                   source:

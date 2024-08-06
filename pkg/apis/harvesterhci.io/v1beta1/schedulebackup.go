@@ -37,7 +37,7 @@ type VMBackupInfo struct {
 // +kubebuilder:printcolumn:name="Cron",type=string,JSONPath=`.spec.cron`
 // +kubebuilder:printcolumn:name="Retain",type=integer,JSONPath=`.spec.retain`
 // +kubebuilder:printcolumn:name="MaxFailure",type=integer,JSONPath=`.spec.maxFailure`
-// +kubebuilder:printcolumn:name="ResumeRequest",type=boolean,JSONPath=`.spec.resumeRequest`
+// +kubebuilder:printcolumn:name="SpecSuspend",type=boolean,JSONPath=`.spec.suspend`
 // +kubebuilder:printcolumn:name="Source",type=string,JSONPath=`.spec.vmbackup.source.name`
 // +kubebuilder:printcolumn:name="Suspend",type=string,JSONPath=`.status.suspend`
 // +kubebuilder:printcolumn:name="Failure",type=integer,JSONPath=`.status.failure`
@@ -66,7 +66,8 @@ type ScheduleVMBackupSpec struct {
 	MaxFailure int `json:"maxFailure"`
 
 	// +optional
-	ResumeRequest bool `json:"resumeRequest"`
+	// +kubebuilder:default:=false
+	Suspend bool `json:"suspend"`
 
 	// +kubebuilder:validation:Required
 	VMBackupSpec VirtualMachineBackupSpec `json:"vmbackup"`

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
-	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvbatchv1 "github.com/harvester/harvester/pkg/generated/controllers/batch/v1"

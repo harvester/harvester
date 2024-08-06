@@ -24,244 +24,29 @@ import (
 	"time"
 
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type ScheduleVMBackupHandler func(string, *v1beta1.ScheduleVMBackup) (*v1beta1.ScheduleVMBackup, error)
-
+// ScheduleVMBackupController interface for managing ScheduleVMBackup resources.
 type ScheduleVMBackupController interface {
-	generic.ControllerMeta
-	ScheduleVMBackupClient
-
-	OnChange(ctx context.Context, name string, sync ScheduleVMBackupHandler)
-	OnRemove(ctx context.Context, name string, sync ScheduleVMBackupHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() ScheduleVMBackupCache
+	generic.ControllerInterface[*v1beta1.ScheduleVMBackup, *v1beta1.ScheduleVMBackupList]
 }
 
+// ScheduleVMBackupClient interface for managing ScheduleVMBackup resources in Kubernetes.
 type ScheduleVMBackupClient interface {
-	Create(*v1beta1.ScheduleVMBackup) (*v1beta1.ScheduleVMBackup, error)
-	Update(*v1beta1.ScheduleVMBackup) (*v1beta1.ScheduleVMBackup, error)
-	UpdateStatus(*v1beta1.ScheduleVMBackup) (*v1beta1.ScheduleVMBackup, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1beta1.ScheduleVMBackup, error)
-	List(namespace string, opts metav1.ListOptions) (*v1beta1.ScheduleVMBackupList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta1.ScheduleVMBackup, err error)
+	generic.ClientInterface[*v1beta1.ScheduleVMBackup, *v1beta1.ScheduleVMBackupList]
 }
 
+// ScheduleVMBackupCache interface for retrieving ScheduleVMBackup resources in memory.
 type ScheduleVMBackupCache interface {
-	Get(namespace, name string) (*v1beta1.ScheduleVMBackup, error)
-	List(namespace string, selector labels.Selector) ([]*v1beta1.ScheduleVMBackup, error)
-
-	AddIndexer(indexName string, indexer ScheduleVMBackupIndexer)
-	GetByIndex(indexName, key string) ([]*v1beta1.ScheduleVMBackup, error)
-}
-
-type ScheduleVMBackupIndexer func(obj *v1beta1.ScheduleVMBackup) ([]string, error)
-
-type scheduleVMBackupController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewScheduleVMBackupController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) ScheduleVMBackupController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &scheduleVMBackupController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromScheduleVMBackupHandlerToHandler(sync ScheduleVMBackupHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1beta1.ScheduleVMBackup
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1beta1.ScheduleVMBackup))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *scheduleVMBackupController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1beta1.ScheduleVMBackup))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateScheduleVMBackupDeepCopyOnChange(client ScheduleVMBackupClient, obj *v1beta1.ScheduleVMBackup, handler func(obj *v1beta1.ScheduleVMBackup) (*v1beta1.ScheduleVMBackup, error)) (*v1beta1.ScheduleVMBackup, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *scheduleVMBackupController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *scheduleVMBackupController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *scheduleVMBackupController) OnChange(ctx context.Context, name string, sync ScheduleVMBackupHandler) {
-	c.AddGenericHandler(ctx, name, FromScheduleVMBackupHandlerToHandler(sync))
-}
-
-func (c *scheduleVMBackupController) OnRemove(ctx context.Context, name string, sync ScheduleVMBackupHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromScheduleVMBackupHandlerToHandler(sync)))
-}
-
-func (c *scheduleVMBackupController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *scheduleVMBackupController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *scheduleVMBackupController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *scheduleVMBackupController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *scheduleVMBackupController) Cache() ScheduleVMBackupCache {
-	return &scheduleVMBackupCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *scheduleVMBackupController) Create(obj *v1beta1.ScheduleVMBackup) (*v1beta1.ScheduleVMBackup, error) {
-	result := &v1beta1.ScheduleVMBackup{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *scheduleVMBackupController) Update(obj *v1beta1.ScheduleVMBackup) (*v1beta1.ScheduleVMBackup, error) {
-	result := &v1beta1.ScheduleVMBackup{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *scheduleVMBackupController) UpdateStatus(obj *v1beta1.ScheduleVMBackup) (*v1beta1.ScheduleVMBackup, error) {
-	result := &v1beta1.ScheduleVMBackup{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *scheduleVMBackupController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *scheduleVMBackupController) Get(namespace, name string, options metav1.GetOptions) (*v1beta1.ScheduleVMBackup, error) {
-	result := &v1beta1.ScheduleVMBackup{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *scheduleVMBackupController) List(namespace string, opts metav1.ListOptions) (*v1beta1.ScheduleVMBackupList, error) {
-	result := &v1beta1.ScheduleVMBackupList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *scheduleVMBackupController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *scheduleVMBackupController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1beta1.ScheduleVMBackup, error) {
-	result := &v1beta1.ScheduleVMBackup{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type scheduleVMBackupCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *scheduleVMBackupCache) Get(namespace, name string) (*v1beta1.ScheduleVMBackup, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1beta1.ScheduleVMBackup), nil
-}
-
-func (c *scheduleVMBackupCache) List(namespace string, selector labels.Selector) (ret []*v1beta1.ScheduleVMBackup, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.ScheduleVMBackup))
-	})
-
-	return ret, err
-}
-
-func (c *scheduleVMBackupCache) AddIndexer(indexName string, indexer ScheduleVMBackupIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1beta1.ScheduleVMBackup))
-		},
-	}))
-}
-
-func (c *scheduleVMBackupCache) GetByIndex(indexName, key string) (result []*v1beta1.ScheduleVMBackup, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1beta1.ScheduleVMBackup, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1beta1.ScheduleVMBackup))
-	}
-	return result, nil
+	generic.CacheInterface[*v1beta1.ScheduleVMBackup]
 }
 
 // ScheduleVMBackupStatusHandler is executed for every added or modified ScheduleVMBackup. Should return the new status to be updated
@@ -278,7 +63,7 @@ func RegisterScheduleVMBackupStatusHandler(ctx context.Context, controller Sched
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromScheduleVMBackupHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
 // RegisterScheduleVMBackupGeneratingHandler configures a ScheduleVMBackupController to execute a ScheduleVMBackupGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.

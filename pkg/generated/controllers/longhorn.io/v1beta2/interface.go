@@ -75,10 +75,10 @@ func (v *version) Setting() SettingController {
 	return generic.NewController[*v1beta2.Setting, *v1beta2.SettingList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Setting"}, "settings", true, v.controllerFactory)
 }
 
-func (v *version) Volume() VolumeController {
-	return generic.NewController[*v1beta2.Volume, *v1beta2.VolumeList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Volume"}, "volumes", true, v.controllerFactory)
-
-func (c *version) Snapshot() SnapshotController {
-	return NewSnapshotController(schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Snapshot"}, "snapshots", true, c.controllerFactory)
+func (v *version) Snapshot() SnapshotController {
+	return generic.NewController[*v1beta2.Snapshot, *v1beta2.SnapshotList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Snapshot"}, "snapshots", true, v.controllerFactory)
 }
 
+func (v *version) Volume() VolumeController {
+	return generic.NewController[*v1beta2.Volume, *v1beta2.VolumeList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Volume"}, "volumes", true, v.controllerFactory)
+}

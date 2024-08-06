@@ -19,12 +19,11 @@ limitations under the License.
 package v1beta1
 
 import (
+	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 func init() {
@@ -70,11 +69,12 @@ func (v *version) Preference() PreferenceController {
 	return generic.NewController[*v1beta1.Preference, *v1beta1.PreferenceList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Preference"}, "preferences", true, v.controllerFactory)
 }
 
+func (v *version) ScheduleVMBackup() ScheduleVMBackupController {
+	return generic.NewController[*v1beta1.ScheduleVMBackup, *v1beta1.ScheduleVMBackupList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "ScheduleVMBackup"}, "schedulevmbackups", true, v.controllerFactory)
+}
+
 func (v *version) Setting() SettingController {
 	return generic.NewNonNamespacedController[*v1beta1.Setting, *v1beta1.SettingList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Setting"}, "settings", v.controllerFactory)
-
-func (c *version) ScheduleVMBackup() ScheduleVMBackupController {
-	return NewScheduleVMBackupController(schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "ScheduleVMBackup"}, "schedulevmbackups", true, c.controllerFactory)
 }
 
 func (v *version) SupportBundle() SupportBundleController {

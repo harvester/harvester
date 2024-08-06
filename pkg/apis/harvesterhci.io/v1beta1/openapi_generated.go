@@ -2830,7 +2830,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_ScheduleVMBackupSpec(ref common.Refe
 							Format:  "int32",
 						},
 					},
-					"resumeRequest": {
+					"suspend": {
 						SchemaProps: spec.SchemaProps{
 							Default: false,
 							Type:    []string{"boolean"},

@@ -20,7 +20,8 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/schemes"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/schemes"
 	v1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -43,6 +44,6 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) CronJob() CronJobController {
-	return NewCronJobController(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "CronJob"}, "cronjobs", true, c.controllerFactory)
+func (v *version) CronJob() CronJobController {
+	return generic.NewController[*v1.CronJob, *v1.CronJobList](schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "CronJob"}, "cronjobs", true, v.controllerFactory)
 }

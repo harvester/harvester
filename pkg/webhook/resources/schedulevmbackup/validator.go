@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/longhorn/backupstore"
-	ctlv1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	ctlv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/robfig/cron"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	fieldCron          = "spec.cron"
-	fieldMaxFailure    = "spec.maxFailure"
-	fieldResumeRequest = "spec.resumeRequest"
-	fieldVMBackup      = "spec.vmbackup"
+	fieldCron       = "spec.cron"
+	fieldMaxFailure = "spec.maxFailure"
+	fieldSuspend    = "spec.suspend"
+	fieldVMBackup   = "spec.vmbackup"
 )
 
 type scheuldeVMBackupValidator struct {
@@ -126,7 +126,7 @@ func (v *scheuldeVMBackupValidator) Create(_ *types.Request, newObj runtime.Obje
 	}
 
 	if err := v.checkTargetHealth(); err != nil {
-		return werror.NewInvalidError(err.Error(), fieldResumeRequest)
+		return werror.NewInvalidError(err.Error(), fieldSuspend)
 	}
 
 	return nil
@@ -148,8 +148,8 @@ func (v *scheuldeVMBackupValidator) Update(_ *types.Request, oldObj runtime.Obje
 		return werror.NewInvalidError("invalid cron format", fieldCron)
 	}
 
-	//ResumeRequest is not updated as true
-	if oldSVMBackup.Spec.ResumeRequest || !newSVMBackup.Spec.ResumeRequest {
+	//not updated to resume schedule
+	if !oldSVMBackup.Spec.Suspend || newSVMBackup.Spec.Suspend {
 		return nil
 	}
 
@@ -158,7 +158,7 @@ func (v *scheuldeVMBackupValidator) Update(_ *types.Request, oldObj runtime.Obje
 	}
 
 	if err := v.checkTargetHealth(); err != nil {
-		return werror.NewInvalidError(err.Error(), fieldResumeRequest)
+		return werror.NewInvalidError(err.Error(), fieldSuspend)
 	}
 
 	return nil

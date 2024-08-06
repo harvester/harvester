@@ -24,244 +24,29 @@ import (
 	"time"
 
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type SnapshotHandler func(string, *v1beta2.Snapshot) (*v1beta2.Snapshot, error)
-
+// SnapshotController interface for managing Snapshot resources.
 type SnapshotController interface {
-	generic.ControllerMeta
-	SnapshotClient
-
-	OnChange(ctx context.Context, name string, sync SnapshotHandler)
-	OnRemove(ctx context.Context, name string, sync SnapshotHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() SnapshotCache
+	generic.ControllerInterface[*v1beta2.Snapshot, *v1beta2.SnapshotList]
 }
 
+// SnapshotClient interface for managing Snapshot resources in Kubernetes.
 type SnapshotClient interface {
-	Create(*v1beta2.Snapshot) (*v1beta2.Snapshot, error)
-	Update(*v1beta2.Snapshot) (*v1beta2.Snapshot, error)
-	UpdateStatus(*v1beta2.Snapshot) (*v1beta2.Snapshot, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1beta2.Snapshot, error)
-	List(namespace string, opts metav1.ListOptions) (*v1beta2.SnapshotList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta2.Snapshot, err error)
+	generic.ClientInterface[*v1beta2.Snapshot, *v1beta2.SnapshotList]
 }
 
+// SnapshotCache interface for retrieving Snapshot resources in memory.
 type SnapshotCache interface {
-	Get(namespace, name string) (*v1beta2.Snapshot, error)
-	List(namespace string, selector labels.Selector) ([]*v1beta2.Snapshot, error)
-
-	AddIndexer(indexName string, indexer SnapshotIndexer)
-	GetByIndex(indexName, key string) ([]*v1beta2.Snapshot, error)
-}
-
-type SnapshotIndexer func(obj *v1beta2.Snapshot) ([]string, error)
-
-type snapshotController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewSnapshotController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) SnapshotController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &snapshotController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromSnapshotHandlerToHandler(sync SnapshotHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1beta2.Snapshot
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1beta2.Snapshot))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *snapshotController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1beta2.Snapshot))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateSnapshotDeepCopyOnChange(client SnapshotClient, obj *v1beta2.Snapshot, handler func(obj *v1beta2.Snapshot) (*v1beta2.Snapshot, error)) (*v1beta2.Snapshot, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *snapshotController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *snapshotController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *snapshotController) OnChange(ctx context.Context, name string, sync SnapshotHandler) {
-	c.AddGenericHandler(ctx, name, FromSnapshotHandlerToHandler(sync))
-}
-
-func (c *snapshotController) OnRemove(ctx context.Context, name string, sync SnapshotHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromSnapshotHandlerToHandler(sync)))
-}
-
-func (c *snapshotController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *snapshotController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *snapshotController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *snapshotController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *snapshotController) Cache() SnapshotCache {
-	return &snapshotCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *snapshotController) Create(obj *v1beta2.Snapshot) (*v1beta2.Snapshot, error) {
-	result := &v1beta2.Snapshot{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *snapshotController) Update(obj *v1beta2.Snapshot) (*v1beta2.Snapshot, error) {
-	result := &v1beta2.Snapshot{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *snapshotController) UpdateStatus(obj *v1beta2.Snapshot) (*v1beta2.Snapshot, error) {
-	result := &v1beta2.Snapshot{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *snapshotController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *snapshotController) Get(namespace, name string, options metav1.GetOptions) (*v1beta2.Snapshot, error) {
-	result := &v1beta2.Snapshot{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *snapshotController) List(namespace string, opts metav1.ListOptions) (*v1beta2.SnapshotList, error) {
-	result := &v1beta2.SnapshotList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *snapshotController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *snapshotController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1beta2.Snapshot, error) {
-	result := &v1beta2.Snapshot{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type snapshotCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *snapshotCache) Get(namespace, name string) (*v1beta2.Snapshot, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1beta2.Snapshot), nil
-}
-
-func (c *snapshotCache) List(namespace string, selector labels.Selector) (ret []*v1beta2.Snapshot, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.Snapshot))
-	})
-
-	return ret, err
-}
-
-func (c *snapshotCache) AddIndexer(indexName string, indexer SnapshotIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1beta2.Snapshot))
-		},
-	}))
-}
-
-func (c *snapshotCache) GetByIndex(indexName, key string) (result []*v1beta2.Snapshot, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1beta2.Snapshot, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1beta2.Snapshot))
-	}
-	return result, nil
+	generic.CacheInterface[*v1beta2.Snapshot]
 }
 
 // SnapshotStatusHandler is executed for every added or modified Snapshot. Should return the new status to be updated
@@ -278,7 +63,7 @@ func RegisterSnapshotStatusHandler(ctx context.Context, controller SnapshotContr
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromSnapshotHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
 // RegisterSnapshotGeneratingHandler configures a SnapshotController to execute a SnapshotGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.

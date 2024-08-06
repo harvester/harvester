@@ -23,245 +23,30 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	v1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type CronJobHandler func(string, *v1.CronJob) (*v1.CronJob, error)
-
+// CronJobController interface for managing CronJob resources.
 type CronJobController interface {
-	generic.ControllerMeta
-	CronJobClient
-
-	OnChange(ctx context.Context, name string, sync CronJobHandler)
-	OnRemove(ctx context.Context, name string, sync CronJobHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() CronJobCache
+	generic.ControllerInterface[*v1.CronJob, *v1.CronJobList]
 }
 
+// CronJobClient interface for managing CronJob resources in Kubernetes.
 type CronJobClient interface {
-	Create(*v1.CronJob) (*v1.CronJob, error)
-	Update(*v1.CronJob) (*v1.CronJob, error)
-	UpdateStatus(*v1.CronJob) (*v1.CronJob, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1.CronJob, error)
-	List(namespace string, opts metav1.ListOptions) (*v1.CronJobList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.CronJob, err error)
+	generic.ClientInterface[*v1.CronJob, *v1.CronJobList]
 }
 
+// CronJobCache interface for retrieving CronJob resources in memory.
 type CronJobCache interface {
-	Get(namespace, name string) (*v1.CronJob, error)
-	List(namespace string, selector labels.Selector) ([]*v1.CronJob, error)
-
-	AddIndexer(indexName string, indexer CronJobIndexer)
-	GetByIndex(indexName, key string) ([]*v1.CronJob, error)
-}
-
-type CronJobIndexer func(obj *v1.CronJob) ([]string, error)
-
-type cronJobController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewCronJobController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) CronJobController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &cronJobController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromCronJobHandlerToHandler(sync CronJobHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1.CronJob
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1.CronJob))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *cronJobController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1.CronJob))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateCronJobDeepCopyOnChange(client CronJobClient, obj *v1.CronJob, handler func(obj *v1.CronJob) (*v1.CronJob, error)) (*v1.CronJob, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *cronJobController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *cronJobController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *cronJobController) OnChange(ctx context.Context, name string, sync CronJobHandler) {
-	c.AddGenericHandler(ctx, name, FromCronJobHandlerToHandler(sync))
-}
-
-func (c *cronJobController) OnRemove(ctx context.Context, name string, sync CronJobHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromCronJobHandlerToHandler(sync)))
-}
-
-func (c *cronJobController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *cronJobController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *cronJobController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *cronJobController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *cronJobController) Cache() CronJobCache {
-	return &cronJobCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *cronJobController) Create(obj *v1.CronJob) (*v1.CronJob, error) {
-	result := &v1.CronJob{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *cronJobController) Update(obj *v1.CronJob) (*v1.CronJob, error) {
-	result := &v1.CronJob{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *cronJobController) UpdateStatus(obj *v1.CronJob) (*v1.CronJob, error) {
-	result := &v1.CronJob{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *cronJobController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *cronJobController) Get(namespace, name string, options metav1.GetOptions) (*v1.CronJob, error) {
-	result := &v1.CronJob{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *cronJobController) List(namespace string, opts metav1.ListOptions) (*v1.CronJobList, error) {
-	result := &v1.CronJobList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *cronJobController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *cronJobController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1.CronJob, error) {
-	result := &v1.CronJob{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type cronJobCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *cronJobCache) Get(namespace, name string) (*v1.CronJob, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1.CronJob), nil
-}
-
-func (c *cronJobCache) List(namespace string, selector labels.Selector) (ret []*v1.CronJob, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.CronJob))
-	})
-
-	return ret, err
-}
-
-func (c *cronJobCache) AddIndexer(indexName string, indexer CronJobIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1.CronJob))
-		},
-	}))
-}
-
-func (c *cronJobCache) GetByIndex(indexName, key string) (result []*v1.CronJob, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1.CronJob, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1.CronJob))
-	}
-	return result, nil
+	generic.CacheInterface[*v1.CronJob]
 }
 
 // CronJobStatusHandler is executed for every added or modified CronJob. Should return the new status to be updated
@@ -278,7 +63,7 @@ func RegisterCronJobStatusHandler(ctx context.Context, controller CronJobControl
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromCronJobHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
 // RegisterCronJobGeneratingHandler configures a CronJobController to execute a CronJobGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.

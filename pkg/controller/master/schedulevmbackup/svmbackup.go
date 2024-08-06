@@ -81,12 +81,6 @@ func (h *svmbackupHandler) OnChanged(_ string, svmbackup *harvesterv1.ScheduleVM
 		return svmbackup, nil
 	}
 
-	if svmbackup.Spec.ResumeRequest {
-		if err := handleResume(h, svmbackup); err != nil {
-			return nil, err
-		}
-	}
-
 	defer func() {
 		if err := updateVMBackups(h, svmbackup); err != nil {
 			logrus.Infof("OnChanged svmbackup %v/%v update vmbackups err %v", svmbackup.Namespace, svmbackup.Name, err)
@@ -94,16 +88,24 @@ func (h *svmbackupHandler) OnChanged(_ string, svmbackup *harvesterv1.ScheduleVM
 	}()
 
 	_, err := getCronJob(h, svmbackup)
-	if err == nil {
+	if errors.IsNotFound(err) {
+		if _, err := createCronJob(h, svmbackup); err != nil {
+			return nil, err
+		}
+
+		h.svmbackupController.Enqueue(svmbackup.Namespace, svmbackup.Name)
 		return svmbackup, nil
 	}
 
-	if !errors.IsNotFound(err) {
+	if err != nil {
 		return nil, err
 	}
 
-	_, err = createCronJob(h, svmbackup)
-	if err != nil {
+	if err := updateResumeOrSuspend(h, svmbackup); err != nil {
+		return nil, err
+	}
+
+	if err := updateCronExpression(h, svmbackup); err != nil {
 		return nil, err
 	}
 
