@@ -400,6 +400,12 @@ func (v *upgradeValidator) Delete(_ *types.Request, oldObj runtime.Object) error
 		return werror.NewBadRequest(fmt.Sprintf("cluster %s/%s status is provisioning, please wait for it to be provisioned", util.FleetLocalNamespaceName, util.LocalClusterName))
 	}
 
+	// If fleet-local/local cluster.provisioning.cattle.io is upgrading, deny removing upgrade CR request.
+	// If upgrade is removed, the cluster may have different RKE2 version nodes. It will make next upgrade fail.
+	if v1beta1.NodesUpgraded.IsUnknown(oldUpgrade) {
+		return werror.NewBadRequest("node upgrade is in progressing, please wait for it to be provisioned")
+	}
+
 	return nil
 }
 
