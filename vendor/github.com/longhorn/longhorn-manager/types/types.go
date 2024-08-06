@@ -850,15 +850,6 @@ func ValidateStorageNetwork(value string) (err error) {
 	return nil
 }
 
-func ValidateOfflineReplicaRebuilding(mode string) error {
-	if mode != string(longhorn.OfflineReplicaRebuildingIgnored) &&
-		mode != string(longhorn.OfflineReplicaRebuildingEnabled) &&
-		mode != string(longhorn.OfflineReplicaRebuildingDisabled) {
-		return fmt.Errorf("invalid offline replica rebuilding mode: %v", mode)
-	}
-	return nil
-}
-
 func ValidateSnapshotDataIntegrity(mode string) error {
 	if mode != string(longhorn.SnapshotDataIntegrityDisabled) &&
 		mode != string(longhorn.SnapshotDataIntegrityEnabled) &&

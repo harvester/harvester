@@ -170,8 +170,8 @@ func (c *DiskServiceClient) DiskGet(diskType, diskName, diskPath, diskDriver str
 
 // DiskDelete deletes the disk with the given name, disk name, disk UUID, disk path and disk driver.
 func (c *DiskServiceClient) DiskDelete(diskType, diskName, diskUUID, diskPath, diskDriver string) error {
-	if diskName == "" || diskUUID == "" {
-		return fmt.Errorf("failed to delete disk: missing required parameters")
+	if diskName == "" {
+		return fmt.Errorf("failed to delete disk: missing required diskName")
 	}
 
 	client := c.getDiskServiceClient()

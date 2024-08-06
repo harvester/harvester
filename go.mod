@@ -74,7 +74,7 @@ require (
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20240720163059-56c90cd23634
-	github.com/longhorn/longhorn-manager v1.7.0-rc2
+	github.com/longhorn/longhorn-manager v1.7.0-rc3
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.5.0
@@ -223,13 +223,13 @@ require (
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
-	github.com/longhorn/backing-image-manager v1.7.0-rc1 // indirect
-	github.com/longhorn/go-common-libs v0.0.0-20240720044518-32fc527fe868 // indirect
-	github.com/longhorn/go-iscsi-helper v0.0.0-20240720064937-c6ce82d67032 // indirect
-	github.com/longhorn/go-spdk-helper v0.0.0-20240723045100-85e5737da4b5 // indirect
-	github.com/longhorn/longhorn-engine v1.7.0-rc1 // indirect
-	github.com/longhorn/longhorn-instance-manager v1.7.0-rc1.0.20240725054145-4fdba7305ae5 // indirect
-	github.com/longhorn/longhorn-share-manager v1.7.0-rc1 // indirect
+	github.com/longhorn/backing-image-manager v1.7.0-rc2 // indirect
+	github.com/longhorn/go-common-libs v0.0.0-20240727052403-b543ea3732fe // indirect
+	github.com/longhorn/go-iscsi-helper v0.0.0-20240727052644-d2442a50e906 // indirect
+	github.com/longhorn/go-spdk-helper v0.0.0-20240727080828-a55a2982815a // indirect
+	github.com/longhorn/longhorn-engine v1.7.0-rc2.0.20240729031753-4ec2bafb4437 // indirect
+	github.com/longhorn/longhorn-instance-manager v1.7.0-rc2.0.20240731060731-add94ca0861f // indirect
+	github.com/longhorn/longhorn-share-manager v1.7.0-rc2.0.20240727065217-9eb24195c665 // indirect
 	github.com/longhorn/types v0.0.0-20240725040629-473d671316c4 // indirect
 	github.com/machadovilaca/operator-observability v0.0.20 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect

@@ -122,7 +122,6 @@ const (
 	SettingNameBackupConcurrentLimit                                    = SettingName("backup-concurrent-limit")
 	SettingNameRestoreConcurrentLimit                                   = SettingName("restore-concurrent-limit")
 	SettingNameLogLevel                                                 = SettingName("log-level")
-	SettingNameOfflineReplicaRebuilding                                 = SettingName("offline-replica-rebuilding")
 	SettingNameReplicaDiskSoftAntiAffinity                              = SettingName("replica-disk-soft-anti-affinity")
 	SettingNameAllowEmptyNodeSelectorVolume                             = SettingName("allow-empty-node-selector-volume")
 	SettingNameAllowEmptyDiskSelectorVolume                             = SettingName("allow-empty-disk-selector-volume")
@@ -221,7 +220,6 @@ var (
 		SettingNameV2DataEngineGuaranteedInstanceManagerCPU,
 		SettingNameV2DataEngineLogLevel,
 		SettingNameV2DataEngineLogFlags,
-		SettingNameOfflineReplicaRebuilding,
 		SettingNameReplicaDiskSoftAntiAffinity,
 		SettingNameAllowEmptyNodeSelectorVolume,
 		SettingNameAllowEmptyDiskSelectorVolume,
@@ -342,7 +340,6 @@ var (
 		SettingNameV2DataEngineGuaranteedInstanceManagerCPU:                 SettingDefinitionV2DataEngineGuaranteedInstanceManagerCPU,
 		SettingNameV2DataEngineLogLevel:                                     SettingDefinitionV2DataEngineLogLevel,
 		SettingNameV2DataEngineLogFlags:                                     SettingDefinitionV2DataEngineLogFlags,
-		SettingNameOfflineReplicaRebuilding:                                 SettingDefinitionOfflineReplicaRebuilding,
 		SettingNameReplicaDiskSoftAntiAffinity:                              SettingDefinitionReplicaDiskSoftAntiAffinity,
 		SettingNameAllowEmptyNodeSelectorVolume:                             SettingDefinitionAllowEmptyNodeSelectorVolume,
 		SettingNameAllowEmptyDiskSelectorVolume:                             SettingDefinitionAllowEmptyDiskSelectorVolume,
@@ -1332,20 +1329,6 @@ var (
 		ReadOnly:    false,
 		Default:     "Info",
 		Choices:     []string{"Panic", "Fatal", "Error", "Warn", "Info", "Debug", "Trace"},
-	}
-
-	SettingDefinitionOfflineReplicaRebuilding = SettingDefinition{
-		DisplayName: "Offline Replica Rebuilding",
-		Description: "This setting allows users to enable the offline replica rebuilding for volumes using v2 data engine.",
-		Category:    SettingCategoryV2DataEngine,
-		Type:        SettingTypeString,
-		Required:    true,
-		ReadOnly:    false,
-		Default:     string(longhorn.OfflineReplicaRebuildingEnabled),
-		Choices: []string{
-			string(longhorn.OfflineReplicaRebuildingEnabled),
-			string(longhorn.OfflineReplicaRebuildingDisabled),
-		},
 	}
 
 	SettingDefinitionV1DataEngine = SettingDefinition{

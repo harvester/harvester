@@ -282,6 +282,39 @@ func (s *DataStore) UpdateLease(lease *coordinationv1.Lease) (*coordinationv1.Le
 	return s.kubeClient.CoordinationV1().Leases(s.namespace).Update(context.TODO(), lease, metav1.UpdateOptions{})
 }
 
+func (s *DataStore) ClearDelinquentAndStaleStateIfVolumeIsDelinquent(volumeName string) (err error) {
+	defer func() {
+		err = errors.Wrapf(err, "failed to ClearDelinquentAndStaleStateIfVolumeIsDelinquent")
+	}()
+
+	lease, err := s.GetLeaseRO(volumeName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	holder := *lease.Spec.HolderIdentity
+	if holder == "" {
+		// Empty holder means not delinquent.
+		// Ref: IsRWXVolumeDelinquent() function
+		return nil
+	}
+	if !(lease.Spec.AcquireTime).IsZero() {
+		// Non Zero lease.Spec.AcquireTime means not delinquent.
+		// Ref: IsRWXVolumeDelinquent() function
+		return nil
+	}
+
+	oneSecondAfterZero := time.Time{}.Add(time.Second)
+	lease.Spec.AcquireTime = &metav1.MicroTime{Time: oneSecondAfterZero}
+	lease.Spec.RenewTime = &metav1.MicroTime{Time: time.Time{}}
+
+	_, err = s.UpdateLease(lease)
+	return err
+}
+
 // IsRWXVolumeDelinquent checks whether the volume has a lease by the same name, which an RWX volume should,
 // and whether that lease's spec shows that its holder is delinquent (its acquire time has been zeroed.)
 // If so, return the delinquent holder.
