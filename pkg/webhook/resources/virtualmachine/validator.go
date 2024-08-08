@@ -78,6 +78,11 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	if err := v.checkVMSpec(vm); err != nil {
 		return err
 	}
+
+	if err := v.checkStorageResourceQuota(vm, nil); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -94,6 +99,10 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 	if oldVM == nil {
 		return nil
+	}
+
+	if err := v.checkStorageResourceQuota(newVM, oldVM); err != nil {
+		return err
 	}
 
 	// Prevent users to stop/restart VM when there is VMBackup in progress.
@@ -282,4 +291,8 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 		return werror.NewInvalidError("reservedMemory cannot be less than 0", field)
 	}
 	return nil
+}
+
+func (v *vmValidator) checkStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
+	return v.rqCalculator.CheckStorageResourceQuota(vm, oldVM)
 }
