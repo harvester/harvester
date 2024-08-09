@@ -60,8 +60,16 @@ func (c VMBackupCache) Get(namespace, name string) (*harvesterv1beta1.VirtualMac
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c VMBackupCache) List(_ string, _ labels.Selector) ([]*harvesterv1beta1.VirtualMachineBackup, error) {
-	panic("implement me")
+func (c VMBackupCache) List(namespace string, selector labels.Selector) ([]*harvesterv1beta1.VirtualMachineBackup, error) {
+	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*harvesterv1beta1.VirtualMachineBackup, 0, len(list.Items))
+	for i := range list.Items {
+		result = append(result, &list.Items[i])
+	}
+	return result, err
 }
 
 func (c VMBackupCache) AddIndexer(_ string, _ generic.Indexer[*harvesterv1beta1.VirtualMachineBackup]) {

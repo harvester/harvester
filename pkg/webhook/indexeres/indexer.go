@@ -19,6 +19,7 @@ const (
 	VMBackupSnapshotByPVCNamespaceAndName = "harvesterhci.io/vmbackup-snapshot-by-pvc-namespace-and-name"
 	VolumeByReplicaCountIndex             = "harvesterhci.io/volume-by-replica-count"
 	ImageByExportSourcePVCIndex           = "harvesterhci.io/image-by-export-source-pvc"
+	ScheduleVMBackupBySourceVM            = "harvesterhci.io/svmbackup-by-source-vm"
 )
 
 func RegisterIndexers(clients *clients.Clients) {
@@ -41,6 +42,9 @@ func RegisterIndexers(clients *clients.Clients) {
 
 	vmInformer := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
+
+	svmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache()
+	svmBackupCache.AddIndexer(ScheduleVMBackupBySourceVM, scheduleVMBackupBySourceVM)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
@@ -89,4 +93,8 @@ func imageByExportSourcePVC(obj *harvesterv1.VirtualMachineImage) ([]string, err
 	}
 
 	return []string{fmt.Sprintf("%s/%s", obj.Spec.PVCNamespace, obj.Spec.PVCName)}, nil
+}
+
+func scheduleVMBackupBySourceVM(obj *harvesterv1.ScheduleVMBackup) ([]string, error) {
+	return []string{fmt.Sprintf("%s/%s", obj.Namespace, obj.Spec.VMBackupSpec.Source.Name)}, nil
 }

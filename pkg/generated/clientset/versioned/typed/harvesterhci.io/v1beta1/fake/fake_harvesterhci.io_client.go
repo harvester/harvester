@@ -40,6 +40,10 @@ func (c *FakeHarvesterhciV1beta1) Preferences(namespace string) v1beta1.Preferen
 	return &FakePreferences{c, namespace}
 }
 
+func (c *FakeHarvesterhciV1beta1) ScheduleVMBackups(namespace string) v1beta1.ScheduleVMBackupInterface {
+	return &FakeScheduleVMBackups{c, namespace}
+}
+
 func (c *FakeHarvesterhciV1beta1) Settings() v1beta1.SettingInterface {
 	return &FakeSettings{c}
 }

@@ -20,6 +20,8 @@ package fake
 
 import (
 	clientset "github.com/harvester/harvester/pkg/generated/clientset/versioned"
+	batchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1"
+	fakebatchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1/fake"
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
 	fakecatalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1/fake"
 	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
@@ -102,6 +104,11 @@ var (
 	_ clientset.Interface = &Clientset{}
 	_ testing.FakeClient  = &Clientset{}
 )
+
+// BatchV1 retrieves the BatchV1Client
+func (c *Clientset) BatchV1() batchv1.BatchV1Interface {
+	return &fakebatchv1.FakeBatchV1{Fake: &c.Fake}
+}
 
 // CatalogV1 retrieves the CatalogV1Client
 func (c *Clientset) CatalogV1() catalogv1.CatalogV1Interface {
