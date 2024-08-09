@@ -6,10 +6,12 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
+	catalog "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io"
 	ctlcatalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/harvester/harvester/pkg/controller/master/mcmsettings"
+	"github.com/harvester/harvester/tests/framework/dsl"
 )
 
 var _ = ginkgo.Describe("verify cluster repos are patched", func() {
@@ -31,7 +33,10 @@ var _ = ginkgo.Describe("verify cluster repos are patched", func() {
 			Spec: catalogv1.RepoSpec{},
 		}
 
-		clusterRepoController = scaled.Management.CatalogFactory.Catalog().V1().ClusterRepo()
+		catalogFactory, err := catalog.NewFactoryFromConfig(kubeConfig)
+		dsl.MustNotError(err)
+
+		clusterRepoController = catalogFactory.Catalog().V1().ClusterRepo()
 		gomega.Eventually(func() error {
 			_, err := clusterRepoController.Create(harvestercharts)
 			return err

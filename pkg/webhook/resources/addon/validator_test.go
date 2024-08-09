@@ -11,6 +11,7 @@ import (
 )
 
 func Test_validateUpdatedAddon(t *testing.T) {
+	t.Parallel()
 	var testCases = []struct {
 		name          string
 		oldAddon      *harvesterv1.Addon
@@ -425,6 +426,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 }
 
 func Test_validateNewAddon(t *testing.T) {
+	t.Parallel()
 	var testCases = []struct {
 		name          string
 		newAddon      *harvesterv1.Addon

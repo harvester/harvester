@@ -12,6 +12,7 @@ import (
 )
 
 func Test_envPatches(t *testing.T) {
+	t.Parallel()
 
 	type input struct {
 		targetEnvs []corev1.EnvVar
@@ -89,6 +90,7 @@ func Test_envPatches(t *testing.T) {
 }
 
 func Test_volumePatch(t *testing.T) {
+	t.Parallel()
 
 	type input struct {
 		target []corev1.Volume
@@ -147,6 +149,7 @@ func Test_volumePatch(t *testing.T) {
 }
 
 func Test_volumeMountPatch(t *testing.T) {
+	t.Parallel()
 
 	type input struct {
 		target      []corev1.VolumeMount

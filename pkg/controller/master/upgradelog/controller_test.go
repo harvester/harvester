@@ -144,6 +144,7 @@ func newTestUpgradeLogBuilder() *upgradeLogBuilder {
 }
 
 func TestHandler_OnClusterFlowChange(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		key         string
 		clusterFlow *loggingv1.ClusterFlow
@@ -206,6 +207,7 @@ func TestHandler_OnClusterFlowChange(t *testing.T) {
 }
 
 func TestHandler_OnClusterOutputChange(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		key           string
 		clusterOutput *loggingv1.ClusterOutput
@@ -268,6 +270,7 @@ func TestHandler_OnClusterOutputChange(t *testing.T) {
 }
 
 func TestHandler_OnDaemonSetChange(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		key        string
 		daemonSet  *appsv1.DaemonSet
@@ -330,6 +333,7 @@ func TestHandler_OnDaemonSetChange(t *testing.T) {
 }
 
 func TestHandler_OnJobChange(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		key        string
 		job        *batchv1.Job
@@ -392,6 +396,7 @@ func TestHandler_OnJobChange(t *testing.T) {
 }
 
 func TestHandler_OnManagedChartChange(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		key          string
 		managedChart *mgmtv3.ManagedChart
@@ -455,6 +460,7 @@ func TestHandler_OnManagedChartChange(t *testing.T) {
 }
 
 func TestHandler_OnStatefulSetChange(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		key         string
 		statefulSet *appsv1.StatefulSet
@@ -517,6 +523,7 @@ func TestHandler_OnStatefulSetChange(t *testing.T) {
 }
 
 func TestHandler_OnUpgradeChange(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		key        string
 		upgrade    *harvesterv1.Upgrade
@@ -597,6 +604,7 @@ func TestHandler_OnUpgradeChange(t *testing.T) {
 }
 
 func TestHandler_OnUpgradeLogChange(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		key           string
 		addon         *harvesterv1.Addon

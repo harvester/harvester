@@ -11,6 +11,7 @@ import (
 )
 
 func TestGetUpgradableVersions(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		newVersions    []harvesterv1.Version
 		currentVersion string
@@ -234,6 +235,7 @@ func TestGetUpgradableVersions(t *testing.T) {
 }
 
 func Test_formatQuantityToGi(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		qs string
 	}
