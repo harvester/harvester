@@ -168,8 +168,11 @@ Regarding the resource and API path in harvester, it should be `usbdevices.devic
 
 ### Limitation
 
-1. Don't support live migration since USB device is bound to the specified node.
-2. Don't support hot plug, please see [reference](https://github.com/kubevirt/kubevirt/issues/11979).
+- Don't support live migration.
+- Don't support hot-plug (including re-plug).
+- Require re-creating a USBDeviceClaim to enable the USB device if device path changes in following situations:
+  - Re-plugging USB device.
+  - Rebooting the node.
 
 ### Test plan
 
