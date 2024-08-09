@@ -17,6 +17,9 @@ const (
 
 	// ConditionProgressing is the "progressing" condition type
 	BackupConditionProgressing condition.Cond = "InProgress"
+
+	// BackupConditionMetadataReady is the "metadataReady" condition type
+	BackupConditionMetadataReady condition.Cond = "MetadataReady"
 )
 
 // DeletionPolicy defines that to do with resources when VirtualMachineRestore is deleted

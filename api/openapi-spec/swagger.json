@@ -9496,6 +9496,7 @@
             "enum": [
               "download",
               "export-from-volume",
+              "restore",
               "upload"
             ]
           },

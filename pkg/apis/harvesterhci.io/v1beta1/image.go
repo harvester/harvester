@@ -11,6 +11,7 @@ var (
 	ImageImported           condition.Cond = "Imported"
 	ImageRetryLimitExceeded condition.Cond = "RetryLimitExceeded"
 	BackingImageMissing     condition.Cond = "BackingImageMissing"
+	MetadataReady           condition.Cond = "MetadataReady"
 )
 
 // +genclient
@@ -37,7 +38,7 @@ type VirtualMachineImageSpec struct {
 	DisplayName string `json:"displayName"`
 
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=download;upload;export-from-volume
+	// +kubebuilder:validation:Enum=download;upload;export-from-volume;restore
 	SourceType VirtualMachineImageSourceType `json:"sourceType"`
 
 	// +optional
@@ -70,6 +71,7 @@ const (
 	VirtualMachineImageSourceTypeDownload     VirtualMachineImageSourceType = "download"
 	VirtualMachineImageSourceTypeUpload       VirtualMachineImageSourceType = "upload"
 	VirtualMachineImageSourceTypeExportVolume VirtualMachineImageSourceType = "export-from-volume"
+	VirtualMachineImageSourceTypeRestore      VirtualMachineImageSourceType = "restore"
 )
 
 type VirtualMachineImageStatus struct {

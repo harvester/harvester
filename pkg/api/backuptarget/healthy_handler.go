@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 
-	"github.com/longhorn/backupstore"
 	// Although we don't use following drivers directly, we need to import them to register drivers.
 	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
 	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
@@ -15,7 +13,6 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 
 	"github.com/harvester/harvester/pkg/config"
-	"github.com/harvester/harvester/pkg/controller/master/backup"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -56,19 +53,7 @@ func (h *HealthyHandler) ServeHTTP(rw http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	if target.Type == settings.S3BackupType {
-		secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
-		if err != nil {
-			util.ResponseError(rw, http.StatusInternalServerError, fmt.Errorf("can't get backup target secret: %s/%s, error: %w", util.LonghornSystemNamespaceName, util.BackupTargetSecretName, err))
-			return
-		}
-		os.Setenv(backup.AWSAccessKey, string(secret.Data[backup.AWSAccessKey]))
-		os.Setenv(backup.AWSSecretKey, string(secret.Data[backup.AWSSecretKey]))
-		os.Setenv(backup.AWSEndpoints, string(secret.Data[backup.AWSEndpoints]))
-		os.Setenv(backup.AWSCERT, string(secret.Data[backup.AWSCERT]))
-	}
-
-	_, err = backupstore.GetBackupStoreDriver(backup.ConstructEndpoint(target))
+	_, err = util.GetBackupStoreDriver(h.secretCache, target)
 	if err != nil {
 		util.ResponseError(rw, http.StatusServiceUnavailable, fmt.Errorf("can't connect to backup target %+v, error: %w", target, err))
 		return
