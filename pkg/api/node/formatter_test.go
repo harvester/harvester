@@ -26,8 +26,71 @@ var (
 	testNode = &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "harvester-58rk8",
+			Labels: map[string]string{
+				"network.harvesterhci.io/mgmt":      "true",
+				"network.harvesterhci.io/secondary": "true",
+			},
 		},
 	}
+
+	testNode2 = &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "harvester-8999s",
+			Labels: map[string]string{
+				"network.harvesterhci.io/mgmt": "true",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{
+					Type:   corev1.NodeReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		},
+	}
+
+	// node not ready
+	testNode3 = &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "harvester-8112a",
+			Labels: map[string]string{
+				"network.harvesterhci.io/mgmt":      "true",
+				"network.harvesterhci.io/secondary": "true",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{
+					Type:   corev1.NodeReady,
+					Status: corev1.ConditionFalse,
+				},
+			},
+		},
+	}
+
+	// node ready but cordoned off
+	testNode4 = &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "harvester-1123s",
+			Labels: map[string]string{
+				"network.harvesterhci.io/mgmt":      "true",
+				"network.harvesterhci.io/secondary": "true",
+			},
+		},
+		Spec: corev1.NodeSpec{
+			Unschedulable: true,
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{
+					Type:   corev1.NodeReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		},
+	}
+
 	workingVM = &kubevirtv1.VirtualMachineInstance{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "healthy-vm",
@@ -359,10 +422,69 @@ var (
 					},
 				},
 			},
-			Volumes: []kubevirtv1.Volume{
+		},
+		Status: kubevirtv1.VirtualMachineInstanceStatus{
+			Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
 				{
-					VolumeSource: kubevirtv1.VolumeSource{
-						ContainerDisk: &kubevirtv1.ContainerDiskSource{},
+					Type:   kubevirtv1.VirtualMachineInstanceIsMigratable,
+					Status: corev1.ConditionFalse,
+					Reason: "HostDeviceNotLiveMigratable",
+				},
+			},
+		},
+	}
+
+	vmWithSchedulingCriteriaMet = &kubevirtv1.VirtualMachineInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-scheduling-possible",
+			Namespace: "default",
+			Labels: map[string]string{
+				kubevirtv1.NodeNameLabel: testNode.Name,
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineInstanceSpec{
+			Affinity: &corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+						NodeSelectorTerms: []corev1.NodeSelectorTerm{
+							{
+								MatchExpressions: []corev1.NodeSelectorRequirement{
+									{
+										Key:      "network.harvesterhci.io/mgmt",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"true"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	vmWithSchedulingCriteriaNotMet = &kubevirtv1.VirtualMachineInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-scheduling-not-possible",
+			Namespace: "default",
+			Labels: map[string]string{
+				kubevirtv1.NodeNameLabel: testNode.Name,
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineInstanceSpec{
+			Affinity: &corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+						NodeSelectorTerms: []corev1.NodeSelectorTerm{
+							{
+								MatchExpressions: []corev1.NodeSelectorRequirement{
+									{
+										Key:      "network.harvesterhci.io/secondary",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"true"},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -388,10 +510,10 @@ func Test_listUnhealthyVM(t *testing.T) {
 	fakeHTTP := httptest.NewRecorder()
 	err := h.listUnhealthyVM(fakeHTTP, testNode)
 	assert.NoError(err, "expected no error while listing unhealthy VM's")
-	resp := &ListUnhealthyVM{}
-	err = json.NewDecoder(fakeHTTP.Body).Decode(resp)
+	resp := []ListUnhealthyVM{}
+	err = json.NewDecoder(fakeHTTP.Body).Decode(&resp)
 	assert.NoError(err, "expected no error parsing json response")
-	assert.Len(resp.VMs, 1, "expected to find one vm")
+	assert.Len(resp[0].VMs, 1, "expected to find one vm")
 }
 
 func Test_powerActionNotPossible(t *testing.T) {
@@ -482,7 +604,7 @@ func Test_listUnmigratableVM(t *testing.T) {
 	assert := require.New(t)
 	typedObjects := []runtime.Object{workingVM, vmWithContainerDisk, vmWithCDROM}
 	client := fake.NewSimpleClientset(typedObjects...)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	k8sclientset := k8sfake.NewSimpleClientset(testNode, testNode2)
 
 	h := ActionHandler{
 		nodeCache:                   fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
@@ -495,10 +617,10 @@ func Test_listUnmigratableVM(t *testing.T) {
 	fakeHTTP := httptest.NewRecorder()
 	err := h.listUnhealthyVM(fakeHTTP, testNode)
 	assert.NoError(err, "expected no error while listing unhealthy VM's")
-	resp := &ListUnhealthyVM{}
-	err = json.NewDecoder(fakeHTTP.Body).Decode(resp)
+	resp := []ListUnhealthyVM{}
+	err = json.NewDecoder(fakeHTTP.Body).Decode(&resp)
 	assert.NoError(err, "expected no error parsing json response")
-	assert.Len(resp.VMs, 2, "expected to find two vms")
+	assert.Len(resp[0].VMs, 2, "expected to find 2 non migratable VMs")
 }
 
 func Test_vmWithPCIDevices(t *testing.T) {
@@ -518,8 +640,52 @@ func Test_vmWithPCIDevices(t *testing.T) {
 	fakeHTTP := httptest.NewRecorder()
 	err := h.listUnhealthyVM(fakeHTTP, testNode)
 	assert.NoError(err, "expected no error while listing unhealthy VM's")
-	resp := &ListUnhealthyVM{}
-	err = json.NewDecoder(fakeHTTP.Body).Decode(resp)
+	resp := []ListUnhealthyVM{}
+	err = json.NewDecoder(fakeHTTP.Body).Decode(&resp)
 	assert.NoError(err, "expected no error parsing json response")
-	assert.Len(resp.VMs, 1, "expected to find two vms")
+	assert.Len(resp[0].VMs, 1, "expected to find two vms")
+}
+
+func Test_vmMigrationPossible(t *testing.T) {
+
+	var testCases = []struct {
+		name                       string
+		vmi                        *kubevirtv1.VirtualMachineInstance
+		expectedNonMigratableCount int
+	}{
+		{
+			name:                       "vm migration possible",
+			vmi:                        vmWithSchedulingCriteriaMet,
+			expectedNonMigratableCount: 0,
+		},
+		{
+			name:                       "vm migration not possible",
+			vmi:                        vmWithSchedulingCriteriaNotMet,
+			expectedNonMigratableCount: 1,
+		},
+	}
+
+	for _, test := range testCases {
+		assert := require.New(t)
+		typedObjects := []runtime.Object{workingVM, test.vmi}
+		client := fake.NewSimpleClientset(typedObjects...)
+		k8sclientset := k8sfake.NewSimpleClientset(testNode, testNode2, testNode3, testNode4)
+
+		h := ActionHandler{
+			nodeCache:                   fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+			nodeClient:                  fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
+			longhornVolumeCache:         fakeclients.LonghornVolumeCache(client.LonghornV1beta2().Volumes),
+			longhornReplicaCache:        fakeclients.LonghornReplicaCache(client.LonghornV1beta2().Replicas),
+			virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(client.KubevirtV1().VirtualMachineInstances),
+		}
+		fakeHTTP := httptest.NewRecorder()
+		err := h.listUnhealthyVM(fakeHTTP, testNode)
+		assert.NoError(err, "expected no error while listing unhealthy VM's for test case: %s", test.name)
+		resp := []ListUnhealthyVM{}
+		err = json.NewDecoder(fakeHTTP.Body).Decode(&resp)
+		assert.NoError(err, "expected no error parsing json response for test case: %s", test.name)
+		if test.expectedNonMigratableCount > 0 {
+			assert.Len(resp[0].VMs, test.expectedNonMigratableCount, "failed check for test case: %s", test.name)
+		}
+	}
 }
