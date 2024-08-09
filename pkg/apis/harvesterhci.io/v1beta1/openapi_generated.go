@@ -77,10 +77,16 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.PersistentVolumeClaimSourceSpec":                                  schema_pkg_apis_harvesterhciio_v1beta1_PersistentVolumeClaimSourceSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Preference":                                                       schema_pkg_apis_harvesterhciio_v1beta1_Preference(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.PreferenceList":                                                   schema_pkg_apis_harvesterhciio_v1beta1_PreferenceList(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ResourceQuota":                                                    schema_pkg_apis_harvesterhciio_v1beta1_ResourceQuota(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ResourceQuotaList":                                                schema_pkg_apis_harvesterhciio_v1beta1_ResourceQuotaList(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ResourceQuotaSpec":                                                schema_pkg_apis_harvesterhciio_v1beta1_ResourceQuotaSpec(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ResourceQuotaStatus":                                              schema_pkg_apis_harvesterhciio_v1beta1_ResourceQuotaStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SecretBackup":                                                     schema_pkg_apis_harvesterhciio_v1beta1_SecretBackup(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Setting":                                                          schema_pkg_apis_harvesterhciio_v1beta1_Setting(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SettingList":                                                      schema_pkg_apis_harvesterhciio_v1beta1_SettingList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SettingStatus":                                                    schema_pkg_apis_harvesterhciio_v1beta1_SettingStatus(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SnapshotLimit":                                                    schema_pkg_apis_harvesterhciio_v1beta1_SnapshotLimit(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SnapshotLimitStatus":                                              schema_pkg_apis_harvesterhciio_v1beta1_SnapshotLimitStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SupportBundle":                                                    schema_pkg_apis_harvesterhciio_v1beta1_SupportBundle(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SupportBundleList":                                                schema_pkg_apis_harvesterhciio_v1beta1_SupportBundleList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SupportBundleSpec":                                                schema_pkg_apis_harvesterhciio_v1beta1_SupportBundleSpec(ref),
@@ -2701,6 +2707,141 @@ func schema_pkg_apis_harvesterhciio_v1beta1_PreferenceList(ref common.ReferenceC
 	}
 }
 
+func schema_pkg_apis_harvesterhciio_v1beta1_ResourceQuota(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ResourceQuotaSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ResourceQuotaStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ResourceQuotaSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ResourceQuotaStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_ResourceQuotaList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ResourceQuotaList is a list of ResourceQuota resources",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ResourceQuota"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ResourceQuota", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_ResourceQuotaSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"snapshotLimit": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SnapshotLimit"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SnapshotLimit"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_ResourceQuotaStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"snapshotLimitStatus": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SnapshotLimitStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SnapshotLimitStatus"},
+	}
+}
+
 func schema_pkg_apis_harvesterhciio_v1beta1_SecretBackup(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2871,6 +3012,72 @@ func schema_pkg_apis_harvesterhciio_v1beta1_SettingStatus(ref common.ReferenceCa
 		},
 		Dependencies: []string{
 			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_SnapshotLimit(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"namespaceTotalSnapshotSizeQuota": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
+					"vmTotalSnapshotSizeQuota": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: 0,
+										Type:    []string{"integer"},
+										Format:  "int64",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_SnapshotLimitStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"namespaceTotalSnapshotSizeUsage": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
+					"vmTotalSnapshotSizeUsage": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: 0,
+										Type:    []string{"integer"},
+										Format:  "int64",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
