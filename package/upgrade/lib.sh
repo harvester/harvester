@@ -514,12 +514,12 @@ wait_for_addon_upgrade_deployment() {
   fi
 }
 
-upgrade_addon_rancher_logging_with_patch_fluentbit_eventrouter_image()
+upgrade_addon_rancher_logging_with_patch_eventrouter_image()
 {
   local name=rancher-logging
   local namespace=cattle-logging-system
   local newversion=$1
-  echo "try to patch addon $name in $namespace to $newversion, with patch of fluentbit and eventrouter image"
+  echo "try to patch addon $name in $namespace to $newversion, with patch of eventrouter image"
 
   # check if addon is there
   local version=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.spec.version}' || true)
@@ -533,19 +533,8 @@ upgrade_addon_rancher_logging_with_patch_fluentbit_eventrouter_image()
   kubectl get addons.harvesterhci.io $name -n $namespace -ojsonpath="{.spec.valuesContent}" > $valuesfile
 
   local EXIT_CODE=0
-  local fixfluent=false
-  # yq shows `Error: no matches found` if it is not existing and returns 1
-  echo "check fluentbit image tag 1.9.5"
-  yq -e '(.images | select(.fluentbit.tag == "1.9.5"))' $valuesfile || EXIT_CODE=$?
-  if [ $EXIT_CODE != 0 ]; then
-    # fluentbit image is not 1.9.5
-    echo "fluentbit image is not 1.9.5, need not patch"
-  else
-    fixfluent=true
-  fi
 
   echo "check eventrouter image tag"
-  EXIT_CODE=0
   local fixeventrouter=false
   local tag=""
   tag=$(yq -e '.eventTailer.workloadOverrides.containers[0].image' $valuesfile) || EXIT_CODE=$?
@@ -553,16 +542,16 @@ upgrade_addon_rancher_logging_with_patch_fluentbit_eventrouter_image()
   if [ $EXIT_CODE != 0 ]; then
     echo "eventrouter is not found, need not patch"
   else
-    if [[ "rancher/harvester-eventrouter:v0.2.0" > $tag ]]; then
-      echo "eventrouter image is $tag, will patch to v0.2.0"
+    if [[ "rancher/harvester-eventrouter:v0.3.1" > $tag ]]; then
+      echo "eventrouter image is $tag, will patch to v0.3.1"
       fixeventrouter=true
     else
       echo "eventrouter image is updated, need not patch"
     fi
   fi
 
-  if [[ $fixeventrouter == false ]] && [[ $fixfluent == false ]]; then
-    echo "fluentbit, eventrouter image is updated/not found, fallback to the normal addon $name upgrade"
+  if [[ $fixeventrouter == false ]]; then
+    echo "eventrouter image is updated/not found, fallback to the normal addon $name upgrade"
     rm -f $valuesfile
     upgrade_addon_try_patch_version_only $name $namespace $newversion
     return 0
@@ -571,13 +560,8 @@ upgrade_addon_rancher_logging_with_patch_fluentbit_eventrouter_image()
   echo "current valuesContent of the addon $name:"
   cat $valuesfile
 
-  if [[ $fixfluent == true ]]; then
-    # remove fluentbit related images tags
-    yq -e 'del(.images.fluentbit*)' -i $valuesfile
-  fi
-
   if [[ $fixeventrouter == true ]]; then
-    yq -e '.eventTailer.workloadOverrides.containers[0].image = "rancher/harvester-eventrouter:v0.2.0"' -i $valuesfile
+    yq -e '.eventTailer.workloadOverrides.containers[0].image = "rancher/harvester-eventrouter:v0.3.1"' -i $valuesfile
   fi
 
   # add 4 spaces to each line
@@ -610,79 +594,4 @@ EOF
 
   # wait status only when enabled and already AddonDeploySuccessful
   wait_for_addon_upgrade_deployment $name $namespace $enabled $curstatus
-}
-
-patch_grafana_dashboard_harvester_configmap() {
-  local cm=$1
-  local jsonname=$2
-  local originValuesfile=$3
-  local newValuesfile=$4
-  local changed=0
-
-  # if there are differences, diff returns 1, else 0
-  diff $originValuesfile $newValuesfile || changed=$?
-  if [[ $changed == 1 ]]; then
-    # add 4 spaces to each line
-    sed -i -e 's/^/    /' $newValuesfile
-    local newvalues=$(<$newValuesfile)
-    rm -f $newValuesfile
-    local patchfile="/tmp/configmappatch.yaml"
-
-cat > $patchfile <<EOF
-data:
-  $jsonname: |
-$newvalues
-EOF
-
-    kubectl patch configmap $cm -n cattle-dashboards --patch-file $patchfile --type merge || echo "patch configmap $cm failed"
-    rm -f $patchfile
-  else
-    # the configmap may have been updated or patched
-    echo "need not patch configmap $cm, it is up-to-date"
-  fi
-
-  rm -f $originValuesfile
-  rm -f $newValuesfile
-}
-
-patch_grafana_dashboard_harvester_vm_detail() {
-  local EXIT_CODE=0
-  local cm=harvester-vm-detail-dashboard
-  local originValuesfile="/tmp/a1.yaml"
-  local newValuesfile="/tmp/a2.yaml"
-  rm -f $originValuesfile
-  echo "patch_grafana_dashboard_harvester_vm_detail"
-  kubectl get configmap -n cattle-dashboards $cm -ojsonpath="{.data['harvester_vm_info_details\.json']}" > $originValuesfile || EXIT_CODE=$?
-  if [[ $EXIT_CODE -gt 0 ]]; then
-    echo "fail to get configmap $cm, do not try to patch it"
-    return 0
-  fi
-
-  cp $originValuesfile $newValuesfile
-  sed -i -e 's/kubevirt_vmi_vcpu_seconds{/kubevirt_vmi_vcpu_seconds_total{/g' $newValuesfile
-  sed -i -e 's/kubevirt_vmi_vcpu_seconds,/kubevirt_vmi_vcpu_seconds_total,/g' $newValuesfile
-  sed -i -e 's/kubevirt_vmi_storage_read_times_ms_total{/kubevirt_vmi_storage_read_times_seconds_total{/g' $newValuesfile
-  sed -i -e 's/kubevirt_vmi_storage_write_times_ms_total{/kubevirt_vmi_storage_write_times_seconds_total{/g' $newValuesfile
-  sed -i -e 's/"format": "ms"/"format": "s"/g' $newValuesfile
-
-  patch_grafana_dashboard_harvester_configmap $cm "harvester_vm_info_details.json" $originValuesfile $newValuesfile
-}
-
-patch_grafana_dashboard_harvester_vm() {
-  local EXIT_CODE=0
-  local cm=harvester-vm-dashboard
-  local originValuesfile="/tmp/a1.yaml"
-  local newValuesfile="/tmp/a2.yaml"
-  rm -f $originValuesfile
-  echo "patch_grafana_dashboard_harvester_vm"
-  kubectl get configmap -n cattle-dashboards $cm -ojsonpath="{.data['harvester_vm_dashboard\.json']}" > $originValuesfile || EXIT_CODE=$?
-  if [[ $EXIT_CODE -gt 0 ]]; then
-    echo "fail to get configmap $cm, do not try to patch it"
-    return 0
-  fi
-
-  cp $originValuesfile $newValuesfile
-  sed -i -e 's/kubevirt_vmi_vcpu_seconds\[/kubevirt_vmi_vcpu_seconds_total\[/g' $newValuesfile
-
-  patch_grafana_dashboard_harvester_configmap $cm "harvester_vm_dashboard.json" $originValuesfile $newValuesfile
 }
