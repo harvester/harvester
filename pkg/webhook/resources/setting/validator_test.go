@@ -731,3 +731,51 @@ func Test_validateNTPServers(t *testing.T) {
 		})
 	}
 }
+
+func Test_validateImagePreloadStrategy(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        *v1beta1.Setting
+		expectedErr bool
+	}{
+		{
+			name: "invalid string",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.ImagePreloadStrategySettingName},
+				Value:      "random string",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "skip image preload",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.ImagePreloadStrategySettingName},
+				Value:      "skip",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload node by node",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.ImagePreloadStrategySettingName},
+				Value:      "sequential",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload in parallel",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.ImagePreloadStrategySettingName},
+				Value:      "parallel",
+			},
+			expectedErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateImagePreloadStrategy(tt.args)
+			assert.Equal(t, tt.expectedErr, err != nil)
+		})
+	}
+}

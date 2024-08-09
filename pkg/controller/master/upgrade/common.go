@@ -249,7 +249,7 @@ func prepareCleanupPlan(upgrade *harvesterv1.Upgrade, imageList []string) *upgra
 	}
 }
 
-func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
+func preparePlan(upgrade *harvesterv1.Upgrade, concurrency int) *upgradev1.Plan {
 	planVersion := upgrade.Name
 
 	// Use current running version because new images are not preloaded yet.
@@ -264,7 +264,7 @@ func preparePlan(upgrade *harvesterv1.Upgrade) *upgradev1.Plan {
 			},
 		},
 		Spec: upgradev1.PlanSpec{
-			Concurrency:           int64(1),
+			Concurrency:           int64(concurrency),
 			JobActiveDeadlineSecs: defaultPrepareDeadlineSeconds,
 			Version:               planVersion,
 			NodeSelector: &metav1.LabelSelector{

@@ -32,8 +32,9 @@ import (
 )
 
 var (
-	upgradeControllerLock sync.Mutex
-	rke2DrainNodes        = true
+	upgradeControllerLock   sync.Mutex
+	rke2DrainNodes          = true
+	imagePreloadConcurrency = defaultImagePreloadConcurrency
 )
 
 const (
@@ -65,6 +66,7 @@ const (
 
 	imageCleanupPlanCompletedAnnotation = "harvesterhci.io/image-cleanup-plan-completed"
 	skipVersionCheckAnnotation          = "harvesterhci.io/skip-version-check"
+	defaultImagePreloadConcurrency      = 1
 )
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades
@@ -74,6 +76,7 @@ type upgradeHandler struct {
 	nodeCache         ctlcorev1.NodeCache
 	jobClient         v1.JobClient
 	jobCache          v1.JobCache
+	settingCache      ctlharvesterv1.SettingCache
 	upgradeClient     ctlharvesterv1.UpgradeClient
 	upgradeCache      ctlharvesterv1.UpgradeCache
 	upgradeController ctlharvesterv1.UpgradeController
@@ -239,6 +242,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		}
 		toUpdate.Status.SingleNode = singleNode
 
+		// Upgrade Repo Info Retrieval
 		backoff := wait.Backoff{
 			Steps:    30,
 			Duration: 10 * time.Second,
@@ -264,6 +268,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			return h.upgradeClient.Update(toUpdate)
 		}
 
+		// Upgrade Eligibility Check
 		isEligible, reason := upgradeEligibilityCheck(upgrade, repoInfo)
 
 		if !isEligible {
@@ -271,8 +276,34 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			return h.upgradeClient.Update(toUpdate)
 		}
 
-		logrus.Debug("Start preparing nodes for upgrade")
-		if _, err := h.planClient.Create(preparePlan(upgrade)); err != nil && !apierrors.IsAlreadyExists(err) {
+		// Node Preparation (Image Preloading)
+		imagePreloadStrategy := settings.ImagePreloadStrategy.Get()
+		logrus.WithFields(logrus.Fields{
+			"upgrade_namespace":      upgrade.Namespace,
+			"upgrade_name":           upgrade.Name,
+			"image_preload_strategy": imagePreloadStrategy,
+		}).Info("start preparing nodes for upgrade")
+
+		nodes, err := h.nodeCache.List(labels.Everything())
+		if err != nil {
+			return upgrade, err
+		}
+
+		switch imagePreloadStrategy {
+		case settings.SkipImagePreload:
+			for _, node := range nodes {
+				setNodeUpgradeStatus(toUpdate, node.Name, nodeStateImagesPreloaded, "", "")
+			}
+
+			toUpdate.Labels[upgradeStateLabel] = StatePreparingNodes
+			toUpdate.Status.RepoInfo = repoInfoStr
+			setNodesPreparedCondition(toUpdate, corev1.ConditionTrue, "", "")
+			return h.upgradeClient.Update(toUpdate)
+		case settings.ParallelImagePreload:
+			imagePreloadConcurrency = len(nodes)
+		}
+
+		if _, err := h.planClient.Create(preparePlan(upgrade, imagePreloadConcurrency)); err != nil && !apierrors.IsAlreadyExists(err) {
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
 			return h.upgradeClient.Update(toUpdate)
 		}
