@@ -8,6 +8,11 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
+func WriteResponseBody(rw http.ResponseWriter, obj interface{}) {
+	rw.Header().Set("Content-type", "application/json")
+	_, _ = rw.Write(ResponseBody(obj))
+}
+
 func ResponseBody(obj interface{}) []byte {
 	respBody, err := json.Marshal(obj)
 	if err != nil {
