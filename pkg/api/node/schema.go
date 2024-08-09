@@ -46,6 +46,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	}
 
 	nodeHandler := ActionHandler{
+		jobCache:                    scaled.Management.BatchFactory.Batch().V1().Job().Cache(),
 		nodeClient:                  scaled.Management.CoreFactory.Core().V1().Node(),
 		nodeCache:                   scaled.Management.CoreFactory.Core().V1().Node().Cache(),
 		longhornReplicaCache:        scaled.Management.LonghornFactory.Longhorn().V1beta2().Replica().Cache(),
@@ -78,6 +79,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 					Input: "powerActionInput",
 				},
 				powerActionPossible: {},
+				enableCPUManager:    {},
+				disableCPUManager:   {},
 			}
 			s.ActionHandlers = map[string]http.Handler{
 				enableMaintenanceModeAction:  nodeHandler,
@@ -88,6 +91,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 				maintenancePossible:          nodeHandler,
 				powerAction:                  nodeHandler,
 				powerActionPossible:          nodeHandler,
+				enableCPUManager:             nodeHandler,
+				disableCPUManager:            nodeHandler,
 			}
 		},
 	}
