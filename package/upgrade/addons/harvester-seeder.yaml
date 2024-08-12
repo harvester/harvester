@@ -7,10 +7,10 @@ metadata:
     addon.harvesterhci.io/experimental: "true"
 spec:
   repo: http://harvester-cluster-repo.cattle-system.svc/charts
-  version: "0.3.0"
+  version: "0.3.2"
   chart: harvester-seeder
   enabled: false
   valuesContent: |
     image:
-      tag: v0.3.0
+      tag: v0.3.2
     fullnameOverride: harvester-seeder
