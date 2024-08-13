@@ -547,6 +547,12 @@ func (h *RestoreHandler) reconcileVM(
 
 	vmCpy := vm.DeepCopy()
 	vmCpy.Spec = backup.Status.SourceSpec.Spec
+
+	//if the source runStratedy is RerunOnFailure, Kubevirt will not start the new VMI
+	//set the VM runStrategy as Halted, VMI will be kicked off in startVM()
+	haltedRunStrategy := kubevirtv1.RunStrategyHalted
+	vmCpy.Spec.RunStrategy = &haltedRunStrategy
+
 	vmCpy.Spec.Template.Spec.Volumes = newVolumes
 	if vmCpy.Annotations == nil {
 		vmCpy.Annotations = make(map[string]string)
