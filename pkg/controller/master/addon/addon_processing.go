@@ -121,13 +121,6 @@ func (h *Handler) waitForAddonDisable(a *harvesterv1.Addon) (*harvesterv1.Addon,
 	}
 
 	if ok {
-		// if job is not complete, wait for completion
-		logrus.Debugf("patching backoff limit for job %s in ns %s", j.Name, j.Namespace)
-		err = h.patchJobBackoff(j)
-		if err != nil {
-			return aObj, err
-		}
-
 		if !isJobComplete(j) {
 			return h.enqueueAfter(aObj)
 		}
@@ -271,14 +264,6 @@ func (h *Handler) reconcileCurrentInstallationJob(hc *helmv1.HelmChart, aObj *ha
 		return aObj, err
 	}
 
-	if ok {
-		// if job is not complete, wait for completion
-		logrus.Debugf("patching backoff limit for job %s in ns %s", j.Name, j.Namespace)
-		err = h.patchJobBackoff(j)
-		if err != nil {
-			return aObj, err
-		}
-	}
 	// the current job on hc is from the previous deploy/update
 	// or job is not complete. then wait for this to be completed
 	if !ok || !isJobComplete(j) {
