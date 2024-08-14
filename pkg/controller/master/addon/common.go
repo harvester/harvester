@@ -10,7 +10,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -79,6 +78,7 @@ func (h *Handler) deployHelmChart(aObj *harvesterv1.Addon) error {
 			Repo:          aObj.Spec.Repo,
 			ValuesContent: vals,
 			Version:       aObj.Spec.Version,
+			BackOffLimit:  &harvesterv1.DefaultJobBackOffLimit,
 		},
 	}
 	_, err = h.helm.Create(hc)
@@ -200,17 +200,4 @@ func markCompletedCondition(aObj *harvesterv1.Addon) {
 	harvesterv1.AddonOperationFailed.False(aObj)
 	harvesterv1.AddonOperationFailed.Reason(aObj, "")
 	harvesterv1.AddonOperationFailed.Message(aObj, "")
-}
-
-// patchJobBackoff will patch the backoff count from the default 1000 for the helm controller created jobs
-func (h *Handler) patchJobBackoff(j *batchv1.Job) error {
-	jObj := j.DeepCopy()
-
-	if *j.Spec.BackoffLimit != harvesterv1.DefaultJobBackOffLimit {
-		jObj.Spec.BackoffLimit = pointer.Int32(harvesterv1.DefaultJobBackOffLimit)
-		_, err := h.job.Update(jObj)
-		return err
-	}
-
-	return nil
 }
