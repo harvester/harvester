@@ -19,6 +19,8 @@ var (
 	provider       Provider
 	InjectDefaults string
 
+	// Note, if you add a new setting, please also add it to `harvester-installer/pkg/config/config.go`.
+
 	AdditionalCA                           = NewSetting(AdditionalCASettingName, "")
 	APIUIVersion                           = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
 	ClusterRegistrationURL                 = NewSetting("cluster-registration-url", "")
@@ -27,6 +29,13 @@ var (
 	UIPath                                 = NewSetting(UIPathSettingName, "/usr/share/harvester/harvester")
 	UISource                               = NewSetting(UISourceSettingName, "auto") // Options are 'auto', 'external' or 'bundled'
 	UIPluginIndex                          = NewSetting(UIPluginIndexSettingName, DefaultUIPluginURL)
+	UIPl                                   = NewSetting(UIPlSettingName, "Harvester")
+	UILogoLight                            = NewSetting(UILogoLightSettingName, "")
+	UILogoDark                             = NewSetting(UILogoDarkSettingName, "")
+	UIFavicon                              = NewSetting(UIFaviconSettingName, "")
+	UIPrimaryColor                         = NewSetting(UIPrimaryColorSettingName, "")
+	UILinkColor                            = NewSetting(UILinkColorSettingName, "")
+	Branding                               = NewSetting(BrandingSettingName, "Harvester") // Alias for `ui-pl`
 	VolumeSnapshotClass                    = NewSetting(VolumeSnapshotClassSettingName, "longhorn")
 	BackupTargetSet                        = NewSetting(BackupTargetSettingName, "")
 	UpgradableVersions                     = NewSetting("upgradable-versions", "")
@@ -56,7 +65,7 @@ var (
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
 	NTPServers             = NewSetting(NTPServersSettingName, "")
-	WhiteListedSettings    = []string{"server-version", "default-storage-class", "harvester-csi-ccm-versions", "default-vm-termination-grace-period-seconds"}
+	WhiteListedSettings = []string{"server-version", "default-storage-class", "harvester-csi-ccm-versions", "default-vm-termination-grace-period-seconds"}
 )
 
 const (
@@ -78,6 +87,13 @@ const (
 	UISourceSettingName                               = "ui-source"
 	UIPluginIndexSettingName                          = "ui-plugin-index"
 	UIPluginBundledVersionSettingName                 = "ui-plugin-bundled-version"
+	UIPlSettingName                                   = "ui-pl"
+	UILogoLightSettingName                            = "ui-logo-light"
+	UILogoDarkSettingName                             = "ui-logo-dark"
+	UIFaviconSettingName                              = "ui-favicon"
+	UIPrimaryColorSettingName                         = "ui-primary-color"
+	UILinkColorSettingName                            = "ui-link-color"
+	BrandingSettingName                               = "branding"
 	DefaultUIPluginURL                                = "https://releases.rancher.com/harvester-ui/plugin/harvester-latest/harvester-latest.umd.min.js"
 	ContainerdRegistrySettingName                     = "containerd-registry"
 	HarvesterCSICCMSettingName                        = "harvester-csi-ccm-versions"
