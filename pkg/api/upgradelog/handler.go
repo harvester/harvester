@@ -334,7 +334,7 @@ func prepareLogPackager(upgradeLog *harvesterv1.UpgradeLog, imageVersion, archiv
 							Name: "log-archive",
 							VolumeSource: corev1.VolumeSource{
 								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: name.SafeConcatName(upgradeLog.Name, util.UpgradeLogArchiveComponent),
+									ClaimName: ctlupgradelog.GetUpgradeLogPvcName(upgradeLog),
 								},
 							},
 						},

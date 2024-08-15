@@ -16,6 +16,7 @@ const (
 	loggingControllerName       = "harvester-upgradelog-logging-controller"
 	statefulSetControllerName   = "harvester-upgradelog-statefulset-controller"
 	managedChartControllerName  = "harvester-upgradelog-managedchart-controller"
+	pvcControllerName           = "harvester-upgradelog-pvc-controller"
 	upgradeControllerName       = "harvester-upgradelog-upgrade-controller"
 )
 
@@ -69,6 +70,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	jobController.OnChange(ctx, jobControllerName, handler.OnJobChange)
 	statefulSetController.OnChange(ctx, statefulSetControllerName, handler.OnStatefulSetChange)
 	managedChartController.OnChange(ctx, managedChartControllerName, handler.OnManagedChartChange)
+	pvcController.OnChange(ctx, pvcControllerName, handler.OnPvcChange)
 	upgradeController.OnChange(ctx, upgradeControllerName, handler.OnUpgradeChange)
 
 	return nil
