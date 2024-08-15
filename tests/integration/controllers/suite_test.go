@@ -221,6 +221,7 @@ func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlhar
 		HelmFactory:              helm,
 		CatalogFactory:           catalog,
 		RancherManagementFactory: rancher,
+		RestConfig:               restConfig,
 	}
 
 	_ = batch.ControllerFactory().SharedCacheFactory().WaitForCacheSync(ctx)
