@@ -76,6 +76,7 @@ spec:
             - name: GOCOVERDIR
               value: /go-cover-dir
 {{- end }}
+{{ include "harvester.supportBundleImageEnv" . | indent 12 }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:

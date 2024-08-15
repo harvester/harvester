@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/rancher/steve/pkg/server"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -88,6 +90,16 @@ func (s *settingsProvider) SetAll(settingsMap map[string]settings.Setting) error
 	for name, setting := range settingsMap {
 		key := settings.GetEnvKey(name)
 		value := os.Getenv(key)
+		defaultvaluekey := settings.GetEnvDefaultValueKey(name)
+		defaultvalue := os.Getenv(defaultvaluekey)
+
+		// override settings from ENV first
+		if defaultvalue != "" && defaultvalue != setting.Default {
+			logrus.WithFields(logrus.Fields{
+				"name": name,
+			}).Debugf("setting default %s is replaced with %s", setting.Default, defaultvalue)
+			setting.Default = defaultvalue
+		}
 
 		obj, err := s.settings.Get(setting.Name, v1.GetOptions{})
 		if errors.IsNotFound(err) {
@@ -105,6 +117,7 @@ func (s *settingsProvider) SetAll(settingsMap map[string]settings.Setting) error
 			} else {
 				fallback[newSetting.Name] = newSetting.Value
 			}
+
 			_, err := s.settings.Create(newSetting)
 			if err != nil {
 				return err
