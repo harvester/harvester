@@ -6,10 +6,14 @@ import (
 	"time"
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	wranglerunstructured "github.com/rancher/wrangler/pkg/unstructured"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -18,6 +22,10 @@ import (
 const (
 	// addon enqueue self interval, defaults to 5s
 	enqueueInterval = 5
+)
+
+var (
+	helmChartGVR = schema.GroupVersionResource{Group: "helm.cattle.io", Version: "v1", Resource: "helmcharts"}
 )
 
 // get the current addon related helmchart
@@ -61,6 +69,11 @@ func (h *Handler) deployHelmChart(aObj *harvesterv1.Addon) error {
 	}
 
 	hc := &helmv1.HelmChart{
+		//TypeMeta is needed for dynamic client
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "helm.cattle.io/v1",
+			Kind:       "HelmChart",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      aObj.Name,
 			Namespace: aObj.Namespace,
@@ -78,15 +91,38 @@ func (h *Handler) deployHelmChart(aObj *harvesterv1.Addon) error {
 			Repo:          aObj.Spec.Repo,
 			ValuesContent: vals,
 			Version:       aObj.Spec.Version,
-			BackOffLimit:  &harvesterv1.DefaultJobBackOffLimit,
 		},
 	}
-	_, err = h.helm.Create(hc)
-	if err != nil {
-		return fmt.Errorf("error creating helmchart object %v", err)
-	}
 
-	return nil
+	return h.createHelmChart(hc)
+}
+
+// currently the helm-controller dependency is pinned to v0.11.7
+// due to this the field backoff limit is not yet available in crd spec
+// as it was introduced in v0.15.10 onwards, which bumps wranger to v2 and k8s client go
+// minimal packages to v1.28.x.
+// kubevirt seems to have jumped from k8s v1.26 in kubevirt 1.2.x to k8s v1.30 in kubevirt 1.3.x
+// the move to unstructed allows us to retain the current go mod dependencies
+// while leveraging unstructured object to patch and apply the backoff limit before submitting
+// the helmchart crd for associated addon.
+// all susbsequent operations query the crd status which has not changed across versions
+func (h *Handler) createHelmChart(hc *helmv1.HelmChart) error {
+	obj, err := wranglerunstructured.ToUnstructured(hc)
+	if err != nil {
+		return fmt.Errorf("error converting helmchart crd to unstructured object: %v", err)
+	}
+	// apply default backoff limit to helmchart
+	specMap, _, err := unstructured.NestedMap(obj.Object, "spec")
+	if err != nil {
+		return fmt.Errorf("error getting nested map: %v", err)
+	}
+	// dynamic client does not support int32
+	specMap["backOffLimit"] = float64(harvesterv1.DefaultJobBackOffLimit)
+	if err := unstructured.SetNestedMap(obj.Object, specMap, "spec"); err != nil {
+		return fmt.Errorf("error setting default job backofflimit while enabling addon: %v", err)
+	}
+	_, err = h.dynamic.Resource(helmChartGVR).Namespace(hc.Namespace).Create(h.ctx, obj, metav1.CreateOptions{})
+	return err
 }
 
 func defaultValues(a *harvesterv1.Addon) (string, error) {

@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	"github.com/rancher/wrangler/pkg/slice"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/dynamic"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -30,12 +31,14 @@ var (
 )
 
 type Handler struct {
-	helm  ctlhelmv1.HelmChartController
-	addon ctlharvesterv1.AddonController
-	job   ctlbatchv1.JobController
-	app   ctlappsv1.AppController
-	pv    ctlcorev1.PersistentVolumeController
-	pvc   ctlcorev1.PersistentVolumeClaimController
+	ctx     context.Context
+	helm    ctlhelmv1.HelmChartController
+	addon   ctlharvesterv1.AddonController
+	job     ctlbatchv1.JobController
+	app     ctlappsv1.AppController
+	pv      ctlcorev1.PersistentVolumeController
+	pvc     ctlcorev1.PersistentVolumeClaimController
+	dynamic dynamic.Interface
 }
 
 func Register(ctx context.Context, management *config.Management, _ config.Options) error {
@@ -45,14 +48,19 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	appController := management.CatalogFactory.Catalog().V1().App()
 	pvController := management.CoreFactory.Core().V1().PersistentVolume()
 	pvcController := management.CoreFactory.Core().V1().PersistentVolumeClaim()
-
+	dynamic, err := dynamic.NewForConfig(management.RestConfig)
+	if err != nil {
+		return fmt.Errorf("error initialising dynamic client in addon controller: %v", err)
+	}
 	h := &Handler{
-		helm:  helmController,
-		addon: addonController,
-		job:   jobController,
-		app:   appController,
-		pv:    pvController,
-		pvc:   pvcController,
+		ctx:     ctx,
+		helm:    helmController,
+		addon:   addonController,
+		job:     jobController,
+		app:     appController,
+		pv:      pvController,
+		pvc:     pvcController,
+		dynamic: dynamic,
 	}
 
 	addonController.OnChange(ctx, "monitor-addon-per-status", h.MonitorAddonPerStatus)
