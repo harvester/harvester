@@ -79,6 +79,7 @@ func (v *restoreValidator) Resource() types.Resource {
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
 			admissionregv1.Update,
+			admissionregv1.Delete,
 		},
 	}
 }
@@ -303,5 +304,23 @@ func (v *restoreValidator) checkVolumeSnapshotClass(vmBackup *v1beta1.VirtualMac
 			return fmt.Errorf("can't get volumeSnapshotClass %s for driver %s", volumeSnapshotClassName, csiDriverName)
 		}
 	}
+	return nil
+}
+
+func (v *restoreValidator) Delete(_ *types.Request, newObj runtime.Object) error {
+	vmRestore := newObj.(*v1beta1.VirtualMachineRestore)
+	vm, err := v.vms.Get(vmRestore.Namespace, vmRestore.Spec.Target.Name)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), fieldTargetName)
+	}
+
+	if vm.DeletionTimestamp == nil {
+		return werror.NewInvalidError(fmt.Sprintf("The restore can't be removed because the restored VM %s exists", vm.Name), fieldTargetName)
+	}
+
 	return nil
 }
