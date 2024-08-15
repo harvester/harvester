@@ -2,6 +2,7 @@ package upgradelog
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/cisco-open/operator-tools/pkg/volume"
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
@@ -15,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -32,35 +34,6 @@ func upgradeLogReference(upgradeLog *harvesterv1.UpgradeLog) metav1.OwnerReferen
 		Kind:       upgradeLog.Kind,
 		UID:        upgradeLog.UID,
 		APIVersion: upgradeLog.APIVersion,
-	}
-}
-
-func preparePvc(upgradeLog *harvesterv1.UpgradeLog) *corev1.PersistentVolumeClaim {
-	volumeMode := corev1.PersistentVolumeFilesystem
-
-	return &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				util.LabelUpgradeLog:          upgradeLog.Name,
-				util.LabelUpgradeLogComponent: util.UpgradeLogArchiveComponent,
-			},
-			Name:      name.SafeConcatName(upgradeLog.Name, util.UpgradeLogArchiveComponent),
-			Namespace: util.HarvesterSystemNamespaceName,
-			OwnerReferences: []metav1.OwnerReference{
-				upgradeLogReference(upgradeLog),
-			},
-		},
-		Spec: corev1.PersistentVolumeClaimSpec{
-			AccessModes: []corev1.PersistentVolumeAccessMode{
-				corev1.ReadWriteOnce,
-			},
-			Resources: corev1.VolumeResourceRequirements{
-				Requests: corev1.ResourceList{
-					"storage": resource.MustParse(defaultLogArchiveVolumeSize),
-				},
-			},
-			VolumeMode: &volumeMode,
-		},
 	}
 }
 
@@ -98,6 +71,8 @@ func prepareOperator(upgradeLog *harvesterv1.UpgradeLog) *mgmtv3.ManagedChart {
 }
 
 func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image) *loggingv1.Logging {
+	volumeMode := corev1.PersistentVolumeFilesystem
+
 	return &loggingv1.Logging{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -144,8 +119,19 @@ func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image)
 						Volume: &volume.KubernetesVolume{
 							PersistentVolumeClaim: &volume.PersistentVolumeClaim{
 								PersistentVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: name.SafeConcatName(upgradeLog.Name, util.UpgradeLogArchiveComponent),
+									ClaimName: util.UpgradeLogArchiveComponent,
 									ReadOnly:  false,
+								},
+								PersistentVolumeClaimSpec: corev1.PersistentVolumeClaimSpec{
+									AccessModes: []corev1.PersistentVolumeAccessMode{
+										corev1.ReadWriteOnce,
+									},
+									Resources: corev1.VolumeResourceRequirements{
+										Requests: corev1.ResourceList{
+											"storage": resource.MustParse(defaultLogArchiveVolumeSize),
+										},
+									},
+									VolumeMode: &volumeMode,
 								},
 							},
 						},
@@ -372,7 +358,7 @@ func prepareLogDownloader(upgradeLog *harvesterv1.UpgradeLog, imageVersion strin
 							Name: "log-archive",
 							VolumeSource: corev1.VolumeSource{
 								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: name.SafeConcatName(upgradeLog.Name, util.UpgradeLogArchiveComponent),
+									ClaimName: GetUpgradeLogPvcName(upgradeLog),
 									ReadOnly:  true,
 								},
 							},
@@ -414,6 +400,23 @@ func prepareLogDownloaderSvc(upgradeLog *harvesterv1.UpgradeLog) *corev1.Service
 			},
 		},
 	}
+}
+
+// Returns the name of the log-archive PVC, which is created by the fluentd StatefulSet.
+//
+//	The name will look like: <upgradelog>-infra-log-archive-<upgradelog>-infra-fluentd-0
+//	For instance: hvst-upgrade-bczl4-upgradelog-infra-log-archive-hvst-upgrade-bczl4-upgradelog-infra-fluentd-0.
+//
+// TODO: As of rancher-logging v4.4.0, we use the PVC created by the fluentd StatefulSet, not making it ourselves. After v4.6.0, we need to revisit here and perhaps update the implementation because the upstream behavior changes.
+func GetUpgradeLogPvcName(upgradeLog *harvesterv1.UpgradeLog) string {
+	return strings.Join([]string{
+		upgradeLog.Name,
+		util.UpgradeLogInfraComponent,
+		util.UpgradeLogArchiveComponent,
+		upgradeLog.Name,
+		util.UpgradeLogInfraComponent,
+		"fluentd-0",
+	}, "-")
 }
 
 func setOperatorDeployedCondition(upgradeLog *harvesterv1.UpgradeLog, status corev1.ConditionStatus, reason, message string) {
@@ -833,6 +836,21 @@ func (p *pvcBuilder) WithLabel(key, value string) *pvcBuilder {
 		p.pvc.Labels = make(map[string]string, 1)
 	}
 	p.pvc.Labels[key] = value
+	return p
+}
+
+func (p *pvcBuilder) OwnerReference(name, uid string) *pvcBuilder {
+	newOwnerReferences := []metav1.OwnerReference{{
+		Name: name,
+		UID:  types.UID(uid),
+	}}
+
+	if len(p.pvc.OwnerReferences) == 0 {
+		p.pvc.OwnerReferences = newOwnerReferences
+	} else {
+		p.pvc.OwnerReferences = append(p.pvc.OwnerReferences, newOwnerReferences...)
+	}
+
 	return p
 }
 
