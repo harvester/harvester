@@ -196,6 +196,10 @@ func GetEnvKey(key string) string {
 	return "HARVESTER_" + strings.ToUpper(strings.Replace(key, "-", "_", -1))
 }
 
+func GetEnvDefaultValueKey(key string) string {
+	return "HARVESTER_" + strings.ToUpper(strings.Replace(key, "-", "_", -1)) + "_DEFAULT_VALUE"
+}
+
 func IsRelease() bool {
 	return !strings.Contains(ServerVersion.Get(), "head") && releasePattern.MatchString(ServerVersion.Get())
 }
