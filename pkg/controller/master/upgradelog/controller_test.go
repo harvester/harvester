@@ -26,12 +26,14 @@ const (
 
 	testUpgradeName       = "test-upgrade"
 	testUpgradeLogName    = "test-upgrade-upgradelog"
+	testUpgradeLogUID     = "test-upgradelog-uid"
 	testClusterFlowName   = "test-upgrade-upgradelog-clusterflow"
 	testClusterOutputName = "test-upgrade-upgradelog-clusteroutput"
 	testDaemonSetName     = "test-upgrade-upgradelog-fluentbit"
 	testDeploymentName    = "test-upgrade-upgradelog-log-downloader"
 	testJobName           = "test-upgrade-upgradelog-log-packager"
 	testLoggingName       = "test-upgrade-upgradelog-infra"
+	testLoggingUID        = "test-logging-uid"
 	testManagedChartName  = "test-upgrade-upgradelog-operator"
 	testPvcName           = "test-upgrade-upgradelog-log-archive"
 	testStatefulSetName   = "test-upgrade-upgradelog-fluentd"
@@ -124,8 +126,7 @@ func newTestManagedChartBuilder() *managedChartBuilder {
 }
 
 func newTestPvcBuilder() *pvcBuilder {
-	return newPvcBuilder(testPvcName).
-		WithLabel(util.LabelUpgradeLog, testUpgradeLogName)
+	return newPvcBuilder(testPvcName)
 }
 
 func newTestStatefulSetBuilder() *statefulSetBuilder {
@@ -516,6 +517,105 @@ func TestHandler_OnStatefulSetChange(t *testing.T) {
 	}
 }
 
+func TestHandler_OnPvcChange(t *testing.T) {
+	type input struct {
+		key        string
+		pvc        *corev1.PersistentVolumeClaim
+		upgradeLog *harvesterv1.UpgradeLog
+	}
+	type output struct {
+		pvc *corev1.PersistentVolumeClaim
+		err error
+	}
+	var testCases = []struct {
+		name     string
+		given    input
+		expected output
+	}{
+		{
+			name: "The UpgradeLog will be added as an owner of the log-archive PVC created by the fluentd StatefulSet",
+			given: input{
+				key:        testPvcName,
+				upgradeLog: newTestUpgradeLogBuilder().Build(),
+				pvc: newTestPvcBuilder().
+					WithLabel(appLabelName, "fluentd").
+					WithLabel(util.LabelUpgradeLogComponent, util.UpgradeLogAggregatorComponent).
+					WithLabel(util.LabelUpgradeLog, testUpgradeLogName).
+					OwnerReference(testLoggingName, testLoggingUID).
+					Build(),
+			},
+			expected: output{
+				pvc: newTestPvcBuilder().
+					OwnerReference(testLoggingName, testLoggingUID).
+					OwnerReference(testUpgradeLogName, "").
+					Build(),
+			},
+		},
+		{
+			name: "The log-archive PVC is owned by exactly one Logging and one UpgradeLog",
+			given: input{
+				key:        testPvcName,
+				upgradeLog: newTestUpgradeLogBuilder().Build(),
+				pvc: newTestPvcBuilder().
+					WithLabel(appLabelName, "fluentd").
+					OwnerReference(testLoggingName, testLoggingUID).
+					OwnerReference(testUpgradeLogName, testUpgradeLogUID).
+					Build(),
+			},
+			expected: output{
+				pvc: newTestPvcBuilder().
+					OwnerReference(testLoggingName, testLoggingUID).
+					OwnerReference(testUpgradeLogName, testUpgradeLogUID).
+					Build(),
+			},
+		},
+		{
+			name: "The irrelevant PVC will be intact",
+			given: input{
+				key:        testPvcName,
+				upgradeLog: newTestUpgradeLogBuilder().Build(),
+				pvc: newTestPvcBuilder().
+					WithLabel(appLabelName, "fluentd").
+					OwnerReference(testLoggingName, testLoggingUID).
+					Build(),
+			},
+			expected: output{
+				pvc: newTestPvcBuilder().
+					OwnerReference(testLoggingName, testLoggingUID).
+					Build(),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		var clientset = fake.NewSimpleClientset(tc.given.upgradeLog)
+
+		var k8sclientset = k8sfake.NewSimpleClientset()
+		if tc.given.pvc != nil {
+			var err = k8sclientset.Tracker().Add(tc.given.pvc)
+			assert.Nil(t, err, "mock resource should add into k8s fake controller tracker")
+		}
+
+		var handler = &handler{
+			namespace:       util.HarvesterSystemNamespaceName,
+			pvcClient:       fakeclients.PersistentVolumeClaimClient(k8sclientset.CoreV1().PersistentVolumeClaims),
+			upgradeLogCache: fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs),
+		}
+
+		var actual output
+		actual.pvc, actual.err = handler.OnPvcChange(tc.given.key, tc.given.pvc)
+		if tc.expected.err != nil {
+			assert.Equal(t, tc.expected.err, actual.err, tc.name)
+		} else {
+			assert.Nil(t, actual.err)
+		}
+
+		if tc.expected.pvc != nil {
+			assert.Equal(t, tc.expected.pvc.OwnerReferences, actual.pvc.OwnerReferences, "case %q", tc.name)
+		}
+	}
+}
+
 func TestHandler_OnUpgradeChange(t *testing.T) {
 	type input struct {
 		key        string
@@ -690,7 +790,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			},
 			expected: output{
 				logging: prepareLogging(newTestUpgradeLogBuilder().Build(), testImages),
-				pvc:     preparePvc(newTestUpgradeLogBuilder().Build()),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").
 					OperatorDeployedCondition(corev1.ConditionTrue, "", "").
@@ -859,7 +958,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 				clusterFlow:   newTestClusterFlowBuilder().Build(),
 				clusterOutput: newTestClusterOutputBuilder().Build(),
 				logging:       newTestLoggingBuilder().Build(),
-				pvc:           preparePvc(newTestUpgradeLogBuilder().Build()),
 				upgradeLog: newTestUpgradeLogBuilder().
 					WithAnnotation(upgradeLogStateAnnotation, upgradeLogStateCollecting).
 					UpgradeLogReadyCondition(corev1.ConditionTrue, "", "").
@@ -869,7 +967,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 					DownloadReadyCondition(corev1.ConditionTrue, "", "").Build(),
 			},
 			expected: output{
-				pvc: preparePvc(newTestUpgradeLogBuilder().Build()),
 				upgradeLog: newTestUpgradeLogBuilder().
 					WithAnnotation(upgradeLogStateAnnotation, upgradeLogStateStopped).
 					UpgradeLogReadyCondition(corev1.ConditionTrue, "", "").

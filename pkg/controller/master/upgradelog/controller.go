@@ -19,8 +19,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -43,6 +45,15 @@ const (
 	upgradeLogStateAnnotation = "harvesterhci.io/upgradeLogState"
 	upgradeLogStateCollecting = "Collecting"
 	upgradeLogStateStopped    = "Stopped"
+
+	appLabelName = "app.kubernetes.io/name"
+)
+
+var (
+	logArchiveMatchingLabels = labels.Set{
+		appLabelName:                  "fluentd",
+		util.LabelUpgradeLogComponent: util.UpgradeLogAggregatorComponent,
+	}
 )
 
 type handler struct {
@@ -146,10 +157,6 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 
 		toUpdate := upgradeLog.DeepCopy()
 
-		// The volume acts as a central log storage for fluentd
-		if _, err := h.pvcClient.Create(preparePvc(upgradeLog)); err != nil && !apierrors.IsAlreadyExists(err) {
-			return nil, err
-		}
 		// The creation of the Logging resource will indirectly bring up fluent-bit DaemonSet and fluentd StatefulSet
 		candidateImages, err := h.getConsolidatedLoggingImageList(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
 		if err != nil {
@@ -579,6 +586,66 @@ func (h *handler) OnStatefulSetChange(_ string, statefulSet *appsv1.StatefulSet)
 	}
 
 	return statefulSet, err
+}
+
+func (h *handler) OnPvcChange(_ string, pvc *corev1.PersistentVolumeClaim) (*corev1.PersistentVolumeClaim, error) {
+	if pvc == nil || pvc.DeletionTimestamp != nil || pvc.Namespace != util.HarvesterSystemNamespaceName {
+		return pvc, nil
+	}
+
+	// We only care about the log-archive PVC created by the fluentd StatefulSet
+	pvcLabels := labels.Set(pvc.Labels)
+	if !logArchiveMatchingLabels.AsSelector().Matches(pvcLabels) {
+		return pvc, nil
+	}
+	upgradeLogName, ok := pvc.Labels[util.LabelUpgradeLog]
+	if !ok {
+		return pvc, nil
+	}
+
+	upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return pvc, err
+		}
+		logrus.WithFields(logrus.Fields{
+			"namespace": pvc.Namespace,
+			"name":      pvc.Name,
+			"kind":      pvc.Kind,
+		}).Warn("upgradelog not found, skip it")
+		return pvc, nil
+	}
+
+	newOwnerRef := metav1.OwnerReference{
+		Name:       upgradeLog.Name,
+		APIVersion: upgradeLog.APIVersion,
+		UID:        upgradeLog.UID,
+		Kind:       upgradeLog.Kind,
+	}
+
+	// Check if the OwnerReference already exists
+	for _, ownerRef := range pvc.OwnerReferences {
+		if ownerRef.UID == newOwnerRef.UID {
+			return pvc, nil
+		}
+	}
+
+	// Add UpgradeLog as an owner of the log-archive PVC because we want it to
+	// live longer than its original owner, i.e., Logging, so pods like the
+	// downloader and packager can still access the log-archive volume.
+	toUpdate := pvc.DeepCopy()
+	toUpdate.OwnerReferences = append(toUpdate.OwnerReferences, newOwnerRef)
+
+	if !reflect.DeepEqual(pvc, toUpdate) {
+		logrus.WithFields(logrus.Fields{
+			"namespace": pvc.Namespace,
+			"name":      pvc.Name,
+			"kind":      pvc.Kind,
+		}).Info("updating ownerReference")
+		return h.pvcClient.Update(toUpdate)
+	}
+
+	return pvc, nil
 }
 
 func (h *handler) OnUpgradeChange(_ string, upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
