@@ -105,3 +105,21 @@ NB(thxCode): Use this value to unify the control tag and condition of KubeVirt.
 {{- .Values.tags.kubevirt | toString -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Get Support-bundle-kit image environment for updating the default values per current release.
+*/}}
+{{- define "harvester.supportBundleImageEnv" -}}
+{{- $result := dict -}}
+{{- range $k, $v := .Values -}}
+{{- if eq (toString $k) "support-bundle-kit" -}}
+{{- $result = $v -}}
+{{- end -}}
+{{- end -}}
+{{- with $result -}}
+{{- with .image -}}
+- name: HARVESTER_SUPPORT_BUNDLE_IMAGE_DEFAULT_VALUE
+  value: {{ printf "{\"repository\":\"%s\",\"tag\":\"%s\",\"imagePullPolicy\":\"%s\"}" .repository .tag .imagePullPolicy | squote }}
+{{- end -}}
+{{- end -}}
+{{- end }}
