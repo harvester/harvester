@@ -175,7 +175,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 		ObjectMeta: metav1.ObjectMeta{
 			Name: disk0Claim,
 			Annotations: map[string]string{
-				"harvesterhci.io/imageId": fmt.Sprintf("%s/%s", image.Namespace, image.Name),
+				util.AnnotationImageID: fmt.Sprintf("%s/%s", image.Namespace, image.Name),
 			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
@@ -199,14 +199,14 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 			Name:      vmName,
 			Namespace: upgradeNamespace,
 			Labels: map[string]string{
-				"harvesterhci.io/creator":      "harvester",
+				util.LabelVMCreator:            "harvester",
 				harvesterUpgradeLabel:          r.upgrade.Name,
 				harvesterUpgradeComponentLabel: upgradeComponentRepo,
 			},
 			Annotations: map[string]string{
-				"harvesterhci.io/volumeClaimTemplates": string(pvc),
-				"network.harvesterhci.io/ips":          "[]",
-				util.RemovedPVCsAnnotationKey:          disk0Claim,
+				util.AnnotationVolumeClaimTemplates: string(pvc),
+				"network.harvesterhci.io/ips":       "[]",
+				util.RemovedPVCsAnnotationKey:       disk0Claim,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				upgradeReference(r.upgrade),
@@ -217,8 +217,8 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"harvesterhci.io/creator":      "harvester",
-						"harvesterhci.io/vmName":       vmName,
+						util.LabelVMCreator:            "harvester",
+						util.LabelVMName:               vmName,
 						harvesterUpgradeLabel:          r.upgrade.Name,
 						harvesterUpgradeComponentLabel: upgradeComponentRepo,
 					},
@@ -441,7 +441,7 @@ func (r *Repo) createService() (*corev1.Service, error) {
 				upgradeReference(r.upgrade),
 			},
 			Labels: map[string]string{
-				"harvesterhci.io/creator":      "harvester",
+				util.LabelVMCreator:            "harvester",
 				harvesterUpgradeLabel:          r.upgrade.Name,
 				harvesterUpgradeComponentLabel: upgradeComponentRepo,
 			},
@@ -479,7 +479,7 @@ func (r *Repo) getInfo() (*RepoInfo, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Unexpect status: %s", resp.Status)
+		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
