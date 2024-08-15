@@ -245,6 +245,16 @@ upgrade_rancher() {
     exit 1
   fi
 
+  # drop the potential manual patch upon shell-image to v0.1.26 on Harvester v1.3.2
+  local shellimage=$(kubectl get settings.management.cattle.io shell-image -ojsonpath='{.value}')
+  if [[ "$shellimage" = "rancher/shell:v0.1.26" ]]; then
+    echo "rancher shell-image is $shellimage, will be reverted to empty"
+    kubectl patch settings.management.cattle.io shell-image --type merge -p '{"value":""}'
+    kubectl get settings.management.cattle.io shell-image
+  else
+    echo "rancher shell-image is $shellimage, patch is not needed"
+  fi
+
   if [ "$RANCHER_CURRENT_VERSION" = "$REPO_RANCHER_VERSION" ]; then
     echo "Skip update Rancher. The version is already $RANCHER_CURRENT_VERSION"
     return
