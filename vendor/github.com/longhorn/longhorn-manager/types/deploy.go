@@ -104,15 +104,6 @@ func UpdateDaemonSetTemplateBasedOnStorageNetwork(daemonSet *appsv1.DaemonSet, s
 
 	isContainerNetworkNamespace := IsStorageNetworkForRWXVolume(storageNetwork, isStorageNetworkForRWXVolumeEnabled)
 
-	updateHostNetwork := func() {
-		newHostNetwork := !isContainerNetworkNamespace
-		logger.WithFields(logrus.Fields{
-			"oldValue": daemonSet.Spec.Template.Spec.HostNetwork,
-			"newValue": newHostNetwork,
-		}).Debugf("Updating hostNetwork")
-		daemonSet.Spec.Template.Spec.HostNetwork = newHostNetwork
-	}
-
 	updateAnnotation := func() {
 		annotKey := string(CNIAnnotationNetworks)
 		annotValue := ""
@@ -133,10 +124,8 @@ func UpdateDaemonSetTemplateBasedOnStorageNetwork(daemonSet *appsv1.DaemonSet, s
 
 		if annotValue == "" {
 			delete(daemonSet.Spec.Template.Annotations, annotKey)
-			daemonSet.Spec.Template.Spec.HostPID = false
 		}
 	}
 
-	updateHostNetwork()
 	updateAnnotation()
 }

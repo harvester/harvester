@@ -511,14 +511,14 @@ github.com/lib/pq/scram
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 ## explicit
 github.com/liggitt/tabwriter
-# github.com/longhorn/backing-image-manager v1.7.0-rc2
+# github.com/longhorn/backing-image-manager v1.7.0-rc3
 ## explicit; go 1.22.0
 github.com/longhorn/backing-image-manager/api
 github.com/longhorn/backing-image-manager/pkg/client
 github.com/longhorn/backing-image-manager/pkg/meta
 github.com/longhorn/backing-image-manager/pkg/types
 github.com/longhorn/backing-image-manager/pkg/util
-# github.com/longhorn/backupstore v0.0.0-20240720163059-56c90cd23634
+# github.com/longhorn/backupstore v0.0.0-20240811043357-5c2b7879457f
 ## explicit; go 1.22.0
 github.com/longhorn/backupstore
 github.com/longhorn/backupstore/backupbackingimage
@@ -531,7 +531,7 @@ github.com/longhorn/backupstore/s3
 github.com/longhorn/backupstore/systembackup
 github.com/longhorn/backupstore/types
 github.com/longhorn/backupstore/util
-# github.com/longhorn/go-common-libs v0.0.0-20240727052403-b543ea3732fe
+# github.com/longhorn/go-common-libs v0.0.0-20240811024046-b6ddc3efb72e
 ## explicit; go 1.22.0
 github.com/longhorn/go-common-libs/backup
 github.com/longhorn/go-common-libs/exec
@@ -543,31 +543,31 @@ github.com/longhorn/go-common-libs/sync
 github.com/longhorn/go-common-libs/sys
 github.com/longhorn/go-common-libs/types
 github.com/longhorn/go-common-libs/utils
-# github.com/longhorn/go-iscsi-helper v0.0.0-20240727052644-d2442a50e906
+# github.com/longhorn/go-iscsi-helper v0.0.0-20240811043302-df8de353dd58
 ## explicit; go 1.22.0
 github.com/longhorn/go-iscsi-helper/iscsi
 github.com/longhorn/go-iscsi-helper/iscsidev
 github.com/longhorn/go-iscsi-helper/longhorndev
 github.com/longhorn/go-iscsi-helper/types
 github.com/longhorn/go-iscsi-helper/util
-# github.com/longhorn/go-spdk-helper v0.0.0-20240727080828-a55a2982815a
+# github.com/longhorn/go-spdk-helper v0.0.0-20240811121608-9383fa59dd7c
 ## explicit; go 1.22.0
 github.com/longhorn/go-spdk-helper/pkg/types
-# github.com/longhorn/longhorn-engine v1.7.0-rc2.0.20240729031753-4ec2bafb4437
+# github.com/longhorn/longhorn-engine v1.7.0-rc3
 ## explicit; go 1.22.2
 github.com/longhorn/longhorn-engine/pkg/interceptor
 github.com/longhorn/longhorn-engine/pkg/meta
 github.com/longhorn/longhorn-engine/pkg/replica/client
 github.com/longhorn/longhorn-engine/pkg/types
 github.com/longhorn/longhorn-engine/pkg/util
-# github.com/longhorn/longhorn-instance-manager v1.7.0-rc2.0.20240731060731-add94ca0861f
+# github.com/longhorn/longhorn-instance-manager v1.7.0-rc3
 ## explicit; go 1.22.2
 github.com/longhorn/longhorn-instance-manager/pkg/api
 github.com/longhorn/longhorn-instance-manager/pkg/client
 github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.7.0-rc3
+# github.com/longhorn/longhorn-manager v1.7.0-rc4
 ## explicit; go 1.22.2
 github.com/longhorn/longhorn-manager/csi/crypto
 github.com/longhorn/longhorn-manager/datastore
@@ -591,7 +591,7 @@ github.com/longhorn/longhorn-manager/meta
 github.com/longhorn/longhorn-manager/scheduler
 github.com/longhorn/longhorn-manager/types
 github.com/longhorn/longhorn-manager/util
-# github.com/longhorn/longhorn-share-manager v1.7.0-rc2.0.20240727065217-9eb24195c665
+# github.com/longhorn/longhorn-share-manager v1.7.0-rc3
 ## explicit; go 1.22.2
 github.com/longhorn/longhorn-share-manager/pkg/client
 github.com/longhorn/longhorn-share-manager/pkg/types
@@ -1223,7 +1223,7 @@ golang.org/x/oauth2/internal
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.22.0
+# golang.org/x/sys v0.24.0
 ## explicit; go 1.18
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
