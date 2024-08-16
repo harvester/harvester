@@ -16,7 +16,7 @@ dependencies:
   version: 0.2.0
 - name: longhorn
   repository: file://dependency_charts/longhorn
-  version: 1.7.0-rc3
+  version: 1.7.0-rc4
 - name: kube-vip
   repository: https://kube-vip.github.io/helm-charts
   version: 0.6.1
@@ -32,5 +32,5 @@ dependencies:
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:5080b90cf86dcfaa58d0e5c22563478faf6d7533f3a459433524f33343500f2f
-generated: "2024-08-05T11:27:52.897439+08:00"
+digest: sha256:947b5da0037ac136bb8e043a6b34a910098e123c15a9d5ba76685cd5c780d2b9
+generated: "2024-08-16T15:19:29.478474+08:00"
