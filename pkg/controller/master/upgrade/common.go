@@ -725,6 +725,11 @@ func (p *planBuilder) WithLabel(key, value string) *planBuilder {
 	return p
 }
 
+func (p *planBuilder) Concurrency(concurrency int) *planBuilder {
+	p.plan.Spec.Concurrency = int64(concurrency)
+	return p
+}
+
 func (p *planBuilder) Version(version string) *planBuilder {
 	p.plan.Spec.Version = version
 	return p

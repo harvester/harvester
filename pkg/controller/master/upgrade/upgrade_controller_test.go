@@ -16,18 +16,23 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
 const (
-	testJobName        = "test-job"
-	testPlanName       = "test-plan"
-	testNodeName       = "test-node"
-	testUpgradeName    = "test-upgrade"
-	testUpgradeLogName = "test-upgrade-upgradelog"
-	testVersion        = "test-version"
-	testUpgradeImage   = "test-upgrade-image"
-	testPlanHash       = "test-hash"
+	testJobName         = "test-job"
+	testPlanName        = "test-plan"
+	testPreparePlanName = "test-upgrade-prepare"
+	testNodeName        = "test-node"
+	testNodeName1       = "test-node-1"
+	testNodeName2       = "test-node-2"
+	testNodeName3       = "test-node-3"
+	testUpgradeName     = "test-upgrade"
+	testUpgradeLogName  = "test-upgrade-upgradelog"
+	testVersion         = "test-version"
+	testUpgradeImage    = "test-upgrade-image"
+	testPlanHash        = "test-hash"
 )
 
 func newTestNodeJobBuilder() *jobBuilder {
@@ -305,6 +310,286 @@ func Test_isVersionUpgradable(t *testing.T) {
 			assert.Nil(t, err, "case %q", tc.name)
 		} else {
 			assert.NotNil(t, err, "case %q", tc.name)
+		}
+	}
+}
+
+func TestUpgradeHandler_prepareNodesForUpgrade(t *testing.T) {
+	type input struct {
+		upgrade *harvesterv1.Upgrade
+		setting *harvesterv1.Setting
+		nodes   []*v1.Node
+	}
+	type output struct {
+		upgrade *harvesterv1.Upgrade
+		plan    *upgradeapiv1.Plan
+		err     error
+	}
+	var testCases = []struct {
+		name     string
+		given    input
+		expected output
+	}{
+		{
+			name: "set image preload strategy type to skip will skip the creation of the prepare plan",
+			given: input{
+				upgrade: newTestUpgradeBuilder().Build(),
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"imagePreloadOption":{"strategy":{"type":"skip"}}}`,
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder(testNodeName1).Build(),
+					newNodeBuilder(testNodeName2).Build(),
+					newNodeBuilder(testNodeName3).Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					WithLabel(upgradeStateLabel, StatePreparingNodes).
+					NodeUpgradeStatus(testNodeName1, nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus(testNodeName2, nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus(testNodeName3, nodeStateImagesPreloaded, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").Build(),
+			},
+		},
+		{
+			name: "set image preload strategy type to skip will skip the creation of the prepare plan even concurrency is not 0",
+			given: input{
+				upgrade: newTestUpgradeBuilder().Build(),
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"imagePreloadOption":{"strategy":{"type":"skip","concurrency":1}}}`,
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder(testNodeName1).Build(),
+					newNodeBuilder(testNodeName2).Build(),
+					newNodeBuilder(testNodeName3).Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					WithLabel(upgradeStateLabel, StatePreparingNodes).
+					NodeUpgradeStatus(testNodeName1, nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus(testNodeName2, nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus(testNodeName3, nodeStateImagesPreloaded, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").Build(),
+			},
+		},
+		{
+			name: "set image preload strategy type to sequential will create the prepare plan with concurrency 1",
+			given: input{
+				upgrade: newTestUpgradeBuilder().Build(),
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"imagePreloadOption":{"strategy":{"type":"sequential"}}}`,
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder(testNodeName1).Build(),
+					newNodeBuilder(testNodeName2).Build(),
+					newNodeBuilder(testNodeName3).Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					WithLabel(upgradeStateLabel, StatePreparingNodes).
+					NodesPreparedCondition(v1.ConditionUnknown, "", "").Build(),
+				plan: newPlanBuilder(testPreparePlanName).Concurrency(1).Build(),
+			},
+		},
+		{
+			name: "set image preload strategy type to sequential will create the prepare plan with concurrency 1 even the concurrency setting is 0",
+			given: input{
+				upgrade: newTestUpgradeBuilder().Build(),
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"imagePreloadOption":{"strategy":{"type":"sequential","concurrency":0}}}`,
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder(testNodeName1).Build(),
+					newNodeBuilder(testNodeName2).Build(),
+					newNodeBuilder(testNodeName3).Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					WithLabel(upgradeStateLabel, StatePreparingNodes).
+					NodesPreparedCondition(v1.ConditionUnknown, "", "").Build(),
+				plan: newPlanBuilder(testPreparePlanName).Concurrency(1).Build(),
+			},
+		},
+		{
+			name: "set image preload strategy type to sequential will create the prepare plan with concurrency 1 even the concurrency setting is 2",
+			given: input{
+				upgrade: newTestUpgradeBuilder().Build(),
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"imagePreloadOption":{"strategy":{"type":"sequential","concurrency":2}}}`,
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder(testNodeName1).Build(),
+					newNodeBuilder(testNodeName2).Build(),
+					newNodeBuilder(testNodeName3).Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					WithLabel(upgradeStateLabel, StatePreparingNodes).
+					NodesPreparedCondition(v1.ConditionUnknown, "", "").Build(),
+				plan: newPlanBuilder(testPreparePlanName).Concurrency(1).Build(),
+			},
+		},
+		{
+			name: "set image preload strategy type to parallel and concurrency to 2 will result in a prepare plan with concurrency 2 being created",
+			given: input{
+				upgrade: newTestUpgradeBuilder().Build(),
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":2}}}`,
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder(testNodeName1).Build(),
+					newNodeBuilder(testNodeName2).Build(),
+					newNodeBuilder(testNodeName3).Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					WithLabel(upgradeStateLabel, StatePreparingNodes).
+					NodesPreparedCondition(v1.ConditionUnknown, "", "").Build(),
+				plan: newPlanBuilder(testPreparePlanName).Concurrency(2).Build(),
+			},
+		},
+		{
+			name: "set image preload strategy type to parallel and concurrency to 0 will result in a prepare plan with concurrency same as the node count being created",
+			given: input{
+				upgrade: newTestUpgradeBuilder().Build(),
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":0}}}`,
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder(testNodeName1).Build(),
+					newNodeBuilder(testNodeName2).Build(),
+					newNodeBuilder(testNodeName3).Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					WithLabel(upgradeStateLabel, StatePreparingNodes).
+					NodesPreparedCondition(v1.ConditionUnknown, "", "").Build(),
+				plan: newPlanBuilder(testPreparePlanName).Concurrency(3).Build(),
+			},
+		},
+		{
+			name: "set image preload strategy type to parallel and concurrency to 100 will result in a prepare plan with concurrency same as the node count being created",
+			given: input{
+				upgrade: newTestUpgradeBuilder().Build(),
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":100}}}`,
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder(testNodeName1).Build(),
+					newNodeBuilder(testNodeName2).Build(),
+					newNodeBuilder(testNodeName3).Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					WithLabel(upgradeStateLabel, StatePreparingNodes).
+					NodesPreparedCondition(v1.ConditionUnknown, "", "").Build(),
+				plan: newPlanBuilder(testPreparePlanName).Concurrency(3).Build(),
+			},
+		},
+		{
+			name: "set image preload strategy type with an invalid type",
+			given: input{
+				upgrade: newTestUpgradeBuilder().Build(),
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"imagePreloadOption":{"strategy":{"type":"all"}}}`,
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder(testNodeName1).Build(),
+					newNodeBuilder(testNodeName2).Build(),
+					newNodeBuilder(testNodeName3).Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().Build(),
+				err:     fmt.Errorf("invalid image preload strategy type: all"),
+			},
+		},
+		{
+			name: "set image preload strategy concurrency to a negative value",
+			given: input{
+				upgrade: newTestUpgradeBuilder().Build(),
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":-1}}}`,
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder(testNodeName1).Build(),
+					newNodeBuilder(testNodeName2).Build(),
+					newNodeBuilder(testNodeName3).Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().Build(),
+				err:     fmt.Errorf("invalid image preload strategy concurrency: -1"),
+			},
+		},
+	}
+	for _, tc := range testCases {
+		var clientset = fake.NewSimpleClientset(tc.given.upgrade)
+
+		var nodes []runtime.Object
+		for _, node := range tc.given.nodes {
+			nodes = append(nodes, node)
+		}
+		var k8sclientset = k8sfake.NewSimpleClientset(nodes...)
+
+		var handler = &upgradeHandler{
+			nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+			upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+			planClient:    fakeclients.PlanClient(clientset.UpgradeV1().Plans),
+		}
+
+		var err error
+		err = settings.UpgradeConfigSet.Set(tc.given.setting.Value)
+		assert.Nil(t, err, "case %q", tc.name)
+
+		var actual output
+		actual.upgrade, actual.err = handler.prepareNodesForUpgrade(tc.given.upgrade, "")
+		assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
+		assert.Equal(t, tc.expected.upgrade, actual.upgrade, "case %q", tc.name)
+
+		if tc.expected.plan != nil {
+			actual.plan, err = handler.planClient.Get(sucNamespace, tc.expected.plan.Name, metav1.GetOptions{})
+			assert.Nil(t, err, "case %q", tc.name)
+			assert.Equal(t, tc.expected.plan.Spec.Concurrency, actual.plan.Spec.Concurrency, "case %q", tc.name)
 		}
 	}
 }

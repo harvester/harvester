@@ -57,7 +57,7 @@ var (
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
 	NTPServers             = NewSetting(NTPServersSettingName, "")
 	WhiteListedSettings    = []string{"server-version", "default-storage-class", "harvester-csi-ccm-versions", "default-vm-termination-grace-period-seconds"}
-	ImagePreloadStrategy   = NewSetting(ImagePreloadStrategySettingName, SequentialImagePreload) // options are skip, sequential, and parallel
+	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}}`)
 )
 
 const (
@@ -89,7 +89,7 @@ const (
 	AutoRotateRKE2CertsSettingName                    = "auto-rotate-rke2-certs"
 	KubeconfigDefaultTokenTTLMinutesSettingName       = "kubeconfig-default-token-ttl-minutes"
 	SupportBundleNodeCollectionTimeoutName            = "support-bundle-node-collection-timeout"
-	ImagePreloadStrategySettingName                   = "image-preload-strategy"
+	UpgradeConfigSettingName                          = "upgrade-config"
 )
 
 func init() {
@@ -327,8 +327,47 @@ func GetCSIDriverInfo(provisioner string) (*CSIDriverInfo, error) {
 	return csiDriverInfo, nil
 }
 
+type StrategyType string
+
 const (
-	SkipImagePreload       string = "skip"
-	SequentialImagePreload string = "sequential"
-	ParallelImagePreload   string = "parallel"
+	// Do no preloading
+	SkipType StrategyType = "skip"
+
+	// Preloading one node at a time
+	SequentialType StrategyType = "sequential"
+
+	// Preloading multiple nodes starts at the same time
+	ParallelType StrategyType = "parallel"
 )
+
+type PreloadStrategy struct {
+	Type StrategyType `json:"type,omitempty"`
+
+	// Concurrency only takes effect when ParallelType is specified. Default to
+	// 0, which means "full scale." Any value higher than the number of the
+	// cluster nodes will be treated as 0; values lower than 0 will be rejected
+	// by the validator.
+	Concurrency int `json:"concurrency,omitempty"`
+}
+
+type ImagePreloadOption struct {
+	// PreloadStrategy tweaks the way images are preloaded.
+	Strategy PreloadStrategy `json:"strategy,omitempty"`
+}
+
+type UpgradeConfig struct {
+	// Options for the Image Preload phase of Harvester Upgrade
+	PreloadOption ImagePreloadOption `json:"imagePreloadOption,omitempty"`
+}
+
+func DecodeConfig[T any](value string) (*T, error) {
+	target := new(T)
+
+	if value != "" {
+		if err := json.Unmarshal([]byte(value), target); err != nil {
+			return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
+		}
+	}
+
+	return target, nil
+}
