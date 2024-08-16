@@ -732,41 +732,153 @@ func Test_validateNTPServers(t *testing.T) {
 	}
 }
 
-func Test_validateImagePreloadStrategy(t *testing.T) {
+func Test_validateUpgradeConfig(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        *v1beta1.Setting
 		expectedErr bool
 	}{
 		{
-			name: "invalid string",
+			name: "empty config - default",
 			args: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.ImagePreloadStrategySettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Default:    "{}",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "empty config - value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      "{}",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid string - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Default:    "random string",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid string - value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
 				Value:      "random string",
 			},
 			expectedErr: true,
 		},
 		{
-			name: "skip image preload",
+			name: "skip image preload - default",
 			args: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.ImagePreloadStrategySettingName},
-				Value:      "skip",
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Default:    `{"imagePreloadOption":{"strategy":{"type":"skip"}}}`,
 			},
 			expectedErr: false,
 		},
 		{
-			name: "do image preload node by node",
+			name: "skip image preload - value",
 			args: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.ImagePreloadStrategySettingName},
-				Value:      "sequential",
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"skip"}}}`,
 			},
 			expectedErr: false,
 		},
 		{
-			name: "do image preload in parallel",
+			name: "do image preload node by node - default",
 			args: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.ImagePreloadStrategySettingName},
-				Value:      "parallel",
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Default:    `{"imagePreloadOption":{"strategy":{"type":"sequential"}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload node by node - value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload in parallel - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Default:    `{"imagePreloadOption":{"strategy":{"type":"parallel"}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload in parallel - value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel"}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload in parallel with negative value for concurrency - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Default:    `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":-1}}}`,
+			},
+			expectedErr: true,
+		},
+		{
+			name: "do image preload in parallel with negative value for concurrency - value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":-1}}}`,
+			},
+			expectedErr: true,
+		},
+		{
+			name: "do image preload in parallel (all nodes) - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Default:    `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":0}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload in parallel (all nodes) - value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":0}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload in parallel with concurrency set to 1 - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Default:    `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":1}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload in parallel with concurrency set to 1 - value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":1}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload in parallel with concurrency set to 2 - default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Default:    `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":2}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "do image preload in parallel with concurrency set to 2 - value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":2}}}`,
 			},
 			expectedErr: false,
 		},
@@ -774,7 +886,7 @@ func Test_validateImagePreloadStrategy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateImagePreloadStrategy(tt.args)
+			err := validateUpgradeConfig(tt.args)
 			assert.Equal(t, tt.expectedErr, err != nil)
 		})
 	}

@@ -91,7 +91,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
-	settings.ImagePreloadStrategySettingName:                   validateImagePreloadStrategy,
+	settings.UpgradeConfigSettingName:                          validateUpgradeConfig,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -111,7 +111,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
-	settings.ImagePreloadStrategySettingName:                   validateUpdateImagePreloadStrategy,
+	settings.UpgradeConfigSettingName:                          validateUpdateUpgradeConfig,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -1266,19 +1266,59 @@ func validateUpdateKubeConfigTTLSetting(_ *v1beta1.Setting, newSetting *v1beta1.
 	return validateKubeConfigTTLSetting(newSetting)
 }
 
-func validateImagePreloadStrategy(newSetting *v1beta1.Setting) error {
-	if newSetting.Value == "" {
-		return nil
+func validateUpgradeConfigHelper(setting *v1beta1.Setting) (*settings.UpgradeConfig, error) {
+	var config *settings.UpgradeConfig
+
+	if setting.Default != "" {
+		defaultConfig, err := settings.DecodeConfig[settings.UpgradeConfig](setting.Default)
+		if err != nil {
+			return nil, werror.NewInvalidError(err.Error(), "default")
+		}
+		config = defaultConfig
 	}
 
-	switch newSetting.Value {
-	case settings.SkipImagePreload, settings.SequentialImagePreload, settings.ParallelImagePreload:
-		return nil
-	default:
-		return werror.NewInvalidError("Invalid image preload strategy", "value")
+	if setting.Value != "" {
+		valueConfig, err := settings.DecodeConfig[settings.UpgradeConfig](setting.Value)
+		if err != nil {
+			return nil, werror.NewInvalidError(err.Error(), "value")
+		}
+		config = valueConfig
 	}
+	return config, nil
 }
 
-func validateUpdateImagePreloadStrategy(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	return validateImagePreloadStrategy(newSetting)
+func validateUpgradeConfigFields(upgradeConfig *settings.UpgradeConfig) error {
+	strategyType := upgradeConfig.PreloadOption.Strategy.Type
+
+	// Validate the image preload strategy type field
+	switch strategyType {
+	case settings.SkipType, settings.SequentialType, settings.ParallelType:
+	default:
+		return fmt.Errorf("invalid image preload strategy type: %s", strategyType)
+	}
+
+	// Validate the image preload strategy concurrency field
+	concurrency := upgradeConfig.PreloadOption.Strategy.Concurrency
+	if concurrency < 0 {
+		return fmt.Errorf("invalid image preload concurrency: %d", concurrency)
+	}
+
+	return nil
+}
+
+func validateUpgradeConfig(setting *v1beta1.Setting) error {
+	upgradeConfig, err := validateUpgradeConfigHelper(setting)
+	if err != nil {
+		return err
+	}
+
+	if upgradeConfig == nil {
+		return nil
+	}
+
+	return validateUpgradeConfigFields(upgradeConfig)
+}
+
+func validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateUpgradeConfig(newSetting)
 }
