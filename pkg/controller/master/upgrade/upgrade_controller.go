@@ -32,9 +32,8 @@ import (
 )
 
 var (
-	upgradeControllerLock   sync.Mutex
-	rke2DrainNodes          = true
-	imagePreloadConcurrency = defaultImagePreloadConcurrency
+	upgradeControllerLock sync.Mutex
+	rke2DrainNodes        = true
 )
 
 const (
@@ -76,7 +75,6 @@ type upgradeHandler struct {
 	nodeCache         ctlcorev1.NodeCache
 	jobClient         v1.JobClient
 	jobCache          v1.JobCache
-	settingCache      ctlharvesterv1.SettingCache
 	upgradeClient     ctlharvesterv1.UpgradeClient
 	upgradeCache      ctlharvesterv1.UpgradeCache
 	upgradeController ctlharvesterv1.UpgradeController
@@ -276,42 +274,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			return h.upgradeClient.Update(toUpdate)
 		}
 
-		// Node Preparation (Image Preloading)
-		imagePreloadStrategy := settings.ImagePreloadStrategy.Get()
-		logrus.WithFields(logrus.Fields{
-			"upgrade_namespace":      upgrade.Namespace,
-			"upgrade_name":           upgrade.Name,
-			"image_preload_strategy": imagePreloadStrategy,
-		}).Info("start preparing nodes for upgrade")
-
-		nodes, err := h.nodeCache.List(labels.Everything())
-		if err != nil {
-			return upgrade, err
-		}
-
-		switch imagePreloadStrategy {
-		case settings.SkipImagePreload:
-			for _, node := range nodes {
-				setNodeUpgradeStatus(toUpdate, node.Name, nodeStateImagesPreloaded, "", "")
-			}
-
-			toUpdate.Labels[upgradeStateLabel] = StatePreparingNodes
-			toUpdate.Status.RepoInfo = repoInfoStr
-			setNodesPreparedCondition(toUpdate, corev1.ConditionTrue, "", "")
-			return h.upgradeClient.Update(toUpdate)
-		case settings.ParallelImagePreload:
-			imagePreloadConcurrency = len(nodes)
-		}
-
-		if _, err := h.planClient.Create(preparePlan(upgrade, imagePreloadConcurrency)); err != nil && !apierrors.IsAlreadyExists(err) {
-			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
-			return h.upgradeClient.Update(toUpdate)
-		}
-
-		toUpdate.Labels[upgradeStateLabel] = StatePreparingNodes
-		toUpdate.Status.RepoInfo = repoInfoStr
-		harvesterv1.NodesPrepared.CreateUnknownIfNotExists(toUpdate)
-		return h.upgradeClient.Update(toUpdate)
+		return h.prepareNodesForUpgrade(toUpdate, repoInfoStr)
 	}
 
 	if harvesterv1.NodesPrepared.IsTrue(upgrade) && harvesterv1.SystemServicesUpgraded.GetStatus(upgrade) == "" {
@@ -657,6 +620,60 @@ func upgradeEligibilityCheck(upgrade *harvesterv1.Upgrade, repoInfo *RepoInfo) (
 	}
 
 	return true, ""
+}
+
+func (h *upgradeHandler) prepareNodesForUpgrade(upgrade *harvesterv1.Upgrade, repoInfoStr string) (*harvesterv1.Upgrade, error) {
+	upgradeConfig, err := settings.DecodeConfig[settings.UpgradeConfig](settings.UpgradeConfigSet.Get())
+	if err != nil {
+		return upgrade, err
+	}
+	logrus.WithFields(logrus.Fields{
+		"namespace":      upgrade.Namespace,
+		"name":           upgrade.Name,
+		"upgrade_config": upgradeConfig,
+	}).Info("start preparing nodes for upgrade")
+
+	nodes, err := h.nodeCache.List(labels.Everything())
+	if err != nil {
+		return upgrade, err
+	}
+
+	var imagePreloadConcurrency int
+	switch upgradeConfig.PreloadOption.Strategy.Type {
+	case settings.SkipType:
+		for _, node := range nodes {
+			setNodeUpgradeStatus(upgrade, node.Name, nodeStateImagesPreloaded, "", "")
+		}
+
+		upgrade.Labels[upgradeStateLabel] = StatePreparingNodes
+		upgrade.Status.RepoInfo = repoInfoStr
+		setNodesPreparedCondition(upgrade, corev1.ConditionTrue, "", "")
+		return h.upgradeClient.Update(upgrade)
+	case settings.SequentialType:
+		imagePreloadConcurrency = defaultImagePreloadConcurrency
+	case settings.ParallelType:
+		// Concurrency setting matters only when the strategy type is "parallel"
+		imagePreloadConcurrency = upgradeConfig.PreloadOption.Strategy.Concurrency
+		if imagePreloadConcurrency < 0 {
+			return upgrade, fmt.Errorf("invalid image preload strategy concurrency: %d", imagePreloadConcurrency)
+		} else if imagePreloadConcurrency == 0 || imagePreloadConcurrency > len(nodes) {
+			// imagePreloadConcurrency is capped to the cluster's node count
+			// setting the concurrency to 0 is a convenient way to always track the cluster's size
+			imagePreloadConcurrency = len(nodes)
+		}
+	default:
+		return upgrade, fmt.Errorf("invalid image preload strategy type: %s", upgradeConfig.PreloadOption.Strategy.Type)
+	}
+
+	if _, err := h.planClient.Create(preparePlan(upgrade, imagePreloadConcurrency)); err != nil && !apierrors.IsAlreadyExists(err) {
+		setUpgradeCompletedCondition(upgrade, StateFailed, corev1.ConditionFalse, err.Error(), "")
+		return h.upgradeClient.Update(upgrade)
+	}
+
+	upgrade.Labels[upgradeStateLabel] = StatePreparingNodes
+	upgrade.Status.RepoInfo = repoInfoStr
+	harvesterv1.NodesPrepared.CreateUnknownIfNotExists(upgrade)
+	return h.upgradeClient.Update(upgrade)
 }
 
 func (h *upgradeHandler) getReplicaReplenishmentValue() (int, error) {

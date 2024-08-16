@@ -46,7 +46,6 @@ func Register(ctx context.Context, management *config.Management, options config
 		jobCache:          jobs.Cache(),
 		nodeCache:         nodes.Cache(),
 		namespace:         options.Namespace,
-		settingCache:      settings.Cache(),
 		upgradeClient:     upgrades,
 		upgradeCache:      upgrades.Cache(),
 		upgradeController: upgrades,
