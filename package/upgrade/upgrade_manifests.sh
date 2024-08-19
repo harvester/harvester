@@ -415,6 +415,29 @@ modify_nad_bridge() {
       done
 }
 
+ensure_ingress_class_name() {
+  echo "Ensuring existing rancher-expose Ingress has ingress class name specified"
+
+  INGRESS_CLASS_NAME=$(kubectl -n cattle-system get ingress rancher-expose -o jsonpath='{.spec.ingressClassName}' || true)
+  if [ -n "$INGRESS_CLASS_NAME" ]; then
+    echo "The ingress class name of the rancher-expose Ingress has been set: $INGRESS_CLASS_NAME"
+    return 0
+  fi
+
+  # find out the default ingress class with the annotation "ingressclass.kubernetes.io/is-default-class"
+  # if more than one, take the oldest; if no matches, set it to "nginx"
+  DEFAULT_INGRESS_CLASS=$(kubectl get ingressclasses --sort-by=.metadata.creationTimestamp -o yaml | yq '.items[] | select(.metadata.annotations | has("ingressclass.kubernetes.io/is-default-class")) | .metadata.name' | head -n 1 || true)
+  DEFAULT_INGRESS_CLASS=${DEFAULT_INGRESS_CLASS:-nginx}
+
+  cat > rancher-expose.yaml <<EOF
+spec:
+  ingressClassName: "$DEFAULT_INGRESS_CLASS"
+EOF
+
+  echo "Setting the ingress class name $DEFAULT_INGRESS_CLASS for rancher-expose Ingress"
+  kubectl -n cattle-system patch ingress rancher-expose --patch-file ./rancher-expose.yaml --type=merge
+}
+
 upgrade_harvester() {
   echo "Upgrading Harvester"
 
@@ -786,6 +809,7 @@ patch_local_cluster_details
 update_local_rke_state_secret
 upgrade_harvester_cluster_repo
 upgrade_network
+ensure_ingress_class_name
 upgrade_harvester
 sync_containerd_registry_to_rancher
 wait_longhorn_upgrade
