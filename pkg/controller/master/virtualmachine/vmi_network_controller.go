@@ -3,7 +3,6 @@ package virtualmachine
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -71,13 +70,13 @@ func (h *VMNetworkController) updateVMDefaultNetworkMacAddress(vmi *kubevirtv1.V
 		}
 	}
 
-	if reflect.DeepEqual(vmCopy.Spec.Template.Spec.Domain.Devices, vm.Spec.Template.Spec.Domain.Devices) {
-		return nil
-	}
-
-	logrus.Debugf("update default network mac address of the vm: %s", vmi.Name)
+	// note: this function is related to vm/vmi, should always run on vmi change
 	if err := h.regenerateControllerRevision(vmi, vm); err != nil {
 		return err
+	}
+
+	if equality.Semantic.DeepEqual(vmCopy.Spec.Template.Spec.Domain.Devices, vm.Spec.Template.Spec.Domain.Devices) {
+		return nil
 	}
 	if _, err := h.vmClient.Update(vmCopy); err != nil {
 		return err
@@ -104,7 +103,7 @@ func (h *VMNetworkController) regenerateControllerRevision(vmi *kubevirtv1.Virtu
 		if deletionErr := h.crClient.Delete(vmi.Namespace, crObj.Name, &metav1.DeleteOptions{}); deletionErr != nil {
 			return fmt.Errorf("error during deletion of controllerRevision for vmi %s-%s: %v", vmi.Name, vmi.Name, deletionErr)
 		}
-
+		logrus.Debugf("VM %s/%s delete and create new cr object to patch generation: %s", vm.Namespace, vm.Name, patch)
 		crObj.Data.Raw = patch
 		crObj.ResourceVersion = ""
 		_, err = h.crClient.Create(crObj)
