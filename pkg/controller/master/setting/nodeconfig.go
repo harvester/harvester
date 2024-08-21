@@ -14,7 +14,7 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
-func (h *Handler) syncNTPServer(setting *harvesterv1.Setting) error {
+func (h *Handler) syncNodeConfig(setting *harvesterv1.Setting) error {
 	logrus.Infof("Processing setting %s, value: %s", setting.Name, setting.Value)
 
 	ntpSettings := &util.NTPSettings{}
