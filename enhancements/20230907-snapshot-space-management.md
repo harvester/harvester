@@ -41,15 +41,25 @@ Endpoint: `/v1/harvester/namespace/<namespace>?action=updateResourceQuota`
 Request (application/json):
 ```json
 {
-    "updateResourceQuota": "10Gi"
+    "totalSnapshotSizeQuota": "10Gi"
 }
 ```
 
 Response:
 - 403: if users don't have permission to update `resourcequotas.harvesterhci.io`.
-- 204: if the request is successful.
+- 200: if the request is successful.
 
 This API will update `spec.snapshotLimit.namespaceTotalSnapshotSizeQuota` in `ResourceQuota` CRD. For CRD details, please refer to the [Design](#ResourceQuota-CRD-in-harvesterhcioio-group) section.
+
+#### Delete Resource Quota API on Namespace [POST]
+
+Endpoint: `/v1/harvester/namespace/<namespace>?action=deleteResourceQuotaAction`
+
+Response:
+- 403: if users don't have permission to update `resourcequotas.harvesterhci.io`.
+- 200: if the request is successful.
+
+This API will delete `spec.snapshotLimit.namespaceTotalSnapshotSizeQuota` in `ResourceQuota` CRD.
 
 #### Update Resource Quota API on VM [POST]
 
@@ -58,7 +68,7 @@ Endpoint: `/v1/harvester/kubevirt.io.virtualmachines/<namespace>/<name>?action=u
 Request (application/json):
 ```json
 {
-    "updateResourceQuota": "10Gi"
+    "totalSnapshotSizeQuota": "10Gi"
 }
 ```
 
@@ -68,9 +78,19 @@ Response:
 
 This API will update `spec.snapshotLimit.vmTotalSnapshotSizeUsage[vmName]` in `ResourceQuota` CRD. For CRD details, please refer to the [Design](#ResourceQuota-CRD-in-harvesterhcioio-group) section.
 
+#### Delete Resource Quota API on VM [POST]
+
+Endpoint: `/v1/harvester/kubevirt.io.virtualmachines/<namespace>/<name>?action=deleteResourceQuota`
+
+Response:
+- 403: if users don't have permission to update `resourcequotas.harvesterhci.io`.
+- 204: if the request is successful.
+
+This API will delete `spec.snapshotLimit.vmTotalSnapshotSizeUsage[vmName]` in `ResourceQuota` CRD.
+
 ## Design
 
-### `ResourceQuota` CRD in `harvesterhcio.io` group
+### `ResourceQuota` CRD in `harvesterhci.io` group
 
 Although there is default `ResourceQuota` in `core` group, it can't fulfill our use cases.
 For example, we want to have sum of snapshots size in a VM, but it can only limit sum of storage requests.
