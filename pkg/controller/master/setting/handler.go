@@ -71,7 +71,7 @@ type Handler struct {
 	managedChartCache    ctlmgmtv3.ManagedChartCache
 	helmChartConfigs     ctlhelmv1.HelmChartConfigClient
 	helmChartConfigCache ctlhelmv1.HelmChartConfigCache
-	nodeClient           ctlcorev1.NodeClient
+	nodeClient           ctlcorev1.NodeController
 	nodeCache            ctlcorev1.NodeCache
 	nodeConfigs          ctlnodev1.NodeConfigClient
 	nodeConfigsCache     ctlnodev1.NodeConfigCache
