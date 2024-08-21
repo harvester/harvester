@@ -74,18 +74,18 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 
 	syncers = map[string]syncerFunc{
-		"additional-ca":             controller.syncAdditionalTrustedCAs,
-		"cluster-registration-url":  controller.registerCluster,
-		"http-proxy":                controller.syncHTTPProxy,
-		"log-level":                 controller.setLogLevel,
-		"overcommit-config":         controller.syncOvercommitConfig,
-		"vip-pools":                 controller.syncVipPoolsConfig,
-		"auto-disk-provision-paths": controller.syncNDMAutoProvisionPaths,
-		"ssl-certificates":          controller.syncSSLCertificate,
-		"ssl-parameters":            controller.syncSSLParameters,
-		"containerd-registry":       controller.syncContainerdRegistry,
-		"ntp-servers":               controller.syncNTPServer,
-		"auto-rotate-rke2-certs":    controller.syncAutoRotateRKE2Certs,
+		"additional-ca":                    controller.syncAdditionalTrustedCAs,
+		"cluster-registration-url":         controller.registerCluster,
+		"http-proxy":                       controller.syncHTTPProxy,
+		"log-level":                        controller.setLogLevel,
+		"overcommit-config":                controller.syncOvercommitConfig,
+		"vip-pools":                        controller.syncVipPoolsConfig,
+		"auto-disk-provision-paths":        controller.syncNDMAutoProvisionPaths,
+		"ssl-certificates":                 controller.syncSSLCertificate,
+		"ssl-parameters":                   controller.syncSSLParameters,
+		"containerd-registry":              controller.syncContainerdRegistry,
+		harvSettings.NTPServersSettingName: controller.syncNodeConfig,
+		"auto-rotate-rke2-certs":           controller.syncAutoRotateRKE2Certs,
 		harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName: controller.syncKubeconfigTTL,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
