@@ -68,12 +68,29 @@ spec:
                 maximum: 10
                 minimum: 0
                 type: integer
+              securityParameters:
+                properties:
+                  cryptoOperation:
+                    enum:
+                    - encrypt
+                    - decrypt
+                    type: string
+                  sourceImageName:
+                    type: string
+                  sourceImageNamespace:
+                    type: string
+                required:
+                - cryptoOperation
+                - sourceImageName
+                - sourceImageNamespace
+                type: object
               sourceType:
                 enum:
                 - download
                 - upload
                 - export-from-volume
                 - restore
+                - clone
                 type: string
               storageClassParameters:
                 additionalProperties:

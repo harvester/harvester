@@ -5,6 +5,7 @@ import (
 
 	lhdatastore "github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	lhutil "github.com/longhorn/longhorn-manager/util"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -81,6 +82,11 @@ func GetImageStorageClassParameters(backingImageCache ctllhv1.BackingImageCache,
 	params := map[string]string{
 		LonghornOptionBackingImageName: biName,
 	}
+
+	if image.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeClone && image.Spec.SecurityParameters.CryptoOperation == harvesterv1.VirtualMachineImageCryptoOperationTypeEncrypt {
+		params[LonghornOptionBackingImageDataSourceName] = string(lhv1beta2.BackingImageDataSourceTypeClone)
+	}
+
 	for k, v := range image.Spec.StorageClassParameters {
 		params[k] = v
 	}

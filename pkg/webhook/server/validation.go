@@ -19,6 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
 	"github.com/harvester/harvester/pkg/webhook/resources/resourcequota"
 	"github.com/harvester/harvester/pkg/webhook/resources/schedulevmbackup"
+	"github.com/harvester/harvester/pkg/webhook/resources/secret"
 	"github.com/harvester/harvester/pkg/webhook/resources/setting"
 	"github.com/harvester/harvester/pkg/webhook/resources/storageclass"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
@@ -67,7 +68,9 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.Core.PersistentVolumeClaim().Cache(),
 			clients.K8s.AuthorizationV1().SelfSubjectAccessReviews(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache()),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache(),
+			clients.Core.Secret().Cache(),
+			clients.StorageFactory.Storage().V1().StorageClass().Cache()),
 		upgrade.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
 			clients.Core.Node().Cache(),
@@ -124,7 +127,10 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		bundledeployment.NewValidator(
 			clients.FleetFactory.Fleet().V1alpha1().Cluster().Cache(),
 		),
-		storageclass.NewValidator(clients.StorageFactory.Storage().V1().StorageClass().Cache()),
+		storageclass.NewValidator(
+			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
+			clients.Core.Secret().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()),
 		namespace.NewValidator(clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()),
 		addon.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache()),
 		version.NewValidator(),
@@ -140,6 +146,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.Core.Secret().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache(),
 		),
+		secret.NewValidator(clients.StorageFactory.Storage().V1().StorageClass().Cache()),
 	}
 
 	router := webhook.NewRouter()

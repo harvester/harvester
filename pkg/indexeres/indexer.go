@@ -18,7 +18,6 @@ import (
 
 const (
 	PVCByDataSourceVolumeSnapshotIndex = "harvesterhci.io/pvc-by-data-source-volume-snapshot"
-	VMByNetworkIndex                   = "vm.harvesterhci.io/vm-by-network"
 	PodByNodeNameIndex                 = "harvesterhci.io/pod-by-nodename"
 	PodByPVCIndex                      = "harvesterhci.io/pod-by-pvc"
 	VolumeByNodeIndex                  = "harvesterhci.io/volume-by-node"
@@ -55,6 +54,9 @@ func Setup(ctx context.Context, _ *server.Server, _ *server.Controllers, _ confi
 
 	vmInformer := management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
+
+	scInformer := management.StorageFactory.Storage().V1().StorageClass().Cache()
+	scInformer.AddIndexer(indexeresutil.StorageClassBySecretIndex, indexeresutil.StorageClassBySecret)
 	return nil
 }
 

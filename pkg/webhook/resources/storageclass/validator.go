@@ -5,26 +5,40 @@ import (
 	"strings"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
+	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewValidator(storageClassCache ctlstoragev1.StorageClassCache) types.Validator {
+var pairs = [][2]string{
+	{util.CSIProvisionerSecretNameKey, util.CSIProvisionerSecretNamespaceKey},
+	{util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey},
+	{util.CSINodePublishSecretNameKey, util.CSINodePublishSecretNamespaceKey},
+}
+
+func NewValidator(storageClassCache ctlstoragev1.StorageClassCache, secretCache ctlcorev1.SecretCache, vmimagesCache ctlharvesterv1.VirtualMachineImageCache) types.Validator {
 	return &storageClassValidator{
 		storageClassCache: storageClassCache,
+		secretCache:       secretCache,
+		vmimagesCache:     vmimagesCache,
 	}
 }
 
 type storageClassValidator struct {
 	types.DefaultValidator
 	storageClassCache ctlstoragev1.StorageClassCache
+	secretCache       ctlcorev1.SecretCache
+	vmimagesCache     ctlharvesterv1.VirtualMachineImageCache
 }
 
 func (v *storageClassValidator) Resource() types.Resource {
@@ -37,21 +51,34 @@ func (v *storageClassValidator) Resource() types.Resource {
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
 			admissionregv1.Update,
+			admissionregv1.Delete,
 		},
 	}
 }
 
 func (v *storageClassValidator) Create(_ *types.Request, newObj runtime.Object) error {
-	err := v.validateSetUniqueDefault(newObj)
-	if err != nil {
-		return err
+	validators := []func(runtime.Object) error{
+		v.validateSetUniqueDefault,
+		v.validateDataLocality,
+		v.validateEncryption,
 	}
 
-	return v.validateDataLocality(newObj)
+	for _, validator := range validators {
+		if err := validator(newObj); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (v *storageClassValidator) Update(_ *types.Request, _ runtime.Object, newObj runtime.Object) error {
 	return v.validateSetUniqueDefault(newObj)
+}
+
+func (v *storageClassValidator) Delete(_ *types.Request, obj runtime.Object) error {
+	sc := obj.(*storagev1.StorageClass)
+	return v.validateVMImageUsage(sc)
 }
 
 // Harvester rejects setting dataLocality as strict-local, because it makes volume non migrateable,
@@ -102,6 +129,83 @@ func (v *storageClassValidator) validateSetUniqueDefault(newObj runtime.Object) 
 		if v, ok := sc.Annotations[util.AnnotationIsDefaultStorageClassName]; ok && v == "true" {
 			return werror.NewInvalidError("default storage class %s already exists, please reset it first", sc.Name)
 		}
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error {
+	newSC := newObj.(*storagev1.StorageClass)
+
+	if value, ok := newSC.Parameters[util.LonghornOptionEncrypted]; !ok {
+		return nil
+	} else if value != "true" {
+		return werror.NewInvalidError(fmt.Sprintf("storage class %s is not for encryption or decryption", newSC.Name), fmt.Sprintf("spec.parameters[%s] must be true", util.LonghornOptionEncrypted))
+	}
+
+	var (
+		secretName      string
+		secretNamespace string
+		missingParams   []string
+	)
+
+	for _, pair := range pairs {
+		name, nameExists := newSC.Parameters[pair[0]]
+		namespace, namespaceExists := newSC.Parameters[pair[1]]
+
+		if !nameExists {
+			missingParams = append(missingParams, pair[0])
+		}
+
+		if !namespaceExists {
+			missingParams = append(missingParams, pair[1])
+		}
+
+		if !nameExists || !namespaceExists {
+			continue
+		}
+
+		if secretName == "" && secretNamespace == "" {
+			secretName = name
+			secretNamespace = namespace
+			continue
+		}
+
+		if secretName != name || secretNamespace != namespace {
+			return werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
+		}
+	}
+
+	if len(missingParams) != 0 {
+		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
+	}
+
+	if secretName != "" && secretNamespace != "" {
+		_, err := v.secretCache.Get(secretNamespace, secretName)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
+			}
+			return werror.NewInvalidError(err.Error(), "")
+		}
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass) error {
+	vmimages, err := v.vmimagesCache.GetByIndex(indexeres.ImageByStorageClass, sc.Name)
+	if err != nil {
+		return err
+	}
+
+	usedVMImages := make([]string, 0, len(vmimages))
+	for _, vmimage := range vmimages {
+		usedVMImages = append(usedVMImages, vmimage.Name)
+	}
+
+	if len(usedVMImages) > 0 {
+		return werror.NewInvalidError(fmt.Sprintf("storage class %s is used by virtual machine images: %s", sc.Name, usedVMImages), "")
 	}
 
 	return nil

@@ -22,6 +22,7 @@ const (
 	ImageByExportSourcePVCIndex           = "harvesterhci.io/image-by-export-source-pvc"
 	ScheduleVMBackupBySourceVM            = "harvesterhci.io/svmbackup-by-source-vm"
 	ScheduleVMBackupByCronGranularity     = "harvesterhci.io/svmbackup-by-cron-granularity"
+	ImageByStorageClass                   = "harvesterhci.io/image-by-storage-class"
 )
 
 func RegisterIndexers(clients *clients.Clients) {
@@ -41,6 +42,7 @@ func RegisterIndexers(clients *clients.Clients) {
 
 	vmImageInformer := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()
 	vmImageInformer.AddIndexer(ImageByExportSourcePVCIndex, imageByExportSourcePVC)
+	vmImageInformer.AddIndexer(ImageByStorageClass, imageByStorageClass)
 
 	vmInformer := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
@@ -48,6 +50,9 @@ func RegisterIndexers(clients *clients.Clients) {
 	svmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache()
 	svmBackupCache.AddIndexer(ScheduleVMBackupBySourceVM, scheduleVMBackupBySourceVM)
 	svmBackupCache.AddIndexer(ScheduleVMBackupByCronGranularity, scheduleVMBackupByCronGranularity)
+
+	scInformer := clients.StorageFactory.Storage().V1().StorageClass().Cache()
+	scInformer.AddIndexer(indexeresutil.StorageClassBySecretIndex, indexeresutil.StorageClassBySecret)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
@@ -113,4 +118,12 @@ func scheduleVMBackupByCronGranularity(obj *harvesterv1.ScheduleVMBackup) ([]str
 	}
 
 	return []string{granularity.String()}, nil
+}
+
+func imageByStorageClass(obj *harvesterv1.VirtualMachineImage) ([]string, error) {
+	sc, ok := obj.Annotations[util.AnnotationStorageClassName]
+	if !ok {
+		return []string{}, nil
+	}
+	return []string{sc}, nil
 }
